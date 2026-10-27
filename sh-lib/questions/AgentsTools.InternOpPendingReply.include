@@ -227,9 +227,11 @@ case "$1" in
 		}
 		## The question joins its session's stored wait now, so an answer is collected even when the asking call is cut off.
 		if [ -n "$pendingSession" ] && [ -n "$pendingOwner" ] ; then
-			DistroAgentsTools --intern-op-wait-for-input "$pendingOwner" --wait-add --wait-session-id "$pendingSession" --wait-source "ask:$pendingId" > /dev/null 2> "$pendingRoot/.$pendingId.wait-add.$$" \
-				|| { echo "$MDSC_CMD: ⛔ ERROR: $pendingId is asked, but it could not join the stored wait of session $pendingSession, so a cut-off call loses its answer until a Wait names it:" >&2 ; cat "$pendingRoot/.$pendingId.wait-add.$$" >&2 ; }
-			rm -f "$pendingRoot/.$pendingId.wait-add.$$"
+			local pendingWaitErr
+			pendingWaitErr="$( mktemp "$pendingRoot/.$pendingId.wait-add.XXXXXX" 2> /dev/null )" || pendingWaitErr=/dev/null
+			DistroAgentsTools --intern-op-wait-for-input "$pendingOwner" --wait-add --wait-session-id "$pendingSession" --wait-source "ask:$pendingId" > /dev/null 2> "$pendingWaitErr" \
+				|| { echo "$MDSC_CMD: ⛔ ERROR: $pendingId is asked, but it could not join the stored wait of session $pendingSession, so a cut-off call loses its answer until a Wait names it:" >&2 ; cat "$pendingWaitErr" >&2 ; }
+			[ "$pendingWaitErr" = /dev/null ] || rm -f "$pendingWaitErr"
 		fi
 		## The id on stdout, because the caller closes this record by it and has no
 		## other way to learn it.
@@ -620,6 +622,8 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$revId" "<pending-reply-id>" pending-reply-revise || { set +e ; return 1 ; }
 		revFile="$MMDAPP/.local/agents/pending/$revId.md"
+		## A closed record is in pending/closed/ (retention, T9): found there, and the revise then refuses it as closed.
+		[ -f "$revFile" ] || revFile="$MMDAPP/.local/agents/pending/closed/$revId.md"
 		[ -f "$revFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $revFile" >&2 ; set +e ; return 1 ; }
 		revIn="$( cat )"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"

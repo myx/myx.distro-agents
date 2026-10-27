@@ -1,0 +1,490 @@
+#!/usr/bin/env bash
+## AgentsHarnessSkills.include: ToolSearch, the Skill tool and the routine prefetch. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+AgentsHarnessToolToolSearch(){ ## query, max_results
+	local toolQuery="$1" toolMax="$2" searchFloor="" searchRc=0
+	## The floor searched is the WHOLE floor, CheckList included: it is a basic tool, and a
+	## search that hid it where it has no place would be the silence the owner forbade. The
+	## call itself refuses with the hint when it has no place (F1.2).
+	if [ -z "$toolQuery" ] ; then
+		printf 'ERROR: ToolSearch: query is required and was empty. Nothing was searched.\n' ; return 0
+	fi
+	if [ -n "$toolMax" ] ; then
+		if ! AgentsHarnessWholeNumber "$toolMax" || [ "$toolMax" -lt 1 ] ; then
+			printf 'ERROR: ToolSearch: max_results must be a whole number of tools, at least 1, got: %s\n' "$toolMax" ; return 0
+		fi
+	else
+		toolMax=5
+	fi
+	if [ -s "$harnessToolSearchFloorFile" ] ; then
+		AgentsHarnessFileText "$harnessToolSearchFloorFile"
+		searchFloor="$harnessFileText"
+	else
+		searchFloor="$( bash "$harnessHere/harness/AgentsHarnessMcpMirror.sh" "" "" )" || searchRc=$?
+	fi
+	case "$searchRc:$searchFloor" in
+		'0:['*']')
+			## Written whole and then renamed, so a reader never meets half a floor.
+			[ -s "$harnessToolSearchFloorFile" ] || { printf '%s' "$searchFloor" > "$harnessToolSearchFloorFile.$$" && mv -f "$harnessToolSearchFloorFile.$$" "$harnessToolSearchFloorFile" ; } 2>/dev/null || rm -f "$harnessToolSearchFloorFile.$$" 2>/dev/null || :
+		;;
+		*)
+			printf 'ERROR: ToolSearch: the harness tool declarations did not render (rc=%s), so nothing was searched. The renderer names the declaration at fault on stderr.\n' "$searchRc" ; return 0
+		;;
+	esac
+	printf '%s' "${searchFloor%]}${harnessMcpToolsJson:-}]" | MDAT_TOOLSEARCH_QUERY="$toolQuery" MDAT_TOOLSEARCH_MAX="$toolMax" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessToolSearch.awk" || searchRc=$?
+	[ "$searchRc" = 0 ] || printf 'ERROR: ToolSearch: the tool catalogue could not be read (rc=%s), so nothing is implied about which tools exist. The reader names the declaration at fault on stderr.\n' "$searchRc"
+}
+
+## Explicit character enumeration rather than a bracket range, which is collation-
+## dependent: `[a-z]` has matched `A` on this estate.
+AgentsHarnessSkillSegmentOk(){ ## one path segment
+	local segRest="$1" segChar
+	case "$segRest" in ''|.|..) return 1 ;; esac
+	while [ -n "$segRest" ] ; do
+		segChar="${segRest%"${segRest#?}"}"
+		segRest="${segRest#?}"
+		case "$segChar" in
+			a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+			A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+			0|1|2|3|4|5|6|7|8|9) ;;
+			-|_|.) ;;
+			*) return 1 ;;
+		esac
+	done
+}
+
+## The first candidate whose folder is named for the skill, or whose frontmatter name is
+## the skill, wins. A candidate glob that matched nothing is a path getline cannot open.
+AgentsHarnessSkillLocate(){ ## skill name, then candidate SKILL.md paths in search order -- prints the folder
+	printf '%s\n' "${@:2}" | LC_ALL=C awk -v wantName="$1" -f "$harnessHere/harness/AgentsHarnessSkillLocate.awk"
+}
+
+## Only the named sections of a Markdown file, |-separated heading texts, each down to the
+## next heading of the same or a higher level; an unknown one is ERROR listing the headings.
+AgentsHarnessSkillSection(){ ## file, sections
+	skillSections="$2" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSkillSection.awk" "$1"
+}
+
+AgentsHarnessPrefetchStamp(){ ## files... -- one line a file: its checksum, size and path; a file that is not there says so
+	local stampFile stampPresent=()
+	for stampFile in "$@" ; do
+		if [ -f "$stampFile" ] && [ -r "$stampFile" ] ; then stampPresent+=( "$stampFile" ) ; else printf 'absent %s\n' "$stampFile" ; fi
+	done
+	[ "${#stampPresent[@]}" -eq 0 ] || LC_ALL=C cksum "${stampPresent[@]}"
+}
+
+## An entry: a line `stamp <n>`, the n lines of the stamp, a line `--`, then the text byte for byte.
+AgentsHarnessPrefetchLoad(){ ## entry file, stamp text, body file -- rc 0, the text in the body file, where the entry carries this stamp
+	local loadCount
+	[ -f "$1" ] || return 1
+	loadCount="$( printf '%s\n' "$2" | wc -l | tr -d ' ' )"
+	[ "$( head -n "$(( loadCount + 2 ))" "$1" 2> /dev/null )" = "stamp $loadCount"$'\n'"$2"$'\n'"--" ] || return 1
+	tail -n "+$(( loadCount + 3 ))" "$1" > "$3" 2> /dev/null
+}
+
+AgentsHarnessPrefetchStore(){ ## entry file, stamp text, body file -- written beside the entry and renamed over it
+	local storeTemp storeCount
+	mkdir -p "${1%/*}" 2> /dev/null || return 0
+	storeTemp="$( mktemp "$1.XXXXXX" 2> /dev/null )" || return 0
+	storeCount="$( printf '%s\n' "$2" | wc -l | tr -d ' ' )"
+	{ printf 'stamp %s\n%s\n--\n' "$storeCount" "$2" ; cat "$3" ; } > "$storeTemp" 2> /dev/null && mv -f "$storeTemp" "$1" 2> /dev/null || rm -f "$storeTemp"
+	return 0
+}
+
+AgentsHarnessPrefetchEntry(){ ## entry file, body file, stamp text, build function -- prints cache or built; rc 1 where there is no text
+	if AgentsHarnessPrefetchLoad "$1" "$3" "$2" && [ -s "$2" ] ; then printf 'cache' ; return 0 ; fi
+	"$4" > "$2" 2> /dev/null || return 1
+	[ -s "$2" ] && [ "$( head -c 6 "$2" )" != "ERROR:" ] || return 1
+	AgentsHarnessPrefetchStore "$1" "$3" "$2"
+	printf 'built'
+}
+
+AgentsHarnessPrefetchRead(){
+	local readRc=0
+	harnessSkillWhole=1
+	AgentsHarnessToolSkill "$agentsPrefetchReadName" "$agentsPrefetchReadFile" "" "" "" "" "" "$agentsPrefetchReadSections" || readRc=$?
+	harnessSkillWhole=""
+	return "$readRc"
+}
+
+## The reads a task tells the run to make with sections: every `{name: <skill>, file: <file>, section: <sections>}` in the text on stdin,
+## one line each, the three separated by tabs.
+AgentsHarnessPrefetchTaskReads(){
+	LC_ALL=C awk '
+		{
+			line = $0 ;
+			while ( match( line, /\{name: [A-Za-z0-9_.-]+, file: [A-Za-z0-9_.-]+, section: [^}]+\}/ ) ) {
+				found = substr( line, RSTART + 1, RLENGTH - 2 ) ;
+				line = substr( line, RSTART + RLENGTH ) ;
+				name = found ; sub( /^name: /, "", name ) ; sub( /,.*$/, "", name ) ;
+				file = found ; sub( /^[^,]*, file: /, "", file ) ; sub( /,.*$/, "", file ) ;
+				sections = found ; sub( /^.*, section: /, "", sections ) ;
+				print name "\t" file "\t" sections ;
+			}
+		}
+	'
+}
+
+AgentsHarnessPrefetchRoutineText(){
+	AgentsToolsSpawnRoutineMixText "$agentsPrefetchRoutineFile"
+}
+
+AgentsHarnessPrefetchRecordKey(){ ## record file, key -- the value of a line of its front matter
+	LC_ALL=C awk -v key="$2" 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit }' "$1" 2> /dev/null
+}
+
+AgentsHarnessPrefetchBuild(){
+	local pfRoot="${MDAT_SKILLSET_ROOT:-}" pfMember="$harnessAgent" pfCacheDir pfStamp pfHow pfBody="$harnessScratch/prefetch.body" pfRoutineBody="$harnessScratch/prefetch.routine"
+	local pfRecord pfPolicy="" pfRoutine="" pfKindFile pfText="" pfReads="" pfWhat pfHits=0 pfBuilt=0 pfCount=0 pfArmed="" pfName pfFile pfSections pfWanted pfPath pfTask=0 pfBlank=$'\n\n'
+	local pfMemberText="" pfSessionReads="" pfRead pfRoutineText=""
+	[ "${MDAT_HARNESS_PREFETCH:-on}" != "off" ] || return 0
+	[ -z "$harnessToolOnly" ] && [ -n "$pfMember" ] && [ -n "$harnessSystemShared" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -z "${MDAT_HARNESS_RESUME_CONTEXT:-}" ] || return 0
+	[ -n "${MMDAPP:-}" ] && [ -n "$pfRoot" ] && [ -f "$pfRoot/$pfMember/$pfMember.armed.md" ] || return 0
+	pfCacheDir="$MMDAPP/.local/agents/prefetch"
+	## The reads, in the order a member is told to make them: its armed file, then those its task names with sections.
+	pfWanted="$pfMember"$'\t'"$pfMember.armed.md"$'\t'
+	while IFS= read -r pfName ; do
+		[ -z "$pfName" ] || [ "$pfTask" -ge 6 ] || { pfWanted="$pfWanted"$'\n'"$pfName" ; pfTask=$(( pfTask + 1 )) ; }
+	done <<< "$( printf '%s\n' "$harnessPrompt" | AgentsHarnessPrefetchTaskReads )"
+	while IFS=$'\t' read -r pfName pfFile pfSections ; do
+		AgentsHarnessSkillSegmentOk "$pfName" && AgentsHarnessSkillSegmentOk "$pfFile" && [ -f "$pfRoot/$pfName/$pfFile" ] || continue
+		case $'\n'"$pfReads" in *$'\t'"$pfName"$'\t'"$pfFile"$'\t'"$pfSections"$'\n'*) continue ;; esac
+		pfPath="$pfRoot/$pfName/$pfFile"
+		agentsPrefetchReadName="$pfName" agentsPrefetchReadFile="$pfFile" agentsPrefetchReadSections="$pfSections"
+		pfStamp="$pfName"$'\t'"$pfFile"$'\t'"$pfSections"$'\n'"$( AgentsHarnessPrefetchStamp "$pfPath" "$harnessHere/harness/AgentsUniversalHarness.sh" "$harnessHere/harness/AgentsHarnessSkillSection.awk" )" || continue
+		pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/read.$pfName.$pfFile.$( printf '%s' "$pfSections" | LC_ALL=C cksum | LC_ALL=C cut -d ' ' -f 1 )" "$pfBody" "$pfStamp" AgentsHarnessPrefetchRead )" || {
+			## The armed file must come: without it the run is not armed, and there is no prefetch.
+			[ "$pfCount" -gt 0 ] || return 0
+			continue
+		}
+		case "$pfHow" in cache) pfHits=$(( pfHits + 1 )) ;; *) pfBuilt=$(( pfBuilt + 1 )) ;; esac
+		pfCount=$(( pfCount + 1 ))
+		[ "$pfCount" -gt 1 ] || pfArmed="$( cat "$pfBody" )"
+		pfReads="$pfReads$( LC_ALL=C cksum < "$pfPath" )"$'\t'"$pfName"$'\t'"$pfFile"$'\t'"$pfSections"$'\n'
+		printf -v pfRead '{name: %s, file: %s%s}, read for you before your task:\n\n%s' "$pfName" "$pfFile" "${pfSections:+, section: $pfSections}" "$( cat "$pfBody" )"
+		## The member layer is the armed file, and it comes first; what the task names is the session layer, and it comes after the
+		## routine's text below. The provider caches only the exact prefix, so the two must not be interleaved (F10.7).
+		if [ "$pfCount" -eq 1 ] ; then
+			pfMemberText="$pfRead"
+		else
+			pfSessionReads="${pfSessionReads}${pfSessionReads:+$pfBlank}${pfRead}"
+		fi
+	done <<< "$pfWanted"
+	[ "$pfCount" -gt 0 ] || return 0
+	pfText="## Your role's armed content -- the same for every session of $pfMember"$'\n\n'"$pfMemberText"
+	## THE MEMBER+ LAYER (S7.1), a work-duty's alone: the member's extended text, right after its armed content and before everything of the session, so every
+	## work-duty session of the member shares it. The optional skillset file <member>/<member>.armed-extended.md; without it there is no such layer.
+	if [ -r "$pfRoot/$pfMember/$pfMember.armed-extended.md" ] && AgentsHarnessWorkDuty ; then
+		printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "## Member+ -- more of the text of $pfMember, the same for every work-duty session of $pfMember" "$( cat "$pfRoot/$pfMember/$pfMember.armed-extended.md" )"
+	fi
+	pfWhat="your own $pfMember.armed.md"
+	[ "$pfCount" -le 1 ] || pfWhat="$pfWhat, the sections of the team's files that your task tells you to read"
+	## The routine's text too, where the spawn record asks for the prefix of the routine (`cache-prefix: routine`,
+	## F10.7). A subtask that inherits the parent's prefix names the routine the prefix mixes as `prefix-routine`, not
+	## `routine` -- the two keep a run's own routine apart from the one its cached prefix was built of. A work-duty is
+	## `cache-prefix: armed` and carries its routine in its dispatch instead (AgentsTools.WorkDutyDispatch.include).
+	pfRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$MDAT_SPAWN_SESSION_ID.spawn.md"
+	if [ -f "$pfRecord" ] ; then
+		pfPolicy="$( AgentsHarnessPrefetchRecordKey "$pfRecord" cache-prefix )" ; pfRoutine="$( AgentsHarnessPrefetchRecordKey "$pfRecord" prefix-routine )"
+		[ -n "$pfRoutine" ] || pfRoutine="$( AgentsHarnessPrefetchRecordKey "$pfRecord" routine )"
+		## The four layers: team, member, session, and the tool floor before them; a work-duty has the team+ and member+ layers too (S7.1),
+		## each of an optional extended skillset file. The session layer has the rest: the routine of every session whose policy carries one, its dispatch,
+		## its task and its per-task reads.
+	fi
+	if [ "$pfPolicy" = routine ] && [ -n "$pfRoutine" ] && AgentsHarnessSkillSegmentOk "$pfRoutine" ; then
+		type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include" 2> /dev/null || :
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+		agentsPrefetchRoutineFile="$( AgentsToolsSpawnRoutineResolve "$pfRoutine" 2> /dev/null )" || agentsPrefetchRoutineFile=""
+		if [ -f "$agentsPrefetchRoutineFile" ] ; then
+			pfKindFile="$( AgentsToolsSpawnRoutineKindPath "$agentsPrefetchRoutineFile" 2> /dev/null )" || pfKindFile=""
+			## No further condition: the policy names the routine, and the routine's own text is the session's first item.
+			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/session/AgentsTools.SpawnRoutine.include" \
+				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" \
+				$( AgentsToolsSpawnRoutineIncludePaths "$agentsPrefetchRoutineFile" 2> /dev/null ) )"
+			if pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/routine.$pfRoutine" "$pfRoutineBody" "$pfStamp" AgentsHarnessPrefetchRoutineText )" ; then
+				case "$pfHow" in cache) pfHits=$(( pfHits + 1 )) ;; *) pfBuilt=$(( pfBuilt + 1 )) ;; esac
+				## The routine is the session layer's first item for every policy that carries it: the owner's order puts it
+				## there, before this run's dispatch and task. Two sessions of one member that run the same routine still share
+				## it, because both put it in the same place before their dispatch.
+				printf -v pfRoutineText '%s\n\n%s\n\n%s' "## This session -- the routine" "DistroAgentsSession.fn.sh --get-routine-text $pfRoutine, read for you before your task:" "$( cat "$pfRoutineBody" )"
+				pfWhat="$pfWhat, the text of your routine mixed with the routine of its kind"
+				## What a read of the routine is compared with: the checksum of the mixed text as read, and of the two files it is mixed of.
+				harnessPrefetchRoutineSum="$( LC_ALL=C cksum < "$pfRoutineBody" )" || harnessPrefetchRoutineSum=""
+				harnessPrefetchRoutineFiles="$( LC_ALL=C cksum "$agentsPrefetchRoutineFile" ${pfKindFile:+"$pfKindFile"} | LC_ALL=C awk '{ name = $3 ; sub( /^.*\//, "", name ) ; print $1 " " $2 " " name ; }' )" || harnessPrefetchRoutineFiles=""
+				AgentsToolsPrefetchMarkerWrite "${agentsPrefetchRoutineFile##*/}" "$harnessPrefetchRoutineSum"
+			fi
+		fi
+	fi
+	## The session layer last: the routine first, then what this run's own task tells it to read, then (in the task block) the run's own
+	## roots and its dispatch. Everything the member's sessions share is before all of it, so two sessions that name different sections
+	## still share everything above.
+	[ -z "$pfRoutineText" ] || printf -v pfText '%s\n\n%s' "$pfText" "$pfRoutineText"
+	[ -z "$pfSessionReads" ] || printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "## This session -- what its task tells you to read" "$pfSessionReads"
+	## Armed as the read of the armed file arms: a text that does not arm is no prefetch, and the member reads as before.
+	AgentsHarnessArmNote Skill "{\"name\":\"$pfMember\",\"file\":\"$pfMember.armed.md\"}" "$pfArmed"
+	if [ -z "$harnessArmedAt" ] ; then
+		harnessPrefetchRoutineSum="" ; harnessPrefetchRoutineFiles=""
+		AgentsToolsPrefetchMarkerRemove
+		return 0
+	fi
+	harnessPrefetch="$pfText" ; harnessPrefetchReads="$pfReads" ; harnessPrefetchWhat="$pfWhat"
+	printf '%s\n' "${harnessDim}📥 prefetched the reads of the $pfMember skill into the first message -- ${#pfText} bytes, $pfHits from the cache, $pfBuilt built${harnessOff}" >&2
+	return 0
+}
+
+## Reaches the skillset directly and DELIBERATELY NOT through AgentsHarnessPathAllowed.
+## A member folder under the skillset root is a SYMLINK into whatever source tree owns
+## it, so resolving a candidate with `cd ... && pwd -P` and prefix-matching it against
+## the resolved root refuses every real member file -- the containment check would be
+## correct and the tool would be useless. Containment is held lexically instead, decided
+## before any resolution: a relative name carrying no `..` segment, no leading slash and
+## nothing outside the gated character set cannot name anything the join does not place
+## under the root, whatever that root later resolves to.
+AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, section
+	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7" toolSection="${8:-}"
+	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate skillOther skillOwnSum
+	local skillVendor=()
+	## A member of another workspace is found through the shared registry, never through this workspace's own index.
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	## skill is the native call shape: the name resolved and the skill rendered as the
+	## client does both. A path of its own, apart from name, file and list.
+	if [ -n "$toolSkill" ] ; then
+		skillLeaf="${toolSkill##*:}"
+		skillPrefix=""
+		case "$toolSkill" in :*) printf 'ERROR: Skill: skill has an empty prefix before the colon: %s\n' "$toolSkill" ; return 0 ;; *:*) skillPrefix="${toolSkill%:*}" ;; esac
+		if ! AgentsHarnessSkillSegmentOk "$skillLeaf" ; then
+			printf 'ERROR: Skill: skill does not end in a bare skill name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "$toolSkill" ; return 0
+		fi
+		skillRest="$skillPrefix"
+		while [ -n "$skillRest" ] ; do
+			skillSeg="${skillRest%%/*}"
+			case "$skillRest" in
+				*/*) skillRest="${skillRest#*/}" ;;
+				*)   skillRest="" ;;
+			esac
+			if ! AgentsHarnessSkillSegmentOk "$skillSeg" ; then
+				printf 'ERROR: Skill: skill names a prefix segment that is not a bare name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "$toolSkill" ; return 0
+			fi
+		done
+		if [ -z "$skillPrefix" ] ; then
+			## Team members from the member index, then a member of another workspace by its
+			## name; then a skill the user or a vendor put in $HOME/.claude/skills as a real
+			## folder. A link there is one our installer generated, and is never read back.
+			skillOwnRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}"
+			skillOther="$( AgentsToolsTeamMemberDirectory "$skillLeaf" 2> /dev/null )" || skillOther=""
+			skillVendor=()
+			for skillCandidate in "$HOME/.claude/skills/$skillLeaf" "$HOME"/.claude/skills/*/ ; do
+				skillCandidate="${skillCandidate%/}"
+				[ ! -L "$skillCandidate" ] && [ -f "$skillCandidate/SKILL.md" ] || continue
+				skillVendor+=( "$skillCandidate/SKILL.md" )
+			done
+			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$skillOwnRoot/$skillLeaf/SKILL.md" "$skillOwnRoot"/*/SKILL.md ${skillOther:+"$skillOther/SKILL.md"} ${skillVendor[@]+"${skillVendor[@]}"} )"
+			skillPath="$skillDir/SKILL.md"
+			skillSought="a skill folder or a SKILL.md frontmatter name $skillLeaf under $skillOwnRoot and the real folders of $HOME/.claude/skills"
+		elif [ "$skillPrefix" = anthropic-skills ] ; then
+			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$HOME"/.claude/skills/synced/*/"$skillLeaf"/SKILL.md "$HOME"/.claude/skills/synced/*/*/SKILL.md )"
+			skillPath="$skillDir/SKILL.md"
+			skillSought="a synced skill folder or a SKILL.md frontmatter name $skillLeaf under $HOME/.claude/skills/synced"
+		else
+			## A prefix that can name a plugin is tried as one first, then as a directory.
+			## The plugin folder name is not the plugin name: plugin.json holds that.
+			case "$skillPrefix" in
+				*/*) ;;
+				*)
+					pluginRoot="$( printf '%s\n' "$HOME"/.claude/plugins/synced/*/*/.claude-plugin/plugin.json | LC_ALL=C awk -v wantName="$skillPrefix" -f "$harnessHere/harness/AgentsHarnessPluginNameLocate.awk" )"
+					if [ -n "$pluginRoot" ] ; then
+						skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$pluginRoot/skills/$skillLeaf/SKILL.md" "$pluginRoot"/skills/*/SKILL.md )"
+						skillPath="$skillDir/SKILL.md"
+						if [ -z "$skillDir" ] && [ -f "$pluginRoot/commands/$skillLeaf.md" ] ; then
+							skillDir="$pluginRoot/commands"
+							skillPath="$skillDir/$skillLeaf.md"
+						fi
+					fi
+					skillSought="a plugin named $skillPrefix under $HOME/.claude/plugins/synced holding skill $skillLeaf or commands/$skillLeaf.md, then "
+				;;
+			esac
+			if [ -z "$skillDir" ] ; then
+				pluginRoot=""
+				[ ! -f "$PWD/$skillPrefix/.claude/skills/$skillLeaf/SKILL.md" ] || skillDir="$PWD/$skillPrefix/.claude/skills/$skillLeaf"
+				skillPath="$skillDir/SKILL.md"
+				skillSought="$skillSought$PWD/$skillPrefix/.claude/skills/$skillLeaf/SKILL.md"
+			fi
+		fi
+		if [ -z "$skillDir" ] ; then
+			printf 'ERROR: Skill: no such skill: %s -- looked for %s\n' "$toolSkill" "$skillSought" ; return 0
+		fi
+		if [ ! -r "$skillPath" ] ; then
+			printf 'ERROR: Skill: not readable (permission denied): %s\n' "$skillPath" ; return 0
+		fi
+		skillPluginData="$( [ -z "$pluginRoot" ] || LC_ALL=C awk -v pluginName="$skillPrefix" '{ if ( match($0, /"marketplace_name":"[^"]*"/) ) { pluginId = pluginName "@" substr($0, RSTART + 20, RLENGTH - 21) ; gsub(/[^A-Za-z0-9_-]/, "-", pluginId) ; printf "%s/.claude/plugins/data/%s", ENVIRON["HOME"], pluginId ; exit ; } }' "$pluginRoot.meta.json" 2>/dev/null )"
+		## Values through ENVIRON, which -v would backslash-decode. Arguments go in first and
+		## are never expanded again; the CLAUDE variables are replaced after them, as the
+		## docs define. SESSION_ID, EFFORT, PROJECT_DIR and ! commands have no value here and
+		## stay as written.
+		skillArgs="$toolArgs" skillLabel="$toolSkill" skillBaseDir="$skillDir" skillPluginRoot="$pluginRoot" skillPluginData="$skillPluginData" \
+		LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSkillArgumentsFill.awk" "$skillPath" > "$harnessScratch/skill.out"
+		## A team member's skill is served as one merged bundle instead of its SKILL.md, which stays
+		## a boot file for a native client and puts nothing in the read: the member's basic and armed
+		## files, then the team's, each a section of its own by its file name (--intern-merge-md-files,
+		## AgentsTools.InternMergeMdFiles.include), with every level of theirs kept, so nothing a member
+		## reads is cut to a reference; then the member's tool index below. The SKILL.md is read first,
+		## and its refusal (an ERROR) is the read. A skill whose SKILL.md front matter declares
+		## `status: reference-only` (human-owner) is served as is, its own file.
+		local skillMember="${skillDir##*/}" skillTeamDir="" skillMixins=()
+		if [ -f "$skillDir/$skillMember.basic.md" ] && [ -f "$skillDir/$skillMember.armed.md" ] \
+			&& [ "$( head -c 6 "$harnessScratch/skill.out" )" != "ERROR:" ] \
+			&& [ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^status:[ \t]*reference-only[ \t\r]*$/ { print "yes" ; exit }' "$skillPath" )" != yes ] ; then
+			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+			skillMixins=( --mixin "$skillDir/$skillMember.basic.md" "$skillMember.basic.md" --mixin "$skillDir/$skillMember.armed.md" "$skillMember.armed.md" )
+			if [ "$skillMember" != magic-team ] ; then
+				[ -z "$skillOwnRoot" ] || skillTeamDir="$skillOwnRoot/magic-team"
+				[ -d "$skillTeamDir" ] || skillTeamDir="$( AgentsToolsTeamMemberDirectory magic-team 2> /dev/null )" || skillTeamDir=""
+				if [ -f "$skillTeamDir/magic-team.basic.md" ] && [ -f "$skillTeamDir/magic-team.armed.md" ] ; then
+					## The team's basic file is in the system text of this run when it carries it (harnessSystemShared, F10.7):
+					## it is moved there, so it is left out of the bundle. A served call carries none, and keeps it.
+					[ -n "$harnessSystemShared" ] || skillMixins+=( --mixin "$skillTeamDir/magic-team.basic.md" "magic-team.basic.md" )
+					skillMixins+=( --mixin "$skillTeamDir/magic-team.armed.md" "magic-team.armed.md" )
+				fi
+			fi
+			AgentsToolsMergeMdFiles --section-limit 6 "${skillMixins[@]}" > "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
+				printf 'ERROR: Skill: the basic and armed files of %s could not be merged into the read: %s\n' "$skillMember" "$( head -1 "$harnessScratch/skill.merge.err" )" ; return 0
+			}
+		fi
+		## A member reading its own skill gets its own section of the tool index too, as one
+		## section `Tool index` (--intern-op-tool-index, AgentsTools.InternOpToolIndex.include),
+		## rebuilt first where it is missing or stale. Where no index can be had, the read goes
+		## on without it; why is kept in the scratch, skill.index.err.
+		local skillReader="${harnessAgent:-${MDAT_SPAWN_AGENT:-}}" skillIndex=""
+		if [ -n "$skillReader" ] && [ "$skillReader" = "$skillMember" ] && [ -f "$skillDir/$skillMember.basic.md" ] ; then
+			skillIndex="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-tool-index --ensure 2> "$harnessScratch/skill.index.err" | head -1 )" || skillIndex=""
+			if [ -n "$skillIndex" ] && LC_ALL=C grep -q -x -F -- "# $skillMember" "$skillIndex" 2> /dev/null ; then
+				type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+				printf '\n' >> "$harnessScratch/skill.out"
+				AgentsToolsMergeMdFiles --section-limit 6 --mixin --section-include "$skillMember" "$skillIndex" "Tool index" \
+					>> "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
+					printf 'ERROR: Skill: the tool index section of %s could not be merged into the read: %s\n' "$skillMember" "$( head -1 "$harnessScratch/skill.merge.err" )" ; return 0
+				}
+			fi
+		fi
+		if [ -n "$toolSection" ] ; then
+			AgentsHarnessSkillSection "$harnessScratch/skill.out" "$toolSection" > "$harnessScratch/skill.section" || :
+			mv -f "$harnessScratch/skill.section" "$harnessScratch/skill.out"
+			case "$( head -c 6 "$harnessScratch/skill.out" )" in ERROR:) cat "$harnessScratch/skill.out" ; return 0 ;; esac
+		fi
+		skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
+		if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] || [ "$skillBytes" -gt "$harnessReadCap" ] ; then
+			AgentsHarnessReadRange "$harnessScratch/skill.out" "$toolOffset" "$toolLimit"
+		else
+			cat "$harnessScratch/skill.out"
+		fi
+		return 0
+	fi
+	if [ -z "$toolName" ] ; then
+		printf 'ERROR: Skill: skill or name is required -- skill loads a skill as the native tool does, name reads a file from a skill folder\n' ; return 0
+	fi
+	## `<member>/<file>` in name is the same call as name plus file.
+	case "$toolName" in
+		*/*)
+			[ -n "$toolFile" ] || toolFile="${toolName#*/}"
+			toolName="${toolName%%/*}"
+		;;
+	esac
+	if ! AgentsHarnessSkillSegmentOk "$toolName" ; then
+		printf 'ERROR: Skill: name is not a bare skill folder name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "${toolName:-<none>}" ; return 0
+	fi
+	## The member index holds this workspace's own members; a member of another workspace
+	## is found through the shared registry. A real folder in $HOME/.claude/skills is a
+	## skill the user or a vendor put there; a link there is our own generated output,
+	## never read back.
+	skillDir="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}/$toolName"
+	[ -d "$skillDir" ] || ! skillOther="$( AgentsToolsTeamMemberDirectory "$toolName" 2> /dev/null )" || skillDir="$skillOther"
+	[ -d "$skillDir" ] || [ -L "$HOME/.claude/skills/$toolName" ] || skillDir="$HOME/.claude/skills/$toolName"
+	if [ ! -d "$skillDir" ] ; then
+		printf 'ERROR: Skill: no such skill folder: %s\n' "$toolName" ; return 0
+	fi
+	case "$toolList" in
+		true|1|yes)
+			## -L because a member folder under the skillset root is a symlink into the
+			## tree that owns it, and without it the walk lists that entry without ever
+			## entering it -- printing a clean empty result for a folder full of files.
+			## Names relative to the folder, so each line is a valid `file` argument.
+			( cd "$skillDir" && find -L . -type f | sed -e 's|^\./||' ) > "$harnessScratch/skill.out" 2>&1 || :
+			skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
+			if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] || [ "$skillBytes" -gt "$harnessReadCap" ] ; then
+				AgentsHarnessReadRange "$harnessScratch/skill.out" "$toolOffset" "$toolLimit"
+			else
+				cat "$harnessScratch/skill.out"
+			fi
+			return 0
+		;;
+	esac
+	[ -n "$toolFile" ] || toolFile="SKILL.md"
+	case "$toolFile" in
+		/*)
+			printf 'ERROR: Skill: file is a name inside the skill folder, never an absolute path: %s\n' "$toolFile" ; return 0
+		;;
+	esac
+	skillRest="$toolFile"
+	while [ -n "$skillRest" ] ; do
+		skillSeg="${skillRest%%/*}"
+		case "$skillRest" in
+			*/*) skillRest="${skillRest#*/}" ;;
+			*)   skillRest="" ;;
+		esac
+		if ! AgentsHarnessSkillSegmentOk "$skillSeg" ; then
+			printf 'ERROR: Skill: file names a segment that is not a bare filename -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "$toolFile" ; return 0
+		fi
+	done
+	skillPath="$skillDir/$toolFile"
+	if [ ! -f "$skillPath" ] ; then
+		printf 'ERROR: Skill: no such file in the %s skill folder: %s -- call this again with list set true to see what that folder holds\n' "$toolName" "$toolFile" ; return 0
+	fi
+	## Existence is not readability, and the two are refused separately: without this the
+	## size test below compares an empty value and emits shell noise, not an answer.
+	if [ ! -r "$skillPath" ] ; then
+		printf 'ERROR: Skill: not readable (permission denied): %s\n' "$toolName/$toolFile" ; return 0
+	fi
+	## A read the prefetch (F10.8) made into the first message of this run, asked again as it was made -- the same name, file and
+	## sections, no range -- of a file that is the very bytes it read: said in one line, not read again. harnessPrefetchReads holds
+	## one line a read: the file's checksum and size, a tab, the name, a tab, the file, a tab, the sections.
+	if [ -n "$harnessPrefetchReads" ] && [ -z "$toolOffset$toolLimit" ] ; then
+		skillOwnSum="$( LC_ALL=C cksum < "$skillPath" )"$'\t'"$toolName"$'\t'"$toolFile"$'\t'"$toolSection"
+		case $'\n'"$harnessPrefetchReads"$'\n' in
+			*$'\n'"$skillOwnSum"$'\n'*)
+				printf '%s: %s%s of the %s skill. Nothing was read again.\n' "$harnessPrefetchOneLine" "$toolFile" "${toolSection:+, the sections you asked for,}" "$toolName"
+				return 0
+			;;
+		esac
+	fi
+	## The routine file of this run, or the routine file of its kind, whole, while the text of the routine mixed with its kind that the
+	## prefetch read into the first message is unchanged: said in one line, not read again (AgentsToolsPrefetchRoutineUnchanged).
+	if [ -n "$harnessPrefetchRoutineSum" ] && [ -z "$toolSection$toolOffset$toolLimit" ] ; then
+		skillOwnSum="$( LC_ALL=C cksum < "$skillPath" ) $toolFile"
+		case $'\n'"$harnessPrefetchRoutineFiles"$'\n' in
+			*$'\n'"$skillOwnSum"$'\n'*)
+				if AgentsToolsPrefetchRoutineUnchanged "$agentsPrefetchRoutineFile" "${agentsPrefetchRoutineFile##*/}" "$harnessPrefetchRoutineSum" ; then
+					printf '%s: %s, as part of the text of %s mixed with the routine of its kind. Nothing was read again.\n' "$harnessPrefetchOneLine" "$toolFile" "${agentsPrefetchRoutineFile##*/}"
+					return 0
+				fi
+			;;
+		esac
+	fi
+	## section narrows the file to the named headings first; offset, limit and the cap then
+	## apply to that text, as they do to a whole file.
+	if [ -n "$toolSection" ] ; then
+		AgentsHarnessSkillSection "$skillPath" "$toolSection" > "$harnessScratch/skill.out" || :
+		case "$( head -c 6 "$harnessScratch/skill.out" )" in ERROR:) cat "$harnessScratch/skill.out" ; return 0 ;; esac
+		skillPath="$harnessScratch/skill.out"
+	fi
+	if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] ; then
+		AgentsHarnessReadRange "$skillPath" "$toolOffset" "$toolLimit"
+		return 0
+	fi
+	## Capped and said so, exactly as Read states its own cap.
+	skillBytes="$( wc -c < "$skillPath" | tr -d ' ' )"
+	if [ "$skillBytes" -gt "$harnessReadCap" ] && [ -z "$harnessSkillWhole" ] ; then
+		AgentsHarnessReadRange "$skillPath" 1 ""
+	else
+		cat "$skillPath"
+	fi
+}

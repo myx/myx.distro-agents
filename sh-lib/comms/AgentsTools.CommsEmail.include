@@ -18,24 +18,38 @@ type AgentsToolsCommsChannelParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 AgentsToolsCommsEmailAddress(){ ## channel-id
 	local emailParts emailService emailAddress
 	emailParts="$( AgentsToolsCommsChannelParse "$1" )" || return 1
-	emailService="${emailParts%%$'\t'*}" ; emailAddress="${emailParts#*$'\t'}" ; emailAddress="${emailAddress%%$'\t'*}"
+	emailService="$( printf '%s\n' "$emailParts" | LC_ALL=C sed -n 's/^SERVICE=//p' )" ; emailAddress="$( printf '%s\n' "$emailParts" | LC_ALL=C sed -n 's/^ADDRESS=//p' )"
 	[ "$emailService" = email ] || return 1
 	[ -n "$emailAddress" ] || return 1
 	printf '%s\n' "$emailAddress"
 }
 
-## Send a text to an `email:<address>` channel: the team's own email send, to the address the channel-id names,
-## acting as magic-coordinator. The subject and the body are the trailing arguments, the body on standard input.
+## The address a value names: an `email:<address>` channel-id (its address), a bare address (itself), or a declared name
+## (the address of the first email channel it declares, AgentsToolsCommsChannelResolveDeclared). rc 1, nothing printed,
+## for a channel-id of another service, an empty one, and a name that declares no email channel.
+AgentsToolsCommsEmailResolveAddress(){ ## channel-id, bare address or declared name
+	local resolveValue="$1" resolveAddress=""
+	case "$resolveValue" in
+		*:*) AgentsToolsCommsEmailAddress "$resolveValue" ; return $? ;;
+		*@*) printf '%s\n' "$resolveValue" ; return 0 ;;
+	esac
+	resolveAddress="$( AgentsToolsCommsChannelResolveDeclared "$resolveValue" | LC_ALL=C awk 'index( $0, "email:" ) == 1 { print substr( $0, 7 ) ; exit }' )"
+	[ -n "$resolveAddress" ] || return 1
+	printf '%s\n' "$resolveAddress"
+}
+
+## Send a text to an email channel, as the member: the team's own email send, to the address the value names (a channel-id,
+## an address or a declared name). The subject is the trailing argument, the body is on standard input.
 ## Prints the send's own output; rc 0 sent, rc 1 refused (nothing sent).
-AgentsToolsCommsEmailSend(){ ## channel-id, subject, then the body on stdin
-	local emailChannel="$1" emailSubject="$2" emailAddress
-	emailAddress="$( AgentsToolsCommsEmailAddress "$emailChannel" )" || {
-		echo "⛔ ERROR: $MDSC_CMD: $emailChannel is no email:<address> channel-id -- the email driver reaches email:<address> alone. Nothing was sent." >&2
+AgentsToolsCommsEmailSend(){ ## member, channel-id or declared name, subject, then the body on stdin
+	local emailMember="$1" emailChannel="$2" emailSubject="${3:-}" emailAddress
+	emailAddress="$( AgentsToolsCommsEmailResolveAddress "$emailChannel" )" || {
+		echo "⛔ ERROR: $MDSC_CMD: $emailChannel names no email address -- the email driver reaches email:<address>, an address or a name that declares an email channel. Nothing was sent." >&2
 		return 1
 	}
 	[ -n "$emailSubject" ] || {
 		echo "⛔ ERROR: $MDSC_CMD: an email needs a subject. Nothing was sent." >&2
 		return 1
 	}
-	DistroAgentsTools --intern-op-comms-email-send magic-coordinator "$emailAddress" -- "$emailSubject" "$( cat )"
+	DistroAgentsTools --intern-op-comms-email-send "$emailMember" "$emailAddress" -- "$emailSubject" -- --from-stdin
 }

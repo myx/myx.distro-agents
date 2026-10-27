@@ -191,7 +191,7 @@ rigAssert "warden-* with no member is refused by the spawner: rc 1, no session, 
 	"$rigRc $( LC_ALL=C grep -c '^SESSION_ID=' "$rigTmp/start.out" || : ) $( LC_ALL=C grep -c -E "warden-\*.*type warden.*name the members" "$rigTmp/start.err" || : )" "1 0 1"
 rigSpawn magic-coordinator.one.routine.md
 rigAssert "client-? is never auto-selected, even with two members available: rc 1, no session, and the hint asks for ONE member" \
-	"$rigRc $( LC_ALL=C grep -c '^SESSION_ID=' "$rigTmp/start.out" || : ) $( LC_ALL=C grep -c -F -- 'name the one member to start' "$rigTmp/start.err" || : )" "1 0 1"
+	"$rigRc $( LC_ALL=C grep -c '^SESSION_ID=' "$rigTmp/start.out" || : ) $( LC_ALL=C grep -c -F -- 'name the one member to start' "$rigTmp/start.err" || : ) $( LC_ALL=C grep -c -x -e '  client-ndm' -e '  client-acme' "$rigTmp/start.err" || : )" "1 0 1 2"
 rigSpawn magic-coordinator.one.routine.md client-acme
 rigAssert "client-? asked with one member named starts exactly that member, and MEMBERS= carries it" \
 	"$rigRc $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 }' "$rigTmp/start.out" )" "0 client-acme"
@@ -199,6 +199,25 @@ rigAssert "client-? asked with one member named starts exactly that member, and 
 rigSpawn magic-coordinator.one.routine.md client-ndm
 rigAssert "the same routine asked with the other member starts the other member: the choice, not the first of the type" \
 	"$rigRc $( LC_ALL=C awk -F= '$1 == "MEMBERS" { print $2 }' "$rigTmp/start.out" )" "0 client-ndm"
+
+echo "-- 4. the slots a form offers, by the same rule, and the facts-only list --"
+rigSlots(){ ## selector -- its slot rows, TABs shown as |, one line
+	rigRun --manager-routine-slots "$1"
+	LC_ALL=C tr '\t' '|' < "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
+}
+rigAssert "client-*: all, both members; warden-*: none; client-?: choose, both candidates; the call ends 0 and starts nothing" \
+	"$( rigSlots magic-coordinator.clients.routine.md )/$( rigSlots magic-coordinator.wardens.routine.md )/$( rigSlots magic-coordinator.one.routine.md )/$rigRc $( LC_ALL=C grep -c '^SESSION_ID=' "$rigTmp/out" || : )" \
+	"$( printf 'slot|executors|client-*|all|%s ' "$( rigRun --manager-routine-slots magic-coordinator.clients.routine.md ; LC_ALL=C cut -f5- "$rigTmp/out" | LC_ALL=C tr '\t' '|' )" )/slot|executors|warden-*|none /$( printf 'slot|executors|client-?|choose|%s ' "$( rigRun --manager-routine-slots magic-coordinator.one.routine.md ; LC_ALL=C cut -f5- "$rigTmp/out" | LC_ALL=C tr '\t' '|' )" )/0 0"
+rigAssert "the members of a choice and of a type are the members of the type" \
+	"$( rigRun --manager-routine-slots magic-coordinator.one.routine.md ; LC_ALL=C cut -f5- "$rigTmp/out" | LC_ALL=C tr '\t' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "client-acme client-ndm "
+rigAssert "participants: a named executor and a client-* choice side by side, and the standing keyword with none present" \
+	"$( rigSlots magic-coordinator.oneinv.routine.md | LC_ALL=C sed 's/client-acme|client-ndm/C/; s/client-ndm|client-acme/C/' )/$( rigSlots magic-coordinator.present.routine.md )" \
+	"slot|executors|magic-coordinator|named|magic-coordinator slot|participants|client-?|choose|C /slot|executors|magic-coordinator|named|magic-coordinator slot|participants|all-present-members|none "
+rigRun --manager-routine-slots
+rigAssert "no selector: refused, rc 1" "$rigRc $( LC_ALL=C grep -c -F 'syntax is <routine selector>' "$rigTmp/err" )" "1 1"
+rigRun --manager-routine-list --facts-only
+rigAssert "facts-only: client-* is startable, as the spawner partitions it; client-? still needs its member named" \
+	"$( rigFieldOf magic-coordinator.clients.routine.md 4 ) $( rigFieldOf magic-coordinator.one.routine.md 4 ) $( rigFieldOf magic-coordinator.one.routine.md 10 )" "startable not-startable members"
 
 ## The runs the starts made close their records apart from this check.
 rigLeft=90

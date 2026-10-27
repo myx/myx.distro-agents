@@ -48,6 +48,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigCore="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 rigSlice="$rigHere/harness/AgentsHarnessJsonField.awk"
 rigMirror="$rigHere/harness/AgentsHarnessMcpMirror.sh"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -146,7 +147,7 @@ LC_ALL=C awk '
 	toolName != "" && ( /eval "/ || /bash -c / ) {
 		if ( !seenTool[toolName]++ ) print toolName ;
 	}
-' "$rigCore" > "$rigTmp/executors"
+' <( rigHarnessCat ) > "$rigTmp/executors"
 
 rigFails=0
 rigAssert(){ ## what is asserted, got, want

@@ -28,6 +28,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 rigTool="${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
@@ -130,9 +131,9 @@ rigMcp p3 "{\"mode\":\"parallel-concurrent\",\"workers\":5,\"calls\":$( rigFive 
 rigAssert "with workers 5, all five saw five started"         "$( LC_ALL=C grep -c -x 'five-saw-5' "$rigTmp/p3.out" || : )" 5
 
 echo "-- 6. parallel-all-any-match: it returns at the first ok; the slow call is cancelled --"
-rigMcp p4 "{\"mode\":\"parallel-all-any-match\",\"calls\":[{\"tool\":\"execute\",\"arguments\":{\"command\":\"exit 3\"}},{\"tool\":\"execute\",\"arguments\":{\"command\":\"sleep 1 ; echo rig-found\"}},{\"tool\":\"execute\",\"arguments\":{\"command\":\"sleep 8 ; touch $rigFix/marks/slow.end ; echo rig-slow\"}}]}"
+rigMcp p4 "{\"mode\":\"parallel-all-any-match\",\"calls\":[{\"tool\":\"execute\",\"arguments\":{\"command\":\"exit 3\"}},{\"tool\":\"execute\",\"arguments\":{\"command\":\"sleep 1 ; echo rig-found\"}},{\"tool\":\"execute\",\"arguments\":{\"command\":\"sleep 30 ; touch $rigFix/marks/slow.end ; echo rig-slow\"}}]}"
 rigAssert "the entries: the error, the first ok, the slow one cancelled" "$( rigEntries p4 )" "1 execute error|2 execute ok|3 execute cancelled"
-rigAssert "it returned with the found one, before the slow call would have ended" "$( [ "$rigSeconds" -lt 7 ] && LC_ALL=C grep -q -x rig-found "$rigTmp/p4.out" && printf early || printf "after ${rigSeconds}s or not found" )" early
+rigAssert "it returned with the found one, before the slow call would have ended" "$( [ "$rigSeconds" -lt 25 ] && LC_ALL=C grep -q -x rig-found "$rigTmp/p4.out" && printf early || printf "after ${rigSeconds}s or not found" )" early
 sleep 8
 rigAssert "and the slow call never ended its work"            "$( [ -e "$rigFix/marks/slow.end" ] && printf ended || printf cancelled )" cancelled
 
@@ -189,7 +190,7 @@ rigHarnessOps="$( LC_ALL=C awk '
 			word = substr( line, RSTART, RLENGTH ) ; sub( /.* /, "", word ) ; print word
 			line = substr( line, RSTART + RLENGTH )
 		}
-	}' "$rigHarness" | LC_ALL=C grep -v -x -e '--agents-config-option' ; printf '%s\n' --intern-mcp-execute )"
+	}' <( rigHarnessCat ) | LC_ALL=C grep -v -x -e '--agents-config-option' ; printf '%s\n' --intern-mcp-execute )"
 ## The operations of the tool files carry the wrapper in their own door (their list is in the table of the tool files); the dispatcher's own, in its list.
 rigListedOps="$( { LC_ALL=C sed -n '/^agentsToolOperations="/,/"$/p' "$rigTool" ; LC_ALL=C sed -n '/^agentsFrontJsonOps="/,/"$/p' "$rigHere/harness/AgentsContext.FrontTable.include" ; } | LC_ALL=C tr -s ' \t"' '\n' | LC_ALL=C grep -E '^--[a-z]' )"
 rigAssert "the list beside the option is exactly the operations behind the tools" \

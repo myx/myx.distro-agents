@@ -117,9 +117,9 @@ rigAssert "a path under the machine's skillset is shown by that name" "$( rigSay
 rigAssert "one under the member set by its name, not the workspace's" "$( rigSays --intern-directory-of "$rigMembers/keeper-real/b.md" )" "0:.skillset-.local:keeper-real/b.md|"
 rigAssert "control: another path of the workspace keeps the workspace's name" "$( rigSays --intern-directory-of "$rigMain/source/rig/rig-proj/project.inf" )" "0:ws-main:source/rig/rig-proj/project.inf|"
 rigRun --list-places
-rigAssert "the members' list holds both, first, with no path" "$rigRc:$( head -2 "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' ):$( LC_ALL=C grep -c / "$rigTmp/out" )" "0:.skillset-shared directory read-write|.skillset-.local directory read-write|:0"
+rigAssert "the members' list holds both, among the directories, with no path" "$rigRc:$( LC_ALL=C grep '^\.' "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' ):$( LC_ALL=C grep -c / "$rigTmp/out" )" "0:.skillset-.local directory read-write|.skillset-shared directory read-write|:0"
 rigRun --owner-workspace-list
-rigAssert "the owner's list holds both, with their folders"   "$rigRc:$( head -2 "$rigTmp/out" | rigCut | LC_ALL=C tr '\t\n' ' |' )" "0:.skillset-shared directory read-write T/home/.claude/skills present|.skillset-.local directory read-write T/ws-main/.local/agents/members present|"
+rigAssert "the owner's list holds both, with their folders"   "$rigRc:$( LC_ALL=C grep '^\.' "$rigTmp/out" | rigCut | LC_ALL=C tr '\t\n' ' |' )" "0:.skillset-.local directory read-write T/ws-main/.local/agents/members present|.skillset-shared directory read-write T/home/.claude/skills present|"
 rigAssert "a permission shows its target by the name"         "$( rigSays --intern-op-permission-place magic-coordinator "$rigSkills/keeper-local/a.md" )" "0:.skillset-shared:keeper-local/a.md|"
 rigRun --intern-op-permission-holds magic-coordinator Read "$rigSkills/keeper-local/a.md"
 rigAssert "the grants index holds both as places, read-write" "$( LC_ALL=C awk -F'\t' '$1 == "*" && $2 == "ceiling" && index( $6, "." ) == 1 { print $6 " " $5 }' "$rigMain/.local/agents/grants.index" 2> /dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )" ".skillset-.local read-write|.skillset-shared read-write|"

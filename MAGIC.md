@@ -57,7 +57,7 @@ that the code and docs do not readily tell you.
   share one arm per platform. `--intern-op-atlassian-*` → `AgentsTools.InternOpAtlassianCall.include`.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
   two arms are identical today. `--manager-*` → `sh-lib/manager/AgentsTools.Manager.include`, one further
-  include per subject, `AgentsTools.Manager<Subject>.include`: `Session`, `Routine`, `Spawn`, `Config`,
+  include per subject, `AgentsTools.Manager<Subject>.include`: `Session`, `Routine`, `Schedule`, `Spawn`, `Config`,
   `TeamMember`, `TeamData`, `PendingReply`, `Dashboard`, `Place`, `Console`, `Check`, `Keys`, `Command`, `Feature`,
   `Help`, `Manual`.
 - **One team, two organisations.** A call reaches our own organisation unless it is on the client
@@ -796,6 +796,20 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   defaults to `http://127.0.0.1:8181/v1`, where local AI serves its chat models (`AgentsLocalHarness.sh`).
   `PRESET_ENDPOINT_URL` is an https URL, and http only for `127.0.0.1`, `[::1]` and `localhost`
   (`AgentsTools.Preset.include`).
+- **`AgentLibrarianTools.fn.sh --skillset-size [<team-member>...]` is the instrument for the size of the skillset**
+  (`AgentsTools.LibrarianSkillsetSize.include`): a `file` row for each file of each registered member (lines, bytes;
+  lines `-` for a file with a NUL), a `member` row for each member and one `total`. Dot names are no part of it. It
+  reads only. `AgentsLibrarianSkillsetSizeCheck` holds it.
+- **`--manager-feature-models [--profile P] [--all] [--yes]` installs the agreed set of open models by one
+  command** (the console's Configuration): the speech model, the profile's default chat model (`--all`: every
+  chat model of `models.tsv`) and the LanceDB embedding model. The profile is the option, else the host's own
+  (`host.profile` of the local AI check). It plans first (`set`, `model`, `total` rows) and does the work only
+  with `--yes`, by `--manager-feature-part install` (`update` for a broken part), one part at a time, a failed
+  part not stopping the rest (`result`, `end` rows). `AgentsManagerFeatureCheck` holds it.
+- **A member's send into the event-track channel keeps the channel's outbox rules** (`AgentsTools.MemberCommsSlack.include`,
+  before its POST): what is queued for the channel is drained first, the 7 s window since its last message is
+  waited out, and the moment of the post is noted. The post is the member's own, not a tracking post, and is not
+  collected with others. `AgentsEventTrackMemberSendCheck` holds it. The spawn proxy's root post stays direct.
 - **`--token-stats` and `--manager-stats-tokens` take `--average` and `--share`**: the average of a run, and
   the share of the `in` tokens of a key in the total and in the largest key, computed by the tooling
   (`AgentsToolsStatsTokens`, `AgentsTools.DispatcherStats.include`); the console draws and computes none.
@@ -1228,6 +1242,19 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   its seat is no running participant.
 - **`--spawn-session`** resolves the routine once, spawns the executors (or explicit members) async
   with `--dispatch-doc:create`, the first starting the session and the rest joining by its `SESSION_ID=`.
+  A `<type>-*` in the routine's executors or the caller's, and two or more members the caller names, partition
+  the run instead: one session per member under an agent-less parent, whose id is the `SESSION_ID=`. The parent
+  owns the run as its caller: each child carries `reports-to:` the caller's `<session>:<member>` (else
+  `user-<account>`), and the parent's `sessions/<id>/session.thread` is the caller's thread. A caller's
+  `<type>-?` is never resolved by the tooling, from the caller or a routine header, even with one member:
+  the start is refused and lists the candidates, one a line (`AgentsToolsSpawnRoutineEntryMembers`, the one
+  rule of both sides). The parent's record is written before the first child; it names the children started
+  (a failure partway included, and the error names them), its watcher's `run-process:` and `host:`, and
+  `session-comment: agent-less parent of <routine>` for the rosters. Its watcher, or housekeeping where the
+  watcher is gone, closes it from the children's outcomes (`AgentsToolsSpawnSessionParentClose`), with one
+  line in the caller's thread naming each child and its outcome. Scans that take an open
+  magic-coordinator-owned record as a coordinator run skip `agent-less: true`, and a `reports-to:` whose
+  caller no longer runs falls back as the route's own steps do.
   A wildcard or prose `executors` value is refused: the one function behind this,
   `AgentsToolsSpawnRoutineExecutorsRoster`, is also what `--manager-routine-list` asks to say whether a
   routine is startable. Every member of the call is asked before the first is started, three things: a
@@ -2819,6 +2846,12 @@ op's own option arm.
   covering the entries above it), becoming one Permission set for the asking member's own task; no `to`
   is needed, and one answer grants all of it. A second single-call ask from the same session for the
   same task, once the owner has answered its first, returns a correction ordering a set instead.
+- **A member's own set does not ask again for what is held** (`--intern-op-permission-set-ask`). An entry the
+  asking member holds now, through the session's grants among others, is not asked: the answer is
+  `PERMISSION-SET: held`, nothing posted, no permission edited. An entry another participant with a live run in
+  the session holds returns a correction naming that participant (ask them, or have them pass it on); the same
+  request sent again is asked as it stands, which the marker `sessions/<id>/<refusal>.holder-noted` records.
+  `AgentsPermissionHoldsCheck` holds it.
 - **A further refused call joins a session's already-open permission question** instead of asking anew
   (`--intern-op-escalation-permission-add`), turning the open prompt into one Permission set; an answer
   already given to it is not widened by a later join. An entry's tool is any name the gate can decide,

@@ -448,7 +448,7 @@ rigOne d-wait ; rigSettle d-wait
 rm -f "$rigSlack/replies.json"
 rigCarry d-wait d-wait
 rigAssert "a reply of the one who was asked, by the first word of an option, closes the record with that option, and the line of the death holds it and what was done" \
-	"$( LC_ALL=C sed -n 's/^verdict: //p' "$rigPending/$( rigAskId d-wait d-wait ).md" ):$( rigDeadLine d-wait d-wait | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e 'answer=close' -e 'how=close' ):$( rigHeader d-wait status ):$( rigItemIn item-d-wait )" "close:2:spawn-ended-without-close:processed"
+	"$( LC_ALL=C sed -n 's/^verdict: //p' "$rigPending/closed/$( rigAskId d-wait d-wait ).md" ):$( rigDeadLine d-wait d-wait | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e 'answer=close' -e 'how=close' ):$( rigHeader d-wait status ):$( rigItemIn item-d-wait )" "close:2:spawn-ended-without-close:processed"
 ## A question that was withdrawn.
 rigDeath d-wdrn d-wdrn keeper-rig human-owner
 rigCall --intern-op-pending-reply-close "$( rigAskId d-wdrn d-wdrn )" --if-open --status withdrawn --withdrawn-by magic-coordinator --withdraw-reason "the rig takes it back" --no-decision --context rig > /dev/null 2>&1 < /dev/null

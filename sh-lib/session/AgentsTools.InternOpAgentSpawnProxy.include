@@ -571,6 +571,7 @@ case "$1" in
 	--intern-op-agent-spawn-proxy)
 		shift
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		AgentsToolsStartStepBegin
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -1487,9 +1488,10 @@ case "$1" in
 		## ONE SEAT FOR A MEMBER IN A SESSION (F6.9): a member whose seat in this session a live run
 		## holds (AgentsToolsSessionSeatHolder) is not started there a second time, and is asked
 		## there instead; nor is the member a native client session runs as, in that session. A
-		## restart of the run that holds the seat (--restarted-from) takes it over.
+		## restart of the run that holds the seat (--restarted-from) takes it over. Asked of every start, whatever its context:
+		## a new session has no holder, and a start said `spawned` into a session that has one is a second run all the same.
 		local seatHolder=""
-		if [ "$startContext" != "spawned" ] && seatHolder="$( AgentsToolsSessionSeatHolder "$sessionId" "$callerName" )" && [ "$seatHolder" != "$restartedFromSaid" ] ; then
+		if seatHolder="$( AgentsToolsSessionSeatHolder "$sessionId" "$callerName" )" && [ "$seatHolder" != "$restartedFromSaid" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: 🙋 WARNING: $callerName already runs in session $sessionId: run $seatHolder holds its seat there, so a second run of it is not started -- send it what it should do there instead, with SendMessage to $sessionId:$callerName; nothing was started" >&2
 			set +e ; return 1
 		fi
@@ -1499,6 +1501,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		AgentsToolsStartStepMark prepare
 		## THE WAIT OF A SCAN (`input-scan-def: <scan> --wait <seconds>`), before the lock and before anything is made for the start: a routine whose scan is
 		## empty waits here, up to that long, for input to come, and a start that nothing came to is none -- no lock, no record, no sandbox, no agent -- ending with
 		## one line that says so. With input present the start goes on at once, with the reports the wait made as its scans' own (AgentsToolsInputScanDefAwait).
@@ -1521,6 +1524,7 @@ case "$1" in
 			fi
 		fi
 
+		AgentsToolsStartStepMark scan-wait
 		## THE ROUTINE'S LOCK (F6.2): a routine that names a locking document (`routine-lock-document:`, its own or its kind
 		## routine's) is locked for this session while it starts, or the start fails, before anything below is made. A
 		## member joining the session that holds it passes. It is given back where the last run of the session closes
@@ -1548,6 +1552,7 @@ case "$1" in
 			fi
 		fi
 
+		AgentsToolsStartStepMark routine-lock
 		## A SYNC FOLLOWS A MEMBER'S START (T2): the member's own incoming -- the personal mail of its `start` scope -- is refilled at
 		## once, into its inbox, so the input scans below read fresh incoming. The sync is the tooling's own and best-effort: a member
 		## with no mailbox or a failed source is no fault of the start, and nothing it says stops the spawn. It runs only where this
@@ -1574,6 +1579,7 @@ case "$1" in
 			fi
 		fi
 
+		AgentsToolsStartStepMark incoming-sync
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
 		## dispatch item and the tracking file below carry its `transcript:` from the start.
 		type AgentsTranscriptStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2>/dev/null || :
@@ -1764,6 +1770,7 @@ case "$1" in
 		## the session id.
 		## sessionId itself is already settled, above, before the dispatch item was
 		## created -- only its thread is decided here.
+		AgentsToolsStartStepMark records
 		## A TRACKING THREAD IS NEVER A SESSION THREAD (AgentsToolsEventTrackThreadIs): a session started before
 		## that rule may still hand its tracking thread down as its session thread, or carry it on its records:
 		## here that names no session thread, and the session's own is looked for, and opened, as for any
@@ -1914,6 +1921,7 @@ case "$1" in
 		fi
 
 		## The event-track thread (agent-log-thread): one tooling-maintained Slack thread per
+		AgentsToolsStartStepMark session-thread
 		## COWORKING SESSION, which every participant posts into (AgentsTools.EventTrackThread.include).
 		## This spawn's `start` post (sh-lib/templates/event-track.post.format.md) is its own
 		## start entry, posted once, here, when everything it names is settled, and never edited:
@@ -2024,6 +2032,7 @@ case "$1" in
 		## Named by the session uuid, not by a fixed filename: a joined sandbox holds
 		## one record per spawn that ran under that tracking name, and a fixed name
 		## would have the second spawn overwrite the first one's record.
+		AgentsToolsStartStepMark start-post
 		local sandboxTracking="$sandboxRoot/$MDAT_SPAWN_SESSION_ID.spawn.md"
 		## Where this spawn's handback goes (session-parent): the parent's own session thread,
 		## else magic-coordinator's, settled now, so a parent with no thread still leaves the
@@ -2211,21 +2220,25 @@ case "$1" in
 		elif [ -n "$trackedItemName" ] && [ -n "$trackedItemState" ] ; then
 			sandboxItem="$MDAT_DATA_ROOT/board/$trackedItemState/$trackedItemName"
 		fi
+		AgentsToolsStartStepMark sandbox
 		## THE ROUTINE'S INPUT SCANS (F6.3), run by the spawner itself, after the lock (F6.2) and with no instruction to an agent:
 		## the `input-scan-def:` lines of the routine (its own, else its kind routine's), one for each scan, their macros filled
 		## from this spawn's context, the results saved to input/input-scan.md of the sandbox, which the brief names.
-		local inputScanDef="" inputScanFile=""
+		local inputScanDef="" inputScanFile="" scanStepsFile=""
 		if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
 			inputScanDef="$( AgentsToolsRoutineKeyLines "$routineFilePath" input-scan-def | LC_ALL=C grep -v -x 'none' || : )"
 			if [ -n "$inputScanDef" ] ; then
 				type AgentsToolsInputScanDefRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
 				inputScanFile="$sandboxRoot/.input-scan.md"
-				AgentsToolsInputScanDefRun "$inputScanDef" "$callerName" "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$inputScanFile" || {
+				scanStepsFile="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/scan-steps"
+				: > "$scanStepsFile" 2> /dev/null || scanStepsFile=""
+				MDAT_SCAN_TRACE_FILE="$scanStepsFile" AgentsToolsInputScanDefRun "$inputScanDef" "$callerName" "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$inputScanFile" || {
 					[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 					set +e ; return 1
 				}
 			fi
 		fi
+		AgentsToolsStartStepMark input-scan
 		## THE VARIABLES OF A WORK-DUTY RUN, LAST IN ITS DISPATCH (F10.7): session id, spawn id, started-at and the scan's
 		## result. Everything above them -- the routine, the member's static guidance and the mechanical brief -- is the same
 		## bytes on every work-duty run of the member, so it caches after the first; the sandbox block before them is this run's
@@ -2387,7 +2400,7 @@ case "$1" in
 			## Each reader is signalled only while it is still the process this shell started (AgentsToolsSpawnProxyHelperEnd).
 			trap '[ -z "$spawnPid" ] || [ -n "$parentSessionId" ] || kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan" ; AgentsToolsSpawnProxyHelperEnd "$batchBegan" ; AgentsToolsSpawnProxyHelperEnd "$launchedBegan"' INT TERM
 			## The transcript's start milestone, now that an interrupt reaches the close.
-			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
+			[ -z "$transcriptRel" ] || { AgentsToolsStartStepMark brief-launch ; AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "$( AgentsToolsStartStepsSay "$scanStepsFile" )" 2>/dev/null ; } || :
 			## The bound, where SPAWN_WAIT_TIMEOUT_SECONDS sets one. TERM first so the CLI
 			## reaps its own children; KILL after a grace period for one that ignores TERM.
 			## The watcher's own exit status is how the foreground learns it fired -- a
@@ -2606,7 +2619,7 @@ case "$1" in
 			AgentsToolsSpawnProxyEventTrackLaunched "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" 4>&- &
 			launchedPid=$!
 			launchedBegan="$( AgentsToolsSpawnProxyHelperBegan "$launchedPid" )"
-			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
+			[ -z "$transcriptRel" ] || { AgentsToolsStartStepMark brief-launch ; AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "$( AgentsToolsStartStepsSay "$scanStepsFile" )" 2>/dev/null ; } || :
 			if [ -n "$resumeContextFile" ] ; then
 				type AgentsToolsSpawnProxyHarnessResumeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.HarnessResume.include"
 				AgentsToolsSpawnProxyHarnessResumeRun "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \

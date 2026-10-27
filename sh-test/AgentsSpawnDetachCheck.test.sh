@@ -136,7 +136,13 @@ rigSessionClosed(){
 	local closedSession
 	closedSession="$( LC_ALL=C sed -n 's/^SESSION_ID=//p' "$rigDir/session.out" 2>/dev/null | head -1 )"
 	[ -n "$closedSession" ] || { printf 0 ; return 0 ; }
-	LC_ALL=C grep -l -x 'status: spawn-succeeded' "$rigWs/.local/agents/spawned/$closedSession"/*.spawn.md 2>/dev/null | wc -l | tr -d ' '
+	## Every spawn keeps a folder of its own (spawned/<spawn-id>/<spawn-id>.spawn.md); a member's record names its session as parent-session-id, and the session's own record is no member.
+	local closedFile closedCount=0
+	for closedFile in "$rigWs/.local/agents/spawned"/*/*.spawn.md ; do
+		[ -f "$closedFile" ] || continue
+		LC_ALL=C grep -q -x "parent-session-id: $closedSession" "$closedFile" && LC_ALL=C grep -q -x 'status: spawn-succeeded' "$closedFile" && LC_ALL=C grep -q '^owner: rig-member-' "$closedFile" && closedCount=$(( closedCount + 1 ))
+	done
+	printf '%s' "$closedCount"
 }
 rigSessionClosedAre(){ [ "$( rigSessionClosed )" = "$1" ] ; }
 ## The tracking channel of the rig workspace: with it a session has its tracking thread, and

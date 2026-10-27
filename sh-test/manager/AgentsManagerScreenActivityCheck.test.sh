@@ -25,6 +25,8 @@
 ## session and on an agent, a session of a member that jumps into the sessions' tree, grants that show the condition of a session, no folder of a participant.
 ## Offline: no operation of the real tooling is called.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigScreen="$rigPackage/sh-lib/manager/AgentsManagerScreen.py"
@@ -164,7 +166,7 @@ RIGSCRIPT
 rigAssert "the roots, in order: the Dashboard, Pending Questions second, Magic-Team (Agents), and none of Sessions, Team Members, Team Data" \
 	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace machine settings configuration manuals"
 rigAssert "Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and Team Data only where the team data is there" \
-	"$( rigVal team )" ".. activity launch team routines"
+	"$( rigVal team )" ".. activity launch team routines schedule"
 rigAssert "each shows by its name, and a spacer stands under Launchpad, setting it apart from the members (sketch 14.5)" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal gap | sed 's/ *$//' )][$( rigVal row3 )]" "[ Activity                        ►][ Launchpad                       ►][][ Team Members                    ►]"
 rigAssert "Pending Questions at the root reads the questions, and Magic-Team holds no copy of it" \
 	"$( rigCalled "--read-pending-reply magic-coordinator --any-owner" ) $( printf '%s\n' "$( rigVal team )" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -- 'pending' )" "1 0"

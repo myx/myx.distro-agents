@@ -38,6 +38,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigHere="$rigPackage/sh-lib"
 rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -152,7 +153,7 @@ rigLift="$( LC_ALL=C awk '
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
 	END { if ( seen != 4 ) exit 1 ; }
-' "$rigHarness" )" || rigRefuse "the argument-table functions were not all found in $rigHarness"
+' <( rigHarnessCat ) )" || rigRefuse "the argument-table functions were not all found in $rigHarness"
 rigRefusal(){ ## run name, timeout command or "", tool name, raw arguments -- the harness's own decision, its hooks from the rig's copy of sh-lib
 	local refusalDir="$rigTmp/$1"
 	mkdir -p "$refusalDir" ; : > "$refusalDir/asked"

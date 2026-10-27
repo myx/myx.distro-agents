@@ -159,10 +159,10 @@ AgentsToolsLibrarianPermission(){ ## op, target (<team-member>:<pathname>)
 	return 1
 }
 
-## The source copy of a member's skill, from the member registries (this workspace's, then the machine's): the folder a source-symlink or a
-## source-declared row names, on this machine. Sets it, physical, in `librarianCopy` (a variable, not output: the reason below must survive the call). Not one, else the reason in `librarianWhy` and rc 1: the registry has no row for the
-## member, its rows are installs (a copy under a workspace's .local) or other copies and no source copy, its source copy is not on this
-## machine, or it has more than one.
+## The source copy of a member's skill, from the member registries (this workspace's, then the machine's): the folder a source-symlink or a source-declared row names.
+## It is set, physical, in `librarianCopy` (a variable, not output: the reason below must survive the call).
+## Where there is none, the reason is in `librarianWhy` and the return code is 1.
+## The reasons: no row for the member in the registry; only installs (a copy under a workspace's .local) or other copies; the source copy is not on this machine; or more than one.
 librarianWhy="" librarianCopy="" librarianFile=""
 AgentsToolsLibrarianSourceCopy(){ ## member
 	local copyFile copyRows="" copyKinds="" copyKind copyDir copyReal copyDirs="" copyCount copyMissing="" copyShown=""

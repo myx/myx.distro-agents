@@ -1,0 +1,432 @@
+#!/usr/bin/env bash
+## AgentsHarnessWait.include: dismissal records, seats and the Wait tool. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## The mark's file. rc 1, nothing printed, for a session that keeps none.
+AgentsHarnessDismissedFile(){
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$MDAT_SPAWN_SESSION_ID" || return 1
+	case "$MDAT_SPAWN_SESSION_ID" in .|..) return 1 ;; esac
+	printf '%s' "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dismissed"
+}
+
+## Keeps the dismissal, once: who dismissed this session, as its Wait said it.
+AgentsHarnessDismissedKeep(){ ## who dismissed it (the WAIT-DISMISSED-BY value)
+	local keepFile keepTemp
+	keepFile="$( AgentsHarnessDismissedFile )" || return 0
+	[ ! -f "$keepFile" ] || return 0
+	keepTemp="$( mkdir -p "${keepFile%/*}" && mktemp "$keepFile.tmp.XXXXXX" )" || return 0
+	{ printf '%s\n' "${1:-unknown}" > "$keepTemp" && chmod 644 "$keepTemp" && mv -f "$keepTemp" "$keepFile" ; } 2> /dev/null || rm -f -- "$keepTemp"
+	return 0
+}
+
+## Who dismissed this session, printed. rc 1 for a session that was not dismissed.
+AgentsHarnessDismissedBy(){
+	local byFile byLine=""
+	byFile="$( AgentsHarnessDismissedFile )" || return 1
+	[ -f "$byFile" ] || return 1
+	IFS= read -r byLine < "$byFile" || :
+	printf '%s' "${byLine:-unknown}"
+}
+
+## Why a run that is about to end refused went no further, kept beside the record where the
+## closer reads it into `end-reason` (AgentsToolsSpawnProxyCloseSandboxOnce): the same marker
+## convention the `.harness` and `.armed` files use, so an operator reads the reason on the
+## session's own state rather than digging it out of a log. One line, newlines and tabs
+## collapsed. Nothing for a run no spawn named (a served call, a native CLI), which keeps no
+## such record and no such marker.
+AgentsHarnessRefusalKeep(){ ## the reason, one line
+	local keepRoot="${MDAT_SPAWN_SANDBOX_ROOT:-}" keepSession="${MDAT_SPAWN_SESSION_ID:-}" keepReason keepFile keepTemp
+	[ -n "$keepRoot" ] && [ -n "$keepSession" ] && [ -n "${1:-}" ] || return 0
+	keepFile="$keepRoot/$keepSession.refused"
+	keepReason="$( printf '%s' "$1" | LC_ALL=C tr '\n\t' '  ' )"
+	keepTemp="$( mktemp "$keepFile.tmp.XXXXXX" 2> /dev/null )" || return 0
+	{ printf '%s\n' "$keepReason" > "$keepTemp" 2>/dev/null && chmod 644 "$keepTemp" && mv -f "$keepTemp" "$keepFile" ; } 2>/dev/null || rm -f -- "$keepTemp"
+	return 0
+}
+
+## Each summarise-and-restart of this run, kept beside the run record where the closer reads
+## it into the record's `restarts:` header (AgentsToolsSpawnProxyCloseSandboxOnce): the same
+## marker convention the `.harness`, `.armed` and `.refused` files use. One line per restart,
+## `<number> <the threshold it restarted at> <UTC time>`, so the record says how many and the
+## line itself still says when and at what size. Nothing for a run no spawn named (a served
+## call, a native CLI), which keeps no such record and no such marker.
+AgentsHarnessRestartKeep(){ ## restart number, the threshold it restarted at
+	local keepRoot="${MDAT_SPAWN_SANDBOX_ROOT:-}" keepSession="${MDAT_SPAWN_SESSION_ID:-}" keepFile
+	[ -n "$keepRoot" ] && [ -n "$keepSession" ] || return 0
+	case "$keepSession" in ''|.|..|*/*) return 0 ;; esac
+	keepFile="$keepRoot/$keepSession.restarts"
+	printf '%s %s %s\n' "${1:-0}" "${2:-0}" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" >> "$keepFile" 2> /dev/null || :
+	return 0
+}
+
+## The last line of a result for a dismissed session: what is left for it to do.
+AgentsHarnessDismissedNext(){
+	local nextFile
+	if nextFile="$( AgentsHarnessDismissedFile )" && [ -f "$nextFile.handback" ] ; then
+		printf 'NEXT: you are dismissed and your handback is given -- end your run now, and call nothing more\n'
+	else
+		printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
+	fi
+}
+
+AgentsHarnessDismissedAfter(){ ## tool name
+	local afterFile afterDelay afterSession afterGrace="${MDAT_DISMISSED_END_GRACE:-60}"
+	case "$1" in SubagentHandback|Wait|SendMessage) ;; *) return 0 ;; esac
+	afterFile="$( AgentsHarnessDismissedFile )" && [ -f "$afterFile.handback" ] || return 0
+	if [ -z "$harnessToolOnly" ] ; then
+		harnessDismissedEnd=1
+		return 0
+	fi
+	AgentsHarnessWholeNumber "$afterGrace" || afterGrace=60
+	afterDelay=2 ; [ "$1" != "SubagentHandback" ] || afterDelay="$afterGrace"
+	afterSession="$MDAT_SPAWN_SESSION_ID"
+	type AgentsToolsRegistryRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+	(
+		trap '' HUP INT
+		afterFd=3 ; while [ "$afterFd" -lt 64 ] ; do eval "exec $afterFd>&-" ; afterFd=$(( afterFd + 1 )) ; done
+		sleep "$afterDelay"
+		afterWord="$( AgentsHarnessSessionWordPids "$afterSession" )"
+		afterPids=""
+		for afterPid in $afterWord ; do
+			[ "$( ps -p "$afterPid" -ww -o args= 2> /dev/null | AgentsToolsRegistryRunWords )" != "$afterSession" ] || afterPids="$afterPids $afterPid"
+		done
+		[ -n "$afterPids" ] || [ -n "$afterWord" ] || afterPids="$( AgentsHarnessSessionPids "$afterSession" )"
+		[ -n "$afterPids" ] || exit 0
+		printf '# %s: the tooling ends this run: it was dismissed, its handback is given, and it did not end by itself\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" >> "$MMDAPP/.local/agents/sessions/$afterSession/session.log" 2> /dev/null
+		for afterPid in $afterPids ; do
+			kill -TERM "$afterPid" 2> /dev/null
+		done
+		exit 0
+	) > /dev/null 2>&1 < /dev/null &
+	return 0
+}
+
+## This run's seat in its session: rc 0, nothing printed, where it holds it or has none to hold
+## (no spawn record of its own, a record that names no session, or a seat that cannot be read
+## now); rc 1, the holder's spawn id printed, where another live run of its member holds it.
+AgentsHarnessSeatTake(){
+	local seatRecord="" seatSession="" seatHolder="" seatRc=0
+	seatRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$seatRecord" ] || return 0
+	type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	seatSession="$( AgentsToolsSpawnSandboxRecordHeader "$seatRecord" session-id )"
+	[ -n "$seatSession" ] || return 0
+	seatHolder="$( AgentsToolsSessionSeatTake "$seatSession" "$harnessAgent" "$seatRecord" )" || seatRc=$?
+	[ "$seatRc" = "1" ] && [ -n "$seatHolder" ] || return 0
+	printf '%s' "$seatHolder"
+	return 1
+}
+
+## Whether the run that holds this run's seat is its restart: its record names this run as the
+## one it restarts (`restarted-from:`). rc 0 it is.
+AgentsHarnessSeatPassed(){ ## the holder's spawn id
+	local passedRecord=""
+	passedRecord="$( AgentsToolsSessionRunRecord "$1" )" || return 1
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$passedRecord" restarted-from )" = "${MDAT_SPAWN_SESSION_ID:-}" ]
+}
+
+## Whether a served wait reads this run's session: with its default sources (its session thread
+## and the threads it continues), with slack:session-current, or continuing its stored wait.
+## A chat: source is the session's one chat file, which is the session channel of a session
+## whose external side is the root-native printback kind (F2.3), so a wait on it reads the session too.
+AgentsHarnessWaitReadsSession(){ ## sources, mode
+	case "$2" in
+		continue) return 0 ;;
+		close) return 1 ;;
+	esac
+	[ -n "$1" ] || return 0
+	case " $1 " in
+		*" slack:$harnessCurrentName "*) return 0 ;;
+		*" chat:"*) return 0 ;;
+	esac
+	return 1
+}
+
+## Whether a dismissal of this run waits (AgentsToolsSessionDismissHeld): rc 0 it does, the
+## participants of its session that still run printed on one line.
+AgentsHarnessDismissWaits(){
+	local waitsRecord="" waitsOthers=""
+	waitsRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$waitsRecord" ] || return 1
+	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	waitsOthers="$( AgentsToolsSessionDismissHeld "$waitsRecord" )" || return 1
+	printf '%s' "$waitsOthers" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
+}
+
+## A dismissal held while others of this run's session ran (AgentsToolsSessionDismissHold), given
+## once it may be: kept as this run's dismissal, and printed as the Wait result it is, rc 0. rc 1
+## where none is held, or where it still waits.
+AgentsHarnessDismissHeldGive(){
+	local giveFile giveBy="" giveHandback=""
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$MDAT_SPAWN_SESSION_ID" || return 1
+	giveFile="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dismiss-held"
+	[ -f "$giveFile" ] || return 1
+	! AgentsHarnessDismissWaits > /dev/null || return 1
+	{ IFS= read -r giveBy ; IFS= read -r giveHandback ; } < "$giveFile" || :
+	AgentsHarnessDismissedKeep "${giveBy:-unknown}"
+	[ "$giveHandback" != "handback-given" ] || : > "$( AgentsHarnessDismissedFile ).handback" 2> /dev/null || :
+	rm -f "$giveFile"
+	printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n# held while other runs of this session ran, and given now that they have ended\n' "${giveBy:-unknown}"
+	return 0
+}
+
+## The refusal of a run that finds its member's seat held by a live run of its session, at its
+## first read of the session or post to it: printed, naming the holder and where to ask it
+## (<session>:<member>, as the spawn proxy's refusal at start names it), and the run ended the one
+## way a run is ended -- a dismissed mark whose handback is marked given, so the harness ends it
+## once this call is over (AgentsHarnessDismissedAfter). rc 0.
+AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn id
+	local refuseSession="" refuseMark=""
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	refuseSession="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" session-id )"
+	printf 'ERROR: not %s: run %s holds the seat of %s in session %s, and a member is active once in a session. This run is refused and ends. Send what it should do there with SendMessage to %s:%s.\n' \
+		"$1" "$2" "$harnessAgent" "$refuseSession" "$refuseSession" "$harnessAgent"
+	AgentsHarnessDismissedKeep "tooling (the seat of $harnessAgent in its session is held by run $2, so this run is refused)"
+	refuseMark="$( AgentsHarnessDismissedFile )" && : > "$refuseMark.handback" 2> /dev/null || :
+	printf 'NEXT: end your run now, and call nothing more\n'
+	return 0
+}
+
+## The wait happens HERE, in this process, inside one tool call: the model spends
+## nothing while nothing is happening and its context does not grow, which is the
+## whole reason this is a tool and not a loop of reads. Through the team's own
+## long-poll operation and no other path -- no Slack call of this harness's own and
+## no credential in argv; which input sources exist is that operation's business,
+## never this file's. Output to a file rather than a capture: the operation drives
+## reads that fork curl, and a capture returns on pipe EOF rather than on the
+## process it ran.
+##
+## A wait that comes back with nothing is NOT an error and is never dressed as one:
+## the operation's own WAIT-RESULT line is passed through untouched, so the model
+## reads TIMEOUT and ERROR as the different things they are.
+## A call naming a mode (arguments 7 to 11: mode, seen, note, done, wait) is a stateful wait kept per
+## session; an internal caller passing six arguments or fewer gets today's stateless wait.
+AgentsHarnessToolWait(){
+	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitSource waitStateful="false" waitSession waitName waitThread
+	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
+	## unwait names one source to drop from the stored wait on demand -- the same
+	## kind:target (or slack:session-current/slack:session-parent alias) `sources`
+	## takes, resolved the identical way, below, before this becomes a drop call
+	## instead of a wait. Takes no timeout/poll/since/addressee/include-own: a
+	## drop runs once and returns, like --wait-close already does.
+	local toolUnwait="${13:-}" waitUnwaitMode="false"
+	if [ -n "$toolUnwait" ] ; then
+		waitUnwaitMode="true"
+		toolSources="$toolUnwait"
+	fi
+	if [ $# -ge 7 ] ; then
+		waitStateful="true"
+		[ -n "$toolMode" ] || toolMode="default"
+		case "$toolMode" in
+			default|continue|close) ;;
+			*) printf 'ERROR: mode must be default, continue or close, got: %s\n' "$toolMode" ; return 0 ;;
+		esac
+	fi
+	## An asking call waits on this session's stored wait too (a twelfth argument, `ask`): the
+	## same stateful round, given back as the operation printed it. What it means for the ask
+	## and for whatever else arrived is that call's to say (AgentsHarnessAsk).
+	local waitTool="$waitStateful" toolAsking="${12:-}"
+	[ "$toolAsking" != "ask" ] || waitTool="false"
+	if [ -z "$harnessAgent" ] ; then
+		printf 'ERROR: this harness was started without --agent, so it has no team identity to wait as, and one is never guessed here. Nothing was waited on.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
+	fi
+	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other wait path exists here. Nothing was waited on.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
+	fi
+	## A session that was dismissed does not wait again: every later Wait is that dismissal,
+	## returned at once with the line that says what is left to do, so no wait keeps it alive.
+	local waitDismissedEarlier=""
+	if waitDismissedEarlier="$( AgentsHarnessDismissedBy )" ; then
+		printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n# this session was dismissed before this call, so nothing was waited on\n' "$waitDismissedEarlier"
+		[ "$waitTool" != "true" ] || AgentsHarnessDismissedNext
+		return 0
+	fi
+	## THE SEAT (F6.9), on the tool's own wait of a spawned run: a dismissal held while others of
+	## its session ran is given once they have ended; a wait that reads its session takes its seat
+	## there, or finds the run that holds it (waitSeatHolder), which refuses it (AgentsHarnessSeatRefuse);
+	## a run whose seat passed to the run that restarts it is dismissed by the tooling.
+	local waitRecord="" waitSeatHolder="" waitHeldOthers=""
+	[ "$waitTool" != "true" ] || waitRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" 2> /dev/null )" || waitRecord=""
+	if [ -n "$waitRecord" ] ; then
+		type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		if AgentsHarnessDismissHeldGive ; then
+			AgentsHarnessDismissedNext
+			return 0
+		fi
+		! AgentsHarnessWaitReadsSession "$toolSources" "$toolMode" || waitSeatHolder="$( AgentsHarnessSeatTake )" || :
+		if [ -n "$waitSeatHolder" ] && AgentsHarnessSeatPassed "$waitSeatHolder" ; then
+			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: tooling (the seat of this run in its session passed to %s, the run that restarts it)\n' "$waitSeatHolder"
+			AgentsHarnessDismissedKeep "tooling (the seat of this run in its session passed to $waitSeatHolder, the run that restarts it)"
+			AgentsHarnessDismissedNext
+			return 0
+		fi
+		if [ -n "$waitSeatHolder" ] ; then
+			AgentsHarnessSeatRefuse read "$waitSeatHolder"
+			return 0
+		fi
+	fi
+	## The RETURN bound. A caller's own timeout is honoured, validated the way Bash validates
+	## its own. With none, this harness waits until something arrives (empty is no bound),
+	## and a served call returns by harnessServedWaitBound, safely under the client cutoff.
+	## Either is cut down to a ceiling rather than refused: a bound that is too long is a
+	## bound, and refusing it would turn a waitable question into an error.
+	if [ -n "$toolTimeout" ] ; then
+		if ! AgentsHarnessWholeNumber "$toolTimeout" ; then
+			printf 'ERROR: timeout must be a whole number of seconds, got: %s\n' "$toolTimeout" ; return 0
+		fi
+	else
+		toolTimeout="$harnessServedWaitBound"
+	fi
+	[ -z "$harnessServedWaitBound" ] || [ "$toolTimeout" -le "$harnessServedWaitBound" ] || toolTimeout="$harnessServedWaitBound"
+	if [ -n "$harnessWaitTimeout" ] ; then
+		[ -n "$toolTimeout" ] && [ "$toolTimeout" -le "$harnessWaitTimeout" ] || toolTimeout="$harnessWaitTimeout"
+	fi
+	## A session whose handback waits in review waits for its verdict at most REVIEW_WAIT_LIMIT
+	## seconds (AgentsTools.ReviewFlow.include): bounded to what is left, and at the limit the
+	## tooling ends it, recorded. The item stays in review. Only the tool's own stateful wait.
+	## Nothing is loaded for a session with no spawn record, which has no item to review.
+	if [ "$waitTool" = "true" ] && [ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] && [ -n "$( AgentsHarnessSessionKey )" ] \
+		&& [ -n "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$( AgentsHarnessSessionKey ).spawn.md" 2> /dev/null )" ] ; then
+		local waitReviewLeft=""
+		type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || :
+		waitReviewLeft="$( AgentsReviewWaitLeft "$( AgentsHarnessSessionKey )" 2> /dev/null )" || waitReviewLeft=""
+		case "$waitReviewLeft" in
+			'') ;;
+			expired)
+				## The limit dismisses no run while another participant of its session runs, or a run that needs it (F6.9): the wait goes on.
+				if [ -n "$waitRecord" ] && AgentsToolsSessionLimitHeld "$waitRecord" > /dev/null ; then
+					waitReviewLeft=""
+				else
+					waitDismissedEarlier="$( AgentsReviewWaitExpire "${harnessAgent:-unknown}" "$( AgentsHarnessSessionKey )" 2> /dev/null )" || :
+					[ -z "$waitDismissedEarlier" ] || printf '%s\n' "$waitDismissedEarlier"
+					waitDismissedEarlier="$( printf '%s\n' "$waitDismissedEarlier" | LC_ALL=C sed -n 's/^WAIT-DISMISSED-BY: //p' | head -1 )"
+					[ -z "$waitDismissedEarlier" ] || AgentsHarnessDismissedKeep "$waitDismissedEarlier"
+					printf 'NEXT: you are dismissed -- end your run\n'
+					return 0
+				fi
+			;;
+			*) [ -n "$toolTimeout" ] && [ "$toolTimeout" -le "$waitReviewLeft" ] || toolTimeout="$waitReviewLeft" ;;
+		esac
+	fi
+	if [ -n "$toolPoll" ] && ! AgentsHarnessWholeNumber "$toolPoll" ; then
+		printf 'ERROR: poll_interval must be a whole number of seconds, got: %s\n' "$toolPoll" ; return 0
+	fi
+	if [ -n "$toolSince" ] ; then
+		if ! AgentsHarnessWholeNumber "${toolSince%%.*}" ; then
+			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
+		fi
+		if [ "$toolSince" != "${toolSince#*.}" ] && ! AgentsHarnessWholeNumber "${toolSince#*.}" ; then
+			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
+		fi
+	fi
+	## No source named: default to this session's own coworking thread and every
+	## conversation thread it continues (AgentsToolsWaitDefaultSources), any post but
+	## the caller's own. An ad-hoc/solo spawn holding none keeps today's default exactly
+	## -- magic-team and human-owner, resolved below by --wait-for-input itself
+	## from an empty sources list.
+	if [ -z "$toolSources" ] && [ "$toolMode" != "continue" ] && [ "$toolMode" != "close" ] ; then
+		type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		local waitDefaultThread=""
+		waitDefaultThread="$( AgentsToolsWaitDefaultSources 2>/dev/null )" || waitDefaultThread=""
+		[ -z "$waitDefaultThread" ] || toolSources="$waitDefaultThread"
+		## A thread source needs a floor. A stateful call leaves it to the operation, which resumes
+		## from the floor stored for that thread, so nothing that arrived between two calls is
+		## skipped; only the stateless internal call means "from now on".
+		[ -z "$waitDefaultThread" ] || [ -n "$toolSince" ] || [ "$waitStateful" = "true" ] || toolSince="$( date +%s )"
+	fi
+	## slack:session-current and slack:session-parent each name that session's thread as a :conversation source, the values SendMessage to takes.
+	for waitName in "$harnessCurrentName" "$harnessParentName" ; do
+		case " $toolSources " in
+			*" slack:$waitName "*)
+				waitThread="$( AgentsHarnessSessionThread "$waitName" "Nothing was waited on." )" || { printf '%s\n' "$waitThread" ; return 0 ; }
+				toolSources=" $toolSources "
+				## The replacement stays bare: bash 3.2 keeps a quote written inside it as part of the source.
+				toolSources="${toolSources/" slack:$waitName "/ slack:${waitThread%% *}:conversation }"
+				[ -n "$toolSince" ] || [ "$waitStateful" = "true" ] || toolSince="$( date +%s )"
+			;;
+		esac
+	done
+	## unwait's own target was resolved by the same alias loop above (slack:session-
+	## current/-parent included), so it reaches --unwait exactly as a plain source
+	## would. One call, its own result printed as it comes back, never the rest of
+	## this function's wait/mode handling below.
+	if [ "$waitUnwaitMode" = "true" ] ; then
+		waitSession="$( AgentsHarnessSessionKey )"
+		set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input "$harnessAgent" --unwait "$toolSources"
+		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
+		"$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
+		if [ "$waitRc" != "0" ] ; then
+			printf 'ERROR: the unwait could not be performed (rc=%s). What the operation reported follows:\n' "$waitRc"
+			cat "$harnessScratch/wait.err"
+			return 0
+		fi
+		[ ! -s "$harnessScratch/wait.err" ] || cat "$harnessScratch/wait.err" >&2
+		cat "$harnessScratch/wait.out"
+		return 0
+	fi
+	## Built as argv, so a source naming a thread stays one token rather than a
+	## quoted fragment, and an empty sources string adds no flag at all.
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input "$harnessAgent"
+	for waitSource in $toolSources ; do
+		set -- "$@" --wait-source "$waitSource"
+	done
+	if [ "$waitStateful" = "true" ] ; then
+		waitSession="$( AgentsHarnessSessionKey )"
+		set -- "$@" "--wait-$toolMode"
+		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
+		[ -z "$toolSeen" ] || set -- "$@" --wait-react-seen "$toolSeen"
+		[ -z "$toolNote" ] || set -- "$@" --wait-react-note "$toolNote"
+		[ -z "$toolDone" ] || set -- "$@" --wait-react-done "$toolDone"
+		[ -z "$toolWaitIds" ] || set -- "$@" --wait-react-wait "$toolWaitIds"
+	fi
+	[ -z "$toolTimeout" ] || set -- "$@" --wait-timeout "$toolTimeout"
+	[ -z "$toolPoll" ] || set -- "$@" --wait-poll-interval "$toolPoll"
+	[ -z "$toolSince" ] || set -- "$@" --wait-since-utime "$toolSince"
+	[ -z "$toolAddressee" ] || set -- "$@" --wait-addressee "$toolAddressee"
+	case "$toolIncludeOwn" in
+		true|1|yes) set -- "$@" --wait-include-own ;;
+	esac
+	## An asking call (the twelfth argument) reacts to the reply it takes itself: the wait leaves the seen reaction to it.
+	MDAT_WAIT_SEEN_OWN="${toolAsking:+1}${MDAT_WAIT_SEEN_OWN:-}" "$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
+	if [ "$waitRc" != "0" ] ; then
+		printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources -- this is not a wait that found nothing, and their silence must not be read as quiet. What the operation reported follows:\n' "$waitRc"
+		cat "$harnessScratch/wait.err"
+		return 0
+	fi
+	## What a wait that worked said on its stderr goes to this run's own log, never left in scratch.
+	[ ! -s "$harnessScratch/wait.err" ] || cat "$harnessScratch/wait.err" >&2
+	## A dismissal is a Wait outcome of its own: a message whose body is DISMISSED,
+	## addressed to this member (AgentsHarnessWaitDismissed.awk). The spawner sends it when
+	## it is satisfied; the waiting session ends with its handback on it. Everything the
+	## wait returned still follows, so nothing it saw is hidden behind the outcome.
+	local waitDismissedBy=""
+	if [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: RECEIVED" ] \
+		&& waitDismissedBy="$( dismissalMember="$harnessAgent" LC_ALL=C awk -f "$harnessHere/questions/AgentsDismissalMatch.awk" -f "$harnessHere/harness/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
+		## An executor is not dismissed while another participant of its session runs (F6.9): its
+		## dismissal is kept, given at its first wait once they have ended, and this wait is what it got.
+		if [ -n "$waitRecord" ] && waitHeldOthers="$( AgentsHarnessDismissWaits )" ; then
+			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "$waitDismissedBy"
+		else
+			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"
+			tail -n +2 "$harnessScratch/wait.out"
+			AgentsHarnessDismissedKeep "$waitDismissedBy"
+			[ "$waitTool" != "true" ] || printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
+			return 0
+		fi
+	fi
+	## A TIMEOUT on the tool's own stateful wait is ONE line: every quiet result stays in the
+	## model's context, and that it is normal is said once, in the tool description. Only a
+	## source never read adds its WAIT-NEVER-READ line, since its silence means nothing.
+	if [ "$waitTool" = "true" ] && [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: TIMEOUT" ] ; then
+		printf 'WAIT-RESULT: TIMEOUT (%ss) NEXT: Wait mode=continue\n' "$( LC_ALL=C sed -n 's/^# waited: \([0-9]*\)s of .*/\1/p' "$harnessScratch/wait.out" | head -1 )"
+		LC_ALL=C grep '^WAIT-NEVER-READ: ' "$harnessScratch/wait.out" || :
+		return 0
+	fi
+	cat "$harnessScratch/wait.out"
+	[ -z "$waitHeldOthers" ] || printf '# DISMISSED held: runs that need this run still run (%s): the dismissal is given at its first Wait once they have ended\n' "$waitHeldOthers"
+	## One extra last line naming the next call, on the tool's own stateful wait only: an internal
+	## stateless caller (a tool that asks) embeds this output and has no stored wait to continue.
+	[ "$waitTool" = "true" ] || return 0
+	## An asked question's wait item that arrived is taken into its record here, as the asking call would.
+	[ "$( head -1 "$harnessScratch/wait.out" )" != "WAIT-RESULT: RECEIVED" ] || AgentsHarnessWaitAskResolve "$harnessScratch/wait.out"
+	case "$( head -1 "$harnessScratch/wait.out" )" in
+		"WAIT-RESULT: RECEIVED") printf 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here\n' ;;
+	esac
+}

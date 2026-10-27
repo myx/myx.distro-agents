@@ -11,11 +11,13 @@
 ## not found, so no addressee is inferred from a conversation. Every other method is not found.
 set -u
 rigHeader="$( cat )"
-rigMethod="" rigPrevArg="" rigUrl="" rigBodyFile="" rigChannel="" rigStamp="" rigName=""
+rigMethod="" rigPrevArg="" rigUrl="" rigBodyFile="" rigChannel="" rigStamp="" rigName="" rigAskTs="" rigAskLimit=""
 for rigArg in "$@" ; do
 	case "$rigArg" in
 		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ; rigUrl="$rigArg" ;;
 		https://*) rigUrl="$rigArg" ;;
+		ts=*) rigAskTs="${rigArg#ts=}" ;;
+		limit=*) rigAskLimit="${rigArg#limit=}" ;;
 		channel@*) rigChannel="$( cat "${rigArg#channel@}" 2> /dev/null )" ;;
 		timestamp@*) rigStamp="$( cat "${rigArg#timestamp@}" 2> /dev/null )" ;;
 		name@*) rigName="$( cat "${rigArg#name@}" 2> /dev/null )" ;;
@@ -52,6 +54,9 @@ case "$rigMethod" in
 	conversations.history|conversations.replies)
 		if [ -f "$RIG_SCENARIO/thread.$rigToken.json" ] ; then
 			cat "$RIG_SCENARIO/thread.$rigToken.json"
+		elif [ "$rigMethod" = "conversations.replies" ] && [ "$rigAskLimit" = "1" ] && [ -n "$rigAskTs" ] ; then
+			## the parent-presence look of a reply sent under the bot (limit=1): the conversation holds the parent
+			printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"parent"}],"has_more":false}\n' "$rigAskTs"
 		else
 			printf '{"ok":true,"messages":[],"has_more":false}\n'
 		fi

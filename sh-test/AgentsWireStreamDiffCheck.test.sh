@@ -16,6 +16,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -38,7 +39,7 @@ rigLift="$( LC_ALL=C awk '
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
 	END { if ( seen != 1 ) exit 1 ; }
-' "$rigHarness" )" || rigRefuse "AgentsHarnessWholeNumber was not found in $rigHarness"
+' <( rigHarnessCat ) )" || rigRefuse "AgentsHarnessWholeNumber was not found in $rigHarness"
 
 rigPass=0
 rigFail=0
@@ -81,7 +82,10 @@ rigConsume(){ ## OpenAiChat|AnthropicMessages, legacy|current, stream file, out 
 ## name, and not necessarily at the same point in the display. So each such message
 ## is cut out, with its newline, and its presence compared on its own.
 rigStderrNormal(){
+	## The "shared prefix -- round 1" line is the live wire's own report of the cache (AgentsAnthropicMessagesWire.sh), which the frozen reference does not make: it is
+	## not what the two stream readers are compared on.
 	LC_ALL=C awk '
+		index( $0, "shared prefix -- round 1 " ) > 0 { next ; }
 		{ allText = allText $0 "\n" ; }
 		END {
 			bashErrors = gsub(/(\/[^ :\n]*: line [0-9]+|AgentsWireStream): [^\n]*(unbound variable|syntax error|value too great|operand expected)[^\n]*\n/, "", allText)

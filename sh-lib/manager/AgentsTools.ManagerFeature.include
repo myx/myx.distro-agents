@@ -295,6 +295,86 @@ case "$1" in
 	;;
 
 	## A free prompt to one installed chat model of the local AI feature: the reply, as text, on standard output.
+	--manager-feature-models)
+		local setOp="$1" setProfile="" setAll="" setYes="" setSyntax="[--profile shared-cpu|big-cpu|gpu] [--all] [--yes]" setCheck setDefault setTsv setLine
+		local setFeature setPart setKind setAction setState setBytes setIsDefault setMissing="" setDownload=0 setFree setBlocked="no" setCount=0 setInstalled=0 setFailed=0 setAlready=0 setOut setRc
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--profile) setProfile="${2:-}" ; [ $# -ge 2 ] || { echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is $setSyntax, --profile takes a name -- nothing was done" >&2 ; set +e ; return 1 ; } ; shift 2 ;;
+				--all) setAll="yes" ; shift ;;
+				--yes) setYes="yes" ; shift ;;
+				*) echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is $setSyntax, got: $1 -- nothing was done" >&2 ; set +e ; return 1 ;;
+			esac
+		done
+		case "$setProfile" in ''|shared-cpu|big-cpu|gpu) ;; *) AgentsToolsManagerFeatureRefuse "$setOp" "no such profile: $setProfile (shared-cpu, big-cpu or gpu)" ; set +e ; return 1 ;; esac
+		AgentsToolsManagerFeatureNames | LC_ALL=C grep -q -x -F -- setup.feature-local-ai || { AgentsToolsManagerFeatureRefuse "$setOp" "no such feature: setup.feature-local-ai" ; set +e ; return 1 ; }
+		setCheck="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai )" || :
+		setDefault="$( printf '%s\n' "$setCheck" | AgentsToolsManagerFeatureValue host.profile )" || setDefault=""
+		[ -n "$setProfile" ] || setProfile="${setDefault:-shared-cpu}"
+		setTsv="$( AgentsToolsManagerFeatureRoot )/setup.feature-local-ai/data/local-ai/models.tsv"
+		[ -f "$setTsv" ] || { AgentsToolsManagerFeatureRefuse "$setOp" "the list of models of the feature is not here ($setTsv)" ; set +e ; return 1 ; }
+		setFree="$( printf '%s\n' "$setCheck" | AgentsToolsManagerFeatureValue host.free_bytes )" || setFree="-"
+		## THE SET: the speech model, the chat model that is the default of the profile (every chat model with --all), and the LanceDB embedding model where that feature is here.
+		setLine="$( LC_ALL=C awk -F'\t' -v profile="$setProfile" -v all="$setAll" '
+			/^#/ || NF < 6 { next }
+			$2 == "stt" { print "setup.feature-local-ai\t" $1 "\tstt\t" ( $6 ~ /\*$/ ? "yes" : "no" ) ; next }
+			$2 == "chat" {
+				mine = 0 ; count = split( $6, listed, "," )
+				for ( at = 1 ; at <= count ; at++ ) if ( listed[at] == profile "*" ) mine = 1
+				if ( mine || all == "yes" ) print "setup.feature-local-ai\t" $1 "\tchat\t" ( mine ? "yes" : "no" )
+			}' "$setTsv" )"
+		if AgentsToolsManagerFeatureNames | LC_ALL=C grep -q -x -F -- setup.feature-lancedb ; then
+			setLine="${setLine:+$setLine$'\n'}setup.feature-lancedb"$'\t'"lancedb"$'\t'"embedding"$'\t'"yes"
+		fi
+		[ -n "$setLine" ] || { AgentsToolsManagerFeatureRefuse "$setOp" "the list of models names none for the profile $setProfile" ; set +e ; return 1 ; }
+		setCount="$( printf '%s\n' "$setLine" | LC_ALL=C awk 'END { print NR + 0 }' )"
+		printf 'set\t%s\t%s\t%s\n' "$setProfile" "$setCount" "$( [ -n "$setAll" ] && printf all || printf profile )"
+		while IFS=$'\t' read -r setFeature setPart setKind setIsDefault ; do
+			[ -n "$setPart" ] || continue
+			if [ "$setFeature" = "setup.feature-local-ai" ] ; then
+				setState="$( printf '%s\n' "$setCheck" | AgentsToolsManagerFeaturePartState "$setFeature" "$setPart" )" || setState="unknown"
+				setBytes="$( printf '%s\n' "$setCheck" | AgentsToolsManagerFeatureValue "part.$setPart.expected_bytes" )" || setBytes="-"
+			else
+				setState="$( AgentsToolsManagerFeatureCheck "$setFeature" | AgentsToolsManagerFeaturePartState "$setFeature" "$setPart" )" || setState="unknown"
+				setBytes="-"
+			fi
+			printf 'model\t%s\t%s\t%s\t%s\t%s\t%s\n' "$setFeature" "$setPart" "$setKind" "$setState" "$setBytes" "$setIsDefault"
+			case "$setState" in
+				installed) ;;
+				unsupported) ;;
+				broken) setMissing="${setMissing}${setFeature}"$'\t'"${setPart}"$'\t'"update"$'\n' ; case "$setBytes" in ''|*[!0-9]*) ;; *) setDownload=$(( setDownload + setBytes )) ;; esac ;;
+				*) setMissing="${setMissing}${setFeature}"$'\t'"${setPart}"$'\t'"install"$'\n' ; case "$setBytes" in ''|*[!0-9]*) ;; *) setDownload=$(( setDownload + setBytes )) ;; esac ;;
+			esac
+		done <<< "$setLine"
+		case "$setFree" in ''|*[!0-9]*) ;; *) [ "$setDownload" -le "$setFree" ] || setBlocked="yes" ;; esac
+		printf 'total\t%s\t%s\t%s\n' "$setDownload" "$setFree" "$setBlocked"
+		if [ "$setBlocked" = "yes" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: the set needs $setDownload bytes and $setFree are free -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$setYes" ] ; then
+			echo "$MDSC_CMD $setOp: that is the plan; nothing was done. Add --yes to install what is not installed" >&2
+			return 0
+		fi
+		## THE WORK is --manager-feature-part install, one part at a time, as the console runs it; one part failing does not stop the rest.
+		while IFS=$'\t' read -r setFeature setPart setAction ; do
+			[ -n "$setPart" ] || continue
+			setRc=0
+			setOut="$( DistroAgentsTools --manager-feature-part "$setAction" "$setFeature" "$setPart" --yes 2>&1 < /dev/null )" || setRc=$?
+			printf '%s\n' "$setOut" >&2
+			if [ "$setRc" = 0 ] ; then
+				setInstalled=$(( setInstalled + 1 )) ; printf 'result\t%s\t%s\tinstalled\n' "$setFeature" "$setPart"
+			else
+				setFailed=$(( setFailed + 1 )) ; printf 'result\t%s\t%s\tfailed\n' "$setFeature" "$setPart"
+			fi
+		done <<< "$setMissing"
+		setAlready=$(( setCount - setInstalled - setFailed ))
+		printf 'end\t%s\t%s\t%s\n' "$setInstalled" "$setFailed" "$setAlready"
+		[ "$setFailed" = 0 ] || { set +e ; return 1 ; }
+		return 0
+	;;
+
 	--manager-feature-ask)
 		local askOp="$1" askModel="${2:-}" askSource="" askFile="" askPrompt askTool askState askJson askKind
 		local askSyntax="<model-id> [--from-stdin|--from-file <path>]"

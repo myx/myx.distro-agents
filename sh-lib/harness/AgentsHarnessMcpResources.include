@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+## AgentsHarnessMcpResources.include: the MCP resource tools and the served server set. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## The three MCP resource tools reach the same servers this run already enumerated,
+## through the same client the mcp__ tools use. A server is resolvable out of the config
+## by name alone, so the grant is enforced HERE: a name this run was not started with is
+## refused rather than started, which is what keeps --mcp-server the whole of the grant.
+## Outside the AgentsHarnessTool* family for the reason AgentsHarnessMcpCall is.
+AgentsHarnessMcpResourceServers(){ ## optional single server name; prints the servers to use
+	local wantName="$1" haveName
+	[ "${#harnessMcpServers[@]}" -gt 0 ] || return 1
+	if [ -z "$wantName" ] ; then
+		printf '%s\n' "${harnessMcpServers[@]}"
+		return 0
+	fi
+	for haveName in "${harnessMcpServers[@]}" ; do
+		[ "$haveName" != "$wantName" ] || { printf '%s\n' "$wantName" ; return 0 ; }
+	done
+	return 2
+}
+
+## One resources/list exchange with one server, leaving its answer in mcp.result the way
+## AgentsHarnessMcpCall leaves its own. Non-zero with $harnessMcpFault set where the
+## server could not be run or never answered. The ids continue that file's own sequence,
+## so a reply is matched by id rather than by position in a stream that also carries
+## banners and notifications.
+AgentsHarnessMcpResourceList(){ ## server name
+	local listServer="$1"
+	{
+		AgentsHarnessMcpHandshake
+		printf '%s\n' '{"jsonrpc":"2.0","id":4,"method":"resources/list","params":{}}'
+	} > "$harnessScratch/mcp.req"
+	AgentsHarnessMcpRun "$listServer" "$harnessRunTimeout" 4 || return 1
+	AgentsHarnessMcpReply 4 || { harnessMcpFault="it returned no answer to resources/list (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}" ; return 1 ; }
+	printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.result"
+}
+
+## One resources/read exchange. The uri is escaped and its line breaks folded first: a
+## JSON-RPC request is one physical line, and a raw newline inside a string literal is
+## not legal JSON anyway, so folding one can never change a value.
+AgentsHarnessMcpResourceRead(){ ## server name, uri
+	local readServer="$1" readUri="$2" readUriEsc
+	readUri="${readUri//$'\n'/ }"
+	readUri="${readUri//$'\r'/ }"
+	readUriEsc="$( printf '%s' "$readUri" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	{
+		AgentsHarnessMcpHandshake
+		printf '%s\n' '{"jsonrpc":"2.0","id":5,"method":"resources/read","params":{"uri":"'"$readUriEsc"'"}}'
+	} > "$harnessScratch/mcp.req"
+	AgentsHarnessMcpRun "$readServer" "$harnessRunTimeout" 5 || return 1
+	AgentsHarnessMcpReply 5 || { harnessMcpFault="it returned no answer to resources/read (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}" ; return 1 ; }
+	printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.result"
+}
+
+## Renders whatever resources/read answer is sitting in mcp.result. Shared by the single
+## read and the prefix read so one server answer can never render two different ways.
+## LC_ALL=C for the whole body, so the length test and the cut count the same bytes the
+## cap is expressed in -- under the ambient UTF-8 locale they count characters instead.
+AgentsHarnessMcpResourceRender(){ ## uri
+	local LC_ALL=C
+	local renderUri="$1" renderRc=0 renderCount renderIndex renderText renderMime renderBytes renderErr
+	renderErr="$( AgentsHarnessMcpField error.message < "$harnessScratch/mcp.result" )" || renderErr=""
+	if [ -n "$renderErr" ] ; then
+		printf 'ERROR: the server refused to read %s: %s\n' "$renderUri" "$renderErr"
+		return 0
+	fi
+	renderCount="$( AgentsHarnessMcpField result.contents.__count < "$harnessScratch/mcp.result" )" || renderRc=$?
+	if [ "$renderRc" != "0" ] ; then
+		printf 'ERROR: the server answered the read of %s in a shape this harness cannot read -- no result.contents array (rc=%s). Nothing is implied about what that resource holds.\n' "$renderUri" "$renderRc"
+		return 0
+	fi
+	renderIndex=0
+	while [ "$renderIndex" -lt "$renderCount" ] 2>/dev/null ; do
+		renderRc=0
+		renderMime="$( AgentsHarnessMcpField "result.contents.$renderIndex.mimeType" < "$harnessScratch/mcp.result" )" || renderMime=""
+		renderText="$( AgentsHarnessMcpField "result.contents.$renderIndex.text" < "$harnessScratch/mcp.result" )" || renderRc=$?
+		renderIndex=$(( renderIndex + 1 ))
+		if [ "$renderRc" != "0" ] ; then
+			printf '[part %s of %s carries no text%s -- a binary or otherwise non-text part, which this harness does not render]\n' "$renderIndex" "$renderCount" "${renderMime:+, media type $renderMime}"
+			continue
+		fi
+		## Capped and said so, as Read states its own cap: a cut resource otherwise reads
+		## as the whole of one.
+		renderBytes="${#renderText}"
+		if [ "$renderBytes" -gt 100000 ] ; then
+			printf '%s\n' "${renderText:0:100000}"
+			printf '... TRUNCATED at 100000 of %s bytes ...\n' "$renderBytes"
+		else
+			printf '%s\n' "$renderText"
+		fi
+	done
+	[ "$renderCount" != 0 ] || printf '(the server returned no content for %s)\n' "$renderUri"
+}
+
+AgentsHarnessToolListMcpResourcesTool(){ ## server (optional)
+	local toolServer="$1" listServers="" listServerRc=0 listName listRc listCount listIndex
+	local listUri listResName listMime listDesc listErr
+	listServers="$( AgentsHarnessMcpResourceServers "$toolServer" )" || listServerRc=$?
+	case "$listServerRc" in
+		0) ;;
+		1)
+			printf 'ERROR: ListMcpResourcesTool: this run enumerated no MCP server at all, so there is nothing to list. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
+		;;
+		*)
+			printf 'ERROR: ListMcpResourcesTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+		;;
+	esac
+	while IFS= read -r listName ; do
+		[ -n "$listName" ] || continue
+		printf '... MCP server %s ...\n' "$listName"
+		if ! AgentsHarnessMcpResourceList "$listName" ; then
+			printf 'ERROR: %s could not be asked for its resources: %s\n' "$listName" "$harnessMcpFault"
+			continue
+		fi
+		listRc=0
+		listCount="$( AgentsHarnessMcpField result.resources.__count < "$harnessScratch/mcp.result" )" || listRc=$?
+		if [ "$listRc" != "0" ] ; then
+			listErr="$( AgentsHarnessMcpField error.message < "$harnessScratch/mcp.result" )" || listErr=""
+			if [ -n "$listErr" ] ; then
+				printf 'ERROR: %s refused resources/list: %s\n' "$listName" "$listErr"
+			else
+				printf 'ERROR: %s answered resources/list in a shape this harness cannot read -- no result.resources array (rc=%s). Nothing is implied about whether it publishes resources.\n' "$listName" "$listRc"
+			fi
+			continue
+		fi
+		## Every listing carries its denominator: without one, a reader cannot tell a
+		## server publishing nothing from a walk that read nothing.
+		printf '%s resource(s) published:\n' "$listCount"
+		listIndex=0
+		while [ "$listIndex" -lt "$listCount" ] 2>/dev/null ; do
+			listUri="$( AgentsHarnessMcpField "result.resources.$listIndex.uri" < "$harnessScratch/mcp.result" )" || listUri=""
+			listResName="$( AgentsHarnessMcpField "result.resources.$listIndex.name" < "$harnessScratch/mcp.result" )" || listResName=""
+			listMime="$( AgentsHarnessMcpField "result.resources.$listIndex.mimeType" < "$harnessScratch/mcp.result" )" || listMime=""
+			listDesc="$( AgentsHarnessMcpField "result.resources.$listIndex.description" < "$harnessScratch/mcp.result" )" || listDesc=""
+			listIndex=$(( listIndex + 1 ))
+			printf '  %s. %s\n' "$listIndex" "${listUri:-<this entry carries no uri, so it cannot be read>}"
+			[ -z "$listResName" ] || printf '     name: %s\n' "$listResName"
+			[ -z "$listMime" ] || printf '     type: %s\n' "$listMime"
+			[ -z "$listDesc" ] || printf '     %s\n' "$listDesc"
+		done
+		[ "$listCount" != 0 ] || printf '  (this server publishes no resources. It was reached and it answered, so that is a complete answer and not a failure.)\n'
+	done <<< "$listServers"
+}
+
+AgentsHarnessToolReadMcpResourceTool(){ ## server, uri
+	local toolServer="$1" toolUri="$2" readServers="" readServerRc=0
+	if [ -z "$toolServer" ] || [ -z "$toolUri" ] ; then
+		printf 'ERROR: ReadMcpResourceTool: both server and uri are required, and one of them was empty. Nothing was read.\n' ; return 0
+	fi
+	readServers="$( AgentsHarnessMcpResourceServers "$toolServer" )" || readServerRc=$?
+	case "$readServerRc" in
+		0) ;;
+		1)
+			printf 'ERROR: ReadMcpResourceTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
+		;;
+		*)
+			printf 'ERROR: ReadMcpResourceTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+		;;
+	esac
+	if ! AgentsHarnessMcpResourceRead "$toolServer" "$toolUri" ; then
+		printf 'ERROR: ReadMcpResourceTool: the MCP server `%s` could not be run: %s\n' "$toolServer" "$harnessMcpFault" ; return 0
+	fi
+	printf '... %s on %s ...\n' "$toolUri" "$toolServer"
+	AgentsHarnessMcpResourceRender "$toolUri"
+}
+
+AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
+	local toolServer="$1" toolPrefix="$2" toolLimit="$3" dirServers="" dirServerRc=0 dirRc=0
+	local dirCount dirIndex dirUri dirMatched=0 dirRead=0 dirMatches="" dirErr
+	if [ -z "$toolServer" ] ; then
+		printf 'ERROR: ReadMcpResourceDirTool: server is required and was empty. Nothing was read.\n' ; return 0
+	fi
+	if [ -z "$toolPrefix" ] ; then
+		printf 'ERROR: ReadMcpResourceDirTool: uri_prefix is required and was empty. An empty prefix matches every resource a server publishes, which is a listing rather than a read -- use ListMcpResourcesTool for that.\n' ; return 0
+	fi
+	if [ -n "$toolLimit" ] ; then
+		if ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; then
+			printf 'ERROR: ReadMcpResourceDirTool: limit must be a whole number of resources, at least 1, got: %s\n' "$toolLimit" ; return 0
+		fi
+	else
+		toolLimit=20
+	fi
+	dirServers="$( AgentsHarnessMcpResourceServers "$toolServer" )" || dirServerRc=$?
+	case "$dirServerRc" in
+		0) ;;
+		1)
+			printf 'ERROR: ReadMcpResourceDirTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
+		;;
+		*)
+			printf 'ERROR: ReadMcpResourceDirTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+		;;
+	esac
+	if ! AgentsHarnessMcpResourceList "$toolServer" ; then
+		printf 'ERROR: ReadMcpResourceDirTool: the MCP server `%s` could not be asked for its resources: %s\n' "$toolServer" "$harnessMcpFault" ; return 0
+	fi
+	dirCount="$( AgentsHarnessMcpField result.resources.__count < "$harnessScratch/mcp.result" )" || dirRc=$?
+	if [ "$dirRc" != "0" ] ; then
+		dirErr="$( AgentsHarnessMcpField error.message < "$harnessScratch/mcp.result" )" || dirErr=""
+		if [ -n "$dirErr" ] ; then
+			printf 'ERROR: ReadMcpResourceDirTool: `%s` refused resources/list: %s\n' "$toolServer" "$dirErr"
+		else
+			printf 'ERROR: ReadMcpResourceDirTool: `%s` answered resources/list in a shape this harness cannot read -- no result.resources array (rc=%s). Nothing is implied about what it publishes.\n' "$toolServer" "$dirRc"
+		fi
+		return 0
+	fi
+	## The whole listing is consumed into a list of matching uris BEFORE any read runs.
+	## Each read overwrites mcp.result, so walking the listing and reading inside the
+	## same loop would read the first match and then keep walking a document that is no
+	## longer there -- silently, and reporting a count it never had.
+	dirIndex=0
+	while [ "$dirIndex" -lt "$dirCount" ] 2>/dev/null ; do
+		dirUri="$( AgentsHarnessMcpField "result.resources.$dirIndex.uri" < "$harnessScratch/mcp.result" )" || dirUri=""
+		dirIndex=$(( dirIndex + 1 ))
+		[ -n "$dirUri" ] || continue
+		case "$dirUri" in
+			"$toolPrefix"*) ;;
+			*) continue ;;
+		esac
+		dirMatched=$(( dirMatched + 1 ))
+		[ "$dirMatched" -le "$toolLimit" ] || continue
+		dirMatches="$dirMatches$dirUri"$'\n'
+	done
+	printf '... %s of the %s resource(s) on %s start with %s ...\n' "$dirMatched" "$dirCount" "$toolServer" "$toolPrefix"
+	if [ "$dirMatched" = 0 ] ; then
+		printf 'No resource uri on this server starts with that text. The server was reached and it published %s resource(s), so this is a COMPLETE, SUCCESSFUL call and not a failure -- run ListMcpResourcesTool to see the uris it does publish.\n' "$dirCount"
+		return 0
+	fi
+	while IFS= read -r dirUri ; do
+		[ -n "$dirUri" ] || continue
+		printf -- '--- %s ---\n' "$dirUri"
+		if ! AgentsHarnessMcpResourceRead "$toolServer" "$dirUri" ; then
+			printf 'ERROR: %s could not be read: %s\n' "$dirUri" "$harnessMcpFault"
+			continue
+		fi
+		dirRead=$(( dirRead + 1 ))
+		AgentsHarnessMcpResourceRender "$dirUri"
+	done <<< "$dirMatches"
+	printf '... read %s of the %s matching resource(s); the bound on this call was %s ...\n' "$dirRead" "$dirMatched" "$toolLimit"
+}
+
+AgentsHarnessMcpServerSet(){
+	[ "$harnessMcpServersNamed" -eq 0 ] || return 0
+	harnessMcpServers=()
+	case "$harnessToolOnlyName" in
+		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|'')
+			if [ -n "${MMDAPP:-}" ] ; then
+				## From the installer's index, else the same registration composed from our primary sources.
+				AgentsHarnessMcpKeys
+				while IFS= read -r harnessToolPeer ; do
+					[ -n "$harnessToolPeer" ] || continue
+					[ "myx.distro" != "$harnessToolPeer" ] || continue
+					harnessMcpServers+=( "$harnessToolPeer" )
+				done <<< "$harnessMcpResKeys"
+			fi
+		;;
+	esac
+}

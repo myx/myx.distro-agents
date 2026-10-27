@@ -74,6 +74,9 @@ rigHandle(){ ## call name -- the process handle a detached start printed
 rigLineOf(){ ## fixed whole line, call name -- the number of its first line, or 0
 	LC_ALL=C grep -n -x -F -- "$1" "$rigTmp/$2.out" 2> /dev/null | LC_ALL=C head -1 | LC_ALL=C cut -d : -f 1
 }
+rigSection(){ ## process handle, call name -- the lines of what that call printed under the source process:<handle> alone (a session's Wait set keeps the sources of its earlier waits, so one wait can bring several)
+	LC_ALL=C awk -v want="# arrived on: process:$1" '$0 == want { inSection = 1 ; next ; } /^# arrived on: / { inSection = 0 ; } /^# --- end ---$/ { inSection = 0 ; } inSection { print ; }' "$rigTmp/$2.out" 2> /dev/null
+}
 rigEarlier(){ ## fixed text, fixed text, call name -- yes where the first stands above the second
 	local rigFirst rigSecond
 	rigFirst="$( rigLineOf "$1" "$3" )" ; rigSecond="$( rigLineOf "$2" "$3" )"
@@ -106,7 +109,7 @@ rigAssert "the wait resolves that handle: the process's own state and output arr
 	"WAIT-RESULT: RECEIVED:1:1:1"
 rigCall Wait '{"sources":"process:process-9","timeout":0}' "$rigSession1" unknown1
 rigAssert "control: a handle this session never started is named as never read, not as a source that found nothing" \
-	"$( rigSaidRe '^WAIT-RESULT: TIMEOUT' unknown1 ):$( rigSaid 'WAIT-NEVER-READ: [process:process-9]' unknown1 )" "1:1"
+	"$( rigSaidRe '^WAIT-RESULT: TIMEOUT' unknown1 ):$( rigSaidRe '^WAIT-NEVER-READ: .*\[process:process-9\]' unknown1 )" "1:1"
 
 ## ---- 2. the lines come as they are written, and the end comes too ----
 echo "-- 2. Wait brings the lines as they come, and returns when the process ends --"
@@ -172,8 +175,8 @@ rigAssert "each stream keeps the order it was written in, and both are in that o
 ## ---- 6. two detached starts in one session keep distinct handles, each with its own output ----
 echo "-- 6. two detached processes in one session take two handles, and each keeps its own output --"
 rigSession7="rig-detached-two"
-rigStart "$rigSession7" 'sleep 5; echo RIG-FIRST-OWN; sleep 6' start7a
-rigStart "$rigSession7" 'sleep 5; echo RIG-SECOND-OWN; sleep 6' start7b
+rigStart "$rigSession7" 'sleep 5; echo RIG-FIRST-OWN; sleep 40' start7a
+rigStart "$rigSession7" 'sleep 9; echo RIG-SECOND-OWN; sleep 3' start7b
 rigHandle7a="$( rigHandle start7a )"
 rigHandle7b="$( rigHandle start7b )"
 rigDistinct7="no"
@@ -186,11 +189,11 @@ rigAssert "the wait on the first handle resolves the first process, and brings i
 	"WAIT-RESULT: RECEIVED:1:1:0"
 rigCall Wait "{\"sources\":\"process:$rigHandle7b\",\"timeout\":40}" "$rigSession7" watch7b
 rigAssert "the wait on the second handle resolves the second process, and brings its output alone" \
-	"$( rigHead watch7b ):$( rigSaid "# arrived on: process:$rigHandle7b" watch7b ):$( rigSaid '>RIG-SECOND-OWN' watch7b ):$( rigSaid '>RIG-FIRST-OWN' watch7b )" \
+	"$( rigHead watch7b ):$( rigSaid "# arrived on: process:$rigHandle7b" watch7b ):$( rigSection "$rigHandle7b" watch7b | LC_ALL=C grep -c -x '>RIG-SECOND-OWN' ):$( rigSection "$rigHandle7b" watch7b | LC_ALL=C grep -c -x '>RIG-FIRST-OWN' )" \
 	"WAIT-RESULT: RECEIVED:1:1:0"
 rigCall Bash "{\"handle\":\"$rigHandle7a\"}" "$rigSession7" read7a
 rigAssert "a read of the first handle still names the first command and its output: the second start overwrote nothing" \
-	"$( rigSaid 'Command: sleep 5; echo RIG-FIRST-OWN; sleep 6' read7a ):$( rigSaid '>RIG-FIRST-OWN' read7a ):$( rigSaid '>RIG-SECOND-OWN' read7a )" "1:1:0"
+	"$( rigSaid 'Command: sleep 5; echo RIG-FIRST-OWN; sleep 40' read7a ):$( rigSaid '>RIG-FIRST-OWN' read7a ):$( rigSaid '>RIG-SECOND-OWN' read7a )" "1:1:0"
 rigCall Bash "{\"handle\":\"$rigHandle7a\",\"stop\":true}" "$rigSession7" stop7a
 rigCall Bash "{\"handle\":\"$rigHandle7b\",\"stop\":true}" "$rigSession7" stop7b
 rigAssert "each stop closes the handle it names, and only that one" \
@@ -235,6 +238,35 @@ rigAssert "nor does a wait on it: the closed source returns nothing more, on the
 	"$( rigSaidRe '^WAIT-RESULT: TIMEOUT' watch8c ):$( rigSaid '>RIG-STRAggler-AFTER-CLOSE' watch8c ):$( rigSaid '>RIG-AFTER-CLOSE' watch8c )" "1:0:0"
 rigAssert "the command itself wrote nothing after the stop, even to its own file: nothing was left running to write it" \
 	"$( LC_ALL=C grep -c -F -- 'RIG-AFTER-CLOSE' "$rigProcessDir8/$rigHandle8.out" 2> /dev/null || : )" "0"
+
+## ---- 8. a stop signals the pid only while it is still the process that began under the handle ----
+echo "-- 8. a pid that is no longer the process of its handle is not signalled --"
+rigSession9="rig-detached-pid-kept"
+rigProcessDir9="$rigTmp/ws/.local/agents/sessions/$rigSession9/processes"
+rigStart "$rigSession9" 'sleep 45' start9
+rigHandle9="$( rigHandle start9 )"
+rigWrapper9="$( cat "$rigProcessDir9/$rigHandle9.pid" 2> /dev/null )"
+rigAssert "control: the start kept when the process began, beside its pid" "$( LC_ALL=C grep -c -E "^$rigWrapper9 " "$rigProcessDir9/$rigHandle9.began" 2> /dev/null || : )" "1"
+## The record of the start is made to name another start, as when the number has been given to a process of another since: the stop must not signal it.
+cp "$rigProcessDir9/$rigHandle9.began" "$rigTmp/began.9"
+printf '%s Mon_Jan__1_00:00:00_2001\n' "$rigWrapper9" > "$rigProcessDir9/$rigHandle9.began"
+rigCall Bash "{\"handle\":\"$rigHandle9\",\"stop\":true}" "$rigSession9" stop9
+rigAssert "the stop closes the handle, says nothing was signalled, and the process it names is still running" \
+	"$( rigSaid 'PROCESS-RESULT: CLOSED' stop9 ):$( rigSaidRe '^Nothing was signalled' stop9 ):$( kill -0 "$rigWrapper9" 2> /dev/null && printf running || printf gone )" "1:1:running"
+## Put right, a second handle on a fresh process is stopped as ever.
+rigStart "$rigSession9" 'sleep 45' start9b
+rigHandle9b="$( rigHandle start9b )"
+rigWrapper9b="$( cat "$rigProcessDir9/$rigHandle9b.pid" 2> /dev/null )"
+rigCall Bash "{\"handle\":\"$rigHandle9b\",\"stop\":true}" "$rigSession9" stop9b
+sleep 1
+rigAssert "a pid that is still the process of its handle is signalled: the stop ends it, and says nothing of not signalling" \
+	"$( kill -0 "$rigWrapper9b" 2> /dev/null && printf running || printf gone ):$( rigSaidRe '^Nothing was signalled' stop9b )" "gone:0"
+## The first process is ended through its handle, with the start put back, so none is left behind.
+cp "$rigTmp/began.9" "$rigProcessDir9/$rigHandle9.began"
+rm -f "$rigProcessDir9/$rigHandle9.closed"
+rigCall Bash "{\"handle\":\"$rigHandle9\",\"stop\":true}" "$rigSession9" stop9c
+sleep 1
+rigAssert "put back, the same stop ends it" "$( kill -0 "$rigWrapper9" 2> /dev/null && printf running || printf gone )" "gone"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DETACHED PROCESS WAIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

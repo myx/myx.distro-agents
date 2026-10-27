@@ -26,6 +26,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 rigMcpClient="$rigHere/harness/AgentsHarnessMcpClient.sh"
 rigSpawnInclude="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"
 
@@ -52,8 +53,8 @@ rigLift(){ ## file, function name
 		END { if ( seen != 1 ) exit 1 ; }
 	' "$1"
 }
-rigLiftBash="$( rigLift "$rigHarness" AgentsHarnessToolBash )" || rigRefuse "AgentsHarnessToolBash was not found in $rigHarness"
-rigLiftNumber="$( rigLift "$rigHarness" AgentsHarnessWholeNumber )" || rigRefuse "AgentsHarnessWholeNumber was not found in $rigHarness"
+rigLiftBash="$( rigLift <( rigHarnessCat ) AgentsHarnessToolBash )" || rigRefuse "AgentsHarnessToolBash was not found in $rigHarness"
+rigLiftNumber="$( rigLift <( rigHarnessCat ) AgentsHarnessWholeNumber )" || rigRefuse "AgentsHarnessWholeNumber was not found in $rigHarness"
 rigLiftMcpRun="$( rigLift "$rigMcpClient" AgentsHarnessMcpRun )" || rigRefuse "AgentsHarnessMcpRun was not found in $rigMcpClient"
 
 ## THE RIG'S CLOCK, for the retry alone: its 180 seconds pass in RIG_WATCH_SECONDS; every other wait is the host's.
@@ -224,8 +225,9 @@ rigAssert "the number taken between the two ends: the hard one is not sent, and 
 	"$( rigWatched )" "began ended-by-itself"
 
 echo "-- each watchdog keeps its process by the one reading the tooling keeps a process by --"
+## The harness holds two such watchdogs, each reading twice: the Bash tool's and the one behind WorkspaceContextExecute.
 rigAssert "none of the three files signals a pid after a wait by the number alone, and each reads when its process began through AgentsToolsRegistryProcessesBegan" \
-	"$( rigCode "$rigHarness" | LC_ALL=C grep -c -e 'sleep "\$toolTimeout" ; kill' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -e 'sleep "\$runBound" ; kill' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -e 'sleep 180 ; kill' ) $( rigCode "$rigHarness" | LC_ALL=C grep -c -F '"$harnessRunPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -F '"$runPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -F '"$warnRetryPid" | AgentsToolsRegistryProcessesBegan' )" "0 0 0 2 2 3"
+	"$( rigCode <( rigHarnessCat ) | LC_ALL=C grep -c -e 'sleep "\$toolTimeout" ; kill' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -e 'sleep "\$runBound" ; kill' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -e 'sleep 180 ; kill' ) $( rigCode <( rigHarnessCat ) | LC_ALL=C grep -c -F '"$harnessRunPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigMcpClient" | LC_ALL=C grep -c -F '"$runPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigSpawnInclude" | LC_ALL=C grep -c -F '"$warnRetryPid" | AgentsToolsRegistryProcessesBegan' )" "0 0 0 4 2 3"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ TOOLING WATCHDOGS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

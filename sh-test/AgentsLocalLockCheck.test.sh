@@ -5,6 +5,8 @@
 ## lock at once exactly one ends up holding it; the old directory form is removed; the
 ## lock area is local state only. Offline, in this check's own temp workspace.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigInclude="$rigHere/magic/AgentsTools.LocalLock.include"

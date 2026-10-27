@@ -102,6 +102,13 @@ AgentLibrarianTools(){
 			return $?
 		;;
 
+		## [<team-member>...]: the size of the skillset, a row for each file, each member and the total (lines and bytes). Reads only.
+		--skillset-size)
+			type AgentsToolsLibrarianSkillsetSize > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.LibrarianSkillsetSize.include"
+			AgentsToolsLibrarianSkillsetSize "$@"
+			return $?
+		;;
+
 		## <name>: the librarian poses a waiting concrete edit to a person in Pending Questions, as well as deciding it itself.
 		--queue-ask)
 			AgentsToolsLibrarianQueueAsk "$@"

@@ -13,6 +13,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -32,7 +33,7 @@ rigLift="$( LC_ALL=C awk '
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
 	END { if ( seen != 4 ) exit 1 ; }
-' "$rigHarness" )" || rigRefuse "the argument-table functions were not all found in $rigHarness"
+' <( rigHarnessCat ) )" || rigRefuse "the argument-table functions were not all found in $rigHarness"
 
 ## A workspace whose one hook records its stdin and answers with the canned document.
 ## The directory name carries a quote, a backslash and a space, so cwd needs escaping.

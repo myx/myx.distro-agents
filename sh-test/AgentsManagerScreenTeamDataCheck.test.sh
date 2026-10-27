@@ -163,7 +163,7 @@ keys ESC
 keys ALT-g m
 get chosen
 RIGSCRIPT
-rigAssert "with no team data the root list holds the ten roots and no Team Data, and Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines" "$( rigVal root.rows ) $( rigHolds root 'Team Data' ) $( rigVal none )" "10 0 .. activity launch team routines"
+rigAssert "with no team data the root list holds the ten roots and no Team Data, and Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines" "$( rigVal root.rows ) $( rigHolds root 'Team Data' ) $( rigVal none )" "10 0 .. activity launch team routines schedule"
 rigAssert "the numbers follow the list as it is shown: 4 is Locations (Places) and 9 Configuration" "$( rigVal five.path ) $( rigVal nine.path )" "places configuration"
 rigAssert "the menu Go names Team Members and Team Data with no number, and the roots with theirs" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Members  *[0-9]* ' -e 'Team Data  *[0-9]* ' -e 'Locations (Places)  *[0-9]* ' -e 'Manuals (Help)  *[0-9]* ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Members|Team Data|Locations (Places) 4|Manuals (Help)|"
 rigAssert "chosen there it does nothing and says why in the status line" "$( rigVal chosen.path ) $( rigVal chosen.notice )" "configuration Team Data: no team data is configured for this workspace"
@@ -190,7 +190,7 @@ wait list 10
 get in
 show in
 RIGSCRIPT
-rigAssert "where the dashboard says the team data is there, Team Data stands in Magic-Team (Agents), after Team Members, and is no root" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel ) $( rigVal full )" "10 4 Team Data .. activity launch team teamdata routines"
+rigAssert "where the dashboard says the team data is there, Team Data stands in Magic-Team (Agents), after Team Members, and is no root" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel ) $( rigVal full )" "10 4 Team Data .. activity launch team teamdata routines schedule"
 rigAssert "and the numbers are those of the roots alone: Team Data has none, Launchpad has no digit and stands once in the menu" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launchpad  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Launchpad|Team Data|Locations (Places) 4|Configuration 9|"
 rigAssert "selected, its summary says as its caption that the team data is there and its size, then where it is and the mode of the workspace" "$( rigHolds on '│Team data: there, 77.5M.' ) $( rigHolds on '│ root    /rig/ws/team-data' ) $( rigHolds on '│ mode    Team Rig, saved for the workspace; a full team rig' )" "1 1 1"
 rigAssert "its git state, nicely, as facts under a heading: where it stands and what it tracks, ahead and behind, what is not committed, each in the look of its level, and its last commit" "$( rigHolds on '│Git ' ) $( rigHolds on '│ branch       main, tracking origin/main' ) $( rigHolds on '│ ahead        2' ) $( rigHolds on '│ behind       1' ) $( rigHolds on '│ uncommitted  3' ) $( rigHolds on '│ last commit  2h 5m ago: the last change' )" "1 1 1 1 1 1"
@@ -242,6 +242,7 @@ keys DOWN
 turn
 show take
 RIGSCRIPT
+rigAssert "and it says that team data is not available in that mode" "$( rigHolds on 'Team data is not available in this mode' )" "1"
 rigAssert "a workspace that is just agents has no main loop, and its summary says so" "$( rigHolds on '│ mode    Just Agents, saved for the workspace' ) $( rigHolds on 'No main loop here: a workspace has one in the mode team-rig alone.' ) $( rigHolds on 'Main Loop' )" "1 1 0"
 rigAssert "there Operations shows each operation, what it does, what it runs, and that it is offered" "$( rigVal purge.path ) $( rigVal purge.selectedLabel ) $( rigHolds purge 'Empties the cleanup folder of this workspace' ) $( rigHolds purge 'runs   --owner-cleanup-purge' ) $( rigHolds purge 'here   offered' )" "magic-team/teamdata/operations Purge The Cleanup Folder 1 1 1"
 rigAssert "the sync of the team data is not offered where no git remote of it is set" "$( rigHolds sync 'runs   --commit-pending magic-coordinator' ) $( rigHolds sync 'here   not offered: no git remote of the team data is set' )" "1 1"

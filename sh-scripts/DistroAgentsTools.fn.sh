@@ -85,7 +85,7 @@ DistroAgentsTools(){
 	case "$1:${2:-}" in
 		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|--session-floor-remove:*|--camunda-diagram-sync-stale:*|*:|*:-*) ;;
 		--*:*)
-			## An invited member, set up only in another workspace on this machine: its operation runs here, and only its skillset, and those of its own settings this workspace holds none of, are read from the workspace it is set up in. The root is set for this one call, and a call that already reads that root goes on as it is.
+			## An invited member, set up only in another workspace: its operation runs here; only its skillset, and the settings this workspace lacks, are read from there.
 			local memberBrought memberBroughtFrom
 			memberBrought="$( AgentsToolsMemberSkillsetBring "$2" "$1" )" || { set +e ; return 1 ; }
 			memberBroughtFrom="${memberBrought#*$'\t'}"
@@ -137,7 +137,7 @@ DistroAgentsTools(){
 
 
 		--agents-config-option)
-			## A write into a preset, or of a key that belongs to presets or to the tiers, asks the write check first (AgentsToolsPresetWriteCheck, AgentsTools.Preset.include): the same writer, with its refusals. A value it takes from stdin is held by the check, and the writer is handed it again.
+			## A write into a preset, or of a key that belongs to presets or to the tiers, asks the write check first.
 			case "${3:-}" in
 				--upsert|--upsert-from-stdin|--upsert-if|--delete|--delete-if)
 					case "$2:${4:-}" in
@@ -153,10 +153,10 @@ DistroAgentsTools(){
 					esac
 				;;
 			esac
-			## An option is this workspace's own, with the exceptions the reader below cannot know, being the sibling package's: a read of one names the workspace it comes from where that is another (AgentsToolsConfigOptionElsewhere, AgentsTools.MemberWorkspace.include), and is then made there, by the same reader.
+			## An option is this workspace's own; a read of one that is another workspace's names that workspace (AgentsToolsConfigOptionElsewhere).
 			case "${3:-}" in
 				--select|--select-default)
-					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include): answered here, from the preset, ahead of the scope. Where none is set, the scope is read as ever, but for the CLI service, which has no scope reading.
+					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include).
 					if [ "$2" = "magic-team" ] ; then
 						local overlayOut overlayRc=0
 						type AgentsToolsPresetOverlay > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
@@ -167,7 +167,7 @@ DistroAgentsTools(){
 								return 0
 							;;
 							1)
-								## The CLI service is the tier's preset's alone: no tier is no CLI service, whatever an old line of the scope still holds (it is not read), and the spawn that finds none is refused naming SPAWN_TIER_NORMAL.
+								## The CLI service is the tier's preset's alone: no tier is no CLI service, whatever an old line of the scope still holds (it is not read).
 								if [ "${4:-}" = "SPAWN_CLI_SERVICE" ] ; then
 									if [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
 									return 0

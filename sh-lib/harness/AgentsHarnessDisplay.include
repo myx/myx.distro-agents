@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+## AgentsHarnessDisplay.include: the progress title, the terminal restore and the final answer. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## Composed from what this run already tracks, read at call time rather than passed
+## around: identity, model, round, the token figure, and whatever is happening right
+## now. The detail argument is optional -- a round boundary has none. The figure is the
+## last round's own total against the threshold that total is compared with, never the
+## running sum: every round re-sends the whole conversation, so the sum counts the same
+## context once per round and is not the number any decision here reads. It appears only
+## once a round has actually been measured, rather than asserting a zero nothing weighed.
+AgentsHarnessTitleState(){ ## optional trailing detail
+	[ -n "$harnessTitleActive" ] || return 0
+	local stateText="${harnessAgent:-harness} · ${harnessModel:-?} · round ${harnessRound}${harnessRoundTotal:+ · $harnessRoundTotal/$harnessContextTokens}${1:+ · $1}"
+	printf '\033]2;%s\007' "$stateText" >&2
+	## The reserved row is outside the scroll region, so this write cannot scroll, and the
+	## cursor save/restore therefore returns to a partially written reasoning line exactly
+	## as it was. ESC 7/ESC 8 rather than CSI s/CSI u: measured on Terminal.app, the CSI
+	## pair leaves the cursor where it was moved to and only the DEC pair restores it. Cut
+	## one column short -- a line reaching the last cell wraps, and a wrap there scrolls.
+	[ -n "$harnessStatusRows" ] || return 0
+	printf '\0337\033[%d;1H\033[K%s%s%s\0338' "$harnessStatusRows" "$harnessDim" "${stateText:0:$(( COLUMNS - 1 ))}" "$harnessOff" >&2
+}
+
+## Every terminal change this run made, undone in the one cleanup that runs on every
+## exit. The region is reset first and the cursor then parked on the row the status line
+## held: resetting DECSTBM homes the cursor, so without the reposition the next shell
+## prompt lands at the top of the screen, over output that has not scrolled into the
+## buffer yet and cannot be recovered once overwritten.
+AgentsHarnessRestoreTerminal(){
+	[ -n "$harnessTitleActive" ] || return 0
+	[ -z "$harnessStatusRows" ] || printf '\033[r\033[%d;1H\033[K' "$harnessStatusRows" >&2
+	printf '\033]2;%s\007' "$harnessHostName" >&2
+}
+
+## One place the answer leaves by, so the two emit sites cannot render differently.
+## The rendering is captured rather than piped straight through: a filter that fails
+## halfway would otherwise print a partial answer and then the whole of it again.
+AgentsHarnessEmitAnswer(){ ## answer text
+	local emitRendered
+	if [ -n "$harnessMarkdownFilter" ] \
+		&& emitRendered="$( printf '%s\n' "$1" | "$harnessMarkdownFilter" 2>/dev/null )" \
+		&& [ -n "$emitRendered" ] ; then
+		printf '%s\n' "$emitRendered"
+		return 0
+	fi
+	printf '%s\n' "$1"
+}

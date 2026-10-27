@@ -55,6 +55,24 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow need model_qwen3-8b-q4_k_m_5027783488
 } > "$rigF/rows.--manager-feature-part install $rigAi qwen3-8b-q4_k_m"
 rigRow plan install "$rigLance" lancedb - - 1000 - 17179869184 yes "less_than_1_GB_free" > "$rigF/rows.--manager-feature-part install $rigLance lancedb"
+## the agreed set: the plan for the host's profile, a plan that is blocked (the operation prints its rows, one error line and ends 1), and the work with --yes
+{
+	rigRow set shared-cpu 3 profile
+	rigRow model "$rigAi" stt-whisper-large-v3-turbo-q5_0 stt not-installed 574041195 yes
+	rigRow model "$rigAi" qwen3.5-4b-q8_0 chat not-installed 4482403488 yes
+	rigRow model "$rigLance" lancedb embedding not-installed - yes
+	rigRow total 5056444683 166094671872 no
+} > "$rigF/rows.--manager-feature-models"
+{
+	rigRow set gpu 3 profile
+	rigRow model "$rigAi" qwen3.8-27b-q8_0 chat not-installed 29100000000 yes
+	rigRow total 29100000000 1000 yes
+} > "$rigF/rows.--manager-feature-models --profile gpu"
+echo fail-rows > "$rigF/mode.--manager-feature-models --profile gpu"
+{
+	rigRow result "$rigAi" qwen3.5-4b-q8_0 installed
+	rigRow end 1 0 2
+} > "$rigF/rows.--manager-feature-models --yes"
 printf '%s\n' "Hello from the model" > "$rigF/rows.--manager-feature-ask qwen3-4b-q4_k_m"
 printf '%s\n' "hello world" > "$rigF/rows.--manager-feature-stt-test"
 rigRow created agents:preset-local qwen3-4b-q4_k_m > "$rigF/rows.--manager-feature-preset qwen3-4b-q4_k_m"
@@ -72,6 +90,9 @@ rigScript(){ ## the commands of the driver on standard input, after the ones tha
 }
 rigVal(){ printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1 ; }
 rigHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
+}
+rigBoxHas(){ ## tag, text -- how many lines of that drawing of a dialog hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
@@ -239,6 +260,60 @@ get heard
 show heard
 RIGSCRIPT
 rigAssert "Voice test with no file: the operation is called with no word after it, and the text it gave is shown" "$( rigVal on.selected ) [$( LC_ALL=C grep -F -- '[--manager-feature-stt-test]' "$MANAGER_SCREEN_RIG/words" )] $( rigHolds heard 'hello world' )" "$rigAi/stt-whisper-small-q5_1:voice [[--manager-feature-stt-test]] 1"
+
+echo "-- the agreed set: the plan first, the run only when it is shown, fits and is confirmed --"
+rigCase set
+rigScript <<'RIGSCRIPT'
+at @subsystems features
+turn
+wait list 30
+keys i
+wait plan 30
+turn
+get opened
+box p
+keys ESC
+turn
+get esc
+RIGSCRIPT
+rigAssert "i asks the operation for the plan of the host's profile, without --yes, and shows each part with its state and size, the total against the free space" "$( rigCalled '--manager-feature-models' ) $( rigVal opened.dialogTitle ) $( rigBoxHas p 'qwen3.5-4b-q8_0, not installed, 4.2G (default)' ) $( rigBoxHas p 'to fetch' ) $( rigBoxHas p 'blocked' )" "1 Install the agreed set 1 1 1"
+rigAssert "Esc closes it and nothing was installed" "[$( rigVal esc.dialog )] $( LC_ALL=C grep -c -F -e '--yes' "$MANAGER_SCREEN_RIG/calls" || : )" "[] 0"
+rigCase setrun
+rigScript <<'RIGSCRIPT'
+at @subsystems features
+turn
+wait list 30
+keys i
+wait plan 30
+turn
+keys ENTER
+turn 2
+get ran
+wait follow 30
+turn
+get ended
+box e
+RIGSCRIPT
+rigAssert "Install runs the same operation with --yes, once, in the output dialog, which shows the rows the operation printed" "$( rigCalled '--manager-feature-models --yes' ) $( rigVal ran.dialogTitle ) $( rigBoxHas e 'result' ) $( rigBoxHas e 'end' )" "1 Install the agreed set 1 1"
+rigCase setblocked
+rigScript <<'RIGSCRIPT'
+at @subsystems features
+turn
+wait list 30
+keys i
+wait plan 30
+turn
+keys DOWN DOWN DOWN SPACE TAB TAB TAB ENTER
+wait plan 30
+turn
+get shown
+box b
+keys BACKTAB ENTER
+turn
+get pressed
+RIGSCRIPT
+rigAssert "another profile asks for its own plan; one that does not fit is shown as blocked" "$( rigCalled '--manager-feature-models --profile gpu' ) $( rigBoxHas b 'blocked' ) $( rigBoxHas b 'it does not fit' )" "1 1 1"
+rigAssert "Install on a blocked plan does nothing: the dialog says so and the operation is never called with --yes" "[$( rigVal pressed.dialogSays )] $( LC_ALL=C grep -c -F -e '--yes' "$MANAGER_SCREEN_RIG/calls" || : )" "[the plan is blocked: nothing can be installed] 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN FEATURES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

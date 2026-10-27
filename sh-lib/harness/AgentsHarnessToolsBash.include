@@ -1,0 +1,437 @@
+#!/usr/bin/env bash
+## AgentsHarnessToolsBash.include: the Bash tool and its detached processes. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## A detached process's handle must be unique for the whole SESSION, not for one harness
+## process: the counter this used to be kept in a shell variable reset in every served call, so
+## two detaches in one session both came back as process-1 and the second one's files overwrote
+## the first one's -- its output was gone, silently. The handle is claimed by an exclusive
+## create in the session's own processes folder, which no later start can take whatever process
+## it runs in, and a handle once claimed is never reused: a Wait on an old handle still reads the
+## process it named. Readable in a transcript, and not a pid the system may hand to something else.
+AgentsHarnessProcessClaimHandle(){ ## processes dir -- the handle this start owns, nothing where none could be claimed
+	local claimDir="$1" claimNumber=1 claimFile
+	while [ "$claimNumber" -le 9999 ] ; do
+		claimFile="$claimDir/process-$claimNumber.out"
+		if ( set -C ; : > "$claimFile" ) 2> /dev/null ; then
+			printf 'process-%s' "$claimNumber"
+			return 0
+		fi
+		claimNumber=$(( claimNumber + 1 ))
+	done
+	return 1
+}
+
+## The byte counts a stopped process's output is closed at, as its `.closed` marker keeps them
+## (`out <n>` and `err <n>`). A reader delivers at most these bytes, so a child that outlived
+## the stop -- one that escaped the process group, or wrote between the signal and its death --
+## cannot add a line to a handle its reader closed. Empty where the handle was never stopped, and
+## where its marker was written by an older build: there the output is read whole, as it was then.
+AgentsHarnessProcessClosedAt(){ ## processes dir, handle -- "outBytes errBytes", nothing where there are none
+	local closedLine closedOut=0 closedErr=0 closedSeen=""
+	[ -f "$1/$2.closed" ] || return 0
+	while IFS= read -r closedLine ; do
+		case "$closedLine" in
+			'out '*) closedOut="${closedLine#out }" ; closedSeen="yes" ;;
+			'err '*) closedErr="${closedLine#err }" ; closedSeen="yes" ;;
+		esac
+	done < "$1/$2.closed"
+	[ -n "$closedSeen" ] || return 0
+	case "$closedOut" in ''|*[!0-9]*) closedOut=0 ;; esac
+	case "$closedErr" in ''|*[!0-9]*) closedErr=0 ;; esac
+	printf '%s %s' "$closedOut" "$closedErr"
+}
+
+## The output of a detached process as it is delivered: stdout lines prefixed > and stderr
+## lines prefixed !, each stream cut at the byte count the handle was closed at when it has
+## one (empty caps read the file whole). One rendering for the Bash read and one for the Wait
+## probe, so a closed handle says the same thing to both.
+AgentsHarnessProcessRender(){ ## processes dir, handle, out cap, err cap -- the prefixed rendering on stdout
+	local renderDir="$1" renderHandle="$2" renderOut="$3" renderErr="$4"
+	if [ -n "$renderOut" ] ; then
+		[ ! -f "$renderDir/$renderHandle.out" ] || head -c "$renderOut" "$renderDir/$renderHandle.out" 2> /dev/null | LC_ALL=C awk '{ print ">" $0 }'
+		[ ! -f "$renderDir/$renderHandle.err" ] || head -c "$renderErr" "$renderDir/$renderHandle.err" 2> /dev/null | LC_ALL=C awk '{ print "!" $0 }'
+	else
+		[ ! -f "$renderDir/$renderHandle.out" ] || LC_ALL=C awk '{ print ">" $0 }' "$renderDir/$renderHandle.out" 2> /dev/null
+		[ ! -f "$renderDir/$renderHandle.err" ] || LC_ALL=C awk '{ print "!" $0 }' "$renderDir/$renderHandle.err" 2> /dev/null
+	fi
+}
+
+## One report of a detached process, posted into the session thread by the team's send operation, which keeps the credential. The
+## sentence is the tooling's own words and is what the plain-language floor measures; the output lines after it are the process's.
+## Every failure goes to the process's own report log, never to nowhere.
+AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, sentence, output lines
+	local postDir="$1" postHandle="$2" postRc=0 postArgs
+	if [ -z "$harnessAgent" ] ; then
+		printf 'ERROR: this run has no team identity to post under, so the report was NOT posted: %s\n' "$5" >> "$postDir/$postHandle.report" ; return 1
+	fi
+	postArgs=( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message "$harnessAgent" "$3" )
+	[ -z "$4" ] || postArgs+=( --address-to "$4" )
+	printf '%s' "$5" > "$postDir/$postHandle.report.prose"
+	{ printf '%s\n' "$5" ; [ -z "$6" ] || printf '\n%s\n' "$6" ; } | MDAT_SEND_PROSE_FILE="$postDir/$postHandle.report.prose" "${postArgs[@]}" --from-stdin >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
+	[ "$postRc" = 0 ] || printf 'ERROR: the report was NOT posted (rc=%s): %s\n' "$postRc" "$5" >> "$postDir/$postHandle.report"
+	return "$postRc"
+}
+
+## The reporter of a detached process (S3.1): it lives as long as the process does and posts into the session thread, still running at the interval
+## MDAT_PROCESS_ALIVE_SECONDS (600; 0 for none), possibly waiting for input once an output that stopped without a newline has been quiet for
+## MDAT_PROCESS_INPUT_IDLE_SECONDS (30), and the end with its exit status and last lines. A process the caller stops is not reported as ended.
+AgentsHarnessProcessReporter(){ ## processes dir, handle, wrapper pid, thread, address to
+	local repDir="$1" repHandle="$2" repPid="$3" repThread="$4" repCaller="$5"
+	local repAlive="${MDAT_PROCESS_ALIVE_SECONDS:-600}" repIdle="${MDAT_PROCESS_INPUT_IDLE_SECONDS:-30}" repPoll="${MDAT_PROCESS_POLL_SECONDS:-1}"
+	local repNow repStart repGrew repPosted repSize="" repAsked="" repBytes repStatus repLines repEnd="" repFile repLastByte repPrompt
+	set +e
+	repStart="$( date +%s )" ; repGrew="$repStart" ; repPosted="$repStart"
+	while : ; do
+		[ ! -f "$repDir/$repHandle.closed" ] || return 0
+		if [ -f "$repDir/$repHandle.status" ] ; then repEnd=status ; break ; fi
+		if ! kill -0 "$repPid" 2> /dev/null ; then
+			sleep "$repPoll"
+			[ ! -f "$repDir/$repHandle.closed" ] || return 0
+			if [ -f "$repDir/$repHandle.status" ] ; then repEnd=status ; else repEnd=gone ; fi
+			break
+		fi
+		sleep "$repPoll"
+		repNow="$( date +%s )"
+		repBytes="$( cat "$repDir/$repHandle.out" "$repDir/$repHandle.err" 2> /dev/null | wc -c | tr -d ' ' )"
+		if [ "$repBytes" != "$repSize" ] ; then repSize="$repBytes" ; repGrew="$repNow" ; repAsked="" ; fi
+		if [ "$repIdle" -gt 0 ] && [ "$repBytes" -gt 0 ] && [ "$repAsked" != "$repBytes" ] && [ $(( repNow - repGrew )) -ge "$repIdle" ] ; then
+			repPrompt=""
+			for repFile in "$repDir/$repHandle.out" "$repDir/$repHandle.err" ; do
+				[ -s "$repFile" ] || continue
+				repLastByte="$( tail -c 1 "$repFile" | od -An -c | tr -d ' ' )"
+				[ "$repLastByte" = '\n' ] || repPrompt="$( tail -n 1 "$repFile" )"
+			done
+			repAsked="$repBytes"
+			if [ -n "$repPrompt" ] ; then
+				AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "$repCaller" "Process $repHandle may be waiting for input. Its output stopped without a newline." "> $repPrompt"
+				repPosted="$repNow"
+				continue
+			fi
+		fi
+		if [ "$repAlive" -gt 0 ] && [ $(( repNow - repPosted )) -ge "$repAlive" ] ; then
+			AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "" "Process $repHandle is still running. It has written $repBytes bytes so far."
+			repPosted="$repNow"
+		fi
+	done
+	repLines="$( AgentsHarnessProcessRender "$repDir" "$repHandle" "" "" 2> /dev/null | tail -n 20 )"
+	if [ "$repEnd" = status ] ; then
+		repStatus="$( cat "$repDir/$repHandle.status" 2> /dev/null )"
+		AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "$repCaller" "Process $repHandle ended with exit status $repStatus." "${repLines:+Last lines of its output, > for stdout and ! for stderr:
+$repLines}"
+	else
+		AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "$repCaller" "Process $repHandle is gone and left no exit status." "${repLines:+Last lines of its output, > for stdout and ! for stderr:
+$repLines}"
+	fi
+	return 0
+}
+
+## No sandboxing beyond the cwd bound, matching copilot's own --allow-all-tools trust
+## model. Output goes to a scratch file rather than $( ): a model-supplied command may
+## background a child that holds a capture pipe open forever.
+AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin
+	local toolCwd="$1" toolCommand="$2" toolTimeout="$3" toolDetach="$4" toolHandle="$5" toolStop="$6" toolOffset="$7" toolLimit="$8" toolStdin="$9" toolStatus=0 toolBytes
+	local processSession processDir processPid processTotal processCaps processWaited processOutBytes processErrBytes processCloseTmp processReportThread processReportNote processBegan processMine
+	## A handle alone names a process this session started detached: read it, or stop it.
+	if [ -n "$toolHandle" ] ; then
+		case "$toolHandle" in
+			process-*) ;;
+			*) printf 'ERROR: handle must be one a detached Bash start returned, such as process-1, and this is not one: %s. Nothing was read or stopped.\n' "$toolHandle" ; return 0 ;;
+		esac
+		processSession="$( AgentsHarnessSessionKey )"
+		if [ -z "$processSession" ] ; then
+			printf 'ERROR: this run belongs to no session, so there is no folder a detached process of it lives in. Nothing was read or stopped.\n' ; return 0
+		fi
+		if ! AgentsHarnessBareName "$processSession" ; then
+			printf 'ERROR: the session id is no bare name, so it names no process folder. Nothing was read or stopped.\n' ; return 0
+		fi
+		processDir="$MMDAPP/.local/agents/sessions/$processSession/processes"
+		if [ ! -f "$processDir/$toolHandle.out" ] && [ ! -f "$processDir/$toolHandle.err" ] ; then
+			printf 'ERROR: no detached process named %s was started by this session, so there is no output to read. This is a handle naming nothing, never a process that wrote nothing.\n' "$toolHandle" ; return 0
+		fi
+		if [ -n "$toolOffset" ] && ! AgentsHarnessWholeNumber "$toolOffset" ; then
+			printf 'ERROR: offset must be a whole number of bytes, got: %s\n' "$toolOffset" ; return 0
+		fi
+		if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
+			printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
+		fi
+		[ -n "$toolLimit" ] || toolLimit="$harnessReadCap"
+		[ "$toolLimit" -le "$harnessReadCap" ] || toolLimit="$harnessReadCap"
+		## No offset means the start, not the end: a detached process's output is read
+		## from its first byte, and the windowed read names the offset to continue.
+		[ -n "$toolOffset" ] || toolOffset=0
+		if [ "$toolStop" = "true" ] || [ "$toolStop" = "1" ] || [ "$toolStop" = "yes" ] ; then
+			processPid="" ; processBegan="" ; processMine=""
+			read -r processPid < "$processDir/$toolHandle.pid" 2>/dev/null || processPid=""
+			read -r processBegan < "$processDir/$toolHandle.began" 2>/dev/null || processBegan=""
+			type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+			## Signalled only while the pid is still the process that began when the handle was started, read by the one reading a process is kept by: a process that
+			## ended, and a number the system has since given to another, are not signalled, and the handle is closed all the same.
+			## The whole GROUP is signalled, not the one pid: the command is the leader of a
+			## process group of its own, so everything it started is in that group. Signalling
+			## the pid alone reached the wrapper shell and left its children running, writing.
+			## Every wait below is on the GROUP (`kill -0 -pgid`), never on the leader: TERM
+			## takes the wrapper at once while a child that ignores TERM lives on, and a check
+			## of the leader alone would then report the stop done with that child still writing.
+			if [ -n "$processPid" ] && [ -n "$processBegan" ] && [ "$( printf '%s\n' "$processPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$processBegan" ] && processMine=1 && { kill -TERM -"$processPid" 2>/dev/null || kill -TERM "$processPid" 2>/dev/null || : ; } ; then
+				processWaited=0
+				while [ "$processWaited" -lt 20 ] && kill -0 -"$processPid" 2>/dev/null ; do
+					sleep 0.1
+					processWaited=$(( processWaited + 1 ))
+				done
+				## Whatever still stands in the group after the grace is killed outright: a
+				## command that ignores TERM, or one of its children that does, dies all the same.
+				if kill -0 -"$processPid" 2>/dev/null || kill -0 "$processPid" 2>/dev/null ; then
+					kill -KILL -"$processPid" 2>/dev/null || kill -KILL "$processPid" 2>/dev/null || :
+					processWaited=0
+					while [ "$processWaited" -lt 10 ] && { kill -0 -"$processPid" 2>/dev/null || kill -0 "$processPid" 2>/dev/null ; } ; do
+						sleep 0.1
+						processWaited=$(( processWaited + 1 ))
+					done
+				fi
+			fi
+			## CLOSED WHERE IT STANDS: the byte counts are taken once nothing in the group can
+			## write any more, and both readers stop there. A child that outlived the stop
+			## therefore cannot add a line to a handle its reader has closed. A second stop
+			## leaves the marker of the first alone: a close is taken once, where it stood.
+			if [ ! -f "$processDir/$toolHandle.closed" ] ; then
+				processOutBytes=0 ; processErrBytes=0
+				[ ! -f "$processDir/$toolHandle.out" ] || processOutBytes="$( wc -c < "$processDir/$toolHandle.out" | tr -d ' ' )"
+				[ ! -f "$processDir/$toolHandle.err" ] || processErrBytes="$( wc -c < "$processDir/$toolHandle.err" | tr -d ' ' )"
+				processCloseTmp="$( mktemp "$processDir/$toolHandle.closed.XXXXXX" 2> /dev/null )" || processCloseTmp=""
+				if [ -n "$processCloseTmp" ] && printf 'out %s\nerr %s\n' "$processOutBytes" "$processErrBytes" > "$processCloseTmp" ; then
+					mv -f "$processCloseTmp" "$processDir/$toolHandle.closed" || rm -f "$processCloseTmp"
+				else
+					[ -z "$processCloseTmp" ] || rm -f "$processCloseTmp"
+					printf 'out %s\nerr %s\n' "$processOutBytes" "$processErrBytes" > "$processDir/$toolHandle.closed"
+				fi
+			fi
+			printf 'PROCESS-RESULT: CLOSED\nProcess handle: %s\nCommand: %s\nYou stopped it, so its output is closed where it stands: %s and %s\n' \
+				"$toolHandle" "$( cat "$processDir/$toolHandle.cmd" 2>/dev/null )" "${processDir#"$MMDAPP"/}/$toolHandle.out" "${processDir#"$MMDAPP"/}/$toolHandle.err"
+			[ -n "$processMine" ] || printf 'Nothing was signalled: its pid is no longer the process that was started under this handle, or no start was kept for it.\n'
+			return 0
+		fi
+		processPid=""
+		read -r processPid < "$processDir/$toolHandle.pid" 2>/dev/null || processPid=""
+		if [ -f "$processDir/$toolHandle.closed" ] ; then
+			printf 'PROCESS-RESULT: CLOSED\n'
+		elif [ -n "$processPid" ] && kill -0 "$processPid" 2>/dev/null ; then
+			printf 'PROCESS-RESULT: RUNNING\n'
+		elif [ -f "$processDir/$toolHandle.status" ] ; then
+			printf 'PROCESS-RESULT: FINISHED\n'
+		else
+			printf 'PROCESS-RESULT: UNKNOWN\n'
+		fi
+		printf 'Process handle: %s\nCommand: %s\n' "$toolHandle" "$( cat "$processDir/$toolHandle.cmd" 2>/dev/null )"
+		if [ -f "$processDir/$toolHandle.closed" ] ; then
+			printf 'This process was stopped by you, so its output is closed where it stands.\n'
+		elif [ -f "$processDir/$toolHandle.status" ] ; then
+			printf 'This process ENDED with exit status %s, so its output is complete.\n' "$( cat "$processDir/$toolHandle.status" 2>/dev/null )"
+		elif [ -n "$processPid" ] && kill -0 "$processPid" 2>/dev/null ; then
+			printf 'This process is STILL RUNNING, so its output is still being written: what follows is what exists so far. Watch it with Wait sources=process:%s, which returns as its output grows.\n' "$toolHandle"
+		else
+			printf 'This process is no longer running and recorded NO exit status, so it was killed or died before it could write one.\n'
+		fi
+		processCaps="$( AgentsHarnessProcessClosedAt "$processDir" "$toolHandle" )"
+		AgentsHarnessProcessRender "$processDir" "$toolHandle" "${processCaps%% *}" "${processCaps##* }" > "$harnessScratch/process.read" 2>/dev/null
+		processTotal="$( wc -c < "$harnessScratch/process.read" | tr -d ' ' )"
+		if [ "$processTotal" -eq 0 ] ; then
+			printf 'The output is zero bytes: this process has written NOTHING YET.\n'
+			return 0
+		fi
+		printf '\nEach line is prefixed with > for stdout and ! for stderr.\n'
+		AgentsHarnessWindowedRead "$harnessScratch/process.read" "$toolOffset" "$toolLimit"
+		return 0
+	fi
+	if [ "$toolDetach" = "true" ] || [ "$toolDetach" = "1" ] || [ "$toolDetach" = "yes" ] ; then
+		if ! AgentsHarnessPathAllowed "$toolCwd" ; then
+			printf 'ERROR: cwd not in the allowed access-root set: %s. Nothing was started.\n' "$toolCwd" ; return 0
+		fi
+		toolCwd="$harnessResolvedPath"
+		if [ ! -d "$toolCwd" ] ; then
+			printf 'ERROR: no such directory: %s. Nothing was started.\n' "$toolCwd" ; return 0
+		fi
+		processSession="$( AgentsHarnessSessionKey )"
+		if [ -z "$processSession" ] ; then
+			printf 'ERROR: this run belongs to no session, so it has no folder to own a detached process in. Nothing was started.\n' ; return 0
+		fi
+		if ! AgentsHarnessBareName "$processSession" ; then
+			printf 'ERROR: the session id is no bare name, so it names no process folder. Nothing was started.\n' ; return 0
+		fi
+		processDir="$MMDAPP/.local/agents/sessions/$processSession/processes"
+		if ! mkdir -p "$processDir" ; then
+			printf 'ERROR: could not create the process folder under the session folder, so no process could be owned there. Nothing was started.\n' ; return 0
+		fi
+		if ! toolHandle="$( AgentsHarnessProcessClaimHandle "$processDir" )" || [ -z "$toolHandle" ] ; then
+			printf 'ERROR: no free handle could be claimed in the session process folder, so no process could be owned there. Nothing was started.\n' ; return 0
+		fi
+		printf '%s' "$toolCommand" > "$processDir/$toolHandle.cmd"
+		rm -f "$processDir/$toolHandle.in"
+		[ -z "$toolStdin" ] || printf '%s' "$toolStdin" > "$processDir/$toolHandle.in"
+		: > "$processDir/$toolHandle.out"
+		: > "$processDir/$toolHandle.err"
+		rm -f "$processDir/$toolHandle.status" "$processDir/$toolHandle.closed"
+		## The command runs detached, its stdout and stderr to two files in the session
+		## folder, its status written by the wrapper that owns it -- nothing else can read
+		## it, and a `wait` here would block for the job's whole life. The wrapper's own
+		## streams go to /dev/null so this call's capture pipe closes at once. Its stdin
+		## is the caller's when one was given, /dev/null otherwise -- a detached process
+		## is never left reading the harness's own stdin.
+		## The wrapper is started under job control, `set -m` and then a `disown`, so it is the
+		## leader of a PROCESS GROUP OF ITS OWN and the command it runs, with everything that
+		## command starts, is in that group: a stop can signal the group, and the children die
+		## with it. (Signalling the one pid killed the wrapper and left its children writing.)
+		## The wrapper is disowned so bash never reports its going on this call's own streams.
+		set -m
+		( set +m
+		  processStatus=0
+		  if [ -n "$toolStdin" ] ; then
+			( cd "$toolCwd" && set -e && eval "$toolCommand" ) < "$processDir/$toolHandle.in" > "$processDir/$toolHandle.out" 2> "$processDir/$toolHandle.err" &
+		  else
+			( cd "$toolCwd" && set -e && eval "$toolCommand" ) < /dev/null > "$processDir/$toolHandle.out" 2> "$processDir/$toolHandle.err" &
+		  fi
+		  processInner=$!
+		  wait "$processInner" || processStatus=$?
+		  printf '%s\n' "$processStatus" > "$processDir/$toolHandle.status"
+		) > /dev/null 2>&1 < /dev/null &
+		processPid=$!
+		set +m
+		disown "$processPid" 2> /dev/null || :
+		## When the process began is kept beside its pid, written first, so a stop signals the pid only while it is still the process that began then.
+		type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+		printf '%s\n' "$processPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null > "$processDir/$toolHandle.began" || :
+		printf '%s\n' "$processPid" > "$processDir/$toolHandle.pid"
+		## The reporter posts this process's progress and end into the session thread (S3.1), or says now that it cannot.
+		processReportThread="$( AgentsHarnessSessionThread "$harnessCurrentName" 2> /dev/null )" || processReportThread=""
+		processReportThread="${processReportThread%% *}"
+		rm -f "$processDir/$toolHandle.report" "$processDir/$toolHandle.report.prose"
+		if [ -n "$processReportThread" ] ; then
+			( AgentsHarnessProcessReporter "$processDir" "$toolHandle" "$processPid" "$processReportThread" "$( AgentsHarnessCallerMember 2> /dev/null )" ) > /dev/null 2>&1 < /dev/null &
+			disown "$!" 2> /dev/null || :
+			processReportNote="Its progress and its end are reported into the session thread."
+		else
+			processReportNote="This session has no session thread, so no progress will be posted; watch the process with Wait."
+		fi
+		printf 'PROCESS-RESULT: RUNNING\nProcess handle: %s\nCommand: %s\nIn: %s\nOutput: %s and %s\nThe process is detached and owned by this session: its stdout and stderr are written live to those two files, one line per line of output, prefixed with > for stdout and ! for stderr when read. Watch it with Wait sources=process:%s, which returns as its output grows and once more when the process ends, and call Wait again whenever its result says to. Stop it with Bash stop=true handle=%s. %s\n' \
+			"$toolHandle" "$toolCommand" "$toolCwd" "${processDir#"$MMDAPP"/}/$toolHandle.out" "${processDir#"$MMDAPP"/}/$toolHandle.err" "$toolHandle" "$toolHandle" "$processReportNote"
+		return 0
+	fi
+	if ! AgentsHarnessPathAllowed "$toolCwd" ; then
+		printf 'ERROR: cwd not in the allowed access-root set: %s\n' "$toolCwd" ; return 0
+	fi
+	toolCwd="$harnessResolvedPath"
+	if [ ! -d "$toolCwd" ] ; then
+		printf 'ERROR: no such directory: %s\n' "$toolCwd" ; return 0
+	fi
+	## Per-call override of the harness-wide bound, validated the way that bound is.
+	if [ -n "$toolTimeout" ] ; then
+		if ! AgentsHarnessWholeNumber "$toolTimeout" ; then
+			printf 'ERROR: timeout must be a whole number of seconds, got: %s\n' "$toolTimeout" ; return 0
+		fi
+	else
+		toolTimeout="$harnessRunTimeout"
+	fi
+	## The command always reaches bash as an argument, never spliced into a quoted string.
+	## Its stdin is the caller's when one was given, /dev/null otherwise -- the tooling
+	## decides it, so a command is never left reading the harness's own stdin.
+	rm -f "$harnessScratch/run.timedout"
+	: > "$harnessScratch/run.stdin"
+	[ -z "$toolStdin" ] || printf '%s' "$toolStdin" > "$harnessScratch/run.stdin"
+	if [ "$toolTimeout" = 0 ] ; then
+		( cd "$toolCwd" && set -e && eval "$toolCommand" ) < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+	elif [ -n "$harnessTimeoutCmd" ] ; then
+		"$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+		[ "$toolStatus" != 124 ] || : > "$harnessScratch/run.timedout"
+	else
+		## Watchdog where no `timeout` exists; a group, not a subshell, so $toolStatus survives.
+		{
+			bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 &
+			harnessRunPid=$!
+			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
+			## The >/dev/null is load-bearing: without it the orphaned `sleep` holds this
+			## function's capture pipe open and every Bash call blocks for the full bound.
+			## The watchdog ends the command it was started for and no other process: at the
+			## bound the pid alone may name whoever was given that number since. So it keeps
+			## when the command began, read as the watchdog starts, and signals only while that
+			## pid is still the process that began then (AgentsToolsRegistryProcessesBegan, the
+			## one reading a process is kept by, loaded in the watchdog's own shell). Where no
+			## start can be read, nothing is signalled by the number alone.
+			(
+				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
+				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+				sleep "$toolTimeout"
+				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM "$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
+			) >/dev/null &
+			harnessWatchPid=$!
+			printf '%s\n' "$harnessWatchPid" > "$harnessScratch/watch.pid"
+			wait "$harnessRunPid" || toolStatus=$?
+			kill -TERM "$harnessWatchPid" 2>/dev/null || :
+			wait "$harnessWatchPid" 2>/dev/null || :
+			## Reaped normally: the records exist so the cleanup can reach a child the
+			## run never got to wait on, not to re-signal one already gone.
+			rm -f "$harnessScratch/run.pid" "$harnessScratch/watch.pid"
+		} 2>/dev/null
+	fi
+	## The whole output is returned, however long: the reply layer keeps a long result in
+	## the session's results/ folder (F2.4), so nothing a long-running command wrote is
+	## lost to a byte cap here.
+	cat "$harnessScratch/run.out"
+	## Expiry is read from the flag the enforcing path wrote, never inferred from the status.
+	[ ! -f "$harnessScratch/run.timedout" ] || printf '... TIMED OUT after %s seconds ...\n' "$toolTimeout"
+	printf '(exit status %s)\n' "$toolStatus"
+}
+
+AgentsHarnessToolWorkspaceContextExecute(){ ## command, workspace, timeout
+	local toolCommand="$1" toolWorkspace="$2" toolTimeout="$3" toolStatus=0 toolBytes
+	local toolTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	local toolArgs=( "$BASH" "$toolTools" --intern-mcp-execute )
+	[ -n "$toolCommand" ] || { printf 'ERROR: command is required: the shell script to run with the myx.distro workspace context already established. Nothing was run.\n' ; return 0 ; }
+	if [ ! -x "$toolTools" ] ; then
+		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s. Nothing was run.\n' "$toolTools" ; return 0
+	fi
+	if [ -n "$toolWorkspace" ] ; then
+		case "$toolWorkspace" in /*) ;; *) printf 'ERROR: workspace must be an absolute path: %s. Nothing was run.\n' "$toolWorkspace" ; return 0 ;; esac
+		toolArgs+=( --workspace "$toolWorkspace" )
+	fi
+	if [ -n "$toolTimeout" ] ; then
+		if ! AgentsHarnessWholeNumber "$toolTimeout" ; then
+			printf 'ERROR: timeout must be a whole number of seconds, got: %s. Nothing was run.\n' "$toolTimeout" ; return 0
+		fi
+	else
+		toolTimeout="$harnessRunTimeout"
+	fi
+	rm -f "$harnessScratch/run.timedout"
+	## The script runs in a fresh tooling process, as the MCP execute runs it: the process
+	## establishes the workspace context (Distro, Require, Action). Output to a file and wait
+	## on the pid, never a capture: the script may leave a background child behind.
+	if [ "$toolTimeout" = 0 ] ; then
+		printf '%s' "$toolCommand" | "${toolArgs[@]}" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+	else
+		{
+			set -m
+			( printf '%s' "$toolCommand" | "${toolArgs[@]}" ) > "$harnessScratch/run.out" 2>&1 &
+			harnessRunPid=$!
+			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
+			## The watchdog ends the group the call leads, as the MCP execute ends its own: the
+			## script runs in a subshell of the tooling process, so a bare pid leaves it running.
+			(
+				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
+				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+				sleep "$toolTimeout"
+				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM -- "-$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
+			) >/dev/null &
+			harnessWatchPid=$!
+			printf '%s\n' "$harnessWatchPid" > "$harnessScratch/watch.pid"
+			wait "$harnessRunPid" || toolStatus=$?
+			kill -TERM "$harnessWatchPid" 2>/dev/null || :
+			wait "$harnessWatchPid" 2>/dev/null || :
+			rm -f "$harnessScratch/run.pid" "$harnessScratch/watch.pid"
+		} 2>/dev/null
+		set +m
+	fi
+	## The whole output is returned, however long: the reply layer keeps a long result in
+	## the session's results/ folder (F2.4), so nothing a long-running script wrote is
+	## lost to a byte cap here.
+	cat "$harnessScratch/run.out"
+	[ ! -f "$harnessScratch/run.timedout" ] || printf '... TIMED OUT after %s seconds ...\n' "$toolTimeout"
+	printf '(exit status %s)\n' "$toolStatus"
+}

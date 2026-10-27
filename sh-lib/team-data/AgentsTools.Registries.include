@@ -308,9 +308,11 @@ AgentsToolsRegistryAgentsIndicesBuild(){ ## the operation as it was called, regi
 ##
 ## session-id is the session's own shared id (spawn-id for a lone spawn); spawn-id is this row's own spawn. Every column after exit-code was appended, never inserted.
 ##
-## started-at, resolved-at and session-comment are the record's own headers of those names: when the run started, when its closed state was recorded, and how its session was named. A date reads `2026-10-12_16:57_+0300`, its spaces written `_` like any value's.
+## started-at, resolved-at and session-comment are the record's own headers of those names: when the run started, when its closed state was recorded, and how its session was named.
+## A date reads `2026-10-12_16:57_+0300`, its spaces written `_` like any value's.
 ##
-## session-state and session-state-at: the state word of the row session control thread (AgentsTools.InternSessionControl.include) and when it was set; `-` in both where there is none. Liveness is measured live.
+## session-state and session-state-at: the state word of the row session control thread (AgentsTools.InternSessionControl.include) and when it was set; `-` in both where there is none.
+## Liveness is measured live.
 ##
 ## workspace is a basename, never a path -- same convention as team-members' own workspace column (AgentsTools.Install.include).
 ##

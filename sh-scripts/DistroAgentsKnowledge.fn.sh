@@ -10,7 +10,7 @@
 ## (MAGIC.LanceDB, F8.2) is searched with the text, the store off, uninstalled or absent meaning the text alone. The functions are in
 ## sh-lib/team-data/AgentsTools.Knowledge.include.
 ##
-## From DistroAgentsTools.fn.sh (F1.4): --get-path-history, --get-place-path, --get-roster, --list-namespaces, --list-places, --local-models-list, --member-help (sh-lib/harness/AgentsContext.FrontTable.include).
+## From DistroAgentsTools.fn.sh (F1.4): the names in sh-lib/harness/AgentsContext.FrontTable.include that name this file.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.

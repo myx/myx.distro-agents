@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.LibrarianSkillsetSize.include -- the librarian's instrument for the size of the skillset (S7.2):
+## `AgentLibrarianTools.fn.sh --skillset-size [<team-member>...]`. Sourced from that tool file's arm; functions only.
+##
+## It reads the skill folders of the registered members (AgentsToolsTeamMemberDirectoryText: this workspace's members, then those of
+## the other workspaces of this machine) and prints, on stdout, rows of TAB-separated fields, `<kind> <member> <file> <lines> <bytes>`:
+##   file     one for each file below a member's folder, <file> its path below that folder; <lines> `-` for a file that holds a NUL
+##            (it is no text), whose bytes still count; the files and folders whose names start with a dot are no part of the skillset
+##   member   one for each member, <file> `-`, its lines (text files alone) and bytes summed
+##   total    one, <member> and <file> `-`, over the members printed
+## Members are in the C order of their names, the files of a member in the C order of their paths. A member named that is no registered
+## member refuses the whole call, rc 1, nothing printed. Writes nothing.
+##
+
+type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+
+AgentsToolsLibrarianSkillsetSize(){ ## the operation as it was called, then the members wanted (none: every registered one)
+	local sizeOp="$1" sizeDirectory sizeWanted="" sizeName sizeMember sizeDir sizeFile sizeBytes sizeLines sizeNul sizeMemberLines sizeMemberBytes sizeTotalLines=0 sizeTotalBytes=0 sizeOut
+	shift
+	for sizeName in "$@" ; do
+		AgentsToolsAssertBareName "$sizeName" "<team-member>" skillset-size || return 1
+		sizeWanted="$sizeWanted $sizeName"
+	done
+	sizeDirectory="$( AgentsToolsTeamMemberDirectoryText | LC_ALL=C sort )"
+	for sizeName in $sizeWanted ; do
+		printf '%s\n' "$sizeDirectory" | LC_ALL=C awk -F'\t' -v want="$sizeName" '$1 == want { found = 1 } END { exit ( found ? 0 : 1 ) }' || {
+			echo "⛔ ERROR: $MDSC_CMD $sizeOp: $sizeName is no registered team member -- nothing was printed" >&2
+			return 1
+		}
+	done
+	sizeOut=""
+	while IFS=$'\t' read -r sizeMember sizeDir ; do
+		[ -n "$sizeMember" ] && [ -d "$sizeDir" ] || continue
+		[ -z "$sizeWanted" ] || case " $sizeWanted " in *" $sizeMember "*) ;; *) continue ;; esac
+		sizeMemberLines=0 sizeMemberBytes=0
+		while IFS= read -r sizeFile ; do
+			[ -n "$sizeFile" ] || continue
+			sizeBytes="$( LC_ALL=C wc -c < "$sizeDir/$sizeFile" | LC_ALL=C tr -d ' ' )"
+			sizeNul="$( LC_ALL=C tr -d '\000' < "$sizeDir/$sizeFile" | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )"
+			if [ "$sizeNul" = "$sizeBytes" ] ; then
+				sizeLines="$( LC_ALL=C awk 'END { print NR + 0 }' "$sizeDir/$sizeFile" )"
+				sizeMemberLines=$(( sizeMemberLines + sizeLines ))
+			else
+				sizeLines="-"
+			fi
+			sizeMemberBytes=$(( sizeMemberBytes + sizeBytes ))
+			sizeOut="$sizeOut"$'file\t'"$sizeMember"$'\t'"$sizeFile"$'\t'"$sizeLines"$'\t'"$sizeBytes"$'\n'
+		done <<< "$( cd "$sizeDir" && find -L . \( -name '.*' -a ! -name . \) -prune -o -type f -print | LC_ALL=C sed 's|^\./||' | LC_ALL=C sort )"
+		sizeOut="$sizeOut"$'member\t'"$sizeMember"$'\t-\t'"$sizeMemberLines"$'\t'"$sizeMemberBytes"$'\n'
+		sizeTotalLines=$(( sizeTotalLines + sizeMemberLines )) sizeTotalBytes=$(( sizeTotalBytes + sizeMemberBytes ))
+	done <<< "$sizeDirectory"
+	printf '%s' "$sizeOut"
+	printf 'total\t-\t-\t%s\t%s\n' "$sizeTotalLines" "$sizeTotalBytes"
+}

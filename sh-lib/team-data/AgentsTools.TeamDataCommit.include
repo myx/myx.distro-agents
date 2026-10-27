@@ -51,8 +51,90 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 	return 0
 }
 
+## The last-change stamp a document carries in its header: the greatest value of its updated, updated-at, last-updated, last-change, changed-at and
+## resolved-at keys, empty where it has none. The stamps are ISO forms, which compare as text.
+AgentsToolsTeamDataChangeStamp(){ ## file
+	LC_ALL=C awk '
+		NR == 1 && $0 == "---" { fm = 1 ; next ; }
+		fm && $0 == "---" { exit ; }
+		fm && /^(updated|updated-at|last-updated|last-change|changed-at|resolved-at):/ { value = $0 ; sub( /^[^:]*:[ ]*/, "", value ) ; if ( value > best ) best = value ; }
+		END { print best ; }
+	' "$1"
+}
+
+## A merge the sync left unfinished -- origin and the local commits changed one file -- is settled here, inside the file itself, with no
+## person and no extra file: a conflict is never committed, no line of either side is lost, and the local commits can go out.
+## The conflicting blocks of a file (git merge-file, the 3-way merge) are resolved by what the block is:
+##   - line records, every line of the block starting with a timestamp (logs, registries): the lines of both sides, each once, in time order;
+##   - the header of a document: a key both sides changed ends with one line, the value of the side whose own last-change stamp is later
+##     (AgentsToolsTeamDataChangeStamp), origin's where neither has one; a key only one side holds stays;
+##   - the body of a document: origin's block, then the lines of the local block it does not already hold -- both versions in the one file,
+##     with no marker.
+## A file that one side deleted and the other changed keeps the changed one. The merge is then committed. rc 0 where no merge was in
+## progress or it was settled; rc 1, the merge left as it was and one warning, where it could not be.
+AgentsToolsTeamDataMergeSettle(){ ## where
+	local settleRoot="" settleGit="" settlePath="" settleCount=0 settleOut="" settleWork="" settleOurs="" settleBase="" settleTheirs=""
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	settleRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || return 0
+	settleGit="$( git -C "$settleRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 0
+	[ -e "$settleGit/MERGE_HEAD" ] || return 0
+	mkdir -p "${MMDAPP:-$settleGit}/.local/temp" 2>/dev/null || :
+	settleWork="$( mktemp -d "${MMDAPP:-$settleGit}/.local/temp/mdat-merge-settle.XXXXXX" 2>/dev/null )" || settleWork="$( mktemp -d "$settleGit/mdat-merge-settle.XXXXXX" )" || {
+		echo "⚠️ WARNING: $MDSC_CMD: $1: no work folder for the merge settle could be made, so the merge is left as it was" >&2
+		return 1
+	}
+	settleOurs="$settleWork/ours" settleBase="$settleWork/base" settleTheirs="$settleWork/theirs"
+	while IFS= read -r -d '' settlePath ; do
+		[ -n "$settlePath" ] || continue
+		if git -C "$settleRoot" cat-file -e ":3:$settlePath" 2>/dev/null && git -C "$settleRoot" cat-file -e ":2:$settlePath" 2>/dev/null ; then
+			: > "$settleBase"
+			git -C "$settleRoot" cat-file -e ":1:$settlePath" 2>/dev/null && git -C "$settleRoot" show ":1:$settlePath" > "$settleBase" 2>/dev/null
+			git -C "$settleRoot" show ":2:$settlePath" > "$settleOurs" 2>/dev/null && git -C "$settleRoot" show ":3:$settlePath" > "$settleTheirs" 2>/dev/null || {
+				echo "⚠️ WARNING: $MDSC_CMD: $1: the versions of $settlePath could not be read, so the merge is left as it was" >&2
+				rm -rf "$settleWork" ; return 1
+			}
+			## The 3-way merge with its markers, and each conflicting block resolved in place.
+			git merge-file -p -L ours -L base -L theirs "$settleOurs" "$settleBase" "$settleTheirs" 2>/dev/null \
+				| LC_ALL=C awk -v oursStamp="$( AgentsToolsTeamDataChangeStamp "$settleOurs" )" -v theirsStamp="$( AgentsToolsTeamDataChangeStamp "$settleTheirs" )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTeamDataMergeSettle.awk" > "$settleWork/merged" 2>/dev/null
+			if [ "${PIPESTATUS[1]}" != 0 ] ; then
+				echo "⚠️ WARNING: $MDSC_CMD: $1: $settlePath could not be settled in place, so the merge is left as it was" >&2
+				rm -rf "$settleWork" ; return 1
+			fi
+			cp "$settleWork/merged" "$settleRoot/$settlePath" && git -C "$settleRoot" add -- "$settlePath" > /dev/null 2>&1 || {
+				echo "⚠️ WARNING: $MDSC_CMD: $1: $settlePath could not be written settled, so the merge is left as it was" >&2
+				rm -rf "$settleWork" ; return 1
+			}
+		elif git -C "$settleRoot" cat-file -e ":3:$settlePath" 2>/dev/null ; then
+			## Deleted here and changed by origin: origin's file.
+			git -C "$settleRoot" checkout --theirs -- "$settlePath" > /dev/null 2>&1 && git -C "$settleRoot" add -- "$settlePath" > /dev/null 2>&1 || {
+				echo "⚠️ WARNING: $MDSC_CMD: $1: origin's version of $settlePath could not be taken, so the merge is left as it was" >&2
+				rm -rf "$settleWork" ; return 1
+			}
+		else
+			## Deleted by origin and changed here: the changed file stays.
+			git -C "$settleRoot" add -- "$settlePath" > /dev/null 2>&1 || {
+				echo "⚠️ WARNING: $MDSC_CMD: $1: $settlePath could not be settled, so the merge is left as it was" >&2
+				rm -rf "$settleWork" ; return 1
+			}
+		fi
+		settleCount=$(( settleCount + 1 ))
+	done < <( git -C "$settleRoot" diff --name-only -z --diff-filter=U 2>/dev/null )
+	rm -rf "$settleWork"
+	if [ -n "$( git -C "$settleRoot" diff --name-only --diff-filter=U 2>/dev/null )" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the merge still holds conflicted paths after the settle, so it is left as it was" >&2
+		return 1
+	fi
+	settleOut="$( git -C "$settleRoot" commit -q -m "* team-data merge settled by the tooling, $settleCount conflicted file(s) settled inside the file, no line of either side lost" 2>&1 )" || {
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the settled merge could not be committed, so it is left as it was: $settleOut" >&2
+		return 1
+	}
+	echo "# $MDSC_CMD: $1: a merge left unfinished was settled, $settleCount conflicted file(s) settled inside the file with no line lost, and committed" >&2
+	return 0
+}
+
 ## Pushes the store's branch when it is ahead of origin, at a close point, never per
-## write: one push carries everything committed since. The primitive is item-upsert's:
+## write: one push carries everything committed since. A conflict between origin and the local commits is settled and
+## committed first (AgentsToolsTeamDataMergeSettle), so the commits always go out and none is committed with a marker in it. The primitive is item-upsert's:
 ## push origin HEAD; when the remote moved, integrate with myx.common git/cloneSync
 ## --no-push and push once more; then read origin back and require it to equal HEAD.
 ## Never a reset or a force, and local commits are never discarded: a failure is a
@@ -150,6 +232,8 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	[ "$repoOrigin" = "$originUrl" ] || AgentsToolsTeamDataRemoteAlign "$pushWhere" "$originUrl" || return 0
 	pushBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || pushBranch=""
 	[ -n "$pushBranch" ] && [ "$pushBranch" != "HEAD" ] || return 0
+	## A merge an earlier sync left unfinished is settled first, so its commits go out with the rest and no conflict stands committed or open.
+	[ ! -e "$gitDir/MERGE_HEAD" ] || AgentsToolsTeamDataMergeSettle "$pushWhere" || :
 	## Nothing ahead of the last fetch: no push is attempted.
 	if git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 ; then
 		aheadCount="$( git -C "$repoRoot" rev-list --count "refs/remotes/origin/$pushBranch..HEAD" 2>/dev/null )" || aheadCount=""
@@ -185,9 +269,14 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 		## above, so one present after a failure is this call's own, and only that is aborted.
 		pushOut="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
 			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$pushBranch" 2>&1 )" || {
-			[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
-			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected and integrating origin failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
-			return 0
+			## A conflict is settled and committed (AgentsToolsTeamDataMergeSettle) and the push goes on; a merge that cannot be settled is taken back out.
+			if [ -e "$gitDir/MERGE_HEAD" ] && AgentsToolsTeamDataMergeSettle "$pushWhere" && [ ! -e "$gitDir/MERGE_HEAD" ] ; then
+				pushOut=""
+			else
+				[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
+				echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected and integrating origin failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
+				return 0
+			fi
 		}
 		pushRc=0
 		pushOut="$( LC_ALL=C git -C "$repoRoot" push origin HEAD 2>&1 )" || pushRc=$?
@@ -372,76 +461,5 @@ AgentsToolsTeamDataDirtyWarning(){ ## where
 			echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data branch $dirtyBranch is $aheadCount commit(s) ahead of origin/$dirtyBranch (rev-list --count against the last fetch) -- not pushed yet" >&2
 		fi
 	fi
-	return 0
-}
-
-## --repair-team-data-checkout <member> [--keep-merged|--take-remote]: the coordinator repairs a member's team-data checkout
-## that has diverged from origin. With no mode it SHOWS the checkout, its branch and its local and remote commits, read-only.
-## --keep-merged trial-merges origin into a throwaway copy and, where that succeeds, merges it in place, keeping the local
-## commits. --take-remote sets the local checkout aside (a flat move beside it) and resets to a fresh clone of origin, so
-## nothing is ever discarded -- the set-aside copy keeps it. Never a lossy reset and never a push.
-AgentsToolsTeamDataCheckoutRepair(){ ## operation, member, [mode]
-	local repairOp="$1" repairMember="${2:-}" repairMode="${3:-}" repairDir repairBranch repairLocal repairRemote repairTmp repairAsided
-	[ -n "$repairMember" ] && [ $# -le 3 ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: syntax is $repairOp <member> [--keep-merged|--take-remote]" >&2 ; return 1 ; }
-	case "$repairMode" in ''|--keep-merged|--take-remote) ;; *) echo "⛔ ERROR: $MDSC_CMD $repairOp: unknown mode: $repairMode -- syntax is $repairOp <member> [--keep-merged|--take-remote]" >&2 ; return 1 ;; esac
-	type AgentsToolsMagicCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
-	AgentsToolsMagicCallerCheck "${repairOp#--}" || return 1
-	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
-	AgentsToolsAssertBareName "$repairMember" "<member>" "${repairOp#--}" || return 1
-	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
-	repairDir="$MDAT_DATA_ROOT"
-	[ -e "$repairDir/.git" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: $repairDir is no git checkout (no .git) -- nothing was done" >&2 ; return 1 ; }
-	repairBranch="$( git -C "$repairDir" rev-parse --abbrev-ref HEAD 2>/dev/null )" || repairBranch=""
-	[ -n "$repairBranch" ] && [ "$repairBranch" != "HEAD" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: the checkout's branch could not be read -- nothing was done" >&2 ; return 1 ; }
-	git -C "$repairDir" fetch -q origin "$repairBranch" > /dev/null 2>&1 || :
-	repairLocal="$( git -C "$repairDir" rev-parse HEAD 2>/dev/null )" || repairLocal=""
-	repairRemote="$( git -C "$repairDir" rev-parse --verify --quiet "refs/remotes/origin/$repairBranch" 2>/dev/null )" || repairRemote=""
-	[ -n "$repairLocal" ] && [ -n "$repairRemote" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: the checkout's local or remote head could not be read -- nothing was done" >&2 ; return 1 ; }
-	printf 'CHECKOUT: %s\nMEMBER: %s\nBRANCH: %s\nLOCAL: %s\nREMOTE: %s\n' "$repairDir" "$repairMember" "$repairBranch" "$repairLocal" "$repairRemote"
-	git -C "$repairDir" log --oneline -5 "refs/remotes/origin/$repairBranch..HEAD" 2>/dev/null | LC_ALL=C sed 's/^/LOCAL-COMMIT: /'
-	git -C "$repairDir" log --oneline -5 "HEAD..refs/remotes/origin/$repairBranch" 2>/dev/null | LC_ALL=C sed 's/^/REMOTE-COMMIT: /'
-	if [ "$repairLocal" = "$repairRemote" ] ; then
-		printf 'IN-SYNC: local and remote are the same commit; nothing to repair.\n'
-		return 0
-	fi
-	if [ -z "$repairMode" ] ; then
-		printf 'DIVERGED: name a mode (--keep-merged to merge, or --take-remote to set the local aside and reset).\n'
-		return 0
-	fi
-	## A trial merge in a throwaway copy, before anything is touched.
-	repairTmp="$( mktemp -d "$MMDAPP/.local/temp/mdat-team-data-checkout.XXXXXX" )" || { echo "⛔ ERROR: $MDSC_CMD $repairOp: a throwaway copy could not be made -- nothing was done" >&2 ; return 1 ; }
-	if ! git -C "$repairDir" worktree add --detach "$repairTmp" HEAD > /dev/null 2>&1 ; then
-		rm -rf "$repairTmp"
-		echo "⛔ ERROR: $MDSC_CMD $repairOp: the throwaway copy could not be checked out -- nothing was done" >&2 ; return 1
-	fi
-	if ! git -C "$repairTmp" merge --no-edit "refs/remotes/origin/$repairBranch" > /dev/null 2>&1 ; then
-		git -C "$repairTmp" merge --abort > /dev/null 2>&1 || :
-		git -C "$repairDir" worktree remove --force "$repairTmp" > /dev/null 2>&1 || :
-		echo "⛔ ERROR: $MDSC_CMD $repairOp: the trial merge conflicts, so nothing was changed; resolve the checkout by hand" >&2
-		return 1
-	fi
-	git -C "$repairDir" worktree remove --force "$repairTmp" > /dev/null 2>&1 || :
-	case "$repairMode" in
-		--keep-merged)
-			if git -C "$repairDir" merge --no-edit "refs/remotes/origin/$repairBranch" > /dev/null 2>&1 ; then
-				printf 'MERGED: origin/%s is merged into the local checkout; the local commits are kept.\n' "$repairBranch"
-			else
-				git -C "$repairDir" merge --abort > /dev/null 2>&1 || :
-				echo "⛔ ERROR: $MDSC_CMD $repairOp: the merge failed -- nothing was changed" >&2 ; return 1
-			fi
-		;;
-		--take-remote)
-			repairAsided="$repairDir.set-aside.$( date -u +%Y%m%dT%H%MZ )"
-			[ ! -e "$repairAsided" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: the set-aside name already exists: $repairAsided -- nothing was changed" >&2 ; return 1 ; }
-			if ! mv "$repairDir" "$repairAsided" ; then
-				echo "⛔ ERROR: $MDSC_CMD $repairOp: the checkout could not be set aside -- nothing was changed" >&2 ; return 1
-			fi
-			if ! git clone -q -b "$repairBranch" "$( git -C "$repairAsided" remote get-url origin 2>/dev/null )" "$repairDir" > /dev/null 2>&1 ; then
-				mv "$repairAsided" "$repairDir"
-				echo "⛔ ERROR: $MDSC_CMD $repairOp: the remote could not be re-cloned; the local checkout is restored -- nothing was changed" >&2 ; return 1
-			fi
-			printf 'TAKEN-REMOTE: the local checkout is set aside at %s, and %s is reset to origin/%s.\n' "$repairAsided" "$repairDir" "$repairBranch"
-		;;
-	esac
 	return 0
 }

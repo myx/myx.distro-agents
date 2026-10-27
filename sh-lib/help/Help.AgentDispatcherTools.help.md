@@ -78,14 +78,10 @@
 			its record and its access.
 
 		--standing-directives [--all]
-			The standing directives in force: open warnings, coordinator notes, the
-			human-owner's orders. `--all` includes the ones not in force.
-
 		--directive-set --text <text> --expires-at "<YYYY-MM-DD HH:MM>"|none [--id <id>] [--wait <seconds>]
-			An order entered, through the state note's lock.
-
 		--directive-end --id <id> [--wait <seconds>]
-			An order taken out.
+			Stubs of the same operations of DistroAgentsSession.fn.sh, the
+			ThisSession tool, which owns the standing directives.
 
 		--epic-update <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>)
 			The epic file's own edit, so no routine edits an epic by hand: one

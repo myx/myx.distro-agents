@@ -138,12 +138,12 @@ AgentsToolsManagerRoutineFactsOnly(){ ## the operation as it was called
 				start = "not-startable" ; needs = "members"
 				reason = "its executors, " execs ", is any member: the session spawner starts it only with members named"
 			} else {
-				## A <type>-* or <type>-? entry asks for members; so does a list that holds one.
+				## A <type>-? entry asks which member; so does a list that holds one. A <type>-* is startable: the spawner partitions it.
 				entryCount = split( execs, entry, /,[ \t]*/ )
 				for ( entryAt = 1 ; entryAt <= entryCount ; entryAt++ ) {
-					if ( entry[entryAt] ~ /^[A-Za-z0-9_.-]+-[*?]$/ ) {
+					if ( entry[entryAt] ~ /^[A-Za-z0-9_.-]+-[?]$/ ) {
 						start = "not-startable" ; needs = "members"
-						reason = "its executors asks which members: the session spawner starts it only with members named"
+						reason = "its executors asks which member: the session spawner starts it only with that member named"
 						break
 					}
 				}
@@ -230,7 +230,7 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 						;;
 						empty-name) rowsReason="its executors holds an empty name" ;;
 						none-of-type*) rowsReason="its executors names the type ${rowsWhy#*"$rowsTab"}, and no member of it is on this machine: name the members instead" ;;
-						choice-required*) rowsReason="its executors asks which ${rowsWhy#*"$rowsTab"} member, so the session spawner starts it only with members named" ; rowsNeeds="members" ;;
+						choice-required*) rowsWhy="${rowsWhy%%$'\n'*}" ; rowsReason="its executors asks which ${rowsWhy#*"$rowsTab"} member, so the session spawner starts it only with members named" ; rowsNeeds="members" ;;
 						all-present-members) rowsReason="its executors is all-present-members, which only invitees take: name the members" ;;
 						*) rowsReason="its executor ${rowsWhy#*"$rowsTab"} is no member of any workspace of this machine" ;;
 					esac
@@ -265,7 +265,7 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 			rowsRunsAt="$( AgentsToolsRoutineKeyOwn "$rowsFile" runs-at )" ; rowsRunsAfter="$( AgentsToolsRoutineKeyOwn "$rowsFile" runs-after )"
 			rowsAuto="no"
 			case "$rowsRunsAt" in ''|none) ;; *) rowsAuto="yes" ;; esac
-			## Valid: the words of the first row of the validator that refuses (a row of a report- rule refuses nothing; its rule and its place stand ahead of them), `yes` where it prints none.
+			## Valid: the words of the first row of the validator that refuses (a row of a report- rule refuses nothing; its rule and its place stand ahead of them).
 			rowsFault="$( set -- --intern-doc-validate routine "$rowsFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" 2> /dev/null | LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || rowsFault=""
 			rowsValid="yes" ; [ -z "$rowsFault" ] || rowsValid="no:$rowsFault"
 			## Would start now: what the spawner would not start, then the evaluator against a fresh spawn (no item attached, a spawned start), then the window of the autorun.
@@ -345,6 +345,43 @@ case "$1" in
 			return 0
 		fi
 		AgentsToolsManagerRoutineRows "$listOp" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## The members each entry of one routine's executors and participants can take, by the session spawner's one rule
+	## (AgentsToolsSpawnRoutineEntryMembers), for a form's required selects: `slot<TAB><executors|participants><TAB><entry><TAB><kind><TAB><member>...`,
+	## the kind choose (a <type>-?, every candidate, even one), all (a <type>-*), named or present (all-present-members), or the entry and
+	## `none` where it has no candidate. Reads only; starts nothing.
+	--manager-routine-slots)
+		local slotsOp="$1" slotsFile slotsContract slotsExec slotsInv slotsSide slotsLine slotsList slotsEntry slotsKind slotsOut
+		shift
+		if [ $# -ne 1 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $slotsOp: syntax is <routine selector>, got: $*" >&2
+			set +e ; return 1
+		fi
+		slotsFile="$( AgentsToolsSpawnRoutineResolve "$1" )" || { set +e ; return 1 ; }
+		slotsContract="$( AgentsToolsSpawnRoutineContractCheck "$slotsFile" )" || { set +e ; return 1 ; }
+		{ IFS= read -r slotsExec ; IFS= read -r slotsInv ; } <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$slotsContract" )"
+		for slotsSide in executors participants ; do
+			slotsLine="$slotsExec" ; [ "$slotsSide" = executors ] || slotsLine="$slotsInv"
+			case "$slotsLine" in ''|none) continue ;; esac
+			IFS=',' read -r -a slotsList <<< "$slotsLine"
+			for slotsEntry in "${slotsList[@]}" ; do
+				slotsEntry="${slotsEntry#"${slotsEntry%%[![:space:]]*}"}" ; slotsEntry="${slotsEntry%"${slotsEntry##*[![:space:]]}"}"
+				[ -n "$slotsEntry" ] || continue
+				case "$slotsEntry" in
+					all-present-members) slotsKind=present ; slotsOut="$( AgentsToolsSpawnRoutinePresentMembers )" ;;
+					*-\?) slotsKind=choose ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="$( printf '%s\n' "$slotsOut" | LC_ALL=C awk -F'\t' '$1 != "none-of-type" && $1 != "choice-required"' )" ;;
+					*-\*) slotsKind=all ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="" ;;
+					*) slotsKind=named ; slotsOut="$( AgentsToolsSpawnRoutineEntryMembers "$slotsEntry" )" || slotsOut="" ;;
+				esac
+				if [ -z "$slotsOut" ] ; then
+					printf 'slot\t%s\t%s\tnone\n' "$slotsSide" "$slotsEntry"
+				else
+					printf 'slot\t%s\t%s\t%s\t%s\n' "$slotsSide" "$slotsEntry" "$slotsKind" "$( printf '%s\n' "$slotsOut" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? "\t" : "" ), $0 } END { printf "\n" }' )"
+				fi
+			done
+		done
 		return 0
 	;;
 

@@ -54,8 +54,8 @@ HARNESS_TOKEN_MAIN="${DEEPSEEK_API_KEY:-}"
 HARNESS_MODEL_TABLE="*flash*|1048576|32768|thinking:disabled|GET https://api.deepseek.com/models on 2026-10-26
 *pro*|1048576|65536|thinking:disabled|GET https://api.deepseek.com/models on 2026-10-26"
 
-## The service's own web search (AgentsHarnessSearchNative). DeepSeek's docs (read 2026-10-27) offer the Search API, POST https://api.deepseek.com/v1/tools/search with the same bearer
-## (https://api-docs.deepseek.com/guides/search_and_fetch), its own engine; domain limits go in as site: and -site: operators of the query. DuckDuckGo answers where it fails.
+## The service's own web search (AgentsHarnessSearchNative): DeepSeek's Search API (docs read 2026-10-27), POST https://api.deepseek.com/v1/tools/search with the same bearer.
+## Domain limits go in as site: and -site: operators of the query (https://api-docs.deepseek.com/guides/search_and_fetch); DuckDuckGo answers where it fails.
 HARNESS_WEB_SEARCH="deepseek:search"
 export HARNESS_WEB_SEARCH
 

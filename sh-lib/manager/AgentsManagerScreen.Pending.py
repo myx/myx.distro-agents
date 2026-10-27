@@ -369,6 +369,9 @@ def askUnread(state, row):
 ## What a dialog of an ask says of it: who asked and of whom, its kind, whose word an
 ## answer from here is, and the question as it was posted, whole once the read of the ask
 ## has come, until then its first line.
+ASK_DIALOG_WIDTH = 72
+
+
 def askSays(state, row, acts):
     question = acts["question"]
     lines = [pair for pair in (
@@ -381,7 +384,9 @@ def askSays(state, row, acts):
         for name, texts in stored.get("stored") or ():
             held.setdefault(name, []).extend(texts)
     asked = held.get("field-question") or held.get("posted") or [row["ask"]["values"].get("question", "")]
-    return lines + [" "] + [text if text.strip() else " " for text in asked]
+    ## the question is Markdown: it is shown rendered (catMarkdown, through markdownLines), not as its source; the dialog sets its lines to its own width and scrolls them
+    rendered, spans = markdownLines("\n".join(asked), ASK_DIALOG_WIDTH)
+    return lines + [" "] + [text if text.strip() else " " for text in rendered]
 
 
 ## What an answer shows as in the list of its dialog: its number where it has one, its

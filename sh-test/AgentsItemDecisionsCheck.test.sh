@@ -53,6 +53,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigHolds(){ ## file, fixed string
+	[ -f "$1" ] || set -- "${1%/*}/closed/${1##*/}" "$2"
 	LC_ALL=C grep -q -F -- "$2" "$1" 2>/dev/null && printf yes || printf no
 }
 rigOp(){ ## output name, op, arguments... (stdin passes through); RIG_AGENT, when set, is the spawned session's member
@@ -63,6 +64,7 @@ rigOp(){ ## output name, op, arguments... (stdin passes through); RIG_AGENT, whe
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
 rigField(){ ## file, field
+	[ -f "$1" ] || set -- "${1%/*}/closed/${1##*/}" "$2"
 	LC_ALL=C awk -v key="$2" 'NR > 1 && $0 == "---" { exit } index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$1"
 }
 rigSection(){ ## item file -> its Decisions lines, in file order
@@ -129,7 +131,7 @@ rigAssert "it reads received"                     "$( head -1 "$rigTmp/ask1" )" 
 rigAssert "it says not asked again"               "$( rigHolds "$rigTmp/ask1" 'NOT ASKED AGAIN' )" yes
 rigAssert "with the earlier answer"               "$( rigHolds "$rigTmp/ask1" 'keep it, signed off' )" yes
 rigAssert "nothing was posted"                    "$( LC_ALL=C grep -c 'chat.postMessage' "$RIG_CURL_LOG" )" 0
-rigAssert "no new record"                         "$( ls "$rigStore"/*.md | wc -l | tr -d ' ' )" 3
+rigAssert "no new record"                         "$( ls "$rigStore"/*.md "$rigStore"/closed/*.md 2> /dev/null | wc -l | tr -d ' ' )" 3
 
 echo "-- collect closes a question its Decisions answer --"
 printf '# ❓ Question Q2\n\nShould the rig keep the vendor contract clause?\n' | rigOp open4 --intern-op-pending-reply-open "$rigMember" --to human-owner \

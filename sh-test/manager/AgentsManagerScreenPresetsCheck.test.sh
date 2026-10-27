@@ -7,6 +7,8 @@
 ## own name already in the name field and no choice of the preset, of its CLI service or of what it extends, and a name changed there renames the preset, its users following; the tiers list the team and the members,
 ## and Enter on a tier of the team offers the presets. Offline.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"

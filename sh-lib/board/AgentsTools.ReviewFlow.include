@@ -510,6 +510,8 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 		case "${ptRecord##*/}" in "$ptOwn.spawn.md") continue ;; esac
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" owner )" = magic-coordinator ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" status )" = spawn-started ] || continue
+		## An agent-less parent owned as the coordinator is no run of it.
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" agent-less )" != true ] || continue
 		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
 		AgentsToolsSpawnConversationThreadValid "$ptThread" || continue
 		! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" || continue

@@ -532,7 +532,8 @@ RIG_OP_AGENT=magic-tester ; rigOp --answer-escalation magic-coordinator "$rigPen
 rigAssert "another member's session answering as the coordinator is refused" "$( rigHolds "$rigScenarioDir/op.err" 'this session acts as magic-tester, so it cannot act as magic-coordinator' )" yes
 rigAssert "the record is still open"                       "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" reply-pending
 rigOp --answer-escalation magic-coordinator "$rigPending" allow-once
-rigAssert "the answering session is recorded"      "$( LC_ALL=C awk -F': ' '$1 == "answered-session" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" rig-coordinator-session
+## An answered record is retired to pending/closed/ (retention), so the answered one is read where it now stands.
+rigAssert "the answering session is recorded"      "$( LC_ALL=C awk -F': ' '$1 == "answered-session" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/closed/$rigPending.md" "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" 2> /dev/null )" rig-coordinator-session
 rigAssert "the coordinator's answer is applied"            "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
 rigAssert "and the grant is written from the record"       "$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdC" )" yes
 rigAssert "the waiting call ended on the answer"           "$( rigAskFinish 45 )" yes
@@ -716,7 +717,7 @@ rigPendingE="$( rigPendingIdOf "$rigIdE" )"
 [ -n "$rigPendingE" ] || rigRefuse "no pending record was written for the ask addressed to the routine, so nothing below would be measured"
 rigRecordE="$rigScenarioDir/ws/.local/agents/pending/$rigPendingE.md"
 rigAssert "the ask is recorded, addressed to the routine"  "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigRecordE" )" permission-escalation.routine
-rigAssert "with no thread and no addressee account"        "$( LC_ALL=C grep -c -E '^(channel|question-ts|thread-ts|addressees): ' "$rigRecordE" )" 0
+rigAssert "with no thread and no addressee account: the routine's name stands as the addressee the wait reads"        "$( LC_ALL=C grep -c -E '^(channel|question-ts|thread-ts): ' "$rigRecordE" ):$( LC_ALL=C awk -F': ' '$1 == "addressees" { print $2 ; exit ; }' "$rigRecordE" )" "0:permission-escalation.routine"
 rigAssert "and nothing was sent anywhere: no DM to a person" "$( LC_ALL=C awk 'END { print NR ; }' "$RIG_CURL_LOG" )" 0
 sleep 2
 rigAssert "the asking call waits"                          "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
@@ -747,7 +748,8 @@ rigTool rig-session Wait "{\"sources\":\"ask:$rigPendingW\",\"timeout\":\"30\"}"
 rigAssert "a later Wait returns the answer to the requester" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' ):$( rigLineOf 'VERDICT: ' )" "WAIT-RESULT: RECEIVED:yes:VERDICT: allow-session"
 rigOp --intern-op-permission-escalation-input-scan magic-coordinator
 rigAssert "answered, neither is listed any more"           "$( LC_ALL=C grep -c '^## permission ask ' "$rigScenarioDir/op.out" ):$( rigHolds "$rigScenarioDir/op.out" '(none)' )" "0:yes"
-rigAssert "and no Slack call was made at all"              "$( LC_ALL=C awk 'END { print NR ; }' "$RIG_CURL_LOG" )" 0
+## The ask's wait is the session's Wait and reads the session's own sources (the owner DM among them), so reads are made; a post never is.
+rigAssert "and no message was posted at all"               "$( LC_ALL=C grep -c -x 'chat.postMessage' "$RIG_CURL_LOG" )" 0
 RIG_OP_AGENT=""
 export HOME="$rigRealHome"
 rigVerdict "an ask to a routine -- recorded with no DM, scanned, answered by its executor only, returned by the wait"

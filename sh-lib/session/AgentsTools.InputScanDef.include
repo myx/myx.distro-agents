@@ -184,7 +184,8 @@ AgentsToolsInputScanDefSeed(){ ## definition line, scan, team member, session id
 	type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
 	if [ "$1" != "$2" ] ; then
 		seedFile="$5.seed"
-		DistroAgentsTools "--intern-op-$2-input-scan" "$3" > "$seedFile" 2> /dev/null || { rm -f "$seedFile" ; return 0 ; }
+		## The baseline is the view a Wait reads when nothing is new, so the scan runs without its collect window (MDAT_SCAN_SEED_QUIET): the start does not wait it out a second time.
+		MDAT_SCAN_SEED_QUIET=1 DistroAgentsTools "--intern-op-$2-input-scan" "$3" > "$seedFile" 2> /dev/null || { rm -f "$seedFile" ; return 0 ; }
 	fi
 	## A scan called in a team session prints the reference to its kept report, and the report is that file (AgentsWaitProbeScan reads it so).
 	seedKept="$( LC_ALL=C sed -n 's/^\.\.\. KEPT: .* is in \(.*\) -- .*\.\.\.$/\1/p' "$seedFile" | head -1 )"

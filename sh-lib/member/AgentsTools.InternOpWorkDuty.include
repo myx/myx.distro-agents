@@ -69,10 +69,11 @@ case "$1" in
 		local workTraceAt
 		workTraceAt="$( date +%s )"
 		workTrace(){ ## section name
-			[ -n "${MDAT_SCAN_TRACE:-}" ] || return 0
+			[ -n "${MDAT_SCAN_TRACE:-}" ] || [ -n "${MDAT_SCAN_TRACE_FILE:-}" ] || return 0
 			local traceNow
 			traceNow="$( date +%s )"
-			printf 'scan-trace: %s %ss\n' "$1" "$(( traceNow - workTraceAt ))" >&2
+			[ -z "${MDAT_SCAN_TRACE:-}" ] || printf 'scan-trace: %s %ss\n' "$1" "$(( traceNow - workTraceAt ))" >&2
+			[ -z "${MDAT_SCAN_TRACE_FILE:-}" ] || printf '%s=%ss\n' "$1" "$(( traceNow - workTraceAt ))" >> "$MDAT_SCAN_TRACE_FILE" 2> /dev/null || :
 			workTraceAt="$traceNow"
 		}
 
@@ -131,7 +132,13 @@ case "$1" in
 			fi
 		fi
 		printf '\n## Slack: tagged to %s, and the team channel over %ss\n\n' "$workMember" "$workWindow"
-		( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
+		## MDAT_SCAN_SEED_QUIET=1 (the spawner's seed of the Wait baseline, AgentsToolsInputScanDefSeed): the collect is not run. The baseline is the
+		## report of nothing new in Slack, which is what an empty collect prints, and the window it would wait out is the minute a start must not spend twice.
+		if [ -n "${MDAT_SCAN_SEED_QUIET:-}" ] ; then
+			: > "$workWork/collect.out" ; : > "$workWork/collect.err"
+		else
+			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
+		fi
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then
 			## A message of the team channel that names someone (`<@id>`) and not this member is kept, for the member to know of it, and labelled by the
 			## tooling as another's to answer; the names come from the mention cache. It is collected over the window, so it alone wakes nothing.
@@ -152,7 +159,7 @@ case "$1" in
 		fi
 		LC_ALL=C grep -m 1 '^# returned: ' "$workWork/collect.out" || printf '# returned: window\n'
 		[ ! -s "$workWork/collect.err" ] || LC_ALL=C grep -i -E 'error|could not|not read' "$workWork/collect.err" | head -5 >&2 || :
-		workTrace slack-collect
+		if [ -n "${MDAT_SCAN_SEED_QUIET:-}" ] ; then workTrace slack-skipped ; else workTrace slack-collect ; fi
 		rm -rf "$workWork"
 		return 0
 	;;

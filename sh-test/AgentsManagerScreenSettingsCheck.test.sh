@@ -28,6 +28,8 @@
 ## Reconciled for F11.5: Settings and Configuration stand at the 6th and 7th number key (Sessions, Team Members and Team Data stand under Magic-Team (Agents)); the digest has the subject of the knowledge store (MDAT_KNOWLEDGE_STORE), whose words stand in the table of Settings.
 ## Reconciled for F11.0, the table lines: an empty line between two rows of a full table (the rows by line number move), two spaces between the columns, and LOOKS holds the looks of a cell on the ground of a row and on an underlined line besides.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"

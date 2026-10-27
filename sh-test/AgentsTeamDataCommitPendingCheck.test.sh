@@ -206,6 +206,124 @@ rigAssert "nothing pending, nothing ahead, origin moved: it exits 0" "$( cat "$r
 rigAssert "origin's commit is brought in"               "$( git -C "$rigTmp/sync-here" rev-parse HEAD )" "$rigOther2"
 rigAssert "and read back as origin's head"              "$( LC_ALL=C grep -c "^TEAM-DATA-PUSHED: [0-9a-f]* to origin, read back as origin/$rigSBranch = $rigOther2$" "$rigTmp/s2" )" 1
 
+echo "-- the sync: origin and this store changed one file -- no conflict is committed, no line is lost, no side file is written, and it always pushes --"
+rigOtherEdit(){ ## file, text: one commit in the other clone changing that file, pushed
+	git -C "$rigTmp/sync-other" pull -q --ff-only 2>/dev/null \
+		&& printf '%s\n' "$2" > "$rigTmp/sync-other/$1" && git -C "$rigTmp/sync-other" add -A && git -C "$rigTmp/sync-other" commit -q -m "other edit of $1" \
+		&& git -C "$rigTmp/sync-other" push -q 2>/dev/null || rigRefuse "the other clone could not push its edit of $1"
+}
+rigOtherAppend(){ ## file, text: one commit in the other clone appending a line to that file, pushed
+	git -C "$rigTmp/sync-other" pull -q --ff-only 2>/dev/null \
+		&& printf '%s\n' "$2" >> "$rigTmp/sync-other/$1" && git -C "$rigTmp/sync-other" add -A && git -C "$rigTmp/sync-other" commit -q -m "other append to $1" \
+		&& git -C "$rigTmp/sync-other" push -q 2>/dev/null || rigRefuse "the other clone could not push its append to $1"
+}
+rigMarkers(){ ## store -- how many committed files of HEAD hold a conflict marker line
+	git -C "$1" grep -l -e '^<<<<<<< ' -e '^=======$' -e '^>>>>>>> ' HEAD -- 2>/dev/null | LC_ALL=C grep -c . || :
+}
+rigFilesIn(){ ## store -- the files of the working tree, no .git, one line
+	( cd "$1" && find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )
+}
+rigLineCount(){ ## file, whole line -- how many times the file holds that line
+	LC_ALL=C grep -c -x -F -- "$2" "$1" || :
+}
+rigFilesBefore="$( rigFilesIn "$rigTmp/sync-here" )"
+rigOtherEdit change.md "origin's version of the file"
+rigPending "$rigTmp/sync-here"
+rigOp "$rigTmp/sync-here" "$rigTmp/c1" magic-coordinator
+rigCHead="$( git -C "$rigTmp/sync-here" rev-parse HEAD )"
+rigAssert "a conflict on the same file: it exits 0 and pushes, read back as the head" "$( cat "$rigTmp/c1.rc" ):$( LC_ALL=C grep -c "^TEAM-DATA-PUSHED: [0-9a-f]* to origin, read back as origin/$rigSBranch = $rigCHead$" "$rigTmp/c1" ):$( git --git-dir="$rigS" rev-parse "refs/heads/$rigSBranch" )" "0:1:$rigCHead"
+rigAssert "no committed file holds a conflict marker, and no merge is left open" "$( rigMarkers "$rigTmp/sync-here" ):$( [ -e "$rigTmp/sync-here/.git/MERGE_HEAD" ] && printf open || printf closed )" "0:closed"
+rigAssert "both versions stand in the one file, none lost: origin's line and the local line, each once" \
+	"$( rigLineCount "$rigTmp/sync-here/change.md" "origin's version of the file" ):$( LC_ALL=C grep -c '^changed ' "$rigTmp/sync-here/change.md" )" "1:1"
+rigAssert "no side file was written: the files of the store are those it had, and the new ones the writer made" \
+	"$( rigFilesIn "$rigTmp/sync-here" | LC_ALL=C grep -c -e 'conflict' -e '\.orig' -e '\.rej' || : )" "0"
+rigAssert "the store is clean afterwards" "$( [ -z "$( git -C "$rigTmp/sync-here" status --porcelain --untracked-files=all )" ] && printf clean || printf dirty )" clean
+echo "-- line records: both sides' lines, each once, in time order --"
+printf '2026-10-27T10:00:00Z\tbase\n' > "$rigTmp/sync-here/records.log"
+git -C "$rigTmp/sync-here" add -A && git -C "$rigTmp/sync-here" commit -q -m "records base" && git -C "$rigTmp/sync-here" push -q origin HEAD 2>/dev/null || rigRefuse "could not push the records base"
+git -C "$rigTmp/sync-other" pull -q --ff-only 2>/dev/null
+rigOtherAppend records.log "$( printf '2026-10-27T10:05:00Z\tother-late' )"
+rigOtherAppend records.log "$( printf '2026-10-27T10:02:00Z\tshared-line' )"
+printf '2026-10-27T10:03:00Z\tlocal-mid\n2026-10-27T10:02:00Z\tshared-line\n' >> "$rigTmp/sync-here/records.log"
+git -C "$rigTmp/sync-here" add -A && git -C "$rigTmp/sync-here" commit -q -m "local records"
+rigPending "$rigTmp/sync-here"
+rigOp "$rigTmp/sync-here" "$rigTmp/c3" magic-coordinator
+rigAssert "line records conflict at the end of the file: it exits 0 and pushes" "$( cat "$rigTmp/c3.rc" ):$( git --git-dir="$rigS" rev-parse "refs/heads/$rigSBranch" ):$( git -C "$rigTmp/sync-here" rev-parse HEAD )" "0:$( git -C "$rigTmp/sync-here" rev-parse HEAD ):$( git -C "$rigTmp/sync-here" rev-parse HEAD )"
+rigAssert "the file holds every line of both sides, each once, in time order, and no marker" \
+	"$( LC_ALL=C tr '\t' ' ' < "$rigTmp/sync-here/records.log" | LC_ALL=C tr '\n' '|' ):$( rigMarkers "$rigTmp/sync-here" )" \
+	"2026-10-27T10:00:00Z base|2026-10-27T10:02:00Z shared-line|2026-10-27T10:03:00Z local-mid|2026-10-27T10:05:00Z other-late|:0"
+rigAssert "no side file was written for it" "$( rigFilesIn "$rigTmp/sync-here" | LC_ALL=C grep -c -e 'conflict' -e 'records\.[a-z0-9-]*\.log' || : )" "0"
+echo "-- the header of a document: a key both sides changed ends with one line, the value of the side changed later --"
+rigDoc(){ ## status, verdict, updated (empty for no updated key), owner, body line -- a document with a header
+	printf -- '---\ntype: note\nstatus: %s\nverdict: %s\n' "$1" "$2"
+	[ -z "$3" ] || printf 'updated: %s\n' "$3"
+	printf 'owner: %s\n---\n# Note: rig\n\nbase body\n%s' "$4" "${5:+$5
+}"
+}
+rigDocFiles="docA.md docB.md docC.md"
+for rigDocName in $rigDocFiles ; do
+	if [ "$rigDocName" = docC.md ] ; then rigDoc open pending "" rig-owner > "$rigTmp/sync-here/$rigDocName" ; else rigDoc open pending 2026-10-27T10:00:00Z rig-owner > "$rigTmp/sync-here/$rigDocName" ; fi
+done
+git -C "$rigTmp/sync-here" add -A && git -C "$rigTmp/sync-here" commit -q -m "docs base" && git -C "$rigTmp/sync-here" push -q origin HEAD 2>/dev/null || rigRefuse "could not push the documents"
+git -C "$rigTmp/sync-other" pull -q --ff-only 2>/dev/null
+## origin: A and B and C all changed after the base; A and C also grow a body line.
+rigDoc closed yes 2026-10-27T10:10:00Z rig-owner "origin body A" > "$rigTmp/sync-other/docA.md"
+rigDoc closed yes 2026-10-27T10:10:00Z rig-owner "origin body B" > "$rigTmp/sync-other/docB.md"
+rigDoc closed yes "" rig-owner "origin body C" > "$rigTmp/sync-other/docC.md"
+git -C "$rigTmp/sync-other" add -A && git -C "$rigTmp/sync-other" commit -q -m "origin docs" && git -C "$rigTmp/sync-other" push -q 2>/dev/null || rigRefuse "the other clone could not push its documents"
+## local: A changed later than origin, B changed earlier, C has no stamp on either side.
+rigDoc parked no 2026-10-27T10:20:00Z rig-owner "local body A" > "$rigTmp/sync-here/docA.md"
+rigDoc parked no 2026-10-27T10:05:00Z rig-owner "local body B" > "$rigTmp/sync-here/docB.md"
+rigDoc parked no "" rig-owner "local body C" > "$rigTmp/sync-here/docC.md"
+git -C "$rigTmp/sync-here" add -A && git -C "$rigTmp/sync-here" commit -q -m "local docs"
+rigPending "$rigTmp/sync-here"
+rigOp "$rigTmp/sync-here" "$rigTmp/c4" magic-coordinator
+rigHeaderKey(){ ## file, key -- the value lines of that key in the header
+	LC_ALL=C awk -v want="$2" 'NR == 1 && $0 == "---" { fm = 1 ; next ; } fm && $0 == "---" { exit ; } fm && index( $0, want ":" ) == 1 { sub( /^[^:]*:[ ]*/, "" ) ; printf "%s;", $0 ; }' "$1"
+}
+rigHeaderDup(){ ## file -- how many keys of the header stand more than once
+	LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next ; } fm && $0 == "---" { exit ; } fm && /^[A-Za-z0-9_.-]+:/ { key = $0 ; sub( /:.*/, "", key ) ; seen[key]++ ; } END { for ( key in seen ) if ( seen[key] > 1 ) dup++ ; print dup + 0 ; }' "$1"
+}
+rigDocValid(){ ## file -- the rows the document validator reports for it, and its status
+	local validRc=0 validRows
+	validRows="$( cd "$rigTmp/ws" && env MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/sync-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_WORKSPACE_MODE=team-rig bash "$rigFn" --intern-doc-validate document --from-stdin --as "${1##*/}" < "$1" 2> /dev/null )" || validRc=$?
+	printf '%s:%s' "$validRc" "$( printf '%s' "$validRows" | LC_ALL=C grep -c . || : )"
+}
+rigAssert "the sync with three conflicting headers exits 0 and pushes" "$( cat "$rigTmp/c4.rc" ):$( git --git-dir="$rigS" rev-parse "refs/heads/$rigSBranch" ):$( git -C "$rigTmp/sync-here" rev-parse HEAD )" "0:$( git -C "$rigTmp/sync-here" rev-parse HEAD ):$( git -C "$rigTmp/sync-here" rev-parse HEAD )"
+rigAssert "the local side changed later (A): its status, verdict and stamp, one line each" \
+	"$( rigHeaderKey "$rigTmp/sync-here/docA.md" status )$( rigHeaderKey "$rigTmp/sync-here/docA.md" verdict )$( rigHeaderKey "$rigTmp/sync-here/docA.md" updated )" "parked;no;2026-10-27T10:20:00Z;"
+rigAssert "origin changed later (B): its status, verdict and stamp" \
+	"$( rigHeaderKey "$rigTmp/sync-here/docB.md" status )$( rigHeaderKey "$rigTmp/sync-here/docB.md" verdict )$( rigHeaderKey "$rigTmp/sync-here/docB.md" updated )" "closed;yes;2026-10-27T10:10:00Z;"
+rigAssert "neither side carries a stamp (C): origin's" "$( rigHeaderKey "$rigTmp/sync-here/docC.md" status )$( rigHeaderKey "$rigTmp/sync-here/docC.md" verdict )" "closed;yes;"
+rigAssert "no document has a key twice in its header, and none holds a marker" "$( rigHeaderDup "$rigTmp/sync-here/docA.md" )$( rigHeaderDup "$rigTmp/sync-here/docB.md" )$( rigHeaderDup "$rigTmp/sync-here/docC.md" ):$( rigMarkers "$rigTmp/sync-here" )" "000:0"
+rigAssert "the lines of the body of both sides stand in each document, once" \
+	"$( rigLineCount "$rigTmp/sync-here/docA.md" "origin body A" )$( rigLineCount "$rigTmp/sync-here/docA.md" "local body A" )$( rigLineCount "$rigTmp/sync-here/docB.md" "origin body B" )$( rigLineCount "$rigTmp/sync-here/docB.md" "local body B" )$( rigLineCount "$rigTmp/sync-here/docC.md" "origin body C" )$( rigLineCount "$rigTmp/sync-here/docC.md" "local body C" )" "111111"
+rigAssert "the document validator reports nothing on any of the three" "$( rigDocValid "$rigTmp/sync-here/docA.md" ) $( rigDocValid "$rigTmp/sync-here/docB.md" ) $( rigDocValid "$rigTmp/sync-here/docC.md" )" "0:0 0:0 0:0"
+echo "-- a merge an earlier sync left unfinished is settled, not left for a person --"
+rigOtherEdit keep.md "origin's keep"
+printf 'local keep\n' > "$rigTmp/sync-here/keep.md"
+git -C "$rigTmp/sync-here" add -A && git -C "$rigTmp/sync-here" commit -q -m "local keep edit"
+git -C "$rigTmp/sync-here" fetch -q origin 2>/dev/null
+git -C "$rigTmp/sync-here" merge -q "refs/remotes/origin/$rigSBranch" > /dev/null 2>&1 || :
+rigAssert "control: the rig left a merge open with a conflict in it" "$( [ -e "$rigTmp/sync-here/.git/MERGE_HEAD" ] && printf open || printf closed ):$( LC_ALL=C grep -c '^<<<<<<< ' "$rigTmp/sync-here/keep.md" )" "open:1"
+rigOp "$rigTmp/sync-here" "$rigTmp/c2" magic-coordinator
+rigC2Head="$( git -C "$rigTmp/sync-here" rev-parse HEAD )"
+rigAssert "it exits 0 and pushes the settled head" "$( cat "$rigTmp/c2.rc" ):$( git --git-dir="$rigS" rev-parse "refs/heads/$rigSBranch" )" "0:$rigC2Head"
+rigAssert "no marker is committed, the merge is closed, both versions stand in the one file, and no side file exists" \
+	"$( rigMarkers "$rigTmp/sync-here" ):$( [ -e "$rigTmp/sync-here/.git/MERGE_HEAD" ] && printf open || printf closed ):$( rigLineCount "$rigTmp/sync-here/keep.md" "origin's keep" ):$( rigLineCount "$rigTmp/sync-here/keep.md" "local keep" ):$( rigFilesIn "$rigTmp/sync-here" | LC_ALL=C grep -c 'conflict' || : )" "0:closed:1:1:0"
+echo "-- the close push: origin moved and the files conflict -- settled in the file and pushed, never held back --"
+rigOtherEdit added.md "origin's added"
+printf 'local added\n' > "$rigTmp/sync-here/added.md"
+git -C "$rigTmp/sync-here" add -A && git -C "$rigTmp/sync-here" commit -q -m "local added edit"
+( cd "$rigTmp/ws" && MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/sync-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig-push MDAT_WORKSPACE_MODE=team-rig bash -c '
+	DistroAgentsTools(){ bash "'"$rigFn"'" "$@" ; }
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	AgentsToolsTeamDataPushIfAhead rig-close' ) > "$rigTmp/p1.out" 2> "$rigTmp/p1.err"
+rigP1Head="$( git -C "$rigTmp/sync-here" rev-parse HEAD )"
+rigAssert "the close push settles the conflict and origin's branch is the local head" "$( git --git-dir="$rigS" rev-parse "refs/heads/$rigSBranch" ):$( rigHolds "$rigTmp/p1.err" 'team-data pushed' )" "$rigP1Head:yes"
+rigAssert "no marker is committed, no merge is open, both versions stand in the one file, and no side file exists" \
+	"$( rigMarkers "$rigTmp/sync-here" ):$( [ -e "$rigTmp/sync-here/.git/MERGE_HEAD" ] && printf open || printf closed ):$( rigLineCount "$rigTmp/sync-here/added.md" "origin's added" ):$( rigLineCount "$rigTmp/sync-here/added.md" "local added" ):$( rigFilesIn "$rigTmp/sync-here" | LC_ALL=C grep -c 'conflict' || : )" "0:closed:1:1:0"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TEAM DATA COMMIT PENDING CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

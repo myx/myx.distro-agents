@@ -8,6 +8,8 @@
 ## Also covers board-review: a created dispatch item's close destination, a reused item's
 ## no-move, and the review-by header's two forms (bare session-id, or absent).
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigFn="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 

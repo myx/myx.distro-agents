@@ -339,6 +339,8 @@ rigList(){
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -KILL "$waitPid"|@probed' \
 		'AgentsWaitWakeLatencyCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
+		'AgentsWaitWakeLatencyCheck.test.sh|1|kill -TERM "$rigScanPid"|@probed' \
+		'questions/AgentsEscalationWaitTrapCheck.test.sh|1|kill -"$2" "$waitPid"|@uncollected' \
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
 }
 rigToolingList(){
@@ -354,22 +356,14 @@ rigToolingList(){
 		'sh-lib/manager/AgentsManagerScreen.Terminal.py|1|os.killpg(process.pid, signal.SIGCONT)|@uncollected' \
 		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|os.killpg(call["process"].pid, number)|@uncollected' \
 		'sh-lib/session/AgentsTools.ConsoleSession.include|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@file-start' \
-		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid" 2>/dev/null'"'"' INT TERM|@waited-on' \
-		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid"|@probed' \
-		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|kill -KILL -- "-$mainLoopSpawnPid"|@probed' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill "$beatSleep"|@live-sleep' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$3"|@probed' \
-		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill "$!"|@live-sleep' \
-		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
-		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -KILL -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|AgentsToolsRegistryGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2"|@own-group' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|= "$watchBegan" ] ; then kill -KILL -- "-$2"|@own-group' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -KILL $watchLeft|the hard end of a call whose leader the polite one has ended: the group of that number is no longer signalled, and this goes, at once, to what AgentsToolsRegistryGroupLeft gave at that moment, the members kept while the leader lived that are still the processes they were and what those started since' \
-		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|2|kill -TERM -- "-$mcpWatchPid"|@own-watch' \
-		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$mcpCheckListWatchPid"|@own-watch' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|3|kill -TERM -- "-$mcpWatchPid"|@own-watch' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM "$mcpBeatPid"|the heartbeat of the call that has just returned: it ends only as that call ends, or on the stop file written in the statement before' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|= "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid"|the kill action of a job: the group of the pid its file names, only while that pid is still the process that began when the file says, kept there with the pid by one rename as the job started (AgentsToolsRegistryProcessesBegan); the line of the list holds that comparison with the signal, and a file that holds no start is not signalled by the number alone' \
-		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|2|kill "$mcpWatchPid"|@own-watch' \
 		'sh-lib/harness/AgentsTools.BatchTools.include|1|kill -TERM $cancelTree|a call of a batch and what it started, read from the process list at that very moment from its leader down, the leader an uncollected child of this shell, and signalled at once' \
 		'sh-lib/harness/AgentsTools.BatchTools.include|1|kill -KILL $cancelStill|two seconds on, only to those of that call that are still the processes they were when read, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan)' \
 		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -TERM "$warnRetryPid"|@still-itself' \
@@ -393,12 +387,17 @@ rigToolingList(){
 		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|= "$wakeLine" ] && kill -USR1 "$wakePid"|the wake of a control thread, which holds USR1 and ends nothing on it: the pid its pid file names, kept there with when it began by one rename, and signalled only while that pid is still the process that began then (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal; before it the command line of that process is read as the thread of that session, never a call of one tick, and its file of what it takes names the kind, which a thread empties before its shell is replaced' \
 		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|kill -TERM -- "-$carryPid"|@probed' \
 		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|kill -KILL -- "-$carryPid"|@probed' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$reapPid"|the one cleanup of the harness: a pid record stands in its scratch only while the process it names is in flight, and is removed as that process is waited for' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|= "$harnessRunBegan" ] && kill -TERM "$harnessRunPid"|@still-itself' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$harnessWatchPid"|@own-watch' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$afterPid"|after a wait, to the processes read at that moment by the one rule a run is recognised by: no pid is kept across the wait' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$stopPid"|@walk-now' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -KILL "$stopPid"|@walk-now'
+		'sh-lib/harness/AgentsHarnessAccess.include|1|kill -TERM "$reapPid"|the one cleanup of the harness: a pid record stands in its scratch only while the process it names is in flight, and is removed as that process is waited for' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|= "$harnessRunBegan" ] && kill -TERM "$harnessRunPid"|@still-itself' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|2|kill -TERM "$harnessWatchPid"|@own-watch' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|= "$harnessRunBegan" ] && kill -TERM -- "-$harnessRunPid"|@still-itself' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|= "$processBegan" ] && processMine=1 && { kill -TERM -"$processPid" 2>/dev/null|@file-start' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|kill -TERM "$processPid" 2>/dev/null|@file-start' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|kill -KILL -"$processPid" 2>/dev/null|the hard end of a stop, sent only inside the branch that signalled the group a moment before and only while that group still has members (kill -0 -"$processPid" in the statement before): a group id is not given to another process while it has members' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|kill -KILL "$processPid" 2>/dev/null|the hard end of a stop, sent only inside the branch that signalled the group a moment before and only while that group still has members (kill -0 -"$processPid" in the statement before): a group id is not given to another process while it has members' \
+		'sh-lib/harness/AgentsHarnessWait.include|1|kill -TERM "$afterPid"|after a wait, to the processes read at that moment by the one rule a run is recognised by: no pid is kept across the wait' \
+		'sh-lib/harness/AgentsHarnessSpawn.include|1|kill -TERM "$stopPid"|@walk-now' \
+		'sh-lib/harness/AgentsHarnessSpawn.include|1|kill -KILL "$stopPid"|@walk-now'
 }
 ## THE READER. A signal is the word of a command that sends one, where it stands as a command: first of its line,
 ## after what ends or opens a command, or after a word that takes a command; or a call of that name in

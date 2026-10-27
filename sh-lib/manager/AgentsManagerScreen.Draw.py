@@ -360,6 +360,11 @@ def putListRow(surface, state, line, column, row, chosen, width, position=0, tab
     if chosen:
         look = REVERSE if state.focus == "list" else BOLD
     surface.put(line, column, text, look)
+    if row.get("table") and not chosen:
+        ## the cells of a table row that have a look of their own (tableLooks) are drawn over the row's, one cell to the right of the line of the table: the mark of the selection comes first
+        for start, cells, cellLook in tableAt(width - 1)[1][position].looks[1:]:
+            ahead = cutToCells(text, 1 + start)
+            surface.put(line, column + textWidth(ahead), text[len(ahead):len(ahead) + cells], cellLook)
     if markAt is not None and not chosen:
         surface.put(line, column + markAt, mark, FOLDER)
 

@@ -579,7 +579,7 @@ case "$1" in
 				[ "$identityAsBot" = "false" ] || conversationArgs+=( --identity-bot )
 				[ -z "$readOldest" ] || conversationArgs+=( --oldest "$readOldest" )
 				AgentsToolsSlackCheck "${conversationArgs[@]}" 2> "${readErrFile:-/dev/null}" || readRc=$?
-				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' "$readErrFile" 2> /dev/null ; then
+				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' "$readErrFile" 2> /dev/null ; then
 					cat "$readErrFile" >&2
 					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
 					readRc=0
@@ -615,7 +615,7 @@ case "$1" in
 					${oldestArgs[@]+"${oldestArgs[@]}"} \
 					"${identityArgs[@]}" \
 					--context "--slack-read" 2> "${readErrFile:-/dev/null}" || readRc=$?
-				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' "$readErrFile" 2> /dev/null ; then
+				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' "$readErrFile" 2> /dev/null ; then
 					cat "$readErrFile" >&2
 					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
 					readRc=0
@@ -640,7 +640,7 @@ case "$1" in
 					--form "include_all_metadata=true" \
 					"${identityArgs[@]}" \
 					--context "--slack-read" 2> "${readErrFile:-/dev/null}" )" || callRc=$?
-				if [ "$callRc" != "0" ] && [ "$identityAsBot" = "false" ] && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' "$readErrFile" 2> /dev/null ; then
+				if [ "$callRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' "$readErrFile" 2> /dev/null ; then
 					cat "$readErrFile" >&2
 					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
 					callRc=0
@@ -2303,7 +2303,7 @@ blocks|verbatim|caller|stdin file"
 			}
 		' ) ; do
 			AgentsToolsTeamMemberDirectory "$mentionName" > /dev/null || continue
-			## A client has its only Slack account in another workspace, so its id renders wrongly here: it is mapped only as the sender itself in an external send, where it is the account posting.
+			## A client has its only Slack account in another workspace, so its id renders wrongly here: it is mapped only as the sender itself in an external send.
 			case "$mentionName" in
 				client-*) { [ "$presentExternal" = "true" ] && [ "$mentionName" = "$memberName" ] ; } || continue ;;
 			esac
@@ -2818,6 +2818,24 @@ blocks|verbatim|caller|stdin file"
 			chatKey="${chatRecord%% *}" ; chatNo="${chatRecord##* }"
 		fi
 
+		## A new post into the event-track channel keeps the channel's outbox rules (AgentsTools.EventTrackSend.include): what is
+		## queued for the channel goes first, in its order; this message waits out the 7 s window since the channel's last message;
+		## and the moment it was posted is noted, so the next post waits its window from it.
+		local trackQueue=""
+		case "$target" in
+			event-track|event-track:*)
+				if [ -z "$updateTs" ] ; then
+					type AgentsEventTrackPostSend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpEventTrackPost.include" 2> /dev/null || :
+					type AgentsToolsEventTrackSendDrain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackSend.include" 2> /dev/null || :
+					trackQueue="$( AgentsToolsEventTrackSendDir "$channel" 2> /dev/null )" || trackQueue=""
+					if [ -n "$trackQueue" ] ; then
+						AgentsToolsEventTrackSendDrain "$trackQueue" AgentsEventTrackPostSend > /dev/null 2>&1 || :
+						AgentsToolsEventTrackSendPace "$trackQueue"
+					fi
+				fi
+			;;
+		esac
+
 		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false" permanentVerdict="" sendRc sendUnknown=""
 		while [ "$attempt" -le "$maxAttempts" ] ; do
 			## The body travels in a file, never argv, which a long message outgrows; stdin is the header's.
@@ -2942,6 +2960,7 @@ blocks|verbatim|caller|stdin file"
 		done
 
 		if [ "$sent" = "true" ] ; then
+			[ -z "$trackQueue" ] || AgentsToolsEventTrackSendNote "$trackQueue"
 			if [ "$sendIdentity" = "user" ] ; then
 				local responseMessageUser="" responseMessageUserRc=0
 				responseMessageUser="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.user -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || responseMessageUserRc=$?

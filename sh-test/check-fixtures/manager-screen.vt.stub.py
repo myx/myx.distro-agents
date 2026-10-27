@@ -57,6 +57,9 @@ import termios
 import time
 import unicodedata
 
+## How long the stand-in waits for a text to show, and for the screen to end: wall-clock seconds, long enough for a machine busy with other work (a run on a loaded machine is slow, not wrong).
+AWAIT_SECONDS = 60
+
 sys.dont_write_bytecode = True
 
 ## the marks the checks count among the cells that differ
@@ -519,7 +522,7 @@ def runSteps(arguments):
             fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", lines, columns, 0, 0))
             pump(6, 0.8)
         elif command == "await":
-            deadline = time.time() + 20
+            deadline = time.time() + AWAIT_SECONDS
             while time.time() < deadline and not any(rest in line for line in terminal.textLines()):
                 pump(0.2)
             print("await.%s=%s" % (rest.replace(" ", "_"), "yes" if any(rest in line for line in terminal.textLines()) else "no"))
@@ -604,7 +607,7 @@ def runSteps(arguments):
             print("%s.cursor=%d,%d" % (words[0], terminal.y, terminal.x))
             print("%s.lineBlank=%s" % (words[0], "yes" if not terminal.textLines()[terminal.y][terminal.x:].strip() else "no"))
         elif command == "end":
-            deadline = time.time() + 20
+            deadline = time.time() + AWAIT_SECONDS
             while process.poll() is None and time.time() < deadline:
                 pump(0.2)
             if process.poll() is None:

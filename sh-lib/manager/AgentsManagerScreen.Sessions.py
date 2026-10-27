@@ -662,65 +662,14 @@ def killSays(target, rows=None, note=""):
     return lines
 
 
-## The field of a row of a plan that says nothing of what the kill would do: the processes
-## it would signal, as the walk of the run finds them at that very moment. A run that works
-## starts and ends its tool commands all the while, so two reads of its plan name other pids
-## and almost never the same ones; what would be ended is the run, which its own id names.
-KILL_PLAN_VOLATILE = ("pids",)
-
-
-## One row of a plan without what a walk says differently at each read.
-def killPlanRow(row):
-    return dict((field, value) for field, value in row.items() if field not in KILL_PLAN_VOLATILE)
-
-
-## What a plan is known by, where the one a confirmation showed is held against the one
-## read when it was confirmed: its rows, and whether its read failed. The pids of a row are
-## left out (KILL_PLAN_VOLATILE): held against each other they would refuse the word at every
-## confirmation of a run that works, for ever, and no word typed again could ever be taken --
-## the refusal is there to make a person see the plan as it now stands, not to be unanswerable.
-def killPlanSeen(plan):
-    return (dict((name, [killPlanRow(row) for row in held]) for name, held in plan["rows"].items()), bool(plan["error"]))
-
-
-## A confirmation whose button was pressed, at a turn of the screen: its plan is read once
-## more, and until that has answered the dialog stands as it was confirmed, and nothing
-## fills it (False). When it has answered: where the plan is the one the dialog showed, and
-## the word stands, the kill is asked of the tooling and the dialog closes (False). Where
-## the plan has changed nothing is done: the word is taken out, the dialog says so and
-## shows the plan as it is now (True), and it is confirmed again or left.
-def killChecked(state, dialog):
-    key, words = killPlanRead(state, dialog["about"]["target"])
-    plan = state.plans.get(key)
-    if plan is None or plan["words"] != words:
-        return False
-    seen, dialog["about"]["pressed"] = dialog["about"]["pressed"], None
-    if dialogMissing(dialog) is not None:
-        ## the word was changed meanwhile: what was pressed is no longer confirmed
-        dialog["says"] = ""
-        return True
-    if killPlanSeen(plan) == seen:
-        killAsked(state, dialog)
-        if state.dialog is dialog:
-            closeDialog(state)
-        return False
-    word = dialogControl(dialog, "word")
-    word["value"] = ""
-    dialog["focus"] = dialogStops(dialog).index(("control", dialog["controls"].index(word)))
-    dialog["says"] = KILL_SAYS["changed"]
-    return True
-
-
 ## The confirmation of a kill as it stands now, at every turn while it is open: what it
 ## says, from the plan once that was read; and where nothing of the session lives, the
 ## title, the button and the word of a close (the dialog "close") in place of a kill's.
 ## The plan is read when the dialog opens and not again while it stands, so its text does
-## not change under the word; after its button was pressed, see killChecked. A kill whose
-## plan could not be read is not asked for: its dialog says that, and has Cancel alone.
+## not change under the word. A kill whose plan could not be read is not asked for: its
+## dialog says that, and has Cancel alone.
 def fillKill(state, dialog):
     target = dialog["about"]["target"]
-    if dialog["about"].get("pressed") is not None and not killChecked(state, dialog):
-        return
     rows, note = killPlanOf(state, target)
     key, words = killPlanRead(state, target)
     plan = state.plans.get(key)
@@ -764,25 +713,19 @@ def askKill(state, row):
 
 
 ## Kill, or Close, in the dialog of a kill. Exactly the word does it, and any other word
-## is refused there. Nothing is done at once: the plan of the kill is read once more, and
-## the dialog stays as it is and says so. When that has answered (killChecked), the kill
-## is asked for where the plan is still the one the dialog showed. A press while the first
-## read of the plan has not answered does nothing, and says so. Where no operation gives
-## a plan there is none to hold against, and the kill is asked for at once.
+## is refused there. The kill is asked of the tooling at the first press, with the plan as
+## the dialog showed it: the plan is not read again, and a plan that has changed meanwhile
+## does not ask for the word a second time. A press while the first read of the plan has
+## not answered does nothing, and says so. Where no operation gives a plan there is none to
+## show, and the kill is asked for at once.
 def submitKill(state, dialog, button):
     key, words = killPlanRead(state, dialog["about"]["target"])
-    if words is None:
-        killAsked(state, dialog)
-        return None
-    if dialog["about"].get("pressed") is not None:
-        return KILL_SAYS["checking"]
-    plan = state.plans.get(key)
-    if plan is None or plan["words"] != words:
-        return KILL_SAYS["unread"]
-    dialog["about"]["pressed"] = killPlanSeen(plan)
-    state.plans.pop(key, None)
-    state.forced.add(key)
-    return KILL_SAYS["checking"]
+    if words is not None:
+        plan = state.plans.get(key)
+        if plan is None or plan["words"] != words:
+            return KILL_SAYS["unread"]
+    killAsked(state, dialog)
+    return None
 
 
 ## The kill a confirmation named is asked of the tooling: the operation is called once,
@@ -908,6 +851,20 @@ def controlAnswer(text, width):
 ## takes from its routine, to be typed over. Start there starts the routine, Cancel and
 ## Esc start nothing.
 def askLaunch(state, row):
+    routine = row.get("routine") if row else None
+    if routine is None:
+        return ""
+    if routine["start"] != "startable" and not routineAsksMembers(routine):
+        return ""
+    ## an executors entry `<type>-?` asks which member (the listing prints the executors as the routine declares them): the members each entry can take are asked of the tooling first
+    ## (askRoutineSlots, Launch.py), and the choice is made in a form of its own; any other routine goes on to the dialogs below (askLaunchPlain)
+    if "-?" in routine["executors"]:
+        return askRoutineSlots(state, row)
+    return askLaunchPlain(state, row)
+
+
+## The dialogs of a routine that asks no choice of a member: its members to check where any member may take it, else its task and its name.
+def askLaunchPlain(state, row):
     routine = row.get("routine") if row else None
     if routine is None:
         return ""

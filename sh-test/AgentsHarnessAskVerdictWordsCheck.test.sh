@@ -137,8 +137,12 @@ rigOp(){
 		${RIG_OP_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_OP_SESSION"} ${RIG_OP_AGENT:+MDAT_SPAWN_AGENT="$RIG_OP_AGENT"} \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigTmp" bash "$rigTools" "$@" ) > "$rigTmp/op.out" 2> "$rigTmp/op.err"
 }
+## An answered record is retained under pending/closed/ (AgentsTools.InternOpPendingReply.include): the open place first, then that one.
+rigRecordPath(){ ## pending id
+	if [ -f "$rigWs/.local/agents/pending/$1.md" ] ; then printf '%s' "$rigWs/.local/agents/pending/$1.md" ; else printf '%s' "$rigWs/.local/agents/pending/closed/$1.md" ; fi
+}
 rigField(){ ## pending id, field
-	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$rigWs/.local/agents/pending/$1.md" 2>/dev/null
+	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$( rigRecordPath "$1" )" 2>/dev/null
 }
 rigGrantRead(){ ## member, session, tool, target -> the kind of the grant that allows it, or nothing
 	rigOp --intern-op-permission-grant-read "$1" --session-id "$2" --tool "$3" --target "$4"
@@ -182,7 +186,7 @@ rigReadWords(){ ## reading member, pending id, the question's ts
 	printf '%s|%s|%s|%s|%s|%s' "$( LC_ALL=C grep -m1 '^VERDICT: ' "$rigTmp/op.out" || printf none )" "$( LC_ALL=C grep -m1 '^VERDICT-TEXT: ' "$rigTmp/op.out" || printf none )" \
 		"$( LC_ALL=C grep -c -x -F -e "CLARIFICATION: $wordsA" -e "CLARIFICATION: $wordsB" "$rigTmp/op.out" )" \
 		"$( rigField "$2" verdict )" "$( rigField "$2" verdict-text )" \
-		"$( LC_ALL=C grep -c -x -F -e "- $wordsA" -e "- $wordsB" "$rigWs/.local/agents/pending/$2.md" )"
+		"$( LC_ALL=C grep -c -x -F -e "- $wordsA" -e "- $wordsB" "$( rigRecordPath "$2" )" )"
 }
 rigTsNext=600
 ## kind | answer form | the answer's first word(s) | the verdict

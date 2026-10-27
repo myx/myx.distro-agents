@@ -1,0 +1,651 @@
+#!/usr/bin/env bash
+## AgentsHarnessToolsFile.include: the file tools: Read, Write, Edit, Glob, Grep. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## Digits only, by explicit enumeration: a bracket range is collation-dependent.
+AgentsHarnessWholeNumber(){
+	local scanRest="$1" scanChar
+	[ -n "$scanRest" ] || return 1
+	while [ -n "$scanRest" ] ; do
+		scanChar="${scanRest%"${scanRest#?}"}"
+		scanRest="${scanRest#?}"
+		case "$scanChar" in
+			0|1|2|3|4|5|6|7|8|9) ;;
+			*) return 1 ;;
+		esac
+	done
+}
+
+## A line range is the only way past the byte cap, so it states what it showed. Read and
+## Skill both take one; Read passes numbered, for cat -n lines, and Skill does not.
+AgentsHarnessReadRange(){ ## path, offset, limit, optional numbered
+	local rangeOffset="${2:-1}" rangeLimit="$3"
+	if ! AgentsHarnessWholeNumber "$rangeOffset" || [ "$rangeOffset" -lt 1 ] ; then
+		printf 'ERROR: offset must be a whole line number counting from 1, got: %s\n' "$rangeOffset" ; return 0
+	fi
+	if [ -n "$rangeLimit" ] && { ! AgentsHarnessWholeNumber "$rangeLimit" || [ "$rangeLimit" -lt 1 ] ; } ; then
+		printf 'ERROR: limit must be a whole number of lines, at least 1, got: %s\n' "$rangeLimit" ; return 0
+	fi
+	## Digits by the checks above and the mode a literal, so there is nothing here for -v to backslash-decode.
+	LC_ALL=C awk -v fromLine="$rangeOffset" -v lineLimit="${rangeLimit:-0}" -v byteCap="$harnessReadCap" -v numberLines="$4" -v restHint="$5" -f "$harnessHere/harness/AgentsHarnessReadRange.awk" "$1"
+}
+
+AgentsHarnessToolRead(){
+	local toolPath="${5:-$1}" toolOffset="$2" toolLimit="$3" toolPages="$4" toolBytes toolMime pdfFirst pdfLast pdfText imagePath imageEdge
+	if [ -z "$toolPath" ] ; then
+		printf 'ERROR: file_path is required and was empty. Nothing was read.\n' ; return 0
+	fi
+	AgentsHarnessReadGate Read "$toolPath" || return 0
+	toolPath="$harnessResolvedPath"
+	if [ -d "$toolPath" ] ; then
+		printf 'ERROR: is a directory, not a file: %s\n' "$toolPath" ; return 0
+	fi
+	if [ ! -f "$toolPath" ] ; then
+		printf 'ERROR: no such file: %s\n' "$toolPath" ; return 0
+	fi
+	## Existence is not readability, and the two are refused separately: without this
+	## the size test below compares an empty value and emits shell noise, not an answer.
+	if [ ! -r "$toolPath" ] ; then
+		printf 'ERROR: not readable (permission denied): %s\n' "$toolPath" ; return 0
+	fi
+	## pages is a PDF argument alone, so anywhere else it is refused rather than ignored.
+	if [ -n "$toolPages" ] ; then
+		case "$toolPath" in
+			*.[pP][dD][fF]) ;;
+			*) printf 'ERROR: pages applies to PDF files only: %s\n' "$toolPath" ; return 0 ;;
+		esac
+	fi
+	if [ ! -s "$toolPath" ] ; then
+		printf 'The file exists but is empty: %s\n' "$toolPath" ; return 0
+	fi
+	case "$toolPath" in
+		*.[pP][dD][fF])
+			## N or N-M, at most 20 pages. Without pages the first 11 are read, only to prove there are no more than 10.
+			pdfFirst="${toolPages%%-*}" ; pdfLast="${toolPages#*-}"
+			[ -n "$toolPages" ] || { pdfFirst=1 ; pdfLast=11 ; }
+			if ! AgentsHarnessWholeNumber "$pdfFirst" || ! AgentsHarnessWholeNumber "$pdfLast" || [ "$pdfFirst" -lt 1 ] || [ "$pdfLast" -lt "$pdfFirst" ] || [ $(( 10#$pdfLast - 10#$pdfFirst )) -ge 20 ] ; then
+				printf 'ERROR: pages must be one page number or a range such as 1-5, counting from 1, at most 20 pages per request, got: %s\n' "$toolPages" ; return 0
+			fi
+			## Pages each ended by a form feed, from PDFKit on macOS or pdftotext elsewhere.
+			if command -v osascript >/dev/null 2>&1 ; then
+				pdfText="$( osascript -l JavaScript -e 'ObjC.import("PDFKit"); function run(argv) { var pdfDoc = $.PDFDocument.alloc.initWithURL($.NSURL.fileURLWithPath(argv[0])); if (pdfDoc.isNil()) return "ERROR: not a readable PDF: " + argv[0]; var pageTotal = pdfDoc.pageCount, pageTexts = []; if (Number(argv[1]) > pageTotal) return "ERROR: pages start past the end of this PDF, which has " + pageTotal + " pages: " + argv[0]; for (var pageNo = Number(argv[1]); pageNo <= Math.min(Number(argv[2]), pageTotal); pageNo++) pageTexts.push(ObjC.unwrap(pdfDoc.pageAtIndex(pageNo - 1).string) || ""); return pageTexts.join("\f") + "\f"; }' "$toolPath" "$pdfFirst" "$pdfLast" 2>/dev/null )" || pdfText="ERROR: PDFKit could not read this PDF: $toolPath"
+			elif command -v pdftotext >/dev/null 2>&1 ; then
+				pdfText="$( pdftotext -f "$pdfFirst" -l "$pdfLast" "$toolPath" - 2>/dev/null )" || pdfText="ERROR: pdftotext could not read pages $pdfFirst-$pdfLast of this PDF -- past its last page, or not a readable PDF: $toolPath"
+			else
+				pdfText="ERROR: no PDF reader on this host -- neither osascript nor pdftotext is available: $toolPath"
+			fi
+			case "$pdfText" in
+				ERROR:*) printf '%s\n' "$pdfText" ; return 0 ;;
+			esac
+			## One record per page; validated above, so nothing here for -v to decode.
+			printf '%s' "$pdfText" | LC_ALL=C awk -v RS='\f' -v firstPage="$pdfFirst" -v pagesAsked="$toolPages" -v byteCap="$harnessReadCap" -f "$harnessHere/harness/AgentsHarnessPdfPageRead.awk"
+			return 0
+		;;
+		*.[iI][pP][yY][nN][bB])
+			## jq, not python3: nested JSON, and jq ships in the macOS base where python3 is a stub.
+			pdfText="$( jq -r 'def flat: if type == "array" then join("") else . end ; .cells | to_entries[] | "--- cell \(.key + 1): \(.value.cell_type // "unknown") ---", (.value.source // "" | flat), (.value.outputs // [] | .[] | "--- output: \(.output_type // "unknown") ---", (if .text then (.text | flat) elif .data["text/plain"] then (.data["text/plain"] | flat) else (.traceback // [] | join("\n")) end), (.data // {} | keys[] | select(startswith("image/")) | "[image output: \(.), not shown]"))' "$toolPath" 2>/dev/null )" || { printf 'ERROR: could not render this notebook -- not notebook JSON, or no jq on this host: %s\n' "$toolPath" ; return 0 ; }
+			printf '%s\n' "$pdfText" | LC_ALL=C awk -v byteCap="$harnessReadCap" '{ shownBytes = shownBytes + length($0) + 1 ; if ( shownBytes > byteCap ) { print "... TRUNCATED: the rest of this notebook is over the " byteCap "-byte cap of this reader ..." ; exit ; } print ; }'
+			return 0
+		;;
+	esac
+	## An image goes back as its own content part through the side file the served path passes; stdout carries text only.
+	case "$toolPath" in
+		*.[pP][nN][gG]|*.[jJ][pP][gG]|*.[jJ][pP][eE][gG]|*.[gG][iI][fF]|*.[wW][eE][bB][pP]) toolMime="$( file --mime-type -b "$toolPath" 2>/dev/null )" || toolMime="" ;;
+	esac
+	case "$toolMime" in
+		image/png|image/jpeg|image/gif|image/webp)
+			if [ -z "${harnessImageFile:-}" ] ; then
+				printf 'Image file (%s): it cannot be shown on this path, only through the served Read tool: %s\n' "$toolMime" "$toolPath" ; return 0
+			fi
+			imagePath="$toolPath"
+			toolBytes="$( wc -c < "$toolPath" | tr -d ' ' )"
+			## Shrunk only when over budget; sips -Z enlarges as readily as it shrinks, so the edge only halves from the real one.
+			if [ $(( ( toolBytes + 2 ) / 3 * 4 )) -gt "$harnessReadCap" ] && command -v sips >/dev/null 2>&1 ; then
+				imageEdge="$( sips -g pixelWidth -g pixelHeight "$toolPath" 2>/dev/null | LC_ALL=C awk '( $1 == "pixelWidth:" || $1 == "pixelHeight:" ) && $2 + 0 > edgeMax { edgeMax = $2 + 0 ; } END { print edgeMax + 0 ; }' )"
+				while [ $(( ( toolBytes + 2 ) / 3 * 4 )) -gt "$harnessReadCap" ] && [ "$imageEdge" -gt 1 ] ; do
+					imageEdge=$(( imageEdge / 2 ))
+					sips -Z "$imageEdge" "$toolPath" --out "$harnessScratch/read.image" >/dev/null 2>&1 || break
+					imagePath="$harnessScratch/read.image"
+					toolBytes="$( wc -c < "$imagePath" | tr -d ' ' )"
+				done
+			fi
+			if [ $(( ( toolBytes + 2 ) / 3 * 4 )) -gt "$harnessReadCap" ] ; then
+				printf 'ERROR: image is %s bytes, over the %s-byte budget this reader can return once encoded: %s\n' "$toolBytes" "$harnessReadCap" "$toolPath" ; return 0
+			fi
+			if ! { printf '%s\t' "$toolMime" ; base64 < "$imagePath" | LC_ALL=C tr -d '\n' ; } > "$harnessImageFile" ; then
+				printf 'ERROR: could not stage the image for return: %s\n' "$toolPath" ; return 0
+			fi
+			printf 'Image %s, %s bytes, returned as an image part: %s\n' "$toolMime" "$toolBytes" "$toolPath"
+			return 0
+		;;
+	esac
+	if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] ; then
+		AgentsHarnessReadRange "$toolPath" "$toolOffset" "${toolLimit:-2000}" numbered
+		return 0
+	fi
+	## Capped and said so, never silently: an unbounded read risks the request itself.
+	## Measured as numbered, since that is what goes back: a file under the cap can be over it once numbered.
+	toolBytes="$( LC_ALL=C awk -v byteCap="$harnessReadCap" '{ numberedBytes = numberedBytes + length(sprintf("%6d", NR)) + length($0) + 2 ; if ( NR > 2000 ) numberedBytes = byteCap + 1 ; if ( numberedBytes > byteCap ) exit ; } END { print numberedBytes + 0 ; }' "$toolPath" )"
+	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
+		AgentsHarnessReadRange "$toolPath" 1 2000 numbered
+	else
+		LC_ALL=C awk '{ printf "%6d\t%s\n", NR, $0 ; }' "$toolPath"
+	fi
+}
+
+## One value of the kept change this call applies, from its own `change` file, or empty.
+AgentsHarnessChangeKept(){ ## key
+	local keptLine
+	[ -f "$harnessChangeApply/change" ] || return 0
+	while IFS= read -r keptLine ; do
+		case "$keptLine" in "$1: "*) printf '%s' "${keptLine#"$1: "}" ; return 0 ;; esac
+	done < "$harnessChangeApply/change"
+}
+
+## What the edit of one position matched when the change this call applies was shown.
+AgentsHarnessChangeMatched(){ ## position, from 0
+	local matchedList matchedAt=0 matchedOne
+	matchedList="$( AgentsHarnessChangeKept matched )"
+	for matchedOne in $matchedList ; do
+		[ "$matchedAt" != "$1" ] || { printf '%s' "$matchedOne" ; return 0 ; }
+		matchedAt=$(( matchedAt + 1 ))
+	done
+}
+
+## What a write tool does with its gate's answer in those two ways. rc 0: go on -- to apply, or
+## for rc 4 to hold. rc 1: the call ends here, and what it comes to is already printed.
+## A call that applies a kept change is that change and no other: of this session, this tool
+## and this file, its approval noted on its prompt's record by the operation that read it.
+AgentsHarnessChangeMode(){ ## tool, the gate's answer
+	local modeAsk
+	if [ -n "$harnessChangeApply" ] ; then
+		modeAsk="$( AgentsHarnessChangeKept ask )"
+		if [ "$harnessChangeApply" != "$MMDAPP/.local/agents/sessions/$( AgentsHarnessSessionKey )/changes/${harnessChangeApply##*/}" ] \
+			|| [ "$( AgentsHarnessChangeKept tool )" != "$1" ] || ! AgentsHarnessBareName "$modeAsk" \
+			|| ! LC_ALL=C grep -q -x -F 'verdict: approve' "$MMDAPP/.local/agents/pending/$modeAsk.answered/verdict" 2>/dev/null ; then
+			printf 'ERROR: %s: this call names a kept change to apply, and it is not that change of this session with its approval noted, so nothing was written\n' "$1"
+			return 1
+		fi
+		case "$2" in
+			0|4)
+				[ "$( AgentsHarnessChangeKept file )" = "$harnessResolvedPath" ] && return 0
+				printf 'ERROR: %s: this call names a kept change to apply, and that change is of another file, so nothing was written\n' "$1"
+			;;
+			1) printf 'STALE: the place of %s is read-only now, so nothing was written\n' "$( AgentsHarnessChangeKept file )" ;;
+			*) printf 'STALE: your access no longer covers %s, so nothing was written\n' "$( AgentsHarnessChangeKept file )" ;;
+		esac
+		return 1
+	fi
+	[ -n "$harnessChangeHoldOnly" ] || return 0
+	case "$2" in
+		4) : > "$harnessChangeHoldOnly" 2>/dev/null || : ; return 0 ;;
+		0) printf 'NOT-HELD: allowed\n' ;;
+		1) ;;
+		*) printf 'NOT-HELD: refused\n' ;;
+	esac
+	return 1
+}
+
+## Whether the file a kept Write was shown against is the file as it stands: the same bytes,
+## or still no file where there was none.
+AgentsHarnessChangeBaseSame(){ ## resolved target
+	if [ -f "$harnessChangeApply/base" ] ; then
+		cmp -s "$harnessChangeApply/base" "$1"
+	else
+		[ ! -e "$1" ]
+	fi
+}
+
+## One call held: its change kept, shown to the human-owner and recorded as an ask of this
+## session, by the team operation that owns all three (--intern-op-change-hold). Prints what
+## the call comes to: HELD, with its wait item, which is how the member hears the verdict; OK
+## where the call leaves the file as it is, so there is nothing to hold; or the ERROR that
+## says nothing is held, and why. The member is never kept waiting here.
+AgentsHarnessChangeHold(){ ## tool, resolved target, the file as it stands (empty: there is none), the file as the call leaves it, raw arguments, what each edit matched (Edit)
+	local holdTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" holdSession holdOut="" holdRc=0 holdId holdShown holdCut=""
+	holdSession="$( AgentsHarnessSessionKey )"
+	if [ -z "$holdSession" ] || [ -z "$harnessAgent" ] || [ ! -x "$holdTools" ] ; then
+		printf 'ERROR: %s: a change to %s needs the approval of the human-owner, and this session has no session id or team identity to hold it under, so nothing is held and nothing was written\n' "$1" "$2"
+		return 0
+	fi
+	if ! printf '%s' "$5" > "$harnessScratch/change.call" ; then
+		printf 'ERROR: %s: the change to %s could not be kept to hold it, so nothing is held and nothing was written\n' "$1" "$2"
+		return 0
+	fi
+	holdOut="$( "$BASH" "$holdTools" --intern-op-change-hold "$harnessAgent" --session-id "$holdSession" --tool "$1" --file "$2" ${3:+--base "$3"} --result "$4" \
+		--call "$harnessScratch/change.call" ${6:+--matched "$6"} 2> "$harnessScratch/change.err" )" || holdRc=$?
+	if [ "$holdRc" = "0" ] && [ "$holdOut" = "NOCHANGE" ] ; then
+		printf 'OK: nothing is held or written: this call leaves %s exactly as it is\n' "$2"
+		return 0
+	fi
+	holdId="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^HELD \([0-9a-f-]*\)$/\1/p' | head -1 )"
+	if [ "$holdRc" != "0" ] || [ -z "$holdId" ] ; then
+		printf 'ERROR: %s: a change to %s needs the approval of the human-owner, and it could not be shown to him, so it is NOT held and nothing was written. Make the call again once what stopped it is cleared. What the operation reported follows:\n' "$1" "$2"
+		cat "$harnessScratch/change.err" 2>/dev/null
+		return 0
+	fi
+	holdShown="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SHOWN \([0-9]* [0-9]*\)$/\1/p' | head -1 )"
+	[ -z "$holdShown" ] || [ "${holdShown%% *}" = "${holdShown##* }" ] || holdCut=", the first ${holdShown%% *} of its ${holdShown##* } lines"
+	printf 'HELD: this change to %s is held for the approval of the human-owner, and nothing is written yet. It is shown to him as a diff%s, and is applied exactly as shown when he approves.\n' "$2" "$holdCut"
+	printf 'The file stays as it is until then: a Read of it shows the file as it is now, without this change.\n'
+	printf 'His verdict comes to you on Wait, as pending reply %s: approve, reject, or his own words, whole. Carry on with work that does not need this change. To take it back: AskQuestion pending_id=%s withdraw=<why>.\n' "$holdId" "$holdId"
+	AgentsHarnessAskWaitNext "$holdId"
+}
+
+## Whole-file overwrite or create, never a partial patch; Edit is the partial path.
+AgentsHarnessToolWrite(){
+	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock="" toolGateRc=0 toolHeld=""
+	if [ -z "$toolPath" ] ; then
+		AgentsHarnessRefusal Write "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
+	fi
+	AgentsHarnessFileGate Write "$toolPath" write || toolGateRc=$?
+	AgentsHarnessChangeMode Write "$toolGateRc" || return 0
+	case "$toolGateRc" in
+		1) return 0 ;;
+		2) AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0 ;;
+		4) [ -n "$harnessChangeApply" ] || toolHeld=1 ;;
+	esac
+	toolPath="$harnessResolvedPath"
+	if AgentsHarnessWriteExcluded "$toolPath" ; then
+		AgentsHarnessRefusal Write "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0
+	fi
+	## Held for approval: nothing is written. The change is kept and shown instead.
+	if [ -n "$toolHeld" ] ; then
+		if ! printf '%s' "$toolContent" > "$harnessScratch/change.result" || { [ -e "$toolPath" ] && ! cp "$toolPath" "$harnessScratch/change.base" 2>/dev/null ; } ; then
+			printf 'ERROR: could not keep the change to hold it, so nothing is held and nothing was written: %s\n' "$toolPath" ; return 0
+		fi
+		AgentsHarnessChangeHold Write "$toolPath" "$( [ ! -e "$toolPath" ] || printf '%s' "$harnessScratch/change.base" )" "$harnessScratch/change.result" "$4" ""
+		return 0
+	fi
+	mkdir -p "$( dirname -- "$toolPath" )" 2>/dev/null || {
+		printf 'ERROR: could not create the parent directory of: %s\n' "$toolPath" ; return 0
+	}
+	if ! AgentsHarnessLockTake "$toolPath" ; then
+		printf 'ERROR: could not take the write lock for %s -- another call is writing it, or the lock area is unusable -- so nothing was written. Retry.\n' "$toolPath" ; return 0
+	fi
+	toolLock="$agentsLocalLockPath"
+	## A kept Write is applied only over the file it was shown against: it replaces the whole of it.
+	if [ -n "$harnessChangeApply" ] && ! AgentsHarnessChangeBaseSame "$toolPath" ; then
+		AgentsToolsLocalLockGive "$toolLock"
+		printf 'STALE: %s has changed since this change was shown, and a Write replaces the whole file, so nothing was written\n' "$toolPath" ; return 0
+	fi
+	## Replaced by rename, never rewritten in place, so a reader sees the old file or the
+	## new one and never half of it. `cp -p` first gives the temp the target's own mode.
+	toolTemp="$( dirname -- "$toolPath" )/.$( basename -- "$toolPath" ).mdat-write.$$"
+	if [ -e "$toolPath" ] && ! cp -p "$toolPath" "$toolTemp" 2>/dev/null ; then
+		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
+		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
+	fi
+	if ! printf '%s' "$toolContent" > "$toolTemp" || ! mv -f "$toolTemp" "$toolPath" ; then
+		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
+		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
+	fi
+	AgentsToolsLocalLockGive "$toolLock"
+	printf 'OK: wrote %s\n' "$toolPath"
+}
+
+## Partial edit by exact literal replacement. It reads the whole file inside this
+## process and returns only a one-line result, so it is the way to change a file too
+## long for Read's cap. Uniqueness is required, not preferred: a silent
+## first-of-several substitution is unrecoverable, and identical lines are the norm here.
+## One call carries one edit, or a list of them in edits, and both are one list here:
+## applied in order, each to the text the one before it left, and written once, all or
+## nothing. An edit of a list that cannot be applied is named by its position from 1.
+AgentsHarnessToolEdit(){
+	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock="" toolGateRc=0
+	local editsListed="" editsCount=1 editsIndex=0 editsOld=() editsNew=() editsAll=() editsSource editsOut editsSpare editsWhere="" editsNote=""
+	local toolHeld="" editsSeen=""
+	if [ -z "$toolPath" ] ; then
+		AgentsHarnessRefusal Edit "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$6" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
+	fi
+	AgentsHarnessFileGate Edit "$toolPath" write || toolGateRc=$?
+	AgentsHarnessChangeMode Edit "$toolGateRc" || return 0
+	case "$toolGateRc" in
+		1) return 0 ;;
+		2) AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0 ;;
+		4) [ -n "$harnessChangeApply" ] || toolHeld=1 ;;
+	esac
+	toolPath="$harnessResolvedPath"
+	if AgentsHarnessWriteExcluded "$toolPath" ; then
+		AgentsHarnessRefusal Edit "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0
+	fi
+	if [ ! -f "$toolPath" ] ; then
+		printf 'ERROR: no such file: %s\n' "$toolPath" ; return 0
+	fi
+	## Both forms are read into one list of edits: edits as the call gave it, or the single
+	## form as a list of one that carries its own replace_all. A value in edits that is no
+	## list is refused, never read as no edits.
+	AgentsHarnessArgParse "$6"
+	if AgentsHarnessArgFind edits.__count ; then
+		editsListed=1
+		editsCount="$harnessArgFound"
+		## One form per call: a list beside a top-level edit leaves unsaid which one is meant.
+		if [ -n "$toolOld$toolNew" ] || [ "$toolAll" = "true" ] || [ "$toolAll" = "1" ] ; then
+			printf 'ERROR: edits was given together with a top-level old_string, new_string or replace_all -- use one form: every change inside edits, each with its own replace_all, or one change at the top level. Nothing was written.\n' ; return 0
+		fi
+		case "$editsCount" in ''|*[!0123456789]*) editsCount=0 ;; esac
+		if [ "$editsCount" = "0" ] ; then
+			printf 'ERROR: edits is an empty list -- give at least one edit, each with old_string and new_string. Nothing was written.\n' ; return 0
+		fi
+	elif { AgentsHarnessArgFind edits && [ -n "$harnessArgFound" ] ; } || AgentsHarnessArgFind edits.old_string || AgentsHarnessArgFind edits.old_text ; then
+		printf 'ERROR: edits must be an array of edits, each with old_string and new_string, got a single value -- nothing was written\n' ; return 0
+	else
+		editsOld=( "$toolOld" ) ; editsNew=( "$toolNew" ) ; editsAll=( "$toolAll" )
+	fi
+	## Read and checked whole before the lock is taken, so a call that cannot run never
+	## waits on another writer. An edit of a list is read as the top level is: old_string
+	## and new_string byte for byte, the *_text name only where its own is absent.
+	while [ "$editsIndex" -lt "$editsCount" ] ; do
+		if [ -n "$editsListed" ] ; then
+			AgentsHarnessArgExact "$6" "edits.$editsIndex.old_string" "edits.$editsIndex.old_text" ; editsOld[$editsIndex]="$harnessArgExact"
+			AgentsHarnessArgExact "$6" "edits.$editsIndex.new_string" "edits.$editsIndex.new_text" ; editsNew[$editsIndex]="$harnessArgExact"
+			editsAll[$editsIndex]="$( AgentsHarnessArgValue "$6" "edits.$editsIndex.replace_all" )"
+			editsWhere="edit $(( editsIndex + 1 )) of $editsCount failed, none was applied: "
+		fi
+		## Only an explicit opt-in lifts the uniqueness guard; anything else leaves it standing.
+		case "${editsAll[$editsIndex]}" in
+			true|1) ;;
+			*) editsAll[$editsIndex]="" ;;
+		esac
+		if [ -z "${editsOld[$editsIndex]}" ] ; then
+			printf 'ERROR: %sold_string is empty -- an empty match has no unique position\n' "$editsWhere" ; return 0
+		fi
+		editsIndex=$(( editsIndex + 1 ))
+	done
+	## Taken before the count: a count read outside the lock is stale by the time it is used.
+	if ! AgentsHarnessLockTake "$toolPath" ; then
+		printf 'ERROR: could not take the write lock for %s -- another call is writing it, or the lock area is unusable -- so nothing was written. Retry.\n' "$toolPath" ; return 0
+	fi
+	toolLock="$agentsLocalLockPath"
+	## Two scratch texts take turns: each edit reads the one the edit before it wrote, the
+	## first one the file itself, so nothing reaches the file before the last has applied.
+	editsSource="$toolPath" ; editsOut="$harnessScratch/edit.out" ; editsSpare="$harnessScratch/edit.in"
+	editsIndex=0
+	while [ "$editsIndex" -lt "$editsCount" ] ; do
+		[ -z "$editsListed" ] || editsWhere="edit $(( editsIndex + 1 )) of $editsCount failed, none was applied: "
+		## index() counts and substitutes in one call so the two cannot drift; ENVIRON, never -v.
+		toolCount="$( EDIT_OLD="${editsOld[$editsIndex]}" LC_ALL=C awk -v RS=$'\001' '
+			BEGIN { editOld = ENVIRON["EDIT_OLD"] ; matchCount = 0 ; }
+			{
+				scanRest = $0
+				while ( ( matchPos = index(scanRest, editOld) ) > 0 ) {
+					matchCount = matchCount + 1
+					scanRest = substr(scanRest, matchPos + length(editOld))
+				}
+			}
+			END { print matchCount + 0 ; }
+		' "$editsSource" 2>/dev/null || : )"
+		[ -n "$toolCount" ] || toolCount=0
+		## A kept change is applied only where each edit matches what it matched when it was shown.
+		if [ -n "$harnessChangeApply" ] && [ "$toolCount" != "$( AgentsHarnessChangeMatched "$editsIndex" )" ] ; then
+			AgentsToolsLocalLockGive "$toolLock"
+			printf 'STALE: %s has changed since this change was shown: %sits old_string matched %s place(s) then and matches %s now, so nothing was written\n' \
+				"$toolPath" "${editsListed:+edit $(( editsIndex + 1 )) of $editsCount, }" "$( AgentsHarnessChangeMatched "$editsIndex" )" "$toolCount" ; return 0
+		fi
+		editsSeen="$editsSeen${editsSeen:+ }$toolCount"
+		if [ "$toolCount" = "0" ] ; then
+			AgentsToolsLocalLockGive "$toolLock"
+			printf 'ERROR: %sold_string not found in %s -- nothing was written\n' "$editsWhere" "$toolPath" ; return 0
+		fi
+		if [ -z "${editsAll[$editsIndex]}" ] && [ "$toolCount" != "1" ] ; then
+			AgentsToolsLocalLockGive "$toolLock"
+			printf 'ERROR: %sold_string occurs %s times in %s -- it must identify exactly one place. Nothing was written; extend old_string until it is unique, or pass replace_all to change every occurrence.\n' "$editsWhere" "$toolCount" "$toolPath" ; return 0
+		fi
+		## `printf "%s", $0` with the RS re-join, never `print`, which appends ORS and
+		## gave a file that ended without a newline one it never had.
+		if ! EDIT_OLD="${editsOld[$editsIndex]}" EDIT_NEW="${editsNew[$editsIndex]}" EDIT_ALL="${editsAll[$editsIndex]}" LC_ALL=C awk -v RS=$'\001' '
+			BEGIN { editOld = ENVIRON["EDIT_OLD"] ; editNew = ENVIRON["EDIT_NEW"] ; editAll = ENVIRON["EDIT_ALL"] ; editDone = 0 ; }
+			{
+				outText = ""
+				scanRest = $0
+				while ( ( editAll != "" || !editDone ) && ( matchPos = index(scanRest, editOld) ) > 0 ) {
+					outText = outText substr(scanRest, 1, matchPos - 1) editNew
+					scanRest = substr(scanRest, matchPos + length(editOld))
+					editDone = 1
+				}
+				if (NR > 1) printf "%s", RS
+				printf "%s%s", outText, scanRest
+			}
+		' "$editsSource" > "$editsOut" 2>/dev/null ; then
+			AgentsToolsLocalLockGive "$toolLock"
+			printf 'ERROR: %scould not rewrite: %s -- nothing was written\n' "$editsWhere" "$toolPath" ; return 0
+		fi
+		[ -z "$editsListed" ] || [ -z "${editsAll[$editsIndex]}" ] || editsNote="$editsNote${editsNote:+, }edit $(( editsIndex + 1 )) replaced $toolCount occurrence(s)"
+		editsSource="$editsOut" ; editsOut="$editsSpare" ; editsSpare="$editsSource"
+		editsIndex=$(( editsIndex + 1 ))
+	done
+	## Held for approval: nothing reaches the file. The change is kept and shown instead, with
+	## the file as it stands under the lock, which is what the change was worked out from.
+	if [ -n "$toolHeld" ] ; then
+		if ! cp "$toolPath" "$harnessScratch/change.base" 2>/dev/null || ! cp "$editsSource" "$harnessScratch/change.result" 2>/dev/null ; then
+			AgentsToolsLocalLockGive "$toolLock"
+			printf 'ERROR: could not keep the change to hold it, so nothing is held and nothing was written: %s\n' "$toolPath" ; return 0
+		fi
+		AgentsToolsLocalLockGive "$toolLock"
+		AgentsHarnessChangeHold Edit "$toolPath" "$harnessScratch/change.base" "$harnessScratch/change.result" "$6" "$editsSeen"
+		return 0
+	fi
+	## Replaced by rename, as Write does, so no reader ever sees a half-written file.
+	toolTemp="$( dirname -- "$toolPath" )/.$( basename -- "$toolPath" ).mdat-edit.$$"
+	if ! cp -p "$toolPath" "$toolTemp" 2>/dev/null || ! cat "$editsSource" > "$toolTemp" || ! mv -f "$toolTemp" "$toolPath" ; then
+		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
+		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
+	fi
+	AgentsToolsLocalLockGive "$toolLock"
+	if [ -n "$editsListed" ] ; then
+		printf 'OK: applied %s edit(s) in %s%s\n' "$editsCount" "$toolPath" "${editsNote:+ -- $editsNote}"
+	elif [ -n "${editsAll[0]}" ] ; then
+		printf 'OK: replaced %s occurrence(s) in %s\n' "$toolCount" "$toolPath"
+	else
+		printf 'OK: replaced one occurrence in %s\n' "$toolPath"
+	fi
+}
+
+## The root is tested before the pattern is evaluated, so a missing directory is named
+## as missing rather than collapsing into "the pattern matched nothing".
+AgentsHarnessToolGlob(){
+	local toolPattern="$1" toolPath="${2:-$PWD}" toolLong="$3" toolBytes globStat globLine globSlice
+	AgentsHarnessReadGate Glob "$toolPath" || return 0
+	toolPath="$harnessResolvedPath"
+	if [ ! -d "$toolPath" ] ; then
+		printf 'ERROR: no such directory: %s\n' "$toolPath" ; return 0
+	fi
+	## `find`, not a shell glob: a glob cannot recurse and an unmatched one expands to itself.
+	## -L because a skillset member entry is a symlinked directory, and without it the walk
+	## lists such an entry without ever entering it, reporting a clean empty result.
+	## Oldest first by modification time, the package's own `ls -tr` order; stat(1) speaks BSD or GNU.
+	if stat -f '%m' / >/dev/null 2>&1 ; then
+		globStat=( -L -f $'%m\t%N' )
+	elif stat -c '%Y' / >/dev/null 2>&1 ; then
+		globStat=( -L -c $'%Y\t%n' )
+	else
+		printf 'ERROR: stat(1) understands neither the BSD nor the GNU format flag, so matches cannot be ordered by modification time\n' ; return 0
+	fi
+	## A pattern holding a slash is matched against the root-relative path as an anchored ERE, built here; ENVIRON, never -v.
+	case "$toolPattern" in
+		'')  find -L "$toolPath/" -maxdepth 1 -exec stat "${globStat[@]}" {} + || : ;;
+		*/*) find -L "$toolPath/" -type f | GLOB_ROOT="$toolPath/" GLOB_PATTERN="$toolPattern" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGlobFilterInline.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r stat "${globStat[@]}" ;;
+		*)   find -L "$toolPath/" -type f -name "$toolPattern" -exec stat "${globStat[@]}" {} + || : ;;
+	esac 2> "$harnessScratch/glob.err" | LC_ALL=C sort -n | LC_ALL=C awk '{ sub(/^[0-9]+\t/, "") ; print ; }' > "$harnessScratch/glob.out"
+	## find -ls over the sorted paths, in slices well under any argv limit; every path is absolute, so none reads as an expression.
+	if [ -n "$toolLong" ] ; then
+		globSlice=()
+		while IFS= read -r globLine ; do
+			globSlice+=( "$globLine" )
+			[ "${#globSlice[@]}" -lt 1000 ] || { find -L "${globSlice[@]}" -maxdepth 0 -ls || : ; globSlice=() ; }
+		done < "$harnessScratch/glob.out" > "$harnessScratch/glob.ls" 2>&1
+		[ "${#globSlice[@]}" -eq 0 ] || find -L "${globSlice[@]}" -maxdepth 0 -ls >> "$harnessScratch/glob.ls" 2>&1 || :
+		mv -f "$harnessScratch/glob.ls" "$harnessScratch/glob.out"
+	fi
+	cat "$harnessScratch/glob.err" >> "$harnessScratch/glob.out"
+	if [ -n "$toolPattern" ] && [ ! -s "$harnessScratch/glob.out" ] ; then
+		printf 'No files found\n' ; return 0
+	fi
+	## Capped and said so: a truncated list reads as the complete set of matches.
+	toolBytes="$( wc -c < "$harnessScratch/glob.out" | tr -d ' ' )"
+	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
+		AgentsHarnessReadRange "$harnessScratch/glob.out" 1 "" "" "narrow the pattern or path to see the rest"
+	else
+		cat "$harnessScratch/glob.out"
+	fi
+}
+
+## Grep's `type`: the file-name globs of one ripgrep type, space-separated, from ripgrep's
+## own default table, trimmed to common types. Returns 1 for a name not in it. With no
+## argument it prints the known names, for the refusal to list.
+AgentsHarnessGrepTypeGlobs(){ ## type name
+	case "${1-}" in
+		'')       printf 'awk c cpp cs css docker go html java js json kotlin lua make markdown md perl php py ruby rust sh sql svg swift toml ts txt xml yaml' ;;
+		awk)      printf '*.awk' ;;
+		c)        printf '*.c *.h *.H' ;;
+		cpp)      printf '*.C *.cc *.cpp *.cxx *.c++ *.h *.H *.hh *.hpp *.hxx *.h++ *.inl' ;;
+		cs)       printf '*.cs' ;;
+		css)      printf '*.css *.scss' ;;
+		docker)   printf '*Dockerfile*' ;;
+		go)       printf '*.go' ;;
+		html)     printf '*.htm *.html *.ejs' ;;
+		java)     printf '*.java *.jsp *.jspx *.properties' ;;
+		js)       printf '*.js *.jsx *.vue *.cjs *.mjs' ;;
+		json)     printf '*.json *.sarif composer.lock' ;;
+		kotlin)   printf '*.kt *.kts' ;;
+		lua)      printf '*.lua' ;;
+		make)     printf '*.mak *.mk GNUmakefile Gnumakefile makefile Makefile' ;;
+		markdown|md) printf '*.markdown *.md *.mdown *.mdwn *.mkd *.mkdn *.mdx' ;;
+		perl)     printf '*.perl *.pl *.PL *.plh *.plx *.pm *.t' ;;
+		php)      printf '*.php *.php3 *.php4 *.php5 *.php7 *.php8 *.pht *.phtml' ;;
+		py)       printf '*.py *.pyi' ;;
+		ruby)     printf '*.rb *.gemspec Gemfile Rakefile config.ru .irbrc' ;;
+		rust)     printf '*.rs' ;;
+		sh)       printf '*.sh *.bash *.zsh *.ksh *.csh *.tcsh .bashrc .bash_profile .bash_login .bash_logout .profile .zshrc .zprofile .zshenv .zlogin .zlogout .kshrc .cshrc .login .logout' ;;
+		sql)      printf '*.sql *.psql' ;;
+		svg)      printf '*.svg' ;;
+		swift)    printf '*.swift' ;;
+		toml)     printf '*.toml Cargo.lock' ;;
+		ts)       printf '*.ts *.tsx *.cts *.mts' ;;
+		txt)      printf '*.txt' ;;
+		xml)      printf '*.xml *.xml.dist *.dtd *.xsl *.xslt *.xsd *.xjb *.rng *.sch *.xhtml' ;;
+		yaml)     printf '*.yaml *.yml' ;;
+		*)        return 1 ;;
+	esac
+}
+
+## `ripgrep` would replace this `grep -rn` outright; the human-owner ruled "Not now".
+AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, output_mode, glob, -n, -o, -A, -B, -C, -i, head_limit, offset, multiline, type
+	local toolPattern="$1" toolPath="${2:-$PWD}" toolContext="${13:-$3}" toolBefore="${12:-$4}" toolAfter="${11:-$5}" toolIgnoreCase="${14:-$6}" toolMode="${7:-files_with_matches}" toolGlob="$8" toolLineNumbers="$9" toolOnlyMatching="${10}" toolHeadLimit="${15:-250}" toolOffset="${16:-0}" toolBytes toolRegex grepFlags globPrefix globGroup globSuffix globAlts globAlt typeGlobs typeGlob typeFind=()
+	case "${17}" in
+		true|1) printf 'ERROR: multiline is not supported by this Grep, only by the native Grep tool. Search with a pattern that matches within one line instead. Nothing was searched.\n' ; return 0 ;;
+	esac
+	## A type is a find predicate over the file name, ANDed with glob as ripgrep ANDs -t and -g.
+	if [ -n "${18}" ] ; then
+		typeGlobs="$( AgentsHarnessGrepTypeGlobs "${18}" )" || {
+			printf 'ERROR: unrecognized file type: %s. Known types: %s. Use glob for any other set of files, such as *.ext. Nothing was searched.\n' "${18}" "$( AgentsHarnessGrepTypeGlobs )" ; return 0
+		}
+		read -r -a typeGlobs <<< "$typeGlobs"
+		for typeGlob in "${typeGlobs[@]}" ; do
+			[ "${#typeFind[@]}" -eq 0 ] || typeFind+=( -o )
+			typeFind+=( -name "$typeGlob" )
+		done
+		typeFind=( '(' "${typeFind[@]}" ')' )
+	fi
+	case "${toolGlob#\*\*/}" in
+		*/*) ;;
+		*) toolGlob="${toolGlob#\*\*/}" ;;
+	esac
+	AgentsHarnessReadGate Grep "$toolPath" || return 0
+	toolPath="$harnessResolvedPath"
+	if [ ! -e "$toolPath" ] ; then
+		printf 'ERROR: no such path: %s\n' "$toolPath" ; return 0
+	fi
+	## ripgrep class escapes become POSIX classes; an escaped backslash and every other escape pass through untouched.
+	toolRegex="$( GREP_PATTERN="$toolPattern" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGrepPatternToPosix.awk" )" || { printf '%s\n' "$toolRegex" ; return 0 ; }
+	## The mode picks the output shape; -E, -C/-B/-A, -i, -o, -H and --include are carried by BSD and GNU grep alike.
+	case "$toolMode" in
+		content)            grepFlags=( -rE ) ;;
+		files_with_matches) grepFlags=( -rlE ) ;;
+		count)              grepFlags=( -rcE ) ;;
+		*)
+			printf 'ERROR: output_mode must be content, files_with_matches or count, got: %s\n' "$toolMode" ; return 0
+		;;
+	esac
+	## A per-side value wins over -C, which otherwise sets both sides.
+	[ -n "$toolBefore" ] || toolBefore="$toolContext"
+	[ -n "$toolAfter" ] || toolAfter="$toolContext"
+	if [ -n "$toolBefore" ] && ! AgentsHarnessWholeNumber "$toolBefore" ; then
+		printf 'ERROR: -B/before/-C/context must be a whole number of lines, got: %s\n' "$toolBefore" ; return 0
+	fi
+	if [ -n "$toolAfter" ] && ! AgentsHarnessWholeNumber "$toolAfter" ; then
+		printf 'ERROR: -A/after/-C/context must be a whole number of lines, got: %s\n' "$toolAfter" ; return 0
+	fi
+	if ! AgentsHarnessWholeNumber "$toolHeadLimit" ; then
+		printf 'ERROR: head_limit must be a whole number of lines or entries, got: %s\n' "$toolHeadLimit" ; return 0
+	fi
+	if ! AgentsHarnessWholeNumber "$toolOffset" ; then
+		printf 'ERROR: offset must be a whole number of lines or entries, got: %s\n' "$toolOffset" ; return 0
+	fi
+	if [ "$toolMode" = content ] ; then
+		## BSD grep mixes context lines into -o output and GNU grep drops them, so -o takes none.
+		case "$toolOnlyMatching" in
+			true|1) toolBefore="" ; toolAfter="" ;;
+		esac
+		[ -z "$toolBefore" ] || grepFlags+=( -B "$toolBefore" )
+		[ -z "$toolAfter" ] || grepFlags+=( -A "$toolAfter" )
+		case "$toolLineNumbers" in
+			false|0) ;;
+			*) grepFlags+=( -n ) ;;
+		esac
+		case "$toolOnlyMatching" in
+			true|1) grepFlags+=( -o ) ;;
+		esac
+	fi
+	case "$toolIgnoreCase" in
+		true|1) grepFlags+=( -i ) ;;
+	esac
+	## --include matches a file name only, and takes no braces, so one {a,b} group becomes one --include per branch.
+	case "$toolGlob" in
+		'') ;;
+		*/*) ;;
+		*\{*\}*)
+			globPrefix="${toolGlob%%\{*}" ; globGroup="${toolGlob#*\{}" ; globSuffix="${globGroup#*\}}" ; globGroup="${globGroup%%\}*}"
+			case "$globGroup$globSuffix" in
+				*[{}]*) printf 'ERROR: glob takes at most one {a,b} group, got: %s\n' "$toolGlob" ; return 0 ;;
+			esac
+			if [ -z "$globGroup" ] ; then
+				printf 'ERROR: glob has an empty {} group, so it would match every file, got: %s\n' "$toolGlob" ; return 0
+			fi
+			IFS=, read -r -a globAlts <<< "$globGroup"
+			for globAlt in "${globAlts[@]}" ; do
+				grepFlags+=( --include="$globPrefix$globAlt$globSuffix" )
+			done
+		;;
+		*) grepFlags+=( --include="$toolGlob" ) ;;
+	esac
+	## `|| :` keeps grep's own rc 1 on no-match from tripping this script's set -e. Paged, and said so when cut.
+	## A glob holding a slash selects files by path first, as Glob matches a path, and grep reads only those.
+	## A type does the same by file name; a file named as path is searched whatever its type, as ripgrep does.
+	[ -d "$toolPath" ] || typeFind=()
+	{
+		case "$toolGlob" in
+			*/*)
+				find "$toolPath" -type f ${typeFind[@]+"${typeFind[@]}"} 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGlobFilterFunction.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+			;;
+			*)
+				if [ "${#typeFind[@]}" -gt 0 ] ; then
+					find "$toolPath" -type f "${typeFind[@]}" 2>&3 | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+				else
+					grep "${grepFlags[@]}" -- "$toolRegex" "$toolPath" 2>&1 || :
+				fi
+			;;
+		esac
+	} 3>&1 | LC_ALL=C awk -v skipCount="$toolOffset" -v keepCount="$toolHeadLimit" '
+		NR > skipCount && ( keepCount == 0 || NR <= skipCount + keepCount ) { print ; }
+		END { if ( keepCount > 0 && NR > skipCount + keepCount ) { printf "... head_limit reached: showed %d of %d lines or entries; continue with offset %d ...\n", keepCount, NR, skipCount + keepCount ; } ; }
+	' > "$harnessScratch/grep.out"
+	## Capped and said so: a truncated search reads as "there are no further matches".
+	toolBytes="$( wc -c < "$harnessScratch/grep.out" | tr -d ' ' )"
+	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
+		AgentsHarnessReadRange "$harnessScratch/grep.out" 1 "" "" "narrow the pattern or path to see the rest"
+	elif [ ! -s "$harnessScratch/grep.out" ] ; then
+		printf 'No matches found\n'
+	else
+		cat "$harnessScratch/grep.out"
+	fi
+}

@@ -18,7 +18,7 @@
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
 ## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 ## Reconciled for the removal of Pending Questions from Magic-Team (owner-approved: it is a root alone now): the table of
-## the folders of Magic-Team (Agents) holds four rows (`Activity`, `Launchpad`, `Team Members`, `Routines`), not five.
+## the folders of Magic-Team (Agents) holds five rows (`Activity`, `Launchpad`, `Team Members`, `Routines`, `Schedule`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -108,9 +108,9 @@ border foot 38 0 84
 border load 38 84 120
 looks k
 RIGSCRIPT
-rigAssert "before the first read no counter and no load average is shown: the border of the left window counts the rows of the table of the folders of Magic-Team (Agents) and nothing else" "[$( rigVal firstTop | rigSqueeze )] [$( rigVal firstFoot )] [$( rigVal firstLoad )] [$( rigVal firstBottom )]" "[$rigMenus ws-rig 02:30:00] [4 rows] [] [$rigHints  t Sort]"
+rigAssert "before the first read no counter and no load average is shown: the border of the left window counts the rows of the table of the folders of Magic-Team (Agents) and nothing else" "[$( rigVal firstTop | rigSqueeze )] [$( rigVal firstFoot )] [$( rigVal firstLoad )] [$( rigVal firstBottom )]" "[$rigMenus ws-rig 02:30:00] [5 rows] [] [$rigHints  t Sort]"
 rigAssert "the row of counters is read at the root, with nothing of the sessions shown" "[$( rigVal first.path )] $( rigVal first.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:magic-team/activity' ) $( rigCalls ) [$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[] list:magic-team/activity 1 [--manager-session-list]"
-rigAssert "the bottom border of the left window holds how many rows its table holds and no counter, its five counters having left it for the dashboard: the screen holds them as the row gave them; and the status line names the general keys" "[$( rigVal foot )] [$( rigVal bottom )] $( rigVal a.counters )" "[4 rows] [$rigHints  t Sort] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
+rigAssert "the bottom border of the left window holds how many rows its table holds and no counter, its five counters having left it for the dashboard: the screen holds them as the row gave them; and the status line names the general keys" "[$( rigVal foot )] [$( rigVal bottom )] $( rigVal a.counters )" "[5 rows] [$rigHints  t Sort] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
 rigAssert "the counter of paused sessions shows 0"                   "$( rigVal a.counters | LC_ALL=C tr ',' '\n' | LC_ALL=C grep '^paused=' )" "paused=0"
 rigAssert "the menu bar shows the workspace and the clock, and the bottom border of the list is plain: the load average left it for the dashboard" "[$( rigVal top | rigSqueeze )] [$( rigVal load )]" "[$rigMenus ws-rig 02:30:00] []"
 rigAssert "both lines stand across the whole width"                  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n '1p;40p' | LC_ALL=C tr -d 'RH|\n' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" 0

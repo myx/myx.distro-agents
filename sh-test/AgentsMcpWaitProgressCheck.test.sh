@@ -61,8 +61,9 @@ rigServe(){ ## scenario name, _meta JSON or empty
 rigFrames(){ ## scenario name -- how many progress frames
 	LC_ALL=C grep -c '"method":"notifications/progress"' "$rigTmp/$1.wire" | tr -d ' '
 }
+## The rig has no Slack, so the two default sources (the team channel, the owner DM) stand in WAIT-NEVER-READ beside the one line.
 rigTimeoutLine(){ ## scenario name -- the result text, with its seconds masked
-	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s) NEXT: Wait mode=continue\)\(\\n\)*".*/\1/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/'
+	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s) NEXT: Wait mode=continue\)\(\\nWAIT-NEVER-READ: [^"]*\)*\(\\n\)*".*/\1/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/'
 }
 rigWaited(){ ## scenario name -- the seconds the TIMEOUT line names
 	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*WAIT-RESULT: TIMEOUT (\([0-9]*\)s).*/\1/p'

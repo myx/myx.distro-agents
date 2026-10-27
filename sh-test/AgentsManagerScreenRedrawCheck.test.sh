@@ -197,7 +197,6 @@ keys \eOA
 keys \eOB
 keys \r
 keys \eOB
-keys \eOB
 keys \r
 await long-log
 keys \eOB

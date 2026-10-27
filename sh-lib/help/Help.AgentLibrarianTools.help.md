@@ -7,6 +7,7 @@
 📘 syntax: AgentLibrarianTools.fn.sh --queue-done <name> (--apply|--refuse <reason>|--result <text>)
 📘 syntax: AgentLibrarianTools.fn.sh --request-result <name>
 📘 syntax: AgentLibrarianTools.fn.sh --doc-drift [<path>...] [--queue]
+📘 syntax: AgentLibrarianTools.fn.sh --skillset-size [<team-member>...]
 📘 syntax: AgentLibrarianTools.fn.sh --queue-ask <name>
 📘 syntax: AgentLibrarianTools.fn.sh [--help-syntax]
 📘 syntax: AgentLibrarianTools.fn.sh [--help]
@@ -74,6 +75,25 @@
 			while it is in the librarian's incoming/, `UPDATE <name> DONE
 			(<outcome>) --` once closed, or `UNKNOWN` (exit 1) for a name
 			that is no update request.
+
+		--skillset-size [<team-member>...]
+			The size of the skillset, so that "the skillset shrinks" can be
+			measured. Reads the skill folders of the registered members (this
+			workspace's, then those of the other workspaces of this machine)
+			and writes nothing. Prints rows of TAB-separated fields on stdout:
+			`file <member> <file> <lines> <bytes>`
+			One row for each file below a member's folder, <file> its path
+			below that folder. <lines> is `-` for a file that holds a NUL byte,
+			which is no text; its bytes still count. A file or folder whose
+			name starts with a dot is no part of the skillset.
+			`member <member> - <lines> <bytes>`
+			One row for each member, its text lines and its bytes summed.
+			`total - - <lines> <bytes>`
+			One row, over the members printed. Members are in the C order of
+			their names, the files of a member in the C order of their paths.
+			With members named, only those are printed and the total is theirs
+			alone. Exit 1 with one error line, and nothing printed, for a name
+			that is no registered team member.
 
 		--doc-drift [<path>...] [--queue]
 			Detects, by dates and checksums, a package whose code changed

@@ -20,7 +20,7 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --run-stats [--team-member <team-member>] [--member <m>] [--routine <r>] [--status <s>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --run-history [--team-member <team-member>] [--member <m>] [--routine <r>] [--since <YYYY-MM-DD>] [--limit <n>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --routine-stats [--team-member <team-member>] [<routine>]
-📘 syntax: DistroAgentsDispatcher.fn.sh --token-stats [--team-member <team-member>] --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
+📘 syntax: DistroAgentsDispatcher.fn.sh --token-stats [--team-member <team-member>] --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]
 📘 syntax: DistroAgentsDispatcher.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsDispatcher.fn.sh [--help]
 
@@ -102,7 +102,7 @@
 		--run-stats [--member <m>] [--routine <r>] [--status <s>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]
 		--run-history [--member <m>] [--routine <r>] [--since <YYYY-MM-DD>] [--limit <n>]
 		--routine-stats [<routine>]
-		--token-stats --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
+		--token-stats --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]
 			The runs and stats store of `.local/agents`, an index derived from the
 			run records and never a source. `--rebuild-stats` derives it whole,
 			`--stats-check` compares it with a rebuild, and the four readers bring it
@@ -111,6 +111,9 @@
 			`--share` adds two fields, the share of the `in` tokens of a key in the total
 			of all keys and in the largest key, each in whole percent (of the averages
 			with `--average`).
+			`--cache` adds the cache-hit of a key before the shares: the cache-read
+			tokens over all input tokens, in whole percent, 0 for no input. `--by session`
+			gives a row for each session, so the hit is read per session.
 
 ##  Examples:
 

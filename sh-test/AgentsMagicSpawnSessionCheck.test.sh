@@ -76,9 +76,13 @@ printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-
 printf -- '---\nexecutors: the coordinator and friends\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig prose routine fixture\n' \
 	> "$rigSkills/rig-member-a/rig-member-a.prose.routine.md"
 
-rigRun(){ ## stdin content, then --spawn-session args...
-	local rigStdin="$1" ; shift
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+rigRun(){ ## stdin content, then --spawn-session args... -- a last word RIG_CALLER_ENV runs it as magic-coordinator in session rig-caller-session
+	local rigStdin="$1" rigCaller=() ; shift
+	if [ "${!#}" = RIG_CALLER_ENV ] ; then
+		rigCaller=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SESSION_ID=rig-caller-session )
+		set -- "${@:1:$(( $# - 1 ))}"
+	fi
+	env -i ${rigCaller[@]+"${rigCaller[@]}"} MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -108,7 +112,7 @@ rigAssert(){ ## what is asserted, got, want
 ## Posting succeeds, so a spawn is never also blocked on Slack config.
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 
-echo "-- explicit members: the first starts the session, the second joins it --"
+echo "-- explicit members: one session each, under one agent-less parent --"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-b )"
 rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; }' )"
 rigAssert "a session id is reported"                     "$( [ -n "$rigSessionId" ] && echo yes || echo no )" yes
@@ -122,9 +126,90 @@ rigAssert "member a's own brief names the armed.md sections" "$( grep -c -x -F '
 rigAssert "member b's own brief names the armed.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief.rig-member-b" )" 1
 rigAssert "member a's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-a" )" 1
 rigAssert "member b's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-b" )" 1
-rigAssert "both spawns' own tracking records share one session id" \
-	"$( LC_ALL=C grep -h -c -x -F "session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C awk '{s+=$1 ;} END{print s+0 ;}' )" 2
+rigAssert "both spawns name the agent-less parent as their parent session" \
+	"$( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . )" 2
+rigAssert "and each is a session of its own, none the parent's" \
+	"$( LC_ALL=C sed -n 's/^session-id: //p' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) | LC_ALL=C grep -v -x -F "$rigSessionId" | LC_ALL=C sort -u | LC_ALL=C grep -c . )" 2
+rigAssert "a caller with no member: both children report to the person at the console" \
+	"$( LC_ALL=C grep -l '^reports-to: user-' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C grep -c . )" 2
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+
+echo "-- the agent-less parent owns the run as its caller: the children report to the caller, in the caller's thread --"
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
+mkdir -p "$rigWs/.local/agents/sessions/rig-caller-session" "$rigSkills/magic-coordinator"
+printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
+printf 'CRIG00001:1700000000.000500\n' > "$rigWs/.local/agents/sessions/rig-caller-session/session.thread"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-b RIG_CALLER_ENV )"
+rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; }' )"
+rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
+rigAssert "each child reports to the caller's session and member" \
+	"$( LC_ALL=C grep -l -x -F 'reports-to: rig-caller-session:magic-coordinator' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C grep -c . )" 2
+rigAssert "the parent's thread is the caller's, so a child's session-parent is that thread" \
+	"$( cat "$rigWs/.local/agents/sessions/$rigSessionId/session.thread" 2>/dev/null ):$( LC_ALL=C grep -l -x -F 'parent-thread: CRIG00001:1700000000.000500' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . )" "CRIG00001:1700000000.000500:2"
+rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
+rigLeft=10 ; while [ ! -s "$rigParentRecord" ] && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "the parent's own record: the caller is its owner, and it reports where the caller is" \
+	"$( LC_ALL=C grep -c -x -e 'owner: magic-coordinator' -e 'reports-to: rig-caller-session:magic-coordinator' -e 'agent-less: true' "$rigParentRecord" 2>/dev/null )" 3
+rigAssert "it names its children, its watcher's pid and its host, and shows as agent-less in the rosters" \
+	"$( LC_ALL=C grep -c -x -F "children: $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' )" "$rigParentRecord" ) $( LC_ALL=C grep -c -E '^run-process: [0-9]+ ' "$rigParentRecord" ) $( LC_ALL=C grep -c -x -F "host: $( hostname -s 2>/dev/null || echo unknown )" "$rigParentRecord" ) $( LC_ALL=C grep -c -x -F 'session-comment: agent-less parent of magic-team.coworking.routine.md' "$rigParentRecord" )" "1 1 1 1"
+rigLeft=30 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+## A notice may be collected for some seconds before it is posted.
+rigLeft=20 ; while ! LC_ALL=C grep -q -F 'agent-less parent: all spawned sessions are done' "$rigTmp/bodies" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "the watcher closes it when the last child closes, and its line in the caller's thread names each child and its outcome" \
+	"$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" ) $( for rigChild in $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' ) ; do LC_ALL=C grep -c -F "$rigChild rig-member-" "$rigTmp/bodies" 2>/dev/null ; done | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c -F 'agent-less parent: all spawned sessions are done (succeeded): ' "$rigTmp/bodies" 2>/dev/null )" "spawn-succeeded 1 1 1"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sessions/rig-caller-session"
+
+echo "-- a start that fails partway: the parent watches the children already started, and the error names them --"
+rm -f "$rigTmp/brief.rig-member-a"
+mkdir -p "$rigSkills/rig-member-c" && printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member-c/rig-member-c.basic.md"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-c )" ; rigRc=$?
+rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rigParentRecord="$( LC_ALL=C grep -l -x -F 'agent-less: true' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | head -1 )"
+rigChild="$( LC_ALL=C sed -n 's/^children: //p' "$rigParentRecord" 2>/dev/null )"
+rigAssert "the call fails, its parent record names the one child started, and the error names it too" \
+	"$rigRc $( printf '%s\n' "$rigChild" | LC_ALL=C awk '{ print NF }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F -- "watches the children already started, and closes over them: $rigChild" ) $( LC_ALL=C grep -c -E '^run-process: [0-9]+ ' "$rigParentRecord" 2>/dev/null )" "1 1 1 1"
+rigLeft=30 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "and its watcher closes it over that child" "$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" )" "spawn-succeeded"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigSkills/rig-member-c"
+
+echo "-- an orphaned parent, a caller gone, and the coordinator's thread: read by the functions themselves --"
+rigFn(){ ## function and its arguments -- run against the rig workspace, the session includes loaded
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" ; "$@"' rig "$@" 2> /dev/null
+}
+rigRecordAt(){ ## spawn id, lines... -- a spawn record of the rig
+	mkdir -p "$rigWs/.local/agents/spawned/$1"
+	{ printf -- '---\nspawn-id: %s\n' "$1" ; shift ; printf '%s\n' "$@" ; printf -- '---\n\n# rig record\n' ; } > "$rigWs/.local/agents/spawned/${rigRecordFor:-x}/${rigRecordFor:-x}.spawn.md"
+}
+rigRecordFor=rig-orphan ; rigRecordAt rig-orphan 'session-id: rig-orphan' 'owner: magic-coordinator' 'agent-less: true' 'children: rig-kid-a rig-kid-b' 'session-thread: CRIG00001:1700000000.000700' 'status: spawn-started'
+rigRecordFor=rig-kid-a ; rigRecordAt rig-kid-a 'session-id: rig-kid-a' 'owner: rig-member-a' 'status: spawn-succeeded'
+rigRecordFor=rig-kid-b ; rigRecordAt rig-kid-b 'session-id: rig-kid-b' 'owner: rig-member-b' 'status: spawn-started'
+rigAssert "the agent-less coordinator-owned record is no coordinator thread" "$( rigFn AgentsToolsSpawnParentThread rig-none rig-x ; echo " rc=$?" )" " rc=1"
+rigFn AgentsToolsSpawnSessionParentClose "$rigWs/.local/agents/spawned/rig-orphan/rig-orphan.spawn.md" ; rigRc=$?
+rigAssert "an orphaned parent is not closed while a child is open" "$rigRc $( LC_ALL=C sed -n 's/^status: //p' "$rigWs/.local/agents/spawned/rig-orphan/rig-orphan.spawn.md" )" "1 spawn-started"
+rigRecordFor=rig-kid-b ; rigRecordAt rig-kid-b 'session-id: rig-kid-b' 'owner: rig-member-b' 'status: spawn-failed'
+rigFn AgentsToolsSpawnSessionParentClose "$rigWs/.local/agents/spawned/rig-orphan/rig-orphan.spawn.md" ; rigRc=$?
+rigAssert "and is closed from its children's outcomes once they have closed, resolved-at stamped" "$rigRc $( LC_ALL=C sed -n 's/^status: //p' "$rigWs/.local/agents/spawned/rig-orphan/rig-orphan.spawn.md" ) $( LC_ALL=C grep -c '^resolved-at: ' "$rigWs/.local/agents/spawned/rig-orphan/rig-orphan.spawn.md" )" "0 spawn-failed 1"
+rigRecordFor=rig-gone-caller ; rigRecordAt rig-gone-caller 'session-id: rig-gone-caller' 'owner: magic-coordinator' 'status: spawn-succeeded'
+rigRecordFor=rig-kid-c ; rigRecordAt rig-kid-c 'session-id: rig-kid-c' 'owner: rig-member-a' 'reports-to: rig-gone-caller:magic-coordinator' 'status: spawn-started'
+rigAssert "a reports-to whose caller no longer runs falls back as the route's own steps do" "$( rigFn AgentsToolsRunRoute "$rigWs/.local/agents/spawned/rig-kid-c/rig-kid-c.spawn.md" )" "human-owner"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+
+echo "-- a caller's own <type>-* and <type>-? --"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default 'rig-*' )"
+rigAssert "rig-* names both members of the type, one session each" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a rig-member-b' ):$( printf '%s\n' "$rigOut" | grep -c '^CHILDREN=' )" "1:1"
+rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default 'rig-?' )"
+rigAssert "rig-? is a choice the caller makes: refused, nothing started, its candidates listed one a line" "$( printf '%s\n' "$rigOut" | grep -c -F 'rig-? is a choice: name the one member to start' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c -x -e '  rig-member-a' -e '  rig-member-b' )" "1:0:2"
+mkdir -p "$rigSkills/solo-one" && printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/solo-one/solo-one.basic.md"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default 'solo-?' )"
+rigAssert "even with one member of the type: refused, its one candidate listed" "$( printf '%s\n' "$rigOut" | grep -c -F 'solo-? is a choice' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c -x -e '  solo-one' )" "1:0:1"
+rm -rf "$rigSkills/solo-one"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default 'nomember-*' )"
+rigAssert "a type with no member is refused, naming the type" "$( printf '%s\n' "$rigOut" | grep -c -F 'names no member of the type nomember' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" "1:0"
 
 echo "-- no positional members: the routine's own single-member executors supplies the roster --"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine solo )"

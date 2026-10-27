@@ -17,6 +17,7 @@
 ##   contract-frontmatter    the document has no frontmatter block
 ##   contract-key            a key the contract requires is absent or empty
 ##   contract-form           a key's value is not in its value form
+##   contract-duplicate-key  a key that stands twice in the frontmatter (the row names the key and both lines)
 ##   contract-unknown-key    a key the contract does not name
 ##   contract-type           `type` is not the type word of the file name
 ##   contract-pair           two keys that appear together do not
@@ -140,6 +141,7 @@ fileNo == 2 {
 			docName = substr($0, 1, RLENGTH) ; sub(/:.*$/, "", docName) ;
 			docValue = substr($0, RLENGTH + 1) ; docValue = trimText(docValue) ;
 			if (!(docName in docHas)) { docKeyN++ ; docKeyOrder[docKeyN] = docName ; }
+			else emitRow(FNR, "contract-duplicate-key", "the key " docName " stands twice in the frontmatter", "lines " docLine[docName] " and " FNR) ;
 			docHas[docName] = 1 ; docVal[docName] = docValue ; docLine[docName] = FNR ;
 		}
 		next ;

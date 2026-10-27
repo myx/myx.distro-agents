@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on Read AS THE MCP SERVER SERVES IT: every call goes through the real
 ## server's tools/call, and every answer is read off the wire it writes. It covers cat -n
-## numbering, whole-file and range reads, the 48 KB cap over the numbered bytes, the separate
+## numbering, whole-file and range reads, the byte cap over the numbered bytes, the separate
 ## request/result part, raw Skill output, PNG image parts, PDF pages and notebook cells.
 ## Each gap assertion sits beside a control that passes on the tree before the fix, so a
 ## FAIL there is the gap and not a broken rig. Offline: MMDAPP and HOME are this rig's own.
@@ -28,11 +28,14 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 ## `source/` is inside the access roots the server computes for a workspace; the rig root itself is not.
 mkdir -p "$rigTmp/.local" "$rigTmp/source/fix" "$rigTmp/home/.claude/skills" "$rigTmp/owners/rig-keeper"
 printf 'alpha\nbeta\ngamma\n' > "$rigTmp/source/fix/a.txt"
-## Under the cap raw (40500 bytes), over it once each line carries its 7-byte number; under
-## the 2000-line default, so only the byte cap can cut it.
-LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 1500 ; lineNo++ ) print "abcdefghijklmnopqrstuvwxyz" ; }' > "$rigTmp/source/fix/numbered-over.txt"
-## Over the cap raw (52500 bytes), numbered or not, and under the 2000-line default.
-LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 1500 ; lineNo++ ) print "abcdefghijklmnopqrstuvwxyzabcdefgh" ; }' > "$rigTmp/source/fix/raw-over.txt"
+## The byte cap the served Read keeps is the package's own (AgentsHarnessReadCap.include, or MDAT_READ_CAP_BYTES), so the two fixtures are sized from it.
+## 1500 lines, under the 2000-line default, so only the byte cap can cut them. Under the cap raw, over it once each line carries its number: a line of cap/1500 - 6 bytes.
+. "$rigHere/harness/AgentsHarnessReadCap.include" || rigRefuse "the read cap of the package is missing: sh-lib/harness/AgentsHarnessReadCap.include"
+rigCap="${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}"
+LC_ALL=C awk -v cap="$rigCap" 'BEGIN { width = int( cap / 1500 ) - 6 ; for ( lineNo = 1 ; lineNo <= 1500 ; lineNo++ ) printf "%s\n", substr( sprintf( "%*s", width, "" ), 1, width ) ; }' | LC_ALL=C tr ' ' 'a' > "$rigTmp/source/fix/numbered-over.txt"
+## Over the cap raw, numbered or not: a line of cap/1500 + 10 bytes.
+LC_ALL=C awk -v cap="$rigCap" 'BEGIN { width = int( cap / 1500 ) + 10 ; for ( lineNo = 1 ; lineNo <= 1500 ; lineNo++ ) printf "%s\n", substr( sprintf( "%*s", width, "" ), 1, width ) ; }' | LC_ALL=C tr ' ' 'a' > "$rigTmp/source/fix/raw-over.txt"
+[ "$( wc -c < "$rigTmp/source/fix/numbered-over.txt" | tr -d ' ' )" -lt "$rigCap" ] && [ "$(( $( wc -c < "$rigTmp/source/fix/numbered-over.txt" | tr -d ' ' ) + 7 * 1500 ))" -gt "$rigCap" ] && [ "$( wc -c < "$rigTmp/source/fix/raw-over.txt" | tr -d ' ' )" -gt "$rigCap" ] || rigRefuse "the fixtures are not sized around the cap $rigCap"
 ## Over the 2000-line default and far under the byte cap.
 LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 3000 ; lineNo++ ) print "x" ; }' > "$rigTmp/source/fix/lines-over.txt"
 : > "$rigTmp/source/fix/empty.txt"
@@ -152,7 +155,7 @@ rigText="$( rigResult 3 )"
 rigAssert "control: the range read returns the offset line" "$( rigHas "$rigText" beta )" "yes"
 rigAssert "a range read starts at the offset's own number" "${rigText%%$'\n'*}" $'     2\tbeta'
 
-echo "-- the 48 KB cap counts the numbered bytes --"
+echo "-- the byte cap counts the numbered bytes --"
 rigAssert "control: a file over the cap raw is truncated with a continue footer" "$( rigHas "$( rigResult 5 )" 'continue with offset' )" "yes"
 rigAssert "a file under the cap raw but over it numbered is truncated with a continue footer" "$( rigHas "$( rigResult 4 )" 'continue with offset' )" "yes"
 

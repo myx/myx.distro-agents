@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerSchedule.include -- the --manager-schedule-* operations: the console's own view of the
+## scheduler's flags. Sourced from the `--manager-schedule-*)` arm of AgentsTools.Manager.include; who may call
+## was asked where the family is dispatched.
+##
+## The flags are derived, never stored (AgentsTools.DispatcherSchedule.include); this operation reads them
+## through that file's own functions and computes no flag a second way. It writes nothing.
+##
+
+type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
+
+case "$1" in
+
+	## Prints rows of TAB-separated fields, the first naming the row:
+	##   now     <epoch> <weekday> <HH:MM> <timezone, or `host`>
+	##   flag    <name> <yes|no> <note, or ->            the six flags now, in the order of --current-flags
+	##   switch  <seconds|-> <what>                      the nearest change of a flag that is planned or has a TTL: worktime-starts,
+	##                                                   worktime-ends, or <flag>-ends; `-` and `none` where nothing is planned
+	##   cell    <weekday> <hour 00-23> <flags, or ->    one row for each weekday (mon..sun) and hour, 168 rows
+	--manager-schedule-read)
+		local scheduleOp="$1" scheduleEpoch scheduleOffset scheduleDay scheduleSeconds scheduleName scheduleFlag scheduleLine scheduleZone
+		local scheduleWork scheduleWeekend scheduleStart scheduleUntil scheduleDays scheduleNext scheduleWhat="none" scheduleLeft scheduleOverride scheduleKey
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $scheduleOp: takes no argument, got: $2" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsScheduleTools || { set +e ; return 1 ; }
+		read -r scheduleEpoch scheduleOffset scheduleDay scheduleSeconds <<< "$( AgentsToolsScheduleClock )"
+		scheduleName="$( AgentsToolsScheduleDayName "$scheduleDay" )"
+		scheduleZone="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_TIMEZONE )"
+		printf 'now\t%s\t%s\t%02d:%02d\t%s\n' "$scheduleEpoch" "$scheduleName" "$(( scheduleSeconds / 3600 ))" "$(( scheduleSeconds % 3600 / 60 ))" "${scheduleZone:-host}"
+		for scheduleFlag in worktime weekend holidays emergency overtime learning ; do
+			scheduleLine="$( AgentsToolsScheduleFlagLine "$scheduleFlag" "$scheduleName" "$scheduleSeconds" "$scheduleEpoch" )"
+			scheduleLine="${scheduleLine#*: }"
+			case "$scheduleLine" in
+				"yes "*|"no "*) printf 'flag\t%s\t%s\t%s\n' "$scheduleFlag" "${scheduleLine%% *}" "${scheduleLine#* }" ;;
+				*) printf 'flag\t%s\t%s\t-\n' "$scheduleFlag" "$scheduleLine" ;;
+			esac
+		done
+		scheduleWork="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WORKTIME )" || :
+		scheduleWeekend="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WEEKEND )" || :
+		## The nearest change: worktime's next boundary and the end of each override that has a TTL.
+		scheduleNext=""
+		read -r scheduleStart scheduleUntil scheduleDays <<< "$scheduleWork"
+		if [ "$( AgentsToolsScheduleWorktime "$scheduleName" "$scheduleSeconds" "$scheduleEpoch" )" = "yes" ] && scheduleLeft="$( AgentsToolsScheduleTimeSeconds "$scheduleUntil" )" ; then
+			scheduleNext=$(( scheduleLeft - scheduleSeconds )) ; scheduleWhat="worktime-ends"
+		else
+			scheduleLeft="$( AgentsToolsScheduleNextWorkStart "$scheduleEpoch" "$scheduleOffset" )"
+			[ -z "$scheduleLeft" ] || { scheduleNext=$(( scheduleLeft - scheduleEpoch )) ; scheduleWhat="worktime-starts" ; }
+		fi
+		for scheduleKey in holidays emergency overtime ; do
+			scheduleOverride="$( AgentsToolsScheduleOverrideLeft "MDAT_SCHEDULE_$( printf '%s' "$scheduleKey" | LC_ALL=C tr 'a-z' 'A-Z' )" "$scheduleEpoch" )"
+			case "$scheduleOverride" in
+				''|on) ;;
+				*) if [ -z "$scheduleNext" ] || [ "$scheduleOverride" -lt "$scheduleNext" ] ; then scheduleNext="$scheduleOverride" ; scheduleWhat="$scheduleKey-ends" ; fi ;;
+			esac
+		done
+		printf 'switch\t%s\t%s\n' "${scheduleNext:--}" "$scheduleWhat"
+		SCH_WORKTIME="$scheduleWork" SCH_WEEKEND="$scheduleWeekend" SCH_EPOCH="$scheduleEpoch" SCH_OFFSET="$scheduleOffset" SCH_TODAY="$scheduleDay" \
+			SCH_HOLIDAYS="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_HOLIDAYS )" SCH_EMERGENCY="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_EMERGENCY )" \
+			SCH_OVERTIME="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_OVERTIME )" SCH_LEARNING="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_LEARNING )" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScheduleGrid.awk" < /dev/null
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

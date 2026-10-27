@@ -123,6 +123,8 @@
 ## the trap runs, the function that ran the thread is gone. A shell that ended within five
 ## seconds of its start is counted, and the count travels to the next in the environment:
 ## the fifth such end in a row is not answered, so a fault that comes back at once ends.
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+
 AgentsToolsSessionControlAgain(){
 	[ -n "${agentsSessionControlStay:-}" ] || return 0
 	## It takes no request until it is in place again: the shell that comes holds the trap
@@ -598,11 +600,11 @@ AgentsToolsSessionControlDeathStep(){
 				## A question is due: the reviewer is asked again, by the call that is started below.
 				:
 			elif [ "$( AgentsToolsSessionControlDeathCount "$deathsLine" answer )" -le "$stepTries" ] ; then
-				stepStatus="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$stepAsked.md" status )"
+				stepStatus="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$stepAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$stepAsked.md" )" status )"
 				case "$stepStatus" in
 					reply-pending) stepQuiet="quiet" ;;
 					reply-received)
-						stepAnswer="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$stepAsked.md" verdict )"
+						stepAnswer="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$stepAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$stepAsked.md" )" verdict )"
 						stepAnswer="${stepAnswer%%[!abcdefghijklmnopqrstuvwxyz]*}"
 						if AgentsToolsSessionControlDeathOption "$stepAnswer" ; then
 							deathsLine="$deathsLine answer=$stepAnswer answered=$stepStamp"

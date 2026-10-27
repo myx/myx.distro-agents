@@ -93,6 +93,10 @@ rigDutyMembers="02 03 04 05 06 07 08 09 10"
 for rigM in $rigDutyMembers ; do rigItem keeper-rig-$rigM ; done
 rigAt $(( rigMon13 + 20 ))
 rigOneRun start0 ; rigWaitStarts
+## The loop says it started each duty as the call returns, and the record of a start is written as the start goes on, so a busy machine can have the loop's pass
+## ended before the last records stand: they are waited for (at most a minute) and then counted, so a duty that was not started is still found.
+rigDutyWait=60
+while [ "$rigDutyWait" -gt 0 ] && [ "$( for rigM in $rigDutyMembers ; do rigDutyCount keeper-rig-$rigM ; done | tr -d '\n' )" != 111111111 ] ; do sleep 1 ; rigDutyWait=$(( rigDutyWait - 1 )) ; done
 rigAssert "the items arrive: the duty of each member that has one is started, and keeper-rig-11, with none, still has none" "$( for rigM in $rigDutyMembers ; do rigDutyCount keeper-rig-$rigM ; done | tr -d '\n' ):$( rigDutyCount keeper-rig-11 )" "111111111:0"
 ## Each duty becomes a live run in its Wait; their inbox items are worked off but for keeper-rig-08's, which stays (the input of the case it is for).
 for rigM in $rigDutyMembers ; do
@@ -151,7 +155,7 @@ rigAssert "idle for hours, but its member takes part in another live run: it sta
 rigAssert "out of the flags, the cache read nothing, idle 59 minutes: the 20 minutes decide, it is told to go" "$( rigTold off1 keeper-rig-10 )" "1"
 rigAt $(( rigMon18 + 180 ))
 rm -f "$rigData/inboxes/keeper-rig-08/incoming/note-20261019T0900Z-rig-work.md"
-kill "$rigOtherPid" 2> /dev/null ; sleep 1
+rigProcSignal TERM "$rigOtherPid" ; sleep 1
 rigOneRun off2
 rigAssert "two minutes on, idle for 62 minutes, no input, no session: told to go (the hour)" "$( rigTold off2 keeper-rig-06 )" "1"
 rigAssert "the input worked off, idle for hours: told to go" "$( rigTold off2 keeper-rig-08 )" "1"

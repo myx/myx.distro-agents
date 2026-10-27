@@ -26,6 +26,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 ## The name of the address field, read where it is held, so a rename is one line there.
 rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/session/AgentsTools.SpawnSandbox.include" )"
 rigMember="magic-tester"
@@ -619,9 +620,9 @@ rigCall "$rigCurrent" SendMessage '{"to":"event-alert","message":"m"}'
 rigAssert "SendMessage to an alias whose setting is not there: the resolver's line, nothing posted" "$( rigPosts ):$( LC_ALL=C grep -c -F -- "--slack-send-message: $rigNoAlert Nothing was sent." "$rigScenarioDir/tool.out" )" "0:1"
 
 echo "-- the harness resolves neither name itself --"
-rigAssert "each name is spelled once in the harness, where it is given its variable" "$( LC_ALL=C grep -v '^[[:space:]]*##' "$rigHarness" | LC_ALL=C grep -c -e 'session-current' -e 'session-parent' ):$( LC_ALL=C grep -c -x -e 'harnessCurrentName="session-current"' -e 'harnessParentName="session-parent"' "$rigHarness" )" "2:2"
-rigAssert "and it asks the one resolver"                          "$( LC_ALL=C grep -c 'DistroAgentsToolsResolveTarget "\$1"' "$rigHarness" )" 1
-rigAssert "it reads no parent thread from a spawn record"         "$( LC_ALL=C grep -c -e '\^parent-thread: ' -e 'AgentsHarnessParentThread' "$rigHarness" )" 0
+rigAssert "each name is spelled once in the harness, where it is given its variable" "$( rigHarnessCat | LC_ALL=C grep -v '^[[:space:]]*##' | LC_ALL=C grep -c -e 'session-current' -e 'session-parent' ):$( LC_ALL=C grep -c -x -e 'harnessCurrentName="session-current"' -e 'harnessParentName="session-parent"' "$rigHarness" )" "2:2"
+rigAssert "and it asks the one resolver"                          "$( rigHarnessCat | LC_ALL=C grep -c 'DistroAgentsToolsResolveTarget "\$1"' )" 1
+rigAssert "it reads no parent thread from a spawn record"         "$( rigHarnessCat | LC_ALL=C grep -c -e '\^parent-thread: ' -e 'AgentsHarnessParentThread' )" 0
 
 echo "-- the help of each operation and tool that takes an address lists both names --"
 rigWire="$rigHere/harness/AgentsOpenAiChatWire.sh"

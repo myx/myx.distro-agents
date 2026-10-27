@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ##
-## DistroAgentsGrants.fn.sh -- the permission registry, its management and its bookkeeping (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
+## DistroAgentsGrants.fn.sh -- the permission registry, its management and its bookkeeping (F1.4 of the refactorings epic).
 ## the shell console and shell automation alike. Its operations: what a member holds, passes on and has revoked. They are the lines of
 ## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
 ##

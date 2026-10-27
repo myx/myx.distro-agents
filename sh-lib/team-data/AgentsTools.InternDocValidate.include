@@ -168,24 +168,29 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	## `all-present-members` in invitees alone): each entry is read as the spawner reads it, so a `<type>-*` or a
 	## `<type>-?` that names no member (fail on NONE) is said here, before a start would fail on it, and
 	## `all-present-members` is refused where it is no participants' word.
-	local routineEntry routineEntryRoster routineEntryReason routineEntryType routineInvKeyLine
-	for routineKeyName in executors invitees ; do
-		if [ "$routineKeyName" = executors ] ; then
-			routineLine="$routineEffectiveExec" ; routineKeyLine="$routineExecLine"
-		else
-			routineLine="$routineEffectiveInv" ; routineKeyLine="$( AgentsToolsDocValidateKeyLine "$routineFile" invitees )"
-		fi
+	local routineEntry routineEntryRoster routineEntryReason routineEntryType routineInvKeyLine routineEntryNearest
+	for routineKeyName in executors invitees maintainers ; do
+		case "$routineKeyName" in
+			executors) routineLine="$routineEffectiveExec" ; routineKeyLine="$routineExecLine" ;;
+			invitees) routineLine="$routineEffectiveInv" ; routineKeyLine="$( AgentsToolsDocValidateKeyLine "$routineFile" invitees )" ;;
+			maintainers) routineLine="$routineEffectiveMaint" ; routineKeyLine="$routineMaintLine" ;;
+		esac
 		[ -n "$routineLine" ] || continue
 		case "$routineLine" in ''|none) continue ;; esac
 		for routineEntry in ${routineLine//,/ } ; do
-			case "$routineEntry" in ''|'*'|'magic-team') continue ;; esac
+			case "$routineEntry" in ''|'*'|'magic-team'|'human-owner') continue ;; esac
 			if [ "$routineEntry" = "all-present-members" ] ; then
 				[ "$routineKeyName" = "invitees" ] || AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineKeyName: all-present-members is a participants' word, and executors names members -- name the members, or <type>-* for all of a type"
 				continue
 			fi
 			case "$routineEntry" in
 				*-'*'|*-'?') ;;
-				*) continue ;;
+				*)
+					## A plain name is a member: one no workspace of this machine holds is refused here, with the nearest member, as a start would.
+					routineEntryReason="$( AgentsToolsSpawnRoutineEntryMembers "$routineEntry" )" && continue
+					AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineKeyName: $routineEntry names no member on any workspace of this machine$( routineEntryNearest="$( AgentsToolsSpawnRoutineNearestMember "$routineEntry" )" && printf ' -- the nearest member is %s' "$routineEntryNearest" ) -- name a member that exists, or write a <type>-* whose type has members"
+					continue
+				;;
 			esac
 			routineEntryReason="$( AgentsToolsSpawnRoutineEntryMembers "$routineEntry" )" && continue
 			## A `<type>-*` with no member fails on NONE (the sketch's word): the row names the type the star

@@ -1930,8 +1930,12 @@ case "$1" in
 		## NAMED SOURCES ARE ADDED TO THE DEFAULTS, NEVER PUT IN THEIR PLACE (a default call): the session thread or the team channel and the owner DM are
 		## always watched, so their floors advance at every Wait, and what the call names, and what the stored wait holds, comes beside them.
 		local waitNamedSources=""
+		## A client-* member names what it reads: our team's conversations are never added beside it, so its call never reads under our team's identities.
 		if [ "$waitMode" = "default" ] && [ -n "$waitSources" ] ; then
-			waitNamedSources="$waitSources" ; waitSources=""
+			case "$memberName" in
+				client-*) ;;
+				*) waitNamedSources="$waitSources" ; waitSources="" ;;
+			esac
 		fi
 		if [ -z "$waitSources" ] ; then
 			type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :

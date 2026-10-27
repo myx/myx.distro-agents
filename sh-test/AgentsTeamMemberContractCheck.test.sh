@@ -60,14 +60,14 @@ echo "-- the entries a value expands to --"
 rigAssert "a plain name stays a name" "$( AgentsToolsSpawnRoutineEntryMembers 'magic-coordinator' )" "magic-coordinator"
 rigAssert "a wildcard names its members" "$( AgentsToolsSpawnRoutineEntryMembers 'magic-*' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "magic-coordinator magic-developer"
 rigAssert "a wildcard that names no member is none-of-type" "$( AgentsToolsSpawnRoutineEntryMembers 'client-*' )" "$( printf 'none-of-type\tclient\n' )"
-rigAssert "a -? wildcard is a choice to make" "$( AgentsToolsSpawnRoutineEntryMembers 'magic-?' )" "$( printf 'choice-required\tmagic\n' )"
+rigAssert "a -? wildcard is a choice to make, its candidates after it" "$( AgentsToolsSpawnRoutineEntryMembers 'magic-?' | LC_ALL=C sed -n '1p' ) $( AgentsToolsSpawnRoutineEntryMembers 'magic-?' | LC_ALL=C sed '1d' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$( printf 'choice-required\tmagic' ) magic-coordinator magic-developer "
 
 echo "-- the executors roster --"
 rigAssert "a plain list of members is the roster" "$( AgentsToolsSpawnRoutineExecutorsRoster 'magic-coordinator, keeper-far' )" "magic-coordinator
 keeper-far"
 rigAssert "a wildcard expands into the roster" "$( AgentsToolsSpawnRoutineExecutorsRoster 'keeper-*' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "keeper-far keeper-myx"
 rigAssert "a wildcard that names no member is refused" "$( AgentsToolsSpawnRoutineExecutorsRoster 'client-*' 2>&1 || : )" "$( printf 'none-of-type\tclient\n' )"
-rigAssert "a -? wildcard is refused" "$( AgentsToolsSpawnRoutineExecutorsRoster 'magic-?' 2>&1 || : )" "$( printf 'choice-required\tmagic\n' )"
+rigAssert "a -? wildcard is refused, with its candidates" "$( AgentsToolsSpawnRoutineExecutorsRoster 'magic-?' 2>&1 | LC_ALL=C sed -n '1p' ) $( AgentsToolsSpawnRoutineExecutorsRoster 'magic-?' 2>&1 | LC_ALL=C sed '1d' | LC_ALL=C grep -c . )" "$( printf 'choice-required\tmagic' ) 2"
 rigAssert "all-present-members is refused in executors" "$( AgentsToolsSpawnRoutineExecutorsRoster 'all-present-members' 2>&1 || : )" "all-present-members"
 
 echo "-- the invitees roster --"

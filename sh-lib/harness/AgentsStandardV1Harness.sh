@@ -76,7 +76,7 @@ if [ -z "$HARNESS_TOKEN_MAIN" ] ; then
 	exit 1
 fi
 
-## The service's own web search (AgentsHarnessSearchNative): none; the standard-v1 endpoint is our own open-model serving, and no search is documented for it, so WebSearch is DuckDuckGo's.
+## The service's own web search (AgentsHarnessSearchNative): none; the endpoint is our own open-model serving with no documented search, so WebSearch is DuckDuckGo's.
 HARNESS_WEB_SEARCH="none"
 export HARNESS_WEB_SEARCH
 

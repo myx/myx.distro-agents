@@ -14,6 +14,8 @@
 ## Offline: a Slack-shaped fake curl is first on PATH, a ps that lists nothing of the host is beside it, and every scenario runs in its own workspace under this
 ## check's temp tree, in $MMDAPP/.local/temp.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"

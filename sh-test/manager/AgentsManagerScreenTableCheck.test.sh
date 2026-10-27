@@ -43,6 +43,8 @@
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
 ## Reconciled for F11.5: the sessions table is that of Active Sessions of Activity.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
@@ -618,6 +620,7 @@ show sys
 roles sysRoles
 RIGSCRIPT
 rigAssert "the list of the locations on the real screen: where the colours name a ground for every other row its rows take turns (the one the console runs in standing out), each in the look of its ground" "$( rigLetters blue blueRoles )" "Bccj"
+rigAssert "the type of a directory is in the colour of a folder, another than the type of a workspace (sketch 14.6)" "$( rigLetterAt blue blueRoles directory ) $( rigLetterAt blue blueRoles workspace )" "e c"
 rigAssert "where they name none, no row is marked, for a row of the list is cut to a line and never wraps: the one that stands out stands out, the others are rows" "$( rigLetters sys sysRoles )" "Bccc"
 rigAssert "its header is drawn in the look of the header of a table" "$( rigLetterAt blue blueRoles PLACE )" "u"
 

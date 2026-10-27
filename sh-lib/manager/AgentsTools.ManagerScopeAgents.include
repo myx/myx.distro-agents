@@ -2,10 +2,9 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.ManagerScopeAgents.include -- what the agents register for `Scope Settings` (F11.7), which is `.local`'s (myx.distro-.local, sh-lib/manager/LocalTools.ManagerScope.include;
-## the registrations are in sh-lib/config/scope-settings.list): the scopes of the agents, which are each member's, the team's, each routine's and each preset's (the `preset-<name>` blocks of
-## F10.1 are scopes of the agents, each a folder of its own); a member that holds no file yet, for its tiers; the keys the console knows of a preset and of the tiers, with their kinds; who uses a
-## preset; and how a credential is printed. FOR VIEWING AND FOR THE WRITES OF THE SETTING READER: nothing else is written here.
+## AgentsTools.ManagerScopeAgents.include -- what the agents register for `Scope Settings` (F11.7), the console view of `.local` (sh-lib/config/scope-settings.list).
+## It names the scopes of the agents (each member's, the team's, each routine's and each preset's), the keys the console knows of a preset and of the tiers, and how a credential is printed.
+## It is for viewing and for the writes of the setting reader: nothing else is written here.
 ##
 
 type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
@@ -26,7 +25,7 @@ AgentsToolsManagerScopeAgentsSources(){
 	return 0
 }
 
-## The read and the write of a scope of the agents: a write through the dispatcher, whose write checks (a preset's, the tiers') it must pass; a read the sibling package's reader itself.
+## The read and the write of a scope of the agents: a write through the dispatcher, whose write checks (a preset's, the tiers') it must pass.
 AgentsToolsManagerScopeAgentsCall(){ ## `read` or `write`, then the reader's arguments
 	local callHow="$1" ; shift
 	if [ "$callHow" = write ] ; then
@@ -61,12 +60,12 @@ AgentsToolsManagerScopeAgentsGuard(){ ## name of the scope
 	return 0
 }
 
-## THE KEYS OF A SCOPE OF THE AGENTS THAT THE CONSOLE KNOWS (F10.1, F10.2, F11.7): what a preset takes and what a tier takes, with the kind of each and what it takes, so that a variable
-## is edited by its kind -- a choice from its list, a whole number in its range, a text -- and a parameter the scope does not hold yet is offered, as a variable that holds nothing. One line a
-## key, TAB-separated: the key, its kind (`choice`, `number`, `text`, or `locked`, which the scope may not set and says why in the next field), what it takes (`<value>=<label>,...` for a
-## choice, `<smallest>..<largest>` for a number, `-` for a text, the reason for a locked one) and its description. The lists are the preset include's own (AgentsTools.Preset.include): the
-## CLI services, the efforts, the lifetimes of the input cache, the credentials of the service. A scope of a preset takes the parameters of a preset, the team's and a member's the three
-## tiers, each `<preset>[:<effort>]`, chosen from the presets this workspace holds. No value holds a blank, a `,`, a `=` or a `|`.
+## THE KEYS OF A SCOPE OF THE AGENTS THAT THE CONSOLE KNOWS (F10.1, F10.2, F11.7): what a preset takes and what a tier takes, so a variable is edited by its kind.
+## One line a key, TAB-separated: the key, its kind (`choice`, `number`, `text` or `locked`), what it takes, and its description.
+## What it takes is `<value>=<label>,...` for a choice, `<smallest>..<largest>` for a number, `-` for a text, and the reason for a locked one.
+## The lists are the preset include's own (AgentsTools.Preset.include): the CLI services, the efforts, the input cache lifetimes, the credentials of the service.
+## A preset takes the parameters of a preset; the team's and a member's scope take the three tiers, each `<preset>[:<effort>]`, chosen from the presets this workspace holds.
+## No value holds a blank, a `,`, a `=` or a `|`.
 AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 	local knownName="$1" knownFile knownOne knownList="" knownEfforts="" knownService="" knownKey knownEffort knownPreset
 	case "$knownName" in

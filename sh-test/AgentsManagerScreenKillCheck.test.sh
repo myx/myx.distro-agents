@@ -251,7 +251,7 @@ show cz
 cells closedRow 3 85 119
 cells closedKeys 37 1 83
 RIGSCRIPT
-rigAssert "Enter on the word does nothing at once: the plan is read once more, and the dialog says so" "[$( rigVal pressed.dialog )] [$( rigVal pressed.dialogSays )] $( rigVal pressed.calls )" "[kill:word|yes] [its plan is read once more: it is done if nothing of it has changed] 0"
+rigAssert "Enter on the word asks the kill at the first press: the dialog closes and says nothing more, and the plan is not read again" "[$( rigVal pressed.dialog )] [$( rigVal pressed.dialogSays )] $( rigPlans )" "[] [] 1"
 rigAssert "until Enter nothing is called"                            "[$( rigVal typed.dialog )] [$( rigVal typed.reading )]" "[kill:word|yes] []"
 ## The bottom line is the command line; what the kill SAID is the screen's notice.
 rigAssert "Enter on the word starts the kill, beside the screen"     "[$( rigVal asked.dialog )] $( rigVal asked.reading ) [$( rigVal asked.notice )]" "[] action:kill:$rigS1 [kill asked of the tooling: the session daily of Monday]"
@@ -295,7 +295,7 @@ rigAssert "the dialog asks for the word, naming the agent"          "[$( rigVal 
 rigAssert "it says: that agent alone, by its own id, and of which session" "$( rigBoxHas b '║   KILL the agent magic-tester alone ' ) $( rigBoxHas b "║   run $rigR2, running working " ) $( rigBoxHas b "║   of the session daily of Monday ($rigS1) " )" "1 1 1"
 
 rigAssert "and that the others run on"                              "$( rigBoxHas b '║   It ends the hard way: no closure runs, it is asked nothing. The others ' )" "1"
-rigAssert "its plan is read with its own id and --run, on opening and once more when it is confirmed, and says which question of its own is dismissed with it" "$( rigCalled "$rigKillTester --plan" ) $( rigBoxHas p '║   It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║     $rigQ2  asked by magic-tester " )" "2 1 1"
+rigAssert "its plan is read once, with its own id and --run, on opening, and says which question of its own is dismissed with it" "$( rigCalled "$rigKillTester --plan" ) $( rigBoxHas p '║   It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║     $rigQ2  asked by magic-tester " )" "1 1 1"
 rigAssert "the operation is called once, with the run's own id and --run" "$( rigKills ) [$( rigKillWords )]" "1 [[--manager-session-kill][--session-id][$rigR2][--run]]"
 rigAssert "and never with the id of its session"                     "$( LC_ALL=C grep -c -F -- "$rigS1" "$MANAGER_SCREEN_RIG/words" || : )" 0
 rigAssert "the answer of that one run is shown"                      "[$( rigVal answered.notice )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )]" "[kill: 1 ended] [ the kill, answered 02:30:00:][   magic-tester       ended][]"
@@ -481,7 +481,7 @@ RIGSCRIPT
 rigAssert "a session that waits with no agent alive is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "$rigS3 [keys: k kill]"
 rigAssert "k asks, and its title, its button and its word say Close: nothing of it lives" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║   Type yes to close ' ) $( rigBoxHas b ' Close  ▅  »Cancel« ▅' ) $( rigBoxHas b ' »Kill« ▅' )" "[close:word|] [Close the session] 1 1 0"
 rigAssert "it names the session, says that nothing is ended, and that the rest is being read" "$( rigBoxHas b '║   CLOSE the session stale work ' ) $( rigBoxHas b "║   session $rigS3 " ) $( rigBoxHas b '║   No agent of it is alive: nothing is ended. ' ) $( rigBoxHas b '║   What it does besides, the questions it dismisses and the records it ' )" "1 1 1 1"
-rigAssert "its plan is read when the dialog opens and once more when it is confirmed, and ends nothing" "$( rigPlans ) $( rigCalled "--manager-session-kill --session-id $rigS3 --plan" ) $( rigVal planned.calls ) [$( rigVal planned.dialog )]" "2 2 0 [close:word|]"
+rigAssert "its plan is read when the dialog opens alone, and ends nothing" "$( rigPlans ) $( rigCalled "--manager-session-kill --session-id $rigS3 --plan" ) $( rigVal planned.calls ) [$( rigVal planned.dialog )]" "1 1 0 [close:word|]"
 rigAssert "from the rows of the plan: the question that is dismissed, by who asked it" "$( rigBoxHas p '║   No agent of it is alive: nothing is ended. ' ) $( rigBoxHas p '║   It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║     $rigQ1  asked by magic-coordinator " )" "1 1 1"
 rigAssert "the record that is closed, the state it reads now, and how to back out" "$( rigBoxHas p '║   It closes 1 record of it left open: ' ) $( rigBoxHas p '║     keeper-myx         dispatch-rig-stale-1 ' ) $( rigBoxHas p '║   The session reads waiting now. ' ) $( rigBoxHas p '║   The word yes, typed whole, and Close or Enter: that finishes the ' )" "1 1 1 1"
 rigAssert "a part of the word closes nothing, and the dialog says so in its own words" "[$( rigVal part.dialog )] [$( rigVal part.dialogSays )]" "[close:word|ye] [nothing is closed: the word typed is not yes]"
@@ -491,10 +491,8 @@ rigAssert "the left pane sets out each row of the answer"           "[$( rigPane
 	"[ the kill, answered 02:30:00:][   keeper-myx         was not running][   magic-coordinator  was not running][   question $rigQ1 of magic-coordinator: dismissed][   record of keeper-myx: closed][   the session reads finished]"
 rigAssert "then the list is read again, and the session, finished, leaves the Active Sessions, and takes no kill any more among the Closed Sessions" "$( rigCalled --manager-session-list ) $( rigVal after.selected ) $( rigVal closed.selected ) [$( rigVal closedKeys )]" "2 .. $rigS3 []"
 
-echo "-- the plan is read when the confirmation opens and once more when it is confirmed: one that changed meanwhile is not acted on --"
+echo "-- the first press asks the kill, whatever became of the plan meanwhile: a plan that changed asks for no second word --"
 rigCase changed
-## The plan of this case is read slowly, so that a press typed next comes while it is still being read: what this case holds is the order of those, not the speed of this machine.
-echo 'sleep 1' > "$MANAGER_SCREEN_RIG/mode.$rigKillSession --plan"
 {
 	rigRow kill "$rigS1" "$rigS1" magic-coordinator would-end spawn-started 4101 dispatch-20261012T165700Z-daily-1
 	rigRow kill "$rigS1" "$rigR2" magic-tester no-process spawn-started - -
@@ -507,38 +505,40 @@ rigScript <<RIGSCRIPT
 keys ENTER
 wait sessions 30
 keys DOWN
-keys k y e s ENTER
-get early
-wait plan 30
-advance 25
-turn 3
+keys k
 wait plan 30
 box s
 copy $rigTmp/changed/plan2.rows $rigTmp/changed/rows.$rigKillSession --plan
+keys y e s ENTER
+get pressed
+wait action 30
+get asked
+said askedLine
+RIGSCRIPT
+rigAssert "the plan stands as it was read when the dialog opened" "$( rigBoxHas s '║   It ends 2 agents the hard way: no closure runs, none is asked anything. ' ) $( rigBoxHas s '║   No question of it waits: nothing is dismissed. ' )" "1 1"
+rigAssert "the plan changed meanwhile, and the first press asks the kill: the dialog closes, the word is not asked again" "[$( rigVal pressed.dialog )] [$( rigVal pressed.dialogSays )] [$( rigVal pressed.notice )]" "[] [] [kill asked of the tooling: the session daily of Monday]"
+rigAssert "once, by the id of the session; and the plan was read once, when the dialog opened" "$( rigKills ) [$( rigKillWords )] $( rigPlans )" "1 [[--manager-session-kill][--session-id][$rigS1]] 1"
+
+rigCase early
+## The plan of this case is read slowly, so that the press typed next comes while it is still being read: what this case holds is the order of those, not the speed of this machine.
+echo 'sleep 1' > "$MANAGER_SCREEN_RIG/mode.$rigKillSession --plan"
+rigScript <<RIGSCRIPT
+keys ENTER
+wait sessions 30
+keys DOWN
+keys k y e s ENTER
+get early
+wait plan 30
 keys ENTER
 get pressed
-keys ENTER
-wait plan 30
-get changed
-box c
-keys y e s ENTER
-wait plan 30
-get again
-said againLine
 wait action 30
 RIGSCRIPT
 rigAssert "a press while the plan is still being read does nothing, and the dialog says so" "[$( rigVal early.dialog )] [$( rigVal early.dialogSays )] $( rigVal early.calls )" "[kill:word|yes] [nothing is done yet: its plan is still being read] 0"
-rigAssert "the plan stands as it was read when the dialog opened, whatever time passes" "$( rigBoxHas s '║   It ends 2 agents the hard way: no closure runs, none is asked anything. ' ) $( rigBoxHas s '║   No question of it waits: nothing is dismissed. ' )" "1 1"
-rigAssert "the press reads it once more, and a second press while that runs reads nothing more" "[$( rigVal pressed.dialog )] [$( rigVal pressed.dialogSays )]" "[kill:word|yes] [its plan is read once more: it is done if nothing of it has changed]"
-rigAssert "the plan had changed: nothing is done, the word is taken out, and the dialog says so" "[$( rigVal changed.dialog )] $( rigVal changed.calls ) [$( rigVal changed.reading )] [$( rigVal changed.dialogSays )]" \
-	"[kill:word|] 0 [] [nothing was done: its plan changed while this stood open. It stands above as it is now: type the word again]"
-rigAssert "and it shows the plan as it is now"                       "$( rigBoxHas c '║   It ends 1 agent the hard way: no closure runs, none is asked anything. ' ) $( rigBoxHas c '║   It dismisses 1 question of it that waits: ' ) $( rigBoxHas c 'It ends 2 agents' )" "1 1 0"
-rigAssert "confirmed again, with the plan as it now stands, the kill is asked for" "[$( rigVal again.dialog )] $( rigVal again.reading ) [$( rigVal again.notice )]" "[] action:kill:$rigS1 [kill asked of the tooling: the session daily of Monday]"
-rigAssert "once, by the id of the session; and the plan was read three times in all: on opening and at each confirmation" "$( rigKills ) [$( rigKillWords )] $( rigPlans )" "1 [[--manager-session-kill][--session-id][$rigS1]] 3"
+rigAssert "the next press, once the plan was read, asks the kill: once, and the plan was read once" "[$( rigVal pressed.dialog )] [$( rigVal pressed.notice )] $( rigKills ) $( rigPlans )" "[] [kill asked of the tooling: the session daily of Monday] 1 1"
 
 echo "-- a kill that fails shows its error line --"
 rigCase fail
-## the kill itself fails, by its own words: its plan is read, since a kill whose plan cannot be read is not asked for
+## the kill itself fails, by its own words
 echo fail > "$MANAGER_SCREEN_RIG/mode.$rigKillSession"
 rigScript <<'RIGSCRIPT'
 keys ENTER
@@ -673,22 +673,7 @@ get asked
 RIGSCRIPT
 rigAssert "a read that runs when the screen ends is ended with it"   "$( rigVal asked.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:magic-team/activity' ) $( rigEnded --manager-session-list 20 )" "list:magic-team/activity 0"
 
-echo "-- the pids of a kill row do not mark a plan changed --"
-rigPidsPlan='{"kill":[{"session":"s","spawn":"r","member":"m","outcome":"would-end","status":"spawn-started","pids":"4101","item":"i"}],"dismiss":[],"close":[],"finish":[{"ended":"1","dismissed":"0","closed":"0","state":"running"}]}'
-rigPidsSeen="$( "$rigPython" -I -B -c 'import importlib.util, json, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
-screen = importlib.util.module_from_spec(spec) ; spec.loader.exec_module(screen)
-base = {"rows": json.loads(sys.argv[2]), "error": ""}
-## the same plan read again while the run started another command: another pid in its row, and nothing else
-other = json.loads(sys.argv[2]) ; other["kill"][0]["pids"] = "4102,4103"
-same = screen.killPlanSeen(base) == screen.killPlanSeen({"rows": other, "error": ""})
-## and one whose run would be ended now, which is another plan
-other["kill"][0]["outcome"] = "killed"
-changed = screen.killPlanSeen(base) != screen.killPlanSeen({"rows": other, "error": ""})
-print("same" if same else "not-same", "changed" if changed else "not-changed")' "$rigScreen" "$rigPidsPlan" )"
-rigAssert "other pids alone do not mark a plan changed, and an outcome that changed does" "$rigPidsSeen" "same changed"
-
-echo "-- a plan whose pids changed only is confirmed at the first press: the word is not refused for ever --"
+echo "-- a plan whose pids change is no matter: the first press asks the kill --"
 rigCase morepids
 {
 	rigRow kill "$rigS1" "$rigS1" magic-coordinator would-end spawn-started 4101,4104 dispatch-20261012T165700Z-daily-1
@@ -716,7 +701,7 @@ RIGSCRIPT
 rigAssert "the confirmation shows the plan as it was first read, with its pids"        "$( rigBoxHas s '║     magic-coordinator  pid 4101  ' ) $( rigBoxHas s '║     magic-tester       pid 4102,4103  ' )" "1 1"
 rigAssert "confirmed while the run started another command, it is not refused: the word is taken and the kill is asked" \
 	"[$( rigVal after.dialog )] [$( rigVal after.dialogSays )] [$( rigVal after.notice )] $( rigKills )" "[] [] [kill asked of the tooling: the session daily of Monday] 1"
-rigAssert "the plan was read twice alone: when the dialog opened, and once when it was confirmed" "$( rigPlans ) $( rigCalled "$rigKillSession --plan" )" "2 2"
+rigAssert "the plan was read once alone, when the dialog opened" "$( rigPlans ) $( rigCalled "$rigKillSession --plan" )" "1 1"
 rigAssert "and nothing of the plan as the second read named it was said to the person"  "$( printf '%s\n' "$( rigVal after.dialogSays )" | LC_ALL=C grep -c -F -- 'changed while this stood open' || : )" "0"
 
 if [ "$rigFailCount" -ne 0 ] ; then

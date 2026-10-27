@@ -22,6 +22,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 rigMember="magic-coordinator"
 rigOther="magic-tester"
 
@@ -77,16 +78,17 @@ rigCalls(){ ## method
 rigVerdictLine(){
 	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
 }
+## A record closed here lives in pending/closed/ (retention, T9): the reader takes either store.
 rigRecordFile(){
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && { printf '%s' "$recordFile" ; return 0 ; }
 	done
 	printf '%s' "$rigScenarioDir/no-record"
 }
 rigRecordCount(){
 	local recordCount=0 recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && recordCount=$(( recordCount + 1 ))
 	done
 	printf '%s' "$recordCount"
@@ -489,7 +491,7 @@ rigAssert "and no field of another kind"               "$( printf '%s' "$rigDecl
 rigAssert "the tools JSON holds no apostrophe"         "$( LC_ALL=C awk -v q="'" 'index( $0, "harnessToolsJson=" q ) == 1 { on = 1 ; next ; } on && $0 == "]" q { exit ; } on && index( $0, q ) { hits++ ; } END { print hits + 0 ; }' "$rigWire" )" 0
 rigAssert "the served list is rendered from it"        "$( bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F '{"name":"ProposeApprove","description":"Put one proposal to the human-owner' )" 1
 rigAssert "declared, announced, dispatched and defined: the four sites agree" \
-	"$( LC_ALL=C awk -f "$rigTest/AgentsHarnessSelfCheck.test.awk" "$rigWire" "$rigHarness" > /dev/null 2>&1 ; printf '%s' "$?" )" 0
+	"$( LC_ALL=C awk -f "$rigTest/AgentsHarnessSelfCheck.test.awk" "$rigWire" <( rigHarnessCat ) > /dev/null 2>&1 ; printf '%s' "$?" )" 0
 . "$rigHere/questions/AgentsTools.AskPost.include"
 rigAssert "the table names it, with its kind, template and own parameters" \
 	"$( AgentsToolsAskToolRow mcp__myx_distro__ProposeApprove && printf '%s|%s|%s|%s|%s' "$agentsAskRowName" "$agentsAskRowKind" "$agentsAskRowTemplate" "$agentsAskRowForm" "$agentsAskRowArgs" )" \

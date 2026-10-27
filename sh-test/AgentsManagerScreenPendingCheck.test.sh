@@ -79,7 +79,7 @@ address-to: magic-coordinator
 session-id: 56a396d9-0000-4000-8000-0000000000a1
 asked-at: 2026-10-01 14:01 +0300
 asker-live: no-process
-question: Fix B is approved as correct and urgent, and the developer is still silent here after a second round of asking. What next?
+question: Fix B is approved as correct and urgent, and the developer is still silent here after a second round of asking. **What next?**
 
 PENDING-REPLY: 0e0c1c26-0000-4000-8000-000000000002
 status: reply-pending
@@ -380,7 +380,7 @@ question-key: 3459631396-123
 reminders: 1
 posted: # 🧭 Decision Q11
 posted: 
-posted: Fix B is approved as correct and urgent, and the developer is still silent here after a second round of asking. What next?
+posted: Fix B is approved as correct and urgent, and the developer is still silent here after a second round of asking. **What next?**
 posted: 
 posted: **📋 Options**
 posted: - Proceed - land Fix B now
@@ -761,8 +761,8 @@ RIGSCRIPT
 rigAssert "before the count has come the row has none, at the root" "[$( rigVal unreadRoot )]" "[$( rigRowOf 'Pending Questions' )]"
 ## R16 (owner, 2026-10-26): Pending Questions stands in the root alone, as the sketch has it: it is no child of
 ## Magic-Team (Agents) any more, so the count is shown at the root, and its children there are as the sketch lists them.
-rigAssert "with two that wait the row shows [2] at the root; Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and no Pending Questions of its own" "[$( rigVal twoRoot )] [$( rigVal twoIn )] [$( rigVal twoInRows )]" "[$( rigRowOf 'Pending Questions [2]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines]"
-rigAssert "when the count is read again it follows at the root: none that wait, [0]; Magic-Team (Agents) has no row of it to carry the number" "[$( rigVal zeroRoot )] [$( rigVal zeroIn )] [$( rigVal zeroInRows )]" "[$( rigRowOf 'Pending Questions [0]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines]"
+rigAssert "with two that wait the row shows [2] at the root; Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and no Pending Questions of its own" "[$( rigVal twoRoot )] [$( rigVal twoIn )] [$( rigVal twoInRows )]" "[$( rigRowOf 'Pending Questions [2]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines schedule]"
+rigAssert "when the count is read again it follows at the root: none that wait, [0]; Magic-Team (Agents) has no row of it to carry the number" "[$( rigVal zeroRoot )] [$( rigVal zeroIn )] [$( rigVal zeroInRows )]" "[$( rigRowOf 'Pending Questions [0]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines schedule]"
 rigAssert "the count is the operation of the list with --count, asked twice in all, and the list itself not at all" "$( LC_ALL=C grep -c -x -F -- "$rigRead --count" "$MANAGER_SCREEN_RIG/calls" ) $( LC_ALL=C grep -c -x -F -- "$rigRead" "$MANAGER_SCREEN_RIG/calls" || : )" "2 0"
 rigCase countbad no.asks rows
 printf 'not a number\n' > "$( rigCountFile )"

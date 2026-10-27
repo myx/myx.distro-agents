@@ -691,8 +691,8 @@ rigSettleCount(){ ## label, count -- wait up to 20 seconds for that console to h
 rigBoardItems(){ ## workspace -- how many dispatch items that workspace's board holds
 	find "$rigWork/$1/.local/agents/team-data-root/board" -name 'dispatch-*.md' 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }'
 }
-rigSpawnedCount(){ ## workspace -- how many spawn records that workspace holds
-	( cd "$rigWork/$1/.local/agents/spawned" 2> /dev/null && ls */*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ) || printf 0
+rigSpawnedCount(){ ## workspace -- how many spawn records of a member that workspace holds, an agent-less parent's not counted
+	( cd "$rigWork/$1/.local/agents/spawned" 2> /dev/null && LC_ALL=C grep -L -x -F 'agent-less: true' */*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ) || printf 0
 }
 
 echo "-- 9. the spawn proxy starts an invited member's session in the workspace it was called from --"

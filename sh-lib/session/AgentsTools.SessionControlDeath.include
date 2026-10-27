@@ -70,6 +70,9 @@ type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 agentsSessionControlDeathOutcome="ended-without-close"
 
 ## The line of one run in control/dead of its session; rc 1 where it has none.
+## The record of a question, open or closed (retention, T9): AgentsToolsPendingRecordPath, the one reader of both stores.
+type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+
 AgentsToolsSessionControlDeathLine(){ ## session id, run id
 	local lineFile lineOne
 	case "${1:-}" in ''|-|.|..|*/*) return 1 ;; esac
@@ -211,7 +214,7 @@ AgentsToolsSessionControlDeathQuestion(){ ## session id
 		for questionWord in ${questionWords[@]+"${questionWords[@]}"} ; do
 			case "$questionWord" in asked=*) questionId="${questionWord#asked=}" ;; *) continue ;; esac
 			case "$questionId" in ''|none|*/*|.|..) continue ;; esac
-			questionRecord="$MMDAPP/.local/agents/pending/$questionId.md"
+			questionRecord="$( AgentsToolsPendingRecordPath "$questionId" || printf '%s' "$MMDAPP/.local/agents/pending/$questionId.md" )"
 			[ -f "$questionRecord" ] || continue
 			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$questionRecord" status )" = "reply-pending" ] ; then
 				printf 'open\n'
@@ -375,10 +378,10 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 		''|none|*/*|.|..) ;;
 		*)
 			if [ "$( AgentsToolsSessionControlDeathCount "$workLine" asked )" -le "$workTries" ] ; then
-				AgentsToolsSessionControlDeathAgain "$workSession" "$workRecord" "$workLine" "$MMDAPP/.local/agents/pending/$workAsked.md" "$workResult"
+				AgentsToolsSessionControlDeathAgain "$workSession" "$workRecord" "$workLine" "$( AgentsToolsPendingRecordPath "$workAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$workAsked.md" )" "$workResult"
 				return 0
 			fi
-			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$workAsked.md" status )" = "reply-pending" ] ; then
+			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$workAsked" || printf '%s' "$MMDAPP/.local/agents/pending/$workAsked.md" )" status )" = "reply-pending" ] ; then
 				AgentsToolsSessionControlDeathRead "$workAsked" "$workResult"
 				return 0
 			fi
@@ -518,7 +521,7 @@ AgentsToolsSessionControlDeathAgain(){ ## session id, record file, the line of t
 ## What it left is read from the record, a file, by the next tick of the thread.
 AgentsToolsSessionControlDeathRead(){ ## pending id, the file its result goes to
 	local readOwner
-	readOwner="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$1.md" owner )"
+	readOwner="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$1" || printf '%s' "$MMDAPP/.local/agents/pending/$1.md" )" owner )"
 	[ -z "$readOwner" ] || ( DistroAgentsTools --intern-op-escalation-read "$readOwner" "$1" ) > /dev/null 2>&1 || :
 	printf 'read: done\n' >> "$2"
 	return 0
@@ -568,7 +571,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 	actRun="${actRecord##*/}" ; actRun="${actRun%.spawn.md}"
 	actAnswer="$( AgentsToolsSessionControlDeathMark "$actLine" answer )" || actAnswer=""
 	actId="$( AgentsToolsSessionControlDeathMark "$actLine" asked )" || actId=""
-	actPending="$MMDAPP/.local/agents/pending/$actId.md"
+	actPending="$( AgentsToolsPendingRecordPath "$actId" || printf '%s' "$MMDAPP/.local/agents/pending/$actId.md" )"
 	actBy="$( AgentsToolsSpawnSandboxRecordHeader "$actPending" address-to )"
 	[ -n "$actBy" ] || actBy="human-owner"
 	actMember="$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" owner )"

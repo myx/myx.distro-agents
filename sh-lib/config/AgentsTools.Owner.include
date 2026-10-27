@@ -590,11 +590,10 @@ magic-team MDAT_WORKSPACE_MODE"
 		return 0
 	;;
 
-	## --owner-setup-cli-auto (F13.4) -- which of the vendor CLIs the console starts, claude-native or copilot-native, is installed and works on this
-	## machine, and the setup of the first that does. A bare call and --check are the read-only diagnosis; --apply carries out
-	## `--owner-setup-<that CLI> --apply`, so the one mechanism makes the preset named as that CLI, points SPAWN_TIER_NORMAL at it, and writes everything the setup of that CLI takes with it. The
-	## detection is here, run by a person or by the console, and never at a spawn: a spawn resolves its tier's preset and scans no PATH
-	## (AgentsReviewCliResolved). Declared ahead of --owner-setup-*), which would take it for a domain of that family.
+	## --owner-setup-cli-auto (F13.4) -- which of the vendor CLIs the console starts, claude-native or copilot-native, is installed and works on this machine, and the setup of the first that does.
+	## A bare call and --check are the read-only diagnosis; --apply carries out `--owner-setup-<that CLI> --apply`, so the one mechanism makes the preset named as that CLI and points SPAWN_TIER_NORMAL at it.
+	## The detection is here, run by a person or by the console, and never at a spawn: a spawn resolves its tier's preset and scans no PATH (AgentsReviewCliResolved).
+	## Declared ahead of --owner-setup-*), which would take it for a domain of that family.
 	--owner-setup-cli-auto)
 		shift
 		local autoOperation="--check" autoPick="" autoOne autoWhy autoRc autoNow autoToolPath="${MMDAPP%/}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

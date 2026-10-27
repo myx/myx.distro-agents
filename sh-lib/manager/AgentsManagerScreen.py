@@ -106,6 +106,7 @@ PARTS = (
     "AgentsManagerScreen.Members.py",
     "AgentsManagerScreen.TeamData.py",
     "AgentsManagerScreen.Routines.py",
+    "AgentsManagerScreen.Schedule.py",
     "AgentsManagerScreen.Tokens.py",
     "AgentsManagerScreen.Consoles.py",
     "AgentsManagerScreen.Settings.py",

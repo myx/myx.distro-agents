@@ -4,7 +4,8 @@
 ## DistroAgentsSession.fn.sh -- ThisSession (F7.2): what a running session asks of its own session.
 ## A subsystem interface: results are read from it. So far: --get-routine-text, --routine-run-inline and --update-routine-state, and the
 ## session channel's: --get-session-channel-id, --post-session-channel, --get-session-thread, --wait-session-channel and --get-dispatch-text
-## (F7.2). A tool of its own: its operations are locked to the session of the call, and none of them is a name that belongs to another tool.
+## (F7.2); and the standing directives, --standing-directives, --directive-set and --directive-end. A tool of its own: its session operations are
+## locked to the session of the call, and none of them is a name that belongs to another tool.
 ##
 ## From DistroAgentsTools.fn.sh (F1.4): --append-transcript, --wait-for-input (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
@@ -245,6 +246,20 @@ DistroAgentsSession(){
 			DistroAgentsSessionTools
 			DistroAgentsSessionThis
 			AgentsToolsThisSessionSetChapter "$@"
+			return $?
+		;;
+
+		## The standing directives in force, and an order of the human-owner entered or taken out, magic-coordinator's
+		## (AgentsTools.CoordinatorSurface.include). AgentDispatcherTools.fn.sh keeps the three names as stubs of these.
+		--standing-directives|--directive-set|--directive-end)
+			DistroAgentsSessionTools
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+			type AgentsToolsSurfaceStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+			case "$1" in
+				--standing-directives) AgentsToolsSurfaceCaller "$1" read || { set +e ; return 1 ; } ; AgentsToolsSurfaceStanding "$@" ;;
+				--directive-set) AgentsToolsSurfaceDirectiveSet "$@" ;;
+				--directive-end) AgentsToolsSurfaceDirectiveEnd "$@" ;;
+			esac
 			return $?
 		;;
 

@@ -16,6 +16,9 @@
 📘 syntax: DistroAgentsSession.fn.sh --session-floor-remove [--team-member <team-member>] <seconds>
 📘 syntax: DistroAgentsSession.fn.sh --set-session-topic [--team-member <team-member>] <text...>
 📘 syntax: DistroAgentsSession.fn.sh --set-session-chapter [--team-member <team-member>] <text...>
+📘 syntax: DistroAgentsSession.fn.sh --standing-directives [--team-member <team-member>] [--all]
+📘 syntax: DistroAgentsSession.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]
+📘 syntax: DistroAgentsSession.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]
 📘 syntax: DistroAgentsSession.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsSession.fn.sh [--help]
 
@@ -107,6 +110,17 @@
 		--set-session-chapter <text...>
 			What the session does now, kept in its own store and announced in the
 			session thread, under the same authority as the topic.
+
+		--standing-directives [--all]
+			The standing directives in force: open warnings, coordinator notes, the
+			human-owner's orders. `--all` includes the ones not in force.
+
+		--directive-set --text <text> --expires-at "<YYYY-MM-DD HH:MM>"|none [--id <id>] [--wait <seconds>]
+			An order of the human-owner entered, through the state note's lock,
+			as magic-coordinator.
+
+		--directive-end --id <id> [--wait <seconds>]
+			An order taken out, as magic-coordinator.
 
 ##  Examples:
 

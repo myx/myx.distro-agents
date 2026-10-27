@@ -215,6 +215,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-console-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [--group <group>] [<block>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-feature-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-feature-part (install|update|uninstall) <feature> <part> [--yes] [--force]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-feature-models [--profile shared-cpu|big-cpu|gpu] [--all] [--yes]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-feature-ask <model-id> [--from-stdin|--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-feature-stt-test [<wav-file>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-feature-preset <model-id> [--name <preset>]" >&2
@@ -240,8 +241,12 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-run <place> <
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-harness-read" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-harness-apply" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-verdict <routine-file|selector>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-slots <selector>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-frontmatter <selector>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-schedule-read" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-text <selector>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-stats-routines [<routine>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]" >&2
@@ -380,6 +385,9 @@ echo "📘 syntax: DistroAgentsSession.fn.sh --idle-wait [--team-member <team-me
 echo "📘 syntax: DistroAgentsSession.fn.sh --session-floor-remove [--team-member <team-member>] <seconds>" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --set-session-topic [--team-member <team-member>] <text...>" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --set-session-chapter [--team-member <team-member>] <text...>" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --standing-directives [--team-member <team-member>] [--all]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh [--help-syntax [<op>]]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh [--help]" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --all-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]" >&2
@@ -401,7 +409,7 @@ echo "📘 syntax: DistroAgentsDispatcher.fn.sh --stats-check [--team-member <te
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --run-stats [--team-member <team-member>] [--member <m>] [--routine <r>] [--status <s>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --run-history [--team-member <team-member>] [--member <m>] [--routine <r>] [--since <YYYY-MM-DD>] [--limit <n>]" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --routine-stats [--team-member <team-member>] [<routine>]" >&2
-echo "📘 syntax: DistroAgentsDispatcher.fn.sh --token-stats [--team-member <team-member>] --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --token-stats [--team-member <team-member>] --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --collect-contact [--team-member <team-member>] --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --collect-organisation [--team-member <team-member>] --id <slug> [--name <text>] [--domain <text>] [--note <text>] [--correct]" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --find-contact [--team-member <team-member>] <value> [--team <scope>] [--reached-by <member>]" >&2

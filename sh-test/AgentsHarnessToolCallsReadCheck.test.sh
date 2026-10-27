@@ -13,6 +13,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -31,7 +32,7 @@ rigLift="$( LC_ALL=C awk '
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
 	END { if ( seen != 5 ) exit 1 ; }
-' "$rigHarness" "$rigHere/harness/AgentsHarnessModelRound.include" )" || rigRefuse "the five tool-call reading functions were not all found in $rigHarness and AgentsHarnessModelRound.include"
+' <( rigHarnessCat ) "$rigHere/harness/AgentsHarnessModelRound.include" )" || rigRefuse "the five tool-call reading functions were not all found in $rigHarness and AgentsHarnessModelRound.include"
 
 rigPass=0
 rigFail=0

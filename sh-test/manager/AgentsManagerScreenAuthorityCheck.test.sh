@@ -245,7 +245,8 @@ wait action 30
 turn
 keys ENTER
 turn
-turn
+## the call must have printed that it is pending, and set its traps, before Cancel is pressed: a SIGTERM that comes ahead of that ends it by the signal and withdraws nothing
+wait follow 2
 keys ENTER
 turn
 get asked

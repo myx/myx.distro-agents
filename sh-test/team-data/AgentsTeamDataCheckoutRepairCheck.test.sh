@@ -5,9 +5,9 @@
 ## commits never pushed, and the remote moved from another clone; the op shows the local-only commits and the
 ## remote's, trial-merges in a throwaway copy, and, with a mode, repairs: --take-remote sets the local commits
 ## aside and takes the remote, --keep-merged merges the remote keeping the local commits, and both end with the
-## F4.3 move of the flat inbox items, then push. And the include itself, called directly: with no mode it shows
-## the checkout, its branch and its local and remote commits read-only, and --keep-merged merges origin keeping
-## the local commits. Setup uses git on this rig's own mktemp trees only.
+## F4.3 move of the flat inbox items, then push. It is one implementation, sh-lib/magic/AgentsTools.MagicTeamDataCheckoutRepair.include,
+## reached by the one arm of DistroAgentsItems.fn.sh; the older function of TeamDataCommit.include is gone, and the check says so below.
+## Setup uses git on this rig's own mktemp trees only.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents"
@@ -198,21 +198,9 @@ printf 'dirty\n' > "$rigTmp/rig/dirty.md"
 rigOp "$rigTmp/rig" "$rigTmp/r4" magic-coordinator --take-remote
 rigAssert "uncommitted paths are refused"               "$( cat "$rigTmp/r4.rc" ):$( rigHolds "$rigTmp/r4" 'TEAM-DATA-REFUSED: the checkout holds uncommitted paths' )" "1:yes"
 
-echo "-- the include itself, called directly: what it shows, and the merge it makes --"
-. "$rigPackage/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-rigIncRemote="$rigTmp/inc.git" ; git init -q --bare "$rigIncRemote" 2> /dev/null
-rigIncSeed="$rigTmp/inc-seed" ; git clone -q "$rigIncRemote" "$rigIncSeed" 2> /dev/null
-git -C "$rigIncSeed" commit -q --allow-empty -m 'base' 2> /dev/null
-git -C "$rigIncSeed" push -q origin HEAD 2> /dev/null
-rigIncData="$rigTmp/inc-data" ; git clone -q "$rigIncRemote" "$rigIncData" 2> /dev/null
-git -C "$rigIncData" commit -q --allow-empty -m 'local one' 2> /dev/null
-rigIncOther="$rigTmp/inc-other" ; git clone -q "$rigIncRemote" "$rigIncOther" 2> /dev/null
-git -C "$rigIncOther" commit -q --allow-empty -m 'remote one' 2> /dev/null
-git -C "$rigIncOther" push -q origin HEAD 2> /dev/null
-rigOut="$( MDSC_CMD=DistroAgentsItems MDAT_DATA_ROOT="$rigIncData" AgentsToolsTeamDataCheckoutRepair --repair-team-data-checkout magic-librarian 2>&1 )" ; rigRc=$?
-rigAssert "no mode shows the checkout, local and remote, and that they diverged" "$rigRc $( printf '%s' "$rigOut" | LC_ALL=C grep -c '^LOCAL: ' ) $( printf '%s' "$rigOut" | LC_ALL=C grep -c '^REMOTE: ' ) $( printf '%s' "$rigOut" | LC_ALL=C grep -c '^DIVERGED:' )" "0 1 1 1"
-rigOut="$( MDSC_CMD=DistroAgentsItems MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigIncData" AgentsToolsTeamDataCheckoutRepair --repair-team-data-checkout magic-librarian --keep-merged 2>&1 )" ; rigRc=$?
-rigAssert "--keep-merged merges origin and keeps the local commits" "$rigRc $( printf '%s' "$rigOut" | LC_ALL=C grep -c '^MERGED:' )" "0 1"
+echo "-- one implementation --"
+rigAssert "the older function is gone from TeamDataCommit.include, and the one arm of the tool file sources the one include" \
+	"$( LC_ALL=C grep -c 'AgentsToolsTeamDataCheckoutRepair' "$rigPackage/sh-lib/team-data/AgentsTools.TeamDataCommit.include" || : ):$( LC_ALL=C grep -c -e '--repair-team-data-checkout)' "$rigPackage/sh-scripts/DistroAgentsItems.fn.sh" || : ):$( LC_ALL=C grep -c 'AgentsTools.MagicTeamDataCheckoutRepair.include' "$rigPackage/sh-scripts/DistroAgentsItems.fn.sh" || : )" "0:1:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TEAM DATA CHECKOUT REPAIR CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

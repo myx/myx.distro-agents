@@ -53,9 +53,13 @@ rigRun(){ ## result prefix, script, words... -- rc in rigRc
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$@"' rig "$runScript" "$@" ) > "$runOut.out" 2> "$runOut.err" < /dev/null
 	rigRc=$?
 }
-rigSurface(){ ## result prefix, words...
+rigSession="$rigPackage/sh-scripts/DistroAgentsSession.fn.sh"
+rigSurface(){ ## result prefix, words... -- the standing directives through the ThisSession tool that owns them
 	local surfaceOut="$1" ; shift
-	rigRun "$surfaceOut" "$rigTool" "$@"
+	case "$1" in
+		--standing-directives|--directive-set|--directive-end) rigRun "$surfaceOut" "$rigSession" "$@" ;;
+		*) rigRun "$surfaceOut" "$rigTool" "$@" ;;
+	esac
 }
 rigHas(){ ## fixed text, file -- how many lines of the file hold it
 	LC_ALL=C grep -c -F -- "$1" "$2" || :
@@ -104,6 +108,8 @@ rigAssert "in force together: the open warning (not the processed one), the stan
 rigAssert "a warning row names its state, a note row its heading, an order row its set time, its expires-at and its text" "$( LC_ALL=C grep '^warning' "$rigTmp/s1.out" | LC_ALL=C cut -f3 ) | $( LC_ALL=C grep '^note' "$rigTmp/s1.out" | LC_ALL=C cut -f3 ) | $( LC_ALL=C grep '^order	use-claude' "$rigTmp/s1.out" | LC_ALL=C cut -f4,5 | LC_ALL=C tr '\t' '~' )" "running | Keep the rig quiet on weekends | $rigFuture~Scaleway is down, use Claude"
 rigSurface "$rigTmp/s2" --standing-directives --all
 rigAssert "--all shows the expired one too, marked" "$( LC_ALL=C grep '^order	gone' "$rigTmp/s2.out" | LC_ALL=C cut -f4 )" "$rigPast (expired)"
+rigRun "$rigTmp/stub" "$rigTool" --standing-directives --all
+rigAssert "the AgentDispatcherTools.fn.sh name is a stub: the same rows, rc 0" "$rigRc $( rigSame "$rigTmp/s2.out" "$rigTmp/stub.out" )" "0 same"
 
 echo "-- 4. the write changes the section alone, through the lock --"
 rigAssert "the note: its other fields and stamps and its other body are as they were; the section stands under its heading; the lock was given back" "$( rigField today-stage ) $( rigField last-iteration-date ) $( rigField last-iteration-timestamp ) $( rigField state ) $( LC_ALL=C grep -c '^keep this line$' "$rigNote" ) $( LC_ALL=C grep -c '^Last iteration: rig\.$' "$rigNote" ) $( LC_ALL=C grep -c '^# Standing directives$' "$rigNote" ) $( LC_ALL=C grep -c '^- ' "$rigNote" )" "grooming-dispatched 2026-10-19 2026-10-19T08:00:00Z heartbeat-finished 1 1 1 3"

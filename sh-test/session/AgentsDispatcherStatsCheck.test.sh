@@ -118,6 +118,12 @@ rigAssert "--average --share: the shares are of the averages" "$( rigTok "$rigTm
 rigAssert "the options stand anywhere among the others, and the weekday bins (all seven, empty ones too) take them: a day with no run is 0 and 0" "$( rigTok "$rigTmp/t12" --share --by weekday --since 2026-10-19 --until 2026-10-19 | LC_ALL=C cut -d'|' -f1,2,7 )" "Mon 1 10 0 0 5 100 100|Tue 0 0 0 0 0 0 0|Sun 0 0 0 0 0 0 0"
 rigAssert "a key with no run is 0 on --average, never a division by zero; and a filter that matches nothing prints nothing and ends 0" "$( rigTok "$rigTmp/t13" --by weekday --average | LC_ALL=C cut -d'|' -f4 ) $( rigRun "$rigTmp/t14" --token-stats --by member --member nobody --average --share ; echo "$rigRc $( LC_ALL=C grep -c . "$rigTmp/t14.out" )" )" "Thu 0 0 0 0 0 0 0"
 
+echo "-- 3b. the cache-hit figure --"
+## The cached share of the input: cache-read over in + cache-read + cache-write, whole percent (the harness keeps `in` as the input that was not cached), 0 where nothing was read.
+rigAssert "--cache: one field after out, the cache-hit percent of the key; a key with no input is 0" "$( rigTok "$rigTmp/c1" --by member --cache )" "keeper-x 2 5 5 5 5 33|magic-coordinator 1 1000 900 100 200 45|magic-tester 3 111 52 13 29 30|"
+rigAssert "--by session: one row for each session, the hit of the session; a run with no tokens kept is 0" "$( rigTok "$rigTmp/c2" --by session --cache --member keeper-x )" "cow-1 1 5 5 5 5 33|run-x1 1 0 0 0 0 0|"
+rigAssert "--cache comes before the shares and is of the sums, not of the averages" "$( rigTok "$rigTmp/c3" --by member --average --share --cache | LC_ALL=C cut -d'|' -f3 )" "magic-tester 3 37 17 4 9 30 4 4"
+
 echo "-- 5. up to date on read --"
 sleep 1
 cp "$rigStats/runs.index" "$rigTmp/runs.before"
@@ -161,7 +167,7 @@ rigRun "$rigTmp/x3" --token-stats
 rigRun "$rigTmp/x4" --token-stats --by day --soon
 rigRun "$rigTmp/x5" --rebuild-stats now
 rigRun "$rigTmp/x6" --run-stats --member
-rigAssert "a date that is none, a key that is none, no key, an option it does not know, a word after --rebuild-stats, an option with no value: each refused with its reason" "$( rigHas 'a date is YYYY-MM-DD: 20261020' "$rigTmp/x1.err" ) $( rigHas '--by is day, weekday, hour, member, routine, preset or credential: nothing' "$rigTmp/x2.err" ) $( rigHas '--by is day, weekday, hour, member, routine, preset or credential: <nothing>' "$rigTmp/x3.err" ) $( rigHas 'unknown option: --soon' "$rigTmp/x4.err" ) $( rigHas 'takes no option: now' "$rigTmp/x5.err" ) $( rigHas '--member takes a value' "$rigTmp/x6.err" )" "1 1 1 1 1 1"
+rigAssert "a date that is none, a key that is none, no key, an option it does not know, a word after --rebuild-stats, an option with no value: each refused with its reason" "$( rigHas 'a date is YYYY-MM-DD: 20261020' "$rigTmp/x1.err" ) $( rigHas '--by is day, weekday, hour, member, routine, preset, credential or session: nothing' "$rigTmp/x2.err" ) $( rigHas '--by is day, weekday, hour, member, routine, preset, credential or session: <nothing>' "$rigTmp/x3.err" ) $( rigHas 'unknown option: --soon' "$rigTmp/x4.err" ) $( rigHas 'takes no option: now' "$rigTmp/x5.err" ) $( rigHas '--member takes a value' "$rigTmp/x6.err" )" "1 1 1 1 1 1"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ DISPATCHER STATS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

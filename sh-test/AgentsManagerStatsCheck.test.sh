@@ -79,7 +79,7 @@ echo "-- what the Dispatcher refuses, it refuses here, with its status --"
 rigAssert "a key that is none ends 1, nothing on stdout" "$( rigSame --manager-stats-tokens --token-stats --by nothing )" "1 1 same 0"
 rigAssert "a routine with no run ends 1, nothing on stdout" "$( rigSame --manager-stats-routines --routine-stats nothing.routine.md )" "1 1 same 0"
 rigRun "$rigTools" "$rigTmp/n" --manager-stats-tokens --by nothing
-rigAssert "and the error line says what was wrong" "$( LC_ALL=C grep -c -F -- '--by is day, weekday, hour, member, routine, preset or credential' "$rigTmp/n.err" || : )" "1"
+rigAssert "and the error line says what was wrong" "$( LC_ALL=C grep -c -F -- '--by is day, weekday, hour, member, routine, preset, credential or session' "$rigTmp/n.err" || : )" "1"
 
 echo "-- the help pair --"
 rigHelpInclude="$rigPackage/sh-lib/help/Help.DistroAgentsTools.include"

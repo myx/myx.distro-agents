@@ -152,6 +152,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [--group <group>] [<block>...]
 📘 syntax: DistroAgentsTools.fn.sh --manager-feature-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-feature-part (install|update|uninstall) <feature> <part> [--yes] [--force]
+📘 syntax: DistroAgentsTools.fn.sh --manager-feature-models [--profile shared-cpu|big-cpu|gpu] [--all] [--yes]
 📘 syntax: DistroAgentsTools.fn.sh --manager-feature-ask <model-id> [--from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-feature-stt-test [<wav-file>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-feature-preset <model-id> [--name <preset>]
@@ -170,8 +171,12 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-list <place>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-run <place> <command>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-routine-verdict <routine-file|selector>
+📘 syntax: DistroAgentsTools.fn.sh --manager-routine-slots <selector>
+📘 syntax: DistroAgentsTools.fn.sh --manager-routine-frontmatter <selector>
+📘 syntax: DistroAgentsTools.fn.sh --manager-schedule-read
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-text <selector>
-📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
+📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]
 📘 syntax: DistroAgentsTools.fn.sh --manager-stats-routines [<routine>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
@@ -3512,6 +3517,38 @@
 			finds it after the work; the exit is 1, with the state, where it is not what
 			the action should leave.
 
+		--manager-feature-models [--profile shared-cpu|big-cpu|gpu] [--all] [--yes]
+			One of the console's own operations (see Notes). The agreed set
+			of open models of the local AI feature, installed by one
+			command: the speech model, the chat model that is the default
+			of the profile, and the LanceDB embedding model where that
+			feature is here. With --all every chat model of the feature's
+			list in place of the profile's own. The profile is --profile,
+			else the one the local AI check reports for the host, else
+			`shared-cpu`; a profile that is none is refused. Without --yes
+			it is the plan and nothing is installed. Prints rows of
+			TAB-separated fields on stdout, the first naming the row:
+			`set <profile> <parts> <profile|all>`
+			`model <feature> <part> <stt|chat|embedding> <state> <bytes> <default>`
+			One row for each part of the set. <state> is the part's own
+			(`installed`, `not-installed`, `broken`, `unsupported`),
+			<bytes> what the part fetches, `-` where the feature does not
+			say, <default> `yes` for the speech model, the LanceDB model
+			and the default chat model of the profile.
+			`total <bytes to fetch> <free bytes> <blocked yes|no>`
+			What the parts that are not installed (and the broken ones,
+			fetched again) take, and the free space of the host. Where
+			it does not fit: `blocked yes`, one error line, exit 1, and
+			nothing is done.
+			With --yes, each part that is not installed is installed by
+			`--manager-feature-part install <feature> <part> --yes`, and
+			each broken one by `update`, one after the other; one part
+			failing does not stop the rest. Rows follow:
+			`result <feature> <part> <installed|failed>`
+			`end <installed> <failed> <already there>`
+			The fragments' own words go to standard error. Exit 1 when
+			any part failed, with the work of the others kept.
+
 		--manager-feature-ask <model-id> [--from-stdin|--from-file <path>]
 			One of the console's own operations (see Notes). A free prompt to one
 			installed chat model of `setup.feature-local-ai`, through the chat server
@@ -3965,6 +4002,73 @@
 			routine outside its window is valid and would not start. With no
 			routine file at all, a note on stderr and no row.
 
+		--manager-schedule-read
+			One of the console's own operations (see Notes). Reads the
+			scheduler's flags for the console's Schedule view; it writes
+			nothing and takes no argument. Prints rows of TAB-separated
+			fields on stdout, the first naming the row, in this order:
+			`now <epoch> <weekday> <HH:MM> <timezone>`
+			The instant, its weekday (`mon`..`sun`), the local time of day
+			and the timezone the settings name, `host` where none is set.
+			`flag <name> <yes|no> <note>`
+			One row each for `worktime`, `weekend`, `holidays`,
+			`emergency`, `overtime` and `learning`, in that order, as
+			`--current-flags` says them. <note> is `-`, or what that
+			operation adds in brackets: `(default)` for a setting that is
+			unset, `(holiday)` for worktime a holiday takes away,
+			`(<n> seconds left)` for an override with a TTL.
+			`switch <seconds> <what>`
+			One row: the nearest change of a flag that is planned or has a
+			TTL. <what> is `worktime-starts`, `worktime-ends`, or
+			`holidays-ends`, `emergency-ends` or `overtime-ends`; <seconds>
+			is the time to it, `-` with <what> `none` where nothing is
+			planned.
+			`cell <weekday> <hour> <flags>`
+			168 rows, a weekday (`mon`..`sun`) and an hour (`00`..`23`)
+			each, in that order. <flags> is `-`, or a comma-separated list
+			of `holidays`, `worktime`, `weekend`, `emergency`, `overtime`
+			and `learning`. `worktime` and `weekend` are the plan of that
+			weekday and hour. An override (holidays, emergency, overtime,
+			learning) is shown only in the hours that have not passed yet,
+			and in a coming weekday's hours as of the next such day; a
+			holiday takes `worktime` out of those hours.
+			Exit 1 with one error line for an argument, and from inside a
+			member's session, like the rest of the family.
+
+		--manager-routine-verdict <routine-file|selector>
+			One of the console's own operations (see Notes). What the validator
+			says of one routine's file, and what the session spawner would say
+			of a start now, asked for the routine an operator has selected
+			(the list carries neither, as asking them of every routine is slow).
+			It takes the path of the file or a selector, and writes nothing.
+			Prints three TAB-separated rows on stdout:
+			`valid yes|no: <fault>`
+			`start startable|broken`
+			`reason <fault, or ->`
+			`startable` is the routine contract check; `broken` where it fails.
+			Exit 1 with one error line for no argument and for a routine that
+			is none.
+
+		--manager-routine-slots <selector>
+			One of the console's own operations (see Notes). The members each
+			entry of one routine's executors and participants can take, by the
+			session spawner's own rule, for a form's required selects. Reads
+			only, and starts nothing. One TAB-separated row an entry:
+			`slot <executors|participants> <entry> <choose|all|named|present> <member>...`
+			`choose` is a `<type>-?` with every candidate, even one; `all` a
+			`<type>-*`; `named` a member by name; `present` all-present-members.
+			An entry with no candidate reads `slot <side> <entry> none`. Exit 0;
+			exit 1 with one error line for no selector and for a routine that is
+			none or breaks the routine contract.
+
+		--manager-routine-frontmatter <selector>
+			One of the console's own operations (see Notes). The frontmatter of
+			one routine, for the console to show as facts; it writes nothing and
+			computes nothing. Prints one row `fm <key> <value>` for each line of
+			the `---` block that holds `key: value`, in the file's order, TAB-
+			separated. Exit 1 with one error line for an argument count other
+			than one, and for a selector that names no routine.
+
 		--manager-routine-text <selector>
 			One of the console's own operations (see Notes). Prints the
 			whole file of one routine, as it stands: its frontmatter (the
@@ -3977,7 +4081,7 @@
 			resolver's own error line, for a selector that matches no file
 			or more than one. It writes nothing.
 
-		--manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
+		--manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]
 			One of the console's own operations (see Notes). The tokens of the
 			runs of this workspace summed by one key: it calls the Dispatcher's
 			`--token-stats` with these arguments, as they come, and prints
@@ -3995,7 +4099,9 @@
 			`<share> <peak-share>`, the share of the `in` tokens of the key in
 			the total of all keys and in the largest key, each in whole
 			percent (of the averages with `--average`), so the console draws
-			them and computes none. The
+			them and computes none. `--cache` adds the cache-hit of the key
+			before the shares, the cache-read tokens over all input tokens in
+			whole percent, and `--by session` gives a row for each session. The
 			views of the tokens in the console read this. Exit 1, with its
 			error line, for a `--by` that is none, a date that is none or an
 			option it does not know.
@@ -6863,7 +6969,7 @@
 		--run-stats [--member <m>] [--routine <r>] [--status <s>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]
 		--run-history [--member <m>] [--routine <r>] [--since <YYYY-MM-DD>] [--limit <n>]
 		--routine-stats [<routine>]
-		--token-stats --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
+		--token-stats --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]
 			TeamDispatcher's operations (DistroAgentsDispatcher.fn.sh), reading the stats
 			store, which each brings up to date first: the records and token files changed since
 			the index are read again and the rows of those runs replaced, the rest stay (a
@@ -7238,7 +7344,7 @@
 			recorded is refused.
 
 		--standing-directives [--all]
-			AgentDispatcherTools.fn.sh, read-only. What stands until it is ended, three kinds
+			DistroAgentsSession.fn.sh (ThisSession), read-only; AgentDispatcherTools.fn.sh keeps a stub. What stands until it is ended, three kinds
 			together, a TAB-separated row each: `warning <item> <state>`, an open `warning-*`
 			board item (backlog, pending, running, review, blocked or parked; a mitigated
 			one is processed and is not shown); `note <item> <heading>`, a note of
@@ -7252,7 +7358,7 @@
 
 		--directive-set --text <text> --expires-at "<YYYY-MM-DD HH:MM>"|none [--id <id>] [--wait <seconds>]
 		--directive-end --id <id> [--wait <seconds>]
-			AgentDispatcherTools.fn.sh, magic-coordinator only: an order of the human-owner
+			DistroAgentsSession.fn.sh (ThisSession), magic-coordinator only; AgentDispatcherTools.fn.sh keeps stubs: an order of the human-owner
 			entered as a standing directive, and taken out. An order is one line of the
 			`# Standing directives` section of the state-note, `- <id> | set <date>
 			| expires-at: <date>|none | <text>`; the text is one line of at most 400

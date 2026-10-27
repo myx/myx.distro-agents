@@ -41,6 +41,17 @@ def tierResolved(owners, owner, tier):
     return (owner.get("tierChosen") or {}).get(tier) or ("", "nothing is set")
 
 
+## The form of a value of the kind `tier`, which Scope Settings (.local) offers as a registered kind: what the operation says the key takes, `<presets>/<efforts>`, as the choices of the presets and of the efforts.
+def scopeTierForm(held, takes):
+    presets, slash, efforts = takes.partition("/")
+    if not slash:
+        return None
+    return {"kind": "tier", "choices": [(part, part) for part in presets.split(",") if part], "efforts": [part for part in efforts.split(",") if part], "range": None}
+
+
+globals().setdefault("SCOPE_KIND_FORMS", {})["tier"] = scopeTierForm
+
+
 def tierSlotText(owners, owner, tier):
     value, how = tierResolved(owners, owner, tier)
     if how == "set":

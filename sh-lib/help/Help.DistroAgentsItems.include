@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-## The --help of DistroAgentsItems.fn.sh: the manual, sh-lib/help/Help.DistroAgentsItems.help.md. A bare call and --help-syntax are answered before this, by the operation list and by the table of the family.
+## The --help of DistroAgentsItems.fn.sh: the manual, sh-lib/help/Help.DistroAgentsItems.help.md.
 
 myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsItems.help.md" >&2
 return 0

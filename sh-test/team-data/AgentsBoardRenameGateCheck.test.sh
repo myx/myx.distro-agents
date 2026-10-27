@@ -9,6 +9,8 @@
 ##   3. --do-not-track leaves no husk, and the rename of the item still goes through.
 ## Offline: a rig workspace of this check's own under .local/agents/scratch/sh-test; no Slack, no network.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"

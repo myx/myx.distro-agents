@@ -32,6 +32,7 @@ TEAM_DATA = {
     "remote": ("scopes", None, "TEAM_DATA_GIT_REMOTE"),
     "branch": ("scopes", None, "TEAM_DATA_BRANCH"),
     "teamRig": "team-rig",
+    "justAgents": "just-agents",
 }
 ## The operations of the tooling that `Team Data` holds under `Operations`, its cleanups and
 ## its sync, in their order, each by its id: "label", what it shows as; "operation", the
@@ -129,14 +130,11 @@ KILL_WORD = "yes"
 ## The state of a session that is finished, as its row of the list gives it: such a one
 ## takes no kill, since nothing of it is left to end, to dismiss or to close.
 SESSION_FINISHED = "finished"
-## What the confirmation of a kill says in its own line between the press of its button
-## and the deed: while its plan is read once more; where the plan was not read yet; and
-## where the plan read then is not the one the confirmation showed. And, in the text of
-## the confirmation itself, what it says where the plan could not be read at all.
+## What the confirmation of a kill says in its own line where the plan was not read yet,
+## and, in the text of the confirmation itself, what it says where the plan could not be
+## read at all.
 KILL_SAYS = {
-    "checking": "its plan is read once more: it is done if nothing of it has changed",
     "unread": "nothing is done yet: its plan is still being read",
-    "changed": "nothing was done: its plan changed while this stood open. It stands above as it is now: type the word again",
     "unreadable": "So it is not asked for: nothing is killed, dismissed or closed. Cancel and Esc close this. The key of the kill asks again, and reads its plan anew.",
 }
 

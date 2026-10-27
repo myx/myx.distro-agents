@@ -18,6 +18,8 @@
 ## Reconciled for F11.5: ten plugins show a content through their focus handler: Activity is one more.
 ## Reconciled for F11.7: three more: Scope Settings, Git Settings and Installed Subsystems.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigScreen="$rigPackage/sh-lib/manager/AgentsManagerScreen.py"
@@ -233,7 +235,7 @@ rigAssert "the plugin's command for a table stands in the menu and the status li
 	"$( rigVal tableStatus ) $( rigVal tableMenu ) / $( rigVal paramStatus ) $( rigVal paramMenu ) / $( rigVal otherStatus )" "True True / False False / False"
 
 echo "-- 4. every app feature gives its content through its focus handler --"
-rigAssert "the plugins that show a content declare their focus handler" "$( rigVal focused )" "activity configuration consoles dashboard diagnostics features git harness launch local-ai machine pending places presets routines scopes settings subsystems team teamdata tiers tokens workspace"
+rigAssert "the plugins that show a content declare their focus handler" "$( rigVal focused )" "activity configuration consoles dashboard diagnostics features git harness launch local-ai machine pending places presets routines schedule scopes settings subsystems team teamdata tiers tokens workspace"
 rigAssert "the chooser of the left pane calls no function of a feature's" "$( rigVal chooserCalls )" "none"
 rigAssert "the setting of the settings is a parameter" "$( rigVal settingIsParameter )" "yes"
 

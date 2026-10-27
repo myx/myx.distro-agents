@@ -9,8 +9,9 @@
 ## Every other team-data op commits only the paths it writes itself. This one
 ## commits whatever is pending under $MDAT_DATA_ROOT -- additions, edits and
 ## deletions -- in one commit, then syncs the store with its remote by myx.common's
-## git/cloneSync, which pulls and pushes. It exists for work left uncommitted, and it
-## is magic-coordinator's only.
+## git/cloneSync, which pulls and pushes. A conflict between origin and the local commits is settled and committed
+## (AgentsToolsTeamDataMergeSettle) and the sync runs again, so it always pushes and no conflict is committed. It exists
+## for work left uncommitted, and it is magic-coordinator's only.
 ##
 
 case "$1" in
@@ -71,6 +72,11 @@ case "$1" in
 		if [ -z "$gitDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --commit-pending: could not locate the repository's .git directory, nothing committed" >&2
 			set +e ; return 1
+		fi
+		## A merge an earlier sync left unfinished is settled, not left for a person: no conflict is ever committed, and the commits go out.
+		if [ -e "$gitDir/MERGE_HEAD" ] ; then
+			type AgentsToolsTeamDataMergeSettle > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			set +e ; AgentsToolsTeamDataMergeSettle "--commit-pending" ; set -e
 		fi
 		[ ! -e "$gitDir/index.lock" ] || interrupted="$interrupted index.lock"
 		[ ! -e "$gitDir/MERGE_HEAD" ] || interrupted="$interrupted merge"
@@ -154,6 +160,15 @@ case "$1" in
 		GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false \
 			"${MYXROOT:-}/bin/git/cloneSync.Common" "$repoRoot" "$originUrl" "$headBranch" >&2
 		syncRc=$?
+		## The pull met a conflict: it is settled and committed, and the sync runs again, so the push goes out (AgentsToolsTeamDataMergeSettle).
+		if [ "$syncRc" -ne 0 ] && [ -e "$gitDir/MERGE_HEAD" ] ; then
+			type AgentsToolsTeamDataMergeSettle > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			if AgentsToolsTeamDataMergeSettle "--commit-pending" ; then
+				GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false \
+					"${MYXROOT:-}/bin/git/cloneSync.Common" "$repoRoot" "$originUrl" "$headBranch" >&2
+				syncRc=$?
+			fi
+		fi
 		set -e
 		if [ "$syncRc" -ne 0 ] ; then
 			echo "TEAM-DATA-NOT-PUSHED: the push failed; commit $commitId is local only"

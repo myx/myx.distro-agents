@@ -165,13 +165,25 @@ rigDoc note-20261001T1023Z-a.md '---' 'document-contract: inbox-item.note' 'type
 rigCheck inbox-item.note note-20261001T1023Z-a.md
 rigAssert "an inbox note that meets its contract passes" "$rigRc:$( rigRules )" "0:"
 
+echo "-- 5b. a key that stands twice in the frontmatter is refused, naming the key and both lines --"
+rigTask task-20261001T1090Z-dup.md 'owner: keeper-other'
+rigCheck board-item.task task-20261001T1090Z-dup.md
+rigAssert "the repeated key is refused at the check, once, exit 1" "$rigRc:$( rigRules )" "1:contract-duplicate-key"
+rigAssert "the row names the key and both of its lines" "$( rigHas 'the key owner stands twice in the frontmatter: lines 6 and 7' )" "1"
+rigTask task-20261001T1091Z-dup.md
+rigCheck board-item.task task-20261001T1091Z-dup.md
+rigAssert "control: the same document without the repeat passes" "$rigRc:$( rigRules )" "0:"
+rigDoc task-20261001T1092Z-dup.md '---' 'document-contract: board-item.task' 'type: task' 'from: keeper-rig' 'date: 2026-10-01 10:00 +0300' 'owner: keeper-rig' '---' '# Task: a matter' '' 'owner: written in the body' 'owner: twice, in the body'
+rigCheck board-item.task task-20261001T1092Z-dup.md
+rigAssert "control: a key repeated in the body is no frontmatter key, so it is not refused" "$rigRc:$( rigRules )" "0:"
+
 echo "-- 6. the one table of dispositions, per rule and site --"
 rigTable="$( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" bash -c '
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
-	for ruleName in contract-key contract-form contract-type contract-references contract-unknown-key contract-pair contract-frontmatter contract-body contract-filename contract-rule-unread contract-name contract-store ; do
+	for ruleName in contract-key contract-form contract-type contract-references contract-unknown-key contract-pair contract-frontmatter contract-body contract-filename contract-rule-unread contract-name contract-store contract-duplicate-key ; do
 		printf "%s=%s/%s " "$ruleName" "$( AgentsToolsDocValidateDisposition "$ruleName" check )" "$( AgentsToolsDocValidateDisposition "$ruleName" write )"
 	done' )"
-rigAssert "the contract refuses, at both sites; what is only said is said at both" "$rigTable" "contract-key=refuse/refuse contract-form=refuse/refuse contract-type=refuse/refuse contract-references=refuse/refuse contract-unknown-key=report/report contract-pair=report/report contract-frontmatter=report/report contract-body=report/report contract-filename=report/report contract-rule-unread=report/report contract-name=report/report contract-store=report/report "
+rigAssert "the contract refuses, at both sites; what is only said is said at both" "$rigTable" "contract-key=refuse/refuse contract-form=refuse/refuse contract-type=refuse/refuse contract-references=refuse/refuse contract-unknown-key=report/report contract-pair=report/report contract-frontmatter=report/report contract-body=report/report contract-filename=report/report contract-rule-unread=report/report contract-name=report/report contract-store=report/report contract-duplicate-key=refuse/refuse "
 
 echo "-- 7. the contract is the rule set --"
 mkdir -p "$rigSkills/magic-team/contracts"

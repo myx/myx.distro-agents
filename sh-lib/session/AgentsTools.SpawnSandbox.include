@@ -6,6 +6,34 @@
 ## is emptied. Sourced, never run. Functions only. Contract: MAGIC.md, "Spawn sandbox input/".
 ##
 
+## THE CLOCK OF A START: the whole seconds each step of a start took, kept in $agentsStartSteps as `<step>=<n>s` words and said
+## by the start milestone of the session (AgentsToolsStartStepsSay). Begin starts the clock; Mark closes the step that ran since
+## the last mark under its name. Plain variables of the one process that runs the start, so a mark inside `$( )` is lost: a mark
+## stands in the start's own body. A step that does not run is not marked, and is not in the line.
+AgentsToolsStartStepBegin(){
+	agentsStartStepFirst="$( date +%s )" ; agentsStartStepAt="$agentsStartStepFirst" ; agentsStartSteps=""
+}
+AgentsToolsStartStepMark(){ ## step name
+	local markNow
+	markNow="$( date +%s )"
+	[ -n "${agentsStartStepAt:-}" ] || return 0
+	agentsStartSteps="${agentsStartSteps:+$agentsStartSteps }$1=$(( markNow - agentsStartStepAt ))s"
+	agentsStartStepAt="$markNow"
+}
+## The words of the start milestone: `start steps: <step>=<n>s ... total=<n>s`, or plain `start` where the clock never began.
+## The file of the scan's own sections (MDAT_SCAN_TRACE_FILE, one `<section>=<n>s` word a line) is set in brackets after the
+## step `input-scan`, so a slow scan names its slow section in the same line.
+AgentsToolsStartStepsSay(){ ## scan sections file (may be empty)
+	local sayNow saySections="" sayLine
+	[ -n "${agentsStartStepFirst:-}" ] || { printf 'start' ; return 0 ; }
+	sayNow="$( date +%s )"
+	if [ -n "${1:-}" ] && [ -s "$1" ] ; then
+		while IFS= read -r sayLine ; do saySections="${saySections:+$saySections }$sayLine" ; done < "$1"
+		agentsStartSteps="${agentsStartSteps/input-scan=/input-scan[$saySections]=}"
+	fi
+	printf 'start steps: %s total=%ss' "$agentsStartSteps" "$(( sayNow - agentsStartStepFirst ))"
+}
+
 ## Path-like words of a text that name something on disk, one resolved path per line.
 AgentsToolsSpawnSandboxNamedPaths(){ ## text
 	local namedWord namedPath
@@ -229,6 +257,8 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 		availId="${availCandidate##*/}" ; availId="${availId%.spawn.md}"
 		[ "$availId" != "$availOwn" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" owner )" = "$2" ] || continue
+		## An agent-less parent runs no member: it stands for its caller, and takes no matter itself.
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" agent-less )" != true ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" status )" = spawn-started ] || continue
 		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 && AgentsToolsRegistrySpawnRuns "$availId" "$availCandidate" > /dev/null 2>&1 || continue
 		return 0
@@ -239,7 +269,8 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 }
 
 ## The address the run of a spawn record reports to, printed, in this order:
-## 1. its `reports-to:`, where the spawn wrote one (`none` too) -- unless `default` is asked;
+## 1. its `reports-to:`, where the spawn wrote one (`none` too) -- unless `default` is asked; a
+##    `<session>:<member>` there whose member no longer runs in that session falls through to 2-4;
 ## 2. else, in its `parent-session-id:`, the session that started it, as `<session>:<member>`:
 ##    the member that made the call there (`parent-member:`), the initiator, where it is there
 ##    (AgentsToolsRunRouteAvailable), else that session's executor, the owner of its founding
@@ -256,7 +287,12 @@ AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has wh
 	[ -n "$routeRecord" ] && [ -f "$routeRecord" ] || { printf 'human-owner\n' ; return 0 ; }
 	if [ "${2:-}" != default ] ; then
 		routeValue="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" "$agentsRunRouteField" )"
-		AgentsToolsRunRouteValid "$routeValue" && { printf '%s\n' "$routeValue" ; return 0 ; }
+		if AgentsToolsRunRouteValid "$routeValue" ; then
+			case "$routeValue" in
+				*:*) ! AgentsToolsRunRouteAvailable "${routeValue%%:*}" "${routeValue#*:}" "$routeRecord" || { printf '%s\n' "$routeValue" ; return 0 ; } ;;
+				*) printf '%s\n' "$routeValue" ; return 0 ;;
+			esac
+		fi
 	fi
 	routeSession="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" parent-session-id )"
 	if AgentsToolsAssertBareName "$routeSession" "the parent session" AgentsToolsRunRoute 2> /dev/null ; then
@@ -274,6 +310,41 @@ AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has wh
 		return 0
 	done
 	printf 'human-owner\n'
+}
+
+## THE CLOSE OF AN AGENT-LESS PARENT (AgentsToolsSpawnSessionParent, AgentsTools.MagicSpawnSession.include), once every child
+## its record names has closed: its status summed from theirs -- all succeeded reads succeeded, any other close, a child record
+## gone, or no child at all reads failed -- its resolved-at stamped, and one line in its thread naming each child and its outcome.
+## rc 1, nothing changed, while a child is open or the record is closed already. Its watcher calls it, and housekeeping does
+## for a parent whose watcher is gone.
+AgentsToolsSpawnSessionParentClose(){ ## parent record
+	local closeRecord="$1" closeChild closeChildRecord closeStatus closeOutcome="succeeded" closeList="" closeTemp closeThread
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = spawn-started ] || return 1
+	for closeChild in $( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" children ) ; do
+		closeChildRecord="$MMDAPP/.local/agents/spawned/$closeChild/$closeChild.spawn.md" closeStatus="spawn-gone"
+		[ ! -f "$closeChildRecord" ] || closeStatus="$( AgentsToolsSpawnSandboxRecordHeader "$closeChildRecord" status )"
+		case "$closeStatus" in
+			''|spawn-started) return 1 ;;
+			spawn-succeeded) ;;
+			*) closeOutcome="failed" ;;
+		esac
+		closeList="$closeList${closeList:+, }$closeChild $( AgentsToolsSpawnSandboxRecordHeader "$closeChildRecord" owner 2> /dev/null ) ${closeStatus#spawn-}"
+	done
+	[ -n "$closeList" ] || { closeOutcome="failed" ; closeList="no child was started" ; }
+	closeTemp="$( mktemp "$closeRecord.tmp.XXXXXX" )" || return 1
+	LC_ALL=C awk -v outcome="$closeOutcome" -v stamp="$( date +"%Y-%m-%d %H:%M %z" )" '
+		NR == 1 { print ; next ; }
+		$0 == "---" && !closed { print "resolved-at: " stamp ; print ; closed = 1 ; next ; }
+		$0 == "status: spawn-started" { print "status: spawn-" outcome ; next ; }
+		{ print ; }
+	' "$closeRecord" > "$closeTemp" && chmod 644 "$closeTemp" && mv -f "$closeTemp" "$closeRecord" || { rm -f -- "$closeTemp" ; return 1 ; }
+	## One line in the caller's thread, where the parent has one. Best-effort, never the parent's outcome.
+	closeThread="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" session-thread )"
+	[ -n "$closeThread" ] || return 0
+	DistroAgentsTools --intern-op-event-track-post "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" owner )" "$closeThread" --kind notice \
+		--session-id "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" session-id )" \
+		--field what="agent-less parent: all spawned sessions are done ($closeOutcome): $closeList" < /dev/null 2>&1 > /dev/null || :
+	return 0
 }
 
 ## Who reviews an item: its `review-by`, where it names one (`none`: nobody), else whoever the
@@ -523,12 +594,14 @@ AgentsToolsSessionRunNamedBy(){ ## spawn record
 	return "$namedFound"
 }
 
-## Whether a dismissal of a run waits: it is its session's executor and another participant of that
-## session still runs, or a live run needs it (AgentsToolsSessionRunNamedBy). rc 0 it waits, those
-## runs printed, one a line; rc 1 it does not.
+## Whether a dismissal of a run waits: it is its session's executor, or a run of magic-coordinator however
+## it came in, and another participant of that session still runs, or a live run needs it
+## (AgentsToolsSessionRunNamedBy). rc 0 it waits, those runs printed, one a line; rc 1 it does not.
 AgentsToolsSessionDismissHeld(){ ## spawn record
 	local heldOthers="" heldNamed=""
-	! AgentsToolsSessionRunExecutor "$1" || heldOthers="$( AgentsToolsSessionOthersRunning "$1" )" || heldOthers=""
+	if AgentsToolsSessionRunExecutor "$1" || [ "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" = magic-coordinator ] ; then
+		heldOthers="$( AgentsToolsSessionOthersRunning "$1" )" || heldOthers=""
+	fi
 	heldNamed="$( AgentsToolsSessionRunNamedBy "$1" )" || heldNamed=""
 	[ -n "$heldOthers$heldNamed" ] || return 1
 	printf '%s\n%s\n' "$heldOthers" "$heldNamed" | LC_ALL=C awk 'NF && !seen[$0]++'
@@ -1462,7 +1535,7 @@ AgentsToolsDaemonLine(){ ## text...
 	( printf '%s\n' "$*" ) 2> /dev/null >&4 || printf '%s\n' "$*" >&2
 }
 
-## Reports housekeeping lines to the daemon output and as one message into the event-track thread of this spawn's coworking session; nothing goes to stdout or stderr. No thread, no post.
+## Reports housekeeping lines to the daemon output and as one message into the event-track thread of this spawn's coworking session; nothing goes to stdout or stderr.
 ## The thread is found through the session's one record, by this spawn's own id (AgentsTools.EventTrackThread.include), never through a file of the sandbox, which spawns may share.
 AgentsToolsHousekeepingReport(){ ## member, lines
 	local reportThread="" reportLine

@@ -176,36 +176,42 @@ AgentsToolsStatsRoutines(){ ## the operation, [routine]
 	[ -z "$routinesRows" ] || printf '%s\n' "$routinesRows"
 }
 
-## --token-stats --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]:
+## --token-stats --by day|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]:
 ## the tokens summed by the one key asked for, a row `tokens <key> <runs> <in> <cache-read> <cache-write> <out>`, by key. The views of the console read this.
 ## --average: the four token fields are the average of a run (whole tokens, 0 for a key with no run). --share: two fields after them, the share of the `in` tokens
 ## (the average with --average) of the key in the total of all keys, and in the largest of them, each in whole percent. The console draws what is printed and computes nothing.
+## --cache: one field after the four, before the shares: the cache-hit of the key in whole percent, cache-read over in + cache-read + cache-write (the harness keeps `in` as the
+## input that was not cached), 0 for a key with no input; it is of the sums, also with --average.
+## --by session: one row for each session of the runs (a coworking run is a run of its own).
 AgentsToolsStatsTokens(){ ## the operation, its arguments...
-	local tokensOp="$1" tokensArgs=() tokensAverage="" tokensShare="" tokensRows tokensRc=0
+	local tokensOp="$1" tokensArgs=() tokensAverage="" tokensShare="" tokensCache="" tokensRows tokensRc=0
 	shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--average) tokensAverage="yes" ; shift ;;
 			--share) tokensShare="yes" ; shift ;;
+			--cache) tokensCache="yes" ; shift ;;
 			*) tokensArgs+=( "$1" ) ; shift ;;
 		esac
 	done
 	tokensRows="$( AgentsToolsStatsTokensRows "$tokensOp" ${tokensArgs[@]+"${tokensArgs[@]}"} )" || tokensRc=$?
 	[ "$tokensRc" = 0 ] || return "$tokensRc"
 	[ -n "$tokensRows" ] || return 0
-	if [ -z "$tokensAverage" ] && [ -z "$tokensShare" ] ; then
+	if [ -z "$tokensAverage" ] && [ -z "$tokensShare" ] && [ -z "$tokensCache" ] ; then
 		printf '%s\n' "$tokensRows"
 		return 0
 	fi
-	printf '%s\n' "$tokensRows" | LC_ALL=C awk -F'\t' -v OFS='\t' -v average="$tokensAverage" -v share="$tokensShare" '
+	printf '%s\n' "$tokensRows" | LC_ALL=C awk -F'\t' -v OFS='\t' -v average="$tokensAverage" -v share="$tokensShare" -v cache="$tokensCache" '
 		{
+			hit[NR] = ( $4 + $5 + $6 > 0 ) ? int( ( ( $5 + 0 ) * 100 + ( $4 + $5 + $6 ) / 2 ) / ( $4 + $5 + $6 ) ) : 0
 			if ( average != "" ) { for ( field = 4 ; field <= 7 ; field++ ) { $field = ( $3 + 0 > 0 ) ? int( ( $field + 0 ) / ( $3 + 0 ) ) : 0 } }
 			rows[NR] = $0 ; held[NR] = $4 + 0 ; total += $4 ; if ( $4 + 0 > peak ) { peak = $4 + 0 }
 		}
 		END {
 			for ( row = 1 ; row <= NR ; row++ ) {
-				if ( share == "" ) { print rows[row] ; continue }
-				printf "%s\t%d\t%d\n", rows[row], ( total > 0 ) ? int( ( held[row] * 100 + total / 2 ) / total ) : 0, ( peak > 0 ) ? int( ( held[row] * 100 + peak / 2 ) / peak ) : 0
+				line = rows[row] ; if ( cache != "" ) { line = line "\t" hit[row] }
+				if ( share == "" ) { print line ; continue }
+				printf "%s\t%d\t%d\n", line, ( total > 0 ) ? int( ( held[row] * 100 + total / 2 ) / total ) : 0, ( peak > 0 ) ? int( ( held[row] * 100 + peak / 2 ) / peak ) : 0
 			}
 		}'
 }
@@ -221,15 +227,15 @@ AgentsToolsStatsTokensRows(){ ## the operation, its arguments...
 				case "$1" in --by) tokensBy="$2" ;; --since) tokensSince="$2" ;; --until) tokensUntil="$2" ;; --member) tokensMember="$2" ;; --routine) tokensRoutine="$2" ;; --preset) tokensPreset="$2" ;; --credential) tokensCredential="$2" ;; esac
 				shift 2
 			;;
-			*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: unknown option: $1 -- syntax is --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]" >&2 ; return 1 ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: unknown option: $1 -- syntax is --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]" >&2 ; return 1 ;;
 		esac
 	done
 	## `--by weekday` groups the days by the day of the week: a DISTRIBUTION over seven bins, all
 	## seven always printed -- a Sunday with no runs is a fact of the distribution, not an absence.
 	local tokensWeekday=""
 	case "$tokensBy" in day) tokensColumn=1 ;; member) tokensColumn=2 ;; routine) tokensColumn=3 ;; preset) tokensColumn=4 ;; credential) tokensColumn=5 ;;
-		weekday|hour) tokensColumn=1 ; tokensWeekday="$tokensBy" ;;
-		*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: --by is day, weekday, hour, member, routine, preset or credential: ${tokensBy:-<nothing>}" >&2 ; return 1 ;;
+		weekday|hour|session) tokensColumn=1 ; tokensWeekday="$tokensBy" ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: --by is day, weekday, hour, member, routine, preset, credential or session: ${tokensBy:-<nothing>}" >&2 ; return 1 ;;
 	esac
 	AgentsToolsStatsDatesCheck "$tokensOp" "$tokensSince" "$tokensUntil" || return 1
 	AgentsToolsStatsEnsure || return 1
@@ -249,17 +255,19 @@ AgentsToolsStatsTokensRows(){ ## the operation, its arguments...
 			{
 				day = $8 ; started = $6
 				if ( !( ( since == "" || day >= since ) && ( until == "" || day <= until ) && ( member == "" || $3 == member ) && ( routine == "" || $4 == routine ) && ( preset == "" || $12 == preset ) && ( credential == "" || $13 == credential ) ) ) { next }
-				key = by == "weekday" ? weekdayOf( day ) : substr( started, 12, 2 )
+				key = by == "weekday" ? weekdayOf( day ) : ( by == "session" ? $2 : substr( started, 12, 2 ) )
 				runs[key] += 1 ; tin[key] += $14 + 0 ; tcr[key] += $15 + 0 ; tcw[key] += $16 + 0 ; tout[key] += $17 + 0
 			}
 			END {
 				if ( by == "weekday" ) {
 					split( "Mon Tue Wed Thu Fri Sat Sun", order, " " )
 					for ( bin = 1 ; bin <= 7 ; bin++ ) { key = order[bin] ; printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] }
+				} else if ( by == "session" ) {
+					for ( key in runs ) { printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] }
 				} else {
 					for ( bin = 0 ; bin <= 23 ; bin++ ) { key = sprintf( "%02d", bin ) ; printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] }
 				}
-			}'
+			}' | { if [ "$tokensWeekday" = session ] ; then LC_ALL=C sort -t "$( printf '\t' )" -k2,2 ; else cat ; fi }
 		return 0
 	fi
 	tail -n +2 "$MMDAPP/.local/agents/stats/tokens.index" | LC_ALL=C awk -F'\t' -v col="$tokensColumn" -v weekday="$tokensWeekday" -v since="$tokensSince" -v until="$tokensUntil" -v member="$tokensMember" -v routine="$tokensRoutine" -v preset="$tokensPreset" -v credential="$tokensCredential" '

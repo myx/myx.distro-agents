@@ -1,0 +1,449 @@
+#!/usr/bin/env bash
+## AgentsHarnessSearch.include: WebSearch and WebFetch, the service searches included. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## One scalar out of a search response, by path. Its own reader rather than a reuse
+## of AgentsHarnessArgValue below: that one names a tool call and this one names a
+## search result, and one spelling shared between them would make a later change to
+## either silently change the other.
+AgentsHarnessSearchField(){ ## response JSON, path
+	printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null || :
+}
+
+## One array of {Text, FirstURL} records, rendered under its own denominator. Both
+## arrays this endpoint returns carry that shape, and RelatedTopics additionally
+## carries GROUP entries holding nested topics instead of a link -- those are counted
+## as skipped and said so, never dropped in silence, because a list that quietly
+## shows four of nine reads as a list of four.
+AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap, allowed domains, blocked domains, denied URL prefixes, default allowed URL prefixes
+	local topicsBody="$1" topicsPath="$2" topicsHeading="$3" topicsCap="$4"
+	local topicsCount topicsIndex=0 topicsShown=0 topicsSkipped=0 topicsDropped=0 topicsText topicsUrl
+	topicsCount="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.__count" )"
+	## Explicit digit enumeration, never a bracket range: [0-9] is collation-dependent.
+	case "$topicsCount" in ''|*[!0123456789]*) topicsCount=0 ;; esac
+	[ "$topicsCount" -gt 0 ] || return 0
+	printf '%s (%s found):\n' "$topicsHeading" "$topicsCount"
+	while [ "$topicsIndex" -lt "$topicsCap" ] && [ "$topicsIndex" -lt "$topicsCount" ] ; do
+		topicsText="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.$topicsIndex.Text" )"
+		topicsUrl="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.$topicsIndex.FirstURL" )"
+		topicsIndex=$(( topicsIndex + 1 ))
+		if [ -z "$topicsUrl" ] ; then
+			topicsSkipped=$(( topicsSkipped + 1 ))
+			continue
+		fi
+		if ! SEARCH_URL="$topicsUrl" SEARCH_ALLOWED="$5" SEARCH_BLOCKED="$6" SEARCH_ALWAYS="$( WEB_URL="$topicsUrl" WEB_ALLOW="$8" WEB_DENY="$7" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlDomainFilter.awk" ; then
+			topicsDropped=$(( topicsDropped + 1 ))
+			continue
+		fi
+		topicsShown=$(( topicsShown + 1 ))
+		printf '  %s. %s\n     %s\n' "$topicsShown" "${topicsText:-<no text on this entry>}" "$topicsUrl"
+	done
+	[ "$topicsSkipped" = 0 ] || printf '  (%s of the first %s carried a nested topic group rather than a link, and are not shown)\n' "$topicsSkipped" "$topicsIndex"
+	[ "$topicsDropped" = 0 ] || printf '  (%s of the first %s were dropped by allowed_domains or blocked_domains)\n' "$topicsDropped" "$topicsIndex"
+	[ "$topicsIndex" -ge "$topicsCount" ] || printf '  (first %s of %s examined, capped at %s)\n' "$topicsIndex" "$topicsCount" "$topicsCap"
+	return 0
+}
+
+## Whether the domain lists keep a url: rc 0 when they do.
+AgentsHarnessSearchUrlKept(){ ## url, allowed domains, blocked domains, denied prefixes, default allow prefixes
+	SEARCH_URL="$1" SEARCH_ALLOWED="$2" SEARCH_BLOCKED="$3" SEARCH_ALWAYS="$( WEB_URL="$1" WEB_ALLOW="$5" WEB_DENY="$4" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlDomainFilter.awk"
+}
+
+## JSON string body of a text for the service search requests: the harness core owns it, since the wire files do not all define one.
+AgentsHarnessSearchJson(){ ## raw text
+	local jsonOut
+	jsonOut="$( printf '%sX' "$1" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	printf '%s' "${jsonOut%X}"
+}
+
+## One POST of a search request file to a url with the service's credential: the status in $nativeStatus, the body in $nativeBody; rc 1 with an ERROR line on failure.
+AgentsHarnessSearchPost(){ ## url, request file
+	local postRc=0 postCode
+	AgentsHarnessRefreshBearer
+	postCode="Authorization: Bearer $harnessBearer"
+	[ -z "$harnessExtraHeaders" ] || postCode="$postCode"$'\n'"$harnessExtraHeaders"
+	nativeStatus="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "$1" -H @- -H "Content-type: application/json" \
+		-o "$harnessScratch/search.native.body" -w '%{http_code}' --data-binary "@$2" <<< "$postCode" 2>"$harnessScratch/search.native.err" )" || postRc=$?
+	if [ "$postRc" != "0" ] ; then
+		printf 'ERROR: the service search request did not complete (curl rc=%s): %s\n' "$postRc" "$( cat "$harnessScratch/search.native.err" 2>/dev/null )" ; return 1
+	fi
+	nativeBody="$( cat "$harnessScratch/search.native.body" 2>/dev/null )"
+	if [ "$nativeStatus" != "200" ] ; then
+		printf 'ERROR: the service search answered HTTP %s%s, so it was NOT searched.\n' "$nativeStatus" "$( postCode="$( AgentsHarnessSearchField "$nativeBody" error.message )" ; [ -n "$postCode" ] || postCode="$( AgentsHarnessSearchField "$nativeBody" error )" ; [ -z "$postCode" ] || printf ' (%s)' "$postCode" )" ; return 1
+	fi
+	return 0
+}
+
+## DeepSeek's Search API (HARNESS_WEB_SEARCH=deepseek:search; POST <base>/tools/search, read 2026-10-27): the domain lists go in as site: and -site: operators of the query.
+AgentsHarnessSearchNativeDeepseek(){ ## query, allowed domains, blocked domains, denied prefixes, default allow prefixes
+	local deepQuery="$1" deepDomain deepSites="" deepCount deepAt=0 deepUrl deepTitle deepSummary deepShown=0 deepDropped=0 deepOut="" nativeStatus nativeBody
+	while IFS= read -r deepDomain ; do
+		[ -z "$deepDomain" ] || deepSites="${deepSites:+$deepSites OR }site:$deepDomain"
+	done <<< "$2"
+	if [ -n "$deepSites" ] ; then deepQuery="$deepQuery $deepSites"
+	else
+		while IFS= read -r deepDomain ; do
+			[ -z "$deepDomain" ] || deepQuery="$deepQuery -site:$deepDomain"
+		done <<< "$3"
+	fi
+	if [ "${#deepQuery}" -gt 128 ] ; then
+		printf 'ERROR: the service search takes a query of at most 128 characters, and the query with its domain lists is %s, so the service search was NOT called.\n' "${#deepQuery}" ; return 1
+	fi
+	printf '%s' '{"query":"'"$( AgentsHarnessSearchJson "$deepQuery" )"'","count":10,"need_content":false}' > "$harnessScratch/search.native.request"
+	AgentsHarnessSearchPost "${harnessEndpoint%/chat/completions}/tools/search" "$harnessScratch/search.native.request" || return 1
+	deepCount="$( AgentsHarnessSearchField "$nativeBody" results.__count )"
+	case "$deepCount" in ''|*[!0123456789]*) printf 'ERROR: the service search answered HTTP 200 with a body that carries no results list, so nothing could be read.\n' ; return 1 ;; esac
+	while [ "$deepAt" -lt "$deepCount" ] ; do
+		deepUrl="$( AgentsHarnessSearchField "$nativeBody" "results.$deepAt.url" )"
+		deepTitle="$( AgentsHarnessSearchField "$nativeBody" "results.$deepAt.title" )"
+		deepSummary="$( AgentsHarnessSearchField "$nativeBody" "results.$deepAt.snippet" )"
+		deepAt=$(( deepAt + 1 ))
+		[ -n "$deepUrl" ] || continue
+		if AgentsHarnessSearchUrlKept "$deepUrl" "$2" "$3" "$4" "$5" ; then
+			deepShown=$(( deepShown + 1 ))
+			deepOut="$deepOut$deepShown. $deepTitle"$'\n'"  $deepUrl"$'\n'"  $deepSummary"$'\n'
+		else deepDropped=$(( deepDropped + 1 )) ; fi
+	done
+	printf '... %s own web search for: %s ...\n' "$HARNESS_PROVIDER_NAME" "$1"
+	if [ "$deepCount" = 0 ] ; then printf 'THE SEARCH FOUND NOTHING: the service answered an empty result list.\n' ; return 0 ; fi
+	printf '%s' "$deepOut"
+	[ "$deepDropped" = 0 ] || printf '  (%s results were dropped by allowed_domains or blocked_domains)\n' "$deepDropped"
+	return 0
+}
+
+## xAI's Responses API with its web_search tool (HARNESS_WEB_SEARCH=xai:web_search; POST <base>/responses, read 2026-10-27): at most 5 domains, allowed or excluded, never both.
+AgentsHarnessSearchNativeXai(){ ## query, allowed domains, blocked domains, denied prefixes, default allow prefixes
+	local xaiDomain xaiAllowed="" xaiBlocked="" xaiAllowedCount=0 xaiBlockedCount=0 xaiFilter="" xaiTool xaiCount xaiAt=0 xaiInner xaiInnerCount xaiInnerAt xaiText="" xaiUrl xaiShown=0 xaiDropped=0 xaiSources="" nativeStatus nativeBody
+	while IFS= read -r xaiDomain ; do
+		[ -z "$xaiDomain" ] || { xaiAllowed="${xaiAllowed:+$xaiAllowed,}\"$( AgentsHarnessSearchJson "$xaiDomain" )\"" ; xaiAllowedCount=$(( xaiAllowedCount + 1 )) ; }
+	done <<< "$2"
+	while IFS= read -r xaiDomain ; do
+		[ -z "$xaiDomain" ] || { xaiBlocked="${xaiBlocked:+$xaiBlocked,}\"$( AgentsHarnessSearchJson "$xaiDomain" )\"" ; xaiBlockedCount=$(( xaiBlockedCount + 1 )) ; }
+	done <<< "$3"
+	if [ "$xaiAllowedCount" -gt 5 ] || { [ "$xaiAllowedCount" = 0 ] && [ "$xaiBlockedCount" -gt 5 ] ; } ; then
+		printf 'ERROR: the service search takes at most 5 domains in a list, so the service search was NOT called.\n' ; return 1
+	fi
+	if [ "$xaiAllowedCount" -gt 0 ] ; then xaiFilter=',"filters":{"allowed_domains":['"$xaiAllowed"']}'
+	elif [ "$xaiBlockedCount" -gt 0 ] ; then xaiFilter=',"filters":{"excluded_domains":['"$xaiBlocked"']}' ; fi
+	xaiTool='{"type":"web_search"'"$xaiFilter"'}'
+	printf '%s' '{"model":"'"$harnessModel"'","input":[{"role":"user","content":"Search the web for: '"$( AgentsHarnessSearchJson "$1" )"'\n\nReply with the findings only: for each result its title, its URL and one line of what it says."}],"tools":['"$xaiTool"']}' > "$harnessScratch/search.native.request"
+	AgentsHarnessSearchPost "${harnessEndpoint%/chat/completions}/responses" "$harnessScratch/search.native.request" || return 1
+	xaiCount="$( AgentsHarnessSearchField "$nativeBody" output.__count )"
+	case "$xaiCount" in ''|*[!0123456789]*) printf 'ERROR: the service search answered HTTP 200 with a body that carries no output list, so nothing could be read.\n' ; return 1 ;; esac
+	while [ "$xaiAt" -lt "$xaiCount" ] ; do
+		if [ "$( AgentsHarnessSearchField "$nativeBody" "output.$xaiAt.type" )" = message ] ; then
+			xaiInnerCount="$( AgentsHarnessSearchField "$nativeBody" "output.$xaiAt.content.__count" )"
+			case "$xaiInnerCount" in ''|*[!0123456789]*) xaiInnerCount=0 ;; esac
+			xaiInnerAt=0
+			while [ "$xaiInnerAt" -lt "$xaiInnerCount" ] ; do
+				[ "$( AgentsHarnessSearchField "$nativeBody" "output.$xaiAt.content.$xaiInnerAt.type" )" != output_text ] || xaiText="$xaiText$( AgentsHarnessSearchField "$nativeBody" "output.$xaiAt.content.$xaiInnerAt.text" )"$'\n'
+				xaiInnerAt=$(( xaiInnerAt + 1 ))
+			done
+		fi
+		xaiAt=$(( xaiAt + 1 ))
+	done
+	xaiInnerCount="$( AgentsHarnessSearchField "$nativeBody" citations.__count )"
+	case "$xaiInnerCount" in ''|*[!0123456789]*) xaiInnerCount=0 ;; esac
+	xaiInnerAt=0
+	while [ "$xaiInnerAt" -lt "$xaiInnerCount" ] ; do
+		xaiUrl="$( AgentsHarnessSearchField "$nativeBody" "citations.$xaiInnerAt" )"
+		xaiInnerAt=$(( xaiInnerAt + 1 ))
+		[ -n "$xaiUrl" ] || continue
+		if AgentsHarnessSearchUrlKept "$xaiUrl" "$2" "$3" "$4" "$5" ; then
+			xaiShown=$(( xaiShown + 1 )) ; xaiSources="$xaiSources$xaiShown. $xaiUrl"$'\n'
+		else xaiDropped=$(( xaiDropped + 1 )) ; fi
+	done
+	if [ -z "$xaiText" ] && [ -z "$xaiSources" ] ; then
+		printf 'ERROR: the service search answered HTTP 200 with neither findings nor sources, so nothing could be read and it is NOT known whether the query found anything.\n' ; return 1
+	fi
+	printf '... %s own web search for: %s ...\n' "$HARNESS_PROVIDER_NAME" "$1"
+	[ -z "$xaiText" ] || printf '%s' "$xaiText"
+	[ -z "$xaiSources" ] || printf 'Sources:\n%s' "$xaiSources"
+	[ "$xaiDropped" = 0 ] || printf '  (%s sources were dropped by allowed_domains or blocked_domains)\n' "$xaiDropped"
+	return 0
+}
+
+## The service's own search, where its wrapper has one (HARNESS_WEB_SEARCH=anthropic:<tool type>, deepseek:search or xai:web_search): one request; rc 1 and an ERROR line on failure.
+AgentsHarnessSearchNative(){ ## query, allowed domains, blocked domains, denied prefixes, default allow prefixes
+	local nativeQuery="$1" nativeTool nativeToolJson nativeAllowedJson="" nativeBlockedJson="" nativeDomain nativeStatus nativeRc=0 nativeBody nativeKind nativeCount nativeAt=0 nativeInnerCount nativeInnerAt nativeUrl nativeTitle nativeCode
+	local nativeText="" nativeSources="" nativeShown=0 nativeDropped=0 nativeAuth
+	case "${HARNESS_WEB_SEARCH:-}" in
+		deepseek:search) AgentsHarnessSearchNativeDeepseek "$@" ; return ;;
+		xai:web_search) AgentsHarnessSearchNativeXai "$@" ; return ;;
+		anthropic:?*) nativeTool="${HARNESS_WEB_SEARCH#anthropic:}" ;;
+		*) printf 'ERROR: HARNESS_WEB_SEARCH names a service search this harness cannot call (%s), so the service search was NOT called.\n' "${HARNESS_WEB_SEARCH:-}" ; return 1 ;;
+	esac
+	if [ "$harnessWire" != AnthropicMessages ] ; then
+		printf 'ERROR: HARNESS_WEB_SEARCH names an Anthropic server tool, and this service speaks the %s wire, so the service search was NOT called.\n' "$harnessWire" ; return 1
+	fi
+	while IFS= read -r nativeDomain ; do
+		[ -z "$nativeDomain" ] || nativeAllowedJson="${nativeAllowedJson:+$nativeAllowedJson,}\"$( AgentsWireJsonEscape "$nativeDomain" )\""
+	done <<< "$2"
+	while IFS= read -r nativeDomain ; do
+		[ -z "$nativeDomain" ] || nativeBlockedJson="${nativeBlockedJson:+$nativeBlockedJson,}\"$( AgentsWireJsonEscape "$nativeDomain" )\""
+	done <<< "$3"
+	## The tool takes allowed_domains or blocked_domains, never both: the allowed list goes to the service, and the blocked one is applied to the sources here.
+	nativeToolJson='{"type":"'"$nativeTool"'","name":"web_search","max_uses":3'
+	if [ -n "$nativeAllowedJson" ] ; then nativeToolJson="$nativeToolJson,\"allowed_domains\":[$nativeAllowedJson]"
+	elif [ -n "$nativeBlockedJson" ] ; then nativeToolJson="$nativeToolJson,\"blocked_domains\":[$nativeBlockedJson]" ; fi
+	nativeToolJson="$nativeToolJson}"
+	printf '%s' '{"model":"'"$harnessModel"'","max_tokens":2048,"tools":['"$nativeToolJson"'],"messages":[{"role":"user","content":"Search the web for: '"$( AgentsWireJsonEscape "$nativeQuery" )"'\n\nReply with the findings only: for each result its title, its URL and one line of what it says."}]}' > "$harnessScratch/search.native.request"
+	AgentsHarnessRefreshBearer
+	nativeAuth="Authorization: Bearer $harnessBearer"
+	[ -z "$harnessExtraHeaders" ] || nativeAuth="$nativeAuth"$'\n'"$harnessExtraHeaders"
+	nativeStatus="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "$harnessEndpoint" -H @- -H "Content-type: application/json" \
+		-o "$harnessScratch/search.native.body" -w '%{http_code}' --data-binary "@$harnessScratch/search.native.request" <<< "$nativeAuth" 2>"$harnessScratch/search.native.err" )" || nativeRc=$?
+	if [ "$nativeRc" != "0" ] ; then
+		printf 'ERROR: the service search request did not complete (curl rc=%s): %s\n' "$nativeRc" "$( cat "$harnessScratch/search.native.err" 2>/dev/null )" ; return 1
+	fi
+	nativeBody="$( cat "$harnessScratch/search.native.body" 2>/dev/null )"
+	if [ "$nativeStatus" != "200" ] ; then
+		printf 'ERROR: the service search answered HTTP %s%s, so it was NOT searched.\n' "$nativeStatus" "$( nativeCode="$( AgentsHarnessSearchField "$nativeBody" error.message )" ; [ -z "$nativeCode" ] || printf ' (%s)' "$nativeCode" )" ; return 1
+	fi
+	nativeCount="$( AgentsHarnessSearchField "$nativeBody" content.__count )"
+	case "$nativeCount" in ''|*[!0123456789]*) printf 'ERROR: the service search answered HTTP 200 with a body that carries no content blocks, so nothing could be read.\n' ; return 1 ;; esac
+	while [ "$nativeAt" -lt "$nativeCount" ] ; do
+		nativeKind="$( AgentsHarnessSearchField "$nativeBody" "content.$nativeAt.type" )"
+		case "$nativeKind" in
+			text) nativeText="$nativeText$( AgentsHarnessSearchField "$nativeBody" "content.$nativeAt.text" )"$'\n' ;;
+			web_search_tool_result)
+				nativeCode="$( AgentsHarnessSearchField "$nativeBody" "content.$nativeAt.content.error_code" )"
+				if [ -n "$nativeCode" ] ; then printf 'ERROR: the service search failed: %s, so it was NOT searched.\n' "$nativeCode" ; return 1 ; fi
+				nativeInnerCount="$( AgentsHarnessSearchField "$nativeBody" "content.$nativeAt.content.__count" )"
+				case "$nativeInnerCount" in ''|*[!0123456789]*) nativeInnerCount=0 ;; esac
+				nativeInnerAt=0
+				while [ "$nativeInnerAt" -lt "$nativeInnerCount" ] ; do
+					nativeUrl="$( AgentsHarnessSearchField "$nativeBody" "content.$nativeAt.content.$nativeInnerAt.url" )"
+					nativeTitle="$( AgentsHarnessSearchField "$nativeBody" "content.$nativeAt.content.$nativeInnerAt.title" )"
+					nativeInnerAt=$(( nativeInnerAt + 1 ))
+					[ -n "$nativeUrl" ] || continue
+					if AgentsHarnessSearchUrlKept "$nativeUrl" "$2" "$3" "$4" "$5" ; then
+						nativeShown=$(( nativeShown + 1 ))
+						nativeSources="$nativeSources$nativeShown. $nativeTitle"$'\n'"  $nativeUrl"$'\n'
+					else nativeDropped=$(( nativeDropped + 1 )) ; fi
+				done
+			;;
+		esac
+		nativeAt=$(( nativeAt + 1 ))
+	done
+	if [ -z "$nativeText" ] && [ -z "$nativeSources" ] ; then
+		printf 'ERROR: the service search answered HTTP 200 with neither findings nor sources, so nothing could be read and it is NOT known whether the query found anything.\n' ; return 1
+	fi
+	printf '... %s own web search for: %s ...\n' "$HARNESS_PROVIDER_NAME" "$nativeQuery"
+	[ -z "$nativeText" ] || printf '%s' "$nativeText"
+	[ -z "$nativeSources" ] || printf 'Sources:\n%s' "$nativeSources"
+	[ "$nativeDropped" = 0 ] || printf '  (%s sources were dropped by allowed_domains or blocked_domains)\n' "$nativeDropped"
+	return 0
+}
+
+## DuckDuckGo, keyless, with a named User-Agent (without one it answers 202, a block page): the Instant Answer, then the HTML results; a 202 or no result markup is BLOCKED.
+AgentsHarnessToolWebSearch(){ ## query, raw arguments
+	local toolQuery="$1" searchBody searchStatus searchRc=0 searchEmitted=0 searchCount searchAgent='myx.distro-agents/1.0' searchInstantOk=1
+	local searchHtmlStatus searchHtmlRc=0 searchBlockedWhy="" searchHtmlNone="" searchRowUrl searchRowTitle searchRowSnippet searchShown=0 searchRows searchRowsKept=0 searchRowsDropped=0
+	local searchAbstract searchAbstractSource searchAbstractUrl
+	local searchAnswer searchAnswerType searchDefinition searchDefinitionUrl
+	local searchAllowed="" searchBlocked="" searchDenied="" searchDefaults domainKey domainList domainCount domainIndex
+	if [ -z "$toolQuery" ] ; then
+		printf 'ERROR: query is required and was empty, so nothing was searched.\n' ; return 0
+	fi
+	if [ "${#toolQuery}" -lt 2 ] ; then
+		printf 'ERROR: query must be at least 2 characters, got: %s -- nothing was searched.\n' "$toolQuery" ; return 0
+	fi
+	## Each list is an array of domains, one per line here.
+	for domainKey in allowed_domains blocked_domains ; do
+		domainList="" ; domainIndex=0
+		domainCount="$( AgentsHarnessArgValue "$2" "$domainKey.__count" )"
+		if [ -z "$domainCount" ] && [ -n "$( AgentsHarnessArgValue "$2" "$domainKey" )" ] ; then
+			printf 'ERROR: %s must be an array of domains, got a single value -- nothing was searched.\n' "$domainKey" ; return 0
+		fi
+		case "$domainCount" in ''|*[!0123456789]*) domainCount=0 ;; esac
+		while [ "$domainIndex" -lt "$domainCount" ] ; do
+			domainList="$domainList$( AgentsHarnessArgValue "$2" "$domainKey.$domainIndex" )"$'\n'
+			domainIndex=$(( domainIndex + 1 ))
+		done
+		case "$domainKey" in
+			allowed_domains) searchAllowed="$domainList" ;;
+			*) searchBlocked="$domainList" ;;
+		esac
+	done
+	searchDefaults="$harnessWebAllowDefaults"
+	[ -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || searchDefaults=""
+	[ -z "$searchDefaults" ] || searchDenied="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || searchDefaults=""
+	[ -z "$searchDefaults" ] || ! LC_ALL=C grep -qF '.local/.agents/magic-team.agent.env' "$harnessScratch/webpolicy.err" || searchDefaults=""
+	[ -n "$searchDefaults" ] || printf 'Note: the web access policy could not be read, so no result is kept outside allowed_domains by default.\n'
+	## The service's own search first, where its wrapper says it has one; where it fails the error is said, and DuckDuckGo answers instead.
+	if [ -n "${HARNESS_WEB_SEARCH:-}" ] && [ "$HARNESS_WEB_SEARCH" != none ] && [ -z "${harnessToolOnly:-}" ] ; then
+		AgentsHarnessSearchNative "$toolQuery" "$searchAllowed" "$searchBlocked" "$searchDenied" "$searchDefaults" && return 0
+	fi
+	## Body to its own file, so the capture holds the one-line status and nothing else. The Instant Answer is best effort: where it fails, the web results below answer.
+	searchStatus="$( curl -sS -L --connect-timeout 10 --max-time 60 -G -A "$searchAgent" \
+		--data-urlencode "q=$toolQuery" \
+		-d format=json -d no_redirect=1 -d no_html=1 -d t=myx.distro-agents \
+		-o "$harnessScratch/search.body" -w '%{http_code}' \
+		-- 'https://api.duckduckgo.com/' 2>"$harnessScratch/search.err" )" || searchRc=$?
+	[ "$searchRc" = "0" ] && [ "$searchStatus" = "200" ] || searchInstantOk=""
+	searchBody=""
+	[ -z "$searchInstantOk" ] || searchBody="$( cat "$harnessScratch/search.body" 2>/dev/null )"
+	[ -n "$searchBody" ] || searchInstantOk=""
+	## The web results: the HTML endpoint, a POST of the query.
+	searchHtmlStatus="$( curl -sS -L --connect-timeout 10 --max-time 60 -A "$searchAgent" \
+		--data-urlencode "q=$toolQuery" \
+		-o "$harnessScratch/search.html" -w '%{http_code}' \
+		-- 'https://html.duckduckgo.com/html/' 2>"$harnessScratch/search.html.err" )" || searchHtmlRc=$?
+	if [ "$searchHtmlRc" != "0" ] && [ -z "$searchInstantOk" ] ; then
+		printf 'ERROR: the search request did not complete (curl rc=%s), so NOTHING was searched and nothing may be concluded about this query either way: %s\n' "$searchHtmlRc" "$( cat "$harnessScratch/search.html.err" 2>/dev/null )" ; return 0
+	fi
+	if [ "$searchHtmlRc" != "0" ] ; then
+		searchBlockedWhy="the request did not complete (curl rc=$searchHtmlRc)"
+	elif [ "$searchHtmlStatus" != "200" ] ; then
+		searchBlockedWhy="it answered HTTP $searchHtmlStatus, its block page rather than a result page"
+	else
+		searchRows="$( LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSearchHtml.awk" "$harnessScratch/search.html" 2>/dev/null )"
+		if [ -z "$searchRows" ] ; then
+			if LC_ALL=C grep -q 'no-results' "$harnessScratch/search.html" 2>/dev/null ; then
+				searchHtmlNone=1
+			else
+				searchBlockedWhy="its page carried no result markup"
+			fi
+		fi
+	fi
+	if [ -n "$searchInstantOk" ] ; then
+	printf '... DuckDuckGo Instant Answer for: %s ...\n' "$toolQuery"
+	## AbstractText is the same prose without markup; Abstract is the fallback only
+	## because no_html=1 is a request the endpoint honours rather than a guarantee.
+	searchAbstract="$( AgentsHarnessSearchField "$searchBody" AbstractText )"
+	[ -n "$searchAbstract" ] || searchAbstract="$( AgentsHarnessSearchField "$searchBody" Abstract )"
+	searchAbstractSource="$( AgentsHarnessSearchField "$searchBody" AbstractSource )"
+	searchAbstractUrl="$( AgentsHarnessSearchField "$searchBody" AbstractURL )"
+	if [ -n "$searchAbstract" ] ; then
+		searchEmitted=$(( searchEmitted + 1 ))
+		if [ -n "$searchAbstractUrl" ] && ! SEARCH_URL="$searchAbstractUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchAbstractUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlDomainFilter.awk" ; then
+			printf 'Abstract: dropped by allowed_domains or blocked_domains\n'
+		else
+			printf 'Abstract%s: %s\n' "${searchAbstractSource:+ ($searchAbstractSource)}" "$searchAbstract"
+			[ -z "$searchAbstractUrl" ] || printf '  %s\n' "$searchAbstractUrl"
+		fi
+	fi
+	searchAnswer="$( AgentsHarnessSearchField "$searchBody" Answer )"
+	searchAnswerType="$( AgentsHarnessSearchField "$searchBody" AnswerType )"
+	if [ -n "$searchAnswer" ] ; then
+		searchEmitted=$(( searchEmitted + 1 ))
+		printf 'Answer%s: %s\n' "${searchAnswerType:+ ($searchAnswerType)}" "$searchAnswer"
+	fi
+	searchDefinition="$( AgentsHarnessSearchField "$searchBody" Definition )"
+	searchDefinitionUrl="$( AgentsHarnessSearchField "$searchBody" DefinitionURL )"
+	if [ -n "$searchDefinition" ] ; then
+		searchEmitted=$(( searchEmitted + 1 ))
+		if [ -n "$searchDefinitionUrl" ] && ! SEARCH_URL="$searchDefinitionUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchDefinitionUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlDomainFilter.awk" ; then
+			printf 'Definition: dropped by allowed_domains or blocked_domains\n'
+		else
+			printf 'Definition: %s\n' "$searchDefinition"
+			[ -z "$searchDefinitionUrl" ] || printf '  %s\n' "$searchDefinitionUrl"
+		fi
+	fi
+	## Counted here as well as inside the renderer, because what decides the
+	## found-nothing sentence below is whether the response carried anything at all.
+	searchCount="$( AgentsHarnessSearchField "$searchBody" Results.__count )"
+	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
+	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
+	AgentsHarnessSearchTopics "$searchBody" Results "Results" 10 "$searchAllowed" "$searchBlocked" "$searchDenied" "$searchDefaults"
+	searchCount="$( AgentsHarnessSearchField "$searchBody" RelatedTopics.__count )"
+	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
+	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
+	AgentsHarnessSearchTopics "$searchBody" RelatedTopics "Related topics" 10 "$searchAllowed" "$searchBlocked" "$searchDenied" "$searchDefaults"
+	fi
+	if [ -n "$searchRows" ] ; then
+		printf '... DuckDuckGo web results for: %s ...\n' "$toolQuery"
+		while IFS=$'\t' read -r searchRowUrl searchRowTitle searchRowSnippet ; do
+			[ -n "$searchRowUrl" ] || continue
+			if [ "$searchShown" -ge 10 ] ; then searchRowsDropped=$(( searchRowsDropped + 1 )) ; continue ; fi
+			if ! AgentsHarnessSearchUrlKept "$searchRowUrl" "$searchAllowed" "$searchBlocked" "$searchDenied" "$searchDefaults" ; then
+				searchRowsDropped=$(( searchRowsDropped + 1 )) ; continue
+			fi
+			searchShown=$(( searchShown + 1 ))
+			printf '%s. %s\n  %s\n' "$searchShown" "$searchRowTitle" "$searchRowUrl"
+			[ -z "$searchRowSnippet" ] || printf '  %s\n' "$searchRowSnippet"
+		done <<< "$searchRows"
+		[ "$searchRowsDropped" = 0 ] || printf '  (%s more were dropped by allowed_domains, blocked_domains or the cap of 10)\n' "$searchRowsDropped"
+		searchEmitted=$(( searchEmitted + 1 ))
+	fi
+	if [ -n "$searchBlockedWhy" ] ; then
+		printf 'ERROR: DuckDuckGo BLOCKED the web search (%s), so the web results were NOT searched and nothing may be concluded about this query either way. This is the endpoint refusing, never a query that found nothing.%s\n' "$searchBlockedWhy" "$( [ "$searchEmitted" = 0 ] || printf ' The instant answer above is all that came back.' )"
+	elif [ -n "$searchHtmlNone" ] && [ "$searchEmitted" = 0 ] ; then
+		printf 'No web results for this query. The endpoint was reached and answered its no-results page: THIS IS A COMPLETE, SUCCESSFUL SEARCH THAT FOUND NOTHING, not a failure. Do not retry the same query; try other words, or say in your final answer that the search returned nothing, never that web search was unavailable.\n'
+	elif [ -n "$searchHtmlNone" ] ; then
+		printf 'No web results for this query beyond the instant answer above: the endpoint answered its no-results page.\n'
+	fi
+}
+
+AgentsHarnessToolWebFetch(){ ## url, prompt
+	local toolUrl="$1" toolPrompt="${2-}" fetchUrl="$1" fetchStatus fetchTarget fetchRc=0 fetchHops=0 toolBytes fetchTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" fetchVerdict fetchAllowExtra="" fetchDenied="" fetchUnread="" fetchFromHost fetchToHost
+	case "$toolUrl" in
+		http://*|https://*) ;;
+		*)
+			printf 'ERROR: url must be an absolute http:// or https:// URL, got: %s\n' "$toolUrl" ; return 0
+		;;
+	esac
+	[ -x "$fetchTools" ] || fetchUnread=1
+	[ -n "$fetchUnread" ] || fetchAllowExtra="$( "$BASH" "$fetchTools" --agents-config-option magic-team --select WEB_ALLOW_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
+	[ -n "$fetchUnread" ] || fetchDenied="$( "$BASH" "$fetchTools" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2>> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
+	[ -n "$fetchUnread" ] || ! LC_ALL=C grep -qF '.local/.agents/magic-team.agent.env' "$harnessScratch/webpolicy.err" || fetchUnread=1
+	if [ -n "$fetchUnread" ] ; then
+		printf 'ERROR: the web access policy could not be read, so it cannot be checked and nothing was fetched: %s\n' "$toolUrl" ; return 0
+	fi
+	while : ; do
+		fetchVerdict="$( WEB_URL="$fetchUrl" WEB_ALLOW="$harnessWebAllowDefaults $fetchAllowExtra" WEB_DENY="$fetchDenied" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessUrlPolicy.awk" )"
+		case "$fetchVerdict" in
+			allowed) ;;
+			*)
+				if ! AgentsHarnessGranted WebFetch "$fetchUrl" ; then
+					case "$fetchVerdict" in
+						denied) AgentsHarnessRefusal WebFetch "$fetchUrl" "ERROR: forbidden: $fetchUrl matches a denied URL prefix. Ask permission for it with the refusal id below, or accept that this URL will not be fetched." ;;
+						*) AgentsHarnessRefusal WebFetch "$fetchUrl" "ERROR: forbidden: $fetchUrl matches no allowed URL prefix. Ask permission for it with the refusal id below, or accept that this URL will not be fetched." ;;
+					esac
+					return 0
+				fi
+			;;
+		esac
+		## Body to its own file, so the capture holds curl's own one-line status and nothing else.
+		fetchRc=0
+		fetchStatus="$( curl -sS --proto '=http,https' --connect-timeout 10 --max-time 120 -o "$harnessScratch/fetch.body" -w '%{http_code} %{redirect_url}' -- "$fetchUrl" 2>"$harnessScratch/fetch.err" )" || fetchRc=$?
+		if [ "$fetchRc" != "0" ] ; then
+			printf 'ERROR: the request did not complete (curl rc=%s): %s\n' "$fetchRc" "$( cat "$harnessScratch/fetch.err" 2>/dev/null )" ; return 0
+		fi
+		fetchTarget=""
+		case "$fetchStatus" in
+			*' '*) fetchTarget="${fetchStatus#* }" ; fetchStatus="${fetchStatus%% *}" ;;
+		esac
+		case "$fetchStatus" in
+			3??) [ -n "$fetchTarget" ] || break ;;
+			*) break ;;
+		esac
+		fetchFromHost="${fetchUrl#*://}" ; fetchFromHost="${fetchFromHost%%[/?#]*}" ; fetchFromHost="${fetchFromHost##*@}" ; fetchFromHost="${fetchFromHost%:*}"
+		fetchToHost="${fetchTarget#*://}" ; fetchToHost="${fetchToHost%%[/?#]*}" ; fetchToHost="${fetchToHost##*@}" ; fetchToHost="${fetchToHost%:*}"
+		if [ "$( printf '%s' "${fetchFromHost%.}" | LC_ALL=C tr '[:upper:]' '[:lower:]' )" != "$( printf '%s' "${fetchToHost%.}" | LC_ALL=C tr '[:upper:]' '[:lower:]' )" ] ; then
+			printf 'ERROR: redirect not followed: HTTP %s from %s to a different host: %s\nFetch that URL with WebFetch to follow it.\n' "$fetchStatus" "$fetchUrl" "$fetchTarget" ; return 0
+		fi
+		fetchHops=$(( fetchHops + 1 ))
+		if [ "$fetchHops" -gt 10 ] ; then
+			printf 'ERROR: more than 10 same-host redirects, stopped before: %s -- nothing more was fetched.\n' "$fetchTarget" ; return 0
+		fi
+		fetchUrl="$fetchTarget"
+	done
+	[ "$fetchHops" = 0 ] || printf '... followed %s same-host redirect(s) to: %s ...\n' "$fetchHops" "$fetchUrl"
+	## A non-2xx still carries a body worth reading, so the status leads and the body follows.
+	## A served call has no model to apply a prompt with, so the prompt goes back to the
+	## caller, framed ahead of the body: never dropped, and never claimed as applied.
+	case "$fetchStatus:$toolPrompt" in
+		2??:) printf '... HTTP %s -- raw body follows, nothing stripped or rendered ...\n' "$fetchStatus" ;;
+		2??:*) printf '... HTTP %s -- the PROMPT WAS NOT APPLIED: this WebFetch runs no model. Apply it yourself to the unprocessed body below, nothing stripped or rendered. Your prompt: %s ...\n' "$fetchStatus" "$toolPrompt" ;;
+		*)   printf 'ERROR: HTTP %s -- the raw body it returned follows\n' "$fetchStatus" ;;
+	esac
+	## Capped and said so: a cut page reads as a complete one.
+	toolBytes="$( wc -c < "$harnessScratch/fetch.body" | tr -d ' ' )"
+	if [ "$toolBytes" -gt 100000 ] ; then
+		head -c 100000 "$harnessScratch/fetch.body"
+		printf '\n... TRUNCATED at 100000 of %s bytes ...\n' "$toolBytes"
+	else
+		cat "$harnessScratch/fetch.body"
+	fi
+}

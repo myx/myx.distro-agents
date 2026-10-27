@@ -6,8 +6,7 @@
 ## that owns the answer (DistroAgentsDispatcher.fn.sh, DistroAgentsContacts.fn.sh, the board, the coordinator's inbox). It declares no store; the one standing
 ## order of the human-owner it writes goes into the state-note, through that note's lock. Functions: sh-lib/session/AgentsTools.CoordinatorSurface.include.
 ##   --tasks, --spawns, --flags, --contacts, --contact       the views
-##   --standing-directives                                  the warnings, the coordinator notes and the orders in force, together
-##   --directive-set, --directive-end                       an order of the human-owner entered, and taken out
+##   --standing-directives, --directive-set, --directive-end  stubs of DistroAgentsSession.fn.sh (ThisSession), which owns them
 ##
 ## From DistroAgentsTools.fn.sh (F1.4): the names routed here are in sh-lib/harness/AgentsContext.FrontTable.include.
 ##
@@ -146,22 +145,9 @@ AgentDispatcherTools(){
 			return $?
 		;;
 
-		## [--all]: the standing directives in force: open warnings, coordinator notes, the human-owner's orders.
-		--standing-directives)
-			AgentsToolsSurfaceCaller "$1" read || return 1
-			AgentsToolsSurfaceStanding "$@"
-			return $?
-		;;
-
-		## --text <text> --expires-at "<YYYY-MM-DD HH:MM>"|none [--id <id>] [--wait <seconds>]: an order entered, through the state note's lock.
-		--directive-set)
-			AgentsToolsSurfaceDirectiveSet "$@"
-			return $?
-		;;
-
-		## --id <id> [--wait <seconds>]: an order taken out.
-		--directive-end)
-			AgentsToolsSurfaceDirectiveEnd "$@"
+		## The standing directives: stubs of the ThisSession tool, which owns them.
+		--standing-directives|--directive-set|--directive-end)
+			bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSession.fn.sh" "$@"
 			return $?
 		;;
 

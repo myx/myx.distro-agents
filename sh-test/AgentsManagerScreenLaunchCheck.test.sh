@@ -563,6 +563,55 @@ get empty
 RIGSCRIPT
 rigAssert "the form refuses inside itself and nothing is called" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )] $( LC_ALL=C grep -c -- '^--manager-spawn-member' "$MANAGER_SCREEN_RIG/calls" || : )" "[pad-free:prompt|] [nothing is started: the prompt is empty] 0"
 
+echo "-- a routine whose executors ask which member: a required select for each, none chosen for the user, even with one candidate --"
+rigSlotsCase(){ ## name -- a fresh rig whose list holds one routine that asks `keeper-?` and `partner-?`, and the slots the tooling gives for it
+	rigCase "$1"
+	rigRow routine magic-team.gap.routine.md magic-team not-startable "keeper-?,_partner-?" coworking - magic-team.gap.routine_—_a_gap "its_executors_asks_which_members" members > "$MANAGER_SCREEN_RIG/rows.--manager-routine-list"
+	{
+		rigRow slot executors "keeper-?" choose keeper-a keeper-b
+		rigRow slot executors "partner-?" choose partner-c
+		rigRow slot participants "magic-*" all magic-x magic-y
+	} > "$MANAGER_SCREEN_RIG/rows.--manager-routine-slots magic-team.gap.routine.md"
+}
+rigSlotsCase slots
+rigScript <<'RIGSCRIPT'
+keys DOWN DOWN ENTER
+wait list 30
+keys DOWN DOWN DOWN DOWN DOWN
+turn
+keys ENTER
+wait plan 30
+turn
+get form
+box f
+keys TAB TAB TAB TAB SPACE
+turn
+get none
+keys UP UP UP UP DOWN TAB TAB TAB TAB SPACE
+turn
+get one
+RIGSCRIPT
+rigAssert "Enter reads the slots of the routine from the tooling, once, before any form opens" "$( rigCalled '--manager-routine-slots magic-team.gap.routine.md' )" "1"
+rigAssert "the form has a select for each entry that asks which member, and the read-only members of an entry that takes all" "[$( rigVal form.dialog )] $( rigBoxHas f 'keeper-?: choose one' ) $( rigBoxHas f 'partner-?: choose one' ) $( rigBoxHas f 'magic-x, magic-y' ) $( rigBoxHas f 'choose one' )" "[routine-slots:choose0|] 1 1 1 4"
+rigAssert "Start with nothing chosen starts nothing: the form says which entry asks, and the operation is not called" "[$( rigVal none.dialogSays )] $( rigStarts )" "[nothing is started: executors keeper-? asks which member, and none is chosen] 0"
+rigAssert "one chosen is not enough: the entry that has a single candidate is chosen too" "[$( rigVal one.dialogSays )] $( rigStarts )" "[nothing is started: executors partner-? asks which member, and none is chosen] 0"
+rigSlotsCase slotsrun
+rigScript <<RIGSCRIPT
+keys DOWN DOWN ENTER
+wait list 30
+keys DOWN DOWN DOWN DOWN DOWN
+turn
+keys ENTER
+wait plan 30
+turn
+keys DOWN TAB DOWN TAB$( rigType 'the gap' ) TAB TAB ENTER
+wait action 30
+turn
+get started
+RIGSCRIPT
+rigAssert "with a member chosen in each select Start calls the operation once: the routine, its name, then the members chosen in the order of the selects" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--spawn-session][--routine][magic-team.gap.routine.md][--session-name-or-comment][gap][keeper-a][partner-c]]"
+rigAssert "and what was typed goes on its standard input" "$( rigInput 'the gap' )" "same"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LAUNCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

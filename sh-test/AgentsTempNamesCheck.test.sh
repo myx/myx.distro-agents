@@ -145,9 +145,9 @@ rigList(){
 		'sh-lib/session/AgentsTools.SpawnSandbox.include|1|.conversation.read.$$|inside the input folder of one sandbox, which one start fills: two fills of one sandbox share that whole folder, whatever this is named' \
 		'sh-lib/session/AgentsTools.SpawnSandbox.include|1|mdat-session-run-ops.$$.$1|made its own by the process id of the console just started' \
 		'sh-lib/session/AgentsTools.SpawnSandbox.include|3|$runFile.run.$$|beside one spawn record, written by the launches of that spawn, which come one after another in its own proxy' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|.mdat-write.$$|under the write lock of that one target' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|1|.mdat-edit.$$|under the write lock of that one target' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|3|$harnessToolSearchFloorFile.$$|inside the scratch folder this harness process made for itself by mktemp'
+		'sh-lib/harness/AgentsHarnessToolsFile.include|1|.mdat-write.$$|under the write lock of that one target' \
+		'sh-lib/harness/AgentsHarnessToolsFile.include|1|.mdat-edit.$$|under the write lock of that one target' \
+		'sh-lib/harness/AgentsHarnessSkills.include|3|$harnessToolSearchFloorFile.$$|inside the scratch folder this harness process made for itself by mktemp'
 }
 ## Reads the list, then the files named after it: prints a line for every $$ the list does not hold, and for every
 ## line of the list that stands another number of times than it says.

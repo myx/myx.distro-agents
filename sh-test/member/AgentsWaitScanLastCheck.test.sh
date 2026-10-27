@@ -6,6 +6,7 @@
 ##   2. a scan is not begun once something has arrived in the round: the inbox arrival is returned, the scan is named in WAIT-NEVER-READ and none of its report is in the return
 ##   3. control, nothing else arrived: the same scan is read and arrives
 ## Red before the change: 1 lists the scan first, and 2 returns the scan too.
+## The default sources (team channel, owner DM) come first in every wait and the rig's Slack cannot read them, so they stand in the never-read list.
 ## Offline: a Slack-shaped fake curl logs and answers any call; every tree is this rig's own; the collect window of the scan is one second.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -86,14 +87,14 @@ rigNeverRead(){ ## result name -- the WAIT-NEVER-READ line, or none
 printf -- '---\ntype: note\nfrom: %s\n---\n\n# Note: scan last\n' "$rigMember" > "$rigD/inboxes/$rigMember/incoming/note-20261022T1800Z-scan-last.md"
 echo "-- 1. a scan named first is read last --"
 rigWait w1 rig-plain-session --wait-source scan:work-duty --wait-source "file:$rigQuiet"
-rigAssert "the scan follows the file"                              "$( rigSources w1 )" "file:$rigQuiet scan:work-duty"
+rigAssert "the scan follows the file"                              "$( rigSources w1 )" "slack:magic-team slack:human-owner file:$rigQuiet scan:work-duty"
 echo "-- 2. a scan is not begun once something has arrived --"
 rigWait w2 rig-plain-session --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
-rigAssert "the inbox arrival is returned, the scan is not"        "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:inbox:$rigMember:[scan:work-duty]"
+rigAssert "the inbox arrival is returned, the scan is not"        "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:inbox:$rigMember:[slack:magic-team] [slack:human-owner] [scan:work-duty]"
 echo "-- 3. control, nothing else arrived: the scan is read --"
 rm -f "$rigD/inboxes/$rigMember/incoming/note-20261022T1800Z-scan-last.md"
 rigWait w3 rig-plain-session --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
-rigAssert "the scan arrives, nothing is named as never read"      "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:scan:work-duty:none"
+rigAssert "the scan arrives, nothing is named as never read"      "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:scan:work-duty:[slack:magic-team] [slack:human-owner]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WAIT SCAN LAST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

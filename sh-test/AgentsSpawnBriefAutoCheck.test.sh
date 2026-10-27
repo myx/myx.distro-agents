@@ -16,6 +16,7 @@ rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
@@ -131,10 +132,10 @@ rigAssert "and the result says the block is missing"      "$( printf '%s\n' "$ri
 
 echo "-- the harness system text --"
 rigAssert "says a plain-text reply ends the run, and to Wait instead" \
-	"$( LC_ALL=C grep -c -F 'A plain-text reply with no tool call ends your run, so never give one while the work is still open' "$rigHarness" )$( LC_ALL=C grep -c -F 'Wait for it with the Wait tool (mcp__myx_distro__Wait over MCP)' "$rigHarness" )" 11
+	"$( rigHarnessCat | LC_ALL=C grep -c -F 'A plain-text reply with no tool call ends your run, so never give one while the work is still open' )$( rigHarnessCat | LC_ALL=C grep -c -F 'Wait for it with the Wait tool (mcp__myx_distro__Wait over MCP)' )" 11
 
 rigAssert "spawned sessions nobody blocks on, that report to someone, are told to wait for DISMISSED" \
-	"$( LC_ALL=C grep -c -F '[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own' "$rigHarness" )" 1
+	"$( rigHarnessCat | LC_ALL=C grep -c -F '[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own' )" 1
 rigAssert "the Agent tool tells the spawner how to dismiss" \
 	"$( LC_ALL=C grep -c -F 'SendMessage to its session thread with address_to set to its member name and the message DISMISSED, which its Wait returns as DISMISSED. TaskStop is the last-resort force stop.' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
 rigAssert "the Wait tool declares the DISMISSED outcome" \
@@ -167,7 +168,7 @@ printf '%s\n' 'WAIT-RESULT: RECEIVED' '2.000001 | UBOT | [sender: rig-own] *_rig
 	'2.000002 | UBOT | [sender: rig-own] DISMISSED rig-own' 'WAIT-LAST-TS: 2.000002' > "$rigTmp/wait.out"
 rigAssert "the member's own DISMISSED-looking posts are not" "$( rigDismissed rig-own )" " rc=1"
 rigAssert "the harness turns it into the DISMISSED outcome" \
-	"$( LC_ALL=C grep -c -F "printf 'WAIT-RESULT: DISMISSED\\nWAIT-DISMISSED-BY: %s\\n'" "$rigHarness" )" 1
+	"$( rigHarnessCat | LC_ALL=C grep -c -F "printf 'WAIT-RESULT: DISMISSED\\nWAIT-DISMISSED-BY: %s\\n'" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN BRIEF AUTO CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -6,6 +6,7 @@
 ## so the send is observed without reaching the network.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+MDSC_CMD="rig"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 
 rigRefuse(){

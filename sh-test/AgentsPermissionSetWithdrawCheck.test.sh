@@ -75,6 +75,7 @@ rigHas(){ ## file, text
 	case "$( cat "$1" )" in *"$2"*) printf yes ;; *) printf no ;; esac
 }
 rigField(){ ## file, field
+	[ -f "$1" ] || set -- "${1%/*}/closed/${1##*/}" "$2"
 	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$1" 2>/dev/null
 }
 rigCalls(){ ## method

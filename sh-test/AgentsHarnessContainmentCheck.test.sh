@@ -8,6 +8,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 [ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
 
 rigExtract(){
@@ -15,7 +16,7 @@ rigExtract(){
 		$0 ~ "^" fnName "\\(\\)\\{" { inFn=1 ; }
 		inFn { print ; }
 		inFn && /^\}/ { exit ; }
-	' "$rigHarness"
+	' <( rigHarnessCat )
 }
 ## Refusing to report is this block's whole job. A guard naming only one of the
 ## two functions let a rename through and printed PASS lines for a run that

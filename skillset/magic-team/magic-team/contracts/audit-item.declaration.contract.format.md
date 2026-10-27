@@ -21,7 +21,7 @@ The record of text a member declared as not message group, kept for a reader to 
 # Contract
 
 - Kind `audit-item.declaration`: store audit, type word `declaration`.
-- Filename: `declaration-<day>T0000Z-output-style.md`, `<day>` as `YYYYMMDD` (UTC). One document per UTC day: the writer creates it with its header and appends rows.
+- Filename: `declaration-<day>T0000Z-<host>-output-style.md`, `<day>` as `YYYYMMDD` (UTC), `<host>` the short name of the machine that writes it, lower case. One document per machine and UTC day: the writer creates it with its header and appends rows, and no other machine appends to it, so a merge of the team data never conflicts on it. A reader takes the union of the day's documents. A document of the days before this change has no `<host>` part and is read the same way.
 - A document names this contract in `document-contract`, with the value `audit-item.declaration`. The writer fills it where missing.
 - A key the Keys table does not name is not part of this contract. How a stored document that does not match is treated is set by the validator's per-rule disposition, not here.
 - The validator reads the Keys table, the Body and the unmarked Rules. A rule marked `[store]` needs more than the file to check: the item's board state, its inbox, its writer or its authority. A rule marked `[judged]` is for a reader to judge.

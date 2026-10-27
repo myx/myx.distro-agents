@@ -146,7 +146,12 @@ rigGrantOpen(){ ## approver, session, refusal id, kind, [task], [member whose ho
 	rigOp --intern-op-permission-grant-open "$1" --session-id "$2" --refusal-id "$3" --kind "$4" ${5:+--task "$5"} ${6:+--holds-as "$6"} || openRc=$?
 	printf '%s %s' "$openRc" "$( LC_ALL=C grep -m1 -E '^(GRANT|NOT-HOLDS):' "$rigTmp/op.out" | LC_ALL=C awk '{ print $1 ; }' )"
 }
+## A record that closed moved to pending/closed/ (retention); its claim directory stays in pending/. A path under pending/ reads where the record is.
+rigAt(){ ## record path under pending/
+	if [ -f "$1" ] ; then printf '%s' "$1" ; else printf '%s' "${1%/*}/closed/${1##*/}" ; fi
+}
 rigField(){ ## file, field
+	set -- "$( rigAt "$1" )" "$2"
 	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$1" 2>/dev/null
 }
 rigSaid(){ ## fixed text... -> how many posts hold every one of them
@@ -673,6 +678,10 @@ rigSetCounts(){ ## -> "<grant lines>:<set records>:<Decisions lines naming the r
 rigSetBefore="$( rigSetCounts )"
 rigAssert "control: the set was applied once, and its note is marked applied" "$( [ "${rigSetBefore%%:*}" -gt 0 ] && printf granted || printf none ):$( [ -f "${rigSetFileC%.md}.answered/verdict.applied" ] && printf applied || printf none )" "granted:applied"
 mv "${rigSetFileC%.md}.answered/verdict.applied" "${rigSetFileC%.md}.answered/verdict"
+## An apply that stops before its record closes leaves the record and its sidecars in pending/: the rig puts them back there, as a stop at that point would have left them.
+for rigBackOne in "$rigWs/.local/agents/pending/closed/$rigSetIdC".* ; do
+	[ -e "$rigBackOne" ] && mv -f "$rigBackOne" "$rigWs/.local/agents/pending/${rigBackOne##*/}"
+done
 LC_ALL=C awk '$0 == "status: reply-received" && ! reopened { print "status: reply-pending" ; reopened = 1 ; next ; } { print ; }' "$rigSetFileC" > "$rigSetFileC.new" && mv "$rigSetFileC.new" "$rigSetFileC"
 rigSetPosts="$( rigCalls chat.postMessage )"
 rigSetRead "$rigSetIdC"
@@ -851,6 +860,41 @@ rigAssert "the human-owner named stays the human-owner"     "$( rigRoute magic-t
 rigAssert "the coordinator named, who holds it: it stays, though its own session is no spawn of this one" \
 	"$( rigRoute magic-tester rig-tester "$rigIdRc" magic-coordinator ):$( LC_ALL=C grep -c '^ROUTE-REASON' "$rigTmp/op.out" )" "magic-coordinator:0"
 rigAssert "deciding who it goes to posts nothing"           "$(( $( rigCalls chat.postMessage ) - rigRoutePosts ))" 0
+
+echo "-- a member's own set does not ask again for what is held (S11.4) --"
+## What the asking member holds already is granted, nothing asked, nothing edited; what a running participant holds is named and the
+## member is told to ask that participant, until the same request is sent again.
+printf 'magic-tester:ws:workspace:Edit(/%s/OWN/**)\n' "$rigWs" >> "$rigWs/.local/agents/permissions.registry"
+rigIdOwn="$( rigRefusal magic-tester rig-tester Write "$rigWs/OWN/a.txt" )"
+RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-tester
+rigSetAskPosts="$( rigCalls chat.postMessage )"
+rigSetAskSets="$( ls "$rigWs/.local/agents/pending"/*.set 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )"
+rigOpRc=0
+rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdOwn" --task-ref "the rig" --reason "rig" --entry "Write:$rigWs/OWN/a.txt" || rigOpRc=$?
+rigAssert "an entry the asker holds already: held, rc 0, nothing posted, no record, no grant written" \
+	"$rigOpRc:$( LC_ALL=C grep -c '^PERMISSION-SET: held' "$rigTmp/op.out" ):$(( $( rigCalls chat.postMessage ) - rigSetAskPosts )):$(( $( ls "$rigWs/.local/agents/pending"/*.set 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ) - rigSetAskSets )):$( LC_ALL=C grep -c -F -- "$rigIdOwn" "$rigWs/.local/agents/sessions/rig-tester/grants" 2> /dev/null || true )" "0:1:0:0:0"
+rigIdDev="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/setask.txt" )"
+rigSetAskPosts="$( rigCalls chat.postMessage )"
+rigOpRc=0
+rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdDev" --task-ref "the rig" --reason "rig" --entry "Write:$rigWs/DEV/setask.txt" || rigOpRc=$?
+rigAssert "an entry a running participant holds: a correction naming that participant, rc 6, nothing posted" \
+	"$rigOpRc:$( rigHas "$rigTmp/op.err" 'CORRECTION: ' ):$( rigHas "$rigTmp/op.err" 'held by magic-developer' ):$(( $( rigCalls chat.postMessage ) - rigSetAskPosts ))" "6:yes:yes:0"
+rigOpRc=0
+rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdDev" --task-ref "the rig" --reason "rig" --entry "Write:$rigWs/DEV/setask.txt" || rigOpRc=$?
+rigAssert "the same request sent again is asked as it stands: no second correction for it" \
+	"$( [ "$rigOpRc" = 6 ] && printf corrected || printf asked ):$( rigHas "$rigTmp/op.err" 'held by magic-developer' )" "asked:no"
+RIG_OP_AGENT="" RIG_OP_SESSION=""
+
+echo "-- an agent-less parent is no live run of its owner --"
+rigSpawnRecord rig-al-parent magic-architect ""
+printf 'agent-less: true\n' | LC_ALL=C awk 'NR == FNR { add = $0 ; next } FNR > 1 && $0 == "---" && ! done { print add ; done = 1 } { print }' - "$rigWs/.local/agents/spawned/rig-cow/rig-al-parent.spawn.md" > "$rigTmp/al.md" && mv "$rigTmp/al.md" "$rigWs/.local/agents/spawned/rig-cow/rig-al-parent.spawn.md"
+rigLive rig-al-parent
+rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSessionRunning rig-cow | rigOp --intern-mcp-execute
+rigAssert "the session's running members leave out the owner of an agent-less parent" "$( LC_ALL=C grep -c -x magic-architect "$rigTmp/op.out" ) $( LC_ALL=C grep -c -x magic-developer "$rigTmp/op.out" )" "0 1"
+rigSpawnRecord rig-al-parent magic-architect ""
+rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSessionRunning rig-cow | rigOp --intern-mcp-execute
+rigAssert "control: the same record with no agent-less mark is a running member" "$( LC_ALL=C grep -c -x magic-architect "$rigTmp/op.out" )" "1"
+rigDead rig-al-parent ; rm -f "$rigWs/.local/agents/spawned/rig-cow/rig-al-parent.spawn.md"
 
 rigAssert "no request left this box"                       "$( LC_ALL=C awk '/^url:/ { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 0
 

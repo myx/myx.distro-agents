@@ -193,6 +193,16 @@ echo "-- 3b. once that participant has ended, the executor's next Wait is its di
 rigEnd "$rigPartPid"
 rigAssert "the participant has ended: the executor is dismissed"         "$( rigWaits "$rigExec" keeper-myx "$rigRoutine" )" dismissed
 
+echo "-- 3c. the coordinator brought into another executor's session is not dismissed while that executor runs --"
+rigScene joined-coordinator deliberate
+rigJoined="rig-dismiss-joined-$rigTag"
+rigThread "$rigJoined" "$( rigDismissedJson keeper-myx magic-coordinator )"
+rigRun rigJExec "$rigJoined" keeper-myx spawned none human-owner
+rigRun rigJCoord "$rigJoined" magic-coordinator joined "$rigJExec" keeper-myx
+rigAssert "its Wait, the DISMISSED from the executor in its thread, is no dismissal" "$( rigWaits "$rigJCoord" magic-coordinator "$rigJoined" )" waits
+rigEnd "$rigJExecPid"
+rigAssert "the executor has ended: the coordinator's next Wait is its dismissal" "$( rigWaits "$rigJCoord" magic-coordinator "$rigJoined" )" dismissed
+
 echo "-- 4. a member that is not the executor is dismissed when its reports-to dismisses it after the accept --"
 rigScene member deliberate
 rigMemberSession="rig-dismiss-member-$rigTag"

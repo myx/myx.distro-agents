@@ -321,9 +321,10 @@ AgentsToolsSpawnRoutinePresentMembers(){
 
 ## One roster entry expanded to the members it names, one a line. `<type>-*` names all members of
 ## that type (rc 1, reason `none-of-type<TAB><type>`, where it names none -- fail on NONE);
-## `<type>-?` names a choice, not a roster (rc 1, reason `choice-required<TAB><type>`, selected or
-## specified by the caller, even where exactly one is available now); any other entry names the one
-## member it is (rc 1, reason `no-member<TAB><name>`, where no workspace holds it).
+## `<type>-?` names a choice, not a roster, THE ONE RULE of the caller's and the routine's side alike:
+## never made by the tooling, even where exactly one member is available (rc 1, reason
+## `choice-required<TAB><type>` and then the candidate members, one a line, as the hint); any other
+## entry names the one member it is (rc 1, reason `no-member<TAB><name>`, where no workspace holds it).
 AgentsToolsSpawnRoutineEntryMembers(){ ## entry
 	local entryName="$1" entryMembers=""
 	case "$entryName" in
@@ -332,8 +333,9 @@ AgentsToolsSpawnRoutineEntryMembers(){ ## entry
 			[ -n "$entryMembers" ] || { printf 'none-of-type\t%s\n' "${entryName%??}" ; return 1 ; }
 			;;
 		*-\?)
-			[ -n "$( AgentsToolsSpawnRoutineTypeMembers "$entryName" )" ] || { printf 'none-of-type\t%s\n' "${entryName%??}" ; return 1 ; }
-			printf 'choice-required\t%s\n' "${entryName%??}" ; return 1
+			entryMembers="$( AgentsToolsSpawnRoutineTypeMembers "$entryName" )"
+			[ -n "$entryMembers" ] || { printf 'none-of-type\t%s\n' "${entryName%??}" ; return 1 ; }
+			printf 'choice-required\t%s\n%s\n' "${entryName%??}" "$entryMembers" ; return 1
 			;;
 		*)
 			AgentsToolsTeamMemberDirectory "$entryName" > /dev/null || { printf 'no-member\t%s\n' "$entryName" ; return 1 ; }
@@ -344,6 +346,29 @@ AgentsToolsSpawnRoutineEntryMembers(){ ## entry
 	return 0
 }
 
+## The registered member whose name is nearest to a word (the least edits, the first in directory order on a tie): printed, rc 0; nothing, rc 1, where no
+## member is registered. For a refusal that names a word no member answers to.
+AgentsToolsSpawnRoutineNearestMember(){ ## word
+	AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' -v word="$1" '
+		function edits( a, b,    la, lb, i, j, cost, prev, cur ) {
+			la = length( a ) ; lb = length( b )
+			for ( j = 0 ; j <= lb ; j++ ) prev[j] = j
+			for ( i = 1 ; i <= la ; i++ ) {
+				cur[0] = i
+				for ( j = 1 ; j <= lb ; j++ ) {
+					cost = ( substr( a, i, 1 ) == substr( b, j, 1 ) ) ? 0 : 1
+					cur[j] = prev[j] + 1
+					if ( cur[j - 1] + 1 < cur[j] ) cur[j] = cur[j - 1] + 1
+					if ( prev[j - 1] + cost < cur[j] ) cur[j] = prev[j - 1] + cost
+				}
+				for ( j = 0 ; j <= lb ; j++ ) prev[j] = cur[j]
+			}
+			return prev[lb]
+		}
+		$1 != "" { d = edits( word, $1 ) ; if ( best == "" || d < bestD ) { best = $1 ; bestD = d } }
+		END { if ( best == "" ) exit 1 ; print best }'
+}
+
 ## The roster a routine's own executors value names, for a start with no member named: one
 ## member on a line, where the value is a comma-separated list of existing members, each name
 ## trimmed, with `<type>-*` expanded to all members of that type (fail on NONE). Anything else
@@ -352,7 +377,7 @@ AgentsToolsSpawnRoutineEntryMembers(){ ## entry
 ## magic-team/reference/skill-folder-model.md), `empty-name` for a list with an empty place,
 ## `no-member<TAB><name>` for the first name no workspace of this machine holds a member of
 ## (AgentsToolsTeamMemberDirectory), `none-of-type<TAB><type>` for a `<type>-*` that names none,
-## `choice-required<TAB><type>` for a `<type>-?` (a choice, never auto-selected), and
+## `choice-required<TAB><type>` and the candidates, one a line, for a `<type>-?` (a choice, never made here), and
 ## `all-present-members` for the participants-only keyword that names the present members. THE ONE RULE of
 ## what a routine starts by itself: --spawn-session starts by it, and --manager-routine-list prints it.
 AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value

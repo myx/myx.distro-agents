@@ -22,6 +22,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
+. "$rigPackage/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -176,7 +177,7 @@ rigStartOut="$( cd "$rigPackage" && rigGuard start "$rigTmp/start.list" $( cat "
 rigAssert "every start of the tool script, by its path or through a variable that holds it, is \"\$BASH\" <script>, or is on the list, and every line of the list stands in the code as often as it says" "${rigStartOut:-none}" "none"
 rigAssert "every line of that list gives its reason" "$( LC_ALL=C awk -F'|' 'length( $4 ) < 40 { bad++ ; } END { print NR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/start.list" )" "2 lines, 0 without a reason"
 rigAssert "control: the tooling does start the tool script that way, many times, the harness among the files that do" \
-	"$( cd "$rigPackage" && cat $( cat "$rigTmp/tooling.files" ) | LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' | LC_ALL=C awk '{ print ( $1 >= 30 ) ? "many" : $1 ; }' ) $( LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' "$rigPackage/sh-lib/harness/AgentsUniversalHarness.sh" | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "many" : $1 ; }' )" "many many"
+	"$( cd "$rigPackage" && cat $( cat "$rigTmp/tooling.files" ) | LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' | LC_ALL=C awk '{ print ( $1 >= 30 ) ? "many" : $1 ; }' ) $( rigHarnessCat | LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "many" : $1 ; }' )" "many many"
 
 echo "-- 4. the readers find what they must, and nothing else --"
 ## CONTROL LINES: each reader finds a new fault, in each shape, takes a listed one, and reads no comment and no other text

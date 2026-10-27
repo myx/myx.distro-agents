@@ -12,6 +12,8 @@
 ## A live session is a line of this rig's own process list: a ps first on PATH lists the rig's runs only,
 ## and says when its own pids started, for a run that is the process its record names.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigBoardScan="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/board-round-scan.rig.sh"

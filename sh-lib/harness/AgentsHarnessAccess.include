@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+## AgentsHarnessAccess.include: roots, children, path gates, grants and the refusal. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## Roots are canonicalised by the same rule the candidate is, in one helper used by
+## every append site: resolving one side only broke --access-root <symlink>.
+AgentsHarnessResolveDir(){
+	local resolveIn="$1" resolveOut
+	resolveOut="$( cd "$resolveIn" 2>/dev/null && pwd -P )" || resolveOut=""
+	[ -n "$resolveOut" ] || resolveOut="$resolveIn"
+	printf '%s' "$resolveOut"
+}
+
+## One set of roots without the paths of this run alone. The console hands the spawn's own sandbox in on the access-root flags as well
+## (AgentsConsoleShellScript.template.sh, the leg branch), and a path of this run alone in the system text ends the cached prefix at it
+## (F10.7): everything behind it -- the tools, the prefetched skill, the task -- is then paid for again by every run. The gate still gets
+## those roots, added back after the system text has taken its own (harnessSystemRoots). Every other line is kept, in the order it had.
+AgentsHarnessRootsWithout(){ ## roots text (one root a line), paths to leave out...
+	local withoutText="$1" withoutLine withoutKept="" withoutDrop withoutPath
+	shift
+	while IFS= read -r withoutLine ; do
+		[ -n "$withoutLine" ] || continue
+		withoutDrop=0
+		for withoutPath in "$@" ; do
+			[ -z "$withoutPath" ] || [ "$withoutLine" != "$withoutPath" ] || withoutDrop=1
+		done
+		[ "$withoutDrop" = 0 ] || continue
+		withoutKept="$withoutKept$withoutLine"$'\n'
+	done <<< "$withoutText"
+	printf '%s' "$withoutKept"
+}
+
+## One cleanup, in one place, and deliberately no INT/TERM handler beside it. Bash runs
+## neither a trap nor an untrapped signal's own termination until the foreground command
+## it was waiting on has been reaped, so the stream pipeline is already gone by the time
+## this runs -- measured: a handler that removes this directory and then holds the run
+## open two seconds longer draws not one write out of the consumer, where removing it
+## from under a live consumer draws a page of them. A `wait` here would have nothing to
+## return on, a pipeline being no asynchronous job, so it narrows no window; and an
+## `exit 130` from a handler would report a normal exit where dying by the signal is
+## what tells a caller this run was interrupted. INT and TERM are ignored before the
+## removal, and SIG_IGN survives the fork into `rm`, so a second Ctrl+C landing
+## mid-removal cannot leave this directory half-gone.
+## Bash hands an asynchronous child SIG_IGN for INT, so a terminal Ctrl+C never reaches
+## anything started with `&` here and it outlives the run -- measured: a `sleep 30`
+## still running after the harness had exited 130. Nothing a signal handler can reach,
+## because by then this shell is gone and those processes are not its children any
+## more. So each one records its pid as it starts and is signalled from the one
+## cleanup, before the directory holding the record is removed.
+AgentsHarnessReapChildren(){
+	local reapFile reapPid
+	for reapFile in "$harnessScratch"/*.pid ; do
+		[ -f "$reapFile" ] || continue
+		read -r reapPid < "$reapFile" || continue
+		case "$reapPid" in ''|*[!0-9]*) continue ;; esac
+		kill -TERM "$reapPid" 2>/dev/null || :
+	done
+}
+
+## Absolute paths only, no `..` segment, resolved to their real location and then
+## prefix-matched against the resolved roots. A final symlink component that exists
+## is followed to its target and judged there; a dangling or cyclic one is judged as given.
+AgentsHarnessPathAllowed(){
+	local checkPath="$1" checkRoots="${2:-$harnessRoots}" checkRoot checkReal checkLinkDir
+	harnessResolvedPath=""
+	case "$checkPath" in
+		/*) ;;
+		*) return 1 ;;
+	esac
+	case "/$checkPath/" in
+		*/../*|*/./*) return 1 ;;
+	esac
+	## `cd ... && pwd -P` is the portable resolver: neither macOS nor FreeBSD base
+	## carries `readlink -f` or `realpath`.
+	if [ -d "$checkPath" ] ; then
+		checkReal="$( cd "$checkPath" 2>/dev/null && pwd -P )" || checkReal=""
+	else
+		checkLinkDir="${checkPath%/*}"
+		[ -n "$checkLinkDir" ] || checkLinkDir="/"
+		checkReal="$( cd "$checkLinkDir" 2>/dev/null && pwd -P )" || checkReal=""
+		if [ -n "$checkReal" ] ; then
+			case "$checkReal" in
+				*/) checkReal="$checkReal${checkPath##*/}" ;;
+				*)  checkReal="$checkReal/${checkPath##*/}" ;;
+			esac
+		fi
+	fi
+	## An unresolvable path is compared as given rather than admitted by default.
+	[ -n "$checkReal" ] || checkReal="$checkPath"
+	local checkHops=0 checkLink
+	while [ -L "$checkReal" ] && [ -e "$checkReal" ] ; do
+		checkHops=$(( checkHops + 1 ))
+		[ "$checkHops" -le 40 ] || return 1
+		checkLink="$( readlink "$checkReal" 2>/dev/null )" || return 1
+		[ -n "$checkLink" ] || return 1
+		case "$checkLink" in
+			/*) ;;
+			*) checkLink="${checkReal%/*}/$checkLink" ;;
+		esac
+		checkLinkDir="${checkLink%/*}"
+		[ -n "$checkLinkDir" ] || checkLinkDir="/"
+		checkReal="$( cd "$checkLinkDir" 2>/dev/null && pwd -P )" || return 1
+		case "$checkReal" in
+			*/) checkReal="$checkReal${checkLink##*/}" ;;
+			*)  checkReal="$checkReal/${checkLink##*/}" ;;
+		esac
+	done
+	## Published so every tool operates on this rather than the spelling the model typed.
+	harnessResolvedPath="$checkReal"
+	while IFS= read -r checkRoot ; do
+		[ -n "$checkRoot" ] || continue
+		case "$checkReal" in
+			"$checkRoot"|"$checkRoot"/*) return 0 ;;
+		esac
+	done <<< "$checkRoots"
+	return 1
+}
+
+## Appended to the generic access-root refusal for one path shape: Claude Code's own
+## oversized-tool-result dump under ~/.claude/projects, which carries no grant (see the
+## removed tool-results loop above). Empty for every other denied path, so the generic
+## message there stays exactly as it was.
+##   $1 = the path that was denied
+AgentsHarnessDeniedHint(){
+	case "$1" in
+		"$HOME"/.claude/projects/*/*/tool-results/*)
+			printf -- ' -- this looks like a saved oversized tool result; reread the original tool with a narrower offset/limit instead'
+		;;
+	esac
+}
+
+## Unattended unless a person is known to be there: this harness's own model loop always
+## is; a served call is attended only from an interactive Claude Code client (its
+## CLAUDE_CODE_ENTRYPOINT is cli or claude-vscode) with no unattended marker and no spawn
+## id. An unset or unknown entrypoint is unattended, so a new surface fails closed.
+AgentsHarnessUnattended(){
+	[ -n "$harnessToolOnly" ] || return 0
+	[ "${MDAT_SESSION_UNATTENDED:-}" != "true" ] || return 0
+	[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
+	case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+		cli|claude-vscode) return 1 ;;
+	esac
+	return 0
+}
+
+## The team stores an unattended session never writes with Write or Edit, whatever its roots grant.
+AgentsHarnessWriteExcluded(){ ## resolved path
+	local excludeRoot excludeReal
+	AgentsHarnessUnattended || return 1
+	for excludeRoot in "${MDAT_DATA_ROOT:-}" "${MMDAPP:+$MMDAPP/.local/agents/sessions}" ; do
+		[ -n "$excludeRoot" ] || continue
+		excludeReal="$( cd "$excludeRoot" 2>/dev/null && pwd -P )" || excludeReal="$excludeRoot"
+		case "$1" in
+			"$excludeReal"|"$excludeReal"/*|"$excludeRoot"|"$excludeRoot"/*) return 0 ;;
+		esac
+	done
+	return 1
+}
+
+## The session this call belongs to: the harness's own, a spawn's, or the Claude Code client's.
+AgentsHarnessSessionKey(){
+	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+}
+
+## Records the session's own posts from a send's reported fields: sessions/<id>/last-own-post, a line
+## for each post and the latest first, `<channel>:<thread> <ts> <addressees> <thread floor>
+## <conversation floor> <siblings> <reactions> <checked>`. Its first two words are what the Wait floor
+## fallback reads of the latest post, and every line is a post whose replies the floor of a plain Wait
+## holds (AgentsTools.MemberWait.include, AgentsWaitProbeReplies, which writes the other words as it
+## looks): the addressees comma-joined, a word not known yet `-`, the siblings and the check time 0.
+AgentsHarnessOwnPostRecord(){ ## send output file
+	local ownSession ownChannel ownTs ownThread ownAddressees ownDir ownTmp ownLock=""
+	ownSession="$( AgentsHarnessSessionKey )"
+	[ -n "$ownSession" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$ownSession" || return 0
+	ownChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$1" | head -1 )"
+	ownTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' "$1" | head -1 )"
+	ownThread="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' "$1" | head -1 )"
+	## A post on the client side is reported under its client: address, and kept so: its replies are read there.
+	AgentsHarnessBareName "${ownChannel#client:}" && AgentsHarnessBareName "$ownTs" || return 0
+	[ -z "$ownThread" ] || AgentsHarnessBareName "$ownThread" || return 0
+	ownAddressees="$( LC_ALL=C sed -n -e 's/^SENT_MESSAGE_ADDRESSEES=//p' -e 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' "$1" | LC_ALL=C tr -s ' ' '\n' | LC_ALL=C awk 'NF { printf "%s%s", ( count++ ? "," : "" ), $1 ; }' )"
+	[ -n "$ownAddressees" ] || ownAddressees="-"
+	ownDir="$MMDAPP/.local/agents/sessions/$ownSession"
+	mkdir -p "$ownDir" 2>/dev/null || return 0
+	## The wait that looks at these posts rewrites their words: the one local lock keeps the two apart.
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2> /dev/null || :
+	! AgentsToolsLocalLockTake "own-posts-$ownSession" 5 "the record of the run's own posts" 2> /dev/null || ownLock="$agentsLocalLockPath"
+	ownTmp="$( mktemp "$ownDir/last-own-post.XXXXXX" 2>/dev/null )" || ownTmp=""
+	if [ -n "$ownTmp" ] ; then
+		{ printf '%s:%s %s %s - - 0 - 0\n' "$ownChannel" "${ownThread:-$ownTs}" "$ownTs" "$ownAddressees" ; [ ! -f "$ownDir/last-own-post" ] || cat "$ownDir/last-own-post" ; } >| "$ownTmp" 2>/dev/null \
+			&& mv -f "$ownTmp" "$ownDir/last-own-post" 2>/dev/null || rm -f "$ownTmp"
+	fi
+	[ -z "$ownLock" ] || AgentsToolsLocalLockGive "$ownLock"
+	return 0
+}
+
+AgentsHarnessGranted(){ ## tool, resolved target
+	local grantTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" grantSession grantLine
+	harnessGrantOpen="" ; harnessGrantOpenFor="" ; harnessGrantLayer=""
+	grantSession="$( AgentsHarnessSessionKey )"
+	[ -n "$2" ] && [ -n "$grantSession" ] && [ -n "$harnessAgent" ] && [ -x "$grantTools" ] || return 1
+	if ! "$BASH" "$grantTools" --intern-op-permission-grant-read "$harnessAgent" --session-id "$grantSession" --tool "$1" --target "$2" \
+		> "$harnessScratch/grant.out" 2> /dev/null ; then
+		harnessGrantOpen="$( LC_ALL=C awk '$1 == "OPEN-ASK:" && $2 != "" { print $2, $3, $4 ; }' "$harnessScratch/grant.out" 2> /dev/null )" || harnessGrantOpen=""
+		[ -z "$harnessGrantOpen" ] || harnessGrantOpenFor="$1"$'\t'"$2"
+		return 1
+	fi
+	grantLine="$( LC_ALL=C sed -n 's/^GRANT: //p' "$harnessScratch/grant.out" | head -1 )"
+	harnessGrantLayer="$grantLine"
+	case "$grantLine" in
+		'session '*|'task '*|'planned '*|'standing '*) return 0 ;;
+		'once '*)
+			"$BASH" "$grantTools" --intern-op-permission-grant-consume --session-id "$grantSession" --refusal-id "${grantLine#once }" \
+				> /dev/null 2>&1 || return 1
+			return 0
+		;;
+	esac
+	return 1
+}
+
+## A gated refusal: the original ERROR line first and unchanged, then the recorded
+## refusal id and how to ask for the call. Recording never changes the outcome.
+AgentsHarnessRefusal(){ ## tool, target, error line
+	local refusalTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" refusalId="" refusalSession
+	## The open asks the grant read of this very call named, taken once: a refusal whose call
+	## no grant read ran for, or ran for another call, says none.
+	local refusalOpen="" refusalAsk refusalKind refusalWho
+	[ "$harnessGrantOpenFor" != "$1"$'\t'"$2" ] || refusalOpen="$harnessGrantOpen"
+	harnessGrantOpen="" ; harnessGrantOpenFor=""
+	printf '%s\n' "$3"
+	refusalSession="$( AgentsHarnessSessionKey )"
+	if [ -z "$refusalSession" ] || [ -z "$harnessAgent" ] || [ ! -x "$refusalTools" ] ; then
+		printf 'REFUSAL-ID: none -- this session has no session id or team identity, so the refusal was not recorded and cannot be escalated by id.\n'
+		return 0
+	fi
+	"$BASH" "$refusalTools" --intern-op-permission-refusal-log "$harnessAgent" --session-id "$refusalSession" --tool "$1" --target "$2" \
+		--reason "$3" > "$harnessScratch/refusal.out" 2> "$harnessScratch/refusal.err" || :
+	refusalId="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$harnessScratch/refusal.out" | head -1 )"
+	if [ -z "$refusalId" ] ; then
+		printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id. What the operation reported follows:\n'
+		cat "$harnessScratch/refusal.err" 2>/dev/null
+		return 0
+	fi
+	printf 'REFUSAL-ID: %s\n' "$refusalId"
+	## An ask that would allow this call is already open: said ahead of the way to ask, so the
+	## member waits for its answer and asks nothing again.
+	if [ -n "$refusalOpen" ] ; then
+		while read -r refusalAsk refusalKind refusalWho ; do
+			[ -n "$refusalAsk" ] || continue
+			printf 'An ask that would allow this call is already open: %s (a %s, waiting on %s). Do not ask again: wait for its answer with Wait sources=ask:%s, then retry the call.\n' \
+				"$refusalAsk" "${refusalKind:-question}" "${refusalWho:-its addressee}" "$refusalAsk"
+		done <<< "$refusalOpen"
+	fi
+	## What it is, and how to ask for it: the lines the refusal record's own operation gave
+	## after the id (AgentsToolsPermissionRefusalHint, AgentsTools.InternOpPermission.include),
+	## as they are, so this gate and a native client's hook say the same words.
+	LC_ALL=C sed -n 's/^HINT: //p' "$harnessScratch/refusal.out" 2> /dev/null || :
+	LC_ALL=C grep '⚠️' "$harnessScratch/refusal.err" 2>/dev/null || :
+}
+
+AgentsHarnessFileGate(){ ## tool, path, read|write
+	local gateRoots gateRootsOk=1 gateRc=0 gateSession gateOwn
+	if [ -z "$harnessGateIndexed" ] ; then
+		gateRoots="$harnessRoots" ; [ "$3" = read ] || gateRoots="$harnessWriteRoots"
+		AgentsHarnessPathAllowed "$2" "$gateRoots" && return 0
+	else
+		gateRoots="$harnessRuntimeRoots" ; [ "$3" = read ] || gateRoots="$harnessRuntimeWriteRoots"
+		## Never empty: the check reads an empty set as the whole read set.
+		AgentsHarnessPathAllowed "$2" "${gateRoots:-$'\n'}" && gateRootsOk=0
+		if [ -n "$harnessResolvedPath" ] && [ -n "${MMDAPP:-}" ] ; then
+			gateSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+			gateOwn="$MMDAPP/.local/agents/sessions/$gateSession"
+			if AgentsToolsGrantsSessionEnsure "$MMDAPP" "$harnessGrantMember" "$gateSession" "$harnessSandboxInReal" "$harnessSandboxOutReal" "$harnessGateOrigin" ; then
+				AgentsToolsGrantsSessionCheck "$1" "$harnessResolvedPath" "$gateOwn" || gateRc=$?
+				case "$gateRc" in
+					0)
+						## An Allow once is used up here, by the one lock its store keeps.
+						[ -n "$agentsGrantsCheckOnce" ] || return 0
+						"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-consume \
+							--session-id "$gateSession" --refusal-id "$agentsGrantsCheckOnce" > /dev/null 2>&1 && return 0
+					;;
+					3)
+						if [ -n "$harnessSandboxOutReal" ] ; then
+							printf 'ERROR: %s is a read-only place, so nothing is written there: %s -- write to your session sandbox output/ instead, or a folder under it: %s/\n' "$agentsGrantsCheckPlace" "$2" "$harnessSandboxOutReal"
+						else
+							printf 'ERROR: %s is a read-only place, so nothing is written there: %s -- find another suitable location\n' "$agentsGrantsCheckPlace" "$2"
+						fi
+						return 1
+					;;
+				esac
+			fi
+		fi
+		[ "$gateRootsOk" != 0 ] || [ "$gateRc" = 4 ] || return 0
+	fi
+	if AgentsHarnessGranted "$1" "$harnessResolvedPath" ; then
+		[ "$gateRc" = 4 ] || return 0
+		case "$harnessGrantLayer" in 'standing floor'*|'standing standing'*) ;; *) return 0 ;; esac
+	fi
+	[ "$gateRc" != 4 ] || return 4
+	return 2
+}
+
+## The gate of every tool that reads by path, Read (a PDF and a notebook included), Glob and
+## Grep, in the write gate's own shape (AgentsHarnessFileGate), and then granted this member by
+## the one decision function the write gate and the native hook ask (AgentsHarnessGranted:
+## floor, its own standing rows, routine, session, task, planned, an unexpired once).
+## Anything else is a recorded refusal, printed here, and rc 1. Publishes
+## $harnessResolvedPath, as the check does.
+AgentsHarnessReadGate(){ ## tool, path
+	local readGateRc=0
+	AgentsHarnessFileGate "$1" "$2" read || readGateRc=$?
+	case "$readGateRc" in
+		0) return 0 ;;
+		1) return 1 ;;
+	esac
+	AgentsHarnessRefusal "$1" "${harnessResolvedPath:-$2}" "ERROR: path not in the allowed access-root set: $2$( AgentsHarnessDeniedHint "$2" )"
+	return 1
+}
+
+## One writer per target at a time, through the package's one local lock primitive
+## (sh-lib/magic/AgentsTools.LocalLock.include), keyed by the cksum of the resolved path.
+AgentsHarnessLockTake(){ ## resolved target
+	local lockKey
+	lockKey="$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C tr ' ' '-' )" || return 1
+	AgentsToolsLocalLockTake "$lockKey" 30 "$1"
+}

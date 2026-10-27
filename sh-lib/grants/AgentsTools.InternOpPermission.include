@@ -546,8 +546,14 @@ AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the cowo
 	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	runCow="$( AgentsToolsPermissionShareStore "${1:-}" )"
 	[ -n "$runCow" ] || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	## An agent-less parent runs no member: its owner is not running there by it.
 	AgentsToolsRegistryRenderSpawnedSessions agents "$runCow" 2> /dev/null | LC_ALL=C awk -v cow="$runCow" '
-		NF == 13 && $2 == cow && $13 == "running" && ! seen[$5]++ { print $5 ; }'
+		NF == 13 && $2 == cow && $13 == "running" { print $1 "\t" $8 "\t" $5 ; }' \
+	| while IFS=$'\t' read -r runTracking runSpawn runOwner ; do
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$runTracking/$runSpawn.spawn.md" agent-less )" != true ] || continue
+		printf '%s\n' "$runOwner"
+	done | LC_ALL=C awk '! seen[$0]++'
 }
 
 ## The open asks that would allow one call of one member, their ids one per line: a permission
@@ -964,6 +970,8 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 AgentsToolsPermissionSetTold(){ ## <pending-id> <allowed|denied> <answered by>
 	local toldId="${1:-}" toldWhat="${2:-}" toldBy="${3:-}" toldFile toldLine toldScope="" toldSession="" toldParts="" toldCount=0 toldThread toldText toldOwner
 	toldFile="$MMDAPP/.local/agents/pending/$toldId.set"
+	## Said once the record has closed, so its set is in pending/closed/ by then (retention, T9).
+	[ -f "$toldFile" ] || toldFile="$MMDAPP/.local/agents/pending/closed/$toldId.set"
 	[ -n "$toldId" ] && [ -f "$toldFile" ] || return 0
 	while IFS= read -r toldLine ; do
 		case "$toldLine" in
@@ -2062,6 +2070,42 @@ case "$1" in
 			done <<< "$setEntries"
 			if [ -z "$setCovers" ] ; then
 				echo "CORRECTION: $MDSC_CMD: nothing was asked. The entries do not cover the call that was refused: $setRefusedTool on $( AgentsToolsPermissionShownTarget "$setRefusedTarget" ). Add an entry that names that tool for that place, or for a folder that holds it, written <folder>/**, and ask again." >&2
+				set +e ; return 6
+			fi
+		fi
+		## A member's own set does not ask again for what is held (S11.4). An entry the asking member holds now, through
+		## the session's own grants among others, is granted already: nothing is asked and no permission is edited. An entry
+		## another participant with a live run in the session holds is named, and the member is told to ask that participant
+		## to do it or to pass the permission on; the same request sent again is asked as it stands, since the member says
+		## it needs the access for itself (the refusal's own marker, <refusal>.holder-noted).
+		if [ -n "$setOwn" ] ; then
+			local ownEntries=0 ownHeld=0 ownLine ownLayer ownPart ownRunning ownOther ownNamed="" ownMarker="$MMDAPP/.local/agents/sessions/$setSession/$setRefusal.holder-noted"
+			ownRunning="$( AgentsToolsPermissionSessionRunning "$setSession" )"
+			while IFS= read -r ownLine ; do
+				[ -n "$ownLine" ] || continue
+				AgentsToolsPermissionEntrySplit "$ownLine" permission-set-request || { set +e ; return 1 ; }
+				ownEntries=$(( ownEntries + 1 ))
+				if ownLayer="$( AgentsToolsPermissionHolds "$setBy" "$permEntryTool" "$permEntryTarget" "$setSession" )" ; then
+					ownHeld=$(( ownHeld + 1 ))
+					printf 'HELD: %s by %s already (%s)\n' "$ownLine" "$setBy" "${ownLayer%% *}"
+					continue
+				fi
+				ownOther=""
+				while IFS= read -r ownPart ; do
+					[ -n "$ownPart" ] && [ "$ownPart" != "human-owner" ] && [ "$ownPart" != "$setBy" ] || continue
+					printf '%s\n' "$ownRunning" | LC_ALL=C grep -q -x -F -- "$ownPart" || continue
+					AgentsToolsPermissionHolds "$ownPart" "$permEntryTool" "$permEntryTarget" "$setSession" > /dev/null || continue
+					ownOther="$ownPart" ; break
+				done <<< "$( AgentsToolsPermissionParticipants "$setSession" "$setItem" )"
+				[ -z "$ownOther" ] || ownNamed="${ownNamed}${ownLine} -- held by ${ownOther}"$'\n'
+			done <<< "$setEntries"
+			if [ "$ownEntries" -gt 0 ] && [ "$ownHeld" -eq "$ownEntries" ] ; then
+				printf 'PERMISSION-SET: held -- %s holds every entry already, so nothing was asked and no permission was changed\n' "$setBy"
+				return 0
+			fi
+			if [ -n "$ownNamed" ] && [ ! -e "$ownMarker" ] ; then
+				: > "$ownMarker" 2> /dev/null || :
+				echo "CORRECTION: $MDSC_CMD: nothing was asked. A participant who is running in this session already holds what you ask for: $( printf '%s' "$ownNamed" | LC_ALL=C tr '\n' ';' | LC_ALL=C sed 's/;$//;s/;/; /g' ). Ask that participant to do it for you, or to pass the permission on. If you need it for yourself, send this same request again and it is asked as it stands." >&2
 				set +e ; return 6
 			fi
 		fi

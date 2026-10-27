@@ -153,6 +153,12 @@ case "$1" in
 		return $?
 	;;
 
+	## The scheduler's flags, now and as a week: the console's Schedule view.
+	--manager-schedule-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSchedule.include"
+		return $?
+	;;
+
 	## What the console says to a session: a message left for it or for some of its participants, and magic-coordinator joined into
 	## one that has finished, waits or is stuck. Ahead of the family's arm, which keeps the rest.
 	--manager-session-message|--manager-session-join)

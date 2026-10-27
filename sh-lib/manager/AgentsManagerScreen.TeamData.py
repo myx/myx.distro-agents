@@ -228,6 +228,10 @@ def teamDataSummary(state, path, row, form):
             ("remote", remote["value"] if remote and remote["state"] == "set" else "none: no shared persistence is set"),
             ("branch", branch["value"] if branch and branch["state"] == "set" else "not set: the tooling's own")])
     lines.extend(factLines(pairs, state.viewWidth))
+    modeLine = digestLineOf(state, *TEAM_DATA["mode"])
+    if modeLine is not None and modeLine["value"] == TEAM_DATA["justAgents"]:
+        ## the sketch (14.5): in the mode Just Agents there is no board and no team data, and the pane says so
+        lines.extend(["", looked("Team data is not available in this mode: a workspace that is just agents has no board and no team data.", LEVEL_WARN)])
     other = [figure for key, figure in data if key not in (TEAM_DATA["root"], TEAM_DATA["present"][1])
              and figure["unit"] != "bytes" and not key.startswith(TEAM_DATA["board"])]
     if other:

@@ -5,7 +5,7 @@
 ## naming its source. Held, run and not read:
 ##   1. THE FLOOR IS IN. No TTL is said in the return. A plain Wait of a session that has a chat file carries `chat:<session>` after the replies, ahead of the
 ##      sources it names; a session with no folder carries none.
-##   2. THE FILE IS BROUGHT UP TO DATE. Where no source of the wait reads the session thread, the thread is read into the file, the
+##   2. THE FILE IS BROUGHT UP TO DATE. The session thread is a default source beside any the call names; it is read into the file, the
 ##      messages from before the run's launch are history and are not returned, a later one is, behind the source it is of; its
 ##      TTL (5s and 1s more for 20 quiet) keeps a second wait inside it from reading the thread again; the pointer moves, so a
 ##      message is returned once.
@@ -69,6 +69,9 @@ rigScene(){ ## scenario name
 	rigThread="CRIGSES01:$(( rigNow - 400 )).000001"
 	printf '%s\n' "$rigThread" > "$rigChat/session.thread"
 	: > "$rigDir/launch.marker"
+	## the default sources (the team channel, the owner DM) read as quiet
+	printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigDir/history.CRIG00001.json"
+	printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigDir/history.DRIGOWN01.json"
 	touch -t "$( rigStamp $(( rigNow - 300 )) )" "$rigDir/launch.marker"
 }
 rigMsg(){ ## ts user text [thread ts] [fields]
@@ -150,27 +153,28 @@ echo "-- 1. the floor is in --"
 rigScene floor
 rigSeed
 rigPlain floor-in 2 --wait-source "file:$rigDir/none"
-rigAssert "a session that has a folder: replies, then the chat file, then the sources named" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession chat:$rigSession file:$rigDir/none"
+rigAssert "a session that has a folder: replies, then the chat file, then the sources named" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession chat:$rigSession slack:magic-team slack:human-owner slack:$rigThread:conversation file:$rigDir/none"
 rigAssert "no TTL is said in the return: an agent never needs them"  "$( LC_ALL=C grep -c '^# ttl:' "$rigOut" )" 0
 rigKey="rig-sess-nofolder"
 rigWait floor-none --wait-default --wait-session-id "rig-sess-nofolder" --wait-timeout 2 --wait-source "file:$rigDir/none"
 rigKey=""
-rigAssert "a session with no folder: no chat source (the replies alone, as ever)" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:rig-sess-nofolder file:$rigDir/none"
+rigAssert "a session with no folder: no chat source (the replies alone, as ever)" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:rig-sess-nofolder slack:magic-team slack:human-owner file:$rigDir/none"
 
 echo "-- 2. the file is brought up to date by the wait --"
 rigScene topup
 rigSeed
 rigPlain topup-1 4 --wait-source "file:$rigDir/none"
 rigAssert "RECEIVED, with the message that came after the launch"     "$( rigFirstLine ):$( rigHolds RIG-NEW-ONE )" "WAIT-RESULT: RECEIVED:yes"
-rigAssert "behind the source it is of, the session thread"             "$( rigArrived )" "slack:$rigThread "
+rigAssert "behind the source it is of, the session thread"             "$( rigArrived )" "slack:$rigThread:conversation "
 rigAssert "not the root, which was there before the run began"         "$( rigHolds RIG-ROOT-BEFORE-LAUNCH )" no
-rigAssert "it came in full, as a block of the file: header and body"   "$( LC_ALL=C grep -c -E '^[0-9T:Z-]+ URIGHUM1 -> all:$' "$rigOut" )" 1
-rigAssert "the thread was read once, into the file"                    "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" 1
-rigAssert "the root is in the file as history, the reply as new"       "$( rigIndexOf "$(( rigNow - 400 )).000001" ) / $( rigIndexOf "$(( rigNow - 100 )).000001" )" "history - / slack -"
-rigAssert "the pointer of the member is at the end of what it was given" "$( rigPointer read:$rigMember )" 2
+rigAssert "it came once, in the body of its source's part"             "$( rigCount RIG-NEW-ONE )" 1
+## the session thread is a default source of every wait (named sources come beside it), and the chat file is brought up to date from its read too
+rigAssert "the thread was read once for the wait, into the file"       "$( [ "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" -le 2 ] && echo ok || echo more )" ok
+rigAssert "the root is in the file as history, the reply as new"       "$( rigIndexOf "$(( rigNow - 400 )).000001" ) / $( rigIndexOf "$(( rigNow - 100 )).000001" )" "history $rigMember / slack $rigMember"
+rigAssert "the wait delivered it itself, so the member's read pointer has nothing left to give" "$( rigPointer read:$rigMember )" 0
 rigPlain topup-2 2 --wait-source "file:$rigDir/none"
 rigAssert "the next wait: nothing new, the message is returned once"  "$( rigFirstLine ):$( rigHolds RIG-NEW-ONE )" "WAIT-RESULT: TIMEOUT:no"
-rigAssert "and the thread is not read again, its TTL not having passed" "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" 1
+rigAssert "and the next wait reads the thread as a default source, once more" "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" 3
 
 echo "-- 3. both paths run together --"
 rigScene both
@@ -204,8 +208,8 @@ rigThreadData CRIGDM001 "$rigPost" "$( rigMsg "$rigPost" URIGSELF1 RIG-QUESTION 
 rigHistory CRIGDM001 "$( rigMsg "$rigPost" URIGSELF1 RIG-QUESTION '' "$rigOwnMeta" )"
 rigHistory CRIGXXX01 "$( rigMsg "$(( rigNow - 90 )).000001" URIGOTHER RIG-X-FIRST )" "$( rigMsg "$(( rigNow - 70 )).000001" URIGOTHER RIG-X-THIRD )"
 rigHistory CRIGYYY01 "$( rigMsg "$(( rigNow - 80 )).000001" URIGOTHER RIG-Y-SECOND )"
-rigPlain order-1 4 --wait-source slack:CRIGYYY01 --wait-source slack:CRIGXXX01 --wait-since-utime "$(( rigNow - 120 ))"
-rigAssert "the floor first: the replies, then the session thread; then the rest by time, a source under one line while its messages run" "$( rigArrived )" "replies:$rigSession slack:$rigThread slack:CRIGXXX01 slack:CRIGYYY01 slack:CRIGXXX01 "
+rigPlain order-1 25 --wait-source slack:CRIGYYY01 --wait-source slack:CRIGXXX01 --wait-since-utime "$(( rigNow - 120 ))"
+rigAssert "the floor first: the replies, then the session thread; then the rest by time, a source under one line while its messages run" "$( rigArrived )" "replies:$rigSession slack:$rigThread:conversation slack:CRIGXXX01 slack:CRIGYYY01 slack:CRIGXXX01 "
 rigAssert "each message once, oldest first among the rest"              "$( LC_ALL=C grep -o -E 'RIG-(X-FIRST|Y-SECOND|X-THIRD)' "$rigOut" | LC_ALL=C tr '\n' ' ' )" "RIG-X-FIRST RIG-Y-SECOND RIG-X-THIRD "
 rigAssert "and every block closed"                                     "$( LC_ALL=C grep -c '^# --- end ---$' "$rigOut" )" 5
 

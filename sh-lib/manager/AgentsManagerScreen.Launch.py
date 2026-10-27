@@ -126,9 +126,126 @@ registerPlugin({
         ## every time this view is opened. The verdicts it adds are not needed to list what can be
         ## started here; they are asked for the row an operator selects, in the Routines view.
         "list:launch": {"operation": ["--manager-routine-list", "--facts-only"], "rows": "routines"},
+        ## the members each entry of a routine can take, read when its start is asked for (askRoutineSlots)
+        "full:routine-slots": {"operation": ["--manager-routine-slots"], "rows": "routine-slots", "kind": "plan", "demand": True},
     },
     "commands": (
         {"name": "pad", "keys": ("ENTER",), "menu": ("session", 2), "label": "~S~tart a session", "status": "Start", "window": "list",
          "views": ("launch",), "for": "a start of the Launchpad", "on": ("launch:pad",), "only": True, "does": ("action", "pad"), "calls": ("start",)},
     ),
 })
+
+
+## ---- the launch form of a routine whose entries ask a choice of a member (sketch 6.3) ----
+
+## `--manager-routine-slots <selector>` gives the members each entry of the routine's executors and participants can take, by the spawner's own rule: `slot <side> <entry> <choose|all|named|present>
+## <member>...`, and `slot <side> <entry> none` for an entry nothing can fill. A `<type>-?` (`choose`) is a required select of its candidates, with no choice made for the user even where one candidate
+## stands; a `<type>-*` (`all`) is shown, read only, as the members it expands to. The members chosen go to `--spawn-session` after the routine. The console sorts none of it out: the rows are drawn.
+ROUTINE_SLOTS_READ = "full:routine-slots"
+PLAN_FORMS["routine-slots"] = lambda text: text
+DIALOGS["routine-slots-wait"] = {"title": "Start the routine", "reads": ("full:{kind}",),
+                                 "controls": ({"name": "about", "kind": "text"},),
+                                 "buttons": (("cancel", "Cancel"),)}
+READING_DIALOGS = tuple(globals().get("READING_DIALOGS", ())) + ("routine-slots-wait",)
+SLOT_CHOOSE_FIRST = ("", "choose one")
+
+
+## What `--manager-routine-slots` printed, as slots in the order given: {"side", "entry", "how", "members"}. A line of another name, and one too short, is left out.
+def parseRoutineSlots(text):
+    slots = []
+    for printed in text.split("\n"):
+        fields = printed.split("\t")
+        if fields[0] == "slot" and len(fields) >= 4:
+            slots.append({"side": fields[1], "entry": fields[2], "how": fields[3] if fields[3] != "none" else "none", "members": [member for member in fields[4:] if member]})
+    return slots
+
+
+## Enter on a routine: its slots are asked of the tooling before any form opens; a dialog waits for them.
+def askRoutineSlots(state, row):
+    routine = row["routine"]
+    state.answer = None
+    state.plans.pop(ROUTINE_SLOTS_READ, None)
+    state.forced.add(ROUTINE_SLOTS_READ)
+    openDialog(state, "routine-slots-wait", {"about": {"lines": ["The members each entry of the routine can take are being read."]}},
+               {"routine": routine, "row": row, "viewKey": viewKeyOf(state), "target": {"kind": "routine-slots", "id": routine["selector"], "level": "", "read": ["--manager-routine-slots", routine["selector"]]}},
+               "Start the routine")
+    return ""
+
+
+## At every turn while the dialog waits: once the slots have come, it closes and the form of the routine opens in its place (or, where no entry asks a choice, the plain dialogs of the routine);
+## where the read failed it says so and stays for Cancel.
+def fillRoutineSlotsWait(state, dialog):
+    about = dialog["about"]
+    plan = state.plans.get(ROUTINE_SLOTS_READ)
+    if plan is None or plan["words"] != readWords(READS[ROUTINE_SLOTS_READ], state, {"_operation": about["target"]["read"]}, False):
+        return
+    state.plans.pop(ROUTINE_SLOTS_READ, None)
+    if plan["error"] and not plan["rows"]:
+        dialogControl(dialog, "about")["lines"] = ["The members of the routine could not be read: %s" % plan["error"]]
+        return
+    slots = parseRoutineSlots(plan["rows"])
+    closeDialog(state)
+    if not [slot for slot in slots if slot["how"] == "choose" or slot["how"] == "none"]:
+        askLaunchPlain(state, about["row"])
+        return
+    openRoutineSlotsForm(state, about["row"], slots)
+
+
+DIALOG_FILLS["routine-slots-wait"] = fillRoutineSlotsWait
+
+
+## The form of the routine: what each entry takes (the read-only ones as lines), a required select for each `<type>-?`, what the session is to work on, and its name.
+def openRoutineSlotsForm(state, row, slots):
+    routine = row["routine"]
+    controls = [{"name": "about", "kind": "text"}]
+    fill = {}
+    lines = [("routine", routine["selector"]),
+             ("session", "coworking: members working together in one session" if routine["session"] == "coworking" else routine["session"])]
+    chooses = []
+    for slot in slots:
+        label = "%s %s" % (slot["side"], slot["entry"])
+        if slot["how"] == "choose":
+            name = "choose%d" % len(chooses)
+            chooses.append((name, slot))
+            controls.append({"name": name, "kind": "list", "label": "%s: choose one" % label, "required": "nothing is started: %s asks which member, and none is chosen" % label})
+            fill[name] = {"options": [SLOT_CHOOSE_FIRST] + [(member, member) for member in slot["members"]], "value": ""}
+        elif slot["how"] == "none":
+            lines.append((label, "no member can take it: nothing can be started"))
+        elif slot["how"] == "all":
+            lines.append((label + " (all)", ", ".join(slot["members"])))
+        elif slot["how"] == "present":
+            lines.append((label, "all the present members: " + ", ".join(slot["members"])))
+        else:
+            lines.append((label, ", ".join(slot["members"])))
+    controls.append({"name": "task", "kind": "input", "label": "What the session is to work on"})
+    controls.append({"name": "name", "kind": "input", "label": "Name of the session, or none"})
+    fill["about"] = {"lines": lines}
+    fill["name"] = {"value": routine["name"]}
+    DIALOGS["routine-slots"] = {"title": "Start the routine", "feeds": "launch", "first": chooses[0][0] if chooses else "task",
+                                "controls": tuple(controls), "buttons": (("start", "Start"), ("cancel", "Cancel"))}
+    openDialog(state, "routine-slots", fill, {"routine": routine, "viewKey": viewKeyOf(state), "chooses": [name for name, slot in chooses],
+                                              "blocked": [slot["entry"] for slot in slots if slot["how"] == "none"]})
+
+
+## Start: only with a member chosen in each select, and with no entry that nothing can take. The routine is started through the operation, once: the members chosen come after the routine, in the
+## order of the selects; what was typed as what the session is to work on goes on its standard input.
+def submitRoutineSlots(state, dialog, button):
+    about = dialog["about"]
+    if about["blocked"]:
+        return "%s can be taken by no member: nothing can be started" % ", ".join(about["blocked"])
+    members = []
+    for name in about["chooses"]:
+        chosen = dialogValue(dialog, name)
+        if chosen and chosen not in members:
+            members.append(chosen)
+    routine = about["routine"]
+    name = dialogValue(dialog, "name").strip()
+    task = dialogValue(dialog, "task").strip()
+    askCall(state, "launch", routine["selector"], callWords("launch", routine["selector"], name) + members, task + "\n" if task else None,
+            {"name": name, "viewKey": about["viewKey"]})
+    state.notice = "start asked of the tooling: %s, with %s" % (routine["selector"], ", ".join(members) or "its executors")
+    state.noticeOf = None
+    return None
+
+
+DIALOG_HANDLERS["routine-slots"] = submitRoutineSlots

@@ -12,6 +12,7 @@ echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-list" >&2
 echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-take" >&2
 echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-done <name> (--apply|--refuse <reason>|--result <text>)" >&2
 echo "📘 syntax: AgentLibrarianTools.fn.sh --doc-drift [<path>...] [--queue]" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --skillset-size [<team-member>...]" >&2
 echo "📘 syntax: AgentLibrarianTools.fn.sh --request-result <name>" >&2
 echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-ask <name>" >&2
 echo "📘 syntax: AgentLibrarianTools.fn.sh [--help-syntax]" >&2

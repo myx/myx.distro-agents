@@ -137,13 +137,13 @@ rigReplies ',{"ts":"1700000001.000200","user":"URIGSELF1","text":"allow-once","t
 rigAsk rig-session-c 30 "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "control: the addressee's later answer is the verdict" "$( rigVerdictLine )" "VERDICT: deny"
 
-## The record with what differs between two runs of the same ask -- its id and its clock -- written out.
+## The record with what differs between two runs of the same ask -- its id, its clock and whether a quiet round reminded it -- written out.
 rigRecordShape(){ ## scenario directory
 	local shapeFile shapeId
 	for shapeFile in "$1/ws/.local/agents/pending"/*.md "$1/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$shapeFile" ] || continue
 		shapeId="${shapeFile##*/}" ; shapeId="${shapeId%.md}"
-		LC_ALL=C sed -E -e "s/$shapeId/<id>/g" -e 's/rig-session-[a-z]/<session>/g' -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9:.]+Z?/<time>/g' -e 's/(^|[^0-9.])[0-9]{10}([^0-9.]|$)/\1<epoch>\2/g' "$shapeFile"
+		LC_ALL=C sed -E -e '/^(reminder-30m|reminder-2h|reminders|last-reminder-at): /d' -e "s/$shapeId/<id>/g" -e 's/rig-session-[a-z]/<session>/g' -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9:.]+Z?/<time>/g' -e 's/(^|[^0-9.])[0-9]{10}([^0-9.]|$)/\1<epoch>\2/g' "$shapeFile"
 		return 0
 	done
 	printf 'no-record'

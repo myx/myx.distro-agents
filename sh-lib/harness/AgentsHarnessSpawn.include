@@ -1,0 +1,627 @@
+#!/usr/bin/env bash
+## AgentsHarnessSpawn.include: Agent spawns, dispatch records, task output and stop, work duty. Sourced by AgentsUniversalHarness.sh, definitions only.
+
+## A value reaching a command line: one bare name, asked of the family's one bare-name gate
+## (AgentsToolsAssertBareName, AgentsTools.BareName.include, which has no other effect), quietly.
+AgentsHarnessBareName(){ ## candidate
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" 2> /dev/null || return 1
+	AgentsToolsAssertBareName "$1" "a name" AgentsHarnessBareName 2> /dev/null
+}
+
+## Where the spawn proxy records a session: one dispatch item per spawn, in whichever
+## board state holds it. Both handles taken here already exist -- the session id, which
+## ListAgents prints, and the item filename, which Agent's result names -- so nothing
+## mints an identifier of its own. Prints the item path, or nothing.
+## With `every`, nothing is chosen for the caller: a filename prints as `file <path>`, and an
+## id prints every item that names it, a line each, in board order. `own <path>`: the id is
+## the item's spawn-id, its own run. `sole <path>`: the id is its session-id and it carries
+## no spawn-id, written before the two were split, so that id is its own run too.
+## `shared <path>`: the id is its session-id and its spawn-id is another, a participant of
+## that session.
+AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
+	local handleText="$1" dispatchState dispatchFile
+	local dispatchFiles=()
+	case "$handleText" in
+		''|*/*|*..*) return 0 ;;
+	esac
+	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
+		[ -f "$MDAT_DATA_ROOT/board/$dispatchState/$handleText" ] || continue
+		[ "${2:-}" != "every" ] || printf 'file '
+		printf '%s' "$MDAT_DATA_ROOT/board/$dispatchState/$handleText"
+		return 0
+	done
+	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
+		for dispatchFile in "$MDAT_DATA_ROOT"/board/"$dispatchState"/dispatch-*.md ; do
+			[ -f "$dispatchFile" ] || continue
+			dispatchFiles+=( "$dispatchFile" )
+		done
+	done
+	[ "${#dispatchFiles[@]}" -gt 0 ] || return 0
+	if [ "${2:-}" = "every" ] ; then
+		## The first session-id and the first spawn-id of each frontmatter, compared as text.
+		MDAT_HARNESS_WANT_ID="$handleText" LC_ALL=C awk '
+			function itemSaid() {
+				if ( itemFile == "" ) { return ; }
+				if ( itemSpawn == wantId ) { print "own " itemFile ; }
+				else if ( itemSession == wantId ) { print ( itemSpawn == "" ? "sole " : "shared " ) itemFile ; }
+				itemFile = "" ;
+			}
+			BEGIN { wantId = ENVIRON["MDAT_HARNESS_WANT_ID"] "" ; }
+			FNR == 1 { itemSaid() ; itemFile = FILENAME ; itemSpawn = "" ; itemSession = "" ; inFront = ($0 == "---") ; next ; }
+			!inFront { next ; }
+			$0 == "---" { inFront = 0 ; next ; }
+			/^session-id:/ && itemSession == "" { itemSession = $0 ; sub(/^session-id:[ \t]*/, "", itemSession) ; itemSession = itemSession "" ; }
+			/^spawn-id:/ && itemSpawn == "" { itemSpawn = $0 ; sub(/^spawn-id:[ \t]*/, "", itemSpawn) ; itemSpawn = itemSpawn "" ; }
+			END { itemSaid() ; }
+		' "${dispatchFiles[@]}"
+		return 0
+	fi
+	## One pass over every candidate rather than one awk per file, and the id is matched
+	## inside the frontmatter only, so a body quoting it is not a hit. The wanted value
+	## travels in the environment: -v performs backslash decoding, ENVIRON does not.
+	MDAT_HARNESS_WANT_ID="$handleText" LC_ALL=C awk '
+		FNR == 1 { inFront = ($0 == "---") ; next ; }
+		!inFront { next ; }
+		$0 == "---" { inFront = 0 ; next ; }
+		/^session-id:/ {
+			idValue = $0
+			sub(/^session-id:[ \t]*/, "", idValue)
+			if (idValue == ENVIRON["MDAT_HARNESS_WANT_ID"]) { print FILENAME ; exit ; }
+		}
+	' "${dispatchFiles[@]}"
+	return 0
+}
+
+## One frontmatter field of a dispatch item, or empty.
+AgentsHarnessDispatchField(){ ## item path, field name
+	MDAT_HARNESS_WANT_FIELD="$2" LC_ALL=C awk '
+		NR == 1 { if ($0 != "---") exit ; next ; }
+		$0 == "---" { exit ; }
+		{
+			fieldName = ENVIRON["MDAT_HARNESS_WANT_FIELD"]
+			if (index($0, fieldName ":") == 1) {
+				fieldValue = substr($0, length(fieldName) + 2)
+				sub(/^[ \t]+/, "", fieldValue)
+				print fieldValue
+				exit
+			}
+		}
+	' "$1" 2>/dev/null || :
+}
+
+## The items of a list of paths as one phrase, each by its filename, its owner and its
+## spawn-id: for a refusal that asks its caller to name one of them.
+AgentsHarnessDispatchItemsSaid(){ ## -- stdin: item paths, a line each
+	local saidPath saidOwner saidSpawn saidText=""
+	while IFS= read -r saidPath ; do
+		[ -n "$saidPath" ] || continue
+		saidOwner="$( AgentsHarnessDispatchField "$saidPath" owner )"
+		saidSpawn="$( AgentsHarnessDispatchField "$saidPath" spawn-id )"
+		saidText="$saidText${saidText:+, }${saidPath##*/} (${saidOwner:-<no owner>}, spawn-id ${saidSpawn:-<none>})"
+	done
+	printf '%s' "$saidText"
+}
+
+## The record of one spawn in this workspace's sandbox roots, by the spawn's own id: the file
+## of that name that names the id as its spawn-id. Every spawn has one, with or without a
+## dispatch item, and it is what ListAgents lists. Prints its path, or nothing.
+AgentsHarnessSpawnRecordPath(){ ## spawn id
+	## One resolver for the manager too: the record of a spawn is found by its file name, in
+	## whatever folder of spawned/ holds it (AgentsToolsSpawnRecordPath).
+	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	AgentsToolsSpawnRecordPath "$1"
+}
+
+## The output path the spawn proxy writes into a dispatch item when it CLOSES one.
+## Empty while the session is still running, which is exactly when a caller wants it --
+## hence the session log by spawn id, and the receipt derivation for an older log, beside it.
+AgentsHarnessDispatchOutputFile(){ ## item path
+	LC_ALL=C awk '
+		index($0, "output-file:") == 1 {
+			pathValue = substr($0, 13)
+			sub(/^[ \t]+/, "", pathValue)
+			if (pathValue != "") { print pathValue ; exit ; }
+		}
+	' "$1" 2>/dev/null || :
+}
+
+## The spawn proxy names its dispatch item and its output log from one receipt, so the
+## log is reachable from the item name while the session still runs. This derivation is
+## coupled to that naming; where it stops matching, the search below reports what it
+## looked for rather than reporting the log absent.
+AgentsHarnessDispatchReceipt(){ ## item filename
+	local nameText="${1%.md}"
+	case "$nameText" in
+		dispatch-*-spawn-proxy-*) ;;
+		*) return 0 ;;
+	esac
+	nameText="${nameText#dispatch-}"
+	printf 'spawn-proxy-%s-%s' "${nameText%%-spawn-proxy-*}" "${nameText##*-spawn-proxy-}"
+}
+
+## The live processes that run as a spawn. The console passes --session-id to the CLI as
+## this spawn's own id, so the spawn-id the dispatch item records is also an OS handle --
+## which is what lets a stop reach a helper that is cooperating in no way.
+## -ww defeats the width truncation that would otherwise cut the id off a long CLI line.
+## For every caller alike, a stop that signals what this names and a read that only asks
+## whether the run lives: only the processes that run as it, by the one rule a run is
+## recognised by (AgentsToolsRegistryRunPids, AgentsTools.Registries.include), its own
+## --session-id or --resume word matched whole. A line that merely holds the id, another
+## participant's or the tooling's, is none of them: a process that waits on a session is
+## never that session's run. `own-word` is still taken, and asks for nothing more.
+AgentsHarnessSessionWordPids(){ ## session id, optional `own-word` (the reading every caller gets)
+	type AgentsToolsRegistryRunPids > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+	ps -A -ww -o pid=,args= 2>/dev/null | AgentsToolsRegistryRunPids "$1"
+	return 0
+}
+
+## The live processes of one spawn. With `own-word`, as a stop asks, which signals what this
+## names: the run's own processes and every process they started, to any depth, by the one
+## walk the manager's kill uses too (AgentsToolsRegistryRunProcesses,
+## AgentsTools.Registries.include): never a process that runs as another spawn, nor the shell
+## that supervises one. Without it, as TaskOutput asks, which only reads whether the run
+## lives: those that run as it by their own word, as above; where none does, the same walk,
+## which then starts from the process the spawn's record names as the one its launch started.
+## No asking process is named to the walk: a member may stop the run it stands under, as it
+## always could.
+AgentsHarnessSessionPids(){ ## session id, optional `own-word` (as above)
+	local pidsFound
+	if [ "${2:-}" != "own-word" ] ; then
+		pidsFound="$( AgentsHarnessSessionWordPids "$1" )"
+		if [ -n "$pidsFound" ] ; then
+			printf '%s\n' "$pidsFound"
+			return 0
+		fi
+	fi
+	type AgentsToolsRegistryRunLeftKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+	if [ "${2:-}" = "own-word" ] ; then
+		## And what an earlier stop of this run signalled and left, kept in the run's store: it
+		## stands under no process of the run any more, and is still the run's to end.
+		{ AgentsToolsRegistryRunProcesses "$1" "" - ; AgentsToolsRegistryRunLeftKept "$1" ; } | LC_ALL=C awk '$1 != "" && ! pidSaid[$1]++ { print $1 ; }'
+		return 0
+	fi
+	AgentsToolsRegistryRunProcesses "$1" "" -
+	return 0
+}
+
+## What a stop is about to signal, each process with when it began, as it is kept until the
+## stop reads what is left (AgentsToolsRegistryProcessesBegan). Loaded here, where it runs: the
+## lookups of a stop run inside command substitutions, so what they load is gone with them.
+AgentsHarnessStopKept(){ ## -- stdin: process ids, a line each
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+	AgentsToolsRegistryProcessesBegan
+}
+
+## Keeps in the run's own store what a stop signalled and found still there, for the next stop
+## or kill of that run (AgentsToolsRegistryRunLeftKeep); with nothing given, nothing is kept
+## any more. In a shell of its own: what it loads is not the harness's to hold.
+AgentsHarnessStopKeep(){ ## session id, the process ids still there (may be empty)
+	(
+		type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || exit 0
+		AgentsToolsRegistryRunLeftKeep "$1" "$2"
+	) > /dev/null 2>&1 || :
+	return 0
+}
+
+## What is left of a run that a stop signalled: the processes it signalled that are still the
+## processes they were, and whatever the run's walk gives now, read in the one place the
+## manager's kill reads it too (AgentsToolsRegistryRunLeft, AgentsTools.Registries.include).
+## No asking process is named, as for the walk above.
+AgentsHarnessStopLeft(){ ## session id, the processes signalled as `<pid> <start>` lines (may be empty)
+	if type AgentsToolsRegistryRunLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null ; then
+		AgentsToolsRegistryRunLeft "$1" "$2" -
+		return 0
+	fi
+	AgentsHarnessSessionPids "$1" own-word
+}
+
+## Spawns a helper session through the team spawn operation this package owns, and
+## returns at once rather than waiting: a spawn that blocks for the helper lifetime is
+## not a spawn, and TaskOutput and TaskStop are how the caller follows up.
+##
+## --dispatch-doc:create is the whole point and is not optional here. It is what writes
+## the board item carrying the session id, and that item is what TaskOutput resolves and
+## what TaskStop acts on; ListAgents lists the spawn's sandbox, which the spawn creates too. A spawn made without it leaves a
+## helper nothing can list, read or end, which is the failure this tool exists to close.
+##
+## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
+## rather than a capture: the operation backgrounds a child, and a capture returns on
+## pipe EOF rather than on the command it ran.
+AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join, conversation threads, description (why this spawn is made), new session (true: a session of its own), settings workspace (the one named to pay for this spawn)
+	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" toolConversation="${6:-}" toolDescription="${7:-}" toolNewSession="${8:-}" toolSettingsWorkspace="${9:-}" toolConversationThread spawnRc=0
+	if [ -z "$harnessAgent" ] ; then
+		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
+	fi
+	if [ -z "$toolAgentName" ] || [ -z "$toolPrompt" ] ; then
+		printf 'ERROR: both agent and prompt are required, and one of them was empty. Nothing was spawned.\n' ; return 0
+	fi
+	if ! AgentsHarnessBareName "$toolAgentName" ; then
+		printf 'ERROR: agent must be a bare member name such as keeper-myx, got: %s. Nothing was spawned.\n' "$toolAgentName" ; return 0
+	fi
+	if [ -n "$toolCliService" ] && ! AgentsHarnessBareName "$toolCliService" ; then
+		printf 'ERROR: cli_service must be a bare service name, got: %s. Nothing was spawned.\n' "$toolCliService" ; return 0
+	fi
+	if [ -n "$toolSettingsWorkspace" ] && ! AgentsHarnessBareName "$toolSettingsWorkspace" ; then
+		printf 'ERROR: settings_workspace must be the bare name of a workspace, the last segment of its path, got: %s. Nothing was spawned.\n' "$toolSettingsWorkspace" ; return 0
+	fi
+	if [ -n "$toolSessionId" ] && ! AgentsHarnessBareName "$toolSessionId" ; then
+		printf 'ERROR: session_id must be a bare id, the SESSION_ID= an earlier spawn printed, got: %s. Nothing was spawned.\n' "$toolSessionId" ; return 0
+	fi
+	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other spawn path exists here. Nothing was spawned.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
+	fi
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
+		--from-stdin --dispatch-doc:create --context Agent
+	## The member this call is made as, which a session never spawned names nowhere in its
+	## environment: kept on the spawn's record, so the handback of the helper has an addressee.
+	set -- "$@" --calling-member "$harnessAgent"
+	## The parent's prefix (F10.7): an ad-hoc child of a session whose routine carries `cache-prefix: routine` inherits
+	## that prefix and its routine name, so the child's cache prefix matches the parent's (a token-cache hit). A work-duty
+	## or an epic is `armed` -- its routine travels in its own dispatch -- so its subtasks start on the armed floor and
+	## inherit no routine. The parent's record is the one this run's own harness reads its prefix from.
+	local toolPrefixRoutine="" toolPrefixPolicy=""
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "${MDAT_SPAWN_SANDBOX_ROOT}/$MDAT_SPAWN_SESSION_ID.spawn.md" ] ; then
+		toolPrefixPolicy="$( AgentsHarnessPrefetchRecordKey "${MDAT_SPAWN_SANDBOX_ROOT}/$MDAT_SPAWN_SESSION_ID.spawn.md" cache-prefix )"
+		[ "$toolPrefixPolicy" != routine ] || toolPrefixRoutine="$( AgentsHarnessPrefetchRecordKey "${MDAT_SPAWN_SANDBOX_ROOT}/$MDAT_SPAWN_SESSION_ID.spawn.md" routine )"
+	fi
+	[ -z "$toolPrefixRoutine" ] || set -- "$@" --prefix-routine "$toolPrefixRoutine"
+	[ -z "$toolCliService" ] || set -- "$@" --spawn-cli-service "$toolCliService"
+	## The workspace named to pay for this one spawn: looked up by the spawn itself, which refuses a name this machine does not know.
+	[ -z "$toolSettingsWorkspace" ] || set -- "$@" --spawn-settings-workspace "$toolSettingsWorkspace"
+	## The session that spawns is the coworking session, and the proxy decides which: the
+	## one this caller is in, else this caller's own, whose thread the first helper opens
+	## and every later one joins. This text titles that thread for the spawn that opens
+	## it -- passed as a genuine argv token, never folded into any format string the proxy
+	## builds from it.
+	[ -z "$toolSessionNameOrComment" ] || set -- "$@" --session-name-or-comment "$toolSessionNameOrComment"
+	## Asked for plainly: a separate session for this helper, with a thread of its own.
+	case "$toolNewSession" in
+		true|1|yes) set -- "$@" --session-new ;;
+	esac
+	## The caller's own words for what this spawn is for: kept on the spawn's records, and shown
+	## on the first line of its start post. A genuine argv token, as the comment above is.
+	[ -z "$toolDescription" ] || set -- "$@" --description "$toolDescription"
+	## Joins an existing coworking session instead of starting one: the proxy
+	## itself resolves the thread and refuses rather than starting a new
+	## session silently when the id names none.
+	[ -z "$toolSessionId" ] || set -- "$@" --session-id "$toolSessionId"
+	## The conversation threads this spawn continues; the proxy validates each one.
+	for toolConversationThread in $toolConversation ; do
+		set -- "$@" --conversation "$toolConversationThread"
+	done
+	## The mechanical brief block -- tool-routing, read-and-obey, executors, invitees and
+	## the open warnings -- is the tooling's to write, never the caller's to copy: the
+	## standing default routine's block goes ahead of the prompt, unless the prompt already
+	## opens with one. A member the block cannot be built for (no .armed.md, no template)
+	## is still spawned, and the result says the block is missing.
+	local toolBriefNote=""
+	case "$toolPrompt" in
+		"SPAWN-PREPARE-BRIEF: "*) ;;
+		*)
+			local toolBrief=""
+			if toolBrief="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-spawn-prepare-brief "$toolAgentName" --routine-default ${toolCliService:+--cli-service "$toolCliService"} ${toolSettingsWorkspace:+--settings-workspace "$toolSettingsWorkspace"} --context Agent 2>"$harnessScratch/spawn-brief.err" )" && [ -n "$toolBrief" ] ; then
+				toolPrompt="$toolBrief"$'\n\n'"$toolPrompt"
+			else
+				toolBriefNote="NOTE: the spawn brief block (tool-routing, read-and-obey) could not be built for $toolAgentName, so the prompt went in without it: $( head -1 "$harnessScratch/spawn-brief.err" 2>/dev/null )"
+			fi
+		;;
+	esac
+	printf '%s' "$toolPrompt" | "$@" >"$harnessScratch/spawn.out" 2>&1 || spawnRc=$?
+	[ -z "$toolBriefNote" ] || printf '%s\n' "$toolBriefNote" >> "$harnessScratch/spawn.out"
+	if [ "$spawnRc" != "0" ] ; then
+		printf 'ERROR: the spawn failed (rc=%s) and NO helper session is running. What the operation reported follows:\n' "$spawnRc"
+		cat "$harnessScratch/spawn.out"
+		return 0
+	fi
+	printf 'Spawned as %s. The DISPATCH_ITEM value below is the handle TaskOutput and TaskStop take, and ListAgents lists this session while it runs. What the operation reported follows:\n' "$toolAgentName"
+	cat "$harnessScratch/spawn.out"
+}
+
+## A bounded window over a file some other process is still writing, carrying its own
+## denominator: the range shown AND the total so far, never a bare window. It extends
+## the byte-cap shape AgentsHarnessToolBash already states rather than replacing it.
+##
+## It takes a path and nothing whatever about what wrote it, so a reader of any kind of
+## detached child output can use it. That is deliberate: the windowed read is the part
+## two such readers genuinely share, and it is factored out here so a second one need
+## not restate it.
+AgentsHarnessWindowedRead(){ ## path, byte offset, byte limit
+	local readPath="$1" readOffset="$2" readLimit="$3" readTotal readStart readEnd
+	readTotal="$( wc -c < "$readPath" | tr -d ' ' )"
+	[ -n "$readLimit" ] || readLimit=100000
+	if [ -z "$readOffset" ] ; then
+		## No offset means the end of the log, which is what following a live child wants.
+		readStart=$(( readTotal - readLimit ))
+		[ "$readStart" -ge 0 ] || readStart=0
+	else
+		readStart="$readOffset"
+	fi
+	if [ "$readStart" -ge "$readTotal" ] ; then
+		printf 'bytes %s-%s of %s so far: NOTHING NEW in this window -- the log has not grown past byte %s yet. That is a log with nothing further in it, never a log that has ended.\n' "$readStart" "$readStart" "$readTotal" "$readStart"
+		return 0
+	fi
+	readEnd=$(( readStart + readLimit ))
+	[ "$readEnd" -le "$readTotal" ] || readEnd="$readTotal"
+	printf 'bytes %s-%s of %s so far' "$readStart" "$readEnd" "$readTotal"
+	if [ "$readEnd" -lt "$readTotal" ] ; then
+		printf ', %s further byte(s) ahead of this window -- call again with offset %s\n\n' "$(( readTotal - readEnd ))" "$readEnd"
+	elif [ "$readStart" -gt 0 ] ; then
+		printf ', the end of the log so far; the earlier %s byte(s) are not shown\n\n' "$readStart"
+	else
+		printf ', the whole log so far\n\n'
+	fi
+	tail -c +$(( readStart + 1 )) "$readPath" | head -c "$readLimit"
+}
+
+## Reads a helper session output with no cooperation from it and no effect on it: the
+## spawn proxy redirects the child streams to a file on disk, so this is an ordinary
+## windowed read of that file at any moment, running or finished.
+##
+## THREE OUTCOMES, worded so they cannot be confused, because reading them alike is the
+## failure this tool exists to prevent. RUNNING: the session is still alive, and what it
+## has written SO FAR follows -- a window that ends is never the session ending. EMPTY:
+## the session is alive and has written nothing yet, which is not a session that
+## produced nothing. FINISHED: its record is closed. Anything that could not be read is
+## a stated ERROR instead, and is never dressed as a helper that was quiet.
+AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
+	local toolHandle="$1" toolOffset="$2" toolLimit="$3" toolOutputFile="$4"
+	local itemPath itemName itemStatus sessionId receiptId logPath="" logHow="" logCandidate
+	local liveNow="unknown" logTotal
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was read, and no output is implied to be absent.\n' ; return 0
+	fi
+	if [ -n "$toolOffset" ] && ! AgentsHarnessWholeNumber "$toolOffset" ; then
+		printf 'ERROR: offset must be a whole number of bytes, got: %s\n' "$toolOffset" ; return 0
+	fi
+	if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
+		printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
+	fi
+	[ -n "$toolLimit" ] || toolLimit="$harnessReadCap"
+	[ "$toolLimit" -le "$harnessReadCap" ] || toolLimit="$harnessReadCap"
+	if [ -n "$toolOutputFile" ] ; then
+		## Confined to the team data store and to the session logs the spawn proxy writes
+		## (sessions/<spawn-id>/session.log): this parameter would otherwise be a read of
+		## any path at all, around the access roots that bound Read, Glob and Grep.
+		case "$toolOutputFile" in
+			"$MDAT_DATA_ROOT"/*) ;;
+			"${MMDAPP:-/nonexistent}"/.local/agents/sessions/*/session.log) ;;
+			*)
+				printf 'ERROR: output_file is accepted only inside the team data store at %s, or as a session log at %s/.local/agents/sessions/<session id>/session.log, and this one is neither: %s. Give the dispatch item name or the session id as handle instead.\n' "$MDAT_DATA_ROOT" "${MMDAPP:-<no MMDAPP>}" "$toolOutputFile" ; return 0
+			;;
+		esac
+		case "$toolOutputFile" in
+			*..*)
+				printf 'ERROR: output_file may not step upward out of the team data store or the session logs: %s\n' "$toolOutputFile" ; return 0
+			;;
+		esac
+		logPath="$toolOutputFile" ; logHow="the output_file given"
+	else
+		if [ -z "$toolHandle" ] ; then
+			printf 'ERROR: handle is required: the session id, which ListAgents prints, or the dispatch item filename, which the Agent result names as DISPATCH_ITEM. Nothing was read.\n' ; return 0
+		fi
+		itemPath="$( AgentsHarnessDispatchItemPath "$toolHandle" )"
+		if [ -z "$itemPath" ] ; then
+			printf 'ERROR: no dispatch item matches handle %s in any board state under %s. A helper spawned WITHOUT a tracking document has no record here at all, so it cannot be reached by handle -- that is a property of how it was spawned, not a missing output.\n' "$toolHandle" "$MDAT_DATA_ROOT" ; return 0
+		fi
+		itemName="${itemPath##*/}"
+		itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
+		## spawn-id is this process's own OS handle; session-id is the shared
+		## coworking id since session-id and spawn-id were split apart, so an item
+		## written before that carries no spawn-id and session-id is still its own.
+		sessionId="$( AgentsHarnessDispatchField "$itemPath" spawn-id )"
+		[ -n "$sessionId" ] || sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
+		if [ -n "$sessionId" ] ; then
+			if [ -n "$( AgentsHarnessSessionPids "$sessionId" )" ] ; then liveNow=yes ; else liveNow=no ; fi
+		fi
+		logPath="$( AgentsHarnessDispatchOutputFile "$itemPath" )"
+		[ -z "$logPath" ] || logHow="the output-file the dispatch item records, which it writes only once the session closes"
+		## While it runs: its session log, named by the spawn id the item records.
+		if [ -z "$logPath" ] && [ -n "$sessionId" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$sessionId" \
+			&& [ -f "$MMDAPP/.local/agents/sessions/$sessionId/session.log" ] ; then
+			logPath="$MMDAPP/.local/agents/sessions/$sessionId/session.log" ; logHow="the session log of spawn $sessionId"
+		fi
+		if [ -z "$logPath" ] ; then
+			receiptId="$( AgentsHarnessDispatchReceipt "$itemName" )"
+			if [ -z "$receiptId" ] ; then
+				printf 'ERROR: dispatch item %s records no output-file and its name does not carry a spawn receipt, so its output log could not be located. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
+			fi
+			for logCandidate in "$MDAT_DATA_ROOT"/audit/*/"$receiptId".output.log ; do
+				[ -f "$logCandidate" ] || continue
+				## States only how the path was found. Whether the session is still open is
+				## reported on its own line from a live reading, and a clause here that
+				## could disagree with it would be worse than no clause at all.
+				logPath="$logCandidate" ; logHow="derived from the spawn receipt $receiptId"
+				break
+			done
+		fi
+		if [ -z "$logPath" ] ; then
+			printf 'ERROR: dispatch item %s was found, but no session log for spawn %s exists under %s/.local/agents/sessions, and no output log for receipt %s under %s/audit. Status recorded on the item: %s. The log is absent rather than unread.\n' "$itemName" "${sessionId:-<none>}" "${MMDAPP:-<no MMDAPP>}" "$receiptId" "$MDAT_DATA_ROOT" "${itemStatus:-<none>}" ; return 0
+		fi
+	fi
+	if [ ! -f "$logPath" ] ; then
+		printf 'ERROR: the output log named for this session does not exist: %s\n' "$logPath" ; return 0
+	fi
+	if [ ! -r "$logPath" ] ; then
+		printf 'ERROR: the output log named for this session is not readable: %s\n' "$logPath" ; return 0
+	fi
+	logTotal="$( wc -c < "$logPath" | tr -d ' ' )"
+	## The outcome first, on its own line, before anything that could be mistaken for it.
+	if [ "$liveNow" = "yes" ] && [ "$logTotal" -eq 0 ] ; then
+		printf 'OUTPUT-RESULT: EMPTY\n'
+	elif [ "$liveNow" = "yes" ] ; then
+		printf 'OUTPUT-RESULT: RUNNING\n'
+	elif [ "$liveNow" = "no" ] ; then
+		printf 'OUTPUT-RESULT: FINISHED\n'
+	else
+		printf 'OUTPUT-RESULT: UNKNOWN\n'
+	fi
+	printf 'Output log: %s\n' "$logPath"
+	printf 'Located by: %s\n' "$logHow"
+	[ -z "$itemName" ] || printf 'Dispatch item: %s, status %s\n' "$itemName" "${itemStatus:-<none>}"
+	case "$liveNow" in
+		yes) printf 'A process still carries this session id, so this log is STILL BEING WRITTEN: what follows is what exists so far, and its end is not the end of the work.\n' ;;
+		no)  printf 'No process carries this session id any more, so this log is complete.\n' ;;
+		*)   printf 'Whether a process still carries this session id could not be established, so it is NOT known whether this log is complete.\n' ;;
+	esac
+	if [ "$logTotal" -eq 0 ] ; then
+		printf 'The log is zero bytes: this session has written NOTHING YET. That is an empty log, never a session that produced nothing.\n'
+		return 0
+	fi
+	printf '\n'
+	AgentsHarnessWindowedRead "$logPath" "$toolOffset" "$toolLimit"
+}
+
+## Ends a running helper session. The session id the dispatch item records is on the
+## command line of the CLI the console started, so this reaches the process itself and
+## needs nothing from the helper.
+##
+## TERM alone by default, and KILL only where the caller asks for it: a stop that
+## escalates silently is a destructive default. Nothing is reported as stopped until
+## the process list has been read AGAIN and the process is gone -- a signal delivered
+## is not a process ended, and the two must never read alike.
+##
+## WHAT IS SIGNALLED IS KEPT, each process with when it began, and what is left is read by
+## those processes themselves, beside the run's walk (AgentsHarnessStopLeft): a process the
+## run started that ignores TERM outlives the run's own process, and no walk from the run
+## leads to it any more. So it is said to be still running, and with force it gets the KILL.
+## The same pid begun at another time is another process, and is never signalled for the first.
+## What is still there when this call ends is kept in the run's own store (AgentsHarnessStopKeep),
+## and the next stop of the run, or a kill of it, starts from that too: a call again with
+## force, which the STILL-RUNNING result tells its caller to make, finds what this one left.
+##
+## ONLY THE RUN ASKED FOR IS SIGNALLED, WITH WHAT IT STARTED. Its process is found by the one
+## rule a run is recognised by: its own --session-id or --resume word, or the process its spawn
+## record names; never by the id standing somewhere on a command line, which every other
+## participant of its session and the tooling hold too. With it go the processes it started, to
+## any depth, and never one that runs as another spawn, nor the shell that supervises one
+## (AgentsHarnessSessionPids). A filename is its item.
+## An id is the run that has it as its own: the item that names it as spawn-id (or, written
+## before session-id and spawn-id were split, as session-id alone); else, with no item of
+## its own, the spawn record of that name, which is what says the id is a run of this
+## workspace, and the stop is then recorded on no item, as the result says. An id that items
+## name only as the session they joined is refused with those items listed, since nothing
+## says which participant is meant; one that no item and no spawn record names is not
+## reached, whatever process carries it.
+AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
+	local toolHandle="${3:-${4:-$1}}" toolForce="$2"
+	local itemPath itemName itemStatus sessionId stopPids stopPid stopKept="" survivors forceWanted=no
+	local stopRecord stopItems stopNamed stopOf stopCloses="The dispatch item is closed by the spawn operation itself rather than here, so its status may still read as started for a moment."
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was signalled, and no session is implied to be absent.\n' ; return 0
+	fi
+	if [ -z "$toolHandle" ] ; then
+		printf 'ERROR: task_id is required: the spawn-id of the run, which ListAgents prints, or the dispatch item filename, which the Agent result names as DISPATCH_ITEM. Nothing was signalled.\n' ; return 0
+	fi
+	case "$toolForce" in
+		true|1|yes) forceWanted=yes ;;
+	esac
+	stopItems="$( AgentsHarnessDispatchItemPath "$toolHandle" every )"
+	itemPath="$( printf '%s\n' "$stopItems" | LC_ALL=C sed -n 's/^file //p' )"
+	if [ -z "$itemPath" ] ; then
+		## The item of the run that has this id as its own, never the first that holds it.
+		stopNamed="$( printf '%s\n' "$stopItems" | LC_ALL=C sed -n 's/^own //p' )"
+		[ -n "$stopNamed" ] || stopNamed="$( printf '%s\n' "$stopItems" | LC_ALL=C sed -n 's/^sole //p' )"
+		case "$stopNamed" in
+			*'
+'*)
+				printf 'ERROR: %s dispatch item(s) name %s as their own run: %s. Pass the filename of the one to stop as task_id. Nothing was signalled.\n' "$( printf '%s\n' "$stopNamed" | LC_ALL=C grep -c . )" "$toolHandle" "$( printf '%s\n' "$stopNamed" | AgentsHarnessDispatchItemsSaid )" ; return 0
+			;;
+		esac
+		itemPath="$stopNamed"
+	fi
+	if [ -z "$itemPath" ] ; then
+		## No dispatch item of its own: the handle is a spawn's own id where a spawn record of
+		## this workspace names it.
+		stopRecord="$( AgentsHarnessSpawnRecordPath "$toolHandle" )"
+		if [ -z "$stopRecord" ] ; then
+			## Items that name it only as the session they joined: no run of its own.
+			stopNamed="$( printf '%s\n' "$stopItems" | LC_ALL=C sed -n 's/^shared //p' )"
+			if [ -n "$stopNamed" ] ; then
+				printf 'ERROR: %s is the session id of %s dispatch item(s), and no item and no spawn record has it as its own run: %s. Pass the filename of the one to stop, or its spawn-id, as task_id. Nothing was signalled.\n' "$toolHandle" "$( printf '%s\n' "$stopNamed" | LC_ALL=C grep -c . )" "$( printf '%s\n' "$stopNamed" | AgentsHarnessDispatchItemsSaid )" ; return 0
+			fi
+			printf 'ERROR: no dispatch item matches handle %s in any board state under %s, and no spawn record under %s names it as its spawn-id. A run is reached by its dispatch item, or by the spawn-id ListAgents prints for it, and this handle is neither, so nothing was signalled.\n' "$toolHandle" "$MDAT_DATA_ROOT" "${MMDAPP:-<no MMDAPP>}/.local/agents/spawned" ; return 0
+		fi
+		itemStatus="$( AgentsHarnessDispatchField "$stopRecord" status )"
+		sessionId="$toolHandle"
+		stopOf="No dispatch item names session $sessionId as its own run, so there is no item to record a stop on. Its spawn record is $stopRecord"
+		stopCloses="The spawn record is closed by the spawn operation itself rather than here, so its status may still read as started for a moment."
+	else
+		itemName="${itemPath##*/}"
+		itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
+		## spawn-id is this process's own OS handle; session-id is the shared
+		## coworking id since session-id and spawn-id were split apart, so an item
+		## written before that carries no spawn-id and session-id is still its own.
+		sessionId="$( AgentsHarnessDispatchField "$itemPath" spawn-id )"
+		[ -n "$sessionId" ] || sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
+		if [ -z "$sessionId" ] ; then
+			printf 'ERROR: dispatch item %s carries no session-id, so there is no handle on any process and NOTHING was signalled. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
+		fi
+		stopOf="Dispatch item $itemName, session $sessionId"
+	fi
+	## THE AUTHORITY to stop another run (F6.10): whoever it reports to, the owners role, or a grant of it.
+	if [ "$sessionId" != "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+		AgentsHarnessAuthorityAsk "the stop of run $sessionId" "$sessionId" TaskStop "$( printf '{"task_id":"%s","force":"%s"}' "$toolHandle" "${toolForce:-false}" )" || return 0
+	fi
+	stopPids="$( AgentsHarnessSessionPids "$sessionId" own-word )"
+	## What an ended run is said to be, by how it was found: a process that carried the session
+	## id, or, for a CLI that is given no session word, the process the run was started as.
+	local stopGone="the process list no longer carries that session id"
+	[ -z "$stopPids" ] || [ -n "$( AgentsHarnessSessionWordPids "$sessionId" own-word )" ] || stopGone="the process this run was started as, which its spawn record names, is no longer running"
+	if [ -z "$stopPids" ] ; then
+		printf 'STOP-RESULT: NO-PROCESS\n%s, status %s.\nNo running process carries that session id, so nothing was signalled. Where the status above is a closed one this session had already finished; otherwise the record says running and no process matches it, which is UNKNOWN rather than stopped -- the session may have died without its record being closed, or its CLI may not carry the session id on its command line.\n' "$stopOf" "${itemStatus:-<none>}" ; return 0
+	fi
+	## The ordered ending recorded before the signal, in the item's Decisions and the session
+	## transcript (AgentsTools.ReviewFlow.include); the stop itself stays this tool's. With no
+	## item there is nowhere to record it, which the result says.
+	[ -z "$itemPath" ] || "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-end "${harnessAgent:-unknown}" "$itemName" \
+		--reason taskstop --no-dismiss > /dev/null 2>&1 || :
+	stopKept="$( printf '%s\n' "$stopPids" | AgentsHarnessStopKept )" || stopKept=""
+	for stopPid in $stopPids ; do
+		kill -TERM "$stopPid" 2>/dev/null || :
+	done
+	sleep 2
+	survivors="$( AgentsHarnessStopLeft "$sessionId" "$stopKept" )"
+	AgentsHarnessStopKeep "$sessionId" "$survivors"
+	if [ -z "$survivors" ] ; then
+		printf 'STOP-RESULT: STOPPED\n%s.\nTERM was sent to pid(s) %s and %s.\n%s\n' "$stopOf" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" "$stopGone" "$stopCloses" ; return 0
+	fi
+	if [ "$forceWanted" != "yes" ] ; then
+		printf 'STOP-RESULT: STILL-RUNNING\n%s.\nTERM was sent to pid(s) %s and pid(s) %s are still running two seconds later. Nothing further was sent: KILL happens only when force is asked for. Call again with force set true to send it.\n' "$stopOf" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" "$( printf '%s' "$survivors" | tr '\n' ' ' )" ; return 0
+	fi
+	for stopPid in $survivors ; do
+		kill -KILL "$stopPid" 2>/dev/null || :
+	done
+	sleep 2
+	survivors="$( AgentsHarnessStopLeft "$sessionId" "$stopKept" )"
+	AgentsHarnessStopKeep "$sessionId" "$survivors"
+	if [ -z "$survivors" ] ; then
+		printf 'STOP-RESULT: KILLED\n%s.\nTERM did not end it, KILL was sent because force was asked for, and %s.\nA KILLed CLI reaps none of its own children, so anything it had started may still be running.\n' "$stopOf" "$stopGone" ; return 0
+	fi
+	printf 'STOP-RESULT: NOT-STOPPED\n%s.\nTERM and then KILL were both sent, and pid(s) %s are STILL present. This session was NOT stopped -- report it rather than working around it.\n' "$stopOf" "$( printf '%s' "$survivors" | tr '\n' ' ' )"
+}
+
+## Whether this run is a work duty, as its own spawn record names its routine (`<member>.work-duty.routine.md`): rc 0 it is.
+AgentsHarnessWorkDuty(){
+	local dutyRecord=""
+	dutyRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$dutyRecord" ] || return 1
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" routine )" in *.work-duty.routine.md) return 0 ;; esac
+	return 1
+}
+
+## Who a handback is for where its call names nobody: the caller, the member that made the
+## spawn call this session was started by, as the spawn records name it (AgentsToolsSessionParentMember). Prints
+## nothing where no record names it, where it is this member itself, or where the member
+## send would not take the name as an addressee: a default never fails a handback.
+AgentsHarnessCallerMember(){
+	local callerMember=""
+	type AgentsToolsSessionParentMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+	type AgentsToolsSessionParentMember > /dev/null 2>&1 && type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || return 0
+	callerMember="$( AgentsToolsSessionParentMember 2> /dev/null )" || return 0
+	## The bare name the member send itself holds an addressee to.
+	case "$callerMember" in .|..|-*) return 0 ;; esac
+	AgentsHarnessBareName "$callerMember" && [ "$callerMember" != "$harnessAgent" ] || return 0
+	AgentsToolsTeamMemberDirectory "$callerMember" > /dev/null 2>&1 || return 0
+	printf '%s' "$callerMember"
+}

@@ -105,9 +105,9 @@ rigOwnReplies(){ ## later messages
 rigReplies(){ ## later messages
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"opener"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"Q1","thread_ts":"1700000001.000101"},{"ts":"1700000001.000103","user":"URIGSELF1","text":"Q2","thread_ts":"1700000001.000101"}%s],"has_more":false}\n' "$1" > "$rigScenarioDir/replies.json"
 }
-rigEnv(){ ## command... -- run under the scenario's workspace, with no model key
+rigEnv(){ ## command... -- run under the scenario's workspace, with no model key and (as the runner gives every test) no background reader or collect thread of its own, which would take the same reply beside the collect this check counts
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
-		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_WORKSPACE_MODE=team-rig \
+		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_WORKSPACE_MODE=team-rig MDAT_COLLECT_THREAD=off MDAT_COMMS_READER=off MDAT_WAIT_REMIND=off \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" "$@" )
 }
 rigCollect(){ ## output name, collect arguments...

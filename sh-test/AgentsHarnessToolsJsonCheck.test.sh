@@ -192,6 +192,8 @@ while [ "$checkIntentAt" -lt "$checkIndex" ] ; do
 	checkIntentToolText="$( printf '%s' "$checkDoc" | LC_ALL=C awk -v path="tools.$checkIntentAt.function.description" -v mode=raw -f "$checkSliceAwk" 2>/dev/null )" || checkIntentToolText=""
 	case "$checkIntentRequired" in *'"description"'*) checkIntentRequired=required ;; *) checkIntentRequired=optional ;; esac
 	case "$checkIntentToolText" in *'give a short description of why'*) checkIntentToolText=told ;; *) checkIntentToolText=untold ;; esac
+	## ThisSession is the owner's own text, which governs over the house sentence (AgentsHarnessServedFloorCheck asserts it has none).
+	case "$checkIntentName" in *ThisSession*) checkIntentToolText=told ;; esac
 	if [ "$checkIntentGot" != "$checkIntentParam" ] || [ "$checkIntentRequired" != optional ] || [ "$checkIntentToolText" != told ] ; then
 		echo "HARNESS_TOOLS_JSON: FAIL"
 		echo "  warn: declaration $checkIntentAt ($checkIntentName) does not take the optional description as every tool must:"

@@ -239,6 +239,9 @@ rigProxy(){ ## output file, member, extra proxy arguments...
 rigProxy "$rigTmp/proxy-second.out" keeper-myx
 rigAssert "a second keeper run is refused, naming the run that holds the seat and where to ask it" \
 	"$( cat "$rigTmp/proxy-second.out.rc" ):$( LC_ALL=C grep -c -F -e "run $rigKeep2 holds its seat" "$rigTmp/proxy-second.out" ):$( LC_ALL=C grep -c -F -e "$rigS:keeper-myx" "$rigTmp/proxy-second.out" ):$( LC_ALL=C grep -c '^LAUNCHED=true' "$rigTmp/proxy-second.out" )" "1:1:1:0"
+rigProxy "$rigTmp/proxy-spawned.out" keeper-myx --start-context spawned
+rigAssert "a start said spawned into that session is refused the same way, on every start path" \
+	"$( cat "$rigTmp/proxy-spawned.out.rc" ):$( LC_ALL=C grep -c -F -e "run $rigKeep2 holds its seat" "$rigTmp/proxy-spawned.out" ):$( LC_ALL=C grep -c '^LAUNCHED=true' "$rigTmp/proxy-spawned.out" )" "1:1:0"
 rigProxy "$rigTmp/proxy-restart.out" keeper-myx --restarted-from "$rigKeep2"
 rigAssert "a restart of the run that holds it is not refused on the seat" "$( LC_ALL=C grep -c -F 'holds its seat' "$rigTmp/proxy-restart.out" )" 0
 

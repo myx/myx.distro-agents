@@ -269,15 +269,46 @@ rigAssert "the family has one arm for the features, which sources their include,
 rigAssert "the include does no work of a feature: no package, no service, no download, no removal of a folder; it runs the fragments and the command of the feature, by sh" \
 	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerFeature.include" | LC_ALL=C grep -c -E '(^|[^a-zA-Z_-])(pkg|brew|sysrc|service|pip|rm -rf) ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerFeature.include" | LC_ALL=C grep -c -E 'curl|wget' || : )" "0 0"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include" rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
-for rigOp in --manager-feature-list --manager-feature-part --manager-feature-ask --manager-feature-stt-test --manager-feature-preset ; do
+for rigOp in --manager-feature-list --manager-feature-part --manager-feature-models --manager-feature-ask --manager-feature-stt-test --manager-feature-preset ; do
 	rigAssert "$rigOp has its syntax echo once, its syntax line once and its entry once" "$( LC_ALL=C grep -c -E "^echo \"📘 syntax: DistroAgentsTools.fn.sh $rigOp( |\")" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -E "^📘 syntax: DistroAgentsTools.fn.sh $rigOp( |\$)" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -E "^		$rigOp( |\$)" "$rigHelpMd" || : )" "1 1 1"
 done
 rigRun "" --help-syntax --manager-feature-
-rigAssert "--help-syntax of the family prints the five lines" "$rigRc $( LC_ALL=C grep -c 'syntax: DistroAgentsTools.fn.sh --manager-feature-' "$rigTmp/err" || : )" "0 5"
+rigAssert "--help-syntax of the family prints the six lines" "$rigRc $( LC_ALL=C grep -c 'syntax: DistroAgentsTools.fn.sh --manager-feature-' "$rigTmp/err" || : )" "0 6"
 rigEntry(){ ## operation -- its entry in the help.md, from under its heading to the next operation
 	LC_ALL=C awk -v op="$1" 'index( $0, "\t\t" op ) == 1 && ( length( $0 ) == length( op ) + 2 || substr( $0, length( op ) + 3, 1 ) == " " ) { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
 }
 rigAssert "the entry of the list gives the form of the row, and the entry of the part the forms of its plan and its done" "$( rigEntry --manager-feature-list | LC_ALL=C grep -c -F '<feature|part> <feature> <part> <state> <disk-bytes> <memory-bytes> <running> <install> <update> <uninstall> <detail>' ) $( rigEntry --manager-feature-part | LC_ALL=C grep -c -F -e 'plan <action> <feature> <part> <download-bytes> <reclaim-bytes> <free-bytes> <ram-need-bytes> <ram-bytes> <blocked> <why>' -e 'done <action> <feature> <part> <state>' )" "1 2"
+
+echo "-- 7. the agreed set of models, by one command (S12.2) --"
+## the list of models of the stand-in local AI: the speech model of every profile, the default chat model of two profiles
+printf '%s\n' '# id	part	family	params	quant	profiles	file	size_bytes	sha256	url' \
+	'stt-a	stt	whisper	x	q5_0	all*	f	50	0	u' 'chat-a	chat	qwen	4B	q8_0	shared-cpu*	f	100	0	u' 'chat-b	chat	qwen	9B	q8_0	big-cpu*	f	200	0	u' > "$rigAi/data/local-ai/models.tsv"
+rigReset
+rigRun "" --manager-feature-models
+rigAssert "no argument: the profile of the host (shared-cpu), its default chat model, the speech model and LanceDB; rows set, model and total; nothing called but the checks" \
+	"$rigRc | $( LC_ALL=C awk -F'\t' '$1 == "set" || $1 == "model" || $1 == "total" { print $1 ":" NF }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' ) | $( rigNoCalls )" "0 | set:4 model:7 model:7 model:7 total:4  | "
+rigAssert "the set row names the profile, the number of parts and that it is the profile's own" "$( LC_ALL=C grep '^set' "$rigTmp/out" | LC_ALL=C tr '\t' ' ' )" "set shared-cpu 3 profile"
+rigAssert "each model row: its feature, part, kind, state, bytes and whether it is the profile's default" "$( LC_ALL=C grep '^model' "$rigTmp/out" | LC_ALL=C cut -f2- | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr '\n' '|' )" \
+	"$rigAi_ stt-a stt not-installed 50 yes|$rigAi_ chat-a chat installed 100 yes|$rigDb_ lancedb embedding installed - yes|"
+rigAssert "the total is what is to be fetched (the speech model, 50), the free space, and not blocked; and it says it was a plan" "$( LC_ALL=C grep '^total' "$rigTmp/out" | LC_ALL=C tr '\t' ' ' ):$( rigErr 'that is the plan; nothing was done' )" "total 50 900000000000 no:1"
+rigRun "" --manager-feature-models --profile big-cpu
+rigAssert "--profile big-cpu: its default chat model in place of the first; chat-b is broken, so an update, and fetched again" "$( LC_ALL=C grep '^model' "$rigTmp/out" | LC_ALL=C cut -f3,5 | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr '\n' '|' ) $( LC_ALL=C grep '^total' "$rigTmp/out" | LC_ALL=C cut -f2 )" "stt-a not-installed|chat-b broken|lancedb installed| 250"
+rigRun "" --manager-feature-models --all
+rigAssert "--all: every chat model of the list, and the set row says all" "$( LC_ALL=C grep -c '^model' "$rigTmp/out" ) $( LC_ALL=C grep '^set' "$rigTmp/out" | LC_ALL=C cut -f4 )" "4 all"
+rigRun "" --manager-feature-models --profile nowhere
+rigAssert "a profile that is none, and a word that is none, are refused in one line, nothing called" "$rigRc $( rigErr 'no such profile: nowhere' ) | $( rigNoCalls )" "1 1 | "
+rigRun "" --manager-feature-models --soon
+rigAssert "an option that is none is refused, naming the syntax" "$rigRc $( rigErr 'syntax is [--profile shared-cpu|big-cpu|gpu] [--all] [--yes], got: --soon' )" "1 1"
+rigReset
+cp "$rigTmp/ai.check.canned" "$rigState/ai.after-install"
+LC_ALL=C sed -i.bak 's/^part.stt-a.state: not installed/part.stt-a.state: installed/' "$rigState/ai.after-install" && rm -f "$rigState/ai.after-install.bak"
+rigRun "" --manager-feature-models --yes
+rigAssert "--yes: the missing part is installed by --manager-feature-part, the way the console runs it: its fragment is called with the speech engine and the part, the installed ones are not called" "$rigRc | $( rigNoCalls )" "0 | TOOL install --dry-run --parse stt-engine stt-a|INSTALL ai PARTS=stt-engine stt-a FILES=$rigAi/data|"
+rigAssert "a result row for it, and an end row: one installed, none failed, two already there" "$( LC_ALL=C grep -E '^(result|end)' "$rigTmp/out" | LC_ALL=C cut -f2- | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr '\n' '|' )" "$rigAi_ stt-a installed|1 0 2|"
+rigReset
+printf '%s\n' 'local-ai: broken' 'host.free_bytes: 10' 'host.profile: shared-cpu' 'part.stt-a.part: stt' 'part.stt-a.state: not installed' 'part.stt-a.expected_bytes: 50' 'part.chat-a.part: chat' 'part.chat-a.state: installed' 'part.chat-a.expected_bytes: 100' > "$rigState/ai.check"
+rigRun "" --manager-feature-models --yes
+rigAssert "the set does not fit the free space: total says blocked, rc 1, one error line, nothing installed" "$rigRc $( LC_ALL=C grep '^total' "$rigTmp/out" | LC_ALL=C cut -f4 ) $( rigErr 'the set needs 50 bytes and 10 are free' ) | $( rigNoCalls )" "1 yes 1 | "
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER FEATURE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

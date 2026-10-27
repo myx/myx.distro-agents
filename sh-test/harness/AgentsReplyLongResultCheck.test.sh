@@ -188,10 +188,13 @@ rigAssert "through MCP, with a range, over 8 KB: whole, no file"      "$( rigWho
 rigMcp mrangedoff Read "{\"file_path\":\"$rigFix/long.txt\",\"offset\":2}"
 rigAssert "through MCP, with an offset alone: whole, no file"         "$( rigWhole mrangedoff 'rig line 0400 of the long result' )" whole
 ## A range over Read's own byte cap is cut at a whole line by Read, which names the offset to continue: it is still not kept.
-LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 1500 ; n++ ) printf "rig line %04d of the big result, padded to length\n", n }' > "$rigFix/big.txt"
+## Sized from the byte cap the served Read keeps (AgentsHarnessReadCap.include, or MDAT_READ_CAP_BYTES): 1500 lines, each longer than cap/1500 bytes, so the file is over the cap.
+. "$rigHere/harness/AgentsHarnessReadCap.include" || rigRefuse "the read cap of the package is missing: sh-lib/harness/AgentsHarnessReadCap.include"
+rigCap="${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}"
+LC_ALL=C awk -v cap="$rigCap" 'BEGIN { width = int( cap / 1500 ) + 12 ; for ( n = 1 ; n <= 1500 ; n++ ) { line = sprintf( "rig line %04d of the big result, padded to length ", n ) ; while ( length( line ) < width ) line = line "x" ; print line } }' > "$rigFix/big.txt"
 rigMcp mbig Read "{\"file_path\":\"$rigFix/big.txt\",\"limit\":2000}"
 rigAssert "through MCP, a range over Read's own cap: cut by Read at a whole line, naming the offset to continue, and not kept" \
-	"$( rigHasBody mbig 'KEPT:' ) $( rigHasBody mbig 'continue with offset' ) $( [ "$( rigBytes mbig )" -gt 40000 ] && [ "$( rigBytes mbig )" -lt 60000 ] && printf within || printf "bytes:$( rigBytes mbig )" )" "0 1 within"
+	"$( rigHasBody mbig 'KEPT:' ) $( rigHasBody mbig 'continue with offset' ) $( [ "$( rigBytes mbig )" -gt $(( rigCap * 8 / 10 )) ] && [ "$( rigBytes mbig )" -lt $(( rigCap * 12 / 10 )) ] && printf within || printf "bytes:$( rigBytes mbig )" )" "0 1 within"
 ## The same file read with neither: kept as before, and the hint to read the rest names the file read and the next offset.
 rigNext=$(( $( rigPreviewLines "${rigLongFile:-/nonexistent}" ) + 1 ))
 rigAssert "served, with neither: kept, and the hint names the original file and the next offset, not the kept copy" \

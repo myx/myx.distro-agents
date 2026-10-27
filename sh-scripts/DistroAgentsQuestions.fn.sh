@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 ##
-## DistroAgentsQuestions.fn.sh -- every ask of the team (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
-## the shell console and shell automation alike. Its operations: the escalations (questions, readbacks, permission requests, decisions) and the replies pending to them. They are the lines of
-## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
+## DistroAgentsQuestions.fn.sh -- every ask of the team (F1.4 of the refactorings epic).
+## A subsystem interface: results are read from it by agent tools, the shell console and shell automation alike.
+## Its operations: the escalations (questions, readbacks, permission requests, decisions) and the replies pending to them.
+## They are the names of the front table, sh-lib/harness/AgentsContext.FrontTable.include, that name this file; a bare call or --help lists them.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.

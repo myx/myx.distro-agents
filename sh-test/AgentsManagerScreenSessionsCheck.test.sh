@@ -29,6 +29,8 @@
 ## Reconciled for F11.0, the table lines: two spaces between the columns, an empty line between the rows of the sessions' table, and the columns reassessed for the fewest lines.
 ## Reconciled for F11.5: the body of the case is rewritten: the sessions are Active Sessions, Closed Sessions and Top Tokens of Activity, the agents Active, Waiting and Closed Agents; a session opens to its participants.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"

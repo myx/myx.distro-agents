@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 ##
-## DistroAgentsItems.fn.sh -- the items of the team's stores: board, inbox, audit and vault (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
-## the shell console and shell automation alike. Its operations: the board items and their states, the review of a dispatched item, the inbox notes, reflections and inquiries, and the audit and vault items. They are the lines of
-## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
+## DistroAgentsItems.fn.sh -- the items of the team's stores: board, inbox, audit and vault (F1.4 of the refactorings epic).
+## A subsystem interface: results are read from it by agent tools, the shell console and shell automation alike.
+## Its operations: the board items and their states, the review of a dispatched item, the inbox notes, reflections and inquiries, and the audit and vault items.
+## They are the names of the front table, sh-lib/harness/AgentsContext.FrontTable.include, that name this file; a bare call or --help lists them.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.

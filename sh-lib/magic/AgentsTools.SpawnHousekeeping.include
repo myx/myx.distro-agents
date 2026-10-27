@@ -47,6 +47,11 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			;;
 		esac
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" = spawn-started ] || continue
+		## An agent-less parent whose watcher is gone is closed from its children's outcomes, once they all have closed.
+		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" agent-less )" = true ] ; then
+			! AgentsToolsSpawnSessionParentClose "$recordPath" || housekeepingLog="${housekeepingLog}housekeeping: closed agent-less parent $rowTracking $rowSpawn from its children"$'\n'
+			continue
+		fi
 		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown
 		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" != "spawn-$endedOutcome" ] ; then
 			AgentsToolsDaemonLine "⚠️ WARNING: $MDSC_CMD routine lock take (advance): could not close the record of spawn $rowSpawn in $rowTracking"

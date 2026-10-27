@@ -9,6 +9,8 @@
 ## an unrelated concurrent push (rebased and pushed: released), and an unreachable origin.
 ## Offline: MMDAPP, MDAT_DATA_ROOT and the git global config all point into a mktemp tree.
 set -u
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 

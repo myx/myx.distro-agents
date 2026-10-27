@@ -493,5 +493,10 @@ RIGSCRIPT
 rigAssert "the workspace's own scope is not deleted: D opens nothing, and the status line says it is cleared, never deleted" "[$( rigVal common.dialog )] $( rigVal common.notice | LC_ALL=C grep -c -F -e 'cleared, never deleted' )" "[] 1"
 rigAssert "a scope that holds nothing is not cleared: c opens nothing, and the status line says there is no variable to take out" "[$( rigVal empty.dialog )] $( rigVal empty.notice | LC_ALL=C grep -c -F -e 'no variable to take out' ) $( rigCalls )" "[] 1 0"
 
+## the kinds of a value are a registry: .local names the kinds every scope has, and knows no subsystem's kind (the agents' `tier` is registered by the agents' own part)
+rigLocal="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.Scopes.py"
+rigAssert "the part of .local registers choice and number as kinds of a value and names no tier" "$( LC_ALL=C grep -c -e 'SCOPE_KIND_FORMS.setdefault("choice"' -e 'SCOPE_KIND_FORMS.setdefault("number"' "$rigLocal" ) $( LC_ALL=C grep -c '"tier"' "$rigLocal" || : )" "2 0"
+rigAssert "the agents' part registers the tier kind" "$( LC_ALL=C grep -c 'SCOPE_KIND_FORMS", {})\["tier"\]' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.CliPresets.py" )" "1"
+
 printf '\nTOTAL: %d passed, %d failed\n' "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" = 0 ]
