@@ -211,7 +211,7 @@ case "$1" in
 		while [ "$emitIndex" -lt "$emitCount" ] ; do
 			emitRelativeName="${payloadNames[$emitIndex]}"
 			emitBodyFile="${payloadPaths[$emitIndex]}"
-			emitBlockTag="BLK_$( cksum < "$emitBodyFile" | cut -d' ' -f1,2 | tr ' ' '_' )"
+			emitBlockTag="BLK_$( cksum < "$emitBodyFile" | LC_ALL=C cut -d' ' -f1,2 | tr ' ' '_' )"
 			if grep -q -x -F -- "$emitBlockTag" "$emitBodyFile" ; then
 				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: payload file contains its own block delimiter, refusing to emit: $emitBodyFile" >&2
 				set +e ; return 1
@@ -232,7 +232,7 @@ case "$1" in
 		done
 
 		if [ "$taskFromStdin" = "true" ] ; then
-			emitBlockTag="BLK_$( printf '%s\n' "$taskFromStdinBody" | cksum | cut -d' ' -f1,2 | tr ' ' '_' )"
+			emitBlockTag="BLK_$( printf '%s\n' "$taskFromStdinBody" | cksum | LC_ALL=C cut -d' ' -f1,2 | tr ' ' '_' )"
 			if printf '%s\n' "$taskFromStdinBody" | grep -q -x -F -- "$emitBlockTag" ; then
 				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: task body contains its own block delimiter, refusing to emit ($opContext)" >&2
 				set +e ; return 1
@@ -241,7 +241,7 @@ case "$1" in
 			printf '%s\n' "$taskFromStdinBody"
 			printf '%s\n\n' "$emitBlockTag"
 		else
-			emitBlockTag="BLK_$( cksum < "$taskLocalPath" | cut -d' ' -f1,2 | tr ' ' '_' )"
+			emitBlockTag="BLK_$( cksum < "$taskLocalPath" | LC_ALL=C cut -d' ' -f1,2 | tr ' ' '_' )"
 			if grep -q -x -F -- "$emitBlockTag" "$taskLocalPath" ; then
 				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: task file contains its own block delimiter, refusing to emit: $taskLocalPath" >&2
 				set +e ; return 1

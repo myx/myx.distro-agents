@@ -347,7 +347,8 @@ turn
 keys ENTER
 turn
 get editor
-keys DOWN SPACE TAB DOWN DOWN SPACE
+## the preset selector opens on "unset" (an override must be removable where it was set): rig-base is one step down, rig-ext two
+keys DOWN DOWN SPACE TAB DOWN DOWN SPACE
 turn
 keys ENTER
 wait action 30

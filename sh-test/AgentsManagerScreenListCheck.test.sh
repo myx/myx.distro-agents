@@ -120,7 +120,7 @@ keys LEFT
 get back
 RIGSCRIPT
 rigAssert "it can be selected, and the left pane follows"            "$( rigVal on.selected ) [$( rigVal onLeft )]" "launch [Launchpad [wrap]]"
-rigAssert "Enter dives into it, and it holds the four starts under the row that goes up" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) [$( rigVal inTitle )]" "magic-team/launch 5 .. [Launchpad]"
+rigAssert "Enter dives into it, and it holds the five starts under the row that goes up" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) [$( rigVal inTitle )]" "magic-team/launch 6 .. [Launchpad]"
 rigAssert "Left stays in the level it is in: it never climbs" "$( rigVal back.path ) $( rigVal back.selected )" "magic-team/launch .."
 
 echo "-- Up and Down stop at the ends --"

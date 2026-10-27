@@ -65,7 +65,7 @@ DIALOGS = {
                              {"name": "members", "kind": "checks", "label": "Members",
                               "empty": "the members are being read",
                               "required": "no member is checked: check one at least, with Space"},
-                             {"name": "task", "kind": "input", "label": "What the session is to work on"}),
+                             {"name": "task", "kind": "input", "label": "Comments/Scope"}),
                 "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
     ## the confirmation of a kill: exactly what will be killed, dismissed and closed, as
     ## the plan of that kill gives it, and the word that confirms it, typed whole
@@ -85,7 +85,7 @@ DIALOGS = {
     ## work on, and the name of that session
     "routine": {"title": "Start the routine", "feeds": "launch",
                 "controls": ({"name": "about", "kind": "text"},
-                             {"name": "task", "kind": "input", "label": "What the session is to work on"},
+                             {"name": "task", "kind": "input", "label": "Comments/Scope"},
                              {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
                 "buttons": (("start", "Start"), ("cancel", "Cancel"))},
     ## a prompt and who runs it: the free prompt of `Launchpad`, and the start of one

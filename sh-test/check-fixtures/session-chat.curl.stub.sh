@@ -7,11 +7,13 @@
 ## is a post that goes through.
 set -u
 rigHeader="$( cat )"
-rigMethod="" rigPrevArg="" rigBody="" rigChannel=""
+rigMethod="" rigPrevArg="" rigBody="" rigChannel="" rigReactTs="" rigReactName=""
 for rigArg in "$@" ; do
 	case "$rigArg" in
 		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ;;
 		channel@*) rigChannel="$( cat "${rigArg#channel@}" 2>/dev/null )" ;;
+		timestamp@*) rigReactTs="$( cat "${rigArg#timestamp@}" 2>/dev/null )" ;;
+		name@*) rigReactName="$( cat "${rigArg#name@}" 2>/dev/null )" ;;
 	esac
 	[ "$rigPrevArg" != "--data-binary" ] || rigBody="${rigArg#@}"
 	rigPrevArg="$rigArg"
@@ -49,6 +51,8 @@ case "$rigMethod" in
 	## A scenario can also have direct conversations: `dms.<token>.json`, the `channels` array of conversations.list for the account whose token ends so (none
 	## for the others), and `history.<channel>.json`, the answer of conversations.history for that conversation; users.info answers one person.
 	users.info) printf '{"ok":true,"user":{"id":"URIGFRIEND","name":"rig-friend","real_name":"Rig Friend","profile":{"display_name":"rigf"}}}\n' ;;
+	## A reaction goes through, and is kept as a line of $RIG_SCENARIO/reactions: "<channel> <timestamp> <name> <token>".
+	reactions.add) printf '%s %s %s %s\n' "$rigChannel" "$rigReactTs" "$rigReactName" "$rigToken" >> "$RIG_SCENARIO/reactions" ; printf '{"ok":true}\n' ;;
 	conversations.history|conversations.list)
 		if [ "$rigMethod" = "conversations.list" ] && [ -f "$RIG_SCENARIO/dms.$rigToken.json" ] ; then
 			printf '{"ok":true,"channels":%s,"response_metadata":{"next_cursor":""}}\n' "$( cat "$RIG_SCENARIO/dms.$rigToken.json" )"

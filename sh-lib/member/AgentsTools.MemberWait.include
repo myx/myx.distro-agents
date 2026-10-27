@@ -207,6 +207,8 @@ agentsWaitKindFloor="replies chat"
 ## Kinds whose rendering is a list of arrivals from a floor, so only a line the baseline lacks
 ## is an arrival: an item taken away (an inbox item marked handled, moved out of incoming/) is none.
 agentsWaitKindArrivalsOnly="inbox"
+## The tags' wider sweep, every channel the member is in beside the team channel, its session thread and its DMs: once in this many seconds.
+agentsWaitTaggedWideSeconds=60
 ## How far a floor (--wait-since-utime) may lead this host's clock, in seconds. The ts of a
 ## message just posted is another clock's "now", so a floor that close ahead is still a
 ## moment that has passed; one further ahead is not, and is refused before anything is waited on.
@@ -1270,7 +1272,7 @@ AgentsWaitScanCommit(){ ## member, scan, the file holding the report's sum
 }
 
 ## THE TAGS, for a collect (F4.1): `tagged:<member>`, what is for the member by name -- a mention of it in the team channel or in
-## its session thread, and any message of any DM -- from the floor forward. Each part behind a `# in <where>` line. It is
+## its session thread, any message of any DM, and (the wider sweep) a mention in any other channel it is in -- from the floor forward. Each part behind a `# in <where>` line. It is
 ## immediate: in a collect an arrival here ends the window. A part that cannot be read is said on stderr; the source is
 ## unreadable only where every part was. A message of a session thread where the member's instance is present is no work: it is
 ## returned for knowledge only, its rows marked FYI, which no duty takes as an item (AgentsWaitTaggedPart,
@@ -1340,6 +1342,39 @@ AgentsWaitProbeTagged(){
 		done <<< "$probeRoster"
 	else
 		probeFailed=$(( probeFailed + 1 ))
+	fi
+	## THE WIDER SWEEP: every other channel one of the member's identities is in, read for a mention of the member. It costs a
+	## read per channel, so it runs at the first round of the call and then once every agentsWaitTaggedWideSeconds, not every round.
+	local probeWideAt="" probeWideNow probeWideRoster probeWideLine probeWideConv probeWideKind probeWideIdentity probeWideArg probeWideSeen=""
+	probeWideNow="$( date +%s )"
+	{ IFS= read -r probeWideAt < "$probeOut.wide.at" ; } 2> /dev/null || probeWideAt=""
+	case "$probeWideAt" in ''|*[!0123456789]*) probeWideAt=0 ;; esac
+	if [ "$probeWideAt" -eq 0 ] || [ $(( probeWideNow - probeWideAt )) -ge "$agentsWaitTaggedWideSeconds" ] ; then
+		printf '%s\n' "$probeWideNow" > "$probeOut.wide.at" 2> /dev/null || :
+		probeParts=$(( probeParts + 1 ))
+		probeWideRoster="$( AgentsToolsCommsSlackConversationsRoster "$probeMember" --types public_channel,private_channel 2> /dev/null )" || :
+		if [ -n "$probeWideRoster" ] ; then
+			while IFS= read -r probeWideLine ; do
+				case "$probeWideLine" in "CONV|"*) ;; *) continue ;; esac
+				probeWideConv="" probeWideKind="" probeWideIdentity=""
+				for probeWideArg in $( printf '%s\n' "$probeWideLine" | LC_ALL=C tr '|' ' ' ) ; do
+					case "$probeWideArg" in
+						id=*) probeWideConv="${probeWideArg#id=}" ;;
+						kind=*) probeWideKind="${probeWideArg#kind=}" ;;
+						identity=*) probeWideIdentity="${probeWideArg#identity=}" ;;
+					esac
+				done
+				## A channel the roster lists is one the identity is in (AgentsToolsCommsSlackConversationsRoster); the team channel is read above.
+				[ -n "$probeWideConv" ] && [ "$probeWideKind" = other ] && [ "$probeWideConv" != "$probeTeamChannel" ] || continue
+				case " $probeWideSeen " in *" $probeWideConv "*) continue ;; esac
+				probeWideSeen="$probeWideSeen $probeWideConv"
+				if MDAT_WAIT_READ_AS_BOT="$( [ "$probeWideIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeWideConv" conversation "$probeFloor" "$probeOut.wide" ; then
+					AgentsWaitTaggedPart "$probeMember" "$probeWideConv" mentions "$probeFloor" "$probeOut.wide" "$probeOut" || :
+				fi
+			done <<< "$probeWideRoster"
+		else
+			probeFailed=$(( probeFailed + 1 ))
+		fi
 	fi
 	## A client-* member: the human-owner conversations its own scope names on the other organisation's side are its DMs there.
 	local probeClientConvs="" probeClientConv
@@ -2853,6 +2888,7 @@ case "$1" in
 		local seenIds="" seenOk=0 seenFailed="" seenOne seenFile seenKind seenSource seenOwnId=""
 		## Not for a call that reacts to what it takes itself (an asking call, MDAT_WAIT_SEEN_OWN), nor for a call that keeps no state (the tooling's own internal waits).
 		if [ "$waitOutcome" = "RECEIVED" ] && [ -n "$waitMode" ] && [ -z "${MDAT_WAIT_SEEN_OWN:-}" ] ; then
+			type AgentsToolsSeenReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SeenReaction.include"
 			type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
 			seenOwnId="$( AgentsToolsSessionChatMemberId "$memberName" 2> /dev/null )" || seenOwnId=""
 			for seenOne in $waitHits ; do
@@ -2862,8 +2898,8 @@ case "$1" in
 				seenIds="$seenIds$( AgentsWaitSeenIds "$memberName" "$seenSource" "$seenFile" "$seenOwnId" ) "
 			done
 			for seenOne in $( printf '%s\n' $seenIds | LC_ALL=C sort -u ) ; do
-				if DistroAgentsTools --intern-op-comms-slack-react "$memberName" "$seenOne" eyes > /dev/null 2>&1 \
-					|| DistroAgentsTools --intern-op-comms-slack-react "$memberName" "$seenOne" eyes --identity-bot > /dev/null 2>&1 ; then
+				## The store the loop shares (AgentsTools.SeenReaction.include): a message it gave the reaction to already is not reacted to again.
+				if AgentsToolsSeenReact "$memberName" "$seenOne" ; then
 					seenOk=$(( seenOk + 1 ))
 				else
 					seenFailed="$seenFailed$seenOne "

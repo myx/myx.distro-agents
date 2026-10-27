@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-## Behavioural check on the cache-keep of the work-duty (T1 of the 20261021 refactorings epic; AgentsToolsScheduleCacheKeep and
-## AgentsToolsScheduleWorkDuty, sh-lib/session/AgentsTools.DispatcherLoop.include, taken at each iteration of --intern-main-loop). The real
+## Behavioural check that a work-duty is NEVER STARTED TO KEEP A CACHE WARM (sketch 7.3, 10.4; it replaces the cache-keep restart of T1 of the
+## 20261021 refactorings epic): the cache is kept inside the running session by the keepalive of its --idle-wait. AgentsToolsScheduleWorkDuty, sh-lib/session/AgentsTools.DispatcherLoop.include, taken at each iteration of --intern-main-loop). The real
 ## loop (--one) and the real spawner run, as in AgentsScheduleLoopCheck; the console, curl, date and every setting are this rig's own.
 ## GUARD: every tooling call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this rig's
 ## tree and PATH holds no agent CLI. Held:
 ##   0. LAZY START STANDS. A member with nothing to work on and no earlier duty holds none, whatever the cache-keep interval.
 ##   1. THE FIRST ITEM STARTS IT. The item starts the duty (demand), and before the interval, with the item gone, it is not started again.
-##   2. CACHE-KEEP. After the interval, with no input, the duty is started again to keep its cache warm; a member that never held a duty is not.
+##   2. NO CACHE-KEEP RESTART. Long after the old cache-keep interval, with no input, an ended duty is not started again, and neither is a member
+##      that never held a duty.
 ## Offline, rig tree only.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -54,7 +55,7 @@ echo "-- 0. the lazy start stands --"
 rigOneRun idle0 ; rigWaitStarts
 rigAssert "worktime, no item, never held a duty: no duty of keeper-rig-02, and no cache-keep line for it" "$( rigDutyCount keeper-rig-02 ):$( rigSaid idle0 'work-duty: started the duty of keeper-rig-02' )" "0:0"
 
-echo "-- 1. the first item starts it, and before the interval it is not warmed again --"
+echo "-- 1. the first item starts it, and with the item gone it is not started again --"
 rigItem keeper-rig-02
 rigAt $(( rigMon13 + 20 ))
 rigOneRun start0 ; rigWaitStarts
@@ -64,11 +65,20 @@ rigAt $(( rigMon13 + 40 ))
 rigOneRun keep0 ; rigWaitStarts
 rigAssert "twenty seconds on, the item gone: the ended duty is not warmed again inside the interval" "$( rigSaid keep0 'work-duty: started the duty of keeper-rig-02' )" "0"
 
-echo "-- 2. after the interval, no input: warmed to keep the cache alive --"
+echo "-- 2. after the old cache-keep interval, no input: nothing is started --"
 rigAt $(( rigMon13 + 20 + 300 ))
 rigOneRun keep1 ; rigWaitStarts
-rigAssert "the cache-keep interval has passed: the duty is started to keep its cache warm" "$( rigSaid keep1 'work-duty: started the duty of keeper-rig-02 to keep its cache warm' )" "1"
-rigAssert "keeper-rig-03, which never held a duty, is not warmed" "$( rigSaid keep1 'work-duty: started the duty of keeper-rig-03' ):$( rigDutyCount keeper-rig-03 )" "0:0"
+rigAssert "the old cache-keep interval has passed: the ended duty is not started again to keep its cache warm" "$( rigSaid keep1 'work-duty: started the duty of keeper-rig-02' )" "0"
+rigAssert "keeper-rig-03, which never held a duty, is not started either" "$( rigSaid keep1 'work-duty: started the duty of keeper-rig-03' ):$( rigDutyCount keeper-rig-03 )" "0:0"
+
+echo "-- 3. worktime over: the session the duty kept for its restarts goes --"
+mkdir -p "$rigWs/.local/agents/schedule/duty-session" && printf 'rig-kept-session\n' > "$rigWs/.local/agents/schedule/duty-session/keeper-rig-02"
+rigAt $(( rigMon13 + 20 + 400 ))
+rigOneRun inflags ; rigWaitStarts
+rigAssert "within worktime, with no duty running: the kept session stays" "$( cat "$rigWs/.local/agents/schedule/duty-session/keeper-rig-02" 2> /dev/null )" "rig-kept-session"
+rigAt $(( rigMon13 + 36000 ))
+rigOneRun night ; rigWaitStarts
+rigAssert "worktime is over: the kept session is gone, so the next worktime opens a session of its own" "$( [ -e "$rigWs/.local/agents/schedule/duty-session/keeper-rig-02" ] && echo kept || echo gone )" "gone"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DUTY CACHE-KEEP CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

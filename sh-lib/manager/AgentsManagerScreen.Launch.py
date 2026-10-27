@@ -11,20 +11,43 @@
 ## what its goal or prompt is called there. A free prompt takes a member for now: the operation has no start without one.
 PAD_STARTS = (
     ("coworking", "Start Coworking Session...", "Members working together in one session, started with the same goal.",
-     "Session goal", "members"),
+     "Session Goal", "members"),
     ("standalone", "Start Standalone Session...", "One member, alone, in the standalone routine, with the goal as its task.",
-     "Session goal", "who"),
+     "Session Goal", "who"),
     ("work-duty", "Start Work-Duty Session...", "The duty session of one member, by its duty routine: one such session at a time for a member.",
-     "Comments or scope, or none", "who"),
+     "Comments/Scope", "who"),
+    ("routine", "Start Routine Session...", "A routine of the team, chosen here; its next page asks the members its entries take and its other fields.",
+     "Comments/Scope", "routine"),
     ("free", "Free Prompt...", "A prompt to one member, with no routine: only the floor of the member loads, no instruction of a session kind.",
      "Prompt", "who"),
 )
 PAD_NAMES = tuple(held[0] for held in PAD_STARTS)
 
 
+## The routines of the Launchpad's list that can be started from here, as the rows the list gave; None while the list is being read.
+def routineRowsOf(state):
+    rows = state.rows.get(pluginLevel("launch"))
+    if rows is None:
+        return []
+    return [one for one in rows if one.get("routine") and (one["routine"]["start"] == "startable" or routineAsksMembers(one["routine"]))]
+
+
+## The same as the options of a list: the selector of each.
+def routineOptions(state):
+    if pluginLevel("launch") not in state.rows:
+        return None
+    return [(one["routine"]["selector"], one["routine"]["selector"]) for one in routineRowsOf(state)]
+
+
 ## The dialog of one kind of start: the facts of the kind, who runs it (boxes for several, a list for one), what it is to work on,
 ## and the name of the session. The goal of a start with a goal, and the prompt of a free one, may not be empty; a duty may have neither.
 def padDialog(kind, label, goalLabel, whoKind):
+    if kind == "routine":
+        ## the first page of a routine's start: the routine is chosen here, and the page after it (the form of its slots, or its members, task and name) is the routine's own
+        return {"title": label.rstrip("."), "feeds": "start", "reads": ("list:launch",), "first": "routine",
+                "controls": ({"name": "about", "kind": "text"},
+                             {"name": "routine", "kind": "list", "label": "Routine", "required": "nothing is started: no routine is chosen"}),
+                "buttons": (("next", "Next"), ("cancel", "Cancel"))}
     who = ({"name": "members", "kind": "checks", "label": "Members",
             "empty": "the members are being read",
             "required": "no member is checked: check one at least, with Space"} if whoKind == "members" else
@@ -52,6 +75,10 @@ def askPad(state, row):
     options = memberOptions(state)
     fill = {"about": {"lines": [says, "No secret belongs in it: a goal shows on the command line of the CLI." if kind != "free" else
                                 "No secret belongs in it: a brief shows on the command line of the CLI."]}}
+    if kind == "routine":
+        fill = {"about": {"lines": [says]}, "routine": {"options": [SLOT_CHOOSE_FIRST] + (routineOptions(state) or []), "value": ""}}
+        openDialog(state, "pad-routine", fill, {"padKind": kind, "viewKey": viewKeyOf(state), "filled": routineOptions(state) is not None}, label.rstrip("."))
+        return ""
     fill["members" if whoKind == "members" else "who"] = {"options": options or []}
     openDialog(state, "pad-" + kind, fill, {"padKind": kind, "viewKey": viewKeyOf(state), "filled": options is not None}, label.rstrip("."))
     return ""
@@ -59,6 +86,12 @@ def askPad(state, row):
 
 ## The members of the list of the team into the dialog of a start, once it was read.
 def fillPad(state, dialog):
+    if dialog["about"]["padKind"] == "routine":
+        options = routineOptions(state)
+        if not dialog["about"]["filled"] and options is not None:
+            dialog["about"]["filled"] = True
+            dialogControl(dialog, "routine")["options"] = [SLOT_CHOOSE_FIRST] + options
+        return
     options = memberOptions(state)
     if dialog["about"]["filled"] or options is None:
         return
@@ -76,6 +109,14 @@ def fillPad(state, dialog):
 ## the goal (a free prompt's text goes on the standard input and never to the command line), and the name left or typed.
 def submitPad(state, dialog, button):
     kind = dialog["about"]["padKind"]
+    if kind == "routine":
+        chosen = dialogValue(dialog, "routine")
+        row = next((one for one in routineRowsOf(state) if one["routine"]["selector"] == chosen), None)
+        if row is None:
+            return "no routine is chosen"
+        ## this page closes and the routine's own start opens in its place (a dialog opened while another is open would wait behind it)
+        closeDialog(state)
+        return askLaunch(state, row) or None
     name = dialogValue(dialog, "name").strip()
     options = (dialogControl(dialog, "members") or {}).get("options", [])
     members = [one for one, label in options if one in dialogValue(dialog, "members")] if kind == "coworking" else [dialogValue(dialog, "who")]
@@ -202,17 +243,20 @@ def openRoutineSlotsForm(state, row, slots):
     lines = [("routine", routine["selector"]),
              ("session", "coworking: members working together in one session" if routine["session"] == "coworking" else routine["session"])]
     chooses = []
+    participantEntries = []
     for slot in slots:
+        if slot["side"] == "participants" and slot["how"] != "none":
+            ## the entry as the routine names it goes to `--participants` (a member, `<type>-*`, `all-present-members`); a `<type>-?` is the member chosen, put in its place
+            participantEntries.append(("choose%d" % len(chooses)) if slot["how"] == "choose" else slot["entry"])
         label = "%s %s" % (slot["side"], slot["entry"])
-        if slot["how"] == "choose" and slot["side"] != "executors":
-            ## the spawner starts the members that are named after the routine and nobody else, and spawns the routine's invitees never (--spawn-session): a choice for the participants
-            ## has nowhere to go in the call, so it is shown, with its candidates, and not asked for
-            lines.append((label, "chosen in the session, not by this start: " + ", ".join(slot["members"])))
-        elif slot["how"] == "choose":
+        if slot["how"] == "choose":
+            ## a `<type>-?` of the executors is named after the routine, one of the participants goes in the one `--participants`: a required select each, none chosen for the user
             name = "choose%d" % len(chooses)
             chooses.append((name, slot))
             controls.append({"name": name, "kind": "list", "label": "%s: choose one" % label, "required": "nothing is started: %s asks which member, and none is chosen" % label})
             fill[name] = {"options": [SLOT_CHOOSE_FIRST] + [(member, member) for member in slot["members"]], "value": ""}
+        elif slot["how"] == "none" and slot["side"] != "executors":
+            lines.append((label, "no member can take it, and it is left out of the start"))
         elif slot["how"] == "none":
             lines.append((label, "no member can take it: nothing can be started"))
         elif slot["how"] == "all":
@@ -221,13 +265,14 @@ def openRoutineSlotsForm(state, row, slots):
             lines.append((label, "all the present members: " + ", ".join(slot["members"])))
         else:
             lines.append((label, ", ".join(slot["members"])))
-    controls.append({"name": "task", "kind": "input", "label": "What the session is to work on"})
+    controls.append({"name": "task", "kind": "input", "label": "Comments/Scope"})
     controls.append({"name": "name", "kind": "input", "label": "Name of the session, or none"})
     fill["about"] = {"lines": lines}
     fill["name"] = {"value": routine["name"]}
     DIALOGS["routine-slots"] = {"title": "Start the routine", "feeds": "launch", "first": chooses[0][0] if chooses else "task",
                                 "controls": tuple(controls), "buttons": (("start", "Start"), ("cancel", "Cancel"))}
-    openDialog(state, "routine-slots", fill, {"routine": routine, "viewKey": viewKeyOf(state), "chooses": [name for name, slot in chooses],
+    openDialog(state, "routine-slots", fill, {"routine": routine, "viewKey": viewKeyOf(state), "chooses": [name for name, slot in chooses], "chooseSides": [slot["side"] for name, slot in chooses],
+                                              "participants": participantEntries,
                                               "blocked": [slot["entry"] for slot in slots if slot["how"] == "none" and slot["side"] == "executors"]})
 
 
@@ -238,14 +283,21 @@ def submitRoutineSlots(state, dialog, button):
     if about["blocked"]:
         return "%s can be taken by no member: nothing can be started" % ", ".join(about["blocked"])
     members = []
-    for name in about["chooses"]:
+    chosenBy = {}
+    for name, side in zip(about["chooses"], about["chooseSides"]):
         chosen = dialogValue(dialog, name)
-        if chosen and chosen not in members:
+        chosenBy[name] = chosen
+        if side == "executors" and chosen and chosen not in members:
             members.append(chosen)
+    participants = []
+    for entry in about["participants"]:
+        entry = chosenBy.get(entry, entry)
+        if entry and entry not in participants:
+            participants.append(entry)
     routine = about["routine"]
     name = dialogValue(dialog, "name").strip()
     task = dialogValue(dialog, "task").strip()
-    askCall(state, "launch", routine["selector"], callWords("launch", routine["selector"], name) + members, task + "\n" if task else None,
+    askCall(state, "launch", routine["selector"], callWords("launch", routine["selector"], name) + (["--participants", ",".join(participants)] if participants else []) + members, task + "\n" if task else None,
             {"name": name, "viewKey": about["viewKey"]})
     state.notice = "start asked of the tooling: %s, with %s" % (routine["selector"], ", ".join(members) or "its executors")
     state.noticeOf = None

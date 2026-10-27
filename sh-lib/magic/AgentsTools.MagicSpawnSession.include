@@ -27,15 +27,61 @@ AgentsToolsSpawnSessionParent(){ ## parent session id
 	done
 }
 
+## Header lines set on a spawn record another process may be writing too: read, changed, and moved in only where
+## the file is still what was read (three tries), as AgentsToolsSpawnProxyRunRecord does. Lines on stdin: `<header><TAB><value>`.
+AgentsToolsSpawnSessionRecordNote(){ ## record file
+	local noteFile="$1" noteOps noteSeen noteBody noteNow noteTries=0
+	[ -f "$noteFile" ] || return 1
+	noteOps="$( mktemp "$noteFile.ops.XXXXXX" )" || return 1
+	LC_ALL=C awk -F'\t' 'NF >= 2 { printf "upsert\t%s\t%s\n", $1, $2 }' > "$noteOps"
+	while [ "$noteTries" -lt 3 ] ; do
+		noteTries=$(( noteTries + 1 ))
+		noteSeen="" ; IFS= read -r -d '' noteSeen < "$noteFile" 2> /dev/null || :
+		[ -n "$noteSeen" ] || break
+		noteBody="$( printf '%s' "$noteSeen" | LC_ALL=C awk -v opsFile="$noteOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || noteBody=""
+		[ -n "$noteBody" ] || break
+		printf '%s\n' "$noteBody" 2> /dev/null > "$noteFile.note.$$" || break
+		noteNow="" ; IFS= read -r -d '' noteNow < "$noteFile" 2> /dev/null || :
+		[ "$noteNow" = "$noteSeen" ] || continue
+		chmod 644 "$noteFile.note.$$" 2> /dev/null ; mv -f "$noteFile.note.$$" "$noteFile" 2> /dev/null && { rm -f "$noteOps" ; return 0 ; }
+		break
+	done
+	rm -f "$noteOps" "$noteFile.note.$$"
+	return 1
+}
+## The founding record of a session this call started, given the lines; a warning, never a stop, where it cannot be.
+AgentsToolsSpawnSessionNoteSession(){ ## session id, the lines (`<header><TAB><value>` a line)
+	local noteRecord
+	for noteRecord in "$MMDAPP"/.local/agents/spawned/*/"$1.spawn.md" ; do
+		[ -f "$noteRecord" ] && printf '%s' "$2" | AgentsToolsSpawnSessionRecordNote "$noteRecord" && return 0
+	done
+	echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: the participants and the likely needs could not be written on the record of session $1" >&2
+	return 0
+}
+
 case "$1" in
 
 	--spawn-session)
 		shift
 		local routineSelector="" routineDefault="false" sessionNameOrComment="" sessionDescription=""
 		local sessionCliService="" sessionSettingsWorkspace=""
-		local spawnMembers=()
+		local spawnMembers=() sessionJoinId=""
+		## THE PARTICIPANTS and what the work likely needs, as whoever prepares the dispatch guesses them: validated before
+		## anything starts and recorded on the spawn records, never started here -- the executor invites each participant.
+		local participantsValue="" participantsGiven="false" likelyPermissions=() likelyTools=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				## The session this call brings its members into instead of starting one: a work-duty that starts again is the
+				## same session and the same thread, never a new team-channel header (AgentsToolsScheduleSpawn).
+				--join-session)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --join-session requires <session-id>" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "<session-id>" spawn-session || { set +e ; return 1 ; }
+					sessionJoinId="$2"
+					shift 2
+				;;
 				--routine)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --routine requires <selector>" >&2
@@ -86,8 +132,36 @@ case "$1" in
 					sessionSettingsWorkspace="$2"
 					shift 2
 				;;
+				--participants)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --participants requires <entry>[,<entry>...] or none" >&2
+						set +e ; return 1
+					fi
+					if [ "$participantsGiven" = "true" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --participants is given once, its entries comma-separated" >&2
+						set +e ; return 1
+					fi
+					participantsValue="$2" ; participantsGiven="true"
+					shift 2
+				;;
+				--likely-permission)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --likely-permission requires <tool>:<target>" >&2
+						set +e ; return 1
+					fi
+					likelyPermissions+=( "$2" )
+					shift 2
+				;;
+				--likely-tool)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --likely-tool requires <tool>" >&2
+						set +e ; return 1
+					fi
+					likelyTools+=( "$2" )
+					shift 2
+				;;
 				--*)
-					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -218,6 +292,54 @@ case "$1" in
 			AgentsToolsTeamMemberStartCheck "$spawnCheckMember" "$spawnCheckFolder" "--spawn-session" || { set +e ; return 1 ; }
 		done
 
+		## The participants given, resolved by the invitees roster (AgentsToolsSpawnRoutineInviteesRoster): members, <type>-*,
+		## all-present-members; a <type>-? is a choice the caller makes, refused with its candidates. Nothing given is nothing checked.
+		local participantsList="" participantsWhy="" participantOne
+		if [ "$participantsGiven" = "true" ] ; then
+			case "$( printf '%s' "$participantsValue" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )" in
+				'*'|magic-team)
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --participants '$participantsValue' names no members -- name them, a <type>-*, or all-present-members; nothing was started" >&2
+					set +e ; return 1 ;;
+			esac
+			if ! participantsWhy="$( AgentsToolsSpawnRoutineInviteesRoster "$participantsValue" )" ; then
+				case "$participantsWhy" in
+					choice-required*)
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: participant $( printf '%s' "${participantsWhy%%$'\n'*}" | LC_ALL=C cut -f2 )-? is a choice: name the one member to invite -- nothing was started. Its candidates:" >&2
+						printf '%s\n' "$participantsWhy" | LC_ALL=C sed -e '1d' -e 's/^/  /' >&2 ;;
+					none-of-type*) echo "$MDSC_CMD: spawn-session: ⛔ ERROR: participants: no member of the type $( printf '%s' "$participantsWhy" | LC_ALL=C cut -f2 ) on any workspace of this machine -- nothing was started" >&2 ;;
+					no-member*) echo "$MDSC_CMD: spawn-session: ⛔ ERROR: participants: no such team member: $( printf '%s' "$participantsWhy" | LC_ALL=C cut -f2 ) -- nothing was started" >&2 ;;
+					none-present) echo "$MDSC_CMD: spawn-session: ⛔ ERROR: participants: all-present-members names no member on this machine -- nothing was started" >&2 ;;
+					*) echo "$MDSC_CMD: spawn-session: ⛔ ERROR: participants '$participantsValue' is not a comma-separated list of entries -- nothing was started" >&2 ;;
+				esac
+				set +e ; return 1
+			fi
+			## Each member once, in the order given.
+			while IFS= read -r participantOne ; do
+				[ -n "$participantOne" ] || continue
+				case " $participantsList " in *" $participantOne "*) ;; *) participantsList="$participantsList${participantsList:+ }$participantOne" ;; esac
+			done <<< "$participantsWhy"
+		fi
+		## What the work likely needs, recorded for a later hint: a permission entry <tool>:<target>, a tool by its name.
+		local likelyOne likelyPermissionsLine="" likelyToolsLine=""
+		for likelyOne in ${likelyPermissions[@]+"${likelyPermissions[@]}"} ; do
+			case "$likelyOne" in
+				*$'\n'*|*$'\t'*|*', '*) echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --likely-permission '$likelyOne' holds a line break, a tab or ', ' -- nothing was started" >&2 ; set +e ; return 1 ;;
+				*:?*) ;;
+				*) echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --likely-permission '$likelyOne' is not <tool>:<target> -- nothing was started" >&2 ; set +e ; return 1 ;;
+			esac
+			AgentsToolsAssertBareName "${likelyOne%%:*}" "the tool of --likely-permission" spawn-session || { set +e ; return 1 ; }
+			likelyPermissionsLine="$likelyPermissionsLine${likelyPermissionsLine:+, }$likelyOne"
+		done
+		for likelyOne in ${likelyTools[@]+"${likelyTools[@]}"} ; do
+			AgentsToolsAssertBareName "$likelyOne" "--likely-tool" spawn-session || { set +e ; return 1 ; }
+			likelyToolsLine="$likelyToolsLine${likelyToolsLine:+, }$likelyOne"
+		done
+		## The lines each record of this call is given, one `<header><TAB><value>` a line.
+		local recordNotes=""
+		[ "$participantsGiven" != "true" ] || recordNotes="${recordNotes}participants"$'\t'"${participantsList:-none}"$'\n'
+		[ -z "$likelyPermissionsLine" ] || recordNotes="${recordNotes}likely-permissions"$'\t'"$likelyPermissionsLine"$'\n'
+		[ -z "$likelyToolsLine" ] || recordNotes="${recordNotes}likely-tools"$'\t'"$likelyToolsLine"$'\n'
+
 		## A `<type>-*` among the routine's own executors or the caller's, and two or more members the
 		## caller names, partition the run: one session per member, under one agent-less parent session
 		## (the tooling's own new session) that owns the run as its caller, watches them, posts to Slack,
@@ -238,6 +360,8 @@ case "$1" in
 		## rule), which is why this call never spawns the routine's invitees.
 		local spawnSessionId="" spawnMember spawnOut
 		local spawnFirst="true"
+		## A session joined has no first spawn that starts it: every member goes in under its id.
+		if [ -n "$sessionJoinId" ] ; then spawnFirst="false" ; spawnSessionId="$sessionJoinId" ; fi
 		local partitionParentId="" partitionChildren="" partitionMember="" partitionSession="" partitionThread="" partitionReports=""
 		local partitionRecord="" partitionFailed="" partitionTemp partitionWatcher partitionStart
 		if [ "$partitionRoster" = "true" ] ; then
@@ -284,6 +408,7 @@ case "$1" in
 				[ -z "$partitionThread" ] || printf 'session-thread: %s\n' "$partitionThread"
 				[ -z "$partitionReports" ] || printf 'reports-to: %s\n' "$partitionReports"
 				printf 'agent-less: %s\n' "true"
+				[ -z "$recordNotes" ] || printf '%s' "$recordNotes" | LC_ALL=C awk -F'\t' 'NF >= 2 { printf "%s: %s\n", $1, $2 }'
 				printf 'children:\n'
 				printf 'status: %s\n' "spawn-started"
 				printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
@@ -310,6 +435,7 @@ case "$1" in
 				partitionChildId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 				[ -n "$partitionChildId" ] || { partitionFailed="the spawn of $spawnMember reported no SESSION_ID" ; break ; }
 				partitionChildren="$partitionChildren${partitionChildren:+ }$partitionChildId"
+				[ -z "$recordNotes" ] || AgentsToolsSpawnSessionNoteSession "$partitionChildId" "$recordNotes"
 			elif [ "$spawnFirst" = "true" ] ; then
 				## This operation starts a session, so its first spawn asks for one of its own:
 				## otherwise it would be brought into the calling session's.
@@ -320,6 +446,7 @@ case "$1" in
 					set +e ; return 1
 				fi
 				spawnFirst="false"
+				[ -z "$recordNotes" ] || AgentsToolsSpawnSessionNoteSession "$spawnSessionId" "$recordNotes"
 			else
 				spawnArgs+=( --session-id "$spawnSessionId" )
 				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --spawn-session > /dev/null || { set +e ; return 1 ; }
@@ -349,12 +476,14 @@ case "$1" in
 			echo "SESSION_ID=$partitionParentId"
 			echo "ROUTINE=$resolvedRoutineName"
 			echo "MEMBERS=${spawnMembers[*]}"
+			[ "$participantsGiven" != "true" ] || echo "PARTICIPANTS=$participantsList"
 			echo "CHILDREN=$partitionChildren"
 			return 0
 		fi
 		echo "SESSION_ID=$spawnSessionId"
 		echo "ROUTINE=$resolvedRoutineName"
 		echo "MEMBERS=${spawnMembers[*]}"
+		[ "$participantsGiven" != "true" ] || echo "PARTICIPANTS=$participantsList"
 		return 0
 	;;
 

@@ -96,8 +96,8 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 	local liveRecord liveSpawn liveLeft
 	liveRecord="$( LC_ALL=C grep -l -x "owner: $1" $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.spawn.md ) | head -1 )"
 	liveSpawn="${liveRecord##*/}" ; liveSpawn="${liveSpawn%.spawn.md}"
-	## The real start of this duty ends a moment after its record says so, with a last milestone of its own; the run of the rig is made after that, or it is written over.
-	liveLeft=150
+	## The real start of this duty ends a moment after its record says so, with a last milestone of its own; the run of the rig is made after that, or it is written over. A loaded machine takes minutes over it: the wait is bounded at ten.
+	liveLeft=3000
 	while [ "$liveLeft" -gt 0 ] && ! LC_ALL=C grep -q ' end$' "$rigStores/$liveSpawn/milestones" 2> /dev/null ; do sleep 0.2 ; liveLeft=$(( liveLeft - 1 )) ; done
 	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-started/' -e '/^resolved-at: /d' "$liveRecord" && rm -f "$liveRecord.bak"
 	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then

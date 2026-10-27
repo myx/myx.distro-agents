@@ -2583,13 +2583,8 @@ blocks|verbatim|caller|stdin file"
 		## "→ @here" into a client's channel because this default applied to them. A reply says who
 		## it is for in its own words, or names them, and gets no default addressee.
 		if [ -z "$addressToList" ] ; then
-			if [ -n "${threadTs:-}" ] ; then
-				addressedText=""
-				addressedElems=""
-			else
-				addressedText="@here"
-				addressedElems="{\"type\":\"text\",\"text\":\"@here\"},"
-			fi
+			addressedText="@here"
+			addressedElems="{\"type\":\"text\",\"text\":\"@here\"},"
 		fi
 
 

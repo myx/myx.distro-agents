@@ -186,14 +186,15 @@ cells row9 10 85 119
 cells row10 11 85 119
 cells row11 12 85 119
 cells row12 13 85 119
+cells row13 14 85 119
 looks k
 RIGSCRIPT
 rigAssert "until it is entered the routines are not read"            "$( rigVal on.selected ) $( rigCalled '--manager-routine-list --facts-only' )" "launch 1"
 rigAssert "entering it asks the fast listing of the routines, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled '--manager-routine-list --facts-only' ) $( rigOthers )" "magic-team/launch list:magic-team/launch 1 0"
-rigAssert "the rows under the row that goes up are the four starts of the Launchpad, one for each kind" "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )] $( rigVal in.rows )" "[Launchpad] [>..][ Start Coworking Session...][ Start Standalone Session...][ Start Work-Duty Session...][ Free Prompt...] 10"
-rigAssert "then every routine, in the order of the operation, by its selector without .routine.md" "[$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )]" "[ keeper-myx.spec-conformance][ magic-coordinator.daily][ magic-coordinator.retro]"
-rigAssert "one that cannot be started carries what the operation says of it" "[$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )]" "[ magic-team.discuss  not-startable][ odd                        broken][]"
-rigAssert "and shows plainer than the ones that can"                 "$( rigLooks k 9 86 86 )$( rigLooks k 10 86 86 )$( rigLooks k 11 86 86 )$( rigLooks k 12 86 86 )$( rigLooks k 13 86 86 )" "...DD"
+rigAssert "the rows under the row that goes up are the five starts of the Launchpad, one for each kind, in the order of the sketch (routine before free prompt)" "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )] $( rigVal in.rows )" "[Launchpad] [>..][ Start Coworking Session...][ Start Standalone Session...][ Start Work-Duty Session...][ Start Routine Session...][ Free Prompt...] 11"
+rigAssert "then every routine, in the order of the operation, by its selector without .routine.md" "[$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )]" "[ keeper-myx.spec-conformance][ magic-coordinator.daily][ magic-coordinator.retro]"
+rigAssert "one that cannot be started carries what the operation says of it" "[$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )]" "[ magic-team.discuss  not-startable][ odd                        broken][]"
+rigAssert "and shows plainer than the ones that can"                 "$( rigLooks k 10 86 86 )$( rigLooks k 11 86 86 )$( rigLooks k 12 86 86 )$( rigLooks k 13 86 86 )$( rigLooks k 14 86 86 )" "...DD"
 rigAssert "on the row that goes up the left pane is the level's table, nothing above it" "[$( rigPane u 3 )]" "[  ROUTINE          START         OWNER             TITLE                  SESSION]"
 
 echo "-- the left pane shows the selected routine, and the keys that act on it --"
@@ -204,7 +205,7 @@ rigScript <<'RIGSCRIPT'
 ## prompt and one more reaches the first routine
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 turn
 get free
 show f
@@ -254,7 +255,7 @@ rigBoxHas(){ printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -
 rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 copy $rigTmp/start/after.rows $rigTmp/start/rows
 keys ENTER
 wait plan 30
@@ -282,7 +283,7 @@ cells upRow4 4 85 119
 RIGSCRIPT
 rigAssert "Enter on a routine opens its dialog, the keys on what the session is to work on, and in it the name of its session: the selector without its owner and .routine.md" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   daily ' )" "[routine:task|] [Start the routine] 1"
 rigAssert "the dialog says what will be started, and as whom"        "$( rigBoxHas d "║   routine   $rigDaily " ) $( rigBoxHas d '║   executors magic-coordinator: it runs as its executors, whoever is ' )" "1 1"
-rigAssert "its fields are what the session is to work on and its name, over Start and Cancel" "$( rigBoxHas d '║   What the session is to work on ' ) $( rigBoxHas d '║   Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' ) $( rigBoxHas d 'With no name the session shows by its id.' )" "1 1 1 1"
+rigAssert "its fields are what the session is to work on and its name, over Start and Cancel" "$( rigBoxHas d '║   Comments/Scope ' ) $( rigBoxHas d '║   Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' ) $( rigBoxHas d 'With no name the session shows by its id.' )" "1 1 1 1"
 rigAssert "until Enter is pressed again nothing is started"          "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[routine:task|] 0 []"
 ## The bottom line is the COMMAND LINE: the keys that act now take it, and what the screen last
 ## said stands at its right, cut to what is left -- so the notice is checked by its beginning.
@@ -301,7 +302,7 @@ rigCase name
 rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 keys ENTER
 wait plan 30
 turn
@@ -339,7 +340,7 @@ rigCase refuse
 rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 keys ENTER
 wait plan 30
 turn
@@ -355,8 +356,8 @@ get closed
 keys RIGHT
 get right
 keys ESC
-mouse click 100 11
-mouse click 100 11
+mouse click 100 12
+mouse click 100 12
 get click
 keys ESC
 keys ALT-s ENTER
@@ -392,7 +393,7 @@ echo fail > "$MANAGER_SCREEN_RIG/mode.--spawn-session"
 rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 keys ENTER
 wait plan 30
 turn
@@ -431,11 +432,11 @@ rigMembersCase members
 rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get on
 show o
-cells onRow 12 85 119
+cells onRow 13 85 119
 cells onKeys 37 1 83
 cells onKeysStatus 39 0 120
 cells onStatus 39 0 120
@@ -462,7 +463,7 @@ rigAssert "the left pane says that its members are asked for, and it and the sta
 rigAssert "Enter opens the dialog of its members, and starts nothing" "$( rigVal opened.dialog ) [$( rigVal opened.dialogTitle )] $( rigVal opened.calls )" "members:members| [Start the routine with members] 0"
 rigAssert "the members are read by the operation that lists the team, once" "$( rigCalled --manager-team-member-list )" "1"
 rigAssert "the dialog names the routine, and has a box for each member that can be started from here, and for no other" "$( rigBoxHas m '║   routine   magic-team.discuss.routine.md ' ) $( rigBoxHas m '║   [ ] magic-coordinator ' ) $( rigBoxHas m '║   [ ] keeper-myx ' ) $( rigBoxHas m '║   [ ] magic-tester ' ) $( rigBoxHas m 'human-owner' ) $( rigBoxHas m 'keeper-gone' )" "1 1 1 1 0 0"
-rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║   What the session is to work on ' ) $( rigBoxHas m ' OK  ▅  »Cancel« ▅' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  UP/DN Move  ENTER Cancel  TAB Next  ESC Cancel]"
+rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║   Comments/Scope ' ) $( rigBoxHas m ' OK  ▅  »Cancel« ▅' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  UP/DN Move  ENTER Cancel  TAB Next  ESC Cancel]"
 rigAssert "OK with no member checked is refused inside the dialog, and starts nothing" "$( rigVal none.dialog ) [$( rigVal none.dialogSays )] $( rigVal none.calls )" "members:members| [no member is checked: check one at least, with Space] 0"
 rigAssert "Space checks a member, and Tab goes on to the field"      "$( rigVal typed.dialog )" "members:task|the plan for Monday"
 rigAssert "OK starts it: the dialog closes, and the status line says with whom" "[$( rigVal started.dialog )] [$( rigVal started.notice )]" "[] [start asked of the tooling: $rigDiscuss, with magic-coordinator, magic-tester]"
@@ -473,7 +474,7 @@ rigMembersCase membersEsc
 rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN ENTER
 wait plan 30
 wait list 30
 keys SPACE ESC
@@ -510,15 +511,22 @@ get duty
 box d
 keys ESC
 keys DOWN ENTER
+get rou
+box r
+keys DOWN
+get roulist
+keys ESC
+keys DOWN ENTER
 get free
 box f
 keys ESC
 turn 3
 get end
 RIGSCRIPT
-rigAssert "Start Coworking Session: members to check, the goal, the name; the keys are on the goal" "[$( rigVal cow.dialog )] [$( rigVal cow.dialogTitle )] $( rigBoxHas c '║   [ ] magic-coordinator ' ) $( rigBoxHas c '║   Session goal ' ) $( rigBoxHas c '║   Name of the session, or none ' )" "[pad-coworking:goal|] [Start Coworking Session] 1 1 1"
-rigAssert "Start Standalone Session: one member in a list, the goal, the name" "[$( rigVal sta.dialog )] [$( rigVal sta.dialogTitle )] $( rigBoxHas s '║   Member ' ) $( rigBoxHas s '║   Session goal ' )" "[pad-standalone:goal|] [Start Standalone Session] 1 1"
-rigAssert "Start Work-Duty Session: one member, comments or scope that may stay empty" "[$( rigVal duty.dialog )] [$( rigVal duty.dialogTitle )] $( rigBoxHas d '║   Comments or scope, or none ' )" "[pad-work-duty:goal|] [Start Work-Duty Session] 1"
+rigAssert "Start Coworking Session: members to check, the goal, the name; the keys are on the goal" "[$( rigVal cow.dialog )] [$( rigVal cow.dialogTitle )] $( rigBoxHas c '║   [ ] magic-coordinator ' ) $( rigBoxHas c '║   Session Goal ' ) $( rigBoxHas c '║   Name of the session, or none ' )" "[pad-coworking:goal|] [Start Coworking Session] 1 1 1"
+rigAssert "Start Standalone Session: one member in a list, the goal, the name" "[$( rigVal sta.dialog )] [$( rigVal sta.dialogTitle )] $( rigBoxHas s '║   Member ' ) $( rigBoxHas s '║   Session Goal ' )" "[pad-standalone:goal|] [Start Standalone Session] 1 1"
+rigAssert "Start Work-Duty Session: one member, comments or scope that may stay empty" "[$( rigVal duty.dialog )] [$( rigVal duty.dialogTitle )] $( rigBoxHas d '║   Comments/Scope ' )" "[pad-work-duty:goal|] [Start Work-Duty Session] 1"
+rigAssert "Start Routine Session: the routines to choose from, one chosen, and Next in place of Start" "[$( rigVal rou.dialog )] [$( rigVal rou.dialogTitle )] $( rigBoxHas r '║   Routine ' ) $( rigBoxHas r 'choose one' ) $( rigBoxHas r 'magic-coordinator.daily' ) $( rigBoxHas r 'Next' ) $( rigBoxHas r 'Prompt' )" "[pad-routine:routine|] [Start Routine Session] 1 1 1 1 0"
 rigAssert "Free Prompt: one member for now, the prompt, the name" "[$( rigVal free.dialog )] [$( rigVal free.dialogTitle )] $( rigBoxHas f '║   Prompt ' ) $( rigBoxHas f '║   Member ' )" "[pad-free:prompt|] [Free Prompt] 1 1"
 rigAssert "opening a form starts nothing" "$( rigStarts ) $( LC_ALL=C grep -c -- '^--manager-spawn-member' "$MANAGER_SCREEN_RIG/calls" || : )" "0 0"
 
@@ -552,6 +560,24 @@ box n
 RIGSCRIPT
 rigAssert "the form refuses inside itself, in one line, and nothing is called" "[$( rigVal none.dialog )] [$( rigVal none.dialogSays )] $( LC_ALL=C grep -c -- '^--manager-spawn-member' "$MANAGER_SCREEN_RIG/calls" || : )" "[pad-coworking:members|] [no member is checked: check one at least, with Space] 0"
 
+echo "-- a routine session: the routine is chosen on the first page, the routine's own start is the next --"
+rigMembersCase padRoutine
+rigScript <<'RIGSCRIPT'
+keys DOWN DOWN ENTER
+wait list 30
+keys DOWN DOWN DOWN DOWN ENTER
+wait list 30
+keys TAB SPACE
+turn
+get none
+keys DOWN DOWN DOWN DOWN ENTER
+turn 3
+get next
+box nx
+RIGSCRIPT
+rigAssert "Next with no routine chosen is refused inside the form, and the form stays" "[$( rigVal none.dialog )] [$( rigVal none.dialogSays )]" "[pad-routine:routine|] [nothing is started: no routine is chosen]"
+rigAssert "with a routine chosen the routine's own start follows the form (it asks the tooling for the slots), and nothing is started yet" "[$( rigVal next.dialog )] [$( rigVal next.dialogTitle )] $( rigStarts ) $( LC_ALL=C grep -c -- '^--manager-spawn-member' "$MANAGER_SCREEN_RIG/calls" || : )" "[routine-slots-wait:cancel|] [Start the routine] 0 0"
+
 echo "-- standalone, work-duty and free: one member, the kind, the goal or the prompt --"
 rigPadWords(){ ## the arguments of the call of the operation that starts a member, each between brackets
 	LC_ALL=C grep -F -- '[--manager-spawn-member]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C sed -n "1p"
@@ -573,15 +599,32 @@ rigPadStart padDutyEmpty "DOWN DOWN DOWN" none
 rigAssert "work-duty with nothing typed: no --goal at all" "[$( rigPadWords )]" "[[--manager-spawn-member][magic-coordinator][--kind][work-duty]]"
 rigPadStart padDuty "DOWN DOWN DOWN" 'review the week'
 rigAssert "work-duty with comments: they go as --goal" "[$( rigPadWords )]" "[[--manager-spawn-member][magic-coordinator][--kind][work-duty][--goal][review the week]]"
-rigPadStart padFree "DOWN DOWN DOWN DOWN" 'look at the index'
+rigPadStart padFree "DOWN DOWN DOWN DOWN DOWN" 'look at the index'
 rigAssert "free: --kind free and no --goal; the prompt goes on the standard input, whole" "[$( rigPadWords )] $( printf '%s\n' 'look at the index' | cmp -s - "$MANAGER_SCREEN_RIG/stdin.--manager-spawn-member" && echo same )" "[[--manager-spawn-member][magic-coordinator][--kind][free]] same"
+
+echo "-- a second work-duty of a member: the tooling refuses it, and the screen shows the refusal and starts nothing else --"
+## one duty session a member is the tooling's rule (--manager-spawn-member checks the member's duty record); the form draws the refusal and does not decide it
+rigMembersCase padDutyRuns
+echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-spawn-member"
+rigScript <<'RIGSCRIPT'
+keys DOWN DOWN ENTER
+wait list 30
+keys DOWN DOWN DOWN ENTER
+wait list 30
+keys TAB ENTER
+wait action 30
+get failed
+show f
+RIGSCRIPT
+rigAssert "the refusal of the operation stands in a box, whole, with the operation that was asked" "[$( rigVal failed.dialogTitle )] $( rigBoxHas f 'rig said fail' ) $( rigBoxHas f 'work-duty' )" "[The start failed] 2 1"
+rigAssert "the operation was asked once, and nothing was joined or started instead" "$( LC_ALL=C grep -c -- '^--manager-spawn-member' "$MANAGER_SCREEN_RIG/calls" || : ) $( rigStarts ) $( LC_ALL=C grep -c -- 'join-session' "$MANAGER_SCREEN_RIG/calls" || : )" "1 0 0"
 
 echo "-- a free prompt with no prompt starts nothing --"
 rigMembersCase padFreeEmpty
 rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN DOWN ENTER
 wait list 30
 keys TAB TAB SPACE
 get empty
@@ -603,41 +646,56 @@ rigSlotsCase slots
 rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 keys ENTER
 wait plan 30
 turn
 get form
 box f
-keys TAB TAB TAB TAB SPACE
+keys TAB TAB TAB TAB TAB SPACE
 turn
 get none
-keys UP UP UP UP DOWN TAB TAB TAB TAB SPACE
+keys UP UP UP UP DOWN TAB TAB TAB TAB TAB SPACE
 turn
 get one
 RIGSCRIPT
 rigAssert "Enter reads the slots of the routine from the tooling, once, before any form opens" "$( rigCalled '--manager-routine-slots magic-team.gap.routine.md' )" "1"
-rigAssert "the form has a select for each entry that asks which member, and the read-only members of an entry that takes all" "[$( rigVal form.dialog )] $( rigBoxHas f 'keeper-?: choose one' ) $( rigBoxHas f 'partner-?: choose one' ) $( rigBoxHas f 'magic-x, magic-y' ) $( rigBoxHas f 'choose one' )" "[routine-slots:choose0|] 1 1 1 4"
-rigAssert "a choice among the participants is shown with its candidates and not asked for: the spawner starts only the members named after the routine, and never its invitees" "$( rigBoxHas f 'chosen in the session' )" "1"
+rigAssert "the form has a select for each entry that asks which member, and the read-only members of an entry that takes all" "[$( rigVal form.dialog )] $( rigBoxHas f 'keeper-?: choose one' ) $( rigBoxHas f 'partner-?: choose one' ) $( rigBoxHas f 'magic-x, magic-y' ) $( rigBoxHas f 'choose one' )" "[routine-slots:choose0|] 1 1 1 6"
+rigAssert "a participants entry that asks which member is a required select too, the other participants stay read-only, and nothing says it is left to the session" "$( rigBoxHas f 'participants magic-?: choose one' ) $( rigBoxHas f 'chosen in the session' ) $( rigBoxHas f 'participants magic-* (all)' )" "1 0 1"
+rigAssert "page two of a routine session has the Comments/Scope box (sketch 14.5), and no prompt" "$( rigBoxHas f '║   Comments/Scope ' ) $( rigBoxHas f 'What the session is to work on' )" "1 0"
 rigAssert "Start with nothing chosen starts nothing: the form says which entry asks, and the operation is not called" "[$( rigVal none.dialogSays )] $( rigStarts )" "[nothing is started: executors keeper-? asks which member, and none is chosen] 0"
 rigAssert "one chosen is not enough: the entry that has a single candidate is chosen too" "[$( rigVal one.dialogSays )] $( rigStarts )" "[nothing is started: executors partner-? asks which member, and none is chosen] 0"
 rigSlotsCase slotsrun
 rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 keys ENTER
 wait plan 30
 turn
-keys DOWN TAB DOWN TAB$( rigType 'the gap' ) TAB TAB ENTER
+keys DOWN TAB DOWN TAB DOWN TAB$( rigType 'the gap' ) TAB TAB ENTER
 wait action 30
 turn
 get started
 RIGSCRIPT
-rigAssert "with a member chosen in each select Start calls the operation once: the routine, its name, then the members chosen in the order of the selects" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--spawn-session][--routine][magic-team.gap.routine.md][--session-name-or-comment][gap][keeper-a][partner-c]]"
+rigAssert "with a member chosen in each select Start calls the operation once: the routine, its name, then the members chosen in the order of the selects" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--spawn-session][--routine][magic-team.gap.routine.md][--session-name-or-comment][gap][--participants][magic-*,magic-x][keeper-a][partner-c]]"
 rigAssert "and what was typed goes on its standard input" "$( rigInput 'the gap' )" "same"
+rigSlotsCase slotspart
+rigScript <<'RIGSCRIPT'
+keys DOWN DOWN ENTER
+wait list 30
+keys DOWN DOWN DOWN DOWN DOWN DOWN
+turn
+keys ENTER
+wait plan 30
+turn
+keys DOWN TAB DOWN TAB TAB TAB TAB SPACE
+turn
+get part
+RIGSCRIPT
+rigAssert "executors chosen and the participants select left alone: Start is refused, naming it, and the operation is not called" "[$( rigVal part.dialogSays )] $( rigStarts )" "[nothing is started: participants magic-? asks which member, and none is chosen] 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LAUNCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -458,6 +458,19 @@ AgentsToolsSessionMemberPresent(){ ## session, member
 	return 1
 }
 
+## Whether a member has been in a session before, whatever became of its run: a spawn record of that session is the member's, started or
+## closed. A member that comes back into its own session (a work-duty that starts again) is no one brought in: the thread says it once, the
+## first time. rc 0 it has a record there; rc 1 it has none.
+AgentsToolsSessionMemberHasRecord(){ ## session, member
+	local hadRecord hadRecords
+	hadRecords="$( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || return 1
+	while IFS= read -r hadRecord ; do
+		[ -n "$hadRecord" ] && [ -f "$hadRecord" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$hadRecord" owner )" = "$2" ] && return 0
+	done <<< "$hadRecords"
+	return 1
+}
+
 ## The seat's lock, a folder beside it (mkdir is the lock primitive), for one read and write:
 ## rc 0 taken, rc 1 not within about five seconds. One older than a minute was left by a call
 ## that died holding it, and is cleared.
@@ -1310,7 +1323,7 @@ AgentsToolsSpawnProxySessionNotice(){ ## thread or conversation, the member it i
 		&& AgentsToolsTeamMemberDirectory "$noticeThread" > /dev/null 2>&1 ; then
 		## Told to a member with no Slack DM of its own: in its inbox, a hand-off it reads later, as
 		## a member's own send to it is (AgentsHarnessToolSendMessage).
-		noticeInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-note-$( printf '%s' "$noticeText" | cksum | cut -d' ' -f1 ).md"
+		noticeInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-note-$( printf '%s' "$noticeText" | cksum | LC_ALL=C cut -d' ' -f1 ).md"
 		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$noticeMember" "$( date +'%Y-%m-%d %H:%M %z' )" "$noticeThread" "$noticeText" ; } \
 			| DistroAgentsTools --intern-op-member-inbox-upsert "$noticeThread" "$noticeInbox" --context --intern-op-agent-spawn-proxy > /dev/null 2>&1 ; then
 			agentsSpawnProxyNoticePosted="yes"
@@ -1557,6 +1570,31 @@ AgentsToolsSpawnSandboxRecordHeader(){ ## file, header
 		$0 == "---" { fmCount++ ; if ( fmCount > 1 ) { exit ; } next ; }
 		fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit ; }
 	' "$1" 2> /dev/null || :
+}
+
+## The participants a session's founding record names (its `participants:` line, --spawn-session) that have no run in it
+## yet, one a line, in the record's order. A member has a run there when a spawn record of the session, not an agent-less
+## parent's, names it its owner. rc 1, nothing printed, where the session's record names no participants line at all.
+AgentsToolsSessionParticipantsUninvited(){ ## session id
+	local uninvitedRecord="" uninvitedLine="" uninvitedOne uninvitedRun uninvitedHas
+	for uninvitedRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" ; do
+		[ -f "$uninvitedRecord" ] && break
+		uninvitedRecord=""
+	done
+	[ -n "$uninvitedRecord" ] || return 1
+	LC_ALL=C awk '$0 == "---" { n++ ; if ( n > 1 ) exit ; next } n == 1 && /^participants: / { found = 1 } END { exit !found }' "$uninvitedRecord" 2> /dev/null || return 1
+	uninvitedLine="$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRecord" participants )"
+	for uninvitedOne in $uninvitedLine ; do
+		[ "$uninvitedOne" != none ] || continue
+		uninvitedHas=""
+		for uninvitedRun in $( LC_ALL=C grep -l -x -F "session-id: $1" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRun" agent-less )" != true ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRun" owner )" = "$uninvitedOne" ] || continue
+			uninvitedHas="yes" ; break
+		done
+		[ -n "$uninvitedHas" ] || printf '%s\n' "$uninvitedOne"
+	done
+	return 0
 }
 
 ## Sandbox folder names linked to one board item, one per line, sorted, empty when none. Two links, either one is enough:

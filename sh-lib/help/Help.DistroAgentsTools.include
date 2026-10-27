@@ -194,7 +194,7 @@ echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <t
 echo "📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --retro-lock-refresh [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-advance [--team-member <team-member>] <ts>" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-read [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
@@ -377,6 +377,7 @@ echo "📘 syntax: DistroAgentsSession.fn.sh --post-session-channel [--team-memb
 echo "📘 syntax: DistroAgentsSession.fn.sh --get-session-thread [--team-member <team-member>] [--own]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --wait-session-channel [--team-member <team-member>] [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --get-dispatch-text [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --get-uninvited-participants [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --update-routine-state [--team-member <team-member>] [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --executor-checkpoint-push [--team-member <team-member>] [<name>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --executor-checkpoint-rewind [--team-member <team-member>] [<name>] [--from-stdin]" >&2

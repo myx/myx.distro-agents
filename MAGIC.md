@@ -934,8 +934,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   opened.
 - **Its actions**, each an operation: `k` kills (`--manager-session-kill`, its plan read first with
   `--plan`, the word `yes` typed), `c` starts a control thread (`--manager-session-control-start`, no
-  confirmation), `Launchpad` starts work by hand: its four start forms (coworking, standalone, work-duty,
-  free prompt) each call `--manager-spawn-member --kind <kind>`, and Enter on a routine starts it
+  confirmation), `Launchpad` starts work by hand: its five start forms (coworking, standalone, work-duty,
+  routine, free prompt), in that order; all but the routine form call `--manager-spawn-member --kind <kind>`, the routine form
+  chooses a routine and goes on to its start, and Enter on a routine row starts it the same way
   (`--spawn-session --routine <selector>`); `n` starts a member (`--manager-spawn-member`, the prompt on
   standard input). An action the screen began is not ended with
   the screen. Pending Questions is read by `--read-pending-reply magic-coordinator --any-owner`.
@@ -2106,6 +2107,15 @@ contracts are here.
   `AgentsToolsInputScanCached`, the rewind's `AgentsHarnessScanCacheDrop`, the 300 s TTL text) had no scan wired through it since
   the advance scan's retirement and was tested only directly; it is removed, never left unused, and the rewind no longer drops a
   scan report. A member's own incoming is cached by source instead: see the incoming-sync bullet below.
+- **A work-duty is one session with one thread (S4.6).** The schedule starts a member's duty again after a cache-keep, on demand or on a tag
+  (`AgentsToolsScheduleSpawn`, key `work-duty.<member>`). The first start keeps its session id in `schedule/duty-session/<member>`, and every
+  later start brings the member into that session with `--spawn-session --join-session <session-id>`. The duty so posts into its one thread and
+  opens no header in the team channel; the thread says once that the member joined, not at each start. A join the proxy refuses ("refusing to
+  join") drops the kept id, and the next start opens a session again. `AgentsWorkDutySingleThreadCheck` holds it.
+  The kept id ends with worktime: out of its flags, with no duty running, the member's id goes, and its next worktime opens a session.
+  A duty is also never ended to be started again: the schedule no longer restarts an ended duty to keep its cache warm (the cache is kept
+  inside the running session by the keepalive of `--idle-wait`), and a work-duty's plain-text reply no longer ends a harness run (the harness
+  makes the idle-wait itself and asks the model again). Only a dismissal ends it. `AgentsHarnessDutyNoQuitCheck` and `AgentsDutyCacheKeepCheck` hold it.
 - **A member's own incoming is cached locally and refilled on a call when stale (T2)** — personal mail, tags and mentions, DMs,
   and the session chat — each by its own TTL of the one table (`AgentsTools.SourceTtl.include`): the session chat short (`chat:*` 15),
   the mail five minutes out of worktime and ten in it (`mail:*` 300, the 5–10 minute band; `AgentsToolsCollectTtlOf` stretches it by

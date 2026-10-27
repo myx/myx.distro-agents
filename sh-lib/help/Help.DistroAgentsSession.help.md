@@ -8,6 +8,7 @@
 📘 syntax: DistroAgentsSession.fn.sh --get-session-thread [--team-member <team-member>] [--own]
 📘 syntax: DistroAgentsSession.fn.sh --wait-session-channel [--team-member <team-member>] [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]
 📘 syntax: DistroAgentsSession.fn.sh --get-dispatch-text [--team-member <team-member>]
+📘 syntax: DistroAgentsSession.fn.sh --get-uninvited-participants [--team-member <team-member>]
 📘 syntax: DistroAgentsSession.fn.sh --update-routine-state [--team-member <team-member>] [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsSession.fn.sh --executor-checkpoint-push [--team-member <team-member>] [<name>]
 📘 syntax: DistroAgentsSession.fn.sh --executor-checkpoint-rewind [--team-member <team-member>] [<name>] [--from-stdin]
@@ -76,6 +77,11 @@
 			The dispatch of the session as the run was given it: `dispatch.md`, the
 			board item's copy and `input-scan.md`, each a section, mixed in that
 			order.
+
+		--get-uninvited-participants
+			The participants the session's record names that have no run in the
+			session yet, one a line: the default list the executor invites from.
+			Any member may be invited all the same.
 
 		--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]
 			The update of the locked document of the session's routine. The session

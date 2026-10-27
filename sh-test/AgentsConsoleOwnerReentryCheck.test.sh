@@ -72,6 +72,21 @@ rigAssert "an owner that cannot be read does not re-enter: no sudo call" "$rigRe
 rigReentry myx acct "bareword" --manager
 rigAssert "a path with no slash does not re-enter: no sudo call" "$rigReentryRc $( rigSudoLog )" "0 "
 
+echo "-- on a rig the console runs with the HOME of the account that owns the workspace (mdci), not the caller's --"
+## a sudo that does what sudo does with -H: the command runs as the account asked, with HOME that account's home; without -H the caller's HOME stays.
+rigBin2="$rigTmp/bin2" rigOwnerHome="$rigTmp/owner-home"
+mkdir -p "$rigBin2" "$rigOwnerHome"
+printf '#!/bin/sh\nwhile [ $# -gt 0 ] ; do case "$1" in -u) shift 2 ;; -H) HOME="$RIG_OWNER_HOME" ; export HOME ; shift ;; *) break ;; esac ; done\nexec "$@"\n' > "$rigBin2/sudo"
+printf '#!/bin/sh\necho "HOME=$HOME"\n' > "$rigWs/launcher.sh"
+chmod +x "$rigBin2/sudo" "$rigWs/launcher.sh"
+rigHomeAfter(){ ## the HOME the launcher sees after the re-entry, the caller being myx and the owner acct
+	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigBin2:$rigBin:$PATH" RIG_EFFECTIVE=myx RIG_STAT_NONE=0 RIG_STAT_OWNER=acct RIG_OWNER_HOME="$rigOwnerHome" \
+		MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDSC_CMD=rig \
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ConsoleOwner.include" ; AgentsToolsConsoleOwnerReentry "$@"' _ "$rigWs/launcher.sh" ) 2> /dev/null
+}
+rigAssert "the launcher re-entered by the caller runs with HOME the owner's home, as sudo -H gives it" "$( rigHomeAfter | LC_ALL=C sed "s|$rigTmp|<rig>|" )" "HOME=<rig>/owner-home"
+rigAssert "and the owner's home is not the caller's" "$( [ "$rigOwnerHome" != "$rigHome" ] && echo different )" "different"
+
 echo "-- the two starts of the screen call the one function, and no other place reads the owner --"
 rigCount(){ ## file... -- how many lines that are no comment read stat for the owner
 	cat "$@" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e "stat -c '%U'" -e "stat -f '%Su'" || :

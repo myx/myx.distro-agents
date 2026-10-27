@@ -1150,13 +1150,14 @@ rigAssert "the newest message is returned"                     "$( rigHolds "$ri
 rigAssert "the newest ts is named for the next floor"          "$( rigHolds "$rigNewOut" 'WAIT-LAST-TS: 1700000001.000500' )" yes
 rigAssert "the filters line carries the floor"                 "$( rigHolds "$rigNewOut" '1700000001.000300' )" yes
 ## Control: the same thread from an earlier floor returns the messages the later one
-## dropped. It names no reaction, so the only lines added are S11.2's automatic eyes:
-## one for each of the four messages this call returned (200, 300, 400, 500).
+## dropped. It names no reaction, so the only lines added are S11.2's automatic eyes. The
+## store the loop shares (AgentsTools.SeenReaction.include) holds the eyes of 400 and 500
+## from the call before, so only the two this call returns for the first time (200, 300) get one.
 rigReactAll="$( rigLines "$rigNewDir/reactions" )"
 rigNewIn react-early --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 30
 rigAssert "control: an earlier floor returns the older ones"   "$( rigHolds "$rigNewOut" 'msg-200' )" yes
 rigAssert "control: and the one at the later floor"            "$( rigHolds "$rigNewOut" 'msg-300' )" yes
-rigAssert "control: with no id sets only the automatic eyes are added" "$( rigLines "$rigNewDir/reactions" )" "$(( rigReactAll + 4 ))"
+rigAssert "control: with no id sets only the automatic eyes are added, and only for the two not yet given" "$( rigLines "$rigNewDir/reactions" )" "$(( rigReactAll + 2 ))"
 rigAssert "control: and the counts say zero"                   "$( rigHolds "$rigNewOut" '# reactions: seen=0 note=0 done=0 wait=0 failed=' )" yes
 
 ## A refused reaction is listed and the wait carries on.
@@ -1180,11 +1181,11 @@ for rigBadId in "$rigReactChannel:1700000001.000300;touch-x" "$rigReactChannel:1
 	rigAssert "[bad id $rigBadNo] nothing was waited on"       "$( rigHolds "$rigNewOut" '# waited:' )" no
 	rigAssert "[bad id $rigBadNo] not even the good id was reacted" "$( rigLines "$rigNewDir/reactions" )" "$rigReactsBefore"
 done
-## S11.2 again: the two named reactions, and one automatic eyes for each of the four
-## messages this call returned (200, 300, 400, 500) -- so six lines, not two.
+## S11.2 again: the two named reactions only: all four messages this call returns (200, 300, 400, 500)
+## have their eyes in the store from the calls before, so none is given twice.
 rigNewIn react-good-control --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 30 --wait-react-seen "$rigReactChannel:1700000001.000200" --wait-react-note "$rigReactChannel:1700000001.000300"
 rigAssert "control: the same call with clean ids runs"         "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
-rigAssert "control: the two named, and one automatic eyes per returned message" "$( rigLines "$rigNewDir/reactions" )" "$(( rigReactsBefore + 6 ))"
+rigAssert "control: the two named, and no second eyes on a message that has one" "$( rigLines "$rigNewDir/reactions" )" "$(( rigReactsBefore + 2 ))"
 
 ## A bare ts names a message only when the wait has EXACTLY ONE Slack source. A default
 ## wait now watches the two team conversations beside what it names, so it has three and

@@ -17,6 +17,7 @@
 ##   --wait-session-channel [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <s>]
 ##                                       Wait on the session channel alone
 ##   --get-dispatch-text                 the dispatch of the session, from the sandbox's input/
+##   --get-uninvited-participants        the participants the session's record names with no run yet, one a line
 ##   --executor-checkpoint-push [<name>] | --executor-checkpoint-rewind [<name>] [--from-stdin] | --executor-checkpoint-exit
 ##                                       a snapshot of the run's conversation, a return to one, the end of both (F10.5, below)
 ##   --idle-wait [--wait-timeout <s>]    wait for new input, and on an arrival return to the run's checkpoint with it as the next input
@@ -55,6 +56,19 @@ AgentsToolsThisSessionNeedThread(){ ## operation
 	[ -z "$thisSessionThread" ] || return 0
 	echo "$MDSC_CMD: ⛔ ERROR: $1: this session has no session thread, so it has no session channel. Nothing was done." >&2
 	return 1
+}
+
+## --get-uninvited-participants: the participants the session's record names that have no run in it yet, one a line -- the
+## default list the executor invites from (AgentsToolsSessionParticipantsUninvited). Any member may be invited all the same.
+AgentsToolsThisSessionUninvited(){ ## the operation's arguments (none)
+	if [ $# -gt 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --get-uninvited-participants: syntax is --get-uninvited-participants, and takes no argument" >&2
+		return 1
+	fi
+	AgentsToolsThisSessionNeedSession --get-uninvited-participants || return 1
+	type AgentsToolsSessionParticipantsUninvited > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	AgentsToolsSessionParticipantsUninvited "$thisSessionKey" || echo "$MDSC_CMD: NOTICE: --get-uninvited-participants: the record of this session names no participants; any member may be invited" >&2
+	return 0
 }
 
 ## --get-session-channel-id: the thread of the session, <channel>:<ts>.

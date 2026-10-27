@@ -8,6 +8,8 @@
 ## check's temp tree.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"

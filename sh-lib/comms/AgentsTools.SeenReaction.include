@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SeenReaction.include -- the seen reaction (eyes) on a message to a member, given by the tooling (epic S11.2).
+##
+## Two paths give it and share one store: the scheduler's loop, when it first notices a call by name (a DM to the member, a mention
+## in the team channel), and the member's Wait, when it returns a message. The store is
+## $MMDAPP/.local/agents/schedule/seen/<member>/<ts>, one empty file for each message reacted to, keyed by the message's Slack ts
+## alone, so every path that finds the message, whatever conversation it names it by, finds it done. The reaction is claimed in the
+## store before it is given and the claim is taken back where the reaction fails, so a failure is tried again by the next path.
+## The member's own account reacts, the team bot where that account cannot reach the conversation.
+##
+## Dot-sourced; functions only.
+##
+
+AgentsToolsSeenReact(){ ## member, <conversation>:<ts> of the message
+	local seenMember="$1" seenTarget="$2" seenTs seenDir
+	seenTs="${seenTarget##*:}"
+	case "$seenTs" in
+		''|*[!0123456789.]*|.*|*.) return 1 ;;
+	esac
+	[ -n "$seenMember" ] && [ "${seenTarget%:*}" != "$seenTarget" ] || return 1
+	seenDir="${MMDAPP:-/nonexistent}/.local/agents/schedule/seen/$seenMember"
+	mkdir -p "$seenDir" 2> /dev/null || return 1
+	( set -C ; : > "$seenDir/$seenTs" ) 2> /dev/null || return 0
+	if DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes > /dev/null 2>&1 \
+		|| DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes --identity-bot > /dev/null 2>&1 ; then
+		return 0
+	fi
+	rm -f "$seenDir/$seenTs"
+	return 1
+}

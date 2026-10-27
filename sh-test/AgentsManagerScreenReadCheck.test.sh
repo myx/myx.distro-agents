@@ -98,14 +98,15 @@ cells row7 8 85 119
 cells row8 9 85 119
 cells row9 10 85 119
 cells row10 11 85 119
+cells row11 12 85 119
 RIGSCRIPT
 rigAssert "the root asks the tooling for nothing"                    "[$( rigVal root.reading )]" "[]"
 rigAssert "the level asks at once, and the call runs beside the screen" "$( rigVal asked.path ) $( rigVal asked.reading )" "magic-team/launch list:magic-team/launch"
 rigAssert "the operation is --manager-session-list, started once"    "$( rigCalls ) [$( rigCall 1 )]" "1 [--manager-session-list]"
-rigAssert "what it printed is rows under the four starts, a record a line, its fields split at each TAB" \
-	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row5 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )]" \
+rigAssert "what it printed is rows under the five starts, a record a line, its fields split at each TAB" \
+	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row6 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )]" \
 	"[>..][ Start Coworking Session...][ Free Prompt...][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
-rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "8 [] [] [Launchpad  [all]]"
+rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "9 [] [] [Launchpad  [all]]"
 
 echo "-- a: the active ones are asked for, at once --"
 rigCase active rows
@@ -152,14 +153,14 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 get good
 advance 11
 wait list 30
 get bad
 border badTitle 1 84 120
-cells badRow3 8 85 119
-cells badRow5 10 85 119
+cells badRow3 9 85 119
+cells badRow5 11 85 119
 keys ESC
 advance 11
 wait list 30
@@ -170,13 +171,13 @@ get mended
 border mendedTitle 1 84 120
 said mendedLine
 RIGSCRIPT
-rigAssert "the first call gave three rows"                           "$( rigVal good.rows ) $( rigVal good.selected ) [$( rigVal good.failed )]" "8 s1 []"
+rigAssert "the first call gave three rows"                           "$( rigVal good.rows ) $( rigVal good.selected ) [$( rigVal good.failed )]" "9 s1 []"
 rigAssert "the second call failed, after the period"                 "$( rigCalls ) [$( rigVal bad.failed )]" "4 [list:magic-team/launch]"
-rigAssert "the three rows stay, and the selection with them"         "$( rigVal bad.rows ) $( rigVal bad.selected ) [$( rigVal badRow3 )][$( rigVal badRow5 )]" "8 s1 [>s1  alpha  running][ s3  gamma  finished]"
+rigAssert "the three rows stay, and the selection with them"         "$( rigVal bad.rows ) $( rigVal bad.selected ) [$( rigVal badRow3 )][$( rigVal badRow5 )]" "9 s1 [>s1  alpha  running][ s3  gamma  finished]"
 rigAssert "they are marked as old"                                   "[$( rigVal badTitle )]" "[! Launchpad  [all]]"
 rigAssert "what the read wrote is shown in a box, whole, with its operation" "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
-rigAssert "a second failure keeps them still"                        "$( rigVal worse.rows ) [$( rigVal worse.failed )]" "8 [list:magic-team/launch]"
-rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "8 [] [Launchpad  [all]] []"
+rigAssert "a second failure keeps them still"                        "$( rigVal worse.rows ) [$( rigVal worse.failed )]" "9 [list:magic-team/launch]"
+rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "9 [] [Launchpad  [all]] []"
 
 echo "-- a second read is not started while the first runs --"
 rigCase once "sleep 5"
@@ -232,9 +233,9 @@ get a
 wait list 30
 get b
 RIGSCRIPT
-rigAssert "a was pressed while the read for all still ran"           "$( rigVal a.reading ) $( rigVal a.filter ) $( rigVal a.rows )" "list:magic-team/launch active 5"
+rigAssert "a was pressed while the read for all still ran"           "$( rigVal a.reading ) $( rigVal a.filter ) $( rigVal a.rows )" "list:magic-team/launch active 6"
 rigAssert "the read with the new words starts when the one that runs has ended" "$( rigCalls ) [$( rigCall 1 )] [$( rigCall 2 )]" "2 [--manager-session-list] [--manager-session-list --active]"
-rigAssert "what the first one printed, for all, is not shown as the active ones" "$( rigVal b.rows ) [$( rigVal b.failed )]" "5 [list:magic-team/launch]"
+rigAssert "what the first one printed, for all, is not shown as the active ones" "$( rigVal b.rows ) [$( rigVal b.failed )]" "6 [list:magic-team/launch]"
 
 echo "-- the left pane reads what is selected, and a late answer for another item is dropped --"
 rigCase view rows
@@ -245,7 +246,7 @@ table list:magic-team/activity none
 table view:magic-team/launch:record --rig-view {id}
 table list:magic-team/launch none
 rows magic-team/launch s1=one
-keys ENTER DOWN DOWN DOWN DOWN DOWN
+keys ENTER DOWN DOWN DOWN DOWN DOWN DOWN
 advance 1
 turn
 get asked
@@ -254,7 +255,7 @@ get a
 cells line1 2 1 83
 cells line2 3 1 83
 border title 1 0 84
-keys UP UP UP UP UP
+keys UP UP UP UP UP UP
 get up
 cells upLine1 2 1 83
 RIGSCRIPT
@@ -269,11 +270,11 @@ table list:magic-team/activity none
 table view:magic-team/launch:record --rig-view {id}
 table list:magic-team/launch none
 rows magic-team/launch s1=one
-keys ENTER DOWN DOWN DOWN DOWN DOWN
+keys ENTER DOWN DOWN DOWN DOWN DOWN DOWN
 advance 1
 turn
 get asked
-keys UP UP UP UP UP
+keys UP UP UP UP UP UP
 wait view 30
 get a
 cells line1 2 1 83

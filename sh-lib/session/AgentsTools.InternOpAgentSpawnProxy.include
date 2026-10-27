@@ -1869,7 +1869,7 @@ case "$1" in
 		## external side is its tooling thread says nothing (F3.1). A session whose external side
 		## is its printback channel has no thread either, and what it says is RECORDED there as a
 		## notice, not posted: the next foreground call of that session surfaces the line (F3.3).
-		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -z "$sessionTrack" ] ; then
+		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -z "$sessionTrack" ] && ! { case "${routineFilePath##*/}" in *.work-duty.routine.md) AgentsToolsSessionMemberHasRecord "$sessionId" "$callerName" ;; *) false ;; esac ; } ; then
 			## It is said to the member that makes this spawn call, where the send can address
 			## it, and to nobody where there is none: never to the member that joined.
 			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot ) joinedTo="" joinedLine=""
@@ -2690,6 +2690,11 @@ case "$1" in
 		echo "STATUS=started"
 		echo "PID=$spawnPid"
 		echo "OUTPUT_FILE=$outputFile"
+		## Who the session's record still names as a participant with no run, for the executor's next invitation.
+		local uninvitedNow=""
+		if uninvitedNow="$( AgentsToolsSessionParticipantsUninvited "$sessionId" 2> /dev/null )" ; then
+			echo "PARTICIPANTS_UNINVITED=$( printf '%s' "$uninvitedNow" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )"
+		fi
 		return 0
 	;;
 

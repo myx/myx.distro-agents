@@ -54,7 +54,7 @@ AgentsToolsStatsDerive(){ ## folder, full|refresh
 	LC_ALL=C awk -v list="$deriveList" -f "$agentsStatsHere/AgentsDispatcherStatsRuns.awk" > "$deriveRows" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
 	if [ "$deriveMode" = refresh ] ; then
 		## the rows of runs that were not read again stay as they are
-		deriveIds="$( cut -f1 "$deriveRows" )"
+		deriveIds="$( LC_ALL=C cut -f1 "$deriveRows" )"
 		LC_ALL=C awk -F'\t' -v ids="$deriveIds" 'BEGIN { count = split( ids, parts, "\n" ) ; for ( at = 1 ; at <= count ; at++ ) { skip[parts[at]] = 1 ; } } NR > 1 && !( $1 in skip ) { print }' "$deriveOld" >> "$deriveRows"
 	fi
 	{

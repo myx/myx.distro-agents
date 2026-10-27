@@ -277,7 +277,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]
 📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -6566,7 +6566,7 @@
 			waits there and a dismissal is addressed to the member
 			it is for.
 
-		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -6586,6 +6586,26 @@
 			with, in place of this one. Every spawn of the call gets
 			them unchanged, and a value the spawn refuses stops the
 			call at its first spawn.
+			`--join-session <session-id>` brings every member into that
+			session instead of starting one: they share its thread and
+			post no new header in the team channel. The scheduler uses it
+			for a work-duty that starts again.
+
+			`--participants` names who the executor is to invite: a
+			comma-separated list of members, `<type>-*` and
+			`all-present-members` (a member's `attendance:` header,
+			`present` or `invited`; magic-* are present by default),
+			or `none`. A `<type>-?` is a choice the caller makes: it
+			is refused with its candidates, one a line. The
+			participants are checked before anything starts, written
+			on each session's spawn record as `participants:` and
+			printed as `PARTICIPANTS=`; the spawner never starts them,
+			the executor invites them. `--likely-permission
+			<tool>:<target>` and `--likely-tool <tool>`, each given
+			as often as needed, are what the work likely needs, as
+			whoever prepares the dispatch guesses it: checked for
+			shape and kept on the records as `likely-permissions:`
+			and `likely-tools:`, for a later hint.
 
 			Given no `<team-member>...` names, the spawned members
 			come from the resolved routine's own `executors`
@@ -6718,6 +6738,16 @@
 			`pointers.md` and the MAGIC copies are references the dispatch names.
 			Refused with a plain line from a call of no spawned session, and a sandbox
 			with no dispatch.
+
+		--get-uninvited-participants
+			ThisSession's operation (DistroAgentsSession.fn.sh). The participants the
+			session's record names (`participants:`, from `--spawn-session
+			--participants`) that have no run in the session yet, one a line: the
+			default list the executor invites from, with the `Agent` call. Any member
+			may be invited all the same. A record that names no participants prints
+			nothing and says so on stderr. Each `Agent` call into a session whose
+			record names participants prints `PARTICIPANTS_UNINVITED=` with who is
+			still left.
 
 		--executor-checkpoint-push [<name>]
 			ThisSession's operation (DistroAgentsSession.fn.sh), for a single-participant

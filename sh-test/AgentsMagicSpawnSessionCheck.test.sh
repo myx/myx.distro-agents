@@ -335,6 +335,68 @@ done
 rigAssert "both names keep their form, and end with the first part of the spawn's own id" "$rigNamesKept" 2
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
+echo "-- participants and likely needs: checked before anything starts, recorded, never started here --"
+rm -f "$rigTmp"/brief.*
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --participants 'rig-member-b, rig-*' --likely-permission 'Edit:/rig/proj/**' --likely-permission 'WebFetch:https://rig.example/*' --likely-tool Edit rig-member-a )"
+rigPartSession="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^SESSION_ID=//p' | head -1 )"
+rigAssert "the session starts with the executor; the participants are printed, each once, in the order given" \
+	"$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'PARTICIPANTS=rig-member-b rig-member-a' )" "1:1:1"
+rigAssert "the session's record carries the participants and the likely permissions and tools" \
+	"$( rigRecordValues participants ) | $( rigRecordValues likely-permissions ) | $( rigRecordValues likely-tools )" "rig-member-b rig-member-a | Edit:/rig/proj/**, WebFetch:https://rig.example/* | Edit"
+rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
+sleep 2
+rigAssert "a participant is not started by the spawner: only the executor's console ran" "$( ls "$rigTmp" | grep -c '^brief\.' )" 1
+## The executor's invitation: the session's own read gives who is left, and the Agent call's spawn starts the one invited.
+rigInSession(){ ## stdin content, member, session id, script, its arguments... -- a call made from inside that member's run of the session
+	local inStdin="$1" inMember="$2" inSession="$3" ; shift 3
+	env -i MDAT_SPAWN_AGENT="$inMember" MDAT_SESSION_ID="$inSession" MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" \
+		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; cd "$MMDAPP" && exec bash "$@"' rig-in-session "$@" <<< "$inStdin" 2>&1
+}
+rigSessionScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSession.fn.sh"
+rigUninvited="$( rigInSession "" rig-member-a "$rigPartSession" "$rigSessionScript" --get-uninvited-participants )"
+rigAssert "the executor's read: the participants with no run yet, the executor itself not among them" "$( printf '%s\n' "$rigUninvited" | grep -v -e '^SystemContext' -e '^#' )" "rig-member-b"
+rigInvite="$( rigInSession "RIG-INVITE-TEXT" rig-member-a "$rigPartSession" "$rigTool" --intern-op-agent-spawn-proxy rig-member-b --from-stdin --dispatch-doc:create --context Agent --calling-member rig-member-a )"
+rigAssert "the invitation joins the session and says nobody is left uninvited" \
+	"$( printf '%s\n' "$rigInvite" | grep -c -x -F "SESSION_ID=$rigPartSession" ):$( printf '%s\n' "$rigInvite" | grep -c -x -F 'PARTICIPANTS_UNINVITED=' )" "1:1"
+rigWaitFor "$rigTmp/brief.rig-member-b" || :
+rigAssert "the participant is started on the invitation, with the executor's text" "$( grep -c -F 'RIG-INVITE-TEXT' "$rigTmp/brief.rig-member-b" 2> /dev/null || echo 0 )" 1
+rigAssert "and the read now names nobody" "$( rigInSession "" rig-member-a "$rigPartSession" "$rigSessionScript" --get-uninvited-participants | grep -c -v -e '^SystemContext' -e '^#' )" 0
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --participants none rig-member-a )"
+rigAssert "--participants none: the session starts, no participant, and the record says none" \
+	"$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'PARTICIPANTS=' ):$( rigRecordValues participants )" "1:1:none"
+rigWaitFor "$rigTmp/brief.rig-member-a" || :
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+mkdir -p "$rigSkills/magic-rig-present" && printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-rig-present/magic-rig-present.basic.md"
+printf -- '---\nmaintainers: rig\nattendance: present\n---\nrig identity\n' > "$rigSkills/rig-member-b/rig-member-b.basic.md"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --participants all-present-members rig-member-a )"
+rigPresent=" $( printf '%s\n' "$rigOut" | sed -n 's/^PARTICIPANTS=//p' ) "
+rigInPresent(){ ## member -- in or out of the participants printed
+	case "$rigPresent" in *" $1 "*) printf in ;; *) printf out ;; esac
+}
+rigAssert "all-present-members: a magic-* member by default, another by its attendance: present, and not one with neither" \
+	"$( rigInPresent magic-rig-present ) $( rigInPresent rig-member-b ) $( rigInPresent rig-member-a )" "in in out"
+rigWaitFor "$rigTmp/brief.rig-member-a" || :
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member-b/rig-member-b.basic.md"
+rm -rf "$rigSkills/magic-rig-present"
+sleep 3
+rigLeftBefore="$( rigLeft )"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --participants 'rig-?' rig-member-a )"
+sleep 3
+rigAssert "a participant rig-? is a choice: refused, its candidates one a line, nobody started, nothing left" \
+	"$( printf '%s\n' "$rigOut" | grep -c -F 'participant rig-? is a choice: name the one member to invite' ):$( printf '%s\n' "$rigOut" | grep -c -x -e '  rig-member-a' -e '  rig-member-b' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):[$( rigLeft )]" "1:2:0:[$rigLeftBefore]"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --participants 'rig-member-b, rig-member-no-such' rig-member-a )"
+rigAssert "an unknown participant: refused, naming it, nobody started" \
+	"$( printf '%s\n' "$rigOut" | grep -c -F 'participants: no such team member: rig-member-no-such' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" "1:0"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --likely-permission 'no-target' rig-member-a )"
+rigAssert "a likely permission that is no <tool>:<target>: refused, nobody started" \
+	"$( printf '%s\n' "$rigOut" | grep -c -F "is not <tool>:<target>" ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" "1:0"
+sleep 3
+rigAssert "and none of the refusals left anything behind" "$( rigLeft )" "$rigLeftBefore"
+rigAssert "the syntax line names the participants and the likely needs" "$( rigRun "" --no-such-option 2>&1 | grep -c -F -- '[--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]...' )" 1
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MAGIC SPAWN SESSION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

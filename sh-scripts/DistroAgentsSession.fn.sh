@@ -188,6 +188,14 @@ DistroAgentsSession(){
 			return $?
 		;;
 
+		## The participants the session's record names that have no run in it yet, one a line: the executor's default list to invite from.
+		--get-uninvited-participants)
+			shift
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionUninvited "$@"
+			return $?
+		;;
+
 		## The update of the locked document of the session's routine (F6.2): one general operation. The session knows its
 		## routine and the document the spawner locked for it, so the call names neither; any participant of a locked session
 		## may make it. The lock-owned fields stay as the spawner set them, and each update is committed, and pushed where a

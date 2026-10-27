@@ -100,6 +100,16 @@ rigLate tagged 6 'RIG-DM-LATE-TAGGED @keeper-rig look' ; rigTagged="$rigLateTook
 rigAssert "a DM that tags the member: the same" "$( [ "$rigTagged" -le 25 ] && echo within || echo "took:$rigTagged" ):$( rigHolds tagged RIG-DM-LATE-TAGGED ):$( rigHolds tagged '# returned: immediate' )" "within:1:1"
 printf '  measured: a DM landing 6 s into the collect, read and returned in %ss (bare) and %ss (tagged)\n' "$rigBare" "$rigTagged"
 
+echo "-- a mention in another channel the member is in, not the team channel: read by the wider sweep --"
+rigScene wide 60
+printf '[{"id":"CRIGGEN01","is_im":false,"is_mpim":false,"user":"","is_user_deleted":false,"is_member":true},{"id":"CRIGNOTIN","is_im":false,"is_mpim":false,"user":"","is_user_deleted":false,"is_member":false}]\n' > "$rigDir/dms.json"
+rigHistory CRIGGEN01 "$( rigMsg "$(( rigNow - 30 )).000001" URIGFRIEND 'RIG-WIDE-MENTION @keeper-rig in general' )" "$( rigMsg "$(( rigNow - 20 )).000001" URIGFRIEND 'RIG-WIDE-PLAIN no mention here' )"
+rigHistory CRIGNOTIN "$( rigMsg "$(( rigNow - 25 )).000001" URIGFRIEND 'RIG-NOT-IN @keeper-rig where the member is not' )"
+rigScan wide
+rigAssert "the mention in a channel the member is in is returned at once, and only it" \
+	"$( [ "$( rigTook wide )" -le 25 ] && echo within || echo "took:$( rigTook wide )" ):$( rigHolds wide RIG-WIDE-MENTION ):$( rigHolds wide RIG-WIDE-PLAIN ):$( rigHolds wide RIG-NOT-IN )" "within:1:0:0"
+rigAssert "a channel the member is not in is not read" "$( LC_ALL=C grep -c '^conversations.history CRIGNOTIN ' "$rigDir/api.log" )" 0
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DM WAKE LATENCY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

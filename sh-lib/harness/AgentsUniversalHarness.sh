@@ -1824,9 +1824,20 @@ while : ; do
 		fi
 		AgentsHarnessEmitAnswer "$harnessFinal"
 		AgentsHarnessContextReply
+		## A WORK-DUTY IS A LOOP IN ONE SESSION AND ONLY A DISMISSAL ENDS IT: a plain-text reply is its model thinking it is done, not an end.
+		## The idle-wait is made here as the model would have made it, the conversation is returned to its checkpoint where one is held, and the
+		## model is asked again. A dismissed run, a run that is no work-duty and a run that answers plain ten times in a row without a tool call
+		## in between (a wait that cannot be made) end as before.
+		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] && AgentsHarnessWorkDuty \
+			&& [ ! -e "$MMDAPP/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-/}/dismissed" ] ; then
+			harnessDutyPlainRuns=$(( ${harnessDutyPlainRuns:-0} + 1 ))
+			AgentsHarnessIdleWait -
+			continue
+		fi
 		AgentsTranscriptHarnessFinal "$harnessFinal" || :
 		harnessExitClean=1 ; exit 0
 	fi
+	harnessDutyPlainRuns=0
 
 	## The assistant's own tool_calls message goes into history verbatim first -- this
 	## API's required shape for a multi-turn tool exchange.

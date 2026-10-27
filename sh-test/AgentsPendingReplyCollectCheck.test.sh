@@ -312,7 +312,9 @@ rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "a person: the human-owner's conversation, never the parent session's thread" "$( rigPosts ):$( rigPostedTo URIGOWNER '' ):$( rigHolds "$rigScenarioDir/post.1" 'CPARENT1' )" "1:yes:no"
 rigStart hbReportsSession
 rigSpawnRecords none "" rig-parent-id:keeper-myx
-printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nowner: magic-coordinator\nstatus: spawn-started\nsession-thread: CPARENT1:1700000001.000101\n---\n' > "$rigScenarioDir/ws/.local/agents/spawned/parent-folder/rig-parent-id.spawn.md"
+## The address names a member, and a live run of that member in the session takes the matter (AgentsToolsRunRouteAvailable): the session's run is keeper-myx's here.
+## Were it another member's, the address would fall through and the handback would go to the human-owner.
+printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CPARENT1:1700000001.000101\n---\n' > "$rigScenarioDir/ws/.local/agents/spawned/parent-folder/rig-parent-id.spawn.md"
 rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "a session: its thread, with no parent session recorded" "$( rigPosts ):$( rigPostedTo CPARENT1 1700000001.000101 )" "1:yes"
 rigStart hbReportsMember

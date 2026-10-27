@@ -116,7 +116,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		if [ "$toolNoInbox" = "true" ] ; then
 			printf 'ERROR: %s has no Slack DM channel, and an inbox cannot carry a question that waits for an answer. Nothing was sent.\n' "$toolTarget" ; return 0
 		fi
-		toolInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-message-$( printf '%s' "$toolMessage" | cksum | cut -d' ' -f1 ).md"
+		toolInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-message-$( printf '%s' "$toolMessage" | cksum | LC_ALL=C cut -d' ' -f1 ).md"
 		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$harnessAgent" "$( date +'%Y-%m-%d %H:%M %z' )" "$toolTarget" "$toolMessage" ; } \
 			| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --upsert-inbox-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
 			printf 'inbox %s %s\n' "$toolTarget" "$toolInbox" > "$harnessScratch/send.delivered"

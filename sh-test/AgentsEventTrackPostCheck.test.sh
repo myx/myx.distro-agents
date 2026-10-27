@@ -897,6 +897,22 @@ rigAssert "strict order: what stays open is every line given, in order, once" \
 	"$( printf '%s\n' "$rigOpen" | cksum )" "$( printf '%s\n' "$rigFeedIn" | cksum )"
 rigAssert "at the window's end the post goes once, whole, in order" \
 	"$( AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$rigFeedIn" rig-sid 1 > /dev/null ; LC_ALL=C grep -c '^BEGIN magic-tester CRIG:9.9 rig-sid$' "$rigSends" ):$( LC_ALL=C grep -v -e '^BEGIN ' -e '^END$' "$rigSends" | cksum )" "1:$( printf '%s\n' "$rigFeedIn" | cksum )"
+## The real poster loop: a line, another 5 s later (a poll after the first), then quiet. Both go in one post, 7 s after the first line is read.
+rigRunWs="$rigTmp/feed-run" ; rigRunFeed="$rigRunWs/.local/agents/sessions/rig-run/feed"
+mkdir -p "${rigRunFeed%/feed}" ; : > "$rigSends"
+( MMDAPP="$rigRunWs" ; AgentsEventTrackFeedSend(){ { printf 'BEGIN %s\n' "$( date +%s )" ; cat ; } >> "$rigSends" ; } ; AgentsEventTrackFeedRun rig-run magic-tester "CRIG:9.8" ) &
+rigRunPid=$!
+rigRunAt="$( date +%s )"
+printf '%s\n' '2030-01-01T00:07:01Z TOOL Read path=/run/1 -> ok' >> "$rigRunFeed"
+sleep 5
+printf '%s\n' '2030-01-01T00:07:06Z TOOL Read path=/run/2 -> ok' >> "$rigRunFeed"
+sleep 12
+rigRunSends="$( LC_ALL=C grep -c '^BEGIN ' "$rigSends" )"
+kill -TERM "$rigRunPid" 2> /dev/null ; wait "$rigRunPid" 2> /dev/null
+rigRunSentAt="$( LC_ALL=C sed -n 's/^BEGIN //p' "$rigSends" | head -1 )"
+rigAssert "the poster holds its first line through the window: one post, both lines, in order" \
+	"$rigRunSends:$( LC_ALL=C grep -o '/run/[12]' "$rigSends" | LC_ALL=C tr '\n' ' ' )" "1:/run/1 /run/2 "
+rigAssert "and that post goes no sooner than 7 s after the first line" "$( [ -n "$rigRunSentAt" ] && [ $(( rigRunSentAt - rigRunAt )) -ge 7 ] && printf yes || printf no )" yes
 ## The real send, its op a fake: what the feed hands the post op.
 . "$rigLib/session/AgentsTools.EventTrackFeed.include"
 cat > "$rigTmp/fake-tools" <<'RIG_FAKE_EOF'

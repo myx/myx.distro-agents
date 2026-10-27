@@ -1,18 +1,12 @@
 #!/usr/bin/env bash
-## Behavioural check on the advance pass as a session of its own (F7.12, the heartbeat retired: it ran advance inline at every iteration and spawned an agent each
-## time, whether or not anything waited). The schedule's loop (AgentsToolsScheduleAdvance, sh-lib/session/AgentsTools.DispatcherLoop.include) starts it through the
-## spawner when something is new for it, found by script. The real loop (--one), the real spawner and the real advance routine run in the schedule rig of
-## AgentsScheduleLoopCheck: its console ends at once, its clock is its own. Held:
-##   1. NOTHING NEW: nothing is written since the last pass ended (the modification time of the advance lock note, which the close of a pass writes), and no
-##      recheck-date fell due since: no start, no spawn record, no line.
-##   2. SOMETHING NEW: an item of the board's active states, or of magic-coordinator's incoming/, written after the last pass ended starts one pass, with one line;
-##      a recheck-date between the end of the last pass and now does too; one before it, or ahead, does not.
-##   3. NOT FROM THE STANDING NOTES: a write of a state and lock note in incoming/ (the routines' own) starts nothing.
-##   4. NOT WHILE ONE RUNS: a note that reads advance-running with its recheck-date ahead starts nothing, newer items or not; one whose recheck-date has passed (a
-##      holder that died) does not stop the next pass.
-##   5. NOT WHERE THE LOOP IS NOT SET UP: with no advance lock note, none is started.
-##   6. BOUNDED: only while the schedule opens the coordinator's duty (worktime, emergency, overtime), and no sooner than MDAT_SCHEDULE_ADVANCE_MINUTES (30 when not
-##      set, 0 for no wait) after the last pass ended; what is new waits.
+## Behavioural check that NOTHING STARTS THE ADVANCE ROUTINE BY ITSELF (F7.12, MAGIC.md "Each iteration"): the heartbeat is retired and the advance rules
+## stand in the coordinator's work duty, which includes them; `magic-coordinator.advance.routine` has `runs-at: none` and a console starts it by hand. The check
+## was once the check of an advance pass the loop started whenever something was new; it now holds that the loop starts none in any of those situations, so
+## a loop that starts the pass again fails it. The real loop (--one), the real spawner and the real advance routine run in the schedule rig of
+## AgentsScheduleLoopCheck: its console ends at once, its clock is its own. Held, each as the pass count and the line count of one iteration, both 0:
+##   1. nothing new; 2. something new (a board item of an active state, an item in magic-coordinator's incoming/, a recheck-date between the end of the last
+##   pass and now); 3. the standing notes and the spawner's own tracking items; 4. a pass that runs, and a holder that died; 5. no lock note; 6. inside and
+##   outside the duty hours, and with the wait after the last pass at 5, 20 and 0 minutes. A control: the routine says `runs-at: none`.
 ## Offline, rig tree only.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -79,15 +73,15 @@ rigAssert "items older than the last pass, and rechecks before it or ahead: no p
 
 echo "-- 2. something new --"
 rigBoardItem pending task-20261019T0103Z-rig-new.md $(( rigEnd + 60 ))
-rigAssert "an item of a board state written after the last pass ended: one pass, one line" "$( rigRun n2 )" "1:1"
+rigAssert "an item of a board state written after the last pass ended: still no pass, no line" "$( rigRun n2 )" "0:0"
 rm -f "$rigData/board/pending/task-20261019T0103Z-rig-new.md"
 rigNoteSet advance-finished "2026-10-19 14:00 +0300" "$rigEnd"
 printf -- '---\ntype: note\nfrom: keeper-rig-01\nowner: magic-coordinator\n---\n\nrig\n' > "$rigInbox/note-20261019T0200Z-rig-for-coordinator.md" ; rigTouch $(( rigEnd + 60 )) "$rigInbox/note-20261019T0200Z-rig-for-coordinator.md"
-rigAssert "an item written into magic-coordinator's incoming/ after it: a pass" "$( rigRun n3 )" "1:1"
+rigAssert "an item written into magic-coordinator's incoming/ after it: still no pass, nothing starts the advance routine by itself" "$( rigRun n3 )" "0:0"
 rm -f "$rigInbox/note-20261019T0200Z-rig-for-coordinator.md"
 rigNoteSet advance-finished "2026-10-19 14:00 +0300" "$rigEnd"
 rigBoardItem backlog task-20261019T0104Z-rig-due.md $(( rigEnd - 600 )) "2026-10-19 12:30 +0300"
-rigAssert "a recheck-date between the end of the last pass and now: a pass" "$( rigRun n4 )" "1:1"
+rigAssert "a recheck-date between the end of the last pass and now: still no pass, nothing starts the advance routine by itself" "$( rigRun n4 )" "0:0"
 rm -f "$rigData/board/backlog/task-20261019T0104Z-rig-due.md"
 
 echo "-- 3. not from the standing notes --"
@@ -108,7 +102,7 @@ rigBoardItem pending task-20261019T0105Z-rig-new2.md $(( rigEnd + 60 ))
 rigNoteSet advance-running "2026-10-19 14:00 +0300" "$rigEnd"
 rigAssert "a pass that runs (recheck-date ahead): none, newer items or not" "$( rigRun n6 )" "0:0"
 rigNoteSet advance-running "2026-10-19 11:00 +0300" "$rigEnd"
-rigAssert "a holder that died (recheck-date passed): the next pass is started" "$( rigRun n7 )" "1:1"
+rigAssert "a holder that died (recheck-date passed): still no pass" "$( rigRun n7 )" "0:0"
 
 echo "-- 5. no lock note --"
 rm -f "$rigAdvanceNote"
@@ -130,15 +124,20 @@ rigNoteSet advance-finished "2026-10-19 14:00 +0300" $(( rigNow - 600 ))
 rigAssert "the last pass ended 10 minutes ago, the wait 30 by default: none, though something is new" "$( rigRun n11 )" "0:0"
 printf 'MDAT_SCHEDULE_ADVANCE_MINUTES=5\n' >> "$rigSettings"
 rigNoteSet advance-finished "2026-10-19 14:00 +0300" $(( rigNow - 600 ))
-rigAssert "with the setting at 5 minutes: a pass" "$( rigRun n12 )" "1:1"
+rigAssert "with the setting at 5 minutes: still no pass, nothing starts the advance routine by itself" "$( rigRun n12 )" "0:0"
 printf 'MDAT_SCHEDULE_ADVANCE_MINUTES=20\n' >> "$rigSettings"
 rigNoteSet advance-finished "2026-10-19 14:00 +0300" $(( rigNow - 600 ))
 rigAssert "with it at 20 minutes: none" "$( rigRun n13 )" "0:0"
 rigNoteSet advance-finished "2026-10-19 14:00 +0300" $(( rigNow - 1500 ))
-rigAssert "...and a pass once 25 minutes have gone" "$( rigRun n14 )" "1:1"
+rigAssert "...and still none once 25 minutes have gone" "$( rigRun n14 )" "0:0"
 printf 'MDAT_SCHEDULE_ADVANCE_MINUTES=0\n' >> "$rigSettings"
 rigNoteSet advance-finished "2026-10-19 14:00 +0300" $(( rigNow - 150 ))
-rigAssert "at 0, no wait: a pass at once" "$( rigRun n15 )" "1:1"
+rigAssert "at 0, no wait: still no pass" "$( rigRun n15 )" "0:0"
+
+echo "-- 7. control: the same loop does start a routine that has a time --"
+rigRun n16 > /dev/null
+rigAssert "the autorun routine of the rig is started by the same iteration" "$( rigRecordsOf keeper-rig-01.auto.routine.md )" "1"
+rigAssert "the advance routine says runs-at: none" "$( LC_ALL=C grep -c -x 'runs-at: none' "$rigPackage/skillset/magic-team/magic-coordinator/magic-coordinator.advance.routine.md" 2> /dev/null || :)" "1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ADVANCE SCHEDULE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

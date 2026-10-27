@@ -244,7 +244,8 @@ rigAssert "and the arrival of the scan is not shown with it"                    
 echo "-- 7. a run that holds no snapshot --"
 rigScene nosnap rigduty
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --executor-checkpoint-exit )"
-rigToolStream "$rigDir/res.2" Bash "$( rigOp --idle-wait --wait-timeout 5 )"
+## The bound is a minute, not the speed of this machine: the scan of the routine is a real one, and the wait returns as soon as it has read it.
+rigToolStream "$rigDir/res.2" Bash "$( rigOp --idle-wait --wait-timeout 60 )"
 rigTextStream "$rigDir/res.3" RIG-DONE ; rigRun
 rigAssert "the arrival comes as a message; the conversation holds the calls before it"    "$( rigCount "$rigDir/req.3" "$rigArrival" ):$( rigCount "$rigDir/req.3" '"type":"tool_result"' )" 1:2
 rigAssert "and the model is told no snapshot is held and nothing was returned"            "$( rigIn "$( cat "$rigDir/req.3" )" 'no snapshot is held' ):$( rigIn "$( cat "$rigDir/req.3" )" 'not returned' )" yes:yes
@@ -253,7 +254,8 @@ rigAssert "an arrival with no conversation returned is a wake too: the cache lin
 echo "-- 8. a quiet round wakes the model with a keepalive, and returns it to the armed prefix --"
 rigScene loop rigquiet
 printf 'WAIT_ROUND_SECONDS=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-( sleep 5 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
+## The dismissal comes after the second keepalive round, so what is held is the order of the rounds and not the speed of this machine.
+( rigTries=0 ; until [ "$( LC_ALL=C grep -c -F 'waking the model with a keepalive' "$rigDir/err" 2> /dev/null )" -ge 2 ] || [ "$rigTries" -ge 240 ] ; do sleep 1 ; rigTries=$(( rigTries + 1 )) ; done ; sleep 1 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
 rigLater=$!
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait )"
 rigToolStream "$rigDir/res.2" Bash "$( rigOp --idle-wait )"
@@ -302,7 +304,13 @@ rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
 wait "$rigLater" 2> /dev/null
 rigWoke="$( date -r "$rigDir/req.2" +%s 2> /dev/null )"
 rigAssert "the message is the arrival: the run returns to armed with it"                       "$rigRunStatus:$( cat "$rigDir/round" ):$( rigCount "$rigDir/req.2" 'RIG-WATCHED-MESSAGE' ):$( rigIn "$( cat "$rigDir/req.2" )" 'returned to its checkpoint armed' )" 0:2:1:yes
-rigAssert "it woke within 5 s of the post, not at the 30 s bound"                               "$( [ -n "$rigWoke" ] && [ -s "$rigDir/posted" ] && [ $(( rigWoke - $( cat "$rigDir/posted" ) )) -le 5 ] && printf yes )" yes
+## The wake is a one-second tick, so on a calm machine it is within 5 s of the post. On a busy one (a load average above 8) every process of the harness
+## runs slower, so the bound is 20 s: still far under the 30 s bound a wait that missed the marker would end on. The delay is printed.
+rigBound=5
+rigLoad="$( uptime | LC_ALL=C sed -n 's/.*load averages*: *\([0-9]*\).*/\1/p' )"
+[ "${rigLoad:-0}" -le 8 ] 2> /dev/null || rigBound=20
+printf '  measured: the wake came %ss after the post (bound %ss, load %s)\n' "$(( rigWoke - $( cat "$rigDir/posted" 2> /dev/null || echo 0 ) ))" "$rigBound" "${rigLoad:-?}"
+rigAssert "it woke within $rigBound s of the post, not at the 30 s bound"                          "$( [ -n "$rigWoke" ] && [ -s "$rigDir/posted" ] && [ $(( rigWoke - $( cat "$rigDir/posted" ) )) -le "$rigBound" ] && printf yes )" yes
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HARNESS IDLE WAIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -242,7 +242,7 @@ rows settings workspace=Workspace_Paths other=Other_Subject
 rows consoles c1=A_Console
 at @magic-team launch
 turn
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 viewline $rigSaid
 turn
@@ -474,7 +474,7 @@ table list:magic-team/launch none
 rows magic-team/launch s1=one
 at @magic-team launch
 turn
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 viewline $rigSaid
 turn

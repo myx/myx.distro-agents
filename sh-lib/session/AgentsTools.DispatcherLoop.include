@@ -24,11 +24,6 @@ type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 
 agentsScheduleWorkDutyRoutine="magic-team.work-duty.routine.md"
-## The cache-keep interval of the work-duty (T1): how long a member's duty may stand ended before its agent is started
-## again to warm the prefix cache, so a later arrival is a cheap spawn on the cached work-duty prefix. It sits inside
-## the input-cache's own five-minute floor (PRESET_INPUT_CACHE_TIME unset, F10.7), and is hardcoded, no setting names
-## it -- the one table's convention (AgentsTools.SourceTtl.include): an agent never needs it.
-agentsScheduleCacheKeepSeconds=240
 
 ## The work-duty routine of a member: its own `<member>.work-duty.routine.md` where its skill folder holds one (the coordinator's takes the advance rules), else the team's.
 AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder
@@ -45,14 +40,33 @@ AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder
 ## scan collects over a window: a start made in the loop's own time would hold the iteration for it, one member after another. So it is made
 ## apart, its result kept in schedule/starting/<key>.rc and .out and said by the next iteration (AgentsToolsScheduleSpawnReport) if it
 ## failed. A start made in the last ten minutes that has not ended is not made again (schedule/starting/<key>). rc 1 for a start not made.
+## A WORK-DUTY IS ONE SESSION WITH ONE THREAD. The start of a key `work-duty.<member>` brings the member into the session its previous
+## start made (schedule/duty-session/<member>, the SESSION_ID that start printed), under --join-session, so the duty that starts
+## again after a cache-keep, a demand or a tag posts into its thread and opens no new header in the team channel. The first start,
+## and one after the proxy refused the join (the session is no longer known), starts a session and keeps its id.
 AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
-	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting"
+	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile=""
 	shift
+	case "$spawnKey" in
+		work-duty.?*)
+			spawnDutyFile="$MMDAPP/.local/agents/schedule/duty-session/${spawnKey#work-duty.}"
+			[ ! -s "$spawnDutyFile" ] || IFS= read -r spawnDutySession < "$spawnDutyFile" || spawnDutySession=""
+			case "$spawnDutySession" in ''|*[!A-Za-z0-9._-]*) spawnDutySession="" ;; esac
+		;;
+	esac
 	mkdir -p "$spawnStore" 2> /dev/null || return 1
 	[ -z "$( find "$spawnStore" -name "$spawnKey" -mmin -10 2> /dev/null )" ] || return 1
 	( set -C ; : > "$spawnStore/$spawnKey" ) 2> /dev/null || return 1
 	(
-		spawnOut="$( DistroAgentsTools --spawn-session "$@" 2>&1 < /dev/null )" ; spawnRc=$?
+		spawnOut="$( DistroAgentsTools --spawn-session ${spawnDutySession:+--join-session "$spawnDutySession"} "$@" 2>&1 < /dev/null )" ; spawnRc=$?
+		if [ -n "$spawnDutyFile" ] ; then
+			if [ "$spawnRc" = 0 ] ; then
+				spawnDutySession="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
+				if [ -n "$spawnDutySession" ] ; then mkdir -p "${spawnDutyFile%/*}" 2> /dev/null && printf '%s\n' "$spawnDutySession" > "$spawnDutyFile" ; fi
+			elif printf '%s\n' "$spawnOut" | LC_ALL=C grep -q -F 'refusing to join' ; then
+				rm -f "$spawnDutyFile"
+			fi
+		fi
 		printf '%s\n' "$spawnOut" > "$spawnStore/$spawnKey.out"
 		printf '%s\n' "$spawnRc" > "$spawnStore/$spawnKey.rc"
 		rm -f "$spawnStore/$spawnKey"
@@ -134,8 +148,9 @@ AgentsToolsScheduleWorkDutyRecord(){ ## member
 ## The first look reads from now: what stood there before is not news. A read that fails is tried again after the TTL. <force> yes is the
 ## per-member sync's (AgentsTools.Incoming.include): the tags are read now, whatever the TTL, for the members given.
 AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no)
+	type AgentsToolsSeenReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SeenReaction.include"
 	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
-	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit teamIdList=""
+	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit teamOne teamIdList=""
 	[ -n "${1// /}" ] || return 0
 	teamNow="$( date +%s )"
 	## The cache TTL of the tags and mentions (T2): one minute, the low end of the 1-5 minute band. It is the schedule's own cadence,
@@ -159,10 +174,13 @@ AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no
 			/^[0-9]+\.[0-9]+ \| / {
 				own = ( index( $0, "[sender: " ENVIRON["MEMBER"] "]" ) > 0 )
 				if ( $1 + 0 <= ENVIRON["FLOOR"] + 0 || own ) next
-				if ( ENVIRON["MEMBER_ID"] != "" && index( $0, "<@" ENVIRON["MEMBER_ID"] ">" ) > 0 ) { hit = $1 }
-				else if ( index( $0, "@" ENVIRON["MEMBER"] ) > 0 ) { hit = $1 }
+				if ( ENVIRON["MEMBER_ID"] != "" && index( $0, "<@" ENVIRON["MEMBER_ID"] ">" ) > 0 ) { hit = $1 ; all = all " " $1 }
+				else if ( index( $0, "@" ENVIRON["MEMBER"] ) > 0 ) { hit = $1 ; all = all " " $1 }
 			}
-			END { print hit }' )"
+			END { print hit "|" all }' )"
+		## Every mention found is read the moment it is noticed: the seen reaction is the tooling's (AgentsTools.SeenReaction.include).
+		for teamOne in ${teamHit#*|} ; do AgentsToolsSeenReact "$teamMember" "magic-team:$teamOne" || : ; done
+		teamHit="${teamHit%%|*}"
 		AgentsToolsScheduleTagNote "$teamMember" "$teamHit"
 	done
 	if teamTemp="$( mktemp "$teamStore/team-channel.XXXXXX" 2> /dev/null )" ; then
@@ -282,11 +300,12 @@ AgentsToolsScheduleTagNews(){ ## member, since (epoch seconds, may be empty), th
 ## tagged source (AgentsToolsScheduleTagNote). <force> yes is the per-member sync's (AgentsTools.Incoming.include): the DMs are read now, whatever the
 ## TTL, for the members given.
 AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spaced; the members out of them, spaced; force (yes|no)
-	local dmStore="$MMDAPP/.local/agents/schedule" dmMember dmNow dmChecked dmFloor dmRoster dmLine dmConv dmKind dmIdentity dmArg dmSeen dmRead dmNewest dmId dmTtl
+	local dmStore="$MMDAPP/.local/agents/schedule" dmMember dmNow dmChecked dmFloor dmRoster dmLine dmConv dmKind dmIdentity dmArg dmSeen dmRead dmNewest dmId dmTtl dmOne
 	## agentsScheduleDmNewest is the newest DM this call found, empty for none: the per-member sync's line (AgentsTools.Incoming.include).
 	agentsScheduleDmNewest=""
 	[ -n "$1$2" ] || return 0
 	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
+	type AgentsToolsSeenReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SeenReaction.include"
 	dmNow="$( date +%s )"
 	mkdir -p "$dmStore/dms" "$dmStore/dm-looked" 2> /dev/null || return 0
 	for dmMember in $1 $2 ; do
@@ -324,8 +343,12 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 					if ( index( $0, "[sender: " ENVIRON["DM_MEMBER"] "]" ) > 0 ) next
 					if ( ENVIRON["DM_ID"] != "" && index( $0, $1 " | " ENVIRON["DM_ID"] " |" ) == 1 ) next
 					if ( $1 + 0 > newest + 0 ) newest = $1
+					all = all " " $1
 				}
-				END { print newest }' )"
+				END { print newest "|" all }' )"
+			## Every DM found is read the moment it is noticed: the seen reaction is the tooling's (AgentsTools.SeenReaction.include).
+			for dmOne in ${dmRead#*|} ; do AgentsToolsSeenReact "$dmMember" "$dmConv:$dmOne" || : ; done
+			dmRead="${dmRead%%|*}"
 			if [ -n "$dmRead" ] ; then
 				if [ -z "$dmNewest" ] || [ "${dmRead%%.*}" -gt "${dmNewest%%.*}" ] ; then dmNewest="$dmRead" ; fi
 			fi
@@ -446,18 +469,6 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 	AgentsToolsScheduleDismiss "$lifeRecord" "$lifeWhy"
 }
 
-## Whether a member's duty cache is due to be kept warm (T1): rc 0 where its last duty start is at least the cache-keep
-## interval old, so its agent is started again with no input to warm the prefix. <last start> is the duty/<member> epoch;
-## a member that never held a duty has none and is not warmed -- the lazy start stands (a member with nothing to work on
-## holds no duty until the first item starts it).
-AgentsToolsScheduleCacheKeep(){ ## member, last duty start (epoch seconds)
-	local keepAt="${2:-0}" keepNow
-	case "$keepAt" in ''|*[!0123456789]*) return 1 ;; esac
-	[ "$keepAt" -gt 0 ] || return 1
-	keepNow="$( date +%s )"
-	[ $(( keepNow - keepAt )) -ge "$agentsScheduleCacheKeepSeconds" ]
-}
-
 ## The work-duty sessions by the flags (epic 1758-1763): a standing member holds one during worktime, magic-coordinator during worktime,
 ## emergency and overtime. A standing member is every member of the roster but an identity record (human-owner) and the oncall and expert
 ## ones, who are no standing members. One is started when its member has something to work on (AgentsToolsScheduleDemand), the work-duty
@@ -497,18 +508,15 @@ AgentsToolsScheduleWorkDuty(){
 			AgentsToolsScheduleDutyLifetime "$dutyRecord" "$dutyMember" "$dutyAllowed"
 			continue
 		fi
-		dutyWhy="" dutyWarmAt=""
+		dutyWhy=""
+		## A WORK-DUTY STARTS ON FIRST DEMAND AND IS NEVER STARTED TO KEEP A CACHE WARM (sketch 10.4, 7.3): it is a loop in one session, and
+		## its cache is kept inside that session by the keepalive round of its --idle-wait, never by ending the run and starting another.
+		## The session a duty keeps for its restarts (AgentsToolsScheduleSpawn) ends with worktime: out of its flags, with no duty running,
+		## the member's kept id goes, and its next worktime opens a session of its own.
 		if [ "$dutyAllowed" = yes ] ; then
-			if ! AgentsToolsScheduleDemand "$dutyMember" ; then
-				## T1: with nothing to work on, a member in its flags whose duty has ended is started again to keep its
-				## prefix cache warm, so a later arrival is a cheap spawn on the cached work-duty prefix. A member that
-				## never held a duty has no marker and is not warmed: the lazy start stands.
-				dutyWarmAt=""
-				[ ! -f "$MMDAPP/.local/agents/schedule/duty/$dutyMember" ] || read -r dutyWarmAt < "$MMDAPP/.local/agents/schedule/duty/$dutyMember" || :
-				AgentsToolsScheduleCacheKeep "$dutyMember" "$dutyWarmAt" || continue
-				dutyWhy=" to keep its cache warm"
-			fi
+			AgentsToolsScheduleDemand "$dutyMember" || continue
 		else
+			rm -f "$MMDAPP/.local/agents/schedule/duty-session/$dutyMember" 2> /dev/null || :
 			## Out of its flags: a tag (a mention, a DM) newer than its pointer into the tagged source, and nothing else.
 			AgentsToolsScheduleTagNews "$dutyMember" || continue
 		fi
