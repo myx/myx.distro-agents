@@ -10,9 +10,47 @@
 
 ##  Summary:
 
-		every ask of the team. A bare call lists the operations of the file, --help-syntax
-		prints the syntax line of every operation (or of one operation, or of those
-		that a prefix ending in "-" begins), and --help prints this manual.
+		every ask of the team. A bare call prints the syntax line of each of the file's
+		operations, --help-syntax prints every form of every operation (or of one
+		operation, or of those that a prefix ending in "-" begins), and --help prints
+		this manual.
+
+##  Options:
+
+		--read-escalation <request-id>
+			Prints one question as it waits: its kind, what it asks, its options and the
+			accounts that may answer it.
+
+		--answer-escalation <request-id> <verdict> [text]
+			Gives that question its verdict, with the answerer's own words where there are
+			some, and closes it as answered.
+
+		--readback-escalation <request-id> <option word> [text]
+			Closes a question whose reply named none of its options, with the asker's readback
+			of what that reply meant.
+
+		--forward-escalation <request-id>
+			Passes a waiting question up the ladder, to whoever its asker's chain names next.
+
+		--request-permission-set <item> (--entry <tool[,tool...]:target>... [--purpose <text>])...
+			Asks the human-owner for one permission set covering a whole task or session: one
+			post for every place and tool it needs, answered once.
+
+		--read-pending-reply [<pending-id>] [--all] [--any-owner] [--count]
+			One question as it waits, by its id. With no id, the caller's own open ones, then
+			their number: `--all` adds the closed ones, `--any-owner` every member's, and
+			`--count` prints the number alone.
+
+		--settle-pending-reply <pending-id> --reason <text> [--withdraw]
+			Closes a question that was settled elsewhere, so it stops waiting for an answer,
+			and says why. `--withdraw` closes it with no verdict at all.
+
+		--amend-pending-reply <pending-id> --verdict <text> --reason <text>
+			Amends the verdict a question already closed with, and keeps the reason beside it.
+
+		--record-decision <item-filename> --kind <clarification|resolved|dismissed> --text <one line>
+			One line onto that item's own Decisions, where a ruling on the work belongs.
+			`--clears-blocker` clears what the line settles.
 
 ##  Notes:
 

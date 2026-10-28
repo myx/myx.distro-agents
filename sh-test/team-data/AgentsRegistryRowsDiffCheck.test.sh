@@ -339,6 +339,7 @@ rigStateOf(){ ## tracking name -- the last column of its first row
 	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking && NF == 13 { print $13 ; exit ; }' "$rigRenderOut"
 }
 rigAssert "a closed status is finished" "$( rigStateOf r-finished-3 )" finished
+rigAssert "a status that failed is failed, whatever its host" "$( rigStateOf r-finished-2 )" failed
 rigAssert "another host is unknown-foreign" "$( rigStateOf r-foreign )" unknown-foreign
 rigAssert "a live spawn is running" "$( rigStateOf r-running )" running
 rigLiveOf(){ ## tracking name -- the live column of its first row

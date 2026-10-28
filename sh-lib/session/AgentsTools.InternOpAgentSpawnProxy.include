@@ -2717,6 +2717,10 @@ case "$1" in
 			## Its close is done: the hold is taken off. What is left has no bound of its own.
 			trap - TERM INT QUIT
 			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$bgOutcome" "$bgExitCode" 2>/dev/null || :
+			## Kept before the marker goes: this subshell's exit status then says whether an agent CLI was
+			## launched, so the receipt below answers a start that never happened as the error it is.
+			local bgLaunched=""
+			if AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" ; then bgLaunched="yes" ; fi
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER" "$MDAT_SPAWN_LAUNCH_MARKER.noticed"
 			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
 			## Last, and silent. This subshell's own output IS the session log, which stays in
@@ -2724,9 +2728,28 @@ case "$1" in
 			## above, is the record in the team data.
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close" > /dev/null 2>&1
+			if [ -z "$bgLaunched" ] ; then exit 1 ; fi
 		) >> "$outputFile" 2>&1 4>&- &
 		local spawnPid=$!
 		case "$spawnMonitor" in 0:*m*) ;; *) set +m ;; esac
+		## A start is an agent CLI launched, so the receipt waits for it, while the run is alive. A run too
+		## quick for this poll says which in its own exit status, and one that never launches is the error it
+		## is. Nothing else bounds the wait: a console that hangs before a launch holds the answer, as its run
+		## holds its own. The launch marker is the fast path; the status is what settles a race with it.
+		local spawnLaunched="" spawnLaunchRc=0
+		while : ; do
+			if AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" ; then spawnLaunched="yes" ; break ; fi
+			kill -0 "$spawnPid" 2> /dev/null || break
+			sleep 1
+		done
+		if [ -z "$spawnLaunched" ] ; then
+			wait "$spawnPid" || spawnLaunchRc=$?
+		fi
+		if [ -z "$spawnLaunched" ] && [ "$spawnLaunchRc" != "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: $callerName was not started: no agent CLI was launched, so its session ran nothing and nothing will hand back. Its console ended rc=$spawnLaunchRc. What it reported follows, from $outputFile:" >&2
+			{ LC_ALL=C tail -n 20 "$outputFile" 2> /dev/null || : ; } >&2
+			set +e ; return 1
+		fi
 		echo "RECEIPT_ID=$receiptId"
 		echo "SESSION_ID=$sessionId"
 		echo "SESSION_THREAD=${sessionThread:-none}"

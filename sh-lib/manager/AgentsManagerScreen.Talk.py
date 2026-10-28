@@ -14,7 +14,7 @@
 CALLS["talk"] = ["--manager-session-message", "--session-id", "{id}"]
 CALLS["join"] = ["--manager-session-join", "--session-id", "{id}"]
 ## The states of a session the join is offered for, and what the key says at a row where it is not.
-JOIN_STATES = ("finished", "waiting", "unclosed", "running", "starting")
+JOIN_STATES = ("finished", "waiting", "unclosed", "running", "starting", "failed")
 JOIN_SAYS = {
     "unknown-foreign": "it is another host's: nothing can be done with it from here",
 }

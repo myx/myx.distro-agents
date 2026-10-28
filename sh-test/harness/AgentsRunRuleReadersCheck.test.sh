@@ -101,9 +101,14 @@ rigLog(){ ## spawn-id, text (may be empty) -- the session log TaskOutput reads
 	mkdir -p "$rigWs/.local/agents/sessions/$1"
 	printf '%s' "${2:-}" > "$rigWs/.local/agents/sessions/$1/session.log"
 }
-## One served TaskOutput call of the harness, guarded to the rig's own trees and process list.
-rigOutput(){ ## result file, item stem
-	printf '{"handle":"dispatch-20261013T0000Z-%s.md"}\n' "$2" > "$rigTmp/tool.args"
+## One served TaskOutput call of the harness, guarded to the rig's own trees and process list. The
+## handle is the dispatch item of that stem, or `run <id>` for a run's own id, which no dispatch item
+## of the rig carries.
+rigOutput(){ ## result file, item stem -- or `run <id>`
+	case "$2" in
+		run\ *) printf '{"handle":"%s"}\n' "${2#run }" > "$rigTmp/tool.args" ;;
+		*) printf '{"handle":"dispatch-20261013T0000Z-%s.md"}\n' "$2" > "$rigTmp/tool.args" ;;
+	esac
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" \
 		bash -c '
@@ -217,7 +222,42 @@ rigStand "bash $rigFn --intern-op-rig-waits-on-session rig-reused-$$"
 rigOutput "$rigTmp/o11" reused
 rigAssert "a recorded pid that another process has taken is no run of it: FINISHED" "$( rigWord "$rigTmp/o11" )" "OUTPUT-RESULT: FINISHED"
 
-echo "-- 4. the sweep: only a run that lives by the one rule holds its sandbox --"
+echo "-- 4. TaskOutput: a run with no dispatch item is reached through the spawned-sessions registry --"
+## Every spawn has a sandbox record, with or without a dispatch item, and ListAgents lists it. A
+## handle that no dispatch item carries is resolved through that registry to the session's newest
+## run and that run's log, and the first line is the state ListAgents derives for it.
+rigNoId="rig-noid-$$"
+rigRecord "$rigNoId" spawn-succeeded "" "started-at: 2026-10-28_10:00_+0200
+"
+rigLog "$rigNoId" 'rig no-item log
+'
+rigOutput "$rigTmp/o12" "run $rigNoId"
+rigAssert "control: no dispatch item of the rig names that run" "$( find "$rigData/board" -type f -name "*$rigNoId*" | LC_ALL=C grep -c . || : )" 0
+rigAssert "a run with no dispatch item is read by its own id: FINISHED, by the registry, with its log" \
+	"$( rigWord "$rigTmp/o12" ):$( rigHas "$rigTmp/o12" 'rig no-item log' ):$( rigHas "$rigTmp/o12" 'Located by: the spawned-sessions registry' )" "OUTPUT-RESULT: FINISHED:1:1"
+rigAssert "and its state is the one ListAgents derives" "$( rigHas "$rigTmp/o12" 'Session state: finished' )" 1
+## A session of two runs, neither with a dispatch item: its founder has ended, and the run that
+## joined it lives by its own session word. The handle is the session id, and the newest run is read.
+rigShare="rig-share-$$"
+rigRecord "$rigShare" spawn-succeeded "" "started-at: 2026-10-28_09:00_+0200
+"
+rigLog "$rigShare" 'rig founder log
+'
+rigRecord "rig-joined-noid-$$" spawn-started "$rigShare" "started-at: 2026-10-28_10:00_+0200
+"
+rigLog "rig-joined-noid-$$" 'rig newest run log
+'
+rigStand "rig-run --session-id rig-joined-noid-$$"
+rigOutput "$rigTmp/o13" "run $rigShare"
+rigAssert "the session id of two runs, with no dispatch item, reads the newest run's log" \
+	"$( rigWord "$rigTmp/o13" ):$( rigHas "$rigTmp/o13" 'rig newest run log' ):$( rigHas "$rigTmp/o13" 'rig founder log' )" "OUTPUT-RESULT: RUNNING:1:0"
+rigAssert "and says which run it read" "$( rigHas "$rigTmp/o13" "its newest run rig-joined-noid-$$ of 2" )" 1
+## Control: a handle that is neither a dispatch item nor a run of this workspace stays an ERROR.
+rigOutput "$rigTmp/o14" "run rig-nosuchrun-$$"
+rigAssert "control: a handle no registry row names is still not read" \
+	"$( rigHas "$rigTmp/o14" "no dispatch item matches handle rig-nosuchrun-$$" ):$( rigHas "$rigTmp/o14" 'OUTPUT-RESULT' )" "1:0"
+
+echo "-- 5. the sweep: only a run that lives by the one rule holds its sandbox --"
 rigFill(){ ## sandbox folder, record of it to age (may be empty: the record stays new)
 	: > "$rigSpawned/$1/input/brief.md"
 	mkdir -p "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig" && printf 'rig\n' > "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig/wait.err"

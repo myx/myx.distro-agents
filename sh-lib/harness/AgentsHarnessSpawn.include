@@ -365,12 +365,62 @@ AgentsHarnessWindowedRead(){ ## path, byte offset, byte limit
 ## the session is alive and has written nothing yet, which is not a session that
 ## produced nothing. FINISHED: its record is closed. Anything that could not be read is
 ## a stated ERROR instead, and is never dressed as a helper that was quiet.
+## A handle may also be the session id ListAgents prints: where no dispatch item carries it, the
+## spawned-sessions registry reaches the session's newest run and that run's log.
+
+## The run log of a helper session reached where no dispatch item carries its handle: the
+## spawned-sessions registry ListAgents lists, rebuilt and measured as it measures it, with the
+## session's newest run chosen by the start time stored there. Prints `log`, `state` and `how`
+## lines, an `error` line where the registry cannot be read, and nothing where no row names it.
+AgentsHarnessRegistryRunLog(){ ## handle
+	local registryInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	local registryRun registrySpawn logPath
+	[ -f "$registryInclude" ] || { printf 'error the spawned-sessions registry reader is missing at %s, so this handle cannot be resolved through it\n' "$registryInclude" ; return 0 ; }
+	registryRun="$( { . "$registryInclude"
+		AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || { printf 'error the spawned-sessions registry at %s could not be rebuilt, so this handle was not looked up in it\n' "$( AgentsToolsRegistryFile spawned-sessions )" ; exit 0 ; }
+		AgentsToolsRegistryMeasureRows "$( AgentsToolsRegistryFile spawned-sessions )" "" "" 14
+		printf '%s' "$measuredDated" | MDAT_HARNESS_WANT_ID="$1" LC_ALL=C awk '
+			NF != 16 { next ; }
+			{
+				rowCount++
+				rowSession[rowCount] = $2
+				rowSpawn[rowCount] = $8
+				rowState[rowCount] = $13
+				rowStarted[rowCount] = $14
+				if ($2 == ENVIRON["MDAT_HARNESS_WANT_ID"] || $8 == ENVIRON["MDAT_HARNESS_WANT_ID"]) { wantSession = $2 ; }
+			}
+			END {
+				if (wantSession == "") { exit ; }
+				for (rowIdx = 1 ; rowIdx <= rowCount ; rowIdx++) {
+					if (rowSession[rowIdx] != wantSession) { continue ; }
+					runCount++
+					if (pickIdx > 0 && rowStarted[rowIdx] < pickStart) { continue ; }
+					pickIdx = rowIdx ; pickStart = rowStarted[rowIdx] ;
+				}
+				printf "run %s\nstate %s\nhow the spawned-sessions registry (session %s, its newest run %s of %s)\n", rowSpawn[pickIdx], rowState[pickIdx], wantSession, rowSpawn[pickIdx], runCount
+			}
+		'
+	} 2>&1 )" || { printf 'error the spawned-sessions registry could not be read for this handle\n' ; return 0 ; }
+	case "$registryRun" in
+		'') return 0 ;;
+		error*) printf '%s\n' "$registryRun" ; return 0 ;;
+	esac
+	registrySpawn="$( printf '%s\n' "$registryRun" | LC_ALL=C sed -n 's/^run //p' )"
+	logPath="$( AgentsHarnessDispatchField "$( AgentsHarnessSpawnRecordPath "$registrySpawn" )" output-file )"
+	if [ ! -f "$logPath" ] ; then
+		logPath="${MMDAPP:-/nonexistent}/.local/agents/sessions/$registrySpawn/session.log"
+	fi
+	[ -f "$logPath" ] || logPath=""
+	printf '%s\n' "$registryRun"
+	[ -z "$logPath" ] || printf 'log %s\n' "$logPath"
+}
+
 AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 	local toolHandle="$1" toolOffset="$2" toolLimit="$3" toolOutputFile="$4"
 	## A task a long call returned (TASK-ID=process-N, AgentsTools.ToolTask.include) is a session process: its output is the Bash read of its handle.
 	case "$toolHandle" in process-*) AgentsHarnessToolBash "" "" "" "" "$toolHandle" "" "$toolOffset" "$toolLimit" "" ; return 0 ;; esac
 	local itemPath itemName itemStatus sessionId receiptId logPath="" logHow="" logCandidate
-	local liveNow="unknown" logTotal
+	local liveNow="unknown" logTotal registryRun registryState
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
 		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was read, and no output is implied to be absent.\n' ; return 0
 	fi
@@ -405,41 +455,62 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 		fi
 		itemPath="$( AgentsHarnessDispatchItemPath "$toolHandle" )"
 		if [ -z "$itemPath" ] ; then
-			printf 'ERROR: no dispatch item matches handle %s in any board state under %s. A helper spawned WITHOUT a tracking document has no record here at all, so it cannot be reached by handle -- that is a property of how it was spawned, not a missing output.\n' "$toolHandle" "$MDAT_DATA_ROOT" ; return 0
-		fi
-		itemName="${itemPath##*/}"
-		itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
-		## spawn-id is this process's own OS handle; session-id is the shared
-		## coworking id since session-id and spawn-id were split apart, so an item
-		## written before that carries no spawn-id and session-id is still its own.
-		sessionId="$( AgentsHarnessDispatchField "$itemPath" spawn-id )"
-		[ -n "$sessionId" ] || sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
-		if [ -n "$sessionId" ] ; then
-			if [ -n "$( AgentsHarnessSessionPids "$sessionId" )" ] ; then liveNow=yes ; else liveNow=no ; fi
-		fi
-		logPath="$( AgentsHarnessDispatchOutputFile "$itemPath" )"
-		[ -z "$logPath" ] || logHow="the output-file the dispatch item records, which it writes only once the session closes"
-		## While it runs: its session log, named by the spawn id the item records.
-		if [ -z "$logPath" ] && [ -n "$sessionId" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$sessionId" \
-			&& [ -f "$MMDAPP/.local/agents/sessions/$sessionId/session.log" ] ; then
-			logPath="$MMDAPP/.local/agents/sessions/$sessionId/session.log" ; logHow="the session log of spawn $sessionId"
-		fi
-		if [ -z "$logPath" ] ; then
-			receiptId="$( AgentsHarnessDispatchReceipt "$itemName" )"
-			if [ -z "$receiptId" ] ; then
-				printf 'ERROR: dispatch item %s records no output-file and its name does not carry a spawn receipt, so its output log could not be located. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
+			## A helper started without a tracking document has no dispatch item: the spawn record
+			## ListAgents lists still names its run, and that run names its log.
+			if [ -z "${MMDAPP:-}" ] ; then
+				printf 'ERROR: no dispatch item matches handle %s in any board state under %s, and MMDAPP is not set here, so the spawned-sessions registry that reaches a run cannot be found. Nothing was read, and no output is implied to be absent.\n' "$toolHandle" "$MDAT_DATA_ROOT" ; return 0
 			fi
-			for logCandidate in "$MDAT_DATA_ROOT"/audit/*/"$receiptId".output.log ; do
-				[ -f "$logCandidate" ] || continue
-				## States only how the path was found. Whether the session is still open is
-				## reported on its own line from a live reading, and a clause here that
-				## could disagree with it would be worse than no clause at all.
-				logPath="$logCandidate" ; logHow="derived from the spawn receipt $receiptId"
-				break
-			done
-		fi
-		if [ -z "$logPath" ] ; then
-			printf 'ERROR: dispatch item %s was found, but no session log for spawn %s exists under %s/.local/agents/sessions, and no output log for receipt %s under %s/audit. Status recorded on the item: %s. The log is absent rather than unread.\n' "$itemName" "${sessionId:-<none>}" "${MMDAPP:-<no MMDAPP>}" "$receiptId" "$MDAT_DATA_ROOT" "${itemStatus:-<none>}" ; return 0
+			registryRun="$( AgentsHarnessRegistryRunLog "$toolHandle" )"
+			logPath="$( printf '%s\n' "$registryRun" | LC_ALL=C sed -n 's/^log //p' )"
+			registryState="$( printf '%s\n' "$registryRun" | LC_ALL=C sed -n 's/^state //p' )"
+			if [ -z "$logPath" ] ; then
+				case "$registryRun" in
+					error*) printf 'ERROR: %s\n' "$( printf '%s\n' "$registryRun" | LC_ALL=C sed -n 's/^error //p' )" ; return 0 ;;
+					'') printf 'ERROR: no dispatch item matches handle %s in any board state under %s, and no spawn record under %s/.local/agents/spawned names it as its own run or as the session it joined, so it is neither a run this workspace lists nor a log. Nothing was read, and no output is implied to be absent.\n' "$toolHandle" "$MDAT_DATA_ROOT" "$MMDAPP" ; return 0 ;;
+					*) printf 'ERROR: no dispatch item matches handle %s in any board state under %s, so it was looked for in %s, and that run names no log that exists: the log is absent rather than unread.\n' "$toolHandle" "$MDAT_DATA_ROOT" "$( printf '%s\n' "$registryRun" | LC_ALL=C sed -n 's/^how //p' )" ; return 0 ;;
+				esac
+			fi
+			logHow="$( printf '%s\n' "$registryRun" | LC_ALL=C sed -n 's/^how //p' )"
+			case "$registryState" in
+				running|starting) liveNow=yes ;;
+				finished|waiting|unclosed) liveNow=no ;;
+				*) liveNow=unknown ;;
+			esac
+		else
+			itemName="${itemPath##*/}"
+			itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
+			## spawn-id is this process's own OS handle; session-id is the shared
+			## coworking id since session-id and spawn-id were split apart, so an item
+			## written before that carries no spawn-id and session-id is still its own.
+			sessionId="$( AgentsHarnessDispatchField "$itemPath" spawn-id )"
+			[ -n "$sessionId" ] || sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
+			if [ -n "$sessionId" ] ; then
+				if [ -n "$( AgentsHarnessSessionPids "$sessionId" )" ] ; then liveNow=yes ; else liveNow=no ; fi
+			fi
+			logPath="$( AgentsHarnessDispatchOutputFile "$itemPath" )"
+			[ -z "$logPath" ] || logHow="the output-file the dispatch item records, which it writes only once the session closes"
+			## While it runs: its session log, named by the spawn id the item records.
+			if [ -z "$logPath" ] && [ -n "$sessionId" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$sessionId" \
+				&& [ -f "$MMDAPP/.local/agents/sessions/$sessionId/session.log" ] ; then
+				logPath="$MMDAPP/.local/agents/sessions/$sessionId/session.log" ; logHow="the session log of spawn $sessionId"
+			fi
+			if [ -z "$logPath" ] ; then
+				receiptId="$( AgentsHarnessDispatchReceipt "$itemName" )"
+				if [ -z "$receiptId" ] ; then
+					printf 'ERROR: dispatch item %s records no output-file and its name does not carry a spawn receipt, so its output log could not be located. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
+				fi
+				for logCandidate in "$MDAT_DATA_ROOT"/audit/*/"$receiptId".output.log ; do
+					[ -f "$logCandidate" ] || continue
+					## States only how the path was found. Whether the session is still open is
+					## reported on its own line from a live reading, and a clause here that
+					## could disagree with it would be worse than no clause at all.
+					logPath="$logCandidate" ; logHow="derived from the spawn receipt $receiptId"
+					break
+				done
+			fi
+			if [ -z "$logPath" ] ; then
+				printf 'ERROR: dispatch item %s was found, but no session log for spawn %s exists under %s/.local/agents/sessions, and no output log for receipt %s under %s/audit. Status recorded on the item: %s. The log is absent rather than unread.\n' "$itemName" "${sessionId:-<none>}" "${MMDAPP:-<no MMDAPP>}" "$receiptId" "$MDAT_DATA_ROOT" "${itemStatus:-<none>}" ; return 0
+			fi
 		fi
 	fi
 	if [ ! -f "$logPath" ] ; then
@@ -462,6 +533,7 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 	printf 'Output log: %s\n' "$logPath"
 	printf 'Located by: %s\n' "$logHow"
 	[ -z "$itemName" ] || printf 'Dispatch item: %s, status %s\n' "$itemName" "${itemStatus:-<none>}"
+	[ -z "$registryState" ] || printf 'Session state: %s, the state ListAgents derives for this run\n' "$registryState"
 	case "$liveNow" in
 		yes) printf 'A process still carries this session id, so this log is STILL BEING WRITTEN: what follows is what exists so far, and its end is not the end of the work.\n' ;;
 		no)  printf 'No process carries this session id any more, so this log is complete.\n' ;;

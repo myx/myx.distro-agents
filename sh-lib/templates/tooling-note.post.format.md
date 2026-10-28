@@ -75,6 +75,7 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - state-unclosed
   - state-running
   - state-starting
+  - state-failed
 - Contract
 
 # Summary
@@ -533,6 +534,12 @@ reads running: it may be stuck, since a run that is stuck keeps its process
 
 ```
 is starting: its runs have not yet reported
+```
+
+## state-failed
+
+```
+has failed: every run of it died on its start
 ```
 
 # Contract

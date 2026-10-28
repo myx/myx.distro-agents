@@ -112,7 +112,7 @@ echo "-- 1. the lists are the manager list --"
 rigCall list "$rigTool" --manager-session-list
 rigCall listActive "$rigTool" --manager-session-list --active
 rigAssert "control: the manager list reads the five sessions of the rig by state" "$( rigSessions list )" \
-	"rig-rc-d=unclosed rig-rc-c=finished rig-rc-b=finished rig-rc-a=finished rig-s-solo=unclosed rig-s-adhoc=waiting rig-s-cow=waiting rig-s-done=finished rig-s-cowdone=finished "
+	"rig-rc-d=unclosed rig-rc-c=finished rig-rc-b=failed rig-rc-a=finished rig-s-solo=unclosed rig-s-adhoc=waiting rig-s-cow=waiting rig-s-done=finished rig-s-cowdone=finished "
 rigCall all "$rigDispatcher" --all-sessions
 rigAssert "--all-sessions: the same rows, the same exit" "$( [ -f "$rigTmp/all.out" ] && rigSame all list )" "same"
 rigCall active "$rigDispatcher" --active-sessions
@@ -129,11 +129,11 @@ echo "-- 3. --kind --"
 rigCall kindCow "$rigDispatcher" --all-sessions --kind coworking
 rigAssert "--kind coworking keeps the sessions whose routine is of the coworking kind"           "$( rigSessions kindCow )" "rig-s-cow=waiting rig-s-cowdone=finished "
 rigCall kindSolo "$rigDispatcher" --all-sessions --kind standalone
-rigAssert "--kind standalone keeps the standalone ones"                                          "$( rigSessions kindSolo )" "rig-rc-d=unclosed rig-rc-c=finished rig-rc-b=finished rig-rc-a=finished rig-s-solo=unclosed rig-s-done=finished "
+rigAssert "--kind standalone keeps the standalone ones"                                          "$( rigSessions kindSolo )" "rig-rc-d=unclosed rig-rc-c=finished rig-rc-b=failed rig-rc-a=finished rig-s-solo=unclosed rig-s-done=finished "
 rigCall kindAdhoc "$rigDispatcher" --all-sessions --kind ad-hoc
 rigAssert "--kind ad-hoc keeps the run with no routine"                                          "$( rigSessions kindAdhoc )" "rig-s-adhoc=waiting "
 rigCall kindActive "$rigDispatcher" --active-sessions --kind standalone
-rigAssert "--kind goes with --active-sessions: the active ones of that kind"                     "$( rigSessions kindActive )" "rig-rc-d=unclosed rig-s-solo=unclosed "
+rigAssert "--kind goes with --active-sessions: the active ones of that kind"                     "$( rigSessions kindActive )" "rig-rc-d=unclosed rig-rc-b=failed rig-s-solo=unclosed "
 rigCall kindWaiting "$rigDispatcher" --waiting-sessions --kind coworking
 rigAssert "--kind goes with --waiting-sessions: the waiting ones of that kind"                   "$( rigSessions kindWaiting )" "rig-s-cow=waiting "
 rigAssert "a kept session keeps its runs and the counters row"                                   "$( rigHas kindCow run ):$( rigHas kindCow counters )" "2:1"

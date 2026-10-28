@@ -241,7 +241,7 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-spawn-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
-	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. state is running/waiting/failed/finished/unclosed/unknown-foreign -- failed and finished are read straight from status and stand regardless of live."
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		rowState="${registryRow##* }"

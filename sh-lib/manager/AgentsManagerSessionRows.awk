@@ -7,7 +7,7 @@
 ## (measuredDated of AgentsToolsRegistryMeasureRows: eleven stored columns, live, state,
 ## started-at, resolved-at, session-comment, session-state, session-state-at). -v activeOnly=1
 ## keeps the sessions that are not finished and can be acted on from this host, those that
-## read running, waiting or unclosed (activeState); -v loadAverage is the figure of the counters row, and
+## read running, waiting, unclosed or failed (activeState); -v loadAverage is the figure of the counters row, and
 ## -v hostName the name of this host, which stands last in that row, `-` where none is given. In
 ## the environment, MDAT_MANAGER_WAITING is ` <spawn-id> <spawn-id> ... `: the live runs that
 ## sit inside a Wait; and MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
@@ -48,11 +48,12 @@
 ## something can still be done from this host. `running`. `waiting`: no live process and a run
 ## of it waiting on an answer, which can be answered or dismissed, or every live run of it in a
 ## Wait, which is what it is doing. `unclosed`, no live process
-## and a record still open: the record can be closed, the run started again. Not `finished`;
+## and a record still open: the record can be closed, the run started again. `failed`, every run of it
+## died on its start: a joined coordinator takes it up. Not `finished`;
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
 function activeState(stateWord) {
-	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "unclosed" ) ;
+	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "unclosed" || stateWord == "failed" ) ;
 }
 
 ## The usage-limit flag of one run, from its store: the first line of
@@ -75,7 +76,7 @@ BEGIN {
 	OFS = "\t" ;
 	waitingSet = ENVIRON["MDAT_MANAGER_WAITING"] ;
 	agentsDir = ENVIRON["MDAT_MANAGER_AGENTS"] ;
-	stateTotal = split("running starting waiting unclosed unknown-foreign finished", stateOrder, " ") ;
+	stateTotal = split("running starting waiting unclosed unknown-foreign failed finished", stateOrder, " ") ;
 	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
 	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
 		if (split(controlLines[controlAt], controlWords, " ") >= 2) controlOf[controlWords[1]] = controlWords[2] ;
@@ -117,9 +118,13 @@ NF != 16 && NF != 18 { next ; }
 		if (index(waitingSet, " " $8 " ") > 0) { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
 		else { runActivity[runTotal] = "working" ; agentsWorking++ ; }
 	}
-	if ($13 == "unknown-foreign") sessionForeign[sessionKey] = 1 ;
-	if ($13 == "unclosed" || $13 == "waiting") sessionOpen[sessionKey] = 1 ;
-	if ($13 == "starting") sessionStarting[sessionKey] = 1 ;
+	## A RUN THAT DIED ON ITS START READS `failed` (sketch 3.6), whatever the registry derives of it: its status says so.
+	runStateWord = ( $6 == "spawn-failed" ? "failed" : $13 ) ;
+	if (runStateWord == "failed") sessionFailed[sessionKey] = 1 ;
+	else if ($6 == "spawn-succeeded" || $6 == "spawn-ended-without-close") sessionEnded[sessionKey] = 1 ;
+	if (runStateWord == "unknown-foreign") sessionForeign[sessionKey] = 1 ;
+	if (runStateWord == "unclosed" || runStateWord == "waiting") sessionOpen[sessionKey] = 1 ;
+	if (runStateWord == "starting") sessionStarting[sessionKey] = 1 ;
 	## AN ASK STILL WAITING IS THE SESSION'S OWN, whether its run still stands or not: it is counted by
 	## the asking id its row carries, the session's own id or the id of one of its runs.
 	if (($2 != "-" && ($2 in openAsker)) || ($8 != "-" && ($8 in openAsker))) sessionAsked[sessionKey] = 1 ;
@@ -137,7 +142,7 @@ NF != 16 && NF != 18 { next ; }
 		limitText = usageLimitOfRun(agentsDir, $8) ;
 		if (limitText != "" && ( !( sessionKey in sessionUsageLimit ) || limitText > sessionUsageLimit[sessionKey] )) sessionUsageLimit[sessionKey] = limitText ;
 	}
-	sessionStates[sessionKey, $13]++ ;
+	sessionStates[sessionKey, runStateWord]++ ;
 	if (sessionName[sessionKey] == "-") sessionName[sessionKey] = $16 ;
 	runMinutes[runTotal] = dateMinutes(runStart[runTotal]) ;
 	if (runMinutes[runTotal] >= 0 && (sessionStart[sessionKey] < 0 || runMinutes[runTotal] < sessionStart[sessionKey])) {
@@ -145,19 +150,17 @@ NF != 16 && NF != 18 { next ; }
 	}
 	endMinutes = dateMinutes(runEnd[runTotal]) ;
 	if (endMinutes > sessionEnd[sessionKey]) { sessionEnd[sessionKey] = endMinutes ; sessionEndText[sessionKey] = runEnd[runTotal] ; }
-	runRow[runTotal] = $8 OFS $5 OFS $6 OFS $12 OFS $13 OFS runStart[runTotal] OFS runEnd[runTotal] OFS $4 OFS $11 ;
+	runRow[runTotal] = $8 OFS $5 OFS $6 OFS $12 OFS runStateWord OFS runStart[runTotal] OFS runEnd[runTotal] OFS $4 OFS $11 ;
 }
 
 END {
 	for (sessionAt = 1 ; sessionAt <= sessionTotal ; sessionAt++) {
 		sessionKey = sessionOf[sessionAt] ;
-		## THE STATE OF THE SESSION IS THE STATE OF ITS AGENTS AND OF ITS QUESTIONS. Live runs make
-		## it running, or waiting where every one of them sits in a Wait. With none live, it is the
-		## state its runs themselves read: waiting where a run of it waits on an answer (its own
-		## measured `waiting`), then the states of their records -- of another host's, still open --
-		## and else finished. ALL AGENTS FINISHED MAKE THE SESSION FINISHED, NEVER WAITING (sketch 5.4): a
-		## question still open does not hold a session whose runs have all ended; the count of open asks
-		## is the counters row's, and the question is answered in Pending Questions.
+		## THE STATE OF THE SESSION IS THE STATE OF ITS AGENTS AND OF ITS QUESTIONS: live runs make it running, or
+		## waiting where every one of them sits in a Wait; with none live, waiting where a run of it waits on an
+		## answer, then an open record of another host's, else one still open, else every run of it failed on its
+		## start, else finished. ALL AGENTS FINISHED MAKE THE SESSION FINISHED, NEVER WAITING (sketch 5.4): a question
+		## still open does not hold a session whose runs have all ended -- it is counted in the counters row.
 		if (sessionKey in sessionLive) {
 			sessionState[sessionKey] = ( sessionLiveWaiting[sessionKey] == sessionLiveCount[sessionKey] ) ? "waiting" : "running" ;
 		}
@@ -165,6 +168,7 @@ END {
 		else if ((sessionKey, "waiting") in sessionStates) sessionState[sessionKey] = "waiting" ;
 		else if (sessionKey in sessionForeign) sessionState[sessionKey] = "unknown-foreign" ;
 		else if (sessionKey in sessionOpen) sessionState[sessionKey] = "unclosed" ;
+		else if ((sessionKey in sessionFailed) && !( sessionKey in sessionEnded )) sessionState[sessionKey] = "failed" ;
 		else sessionState[sessionKey] = "finished" ;
 		if (sessionState[sessionKey] == "running") sessionsRunning++ ;
 		if (activeOnly && !activeState(sessionState[sessionKey])) continue ;
@@ -173,10 +177,10 @@ END {
 		for (stateAt = 1 ; stateAt <= stateTotal ; stateAt++) {
 			if ((sessionKey, stateOrder[stateAt]) in sessionStates) stateTally = stateTally ( stateTally == "" ? "" : "," ) stateOrder[stateAt] "=" sessionStates[sessionKey, stateOrder[stateAt]] ;
 		}
-		## The date of a state is on record for a finished session alone: when its last run closed.
+		## The date of a state is on record for a session that ended alone: when its last run closed.
 		## Then, at the end of the row, what its control thread stored and whether that thread lives;
 		## its tokens; and, last, the usage-limit flag of its runs, `-` where none was refused.
-		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( sessionState[sessionKey] == "finished" && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally, sessionStored[sessionKey], sessionStoredAt[sessionKey], ( ( sessionKey in sessionById ) && ( sessionKey in controlOf ) ? controlOf[sessionKey] : "none" ), \
+		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally, sessionStored[sessionKey], sessionStoredAt[sessionKey], ( ( sessionKey in sessionById ) && ( sessionKey in controlOf ) ? controlOf[sessionKey] : "none" ), \
 			( ( sessionKey in sessionTokenRuns ) ? tokensFigure(sessionTokens[sessionKey]) ( ( sessionKey in sessionTokenUnknown ) ? "+" : "" ) : "-" ), \
 			( ( sessionKey in sessionUsageLimit ) ? sessionUsageLimit[sessionKey] : "-" ) ;
 	}

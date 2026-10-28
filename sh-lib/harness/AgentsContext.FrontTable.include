@@ -411,26 +411,40 @@ AgentsToolsFrontSummary(){ ## entry function name
 	printf '%s\n' "$agentsFrontSummary" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'
 }
 
-## The names of a tool file, one a line; and what a bare call of a tool file prints.
+## The names of a tool file, one a line; and what a bare call of a tool file prints: the syntax line of each of its
+## operations, one a line, its first form where an operation has several -- the entry points a reader starts from.
+## Every form of every operation is what --help-syntax is asked for by name.
 AgentsToolsFrontOps(){ ## entry function name
 	printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 }'
 }
 AgentsToolsFrontHelp(){ ## entry function name, what the tool is
-	printf '%s: %s\noperations:\n' "$1" "$2"
-	AgentsToolsFrontOps "$1" | LC_ALL=C sed 's/^/  /'
+	printf '%s: %s\n' "$1" "$2"
+	AgentsToolsFrontSyntaxLines "$1" "" first-form
 }
 
-## `--help-syntax [<name>]` of a tool file: the syntax lines of its names, one name's, or those of every name a prefix ending in `-` begins (the lines of the manual,
-## sh-lib/help/Help.DistroAgentsTools.include, that name this tool file).
+## The syntax lines of a tool file's names, one name's, or those of every name a prefix ending in `-` begins: the lines of the
+## file's own manual, sh-lib/help/Help.<file>.help.md, which is where a tool's syntax is written, and of the shared include,
+## sh-lib/help/Help.DistroAgentsTools.include, only where no manual is there to read. Prints them, and nothing where the file
+## has none. With `first-form`, one line for each name, its first, which is the short list a bare call prints.
+AgentsToolsFrontSyntaxLines(){ ## entry function name, a name or a prefix (optional), first-form (optional)
+	local synManual="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.$1.help.md"
+	[ -f "$synManual" ] || synManual="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
+	LC_ALL=C awk -v tool="$1.fn.sh" -v want="${2:-}" -v form="${3:-}" '
+		{
+			line = $0 ; sub( /^echo "/, "", line ) ; sub( /" >&2$/, "", line )
+			if ( index( line, "📘 syntax: " ) != 1 ) next
+			split( substr( line, length( "📘 syntax: " ) + 1 ), words, " " ) ; op = words[2] ; gsub( /[][]/, "", op )
+			if ( words[1] != tool ) next
+			if ( want != "" && op != want && ! ( want ~ /-$/ && index( op, want ) == 1 ) ) next
+			if ( form == "first-form" ) { if ( op in listed ) next ; listed[op] = 1 }
+			print line
+		}' "$synManual"
+}
+
+## `--help-syntax [<name>]` of a tool file: those lines on stderr, or the refusal of a word that names none.
 AgentsToolsFrontSyntax(){ ## entry function name, a name or a prefix (optional)
 	local synOut
-	synOut="$( LC_ALL=C awk -v tool="$1.fn.sh" -v want="${2:-}" '
-		index( $0, "echo \"📘 syntax: " ) == 1 {
-			msg = $0 ; sub( /^echo "/, "", msg ) ; sub( /" >&2$/, "", msg )
-			split( substr( msg, length( "📘 syntax: " ) + 1 ), words, " " ) ; op = words[2] ; gsub( /[][]/, "", op )
-			if ( words[1] != tool ) next
-			if ( want == "" || op == want || ( want ~ /-$/ && index( op, want ) == 1 ) ) print msg
-		}' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include" )"
+	synOut="$( AgentsToolsFrontSyntaxLines "$1" "${2:-}" )"
 	if [ -z "$synOut" ] ; then
 		echo "⛔ ERROR: ${MDSC_CMD:-$1} --help-syntax ${2:-}: no operation of $1 is named so, or begins so -- $1 --help-syntax lists them all" >&2
 		return 1

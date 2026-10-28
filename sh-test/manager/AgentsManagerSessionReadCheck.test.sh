@@ -265,7 +265,7 @@ rigRun "$rigOp" --session-id sess-n
 rigAssert "control: the record has no folder under sessions/" "$( [ -e "$rigStores/sess-n" ] && echo store || echo no-store )" "no-store"
 rigAssert "the fields of the record are printed, each header as it stands" "$rigRc $( rigRows header | LC_ALL=C awk '{ printf "%s=%s ", $3, $4 }' )" "0 session-id=sess-n spawn-id=sess-n host=$rigHost workspace=rigws owner=magic-librarian status=spawn-failed exit-code=3 started-at=2026-10-12 resolved-at=2026-10-12 "
 rigAssert "and - for the milestone, the sources of the wait and the marks, as for everything a store holds" "$( rigRows store )" "store sess-n no-store - - - - - - - - - - - - -"
-rigAssert "its session is itself, finished, and it has no founder but itself" "$( rigRows session ) / $( rigRows dispatch )" "session sess-n - finished 2026-10-12_08:00_+0300 2026-10-12_08:30_+0300 1 finished=1 - - none - - / dispatch sess-n record magic-librarian - - - - -"
+rigAssert "its session is itself, failed with the date it closed, and it has no founder but itself" "$( rigRows session ) / $( rigRows dispatch )" "session sess-n - failed 2026-10-12_08:00_+0300 2026-10-12_08:30_+0300 1 failed=1 - - none - - / dispatch sess-n record magic-librarian - - - - -"
 
 echo "-- 5. an id that names nothing, and what the operation takes --"
 rigRun "$rigOp" --session-id no-such-id

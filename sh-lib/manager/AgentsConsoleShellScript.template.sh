@@ -751,7 +751,9 @@ if DagcCliIsLeg "$DAGC_CLI" ; then
 	DagcHarnessEffortExport
 fi
 
-## claude-native: a signed-out spawn uses a configured key, else rc 6; an interactive console is only warned. MAGIC.md, "Claude sign-in".
+## claude-native: the probe adds a configured key where one is set, and warns an interactive console. It never
+## refuses a launch: a login that expired, or one the probe cannot read, is the CLI's own to report, and refusing
+## here tells a CLI that cannot act from one that works. MAGIC.md, "Claude sign-in".
 DagcClaudeAuthProbe(){
 	case "$( claude auth status </dev/null 2>/dev/null | LC_ALL=C tr -d ' \t' )" in
 		*'"loggedIn":true'*)  printf 'in' ;;
@@ -761,21 +763,15 @@ DagcClaudeAuthProbe(){
 }
 if [ "$DAGC_CLI" = "claude-native" ] && [ "$( DagcClaudeAuthProbe )" = "out" ] ; then
 	if [ "$1" == "--non-interactive" ] ; then
-		DAGC_CLAUDE_KEY=""
 		for DAGC_CREDENTIAL_NAME in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
 			DAGC_CREDENTIAL_VALUE="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
 			[ -n "$DAGC_CREDENTIAL_VALUE" ] || continue
 			export "$DAGC_CREDENTIAL_NAME=$DAGC_CREDENTIAL_VALUE"
-			DAGC_CLAUDE_KEY="$DAGC_CREDENTIAL_NAME"
-			echo "# DistroAgentsConsole: claude is not signed in on this machine, so the configured $DAGC_CREDENTIAL_NAME is used for this spawn" >&2
+			echo "# DistroAgentsConsole: claude reports itself not signed in, so the configured $DAGC_CREDENTIAL_NAME is used for this spawn" >&2
 			break
 		done
-		if [ -z "$DAGC_CLAUDE_KEY" ] ; then
-			echo "⛔ ERROR: DistroAgentsConsole: claude is installed and selected but not signed in on this machine, and no ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is configured for a spawn to use. rc=6 means exactly this -- the CLI is present and cannot act -- distinct from rc=5 (none selected) and rc=1 (could not start). Sign in with claude, or set one of those keys with --owner-setup-claude-native." >&2
-			exit 6
-		fi
 	else
-		echo "🙋 WARNING: DistroAgentsConsole: claude is not signed in on this machine -- sign in with /login once it starts" >&2
+		echo "🙋 WARNING: DistroAgentsConsole: claude reports itself not signed in -- sign in with /login once it starts" >&2
 	fi
 fi
 

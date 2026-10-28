@@ -147,6 +147,19 @@ rigAssert "sessions waiting drops the running session"     "$( rigHasSession "$r
 rigAssert "sessions finished keeps only the finished one"  "$( rigHasSession "$rigTmp/sFinished" rig-sess-finished )" yes
 rigAssert "sessions finished drops the running session"    "$( rigHasSession "$rigTmp/sFinished" "$rigSession" )" no
 
+echo "-- a run that failed: state failed, and the reason kept beside its record --"
+rigRecord rig-failed rig-sess-failed "$rigThisHost" spawn-failed
+printf 'the model refused the call\nno second line is printed\n' > "$rigSpawned/rig-failed/rig-sess-failed.refused"
+rigRecord rig-failed-quiet rig-sess-failed-quiet "$rigThisHost" spawn-failed
+rigList "$rigTmp/lFailed" MMDAPP="$rigWs"
+rigListBody='{"state":"failed"}'
+rigList "$rigTmp/lFailedOnly" MMDAPP="$rigWs"
+rigListBody=""
+rigAssert "a run that failed reads failed, never finished" "$( rigState "$rigTmp/lFailed" rig-failed )" failed
+rigAssert "its reason is printed under its row, first line only" "$( LC_ALL=C grep -c -x 'reason: the model refused the call' "$rigTmp/lFailed" || : ) $( LC_ALL=C grep -c 'no second line is printed' "$rigTmp/lFailed" || : )" "1 0"
+rigAssert "the one failed run that kept a reason is the one that prints it" "$( LC_ALL=C grep -c '^reason: ' "$rigTmp/lFailed" || : )" 1
+rigAssert "the state filter failed keeps it, and drops a finished row" "$( rigState "$rigTmp/lFailedOnly" rig-failed ) $( rigState "$rigTmp/lFailedOnly" rig-finished )" "failed no-row"
+
 echo "-- after the process ends --"
 : > "$rigTmp/ps.list"
 rigList "$rigTmp/l2" MMDAPP="$rigWs"

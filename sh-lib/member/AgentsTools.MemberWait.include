@@ -498,7 +498,11 @@ AgentsWaitProbeFile(){
 		return 0
 	fi
 	if [ -f "$probeTarget" ] ; then
-		cat "$probeTarget" > "$probeOut" 2>/dev/null || probeRc=$?
+		## Read by the shell itself, not by cat: this probe runs once a tick, and a process per
+		## tick per source is the load the tick must not be.
+		local probeBody=""
+		IFS= read -r -d '' probeBody < "$probeTarget" || :
+		printf '%s' "$probeBody" > "$probeOut" 2>/dev/null || probeRc=$?
 		[ "$probeRc" = "0" ] || return 2
 		return 0
 	fi
@@ -565,15 +569,24 @@ AgentsWaitProbeProcess(){
 ## listed -- marking is the waiting member's own act, never new input for it.
 AgentsWaitProbeInbox(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
-	local probeDir="$MDAT_DATA_ROOT/inboxes/$2/incoming" probeFloor="${3%%.*}" probeFile probeAt
+	local probeDir="$MDAT_DATA_ROOT/inboxes/$2/incoming" probeFloor="${3%%.*}" probeFile probeAt probeKnown=""
+	## The rendering this source is measured against, where the caller names one: an item it
+	## already lists passed the floor then, and a date process per item per tick is what this
+	## saves. A call that names none reads every item's time, as it always did.
+	[ -z "${7:-}" ] || { IFS= read -r -d '' probeKnown < "$7" 2> /dev/null || : ; }
 	: > "$4" || return 2
 	[ -d "$probeDir" ] || return 0
 	for probeFile in "$probeDir"/*.md ; do
 		[ -f "$probeFile" ] || continue
-		probeAt="$( date -r "$probeFile" +%s 2> /dev/null )" || continue
-		case "$probeFloor" in
-			''|*[!0-9]*) ;;
-			*) [ "$probeAt" -ge "$probeFloor" ] || continue ;;
+		case "$probeKnown" in
+			*"${probeFile##*/}"*) ;;
+			*)
+				probeAt="$( date -r "$probeFile" +%s 2> /dev/null )" || continue
+				case "$probeFloor" in
+					''|*[!0-9]*) ;;
+					*) [ "$probeAt" -ge "$probeFloor" ] || continue ;;
+				esac
+			;;
 		esac
 		printf '%s\n' "${probeFile##*/}" >> "$4" || return 2
 	done
@@ -1598,11 +1611,38 @@ AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags r
 
 ## `slack` -> `AgentsWaitProbeSlack`, without ${var^} -- bash 3.2 has no such
 ## expansion, and this package targets it.
+## The probe function of a source kind, by a case: the cut and tr it replaces cost three
+## processes a call, and this is read once per source per tick. A kind the list does not
+## name keeps the generic form, which is right for one this file never met.
 AgentsWaitProbeFunctionName(){
 	local nameKind="$1" nameHead nameTail
+	case "$nameKind" in
+		slack) printf 'AgentsWaitProbeSlack' ; return 0 ;;
+		file) printf 'AgentsWaitProbeFile' ; return 0 ;;
+		inbox) printf 'AgentsWaitProbeInbox' ; return 0 ;;
+		board) printf 'AgentsWaitProbeBoard' ; return 0 ;;
+		ask) printf 'AgentsWaitProbeAsk' ; return 0 ;;
+		replies) printf 'AgentsWaitProbeReplies' ; return 0 ;;
+		chat) printf 'AgentsWaitProbeChat' ; return 0 ;;
+		scan) printf 'AgentsWaitProbeScan' ; return 0 ;;
+		tagged) printf 'AgentsWaitProbeTagged' ; return 0 ;;
+		dms) printf 'AgentsWaitProbeDms' ; return 0 ;;
+		mentions) printf 'AgentsWaitProbeMentions' ; return 0 ;;
+		process) printf 'AgentsWaitProbeProcess' ; return 0 ;;
+		wake) printf 'AgentsWaitProbeWake' ; return 0 ;;
+	esac
 	nameHead="$( printf '%s' "$nameKind" | cut -c1 | tr '[:lower:]' '[:upper:]' )"
 	nameTail="$( printf '%s' "$nameKind" | cut -c2- )"
 	printf 'AgentsWaitProbe%s%s' "$nameHead" "$nameTail"
+}
+
+## Two renderings hold the same bytes -- rc 0 when they do. A builtin read either side, in
+## place of a cmp process a tick.
+AgentsWaitSameFile(){ ## a, b
+	local sameA="" sameB=""
+	IFS= read -r -d '' sameA < "$1" 2> /dev/null || :
+	IFS= read -r -d '' sameB < "$2" 2> /dev/null || :
+	[ "$sameA" = "$sameB" ]
 }
 
 ## THE BACKOFF IS MEASURED FROM THE NEWEST ACTIVITY on what a wait watches, never from
@@ -2641,8 +2681,12 @@ case "$1" in
 		local waitBaselineMode="first-probe"
 		[ -z "$waitSince" ] || waitBaselineMode="empty"
 
-		local waitStart waitDeadline=""
+		local waitStart waitSecs0 waitCallerPid waitDeadline=""
 		waitStart="$( date +%s )"
+		## The one clock of this wait: every later round reads the shell's own second count from
+		## here, so a quiet tick costs no date process at all.
+		waitSecs0=$SECONDS
+		waitCallerPid=$PPID
 		[ -z "$waitTimeout" ] || waitDeadline=$(( waitStart + waitTimeout ))
 
 		## What a probe READS from, which is not what the baseline is taken against.
@@ -2765,17 +2809,38 @@ case "$1" in
 		fi
 		## What the other sources of this wait read, for the floor to leave to them (AgentsWaitCoveredSet).
 		agentsWaitCovered="?" ; agentsWaitCoverSources="$waitSources"
+		## The probe function of each source, resolved once: it cannot change while this wait
+		## runs, and reading it per tick cost a subshell and three processes a source.
+		local waitRoundFn=() waitRoundIndex=0 waitRoundSource
+		for waitRoundSource in $waitSources ; do
+			waitRoundIndex=$(( waitRoundIndex + 1 ))
+			waitRoundFn[$waitRoundIndex]="$( AgentsWaitProbeFunctionName "${waitRoundSource%%:*}" )"
+		done
 		while : ; do
 			waitRound=$(( waitRound + 1 ))
+			## A CALLER THAT IS GONE TAKES ITS WAIT WITH IT. Signal 0 asks whether the process that
+			## started this shell is still there: a builtin, so the check starts nothing. A pid of 1
+			## is that process already gone. Neither spins nor forks, so it is read every round.
+			case "$waitCallerPid" in
+				''|*[!0-9]*) ;;
+				*)
+					if ! kill -0 "$waitCallerPid" 2> /dev/null ; then
+						rm -rf "$waitDir" 2> /dev/null || true
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the process that started this wait is gone, so nothing is waiting for its result. The wait ended at once." >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
 			## A wait whose directory was taken from under it reads nothing any more: it ends here (AgentsWaitLost).
 			if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
 			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc roundEvery roundNow roundTtl roundSlowGap=""
-			roundNow="$( date +%s )"
+			roundNow=$(( waitStart + SECONDS - waitSecs0 ))
 			for roundSource in $waitSources ; do
 				roundIndex=$(( roundIndex + 1 ))
 				roundKind="${roundSource%%:*}"
 				roundTarget="${roundSource#*:}"
-				roundFn="$( AgentsWaitProbeFunctionName "$roundKind" )"
+				roundFn="${waitRoundFn[$roundIndex]}"
 				roundEvery="${agentsWaitKindEvery#*"$roundKind:"}"
 				roundEvery="${roundEvery%% *}"
 				## A kind the list does not name is read every round.
@@ -2812,13 +2877,13 @@ case "$1" in
 				## in hand reads every source, as it always did: a quiet round that stopped at the bound would never reach the sources
 				## at its tail, whatever they are, and that is a matter of the order of the sources. A round that began at or after the
 				## bound (a zero-bound read) reads every source.
-				if [ "$waitOutcome" = "RECEIVED" ] && [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ "$( date +%s )" -ge "$waitDeadline" ] ; then
+				if [ "$waitOutcome" = "RECEIVED" ] && [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $(( waitStart + SECONDS - waitSecs0 )) -ge "$waitDeadline" ] ; then
 					break
 				fi
 				## A scan takes minutes, so one that has not begun is not begun once something has arrived in this round (the arrival wakes
 				## the caller, and the scan is read at the next wait, its report being compared with the one last given), nor once the
 				## bound has passed in it. It then shows in WAIT-NEVER-READ.
-				if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ "$( date +%s )" -ge "$waitDeadline" ] ; } ; } ; then
+				if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $(( waitStart + SECONDS - waitSecs0 )) -ge "$waitDeadline" ] ; } ; } ; then
 					continue
 				fi
 				waitProbedAt[$roundIndex]="$roundNow"
@@ -2836,7 +2901,7 @@ case "$1" in
 				fi
 
 				roundRc=0
-				"$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" || roundRc=$?
+				"$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" || roundRc=$?
 				## A source that cannot be read for want of a permission is an error of its own, said in the header, and no source never
 				## read: what the member is denied is known, so it never stands for an unknown (rc 4, its reason in the rendering's .permission).
 				if [ "$roundRc" = "4" ] ; then
@@ -2893,7 +2958,7 @@ case "$1" in
 				## the costly kinds included, so that the message itself is returned by this call in about a second
 				## instead of at the next slow look. The marker is read at every tick, so this costs no request.
 				if [ "$roundKind" = "wake" ] ; then
-					if ! cmp -s "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ; then
+					if ! AgentsWaitSameFile "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ; then
 						cp "$waitDir/now.$roundIndex" "$waitDir/base.$roundIndex" 2>/dev/null || : > "$waitDir/base.$roundIndex"
 						waitWakeSeen=1
 					fi
@@ -2904,7 +2969,7 @@ case "$1" in
 				## A kind whose rendering holds arrivals only has nothing to return while that rendering
 				## is empty: what stood there was taken -- an answer its asker read moves the floor of
 				## its thread past it -- or taken back, and neither is an arrival.
-				if ! cmp -s "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \
+				if ! AgentsWaitSameFile "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \
 					&& { [ -s "$waitDir/now.$roundIndex" ] || case " $agentsWaitKindEmptyBaseline " in *" $roundKind "*) false ;; *) true ;; esac ; } \
 					&& case " $agentsWaitKindArrivalsOnly " in
 						*" $roundKind "*) LC_ALL=C awk 'FILENAME == ARGV[1] { seen[$0] = 1 ; next } !( $0 in seen ) { added = 1 ; exit } END { exit !added }' "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ;;
@@ -2946,7 +3011,7 @@ case "$1" in
 			fi
 
 			local waitNow waitRemaining waitNap
-			waitNow="$( date +%s )"
+			waitNow=$roundNow
 			## The asks this wait stands for are reminded from here (AgentsWaitRemind): after a
 			## round that brought nothing, and at most once a minute.
 			if [ "$waitNow" -ge "$waitRemindNext" ] ; then

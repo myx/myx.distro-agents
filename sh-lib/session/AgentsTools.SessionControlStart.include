@@ -141,11 +141,11 @@ AgentsToolsSessionControlLeftovers(){ ## session id
 AgentsToolsSessionControlJudged(){ ## -- stdin: measured rows
 	LC_ALL=C awk '
 		NF != 13 || $2 == "-" { next ; }
-		$13 != "running" && $13 != "waiting" && $13 != "finished" && $13 != "unclosed" && $13 != "unknown-foreign" { next ; }
+		$13 != "running" && $13 != "waiting" && $13 != "failed" && $13 != "finished" && $13 != "unclosed" && $13 != "unknown-foreign" { next ; }
 		{
 			if ( ! ( $2 in judgedSeen ) ) { judgedSeen[$2] = 1 ; judgedOrder[++judgedCount] = $2 ; }
 			if ( $12 == "running" ) { judgedAlive[$2]++ ; next ; }
-			if ( $13 == "finished" ) { next ; }
+			if ( $13 == "failed" || $13 == "finished" ) { next ; }
 			if ( $13 == "unknown-foreign" ) {
 				judgedForeign[$2]++ ;
 				if ( index( "," judgedHosts[$2] ",", "," $4 "," ) == 0 ) { judgedHosts[$2] = judgedHosts[$2] ( judgedHosts[$2] == "" ? "" : "," ) $4 ; }

@@ -15,7 +15,9 @@
 ##   3. `--help`: rc 0, not empty, never "invalid option", and it names a help page -- exactly one page, that page the file's own
 ##      manual and there, or, where it renders none, the file's own help lines (its syntax line, its `<file>: ` head or its options)
 ##   4. no args: the help printed and not refused -- rc 0 or 1, for a bare call names no operation and the files that start something
-##      end it 1 -- never "invalid option", and where it prints syntax lines, its own among them
+##      end it 1 -- never "invalid option", and where it prints syntax lines, its own among them. The small tools of the front
+##      table print their own syntax lines, one per operation: the short syntax list a reader starts from (sketch 4), never the
+##      bare names of the operations
 ##   5. the check is able to fail: a scratch package of one file that answers all three forms and one that answers none of them (the
 ##      "invalid option" itself) gives exactly the three rows of the one that answers none
 ## Offline: a rig workspace and data root of this check's own, and a `myx.common` that renders nothing but the page it was handed and
@@ -90,7 +92,7 @@ rigShape(){ ## file name
 ## The scan of one package root: the three forms of every sh-scripts/*.fn.sh, the offenders in the rigNo* globals.
 rigScan(){ ## package root
 	local scanRoot="$1" scanFile scanName scanPages scanPage scanWant scanDup
-	rigRuns=0 rigNoSyntax="" rigNoHelp="" rigNoBare="" rigDupSyntax=""
+	rigRuns=0 rigNoSyntax="" rigNoHelp="" rigNoBare="" rigNoBareSyntax="" rigDupSyntax=""
 	for scanFile in "$scanRoot"/sh-scripts/*.fn.sh ; do
 		[ -f "$scanFile" ] || continue
 		scanName="$( basename "$scanFile" .fn.sh )"
@@ -103,6 +105,12 @@ rigScan(){ ## package root
 		if [ ! -s "$rigTmp/call.out" ] || [ "$rigRefusal" != 0 ] || { [ "$rigOwn" = 0 ] && [ "$rigOtherSyntax" != 0 ] ; } || { [ "$rigRc" != 0 ] && [ "$rigRc" != 1 ] ; } ; then
 			rigNoBare="$rigNoBare $scanName(rc$rigRc,$rigOwn own,$rigOtherSyntax other,$rigRefusal refusal)"
 		fi
+		## The small tools: the bare call is AgentsToolsFrontHelp, and prints the syntax line of each operation.
+		case "$scanName" in
+			DistroAgentsItems|DistroAgentsSlack|DistroAgentsMail|DistroAgentsTrello|DistroAgentsGoogle|DistroAgentsAtlassian|DistroAgentsQuestions|DistroAgentsGrants)
+				[ "$rigOwn" -ge 1 ] || rigNoBareSyntax="$rigNoBareSyntax $scanName($rigOwn own, no syntax line)"
+			;;
+		esac
 		## --help-syntax: the syntax lines of its operations, this file's among them
 		rigRun "$scanFile" --help-syntax
 		rigShape "$scanName"
@@ -133,6 +141,7 @@ rigAsked="$( LC_ALL=C ls "$rigPackage"/sh-scripts/*.fn.sh | LC_ALL=C wc -l | LC_
 rigAssert "every sh-scripts/*.fn.sh was scanned -- $rigAsked of them, not an empty pass" "$rigRuns" "$rigAsked"
 [ "$rigRuns" -ge 10 ] 2> /dev/null || rigRefuse "the scan found too few tool files to be reading the package right: $rigRuns"
 rigAssert "no args: the help printed and not refused, rc 0 or 1" "[${rigNoBare# }]" "[]"
+rigAssert "no args of the small tools: their own syntax lines, one per operation" "[${rigNoBareSyntax# }]" "[]"
 rigAssert "--help-syntax: rc 0, its own syntax lines and no help text" "[${rigNoSyntax# }]" "[]"
 rigAssert "--help: rc 0, its own manual named once and there, or its own help lines" "[${rigNoHelp# }]" "[]"
 rigAssert "--help-syntax names no syntax line twice" "[${rigDupSyntax# }]" "[]"

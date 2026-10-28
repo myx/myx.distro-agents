@@ -121,6 +121,12 @@ that the code and docs do not readily tell you.
   operation it begins (a family, `--magic-`); a word that names none is refused. Without it the syntax block is the
   entry points a reader starts from: every other operation's syntax sits behind `--help-syntax`, and the manual
   behind `--help`. The lines are the manual's own syntax lines, which the include's match one for one.
+- **A tool file of the front table answers the three forms itself** (`AgentsToolsFrontSyntaxLines`, `AgentsToolsFrontHelp`).
+  A bare call prints the syntax line of each of its operations, its first form where one has several; `--help-syntax`
+  prints every form of every one of them; `--help` renders its own manual. The syntax lines are read from that file's own
+  manual, `Help.<file>.help.md`, and the shared include only where no manual is there to read, so one operation's forms
+  cannot drift apart in two places. The manual's `##  Options:` says what each operation does, which is also what the tool
+  index prints for it.
 - **`--mdat-output-format json`, before the operation word,** wraps one of the operations that implement a
   harness or an MCP tool (the list `agentsToolOperations` at the top of `DistroAgentsTools.fn.sh`: those the
   harness's tools run, and the one behind `execute`) as one JSON object,
@@ -1030,12 +1036,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   its pass and sends `kill -TERM -- "-$pid"` to the process group (the real proxy is one pipe deeper).
   Each layer re-waits after `wait` returns early. The console's own trap names claude's pid only until
   claude has been waited for; the variable is emptied then, and a later TERM signals nobody.
-- **Claude sign-in (claude-native).** The console asks `claude auth status`. Signed in: nothing is
-  exported, even with a key configured, because Claude Code prefers a key and would move spawns onto API
-  billing. Signed out, `--non-interactive` only: it exports the first configured `ANTHROPIC_API_KEY` or
-  `CLAUDE_CODE_OAUTH_TOKEN` from magic-team scope and says which. rc 6 is signed out with no key;
-  the proxy reports `SETUP_STATUS=cli-not-authenticated`. An interactive console is only warned.
-  Unknown output never gates. Spaces are stripped before matching.
+- **Claude sign-in (claude-native).** The console asks `claude auth status`, and the answer never refuses a
+  launch: a login that expired, or one the probe cannot read, is the CLI's own to report, and its error is
+  what a caller sees. Signed in: nothing is exported, even with a key configured, because Claude Code
+  prefers a key and would move spawns onto API billing. Signed out, `--non-interactive` only: it exports the
+  first configured `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` from magic-team scope and says which.
+  An interactive console is warned, and no path exits 6 for a sign-in reading. Unknown output never gates.
+  Spaces are stripped before matching.
 - **Console channels have no per-caller isolation.** The channel id is a fixed prefix, the workspace
   slug and the console name. Two callers on one workspace and console share one channel and can tear
   down each other's session (`channel_not_found`, a console dying mid-use).

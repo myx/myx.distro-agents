@@ -205,9 +205,11 @@ AgentsMcpExecuteRun(){
 	fi
 }
 
-## A secondary tool's operation, run as a task: its stdout and stderr are the result.
+## A secondary tool's operation, run as a task, in the tool file that is the tool: sourced and called as
+## DistroAgentsTools routes a name (AgentsToolsFrontRoute). Its stdout and stderr are the result.
 AgentsMcpSecondaryRun(){
-	DistroAgentsTools "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" 2>&1
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh"
+	"$mcpToolName" "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" 2>&1
 }
 
 ## The pid a job's pid file names: its first word. The file holds one line, `<pid> <start>`, the
@@ -586,13 +588,15 @@ case "$1" in
 						rm -f "$mcpBeatStop"
 					fi
 
-				## A secondary tool: run the operation it names on the tool file it is, through the
-				## same dispatcher every member call uses. The operation may fork a service client,
-				## so its output goes to a file and the pid is waited on, never a $( ) capture.
+				## A secondary tool: run the operation it names in the tool file that is the tool, never through
+				## DistroAgentsTools, which serves a file's other operations nowhere but its own. The operation may
+				## fork a service client, so its output goes to a file and the pid is waited on, never a $( ) capture.
 				elif [ -n "$mcpIsSecondaryTool" ] ; then
 					if [ -z "$mcpSecondaryOp" ] ; then
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName requires a non-empty 'operation': the operation to run, such as --slack-send-message."
-					elif ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" ; then
+					## A name of the front table, or one the tool file's own syntax lines carry: an operation the
+					## file serves as its own has no row to be found by.
+					elif ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" && [ -z "$( AgentsToolsFrontSyntaxLines "$mcpToolName" "$mcpSecondaryOp" )" ] ; then
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName: not an operation of that tool file, or not one: $mcpSecondaryOp"
 					elif AgentsMcpTaskUsable ; then
 						## A task underneath, as execute is (AgentsTools.ToolTask.include).
@@ -609,7 +613,7 @@ case "$1" in
 						rm -f "$mcpKillFile"
 						mcpExitCode=0
 						set -m
-						( DistroAgentsTools "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" ) > "$mcpOutFile" 3>&- 2>&1 &
+						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh" ; "$mcpToolName" "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" ) > "$mcpOutFile" 3>&- 2>&1 &
 						mcpCmdPid=$!
 						AgentsMcpCallWatch 3600 "$mcpCmdPid" "$mcpKillFile" 3>&- &
 						mcpWatchPid=$!

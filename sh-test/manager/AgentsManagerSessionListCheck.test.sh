@@ -9,9 +9,9 @@
 ## each date was written with; one `counters` row last. A session reads what its agents read: running while a
 ## run of it has a live process and not every live one sits in a Wait; waiting while every live one sits in one,
 ## or while a run of it waits on an answer, or while a question it or a run of it asked is still open;
-## unknown-foreign with an open record of another host, else unclosed, else finished. An open ask is what
-## waits, whoever asked it -- a run withdraws its own when its record closes, so no session of this rig has
-## one left behind -- and only a finished one has the date of its state. A record with no spawn id, an empty
+## unknown-foreign with an open record of another host, else unclosed, else failed where every run of it died on
+## its start, else finished. An open ask is what waits, whoever asked it -- a run withdraws its own when its
+## record closes, so no session of this rig has one left behind -- and only a finished one has the date of its state. A record with no spawn id, an empty
 ## sandbox and a session of another host are rows.
 ## --active keeps the sessions that are not finished and can be acted on from this host, those that read running,
 ## waiting or unclosed, and the counters count the whole workspace either way. A live run counts
@@ -238,9 +238,9 @@ rigWant="$( {
 	printf 'run\tsess-run\tsess-run\tmagic-coordinator\tspawn-started\trunning\trunning\t2026-10-13_09:00_+0300\t-\t%s\trigws\tworking\n' "$rigHost"
 	printf 'run\tsess-run\trun-c\tmagic-developer\tspawn-started\trunning\trunning\t2026-10-13_09:05_+0300\t-\t%s\trigws\tworking\n' "$rigHost"
 	printf 'run\tsess-run\trun-b\tmagic-tester\tspawn-succeeded\tno-process\tfinished\t2026-10-13_09:10_+0300\t2026-10-13_09:40_+0300\t%s\trigws\t-\n' "$rigHost"
-	printf 'session\tsess-fin\t-\tfinished\t2026-10-12_16:57_+0300\t2026-10-12_17:30_+0200\t2\tfinished=2\n'
+	printf 'session\tsess-fin\t-\tfinished\t2026-10-12_16:57_+0300\t2026-10-12_17:30_+0200\t2\tfailed=1,finished=1\n'
 	printf 'run\tsess-fin\tsess-fin\tmagic-coordinator\tspawn-succeeded\tno-process\tfinished\t2026-10-12_16:57_+0300\t2026-10-12_18:00_+0300\t%s\trigws\t-\n' "$rigHost"
-	printf 'run\tsess-fin\tfin-b\tkeeper-rig\tspawn-failed\tno-process\tfinished\t2026-10-12_16:10_+0200\t2026-10-12_17:30_+0200\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-fin\tfin-b\tkeeper-rig\tspawn-failed\tno-process\tfailed\t2026-10-12_16:10_+0200\t2026-10-12_17:30_+0200\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tsess-ask\t-\twaiting\t2026-10-11_12:00_+0300\t-\t1\twaiting=1\n'
 	printf 'run\tsess-ask\tsess-ask\tmagic-coordinator\tspawn-started\tno-process\twaiting\t2026-10-11_12:00_+0300\t-\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tsess-askrun\t-\tfinished\t2026-10-11_11:00_+0300\t2026-10-11_11:55_+0300\t2\tfinished=2\n'
@@ -404,7 +404,7 @@ rigAssert "its entry gives the form of each of the three rows" "$( rigForm sessi
 	"session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> | run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity> | counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average> <host>"
 rigRun "$rigOp"
 rigAssert "and every row printed has exactly the fields its form names" "$( for rigKind in session run counters ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 "
-rigAssert "the entry names the two registries it rebuilds, each state of a session, and the two words of an agent's activity" "$( for rigWord in spawned-sessions pending-replies running waiting unknown-foreign unclosed finished working ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyy"
+rigAssert "the entry names the two registries it rebuilds, each state of a session, and the two words of an agent's activity" "$( for rigWord in spawned-sessions pending-replies running waiting unknown-foreign unclosed failed finished working ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyyy"
 rigAssert "control: the entry was cut up to the next operation's heading" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C grep -c -F -- '--grooming-to-backlog' || : )" "1 0"
 rigAssert "the notes of the help say whose the family is, once" "$( LC_ALL=C grep -c -F -- 'The `--manager-*` operations are the console'"'"'s own' "$rigHelpMd" || : )" "1"
 rigRun --help-syntax
@@ -576,7 +576,22 @@ rigAssert "and it is not asked again at each call: the two calls that follow sho
 rigRun "$rigOp"
 rigAssert "the short name of this host is as it was everywhere else: the rows of its runs carry it, and a run of this host still reads as one of this host" "$( rigHostOf ) $( rigRowOf run tok-two | LC_ALL=C awk '{ print $6, $10 }' )" "$rigFull running $rigHost"
 
-echo "-- 12. nothing was posted --"
+echo "-- 12. a session whose runs all died on their start: failed, and its reason --"
+## A run that died on its start is `finished` in the registry's own derivation, and the session read finished with it.
+## The console shows the failure instead, with the reason the close kept for that run in its store (sketch 3.6).
+rigRec sess-broke broke-a sess-broke broke-a "$rigHost" keeper-rig spawn-failed '2026-10-01 09:00 +0300' '2026-10-01 09:00 +0300' ''
+mkdir -p "$rigStores/broke-a" && printf 'stopped by a provider refusal: the model is not available to this key\n' > "$rigStores/broke-a/usage-limit"
+rigRec sess-half half-a sess-half half-a "$rigHost" keeper-rig spawn-failed '2026-10-01 08:00 +0300' '2026-10-01 08:00 +0300' ''
+rigRec sess-half half-b sess-half half-b "$rigHost" keeper-two spawn-succeeded '2026-10-01 08:01 +0300' '2026-10-01 08:30 +0300' ''
+rigRun "$rigOp"
+rigAssert "every run of it died on its start: the session reads failed, its row tallies the run as failed, and the reason of the run stands at the end of the row" \
+	"$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-broke" { print $4 "|" $8 "|" $13 }' "$rigTmp/out" )" \
+	"failed|failed=1|stopped by a provider refusal: the model is not available to this key"
+rigAssert "a session one of whose runs worked reads finished all the same: a run that failed does not speak for it" "$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-half" { print $4, $8 }' "$rigTmp/out" )" "finished failed=1,finished=1"
+rigRun "$rigOp" --active
+rigAssert "--active keeps it, as it keeps a finished session: a failed one can be joined" "$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-broke" { print $4 }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-half" { n++ } END { print n + 0 }' "$rigTmp/out" )" "failed 0"
+
+echo "-- 13. nothing was posted --"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then

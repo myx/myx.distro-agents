@@ -5,9 +5,26 @@
 
 ##  Summary:
 
-		the team's Trello operations. A bare call lists the operations of the file, --help-syntax
-		prints the syntax line of every operation (or of one operation, or of those
-		that a prefix ending in "-" begins), and --help prints this manual.
+		the team's Trello operations. A bare call prints the syntax line of each of the
+		file's operations, --help-syntax prints every form of every operation (or of one
+		operation, or of those that a prefix ending in "-" begins), and --help prints this
+		manual.
+
+##  Options:
+
+		--trello-check
+			Checks that the member's own Trello credentials answer: reads the unread
+			notifications of its own account, and fails loudly where they do not, so an
+			empty answer is never taken for none.
+
+		--trello-read <notification-id>
+			Prints one notification of that account, as Trello wrote it.
+
+		--trello-whoami
+			Prints the Trello account the member's credentials belong to.
+
+		--trello-post-comment <card-id> [<text...>|--from-stdin|--from-file <path>]
+			Posts one comment on that card, under the member's own Trello identity.
 
 ##  Notes:
 

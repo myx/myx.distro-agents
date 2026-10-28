@@ -16,6 +16,10 @@
 ## proven by the Slack arm's own diagnostic, reached before any network (the acting member's
 ## skill directory does not exist under the rig's skillset root, so nothing is fetched).
 ##
+## And (4) an operation the file serves as its own, which has no row of the front table at all,
+## is reached all the same: a tool answers with its own file's operations, never with
+## DistroAgentsTools.fn.sh's whole list, and never only with the names moved into it.
+##
 ## Offline, and self-contained in its scratch. The root under test is MMDAPP, and the server's
 ## scratch is relocated onto this check's own fixture, so nothing is written outside it. The
 ## tree under test is whatever MDLT_ORIGIN names, so a red run needs the planted tree named
@@ -153,6 +157,38 @@ rigAssert "the valid call is not refused as cross-file" \
 	"$( rigHolds "$rigValidText" 'not an operation of that tool file' )" no
 rigAssert "the valid call reached the Slack arm" \
 	"$( rigHolds "$rigValidText" '--slack-read:' )" yes
+
+## A tool file's own operations have no row of the front table, so the file that is the tool runs
+## them. Three calls through a real server: each file's own syntax lines, and one of its own
+## operations run.
+{
+	printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"AgentDispatcherTools","arguments":{"operation":"--help-syntax","args":["--spawn-run"]}}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"DistroAgentsDispatcher","arguments":{"operation":"--help-syntax"}}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"DistroAgentsDispatcher","arguments":{"operation":"--all-sessions"}}}'
+} | MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	bash "$rigTool" --intern-mcp-server --run > "$rigTmp/ownwire" 2> "$rigTmp/ownerr" || :
+
+for rigOwn in 5 6 7 ; do
+	LC_ALL=C grep "\"id\":$rigOwn," "$rigTmp/ownwire" > "$rigTmp/own$rigOwn" 2>/dev/null || :
+	[ -s "$rigTmp/own$rigOwn" ] || rigRefuse "call $rigOwn was never answered, so the tool file's own operations were never observed"
+done
+rigOwn5Text="$( rigValue "$rigTmp/own5" result.content.0.text )"
+rigOwn6Text="$( rigValue "$rigTmp/own6" result.content.0.text )"
+rigOwn7Text="$( rigValue "$rigTmp/own7" result.content.0.text )"
+rigOwn7Error="$( rigValue "$rigTmp/own7" error.message )"
+
+echo "-- each tool answers with its own file's operations --"
+rigAssert "AgentDispatcherTools serves --spawn-run" \
+	"$( rigHolds "$rigOwn5Text" 'AgentDispatcherTools.fn.sh --spawn-run' )" yes
+rigAssert "DistroAgentsDispatcher serves --all-sessions" \
+	"$( rigHolds "$rigOwn6Text" 'DistroAgentsDispatcher.fn.sh --all-sessions' )" yes
+rigAssert "and answers with no other file's syntax lines" \
+	"$( rigHolds "$rigOwn6Text" 'DistroAgentsTools.fn.sh' )" no
+rigAssert "an operation of its own runs, with no row of the front table" \
+	"$( rigHolds "$rigOwn7Text" 'counters' )" yes
+rigAssert "and is not refused as another file's" \
+	"$( rigHolds "$rigOwn7Text$rigOwn7Error" 'not an operation of that tool file' )" no
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SECONDARY TOOL DISPATCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

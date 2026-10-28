@@ -31,7 +31,7 @@
 ## four figures its `store` row gives, by the same reading (tokensOfRun,
 ## AgentsManagerSessionTokens.awk, loaded with -f before this file): in, cache read, cache
 ## write, out; then how many runs are summed, and how many of those run still; then `so-far`,
-## or `final` for a session that reads `finished`, every run of it ended and closed; then how
+## or `final` for a session that reads `finished` or `failed`, every run of it ended and closed; then how
 ## many runs are left out, their figures not known. With no run summed the four read `-`. A
 ## spawn id that two records carry is one run.
 ##
@@ -219,7 +219,7 @@ END {
 		for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenSum[tokenAt] += tokenWords[tokenAt] ;
 	}
 	for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenSaid[tokenAt] = ( tokenRuns > 0 ? tokensFigure(tokenSum[tokenAt]) : "-" ) ;
-	print "tokens", sessionId, tokenSaid[1], tokenSaid[2], tokenSaid[3], tokenSaid[4], tokenRuns, tokenRunning, ( sessionState == "finished" ? "final" : "so-far" ), tokenUnknown ;
+	print "tokens", sessionId, tokenSaid[1], tokenSaid[2], tokenSaid[3], tokenSaid[4], tokenRuns, tokenRunning, ( sessionState == "finished" || sessionState == "failed" ? "final" : "so-far" ), tokenUnknown ;
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		if (onlyRun != "" && runSpawn[runAt] != onlyRun) continue ;
 		print runRow[runAt] ;

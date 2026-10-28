@@ -223,10 +223,21 @@ AgentsHarnessToolListAgents(){
 		*) printf 'ERROR: view must be agents or sessions, got: %s\n' "$toolView" ; return 0 ;;
 	esac
 	case "$toolState" in
-		''|running|waiting|finished) ;;
-		*) printf 'ERROR: state must be running, waiting or finished, got: %s. running also includes waiting rows.\n' "$toolState" ; return 0 ;;
+		''|running|waiting|failed|finished) ;;
+		*) printf 'ERROR: state must be running, waiting, failed or finished, got: %s. running also includes waiting rows.\n' "$toolState" ; return 0 ;;
 	esac
-	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions "$toolView" "$toolSessionId" "$toolState" ) 2>&1
+	## A failed run's own reason stands under its row, the first line of the marker the harness kept
+	## beside its record when it ended refused (<sandbox>/<run>.refused). Nothing where none was kept.
+	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions "$toolView" "$toolSessionId" "$toolState" ) 2>&1 \
+		| LC_ALL=C awk '
+			NF == 13 && $13 == "failed" {
+				print
+				reasonFile = ENVIRON["MMDAPP"] "/.local/agents/spawned/" $1 "/" $8 ".refused"
+				if ( $8 != "-" && ( getline reasonLine < reasonFile ) > 0 ) { print "reason: " reasonLine ; close( reasonFile ) ; }
+				next
+			}
+			{ print }
+		'
 }
 
 ## The served SendMessage (AgentsHarnessToolSendMessage, `reply`): a post to this run's own session

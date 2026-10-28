@@ -411,14 +411,15 @@ AgentsToolsRegistryPendingSessionOpen(){ ## session-id
 	' ${spawnedFile:+"$spawnedFile"} "$pendingFile"
 }
 
-## running/waiting/finished, plus the two cases a guess would get wrong: unknown-foreign
+## running/waiting/failed/finished, plus the two cases a guess would get wrong: unknown-foreign
 ## (another host, unmeasurable from here) and unclosed (the process is gone, and no open
 ## ask exists against its session -- ended without closing its own record). status is
 ## authoritative once the spawn has closed itself, regardless of what live measured.
 AgentsToolsRegistryDeriveState(){ ## status, live, session-id
 	local dsStatus="$1" dsLive="$2" dsSession="$3"
 	case "$dsStatus" in
-		spawn-succeeded|spawn-failed|spawn-ended-without-close) printf 'finished\n' ; return 0 ;;
+		spawn-failed) printf 'failed\n' ; return 0 ;;
+		spawn-succeeded|spawn-ended-without-close) printf 'finished\n' ; return 0 ;;
 	esac
 	[ "$dsLive" != "other-host" ] || { printf 'unknown-foreign\n' ; return 0 ; }
 	[ "$dsLive" != "running" ] || { printf 'running\n' ; return 0 ; }
@@ -873,7 +874,8 @@ AgentsToolsRegistryRunLeftKeep(){ ## spawn id, the process ids still there (a sp
 ## caller, the open asks read from AgentsToolsRegistryPendingOpenSessions's set.
 AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-session set
 	case "$1" in
-		spawn-succeeded|spawn-failed|spawn-ended-without-close) derivedState="finished" ; return 0 ;;
+		spawn-failed) derivedState="failed" ; return 0 ;;
+		spawn-succeeded|spawn-ended-without-close) derivedState="finished" ; return 0 ;;
 	esac
 	[ "$2" != "other-host" ] || { derivedState="unknown-foreign" ; return 0 ; }
 	[ "$2" != "running" ] || { derivedState="running" ; return 0 ; }
@@ -1166,7 +1168,7 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-spawn-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
-	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. state is running/waiting/failed/finished/unclosed/unknown-foreign -- failed and finished are read straight from status and stand regardless of live."
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		rowState="${registryRow##* }"

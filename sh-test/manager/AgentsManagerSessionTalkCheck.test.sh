@@ -148,6 +148,7 @@ printf -- '---\nstatus: reply-pending\nowner: keeper-rig\nsession-id: s-wait\nki
 rigRec s-run s-run keeper-rig spawn-started "$rigHost" "$rigThread" ; rigFolder s-run "$rigThread"
 rigRec s-foreign s-foreign keeper-rig spawn-started "otherhost" "$rigThread" ; rigFolder s-foreign "$rigThread"
 rigRec s-nothread s-nothread keeper-rig spawn-succeeded "$rigHost" "" ; rigFolder s-nothread ""
+rigRec s-broke s-broke keeper-rig spawn-failed "$rigHost" "$rigThread" ; rigFolder s-broke "$rigThread"
 rigLive s-run
 
 rigPre=()
@@ -269,9 +270,13 @@ rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigJoinOp" --session-id s-run
 rigAssert "a session that reads running is joined too (sketch 5.4: any session; a stuck one keeps its process): one join row" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-run magic-coordinator"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 4
+rigRun /dev/null "$rigJoinOp" --session-id s-broke
+rigAssert "a session whose runs all died on their start is joined too (sketch 5.4: any session): one join row" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-broke magic-coordinator"
+rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 5
+rigAssert "its task says it failed" "$( LC_ALL=C grep -l -x -F 'The session has failed: every run of it died on its start.' "$rigSc"/brief.* 2> /dev/null | LC_ALL=C grep -c . )" "1"
 rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigJoinOp" --session-id s-foreign
-rigAssert "one of another host: refused, and says what it reads" "$rigRc $( LC_ALL=C grep -c 'session s-foreign reads unknown-foreign, which is none of finished, running, starting, waiting and unclosed, the states it is offered for -- nothing was started' "$rigTmp/err" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigAssert "one of another host: refused, and says what it reads" "$rigRc $( LC_ALL=C grep -c 'session s-foreign reads unknown-foreign, which is none of finished, running, starting, waiting, unclosed and failed, the states it is offered for -- nothing was started' "$rigTmp/err" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
 rigJoinedBefore="$( LC_ALL=C grep -c -F 'assess the session, unblock it interactively and report' "$rigSc/bodies" 2> /dev/null || : )"
 rigRun /dev/null "$rigJoinOp" --session-id s-nothread
 rigAssert "one with no Slack thread: joined all the same, on the session's own id" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-nothread magic-coordinator"

@@ -4,9 +4,24 @@
 
 ##  Summary:
 
-		the permission registry, its management and its bookkeeping. A bare call lists the operations of the file, --help-syntax
-		prints the syntax line of every operation (or of one operation, or of those
-		that a prefix ending in "-" begins), and --help prints this manual.
+		the permission registry, its management and its bookkeeping. A bare call prints the
+		syntax line of each of the file's operations, --help-syntax prints every form of
+		every operation (or of one operation, or of those that a prefix ending in "-"
+		begins), and --help prints this manual.
+
+##  Options:
+
+		--list-permissions [--member <member>] [--session-id <id>]
+			The permissions a member holds, one a row, as the grants index unrolled them for
+			it. Another member's are magic-coordinator's to list, or the console's.
+
+		--pass-permission --to <member> --tool <tool> --target <target> --kind once|session|task
+			Grants one permission to another member and prints its reference. `once` is spent
+			by the call it allows, `session` lasts that session, `task` while its board item
+			is open.
+
+		--revoke-permission <ref> [--session-id <id>]
+			Withdraws a grant, by the reference `--pass-permission` printed.
 
 ##  Notes:
 

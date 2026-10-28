@@ -17,9 +17,10 @@
 ## AgentsSessionChatRead.awk). A session with neither a folder nor a thread has nowhere to keep it, and is refused.
 ##
 ## THE JOIN is a start of magic-coordinator through the spawn proxy (--intern-op-agent-spawn-proxy), unchanged, with --session-id:
-## the member joins the session it is named for and does not start one. Offered for the sessions the list reads
-## as finished (every participant has finished), waiting (a question of it is open) and unclosed (a run still open, and no
-## process that carries it: stuck); refused for one that runs, which its participants work on, and for one of another host.
+## the member joins the session it is named for and does not start one. Offered for every session of this host, whatever
+## the list reads of it: finished (every participant has finished), waiting (a question of it is open), unclosed (a run
+## still open, and no process that carries it: stuck), running (a stuck run keeps its process) and failed (every run of it
+## died on its start); refused for one of another host.
 ## Its task is a block of the tooling-note template (`Tasks`, sh-lib/templates/tooling-note.post.format.md), never a text here.
 ## A THREAD IS WHERE THE JOINING IS ANNOUNCED, NEVER WHAT MAKES IT POSSIBLE: a session that never posted in Slack, whose
 ## conversation is not Slack, or whose external side is its printback or tooling channel has no thread and is still a
@@ -165,9 +166,9 @@ case "$1" in
 		case "$joinState" in
 			## ANY SESSION on this host (sketch 5.4): one that reads running may be a stuck one, since a stuck run keeps its process. A coordinator run that still holds its seat in it
 			## is the proxy's to refuse, in its own words.
-			finished|waiting|unclosed|running|starting) ;;
+			finished|waiting|unclosed|running|starting|failed) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession reads ${joinState:-unknown}, which is none of finished, running, starting, waiting and unclosed, the states it is offered for -- nothing was started" >&2
+				echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession reads ${joinState:-unknown}, which is none of finished, running, starting, waiting, unclosed and failed, the states it is offered for -- nothing was started" >&2
 				set +e ; return 1
 			;;
 		esac

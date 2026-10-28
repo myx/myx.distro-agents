@@ -4424,11 +4424,12 @@
 			does, or while a run of it waits on an answer, or while a
 			question it or a run of it asked is still open; else
 			`unknown-foreign` with an open record of another host, else
-			`unclosed` with any open record, else `finished`. An ask that
+			`unclosed` with any open record, else `failed` where every
+			run of it died on its start, else `finished`. An ask that
 			is still open is waited on, whoever asked it: a run withdraws
 			its own questions when its record closes, so a finished
 			session has none left behind. <state-at> is the date its last
-			run closed, for a `finished` session only. <state-tally> reads
+			run closed, for a `finished` or a `failed` session only. <state-tally> reads
 			`running=1,finished=2`. <session-state> and <session-state-at>
 			are the state the control thread of the session stored for it
 			and when, as `spawned-sessions` holds them after this rebuild:
@@ -4450,12 +4451,12 @@
 			gave, with `-` where no run of it was refused. The last of
 			its refused runs wins. A reader takes a row that ends before
 			<usage-limit> as one of an earlier form.
-			A run's <live> and <state> are those
-			`ListAgents` shows. <activity> of a live run is `waiting`
+			A run's <live> is what `ListAgents` shows, and <state> too,
+			but for a run that died on its start: that one reads `failed`. <activity> of a live run is `waiting`
 			inside a `Wait` call and `working` otherwise. `--active` keeps
 			every session that is not finished and can be acted on from
-			this host: those whose <state> is `running`, `waiting` or
-			`unclosed`, each with all its runs, as without it. It leaves
+			this host: those whose <state> is `running`, `waiting`,
+			`unclosed` or `failed`, each with all its runs, as without it. It leaves
 			out the `finished` ones, and the `unknown-foreign`, which are
 			another host's: nothing can be done with those from here. The
 			counters count the whole workspace
@@ -4530,7 +4531,7 @@
 			<runs-unknown> how many are left out, their figures not
 			known: a run with no store, or with no four numbers there.
 			<total> is `final` for a session whose <state> is
-			`finished`, and `so-far` for any other. With no run summed
+			`finished` or `failed`, and `so-far` for any other. With no run summed
 			the four figures read `-`. A
 			`header` row is one header of the run's record as it stands,
 			its `cli` among them. `store` is the run's own store. <store>
@@ -4828,13 +4829,12 @@
 		--manager-session-join --session-id <id>
 			One of the console's own operations (see Notes). Brings
 			magic-coordinator into a session, with a task to assess it, unblock it
-			interactively and report. It is offered for a session that has
-			finished, one that waits and one that is stuck, which are the states
-			`finished`, `waiting` and `unclosed` of `--manager-session-list`: every
-			participant has finished; a question of the session is open; a run of
-			it is still open and no process carries it. A session that runs, whose
-			participants work on it, one of another host and an id no record
-			carries are refused, in one line and with nothing started. A session
+			interactively and report. It is offered for every session of this
+			host, whatever `--manager-session-list` reads of it: one that has
+			finished, one that waits, one that is stuck, one that runs -- a
+			stuck one keeps its process -- and one whose runs all failed on
+			their start. One of another host and an id no record carries are
+			refused, in one line and with nothing started. A session
 			with no Slack thread is joined all the same: a thread is where the
 			joining is announced, never what makes the join possible. A session
 			that never posted, or whose conversation is not Slack, or whose
