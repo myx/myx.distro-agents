@@ -276,7 +276,9 @@ $planId "*) continue ;; esac
 ## standard input and prints them.
 AgentsToolsSessionCommsOrder(){
 	local orderDir orderLine orderSession orderThread orderAt
-	orderDir="$( AgentsToolsSessionCommsDir )" || { cat ; return 0 ; }
+	## The folder of AgentsToolsSessionCommsDir, built here: run every pass, so it starts no process.
+	[ -n "${MMDAPP:-}" ] || { cat ; return 0 ; }
+	orderDir="$MMDAPP/.local/agents/comms"
 	while read -r orderSession orderThread ; do
 		[ -n "$orderSession" ] || continue
 		orderAt=0 ; orderLine=""
@@ -302,7 +304,9 @@ AgentsToolsSessionCommsActive(){ ## session, now
 ## Whether a read of the session is due: never read, or its gap has passed, or it is active and five seconds have. rc 0 it is.
 AgentsToolsSessionCommsDue(){ ## session, now
 	local dueDir dueLine="" dueLast=0 dueGap="$agentsSessionCommsActiveGap"
-	dueDir="$( AgentsToolsSessionCommsDir )" || return 1
+	## The folder of AgentsToolsSessionCommsDir, built here: asked of every session every pass.
+	[ -n "${MMDAPP:-}" ] || return 1
+	dueDir="$MMDAPP/.local/agents/comms"
 	{ IFS= read -r dueLine < "$dueDir/looked/$1" ; } 2> /dev/null || return 0
 	read -r dueLast dueGap <<< "$dueLine" || :
 	case "$dueLast" in ''|*[!0123456789]*) return 0 ;; esac
@@ -561,7 +565,10 @@ AgentsToolsSessionCommsTake(){ ## session, the file left in chat.inbox
 ## console left. Nothing is read from the network here but through the posts themselves.
 AgentsToolsSessionCommsDeliver(){ ## session
 	local delSession="$1" delDir delFile delName delRc delAny
-	delDir="$( AgentsToolsSessionChatDir "$delSession" )" || return 0
+	## The folder of AgentsToolsSessionChatDir, built here: asked of every session every pass.
+	case "$delSession" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	delDir="$MMDAPP/.local/agents/sessions/$delSession"
 	## Whether there is anything to do is told by the shell's own expansion: a pass over many sessions starts no process for those with nothing.
 	delAny=""
 	for delFile in "$delDir"/chat.outbox/*.retry ; do
@@ -595,7 +602,9 @@ AgentsToolsSessionCommsTick(){ ## session, conversation:thread (may be empty: th
 	local tickSession="$1" tickThread="$2" tickNow tickMember
 	AgentsToolsSessionCommsDeliver "$tickSession"
 	[ -n "$tickThread" ] || return 0
-	tickNow="$( date +%s )"
+	## The pass's own moment where the reader keeps one (commsPassNow): one date a pass, not one a session.
+	tickNow="${commsPassNow:-}"
+	case "$tickNow" in ''|*[!0-9]*) tickNow="$( date +%s )" ;; esac
 	[ "${3:-}" = "force" ] || AgentsToolsSessionCommsDue "$tickSession" "$tickNow" || return 0
 	if ! AgentsToolsSessionCommsBudgetTake "$tickNow" ; then
 		AgentsToolsSessionCommsOnce "budget" "the reads of the last minute are at the budget of $agentsSessionCommsReadsPerMinute: a session waits for the minute to pass"

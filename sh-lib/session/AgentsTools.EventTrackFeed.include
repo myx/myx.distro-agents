@@ -123,11 +123,17 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
 	## Its starter, the shell whose TERM ends it, read once. Once its parent is no longer that shell (a proxy ended by KILL),
 	## nothing would end it: it posts what is open and ends by itself.
-	local runSelf runStarter
+	local runSelf runStarter runEpoch0 runSecs0 runRound=0
 	runSelf="$( exec sh -c 'echo "$PPID"' )"
 	runStarter="$( ps -o ppid= -p "$runSelf" 2> /dev/null | tr -d ' ' )"
+	## The clock is read once and counted on by the shell: an idle poll starts no process but its sleep.
+	runEpoch0="$( date +%s )" ; runSecs0="$SECONDS"
 	while : ; do
-		if [ "${runStarter:-1}" = 1 ] || [ "$( ps -o ppid= -p "$runSelf" 2> /dev/null | tr -d ' ' )" != "$runStarter" ] ; then
+		## The starter gone is asked of the shell itself (kill -0) each poll; whether its parent is still that shell (a reused pid)
+		## is asked of ps once a minute.
+		runRound=$(( runRound + 1 ))
+		if [ "${runStarter:-1}" = 1 ] || ! kill -0 "$runStarter" 2> /dev/null \
+			|| { [ $(( runRound % 15 )) = 0 ] && [ "$( ps -o ppid= -p "$runSelf" 2> /dev/null | tr -d ' ' )" != "$runStarter" ] ; } ; then
 			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0
 		fi
 		## The feed taken at the last poll goes once all of it is read. A poll later, never at
@@ -149,11 +155,11 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 					## Into the open post; no line sends it early.
 					runOpen="$( AgentsEventTrackFeedPost "$2" "$3" "${runOpen:+$runOpen$'\n'}$runCut" "$1" 0 )"
 					## The 7 seconds count from the open post's first line: anew once that post went.
-					[ -n "$runWas" ] && [ "${runOpen%%$'\n'*}" = "${runWas%%$'\n'*}" ] || runSince="$( date +%s )"
+					[ -n "$runWas" ] && [ "${runOpen%%$'\n'*}" = "${runWas%%$'\n'*}" ] || runSince=$(( runEpoch0 + SECONDS - runSecs0 ))
 				fi
 			fi
 		fi
-		runNow="$( date +%s )"
+		runNow=$(( runEpoch0 + SECONDS - runSecs0 ))
 		## Fixed, never configured: the open post goes 7 seconds after its first line.
 		if [ -n "$runOpen" ] && [ $(( runNow - runSince )) -ge 7 ] ; then
 			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null

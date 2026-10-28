@@ -171,6 +171,8 @@ case "$1" in
 			## closed; and its working folder is one that does not vanish.
 			exec < /dev/null >> "$commsDir/log" 2>&1
 			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+			## A pipe of its own on 9 that nothing writes: a wait the shell must make itself is a timed read on it, no process.
+			{ commsPipe="$MMDAPP/.local/temp/mdat-waitout.$$" ; rm -f "$commsPipe" ; mkfifo "$commsPipe" && exec 9<> "$commsPipe" && commsPipeOpen="yes" ; rm -f "$commsPipe" ; } 2> /dev/null || :
 			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
 		fi
 		if [ -n "$commsTookOver" ] ; then
@@ -198,6 +200,8 @@ case "$1" in
 				commsListAt="$SECONDS"
 			fi
 			commsAny=""
+			## One moment for the whole pass (AgentsToolsSessionCommsTick reads it).
+			commsPassNow="$( date +%s )"
 			while read -r commsOne commsThread ; do
 				[ -n "$commsOne" ] || continue
 				commsAny="yes"
@@ -206,6 +210,12 @@ case "$1" in
 				[ -z "$commsEnd" ] || break
 			done <<< "$( printf '%s\n' "$commsList" | AgentsToolsSessionCommsOrder )"
 			[ -z "$commsAny" ] || commsIdleFrom="$SECONDS"
+			## The rig's pull of the channels members read lately (AgentsToolsCommsCachePullWatched), every 5 s.
+			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ $(( SECONDS - ${commsPullAt:--100} )) -ge 5 ] ; then
+				commsPullAt="$SECONDS"
+				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$( date +%s )"
+			fi
 			commsLoops=$(( commsLoops + 1 ))
 			[ "$(( commsLoops % 60 ))" != 0 ] || AgentsToolsSessionCommsLogBound
 			[ "$commsMode" != "--one" ] || break
@@ -225,7 +235,7 @@ case "$1" in
 			commsFrom2="$SECONDS"
 			sleep 1 &
 			{ wait "$!" ; } 2> /dev/null || :
-			while [ "$SECONDS" = "$commsFrom2" ] && [ -z "$commsEnd" ] && [ -z "$commsWoken" ] ; do : ; done
+			while [ "$SECONDS" = "$commsFrom2" ] && [ -z "$commsEnd" ] && [ -z "$commsWoken" ] ; do if [ -n "${commsPipeOpen:-}" ] ; then read -t 1 -u 9 2> /dev/null || : ; else sleep 1 2> /dev/null || break ; fi ; done
 		done
 
 		if [ "$commsMode" = "--run" ] ; then

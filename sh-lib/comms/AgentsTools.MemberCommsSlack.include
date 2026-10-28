@@ -413,6 +413,9 @@ AgentsToolsCommsSlackFileInfo(){ ## <team-member> <file-id> [--identity-bot] | -
 	return 0
 }
 
+## The comms cache that --intern-op-comms-slack-read serves from and keeps (AgentsTools.CommsCache.include).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+
 case "$1" in
 
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
@@ -574,18 +577,63 @@ case "$1" in
 					[ -z "$readErrFile" ] || rm -f "$readErrFile"
 					set +e ; return 1
 				fi
-				echo "# $MDSC_CMD --slack-read: GET conversations.history channel=$channel${readOldest:+ oldest=$readOldest} (whole conversation, acting member $memberName)" >&2
+				## THROUGH THE COMMS CACHE (AgentsTools.CommsCache.include), slack/<channel>: a read from a floor it covers is served from
+				## it; once its TTL has passed only what came after its newest is pulled from Slack and added. A read with no floor is not cached.
+				local convFile="" convTmp="" convAt="" convFrom="" convNewest="" convNow="" convKey convFetch="$readOldest" convTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-5}"
+				case "$convTtl" in ''|*[!0-9]*) convTtl=5 ;; esac
+				if [ -n "$readOldest" ] && [ -n "${MMDAPP:-}" ] && [ "$convTtl" != 0 ] && AgentsToolsCommsCacheSlackDir "$memberName" "$identityAsBot" "$channel" ; then
+					convFile="$agentsCommsCacheDir"
+					convNow="$( date +%s )"
+					if AgentsToolsCommsCacheState "$convFile" ; then
+						convAt="$agentsCommsCacheAt" convFrom="$agentsCommsCacheFrom" convNewest="$agentsCommsCacheNewest"
+					fi
+					AgentsToolsCommsCacheInterest "$convFile" "$convNow"
+					## Covered: the cache starts at or before this floor. Fresh: inside its TTL, served as it is.
+					if [ -n "$convAt" ] && [ -d "$convFile" ] && [ "${convFrom%%.*}" -le "${readOldest%%.*}" ] ; then
+						if [ $(( convNow - convAt )) -lt "$convTtl" ] ; then
+							if AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+								echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache, read $(( convNow - convAt ))s ago" >&2
+								[ -z "$readErrFile" ] || rm -f "$readErrFile"
+								return 0
+							fi
+						fi
+						convFetch="$convNewest"
+					else
+						convFrom=""
+					fi
+					## One pull at a time: where another holds the channel, what the cache covers is served as it stands.
+					if ! AgentsToolsCommsCachePullTake "$convFile" "$convNow" ; then
+						if [ -n "$convFrom" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+							echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache while another pull runs" >&2
+							[ -z "$readErrFile" ] || rm -f "$readErrFile"
+							return 0
+						fi
+						convFile="" convFetch="$readOldest"
+					fi
+					[ -z "$convFile" ] || { mkdir -p "$convFile" 2> /dev/null && convTmp="$( mktemp "$convFile/read.XXXXXX" 2> /dev/null )" ; } || { AgentsToolsCommsCachePullGive "$convFile" ; convFile="" ; convTmp="" ; convFetch="$readOldest" ; }
+				fi
+				echo "# $MDSC_CMD --slack-read: GET conversations.history channel=$channel${convFetch:+ oldest=$convFetch} (whole conversation, acting member $memberName)" >&2
 				local conversationArgs=( "$memberName" "$channel" )
 				[ "$identityAsBot" = "false" ] || conversationArgs+=( --identity-bot )
-				[ -z "$readOldest" ] || conversationArgs+=( --oldest "$readOldest" )
-				AgentsToolsSlackCheck "${conversationArgs[@]}" 2> "${readErrFile:-/dev/null}" || readRc=$?
+				[ -z "$convFetch" ] || conversationArgs+=( --oldest "$convFetch" )
+				AgentsToolsSlackCheck "${conversationArgs[@]}" 2> "${readErrFile:-/dev/null}" > "${convTmp:-/dev/stdout}" || readRc=$?
 				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' "$readErrFile" 2> /dev/null ; then
 					cat "$readErrFile" >&2
 					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
 					readRc=0
-					AgentsToolsSlackCheck "${conversationArgs[@]}" --identity-bot 2> "$readErrFile" || readRc=$?
+					AgentsToolsSlackCheck "${conversationArgs[@]}" --identity-bot 2> "$readErrFile" > "${convTmp:-/dev/stdout}" || readRc=$?
 				fi
 				[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
+				if [ -n "$convTmp" ] ; then
+					if [ "$readRc" = "0" ] && AgentsToolsCommsCacheMerge "$convFile" "$convTmp" "${convFrom:-$readOldest}" "$convNow" "slack-conversation $channel $memberName $identityAsBot" ; then
+						AgentsToolsCommsCacheServe "$convFile" "$readOldest" head || readRc=1
+					else
+						## The cache could not take it: the caller still gets what was read.
+						[ "$readRc" != "0" ] || cat "$convTmp" || readRc=1
+					fi
+					rm -f "$convTmp"
+					AgentsToolsCommsCachePullGive "$convFile"
+				fi
 				[ "$readRc" = "0" ] || { set +e ; return 1 ; }
 				return 0
 			fi
@@ -2819,10 +2867,21 @@ blocks|verbatim|caller|stdin file"
 
 		local authUserId=""
 		if [ "$sendIdentity" = "user" ] ; then
-			local authResp
+			local authResp="" authUserIdRc=0 authCache="$MMDAPP/.local/cache/comms/slack/.user-id-$memberName.txt" authCacheAt="" authCacheId="" authNow
+			## The member's own user id is kept a day (it never changes for a member): a send then makes no auth.test round trip.
+			## A post whose message.user differs drops it, below.
+			authNow="$( date +%s )"
+			[ ! -f "$authCache" ] || { read -r authCacheAt authCacheId ; } 2> /dev/null < "$authCache" || authCacheAt=""
+			case "$authCacheAt:$authCacheId" in
+				[0-9]*:U[A-Z0-9]*) [ $(( authNow - authCacheAt )) -lt 86400 ] && authUserId="$authCacheId" ;;
+			esac
+			if [ -z "$authUserId" ] ; then
 			authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$authHeader" 2>&1 )"
-			local authUserIdRc=0
 			authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || authUserIdRc=$?
+			case "$authUserIdRc:$authUserId" in
+				0:U[A-Z0-9]*) { mkdir -p "${authCache%/*}" && printf '%s %s\n' "$authNow" "$authUserId" > "$authCache.$$" && mv -f "$authCache.$$" "$authCache" ; } 2> /dev/null || : ;;
+			esac
+			fi
 			if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --slack-send-message: could not confirm auth.test user_id for $memberName SLACK_USER_TOKEN (user_id reader rc=$authUserIdRc)" >&2
 				echo "# Response: $authResp" >&2
@@ -2839,6 +2898,34 @@ blocks|verbatim|caller|stdin file"
 			type AgentsToolsSessionChatSend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
 			chatRecord="$( AgentsToolsSessionChatSend "$memberName" "$addressToList" "$chatBody" 2> /dev/null )" || chatRecord=""
 			chatKey="${chatRecord%% *}" ; chatNo="${chatRecord##* }"
+		fi
+
+		## THE SESSION THREAD IS ASYNC (owner 2026-10-28), for a caller that asks (MDAT_SEND_ASYNC=true, the SendMessage tool): a post
+		## to the run's own session thread, recorded above, goes to the session's outbox while the comms reader runs, and the call
+		## returns at once. The reader posts it and stamps its ts in the chat file, which every reader of the session reads.
+		if [ "${MDAT_SEND_ASYNC:-}" = "true" ] && [ -n "$chatRecord" ] && [ -z "$updateTs" ] && [ -n "${threadTs:-}" ] ; then
+			local asyncOwn="" asyncLock="" asyncPid=""
+			asyncOwn="$( AgentsToolsSessionChatThread "$chatKey" 2> /dev/null )" || asyncOwn=""
+			asyncLock="$( readlink "$MMDAPP/.local/agents/comms/lock" 2> /dev/null )" || asyncLock=""
+			asyncPid="${asyncLock%% *}"
+			case "$asyncPid" in ''|*[!0-9]*) asyncPid="" ;; esac
+			if [ "$asyncOwn" = "$channel:$threadTs" ] && [ -n "$asyncPid" ] && kill -0 "$asyncPid" 2> /dev/null ; then
+				AgentsToolsSlackSendChatKeep retry "queued for the comms reader: an async post to the session thread"
+				printf '{"ok":true,"queued":true,"channel":"%s","message":{"thread_ts":"%s"}}\n' "$channel" "$threadTs"
+				echo "SENT_MESSAGE_CHANNEL=$channel" >&2
+				echo "SENT_MESSAGE_TS=" >&2
+				echo "SENT_MESSAGE_THREAD_TS=$threadTs" >&2
+				echo "SENT_MESSAGE_LOCAL=$chatKey:$chatNo" >&2
+				echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
+				[ -z "$addressedMembers" ] || echo "SENT_MESSAGE_ADDRESSEE_MEMBERS=${addressedMembers% }" >&2
+				echo "# $MDSC_CMD --slack-send-message: queued as block $chatNo of session $chatKey; the comms reader posts it to $channel:$threadTs" >&2
+				AgentsToolsSlackSendLogLine ok "queued block $chatNo for the comms reader"
+				if [ -n "$wakeMember" ] ; then
+					type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+					AgentsToolsWakeTouch "$wakeMember" "$memberName" || :
+				fi
+				return 0
+			fi
 		fi
 
 		## A new post into the event-track channel keeps the channel's outbox rules (AgentsTools.EventTrackSend.include): what is
@@ -2993,6 +3080,7 @@ blocks|verbatim|caller|stdin file"
 					AgentsToolsSlackSendLogLine failed "posted, but message.user not readable"
 					set +e ; return 1
 				fi
+				[ "$responseMessageUser" = "$authUserId" ] || rm -f "$MMDAPP/.local/cache/comms/slack/.user-id-$memberName.txt" 2> /dev/null
 				if [ "$responseMessageUser" != "$authUserId" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-send-message: THE MESSAGE WAS POSTED -- do not send it again. member SLACK_USER_TOKEN send for $memberName did not confirm message.user=$authUserId (actual message.user=$responseMessageUser)" >&2
 					echo "# Response: $response" >&2

@@ -103,13 +103,17 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	## send.delivered is written only by a delivery that succeeded, Slack or inbox: what a
 	## caller (SubagentHandback) reads to act once on a delivered message, never on a failed one.
 	rm -f "$harnessScratch/send.delivered"
+	## A plain SendMessage post to the run's own session thread goes async (MDAT_SEND_ASYNC, the send operation decides where it fits);
+	## a handback and the tools that ask keep the posted ts they need.
+	local toolAsync=""
+	[ "$toolNext" != "reply" ] || toolAsync="true"
 	## Only the sender's own words are measured against the plain-language floor: named by
 	## the caller in harnessSendProse for this one send, else the whole message is theirs.
 	if [ "${harnessSendProse+set}" = "set" ] ; then
 		printf '%s' "$harnessSendProse" > "$harnessScratch/send.prose"
-		printf '%s' "$toolMessage" | MDAT_SEND_PROSE_FILE="$harnessScratch/send.prose" "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
+		printf '%s' "$toolMessage" | MDAT_SEND_ASYNC="$toolAsync" MDAT_SEND_PROSE_FILE="$harnessScratch/send.prose" "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
 	else
-		printf '%s' "$toolMessage" | "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
+		printf '%s' "$toolMessage" | MDAT_SEND_ASYNC="$toolAsync" "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
 	fi
 	## A team member with no Slack DM of its own is reached by its inbox, a hand-off it reads later.
 	## A question cannot use it, because nothing can wait on a file.

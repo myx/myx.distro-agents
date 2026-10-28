@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+## THE COMMS CACHE (owner 2026-10-28): $MMDAPP/.local/cache/comms/<service>/<communication channel id>/, one folder per channel for
+## the machine: the service again as a partition, then the whole id as one filename-safe name, its service first
+## (slack/slack-<channel>, slack/slack-<channel>-<thread ts>). Any service keeps the same form:
+##   .state.txt              rewritten whole by the puller: `<pulled at> <covered from> <newest>`, the read's head line, and how it is
+##                           pulled, `<how> <target> <member> <as bot>`
+##   .pulling.txt            the one-pull lock, made only where absent (noclobber), its epoch inside (AgentsToolsCommsCachePullTake)
+## Every control file is `.<name>.txt`, one writer. Apart from the channels: .local/cache/comms/.interest/<service>-<id>, an empty
+## file whose time is the channel's last read (AgentsToolsCommsCacheInterest); one older than a week is deleted.
+##   YYYYMM/messages.txt     the messages of that UTC month, one line each, oldest first, continuations joined by \037
+##   YYYYMM/<ts>.body.txt    the whole text of a message whose line is over the cap; its line keeps the head and names the file
+##   YYYYMM/<file id>.<name>   a file a message of that month carried (its line says `[file: <id> <name> ...]`), fetched once, on demand
+## Each reader keeps its own floor. Detail is in MAGIC.md.
+
+agentsCommsCacheLineCap=2000
+
+## Sets agentsCommsCacheDir to the folder of a channel: the service as its partition, then its communication channel id, the
+## service first, as one filename-safe name.
+AgentsToolsCommsCacheDir(){ ## service, the id within the service
+	local cacheService="${1//[!A-Za-z0-9._-]/_}" cacheId="$1-$2"
+	agentsCommsCacheDir="$MMDAPP/.local/cache/comms/$cacheService/${cacheId//[!A-Za-z0-9._-]/_}"
+}
+
+## THE SLACK CHANNEL ID OF THE CACHE: a channel or thread `slack-<channel>[-<thread ts>]`; a direct conversation is account-bound,
+## `slack-<user id>-<dm id>[-<thread ts>]`, the user id the reading account's (`bot` for the team bot), never a member's name. A person
+## named as the target (U..., W...: the DM with that person) is the same, `slack-<user id>-<person's user id>`. A read through a client-*
+## account, whose ids are its own workspace's only, carries that account first: `slack-<client account>-...` (owner 2026-10-28).
+## Sets agentsCommsCacheDir. rc 1 where the account of a direct one cannot be told: that read is not cached.
+AgentsToolsCommsCacheSlackDir(){ ## member, as bot (true|false), channel, thread ts (optional)
+	local slackId="${3#client:}"
+	case "$slackId" in
+		D*|U*|W*)
+			AgentsToolsCommsCacheSlackAccount "$1" "$2" || return 1
+			slackId="$agentsCommsCacheAccount-$slackId"
+		;;
+	esac
+	case "$1:$3" in
+		client-*:*|*:client:*) slackId="$1-$slackId" ;;
+	esac
+	AgentsToolsCommsCacheDir slack "$slackId${4:+-$4}"
+}
+
+## The Slack user id a member's reads go under, kept a day in slack/.user-id-<member>.txt (the same file its sends keep): `bot` for
+## the team bot. Sets agentsCommsCacheAccount. rc 1 where it cannot be told.
+AgentsToolsCommsCacheSlackAccount(){ ## member, as bot (true|false)
+	local accountFile="$MMDAPP/.local/cache/comms/slack/.user-id-$1.txt" accountAt="" accountId="" accountNow
+	[ "$2" != "true" ] || { agentsCommsCacheAccount="bot" ; return 0 ; }
+	case " ${agentsCommsAccountSeen:-} " in *" $1=U"*) accountId="${agentsCommsAccountSeen##* $1=}" ; agentsCommsCacheAccount="${accountId%% *}" ; return 0 ;; esac
+	[ ! -f "$accountFile" ] || { read -r accountAt accountId ; } 2> /dev/null < "$accountFile" || accountId=""
+	case "$accountId" in
+		U[A-Z0-9]*) ;;
+		*)
+			accountId="$( DistroAgentsTools --intern-op-slack-call "$1" --api auth.test --context "--comms-cache" 2> /dev/null | LC_ALL=C sed -n 's/.*"user_id":"\(U[A-Z0-9]*\)".*/\1/p' | head -1 )"
+			case "$accountId" in U[A-Z0-9]*) ;; *) return 1 ;; esac
+			accountNow="$( date +%s )"
+			{ mkdir -p "${accountFile%/*}" && printf '%s %s\n' "$accountNow" "$accountId" > "$accountFile.$$" && mv -f "$accountFile.$$" "$accountFile" ; } 2> /dev/null || :
+		;;
+	esac
+	agentsCommsAccountSeen="${agentsCommsAccountSeen:-} $1=$accountId"
+	agentsCommsCacheAccount="$accountId"
+}
+
+## The UTC month of an epoch, YYYYMM, by arithmetic: no date process per message.
+agentsCommsMonthAwk='function monthOf(t,  z, era, doe, yoe, y, doy, mp, m) { z = int(t / 86400) + 719468 ; era = int(z / 146097) ; doe = z - era * 146097 ; yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365) ; y = yoe + era * 400 ; doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100)) ; mp = int((5 * doy + 2) / 153) ; m = mp + (mp < 10 ? 3 : -9) ; if (m <= 2) { y++ } ; return sprintf("%04d%02d", y, m) }'
+
+## A READ MARKS ITS CHANNEL AS OF INTEREST: it touches .local/cache/comms/.interest/<service>-<id>, an empty file whose time is the
+## read's, at most every 15 s a process. The rig's comms reader pulls only channels read lately (AgentsToolsCommsCachePullWatched).
+AgentsToolsCommsCacheInterest(){ ## cache folder, now
+	local interestName="${1##*/}" interestAt=""
+	## The rig's own pull is no reader: it never keeps a channel of interest.
+	[ "${MDAT_COMMS_CACHE_PULLER:-}" != "true" ] && [ -n "${MMDAPP:-}" ] || return 0
+	case "${agentsCommsInterestSeen:-} " in
+		*" $interestName:"*)
+			interestAt="${agentsCommsInterestSeen##* $interestName:}" ; interestAt="${interestAt%% *}"
+			case "$interestAt" in ''|*[!0-9]*) ;; *) [ $(( $2 - interestAt )) -ge 15 ] || return 0 ;; esac
+		;;
+	esac
+	mkdir -p "$MMDAPP/.local/cache/comms/.interest" 2> /dev/null && touch "$MMDAPP/.local/cache/comms/.interest/$interestName" 2> /dev/null || :
+	agentsCommsInterestSeen="${agentsCommsInterestSeen:-} $interestName:$2"
+	return 0
+}
+
+## ONE PULL OF A CHANNEL AT A TIME: the first makes `.pulling.txt` where it is absent (noclobber, so only one can) with its epoch;
+## another within 60 s of it does not pull. A pull older than that is taken as dead. rc 1 where another pull holds it.
+AgentsToolsCommsCachePullTake(){ ## cache folder, now
+	local pullAt=""
+	mkdir -p "$1" 2> /dev/null || return 1
+	( set -o noclobber ; printf '%s\n' "$2" > "$1/.pulling.txt" ) 2> /dev/null && return 0
+	{ read -r pullAt ; } 2> /dev/null < "$1/.pulling.txt" || pullAt=""
+	case "$pullAt" in ''|*[!0-9]*) pullAt=0 ;; esac
+	[ $(( $2 - pullAt )) -ge 60 ] || return 1
+	rm -f "$1/.pulling.txt" 2> /dev/null
+	( set -o noclobber ; printf '%s\n' "$2" > "$1/.pulling.txt" ) 2> /dev/null
+}
+AgentsToolsCommsCachePullGive(){ ## cache folder
+	rm -f "$1/.pulling.txt" 2> /dev/null || :
+}
+
+## A WHOLE SLACK THREAD THROUGH THE CACHE, slack/slack-<channel>-<thread ts>, rendered into a file: served from it within its TTL,
+## else only the replies after its newest are read from Slack and merged. Where another pull holds the channel, what the cache
+## holds is served. rc 0 the rendering is written, 1 the cache cannot serve (the caller reads Slack itself), 2 the read failed.
+AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the rendering file, as bot (true|false), now
+	local tcChannel="${2%%:*}" tcTs="${2#*:}" tcDir tcNow="$5" tcFetch="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-5}" tcArgs tcRc=0
+	case "$tcTtl" in ''|*[!0-9]*) tcTtl=5 ;; esac
+	[ "$tcTtl" != 0 ] && [ -n "${MMDAPP:-}" ] || return 1
+	case "$tcChannel:$tcTs" in *[!A-Za-z0-9.:]*|:*|*:) return 1 ;; esac
+	case "$tcNow" in ''|*[!0-9]*) tcNow="$( date +%s )" ;; esac
+	AgentsToolsCommsCacheSlackDir "$1" "${4:-false}" "$tcChannel" "$tcTs" || return 1
+	tcDir="$agentsCommsCacheDir"
+	if AgentsToolsCommsCacheState "$tcDir" ; then
+		if [ $(( tcNow - agentsCommsCacheAt )) -lt "$tcTtl" ] && AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" ; then
+			return 0
+		fi
+		tcFetch="$agentsCommsCacheNewest"
+	fi
+	if ! AgentsToolsCommsCachePullTake "$tcDir" "$tcNow" ; then
+		[ -z "$tcFetch" ] || ! AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" || return 0
+		return 1
+	fi
+	tcArgs=( "$1" "$2" --thread )
+	[ -z "$tcFetch" ] || tcArgs=( "${tcArgs[@]}" --oldest "$tcFetch" )
+	[ "$4" != "true" ] || tcArgs=( "${tcArgs[@]}" --identity-bot )
+	if ! DistroAgentsTools --intern-op-comms-slack-read "${tcArgs[@]}" > "$3.read" 2> "$3.err" ; then
+		AgentsToolsCommsCachePullGive "$tcDir" ; return 2
+	fi
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$3.read" > "$3.fresh" 2>> "$3.err" || tcRc=2
+	[ "$tcRc" != 0 ] || AgentsToolsCommsCacheMerge "$tcDir" "$3.fresh" "$tcTs" "$tcNow" "slack-thread $2 $1 ${4:-false}" || tcRc=1
+	rm -f "$3.fresh"
+	AgentsToolsCommsCachePullGive "$tcDir"
+	[ "$tcRc" = 0 ] || return "$tcRc"
+	AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" || return 1
+	return 0
+}
+
+## A FILE A SLACK MESSAGE CARRIED, kept in its message's month: YYYYMM/<file id>.<name> (the id is the file's own), its real name and extension kept, fetched
+## once through --slack-file-fetch and then served from the cache. Prints the path. rc 1 where it cannot be fetched.
+AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, file name, as bot (true|false)
+	local fileMonth fileName="${5:-file}" filePath
+	case "$4" in F[A-Z0-9]*) ;; *) return 1 ;; esac
+	case "$4" in *[!A-Z0-9]*) return 1 ;; esac
+	fileMonth="$( LC_ALL=C awk -v t="${3%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	fileName="${fileName//[!A-Za-z0-9._-]/_}"
+	filePath="$2/$fileMonth/$4.$fileName"
+	if [ ! -s "$filePath" ] ; then
+		mkdir -p "$2/$fileMonth" 2> /dev/null || return 1
+		DistroAgentsTools --slack-file-fetch "$1" "$4" "$filePath" --overwrite $( [ "$6" != "true" ] || printf '%s' --identity-bot ) > /dev/null || { rm -f "$filePath" ; return 1 ; }
+	fi
+	printf '%s\n' "$filePath"
+}
+
+## THE RIG'S PULL (owner 2026-10-28), run by the session comms reader: every channel read in the last 10 minutes whose last pull is
+## past its TTL is pulled once, by the way its state names, so a member's read on the rig is served from the cache and never waits on
+## the service. Once an hour it deletes the marks older than a week.
+AgentsToolsCommsCachePullWatched(){ ## now
+	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchName watchDir watchHow watchTarget watchMember watchBot watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-5}"
+	case "$watchTtl" in ''|*[!0-9]*) watchTtl=5 ;; esac
+	[ -n "${MMDAPP:-}" ] && [ -d "$watchMarks" ] || return 0
+	if [ $(( $1 - ${agentsCommsInterestCleanAt:-0} )) -ge 3600 ] ; then
+		agentsCommsInterestCleanAt="$1"
+		find "$watchMarks" -type f -mtime +7 -delete 2> /dev/null || :
+	fi
+	for watchName in $( find "$watchMarks" -type f -mmin -10 2> /dev/null | LC_ALL=C sed 's#^.*/##' ) ; do
+		watchDir="$MMDAPP/.local/cache/comms/${watchName%%-*}/$watchName"
+		AgentsToolsCommsCacheState "$watchDir" || continue
+		[ $(( $1 - agentsCommsCacheAt )) -ge "$watchTtl" ] || continue
+		read -r watchHow watchTarget watchMember watchBot <<< "$agentsCommsCacheRecipe"
+		case "$watchHow" in
+			slack-thread)
+				AgentsToolsCommsCacheSlackThread "$watchMember" "$watchTarget" "$watchDir/.pull.rendered" "$watchBot" "$1" > /dev/null 2>&1 || :
+				rm -f "$watchDir/.pull.rendered" "$watchDir/.pull.rendered.read" "$watchDir/.pull.rendered.err"
+			;;
+			slack-conversation)
+				## From what the cache covers, so the read finds it stale and pulls only after its newest.
+				MDAT_COMMS_CACHE_PULLER=true DistroAgentsTools --intern-op-comms-slack-read "$watchMember" "$watchTarget" --oldest "$agentsCommsCacheFrom" \
+					$( [ "$watchBot" != "true" ] || printf '%s' --identity-bot ) > /dev/null 2>&1 < /dev/null || :
+			;;
+		esac
+	done
+	return 0
+}
+
+## Reads a channel's state into agentsCommsCacheAt, agentsCommsCacheFrom, agentsCommsCacheNewest, agentsCommsCacheHead and
+## agentsCommsCacheRecipe (how it is pulled). rc 1 where it holds no pointers.
+AgentsToolsCommsCacheState(){ ## cache folder
+	agentsCommsCacheAt="" agentsCommsCacheFrom="" agentsCommsCacheNewest="" agentsCommsCacheHead="" agentsCommsCacheRecipe=""
+	[ -f "$1/.state.txt" ] && { read -r agentsCommsCacheAt agentsCommsCacheFrom agentsCommsCacheNewest ; IFS= read -r agentsCommsCacheHead ; IFS= read -r agentsCommsCacheRecipe ; } 2> /dev/null < "$1/.state.txt" || :
+	case "$agentsCommsCacheAt:${agentsCommsCacheFrom%%.*}:${agentsCommsCacheNewest%%.*}" in
+		*[!0-9:]*|:*|*::*|*:) agentsCommsCacheAt="" ; return 1 ;;
+	esac
+	return 0
+}
+
+## The messages of a channel strictly after a floor, as a read prints them: the head line first where `head` is asked, then each
+## message whole, its continuation lines and its long body restored. Only the month folders at or after the floor's are opened.
+AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
+	local serveMonth serveDir serveName serveFiles=()
+	AgentsToolsCommsCacheState "$1" || return 1
+	serveMonth="$( LC_ALL=C awk -v t="${2%%.*}" "$agentsCommsMonthAwk"' BEGIN { print monthOf(t + 0) }' )" || return 1
+	for serveDir in "$1"/[0-9][0-9][0-9][0-9][0-9][0-9] ; do
+		[ -f "$serveDir/messages.txt" ] || continue
+		serveName="${serveDir##*/}"
+		[ "$serveName" -lt "$serveMonth" ] || serveFiles+=( "$serveDir/messages.txt" )
+	done
+	[ "$3" != "head" ] || [ -z "$agentsCommsCacheHead" ] || printf '%s\n' "$agentsCommsCacheHead"
+	[ "${#serveFiles[@]}" = 0 ] && return 0
+	LC_ALL=C awk -v floorTs="${2:-0}" '
+		function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+		function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+		FNR == 1 { dir = FILENAME ; sub(/\/[^\/]*$/, "", dir) ; }
+		{
+			if ( !( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ) { next ; }
+			body = dir "/" $1 ".body.txt"
+			if ( index($0, " [body: " $1 ".body.txt]") ) { while ( ( getline line < body ) > 0 ) { print line ; } close(body) ; next ; }
+			line = $0 ; gsub(/\037/, "\n", line) ; print line
+		}' "${serveFiles[@]}"
+}
+
+## Merges a fresh read (rendered: `<ts> | ...` lines, its first line a `## target=` head or not) into a channel's cache: each
+## message once, in its month's folder, oldest first, the fresh copy of an edited one winning. A message newer than the newest
+## held is appended; a month an older or edited one falls in is merged whole. The pointers only widen. A read holding no message
+## still moves `pulled at`.
+AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), now, how it is pulled (optional: `<how> <target> <member> <as bot>`)
+	local mergeRecs mergeMonth mergeTmp mergeHead="" mergeNewest="" mergeFrom="$3" mergeAppended="" tab
+	tab="$( printf '\t' )"
+	[ -f "$2" ] || return 1
+	mkdir -p "$1" 2> /dev/null || return 1
+	IFS= read -r mergeHead < "$2" 2> /dev/null || mergeHead=""
+	case "$mergeHead" in '## target='*) ;; *) mergeHead="" ;; esac
+	mergeRecs="$( mktemp "$1/merge.XXXXXX" 2> /dev/null )" || return 1
+	## One record per message: `<month> <ts> <line>`, continuations joined by \037.
+	LC_ALL=C awk "$agentsCommsMonthAwk"'
+		NR == 1 && /^## target=/ { next ; }
+		/^[0-9]+\.[0-9]+ \| / { if ( rec != "" ) { print rec ; } split($0, f, " ") ; rec = monthOf(f[1] + 0) "\t" f[1] "\t" $0 ; next ; }
+		rec != "" { rec = rec "\037" $0 ; }
+		END { if ( rec != "" ) { print rec ; } }' "$2" > "$mergeRecs" || { rm -f "$mergeRecs" ; return 1 ; }
+	for mergeMonth in $( LC_ALL=C cut -f1 "$mergeRecs" | LC_ALL=C sort -u ) ; do mkdir -p "$1/$mergeMonth" 2> /dev/null || { rm -f "$mergeRecs" ; return 1 ; } ; done
+	## THE COMMON CASE APPENDS: where every fresh message is newer than the newest held, each is added to the end of its month's
+	## file and nothing is rewritten.
+	AgentsToolsCommsCacheState "$1" || :
+	if [ -n "$agentsCommsCacheNewest" ] && LC_ALL=C sort -t "$tab" -k2,2n "$mergeRecs" | LC_ALL=C awk -F'\t' -v newest="$agentsCommsCacheNewest" -v dir="$1" -v cap="$agentsCommsCacheLineCap" '
+		function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+		function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+		{ n++ ; month[n] = $1 ; ts[n] = $2 ; line[n] = substr($0, length($1) + length($2) + 3) ; if ( !( secOf($2) > secOf(newest) || ( secOf($2) == secOf(newest) && fracOf($2) > fracOf(newest) ) ) ) { older = 1 ; exit ; } }
+		END {
+			if ( older ) { exit 1 ; }
+			for ( i = 1 ; i <= n ; i++ ) {
+				if ( i > 1 && ts[i] == ts[i - 1] ) { continue ; }
+				out = dir "/" month[i] "/messages.txt" ; l = line[i]
+				if ( length(l) > cap ) { body = dir "/" month[i] "/" ts[i] ".body.txt" ; whole = l ; gsub(/\037/, "\n", whole) ; printf "%s\n", whole > body ; close(body) ; l = substr(l, 1, cap) " [body: " ts[i] ".body.txt]" ; }
+				print l >> out
+			}
+		}' ; then
+		mergeAppended="yes"
+	fi
+	for mergeMonth in $( [ -n "$mergeAppended" ] || LC_ALL=C cut -f1 "$mergeRecs" | LC_ALL=C sort -u ) ; do
+		mergeTmp="$( mktemp "$1/$mergeMonth/messages.txt.XXXXXX" 2> /dev/null )" || { rm -f "$mergeRecs" ; return 1 ; }
+		## The fresh ones first, so a stable sort keeps their copy of a message both hold.
+		{
+			LC_ALL=C awk -F'\t' -v month="$mergeMonth" '$1 == month { print substr($0, length($1) + 2) ; }' "$mergeRecs"
+			[ ! -f "$1/$mergeMonth/messages.txt" ] || LC_ALL=C awk -v dir="$1/$mergeMonth" '{
+				line = $0 ; body = dir "/" $1 ".body.txt"
+				if ( index(line, " [body: " $1 ".body.txt]") ) { line = "" ; while ( ( getline part < body ) > 0 ) { line = ( line == "" ? part : line "\037" part ) ; } close(body) ; }
+				print $1 "\t" line ; }' "$1/$mergeMonth/messages.txt"
+		} | LC_ALL=C sort -s -t "$tab" -k1,1n | LC_ALL=C awk -F'\t' -v dir="$1/$mergeMonth" -v cap="$agentsCommsCacheLineCap" '
+			$1 == prev { next ; }
+			{
+				prev = $1 ; line = substr($0, length($1) + 2)
+				if ( length(line) > cap ) {
+					body = dir "/" $1 ".body.txt" ; whole = line ; gsub(/\037/, "\n", whole) ; printf "%s\n", whole > body ; close(body)
+					line = substr(line, 1, cap) " [body: " $1 ".body.txt]"
+				}
+				print line
+			}' > "$mergeTmp" \
+			&& mv -f "$mergeTmp" "$1/$mergeMonth/messages.txt" || { rm -f "$mergeTmp" "$mergeRecs" ; return 1 ; }
+	done
+	mergeNewest="$( LC_ALL=C sort -t "$tab" -k2,2n "$mergeRecs" | LC_ALL=C tail -1 | LC_ALL=C cut -f2 )"
+	rm -f "$mergeRecs"
+	AgentsToolsCommsCacheState "$1" || :
+	case "${agentsCommsCacheFrom%%.*}" in ''|*[!0-9]*) ;; *) [ "${agentsCommsCacheFrom%%.*}" -ge "${mergeFrom%%.*}" ] || mergeFrom="$agentsCommsCacheFrom" ;; esac
+	case "${agentsCommsCacheNewest%%.*}" in ''|*[!0-9]*) ;; *) [ -n "$mergeNewest" ] && [ "${mergeNewest%%.*}" -ge "${agentsCommsCacheNewest%%.*}" ] || mergeNewest="$agentsCommsCacheNewest" ;; esac
+	[ -n "$mergeNewest" ] || mergeNewest="$mergeFrom"
+	[ -n "$mergeHead" ] || mergeHead="$agentsCommsCacheHead"
+	{ printf '%s %s %s\n%s\n%s\n' "$4" "$mergeFrom" "$mergeNewest" "$mergeHead" "${5:-$agentsCommsCacheRecipe}" ; } > "$1/.state.txt.$$" && mv -f "$1/.state.txt.$$" "$1/.state.txt"
+}

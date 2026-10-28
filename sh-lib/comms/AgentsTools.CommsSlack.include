@@ -343,7 +343,37 @@ AgentsToolsSlackOneWayLine(){ ## address as given, acting member (optional)
 ## the address works on (AgentsToolsSlackOneWayLine). With no member named the team's own
 ## names resolve as they always have, so the tooling's own posts name them from inside any
 ## operation.
+## THE RESOLUTION IS CACHED (owner 2026-10-28), with the comms cache's TTL mechanics: what an address resolves to for an acting member
+## is kept a day in .local/cache/comms/slack/.resolve-<member>.txt, one writer a member, and read on demand. A session address is never
+## kept: it follows the run. Only a resolution that succeeded is kept.
 DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
+	local rvFile rvKey="$1" rvIn rvAt rvOut="" rvRc=0 rvNow tab=$'\t'
+	case "$1" in
+		''|session-*|*:session-*|"${harnessCurrentName:-session-current}"*|"${harnessParentName:-session-parent}"*) DistroAgentsToolsResolveTargetFresh "$@" ; return $? ;;
+	esac
+	[ -n "${MMDAPP:-}" ] || { DistroAgentsToolsResolveTargetFresh "$@" ; return $? ; }
+	rvFile="$MMDAPP/.local/cache/comms/slack/.resolve-${2:-none}.txt"
+	rvNow="$( date +%s )"
+	if [ -f "$rvFile" ] ; then
+		while IFS="$tab" read -r rvIn rvAt rvOut ; do
+			[ "$rvIn" = "$rvKey" ] || continue
+			case "$rvAt" in ''|*[!0-9]*) break ;; esac
+			[ $(( rvNow - rvAt )) -lt 86400 ] || break
+			printf '%s\n' "${rvOut//$'\037'/$'\n'}"
+			return 0
+		done < "$rvFile"
+	fi
+	rvOut="$( DistroAgentsToolsResolveTargetFresh "$@" )" || rvRc=$?
+	[ -z "$rvOut" ] || printf '%s\n' "$rvOut"
+	[ "$rvRc" = "0" ] && [ -n "$rvOut" ] || return "$rvRc"
+	{
+		mkdir -p "${rvFile%/*}" \
+			&& { [ ! -f "$rvFile" ] || LC_ALL=C awk -F'\t' -v k="$rvKey" '$1 != k' "$rvFile" ; printf '%s\t%s\t%s\n' "$rvKey" "$rvNow" "${rvOut//$'\n'/$'\037'}" ; } > "$rvFile.$$" \
+			&& mv -f "$rvFile.$$" "$rvFile"
+	} 2> /dev/null || rm -f "$rvFile.$$" 2> /dev/null
+	return 0
+}
+DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 	local target="$1"
 	local channel threadTs clientMark="" sessionParent=""
 	case "$target" in

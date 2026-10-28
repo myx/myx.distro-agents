@@ -31,5 +31,23 @@ AgentsToolsTrackingLaunchedAway(){ ## member
 
 ## A rendering on stdin for a member, its tooling's own posts taken out, on stdout.
 AgentsToolsTrackingDrop(){ ## member
-	LC_ALL=C awk -v member="$1" -v away="$( AgentsToolsTrackingLaunchedAway "$1" )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTrackingDrop.awk"
+	## The launched-away list is read through every spawn record: kept 60 s in this shell, and 60 s in
+	## .local/cache/agents/tracking-away-<member>.txt (`<at> <ids...>`) for the next process, not read again for each rendering.
+	if [ "${agentsTrackingAwayMember:-}" != "$1" ] || [ $(( SECONDS - ${agentsTrackingAwayAt:--100} )) -ge 60 ] ; then
+		local awayFile="${MMDAPP:-/nonexistent}/.local/cache/agents/tracking-away-$1.txt" awayAt="" awayIds="" awayNow
+		awayNow="$( date +%s )"
+		[ ! -f "$awayFile" ] || { read -r awayAt awayIds ; } 2> /dev/null < "$awayFile" || awayAt=""
+		case "$awayAt" in
+			''|*[!0-9]*) awayAt="" ;;
+			*) [ $(( awayNow - awayAt )) -lt 60 ] || awayAt="" ;;
+		esac
+		if [ -n "$awayAt" ] ; then
+			agentsTrackingAwayList="$awayIds"
+		else
+			agentsTrackingAwayList="$( AgentsToolsTrackingLaunchedAway "$1" )"
+			{ mkdir -p "${awayFile%/*}" && printf '%s %s\n' "$awayNow" "$agentsTrackingAwayList" > "$awayFile.$$" && mv -f "$awayFile.$$" "$awayFile" ; } 2> /dev/null || rm -f "$awayFile.$$" 2> /dev/null
+		fi
+		agentsTrackingAwayMember="$1" agentsTrackingAwayAt="$SECONDS"
+	fi
+	LC_ALL=C awk -v member="$1" -v away="$agentsTrackingAwayList" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTrackingDrop.awk"
 }

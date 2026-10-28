@@ -144,7 +144,7 @@ function dateFallbacks(textValue,   outText, tokenText, barAt) {
 ## answer of a member with no account of its own by `[sender: X]` -- so that place holds
 ## the formatter's word only, never what somebody typed.
 function ownStart(textValue) {
-	return (textValue ~ /^\[(sender|tracking|session|reactions|thread): /) ? " " textValue : textValue
+	return (textValue ~ /^\[(sender|tracking|session|reactions|thread|file): /) ? " " textValue : textValue
 }
 
 function ownLines(textValue,   outText) {
@@ -192,6 +192,22 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 	if (afterIdx == "metadata.event_payload.tracking") { trackingOf[idx] = val; return; }
 	## and the spawn id of the session it belongs to, `[session: <id>]`, which says whose launch it is (AgentsTools.TrackingDrop.include).
 	if (afterIdx == "metadata.event_payload.session") { sessionOf[idx] = val; return; }
+	## A message's files (Slack's files[]): each said on the head line as `[file: <id> <name> (<size> bytes, <type>)]`, so a reader and
+	## the comms cache know it carried one; the id is what --slack-file-info takes.
+	if (index(afterIdx, "files.") == 1) {
+		afterReactions = substr(afterIdx, length("files.") + 1)
+		j = afterReactions
+		sub(/\..*/, "", j)
+		if (j !~ /^[0-9]+$/) return
+		jNum = j + 0
+		if (!(idx in fileCountPerMsg) || jNum + 1 > fileCountPerMsg[idx]) fileCountPerMsg[idx] = jNum + 1
+		afterJ = substr(afterReactions, length(j) + 2)
+		if (afterJ == "id") fileIdOf[idx, j] = val
+		else if (afterJ == "name") fileNameOf[idx, j] = val
+		else if (afterJ == "size") fileSizeOf[idx, j] = val
+		else if (afterJ == "mimetype") fileTypeOf[idx, j] = val
+		return
+	}
 	if (index(afterIdx, "reactions.") == 1) {
 		afterReactions = substr(afterIdx, length("reactions.") + 1)
 		j = afterReactions
@@ -330,6 +346,16 @@ END {
 		if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) {
 			annotations = annotations sprintf(" [thread: %s replies, latest at %s]", \
 				replyCountOf[i], (i in latestReplyOf ? latestReplyOf[i] : "?"))
+		}
+
+		if (i in fileCountPerMsg) {
+			for (j = 0; j < fileCountPerMsg[i]; j++) {
+				if (!((i, j) in fileIdOf)) continue
+				fName = ((i, j) in fileNameOf) ? fileNameOf[i, j] : "?"
+				gsub(/[\]\n]/, "_", fName)
+				annotations = annotations sprintf(" [file: %s %s (%s bytes, %s)]", fileIdOf[i, j], fName, \
+					(((i, j) in fileSizeOf) ? fileSizeOf[i, j] : "?"), (((i, j) in fileTypeOf) ? fileTypeOf[i, j] : "?"))
+			}
 		}
 
 		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownStart(ownLines(dateFallbacks(textOf[i]))))

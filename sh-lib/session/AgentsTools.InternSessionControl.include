@@ -1116,6 +1116,8 @@ case "$1" in
 			## was handed are closed; and its working folder is one that does not vanish.
 			AgentsToolsSessionControlRepoint
 			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+			## A pipe of its own on 9 that nothing writes: a wait the shell must make itself is a timed read on it, no process.
+			{ controlPipe="$MMDAPP/.local/temp/mdat-waitout.$$" ; rm -f "$controlPipe" ; mkfifo "$controlPipe" && exec 9<> "$controlPipe" && controlPipeOpen="yes" ; rm -f "$controlPipe" ; } 2> /dev/null || :
 			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
 			if [ "$agentsSessionControlRounds" = 0 ] ; then
 				AgentsToolsSessionControlSay event "the control thread of session $controlSession runs as pid $controlPid, a tick every ${controlTick}s"
@@ -1176,7 +1178,7 @@ case "$1" in
 					if [ "$controlEarly" -ge 3 ] ; then
 						[ -n "$controlSleepSaid" ] || AgentsToolsSessionControlSay event "session $controlSession: the wait between two ticks cannot be made by sleep (status $controlWaitRc) and is waited out by the shell itself"
 						controlSleepSaid="yes"
-						while [ "$(( SECONDS - controlWaitFrom ))" -lt "$controlWaitPiece" ] && [ -z "$controlEnd" ] && [ -z "$controlWoken" ] ; do : ; done
+						while [ "$(( SECONDS - controlWaitFrom ))" -lt "$controlWaitPiece" ] && [ -z "$controlEnd" ] && [ -z "$controlWoken" ] ; do if [ -n "${controlPipeOpen:-}" ] ; then read -t 1 -u 9 2> /dev/null || : ; else : ; fi ; done
 					fi
 				fi
 				controlWaitLeft=$(( controlWaitLeft - controlWaitPiece ))

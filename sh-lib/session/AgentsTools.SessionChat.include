@@ -84,9 +84,14 @@ AgentsToolsSessionChatPendingCutoff(){
 ## looks at the thread every few seconds while the marker is fresh (AgentsToolsSessionCommsActive). Quiet, for a session with no folder.
 AgentsToolsSessionChatWaiting(){ ## session
 	local waitingDir
-	waitingDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
+	case "$1" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	## At most every 5 seconds, and by the shell itself: the reader counts the marker fresh for 15, by its mtime.
+	[ -z "${agentsSessionChatWaitingAt:-}" ] || [ $(( SECONDS - agentsSessionChatWaitingAt )) -ge 5 ] || return 0
+	waitingDir="$MMDAPP/.local/agents/sessions/$1"
 	[ -d "$waitingDir" ] || return 0
-	{ touch "$waitingDir/$agentsSessionChatName.waiting" ; } 2> /dev/null || :
+	{ printf '%s\n' "$SECONDS" > "$waitingDir/$agentsSessionChatName.waiting" ; } 2> /dev/null || :
+	agentsSessionChatWaitingAt="$SECONDS"
 	return 0
 }
 
