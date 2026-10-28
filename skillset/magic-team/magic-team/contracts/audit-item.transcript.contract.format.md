@@ -28,7 +28,7 @@ A verbatim record of an exchange, with UTC stamps. Append-only, through `--appen
 
 ## Keys
 
-`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member; `either` is filled by the tooling where missing, and written by a member only to set another value.
+`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member. `either` is filled by the tooling where missing, and written by a member only to set another value.
 
 | key | presence | writer | value form | rule |
 |---|---|---|---|---|
@@ -56,5 +56,5 @@ A verbatim record of an exchange, with UTC stamps. Append-only, through `--appen
 
 - `type` equals the type word in the filename (`transcript`).
 - [store] Append-only: nothing already written is rewritten.
-- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-` or `warning-`.
+- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-`, `warning-` or `investigation-`.
 - [judged] A session's own log, `session-*.log`, is not a document of this kind: it has no frontmatter and no contract here.

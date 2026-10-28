@@ -1483,8 +1483,8 @@ case "$1" in
 		## The WHOLE machine-wide set, every workspace's rows unioned and de-duplicated: what an
 		## earlier run projected, where it left no record. Field 4 is taken whole by offset, never
 		## by splitting, so a grant carrying its own colons is reproduced exactly. Tool rows and
-		## unresolved rows name no path.
-		if ! AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" && $3 != "unresolved" {
+		## unresolved rows name no path; deny rows are no grant, so none is projected into client settings.
+		if ! AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" && $3 != "unresolved" && $3 != "deny" && $4 !~ /^Deny(Edit|Read)\(/ {
 			grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 			if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
 		}' > "$grantsFile" ; then

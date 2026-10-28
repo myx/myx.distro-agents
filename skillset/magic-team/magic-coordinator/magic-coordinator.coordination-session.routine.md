@@ -6,6 +6,7 @@ invitees: human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-coordinator.coordination-session.routine — the actual procedure
 
@@ -64,7 +65,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-None of its own: the Closure steps of the routine it inherits from run (its session kind's, or `magic-team.inline.routine`'s when it runs inline), reached only from **conclude-or-ask-input**.
+None of its own: the Closure steps of the routine it inherits from run, reached only from **conclude-or-ask-input**. That routine is its session kind's, or `magic-team.inline.routine` when it runs inline.
 
 # Routine's local procedures
 
@@ -78,11 +79,11 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- Before every step, read incoming messages and messages from spawned sessions. For each: assess what it needs, dispatch real work to a spawned session, and relay the result or a status back to this session's own parent — the human-owner where this instance's parent is him.
+- Before every step, read incoming messages and messages from spawned sessions. For each: assess what it needs, and dispatch real work to a spawned session. Relay the result or a status back to this session's own parent, the human-owner where this instance's parent is him.
 - Ending the turn to wait for a notification is always fatal: nothing is left to receive it. The only wait is `Wait`.
 - Nothing substantive is done inline. Every real edit, investigation or fix is dispatched (`spawn-one-dispatch`), and its result relayed back.
 - Already-approved work is spawned out by default, never executed in this session's own context.
-- Every 20 completed cycles, or on notice that a loaded skill file changed, reload the skill fresh at the top of the next **sweep-comms**, never mid-step. A reload re-reads every file, never a partial set.
+- Every 20 completed cycles, or on notice that a loaded skill file changed, reload the skill fresh. Do it at the top of the next **sweep-comms**, never mid-step. A reload re-reads every file, never a partial set.
 - This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance. This is the trust-chain check (narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
 - The main loop is not a mode: the host runs it, and no session starts, relays into or stops it. A stopped host loop explains why nothing advances on its own; it changes nothing about this loop.
 - Re-pinging a visibly stalled spawned session, or restarting it where prior work is safely preserved, is this member's own call. Escalate only when the stall makes prior output untrustworthy or risks a duplicated side effect.

@@ -47,15 +47,15 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 
 ### External representation
 
-- `partner-*`: holds the subject [named external party]'s counterpart works in — our interface to that counterpart, never a stand-in for them and never their representative among us.
+- `partner-*`: holds the subject [named external party]'s counterpart works in. It is our interface to that counterpart, never a stand-in for them and never their representative among us.
 - `client-*`: our own avatar inside [named external party]'s own systems — `magic-team/contracts/magic-team.authority.client.contract.md`'s "Relationship shape". What an incoming contact gets is **non-owner-contact-tiers-and-escalation**.
 - Communication with the external entity: a `client-*` acts directly; a `partner-*` goes through the `client-*` for that organisation, else through `magic-coordinator`.
-- Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this partner/client (their own Jira/Slack/Google, etc.) is documented in this file's own `Team-Member's (-specific) tooling` section below.
+- Generic role operations run through the shared `magic-tooling` baseline. Any external-system tooling specific to this partner/client (their own Jira/Slack/Google, etc.) is documented below, in this file's own `Team-Member's (-specific) tooling` section.
 
 ### How to meet them well
 
-- [The languages the counterpart uses and prefers, how they like to be approached, what reads as respect to them and what reads as noise — customised to them, learned from working with them.]
-- [Where this member's own files live in the counterpart's organisation's own repository, a pointer to where it is held on our side, and nothing about the counterpart here.]
+- [The languages the counterpart uses and prefers, and how they like to be approached. What reads as respect to them and what reads as noise. Customised to them, learned from working with them.]
+- [Where this member's own files live in the counterpart's organisation's own repository, and a pointer to where it is held on our side. Nothing about the counterpart here.]
 - [`none recorded yet` where nothing is known — the section is present either way.]
 
 # Terminology: <topic>
@@ -156,7 +156,7 @@ Relationship shape — the asymmetric external-organisation relationship (`clien
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the team's console rules require anyway.
+    - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape. A `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the team's console rules require anyway.
     - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team/contracts/magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`

@@ -24,7 +24,7 @@ WIZARD_SAYS = {
 DIALOGS["wizard-wait"] = {"title": "Wizard", "reads": ("full:{kind}",),
                           "controls": ({"name": "about", "kind": "text"},),
                           "buttons": (("cancel", "Cancel"),)}
-READING_DIALOGS = READING_DIALOGS + ("wizard-wait",)
+readingDialogs("wizard-wait")
 PLAN_FORMS["wizard-read"] = lambda text: text
 
 
@@ -230,16 +230,6 @@ def cliApply(held, pairs):
 ## What a step of the CLI wizard titles itself: the preset's name, or a new one while it is not named yet.
 def cliTitle(preset):
     return "Configure CLI Service: %s" % (preset or "a new preset")
-
-
-## The form a preset belongs to: the one extending, the universal one, or a service of its own. The universal form writes
-## the `standard-v1` service, which is the one the tooling carries for a server reached by URL; `universal` names the form alone.
-def cliPresetKind(held, name):
-    if presetHeld(held, name, "PRESET_EXTEND"):
-        return "extend"
-    if presetHeld(held, name, "PRESET_CLI_SERVICE") == "standard-v1":
-        return "universal"
-    return "service"
 
 
 ## The name field of every form: the new preset's name, or, on edit, its own, which renames it.
@@ -609,11 +599,6 @@ def harnessSummary(state, path, row, form):
     if not rows:
         return None
     return tableSummaryLines(state, ("FORM", "HOLDS NOW"), [[one["label"], one["tail"]] for one in rows], ("key", "text"))
-
-
-## The settings a form changes, and the words it writes them with.
-def harnessFormSettings(formId):
-    return ("HARNESS_STREAM_ATTEMPTS", "HARNESS_RETRY_DELAY") if formId == "retries" else ("HARNESS_PARALLEL_TOOL_CALLS",)
 
 
 def harnessStepRetries(state, held):

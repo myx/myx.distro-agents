@@ -89,8 +89,8 @@ rigShape(){ ## file name
 
 ## The scan of one package root: the three forms of every sh-scripts/*.fn.sh, the offenders in the rigNo* globals.
 rigScan(){ ## package root
-	local scanRoot="$1" scanFile scanName scanPages scanPage scanWant
-	rigRuns=0 rigNoSyntax="" rigNoHelp="" rigNoBare=""
+	local scanRoot="$1" scanFile scanName scanPages scanPage scanWant scanDup
+	rigRuns=0 rigNoSyntax="" rigNoHelp="" rigNoBare="" rigDupSyntax=""
 	for scanFile in "$scanRoot"/sh-scripts/*.fn.sh ; do
 		[ -f "$scanFile" ] || continue
 		scanName="$( basename "$scanFile" .fn.sh )"
@@ -98,6 +98,7 @@ rigScan(){ ## package root
 		scanWant="$scanRoot/sh-lib/help/Help.$scanName.help.md"
 		## no args: the help, never a refusal -- and where it prints syntax lines, its own among them
 		rigRun "$scanFile"
+		LC_ALL=C grep '^📘 syntax: ' "$rigTmp/call.out" > "$rigTmp/bare.syn" || :
 		rigShape "$scanName"
 		if [ ! -s "$rigTmp/call.out" ] || [ "$rigRefusal" != 0 ] || { [ "$rigOwn" = 0 ] && [ "$rigOtherSyntax" != 0 ] ; } || { [ "$rigRc" != 0 ] && [ "$rigRc" != 1 ] ; } ; then
 			rigNoBare="$rigNoBare $scanName(rc$rigRc,$rigOwn own,$rigOtherSyntax other,$rigRefusal refusal)"
@@ -108,6 +109,9 @@ rigScan(){ ## package root
 		if [ ! -s "$rigTmp/call.out" ] || [ "$rigRc" != 0 ] || [ "$rigRefusal" != 0 ] || [ "$rigOwn" = 0 ] || [ "$rigHelpLines" != 0 ] ; then
 			rigNoSyntax="$rigNoSyntax $scanName(rc$rigRc,$rigOwn own,$rigOtherSyntax other,$rigRefusal refusal)"
 		fi
+		## --help-syntax names no syntax line twice
+		scanDup="$( LC_ALL=C grep '^📘 syntax: ' "$rigTmp/call.out" | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+		[ "$scanDup" = 0 ] || rigDupSyntax="$rigDupSyntax $scanName($scanDup twice)"
 		## --help: the manual named once and there, or the file's own help lines
 		rigRun "$scanFile" --help
 		rigShape "$scanName"
@@ -131,6 +135,7 @@ rigAssert "every sh-scripts/*.fn.sh was scanned -- $rigAsked of them, not an emp
 rigAssert "no args: the help printed and not refused, rc 0 or 1" "[${rigNoBare# }]" "[]"
 rigAssert "--help-syntax: rc 0, its own syntax lines and no help text" "[${rigNoSyntax# }]" "[]"
 rigAssert "--help: rc 0, its own manual named once and there, or its own help lines" "[${rigNoHelp# }]" "[]"
+rigAssert "--help-syntax names no syntax line twice" "[${rigDupSyntax# }]" "[]"
 
 echo "-- 2. the check is able to fail --"
 ## A package of two files: one that answers all three forms, and one that answers none of them -- the "invalid option" every tool file

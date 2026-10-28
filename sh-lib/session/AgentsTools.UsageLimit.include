@@ -2,8 +2,10 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.UsageLimit.include -- a run that the provider refused because its API usage
-## limit was reached, and the date it reopens. Sourced, never run. Functions only.
+## AgentsTools.UsageLimit.include -- a run that the provider refused or blocked, and why: the API usage
+## limit and the date it reopens, and (sketch 3.6) every other refusal or block that ended a run, with its
+## reason and the date access returns where the message gives one. The store file keeps its old name,
+## `usage-limit`. Sourced, never run. Functions only.
 ##
 ## THE PROVIDER'S MESSAGE CARRIES THE DATE. When the harness ends a run on a refused request
 ## it keeps the reason beside the record, in `<spawn-id>.refused`
@@ -20,24 +22,31 @@
 ## it stands. No record and no transcript is opened by a reader of it.
 ##
 
-## The one wording of a usage-limit flag, from the provider's reason: `stopped on the
-## provider usage limit: reopens <date>`, or `... reopens at a known time` where the
-## message carries no date. Nothing, rc 1, for a reason that is no usage limit.
+## The one wording of a run's provider-stop flag, from the provider's reason (sketch 3.6: every refusal or block that ends a run is shown, with its reason).
+## A usage limit: `stopped on the provider usage limit: reopens <date>`, or `... reopens at a time the provider did not give` where the message carries
+## no date. Any other refusal: `stopped by a provider refusal: <the reason>`, the host's wrapper words (`<host> refused the request -- `) left off, cut at
+## 200 characters, and ` -- access returns <date>` added where the message says when access returns. Nothing, rc 1, for an empty reason.
 AgentsToolsUsageLimitText(){ ## the reason, one line
-	local limitReason="${1:-}" limitDate=""
-	case "$limitReason" in
-		*"reached your specified API usage limits"*) ;;
-		*) return 1 ;;
-	esac
+	local limitReason="${1:-}" limitDate="" limitKept
+	[ -n "$limitReason" ] || return 1
 	## The provider writes `<date> at <time> <zone>` after `regain access on`. A zone is
 	## kept where it is given, since the date is the provider's own and is never re-read.
 	limitDate="$( printf '%s' "$limitReason" | LC_ALL=C sed -n 's/.*regain access on \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\) at \([0-9][0-9]:[0-9][0-9]\)[ ]*\([A-Za-z][A-Za-z0-9+:-]*\).*/\1 \2 \3/p' | head -n 1 )" || limitDate=""
 	[ -n "$limitDate" ] || limitDate="$( printf '%s' "$limitReason" | LC_ALL=C sed -n 's/.*regain access on \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\) at \([0-9][0-9]:[0-9][0-9]\).*/\1 \2/p' | head -n 1 )" || limitDate=""
-	if [ -n "$limitDate" ] ; then
-		printf 'stopped on the provider usage limit: reopens %s' "$limitDate"
-	else
-		printf 'stopped on the provider usage limit: reopens at a time the provider did not give'
-	fi
+	case "$limitReason" in
+		*"reached your specified API usage limits"*)
+			if [ -n "$limitDate" ] ; then
+				printf 'stopped on the provider usage limit: reopens %s' "$limitDate"
+			else
+				printf 'stopped on the provider usage limit: reopens at a time the provider did not give'
+			fi
+			return 0
+		;;
+	esac
+	limitKept="${limitReason#*refused the request -- }"
+	[ "${#limitKept}" -le 200 ] || limitKept="${limitKept:0:200}..."
+	printf 'stopped by a provider refusal: %s' "$limitKept"
+	[ -z "$limitDate" ] || printf ' -- access returns %s' "$limitDate"
 	return 0
 }
 
@@ -49,9 +58,9 @@ AgentsToolsUsageLimitFile(){ ## spawn id
 	printf '%s' "$MMDAPP/.local/agents/sessions/$1/usage-limit"
 }
 
-## Keeps a run's usage-limit flag in its store, from the provider's reason: the one wording
-## above, one line, put in place by a rename. rc 1, nothing written, for a reason that is no
-## usage limit, or a store that cannot be written.
+## Keeps a run's provider-stop flag in its store, from the provider's reason: the one wording
+## above, one line, put in place by a rename. rc 1, nothing written, for an empty reason, or a
+## store that cannot be written.
 AgentsToolsUsageLimitMark(){ ## spawn id, the reason
 	local markSpawn="${1:-}" markReason="${2:-}" markText markFile markTemp
 	markText="$( AgentsToolsUsageLimitText "$markReason" )" || return 1

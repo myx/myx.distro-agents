@@ -47,9 +47,14 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			;;
 		esac
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" = spawn-started ] || continue
-		## An agent-less parent whose watcher is gone is closed from its children's outcomes, once they all have closed.
+		## An agent-less parent whose watcher is gone is closed from its children's outcomes, once they all have closed and none is
+		## queued; else its watcher is started again, from its run-process and host (AgentsToolsSpawnSessionParentRevive).
 		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" agent-less )" = true ] ; then
-			! AgentsToolsSpawnSessionParentClose "$recordPath" || housekeepingLog="${housekeepingLog}housekeeping: closed agent-less parent $rowTracking $rowSpawn from its children"$'\n'
+			if AgentsToolsSpawnSessionParentClose "$recordPath" ; then
+				housekeepingLog="${housekeepingLog}housekeeping: closed agent-less parent $rowTracking $rowSpawn from its children"$'\n'
+			elif AgentsToolsSpawnSessionParentRevive "$recordPath" ; then
+				housekeepingLog="${housekeepingLog}housekeeping: started again the watcher of agent-less parent $rowTracking $rowSpawn"$'\n'
+			fi
 			continue
 		fi
 		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown

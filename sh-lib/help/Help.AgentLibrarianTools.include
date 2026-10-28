@@ -22,7 +22,6 @@ case "$1" in
 	--help-syntax)
 echo "📘 syntax: AgentLibrarianTools.fn.sh --request-update --kind skill --target <team-member>:<pathname> --why <text> --whole-text (--from-stdin|--from-file <path>) [--reply]" >&2
 echo "📘 syntax: AgentLibrarianTools.fn.sh --request-update --kind skill --target <team-member>:<pathname> --why <text> (--old <text>|--old-from-file <path>) (--new <text>|--new-from-file <path>) [--reply]" >&2
-echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-done <name> (--apply|--refuse <reason>|--result <text>)" >&2
 		return 0
 	;;
 	--help)

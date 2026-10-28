@@ -130,8 +130,10 @@ rigAssert "both spawns name the agent-less parent as their parent session" \
 	"$( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . )" 2
 rigAssert "and each is a session of its own, none the parent's" \
 	"$( LC_ALL=C sed -n 's/^session-id: //p' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) | LC_ALL=C grep -v -x -F "$rigSessionId" | LC_ALL=C sort -u | LC_ALL=C grep -c . )" 2
-rigAssert "a caller with no member: both children report to the person at the console" \
-	"$( LC_ALL=C grep -l '^reports-to: user-' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C grep -c . )" 2
+rigAssert "both children report to the agent-less parent" \
+	"$( LC_ALL=C grep -l -x -F "reports-to: $rigSessionId" $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C grep -c . )" 2
+rigAssert "a caller with no member: the parent reports to the person at the console" \
+	"$( LC_ALL=C grep -c '^reports-to: user-' "$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md" 2>/dev/null )" 1
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
 echo "-- the agent-less parent owns the run as its caller: the children report to the caller, in the caller's thread --"
@@ -143,8 +145,10 @@ rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-b RI
 rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; }' )"
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
 rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
-rigAssert "each child reports to the caller's session and member" \
-	"$( LC_ALL=C grep -l -x -F 'reports-to: rig-caller-session:magic-coordinator' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C grep -c . )" 2
+rigAssert "each child reports to the agent-less parent" \
+	"$( LC_ALL=C grep -l -x -F "reports-to: $rigSessionId" $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C grep -c . )" 2
+rigAssert "and each child's route goes one hop on, to the caller's session and member" \
+	"$( for rigKid in $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) ; do env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsRunRoute "$1"' rig "$rigKid" 2>/dev/null ; done | LC_ALL=C sort -u )" "rig-caller-session:magic-coordinator"
 rigAssert "the parent's thread is the caller's, so a child's session-parent is that thread" \
 	"$( cat "$rigWs/.local/agents/sessions/$rigSessionId/session.thread" 2>/dev/null ):$( LC_ALL=C grep -l -x -F 'parent-thread: CRIG00001:1700000000.000500' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . )" "CRIG00001:1700000000.000500:2"
 rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
@@ -170,7 +174,7 @@ rigChild="$( LC_ALL=C sed -n 's/^children: //p' "$rigParentRecord" 2>/dev/null )
 rigAssert "the call fails, its parent record names the one child started, and the error names it too" \
 	"$rigRc $( printf '%s\n' "$rigChild" | LC_ALL=C awk '{ print NF }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F -- "watches the children already started, and closes over them: $rigChild" ) $( LC_ALL=C grep -c -E '^run-process: [0-9]+ ' "$rigParentRecord" 2>/dev/null )" "1 1 1 1"
 rigLeft=30 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
-rigAssert "and its watcher closes it over that child" "$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" )" "spawn-succeeded"
+rigAssert "and its watcher closes it over that child, failed, the failed start kept" "$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" ) $( LC_ALL=C sed -n 's/^start-failed: //p' "$rigParentRecord" )" "spawn-failed rig-member-c"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigSkills/rig-member-c"
 
 echo "-- an orphaned parent, a caller gone, and the coordinator's thread: read by the functions themselves --"
@@ -194,6 +198,71 @@ rigAssert "and is closed from its children's outcomes once they have closed, res
 rigRecordFor=rig-gone-caller ; rigRecordAt rig-gone-caller 'session-id: rig-gone-caller' 'owner: magic-coordinator' 'status: spawn-succeeded'
 rigRecordFor=rig-kid-c ; rigRecordAt rig-kid-c 'session-id: rig-kid-c' 'owner: rig-member-a' 'reports-to: rig-gone-caller:magic-coordinator' 'status: spawn-started'
 rigAssert "a reports-to whose caller no longer runs falls back as the route's own steps do" "$( rigFn AgentsToolsRunRoute "$rigWs/.local/agents/spawned/rig-kid-c/rig-kid-c.spawn.md" )" "human-owner"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+
+echo "-- --workers: at most that many children open at once, the rest queued on the record and started as children close --"
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --workers 1 rig-member-a rig-member-b )"
+rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; }' )"
+rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
+rigAssert "one child is started, the other is queued on the record and named so" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' | LC_ALL=C awk '{ print NF }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^PENDING=//p' ) $( LC_ALL=C sed -n 's/^workers: //p' "$rigParentRecord" )" "1 rig-member-b 1"
+rigLeft=40 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "the watcher starts the queued one once the first closes, then closes the parent over both, each post marked once" \
+	"$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" ) $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . ) $( LC_ALL=C grep -c -x 'pending: *' "$rigParentRecord" ) $( LC_ALL=C sed -n 's/^posted: //p' "$rigParentRecord" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed 's/:.*//' | LC_ALL=C sort | LC_ALL=C uniq -c | LC_ALL=C awk '{ printf "%s=%s ", $2, $1 }' )" \
+	"spawn-succeeded 2 1 closed=2 end=1 start=1 started=1 "
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --workers 0 rig-member-a rig-member-b )" ; rigRc=$?
+rigAssert "--workers 0 is refused, and nothing is started" "$rigRc $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'requires a positive whole number' ) $( ls "$rigWs/.local/agents/spawned" 2>/dev/null | LC_ALL=C grep -c . )" "1 1 0"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --workers 2 rig-member-a )" ; rigRc=$?
+rigAssert "--workers on a run that is not partitioned is refused" "$rigRc $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'applies to a partitioned run only' ) $( ls "$rigWs/.local/agents/spawned" 2>/dev/null | LC_ALL=C grep -c . )" "1 1 0"
+
+echo "-- --partition-scope: one child per member and scope, each named on its record and in its brief, a repeat once --"
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --partition-scope 'ns one' --partition-scope ns-two --partition-scope 'ns one' rig-member-a )"
+rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; }' )"
+rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
+rigLeft=40 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "one member and two scopes, one repeated: two children under one agent-less parent, each record naming its scope" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' | LC_ALL=C awk '{ print NF }' ) $( LC_ALL=C sed -n 's/^scope: //p' $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ) 2>/dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )" \
+	"2 ns one|ns-two|"
+rigAssert "the brief of a scoped child names its scope, and the parent closes over both" \
+	"$( LC_ALL=C grep -c -x -E 'scope: (ns one|ns-two)' "$rigTmp/brief.rig-member-a" 2>/dev/null ) $( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" )" "1 spawn-succeeded"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --partition-scope "$( printf 'a\tb' )" rig-member-a )" ; rigRc=$?
+rigAssert "a scope holding a tab or a line break is refused, and nothing is started" "$rigRc $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'holds a line break or a tab' ) $( ls "$rigWs/.local/agents/spawned" 2>/dev/null | LC_ALL=C grep -c . )" "1 1 0"
+
+echo "-- the route through an agent-less parent, its watcher's pass, and its watcher started again: read by the functions themselves --"
+rigRecordFor=rig-par ; rigRecordAt rig-par 'session-id: rig-par' 'owner: magic-coordinator' 'agent-less: true' 'reports-to: rig-caller:magic-coordinator' 'parent-member: magic-coordinator' 'status: spawn-started'
+rigRecordFor=rig-kid-r ; rigRecordAt rig-kid-r 'session-id: rig-kid-r' 'owner: rig-member-a' 'reports-to: rig-par' 'parent-session-id: rig-par' 'status: spawn-started'
+rigRecordFor=rig-kid-q ; rigRecordAt rig-kid-q 'session-id: rig-kid-q' 'owner: rig-member-a' 'parent-session-id: rig-par' 'status: spawn-started'
+rigAssert "a child that reports to the parent, and one that names only it as parent session, are routed where the parent reports" \
+	"$( rigFn AgentsToolsRunRoute "$rigWs/.local/agents/spawned/rig-kid-r/rig-kid-r.spawn.md" ) $( rigFn AgentsToolsRunRoute "$rigWs/.local/agents/spawned/rig-kid-q/rig-kid-q.spawn.md" )" "rig-caller:magic-coordinator rig-caller:magic-coordinator"
+rigRecordFor=rig-loop ; rigRecordAt rig-loop 'session-id: rig-loop' 'owner: magic-coordinator' 'agent-less: true' 'reports-to: rig-loop' 'status: spawn-started'
+rigRecordFor=rig-kid-l ; rigRecordAt rig-kid-l 'session-id: rig-kid-l' 'owner: rig-member-a' 'reports-to: rig-loop' 'status: spawn-started'
+rigAssert "one hop and no more: a parent that names itself ends in the route's own fallback" "$( rigFn AgentsToolsRunRoute "$rigWs/.local/agents/spawned/rig-kid-l/rig-kid-l.spawn.md" )" "human-owner"
+rigRecordFor=rig-held ; rigRecordAt rig-held 'session-id: rig-held' 'owner: magic-coordinator' 'agent-less: true' 'reports-to: rig-gone:magic-coordinator' 'parent-member: magic-other' 'workers: 2' 'pending: rig-member-a rig-member-b' 'children:' 'status: spawn-started'
+rigFn AgentsToolsSpawnSessionParentTick "$rigWs/.local/agents/spawned/rig-held/rig-held.spawn.md" ; rigRc=$?
+rigAssert "the caller gone: the queue holds, no child is started, and that is said once" \
+	"$rigRc $( LC_ALL=C sed -n 's/^pending: //p' "$rigWs/.local/agents/spawned/rig-held/rig-held.spawn.md" ) $( LC_ALL=C grep -l -x -F 'parent-session-id: rig-held' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . ) $( LC_ALL=C sed -n 's/^posted: //p' "$rigWs/.local/agents/spawned/rig-held/rig-held.spawn.md" )" \
+	"1 rig-member-a rig-member-b 0 start caller-gone"
+rigAssert "and the parent is not closed while its queue holds" "$( rigFn AgentsToolsSpawnSessionParentClose "$rigWs/.local/agents/spawned/rig-held/rig-held.spawn.md" ; echo "rc=$? $( LC_ALL=C sed -n 's/^status: //p' "$rigWs/.local/agents/spawned/rig-held/rig-held.spawn.md" )" )" "rc=1 spawn-started"
+true & rigDeadPid=$! ; wait "$rigDeadPid" 2>/dev/null
+rigRecordFor=rig-dead ; rigRecordAt rig-dead 'session-id: rig-dead' 'owner: magic-coordinator' 'agent-less: true' 'reports-to: human-owner' 'children: rig-kid-x' 'status: spawn-started'
+rigRecordFor=rig-kid-x ; rigRecordAt rig-kid-x 'session-id: rig-kid-x' 'owner: rig-member-a' 'reports-to: rig-dead' 'parent-session-id: rig-dead' "host: $( hostname -s 2>/dev/null || echo unknown )" "run-process: $rigDeadPid Thu_Jan__1_00:00:00_2026" 'status: spawn-started'
+touch -t 202601010000 "$rigWs/.local/agents/spawned/rig-kid-x/rig-kid-x.spawn.md"
+rigFn AgentsToolsSpawnSessionParentTick "$rigWs/.local/agents/spawned/rig-dead/rig-dead.spawn.md" ; rigRc=$?
+rigAssert "a dead child no control thread holds is closed by the death path, and the parent closes failed over it" \
+	"$rigRc $( LC_ALL=C sed -n 's/^status: //p' "$rigWs/.local/agents/spawned/rig-kid-x/rig-kid-x.spawn.md" ) $( LC_ALL=C sed -n 's/^status: //p' "$rigWs/.local/agents/spawned/rig-dead/rig-dead.spawn.md" ) $( LC_ALL=C sed -n 's/^posted: //p' "$rigWs/.local/agents/spawned/rig-dead/rig-dead.spawn.md" )" \
+	"0 spawn-ended-without-close spawn-failed start dead:rig-kid-x.spawn.md closed:rig-kid-x end"
+rigRecordFor=rig-wake ; rigRecordAt rig-wake 'session-id: rig-wake' 'owner: magic-coordinator' 'agent-less: true' 'reports-to: human-owner' 'children: rig-kid-a' "host: $( hostname -s 2>/dev/null || echo unknown )" "run-process: $rigDeadPid Thu_Jan__1_00:00:00_2026" 'status: spawn-started'
+rigRecordFor=rig-kid-a ; rigRecordAt rig-kid-a 'session-id: rig-kid-a' 'owner: rig-member-a' 'parent-session-id: rig-wake' 'status: spawn-succeeded'
+rigFn AgentsToolsSpawnSessionParentRevive "$rigWs/.local/agents/spawned/rig-wake/rig-wake.spawn.md" ; rigRc=$?
+rigLeft=20 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigWs/.local/agents/spawned/rig-wake/rig-wake.spawn.md" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "a parent whose watcher is gone has it started again, named on its record, and it closes the parent" \
+	"$rigRc $( LC_ALL=C grep -c -E "^run-process: [0-9]+ " "$rigWs/.local/agents/spawned/rig-wake/rig-wake.spawn.md" ) $( LC_ALL=C grep -c -F "run-process: $rigDeadPid " "$rigWs/.local/agents/spawned/rig-wake/rig-wake.spawn.md" ) $( LC_ALL=C sed -n 's/^status: //p' "$rigWs/.local/agents/spawned/rig-wake/rig-wake.spawn.md" )" \
+	"0 1 0 spawn-succeeded"
+rigAssert "a parent whose watcher runs, or that is closed, is not started again" "$( rigFn AgentsToolsSpawnSessionParentRevive "$rigWs/.local/agents/spawned/rig-wake/rig-wake.spawn.md" ; echo "rc=$?" )" "rc=1"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
 echo "-- a caller's own <type>-* and <type>-? --"

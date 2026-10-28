@@ -575,7 +575,7 @@ rigCheck "control, order reversed: the outer stderr is empty"             "$( LC
 echo "   a spawned child never inherits fd 4"
 rigSpawnInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include"
 rigCheck "the 4 console launch sites that redirect their own output each close fd 4 with 4>&-" "$( LC_ALL=C awk '
-	index($0, "DistroAgentsConsole.sh\" \"${spawnCliArgs[@]}\" --non-interactive") && index($0, "\"$spawnContext\" >") > 0 { sites++ ; if ( index($0, "4>&-") > 0 ) { closed++ } }
+	index($0, "AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT=") && index($0, "\"${spawnCliArgs[@]}\"") && index($0, "\"$spawnContext\" >") > 0 { sites++ ; if ( index($0, "4>&-") > 0 ) { closed++ } }
 	END { printf "%d %d", sites, closed }' "$rigSpawnInc" )" "4 4"
 rigCheck "the fifth, the detached subshell's console, sits in a subshell whose closing line closes fd 4" "$( LC_ALL=C grep -c -F ') >> "$outputFile" 2>&1 4>&- &' "$rigSpawnInc" || : )" 1
 ## The session log takes the handback retry's appended lines while the close steps still hold it:

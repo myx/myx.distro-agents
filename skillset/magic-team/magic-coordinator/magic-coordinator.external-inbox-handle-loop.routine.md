@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-coordinator.external-inbox-handle-loop.routine — the actual procedure
 
@@ -49,7 +50,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **work-the-loop**: For each item in the due-items section of the duty's input scan when run inline, else the items the dispatch names, pick one action by its own history and urgency, never by rotation:
+1. **work-the-loop**: Take each item in the due-items section of the duty's input scan when run inline, else the items the dispatch names. For each, pick one action by its own history and urgency, never by rotation:
    - **Retry**: the last attempt may not have landed; try the same channel again.
    - **Communicate**: send a fresh status, to keep the item visibly alive.
    - **Remind**: nudge on something sent and not yet answered.
@@ -76,7 +77,7 @@ All statements apply at the same time, always. These rules override a participan
 - An item reaches `board-processed` only on genuine resolution.
 - "Reasonable time" is judged from the item's urgency and history. Unsure: one more attempt before escalating, unless it is time-sensitive.
 - A contact's channel that appears dead is itself reported, never silently retried.
-- A human-owner item likely to be handled when he is next in Slack gets a plain status rather than an urgent reminder, unless it is time-critical.
+- A human-owner item likely to be handled when he is next in Slack gets a plain status rather than an urgent reminder. The exception is a time-critical item.
 - An escalation is posted to `event-track` as it happens.
 
 # Routine-specific tooling

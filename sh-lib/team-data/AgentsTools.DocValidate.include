@@ -66,10 +66,23 @@ AgentsToolsDocValidateDisposition(){ ## rule, site
 	esac
 }
 
+## The file names of the routines of the skillset (the root of the run, and the package's own), space-separated: what the value form `routine` is checked against.
+AgentsToolsDocValidateRoutineNames(){
+	local routineFile routineNames=""
+	for routineFile in "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"/*/*.routine.md "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"/*/*.routine.md ; do
+		[ -f "$routineFile" ] || continue
+		routineNames="$routineNames ${routineFile##*/}"
+	done
+	printf '%s' "${routineNames# }"
+}
+
 ## The faults of a document against the contract of its kind, one a line, `<line> TAB <rule> TAB <text> TAB <the value it is about>`;
 ## the document is on stdin. A fault is its rule and its text: the value is apart, so a value changed stays the one fault.
 AgentsToolsDocValidateTypeRows(){ ## contract file, the document's file name (empty for none)
-	DOC_NAME="${2:-}" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsDocTypeCheck.awk" "$1" - | LC_ALL=C sed -n $'s/^ROW\t//p'
+	local rowsRoutines=""
+	## A contract that has a key of the value form `routine` (board items' `handler-routine`) is read with the names of the routines there are.
+	LC_ALL=C grep -q -F '| `routine`' "$1" 2> /dev/null && rowsRoutines="$( AgentsToolsDocValidateRoutineNames )"
+	DOC_ROUTINES="$rowsRoutines" DOC_NAME="${2:-}" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsDocTypeCheck.awk" "$1" - | LC_ALL=C sed -n $'s/^ROW\t//p'
 }
 
 ## The rule set of a type kind, as the validator prints it: a row for each fault, the rule of a reporting row `report-` first.

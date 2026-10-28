@@ -255,7 +255,8 @@ echo "-- 8. a quiet round wakes the model with a keepalive, and returns it to th
 rigScene loop rigquiet
 printf 'WAIT_ROUND_SECONDS=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 ## The dismissal comes after the second keepalive round, so what is held is the order of the rounds and not the speed of this machine.
-( rigTries=0 ; until [ "$( LC_ALL=C grep -c -F 'waking the model with a keepalive' "$rigDir/err" 2> /dev/null )" -ge 2 ] || [ "$rigTries" -ge 240 ] ; do sleep 1 ; rigTries=$(( rigTries + 1 )) ; done ; sleep 1 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
+## It lands once the third request is recorded, before the third wait starts: a two-second round can not end ahead of it.
+( rigTries=0 ; until { [ "$( LC_ALL=C grep -c -F 'waking the model with a keepalive' "$rigDir/err" 2> /dev/null )" -ge 2 ] && [ -e "$rigDir/req.3" ] ; } || [ "$rigTries" -ge 2400 ] ; do sleep 0.1 ; rigTries=$(( rigTries + 1 )) ; done ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
 rigLater=$!
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait )"
 rigToolStream "$rigDir/res.2" Bash "$( rigOp --idle-wait )"

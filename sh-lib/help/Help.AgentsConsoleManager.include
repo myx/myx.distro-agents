@@ -12,15 +12,7 @@ case "$1" in
 		return 0
 	;;
 	--help)
-echo "Opens the agents console's manager screen in this terminal, on the start options below. With no arguments it opens the screen at its list, where the keys are." >&2
-echo "" >&2
-echo "  --style <name>          the interface style of this start, as --manager takes it" >&2
-echo "  --component <path>      open the list at that component level: its ids, / between them" >&2
-echo "  --view list|view        which window has the keys (the start gives them to the list)" >&2
-echo "  --filter <text>         narrow the table of the left window, and give it the keys" >&2
-echo "  --dialog <name>         show that one dialog and end when it is closed (single-dialog mode)" >&2
-echo "  --text <text>           the words of that one dialog" >&2
-echo "" >&2
+		myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentsConsoleManager.help.md" >&2
 		return 0
 	;;
 esac

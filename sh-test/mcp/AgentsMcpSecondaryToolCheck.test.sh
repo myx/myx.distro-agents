@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-## Behavioural check on the D2 secondary-tool dispatch. The myx.distro MCP serves the seven
+## Behavioural check on the D2 secondary-tool dispatch. The myx.distro MCP serves the twelve
 ## secondary tools one-per-subsystem-file -- AgentsMcpSecondaryMirror.sh rendering the
 ## `agentsFrontSecondary` list of AgentsContext.FrontTable.include, each taking the operation
 ## as an argument so the served catalogue stays short. The mirror and the dispatch arm that
 ## runs them (AgentsTools.InternMcpRequest.include) landed already, but were manually verified
-## only: no dedicated test held that (1) all seven are served with the {operation, args[],
+## only: no dedicated test held that (1) all twelve are served with the {operation, args[],
 ## description} shape, (2) a cross-file operation is refused (DistroAgentsSlack cannot name
 ## --get-board-item), and (3) a valid operation routes into its own file's arm
 ## (DistroAgentsSlack + --slack-read reaches the Slack arm).
@@ -64,7 +64,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-rigSecondaryNames="DistroAgentsSlack DistroAgentsAtlassian DistroAgentsGoogle DistroAgentsMail DistroAgentsTrello DistroAgentsContacts AgentDispatcherTools"
+rigSecondaryNames="DistroAgentsSlack DistroAgentsAtlassian DistroAgentsGoogle DistroAgentsMail DistroAgentsTrello DistroAgentsContacts AgentDispatcherTools DistroAgentsDispatcher DistroAgentsQuestions DistroAgentsItems DistroAgentsKnowledge DistroAgentsTesting"
 
 ## The catalogue, off the server's own tools/list answer.
 {

@@ -7,7 +7,7 @@
 ## (F7.2); and the standing directives, --standing-directives, --directive-set and --directive-end. A tool of its own: its session operations are
 ## locked to the session of the call, and none of them is a name that belongs to another tool.
 ##
-## From DistroAgentsTools.fn.sh (F1.4): --append-transcript, --wait-for-input (sh-lib/harness/AgentsContext.FrontTable.include).
+## From DistroAgentsTools.fn.sh (F1.4): --append-transcript, --settle-pending-reply, --wait-for-input (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -65,6 +65,11 @@ DistroAgentsSessionMoved(){
 
 		--append-transcript)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
+			return $?
+		;;
+
+		--settle-pending-reply)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include"
 			return $?
 		;;
 

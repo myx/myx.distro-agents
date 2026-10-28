@@ -103,7 +103,7 @@ case "$1" in
 			printf '\n'
 			DistroAgentsTools --intern-op-permission-escalation-input-scan "$workMember" 2> /dev/null || printf '## permission asks addressed to permission-escalation.routine\n\n(the permission asks could not be read)\n'
 			workTrace permission-asks
-			## The board, for the rules of magic-coordinator.advance.routine, which this duty takes (F7.12): the items of the active states, the review items,
+			## The board, for the rules of magic-team.advance.routine, which this duty takes (F7.12): the items of the active states, the review items,
 			## the registries of sessions, the items whose recheck-date has arrived and the dependencies as the tooling last computed them. All pure reads: what a
 			## dead spawn left open and the edges of the dependencies are done by the main loop before.
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"

@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.handback-review.routine — the actual procedure
 
@@ -29,7 +30,20 @@ review-by: inherit
 
 # Summary
 
-`magic-team.handback-review.routine` is how a reviewer settles a `board-review` item: a handback arrived, or its child ended with no verdict. Its executor is the reviewer the item's `review-by` names — the item's parent for its review; it is assigned to the `board-review` state. The tooling posts, in the thread of the session that requested the run, a fact-only note of how it ended (no handback; handed back in another thread; killed from the console, by whom; stopped by whose `TaskStop`; ended at the bound of a wait; or died): it decides nothing, the reviewer's own verdict does. For a death the control thread asks this reviewer a decision instead — `resume`, `fresh`, `close` or `kill` — reads the answer from the question's own thread, and carries it out itself: starting the member again, closing, or killing, and saying what it did there and in the requesting session's thread. An answer that could not be carried out asks the reviewer again, once for each failure, saying why; nothing is tried a second time without a fresh answer, and an item a failed restart left running with no run goes back to review.
+`magic-team.handback-review.routine` is how a reviewer settles a `board-review` item: a handback arrived, or its child ended with no verdict. Its executor is the reviewer the item's `review-by` names — the item's parent for its review; it is assigned to the `board-review` state.
+
+The tooling posts, in the thread of the session that requested the run, a fact-only note of how it ended. The endings are:
+
+- no handback.
+- handed back in another thread.
+- killed from the console, by whom.
+- stopped by whose `TaskStop`.
+- ended at the bound of a wait.
+- died.
+
+The note decides nothing; the reviewer's own verdict does.
+
+For a death the control thread asks this reviewer a decision instead: `resume`, `fresh`, `close` or `kill`. It reads the answer from the question's own thread, and carries it out itself: starting the member again, closing, or killing. It says what it did there and in the requesting session's thread. An answer that could not be carried out asks the reviewer again, once for each failure, saying why. Nothing is tried a second time without a fresh answer. An item a failed restart left running with no run goes back to review.
 
 ## Goals
 

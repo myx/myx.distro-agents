@@ -11,12 +11,15 @@
 ## The first row whose glob matches the model chosen is the model's family. The none form says how the effort
 ## `none` is sent to this family: `effort:<word>` is the reasoning effort field with that word (a word that
 ## is not `none` is the service's lowest, because it has no none, and the start line says so),
-## `thinking:disabled` is the thinking switched off, `omit` is nothing to send (the model does not reason).
+## `thinking:disabled` is the thinking switched off, `omit` is nothing to send (the model does not reason), `refuse` is a model
+## whose thinking cannot be switched off: the effort `none` is refused with an error that names the model and the efforts it takes
+## (AgentsHarnessEffortApply returns 1), never remapped to another effort.
 ## A source holds no `|`.
 ##
 ## THE MODEL IS ALWAYS KNOWN: the preset gives a macro (low or easy, normal or default, high or hard), which the
 ## wrapper maps to the concrete model of its service (HARNESS_MODEL_LIGHT, HARNESS_MODEL_MAIN), or an explicit
-## model name, which maps through the family table. A name no family holds is refused at start, with the
+## model name, which maps through the family table. A name no family holds is refused at start (a table that ends in a catch-all row `*`, the open table of the
+## standard-v1 and local legs, gives it that row's default and one note instead), with the
 ## families listed, and is never guessed.
 ##
 ## THE ORDER of the restart threshold: MDAT_HARNESS_CONTEXT_TOKENS, an operator's own override; then the
@@ -46,6 +49,8 @@ AgentsHarnessLimitsResolve(){ ## model, fallback window (may be empty), fallback
 				harnessOutputTokens="$limOutput"
 				[ -z "$limNone" ] || harnessNoneForm="$limNone"
 				harnessLimitsSource="family $limGlob, $limSource"
+				## a catch-all row `*` is a table's reasonable default (the open table's): said once, so the limits are no secret
+				[ "$limGlob" != "*" ] || echo "${harnessSelfName:-the harness}: the model '${1:-}' is of no family this table was read for, so the default limits apply (window $limWindow, output $limOutput); a preset that knows its server's window sets PRESET_CONTEXT_MAX_SIZE" >&2
 			;;
 		esac
 	done <<< "${HARNESS_MODEL_TABLE:-}"
@@ -98,6 +103,10 @@ AgentsHarnessEffortApply(){
 					harnessThinkingOff=1
 					harnessEffortNote="effort none, the thinking is off"
 				;;
+				refuse)
+					echo "${harnessBad:-}⛔ ERROR:${harnessOff:-} ${harnessSelfName:-the harness}: the model '${harnessModel:-of this run}' cannot have its reasoning switched off, so the effort none is refused. It takes: unset, low, normal, high." >&2
+					return 1
+				;;
 				*)
 					harnessEffortNote="effort none, nothing to send: this model does not reason"
 				;;
@@ -107,6 +116,7 @@ AgentsHarnessEffortApply(){
 			harnessEffortNote="effort unset, the model's default"
 		;;
 	esac
+	return 0
 }
 
 ## THE OPEN CHAT MODELS this estate serves from a server it cannot ask (the standard-v1 leg) or runs itself (the local leg):
@@ -114,28 +124,32 @@ AgentsHarnessEffortApply(){
 ## 1. a normal CPU with constrained or shared RAM (about 4b), 2. a dedicated or bigger CPU with more RAM (about 8b), 3. the
 ## GPU machine (about 14b). A name carries its size after a `-`, `:` or `_`, as qwen3-8b, qwen3:8b or Qwen3_8B-Instruct. The
 ## first row that matches wins, so a size stands ahead of its family's own row. The figures are the families' published ones
-## as the author knows them, NOT re-read for this table (2026-10-26): qwen (the Qwen3 line: 32768 of native context, hybrid
+## as the vendors' own cards give them, each row read on 2026-10-28 (the source and date are in its row): qwen (the Qwen3 line: 32768 of native context, hybrid
 ## thinking, so the effort none switches it off), gemma (Gemma 3: 131072 of context from 4b up, does not reason), deepseek
-## (the R1 distills and the open V3 line: 131072, thinking switched off for none), llama (Llama 3.1 and after: 131072, does
-## not reason). The output is a budget per size, not the maximum: it comes off the window for the restart threshold. A small
+## (the R1 distills and the open V3 line: 131072, thinking switched off for none), llama (Llama 3.1, 3.2 and 3.3: 131072, does
+## not reason; Llama 3, 2 and 4 get the default row, not those). The output is a budget per size, not the maximum: it comes off the window for the restart threshold. A small
 ## machine cannot hold a large window in RAM, so a preset for profile 1 sets PRESET_CONTEXT_MAX_SIZE to the size it can carry,
 ## which stands ahead.
 AgentsHarnessOpenModelTable(){
 	printf '%s\n' \
 		"qwen*[-:_]9b*|262144|32768|thinking:disabled|Qwen/Qwen3.5-9B config.json max_position_embeddings and card output length, read 2026-10-26" \
 		"qwen*[-:_]27b*|262144|131072|thinking:disabled|Qwen/Qwen3.8-27B config.json max_position_embeddings and card final-response length, read 2026-10-26" \
-		"qwen*[-:_]4b*|32768|4096|thinking:disabled|Qwen3 model cards, not re-read for this table" \
-		"qwen*[-:_]8b*|32768|8192|thinking:disabled|Qwen3 model cards, not re-read for this table" \
-		"qwen*[-:_]14b*|32768|8192|thinking:disabled|Qwen3 model cards, not re-read for this table" \
-		"qwen*|32768|8192|thinking:disabled|Qwen3 model cards, not re-read for this table" \
-		"gemma*[-:_]4b*|131072|4096|omit|Gemma 3 model card, not re-read for this table" \
-		"gemma*[-:_]12b*|131072|8192|omit|Gemma 3 model card, not re-read for this table" \
-		"gemma*|131072|8192|omit|Gemma 3 model card, not re-read for this table" \
-		"deepseek*[-:_]8b*|131072|16384|thinking:disabled|DeepSeek-R1 distill model cards, not re-read for this table" \
-		"deepseek*[-:_]14b*|131072|16384|thinking:disabled|DeepSeek-R1 distill model cards, not re-read for this table" \
-		"deepseek*|131072|32768|thinking:disabled|DeepSeek open-weights model cards, not re-read for this table" \
-		"llama*[-:_]8b*|131072|8192|omit|Llama 3.1 model card, not re-read for this table" \
-		"llama*|131072|8192|omit|Llama 3.x model cards, not re-read for this table"
+		"qwen*[-:_]4b*|32768|4096|thinking:disabled|https://huggingface.co/Qwen/Qwen3-4B card: context 32,768 native (131,072 with YaRN), output a budget (card recommends 32,768), read 2026-10-28" \
+		"qwen*[-:_]8b*|32768|8192|thinking:disabled|https://huggingface.co/Qwen/Qwen3-8B card: context 32,768 native (131,072 with YaRN), output a budget, read 2026-10-28" \
+		"qwen*[-:_]14b*|32768|8192|thinking:disabled|https://huggingface.co/Qwen/Qwen3-14B card: context 32,768 native (131,072 with YaRN), output a budget, read 2026-10-28" \
+		"qwen*|32768|8192|thinking:disabled|the Qwen3 cards of 4B, 8B and 14B (same 32,768 native), read 2026-10-28; a Qwen3 of another size is not read" \
+		"gemma-3-4b*|131072|4096|omit|https://developers.googleblog.com/en/introducing-gemma3/ Gemma 3 4B: context up to 128k tokens (the card on huggingface.co is gated), output a budget, read 2026-10-28" \
+		"gemma3[-:_]4b*|131072|4096|omit|https://developers.googleblog.com/en/introducing-gemma3/ Gemma 3 4B (ollama-style name), read 2026-10-28" \
+		"gemma-3-12b*|131072|8192|omit|https://developers.googleblog.com/en/introducing-gemma3/ Gemma 3 12B: context up to 128k tokens, output a budget, read 2026-10-28" \
+		"gemma3[-:_]12b*|131072|8192|omit|https://developers.googleblog.com/en/introducing-gemma3/ Gemma 3 12B (ollama-style name), read 2026-10-28" \
+		"gemma-3-*|131072|8192|omit|https://developers.googleblog.com/en/introducing-gemma3/ Gemma 3 (4B, 12B, 27B at 128k), read 2026-10-28; not matched: Gemma 3n, Gemma 3 1B, Gemma 1, 2 and 4" \
+		"gemma3[-:_]*|131072|8192|omit|https://developers.googleblog.com/en/introducing-gemma3/ Gemma 3 (ollama-style name), read 2026-10-28" \
+		"deepseek-r1*[-:_]8b*|131072|16384|thinking:disabled|https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-8B config max_position_embeddings 131072, card generation length 32,768, output a budget, read 2026-10-28" \
+		"deepseek-r1*[-:_]14b*|131072|16384|thinking:disabled|https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B config max_position_embeddings 131072, card generation length 32,768, output a budget, read 2026-10-28" \
+		"deepseek-r1*|131072|32768|thinking:disabled|the R1 distill cards (131072 of position embeddings, generation length 32,768), read 2026-10-28; the hosted V4 line has other limits (api-docs.deepseek.com, the DeepSeek leg) and gets the default row" \
+		"llama*3.[123]*[-:_]8b*|131072|8192|omit|https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/MODEL_CARD.md Llama 3.1 8B: context length 128k (3.2: .../llama3_2/MODEL_CARD.md and 3.3: .../llama3_3/MODEL_CARD.md also 128k), output a budget, read 2026-10-28" \
+		"llama*3.[123]*|131072|8192|omit|the Llama 3.1, 3.2 and 3.3 cards (.../llama3_1, llama3_2, llama3_3/MODEL_CARD.md): 128k, read 2026-10-28; not matched: Llama 3 (8k), Llama 2, Llama 4" \
+		"*|32768|8192|omit|the reasonable default of the universal leg (sketch 13.1), for a model no row above was read for: the window of the Qwen3 line and the output of its 8b row, nothing sent for effort none; a preset that knows its server sets PRESET_CONTEXT_MAX_SIZE"
 }
 
 ## The machine profile a model's size suits, 1, 2 or 3 as above, or - where the name carries no size: 4b and smaller are

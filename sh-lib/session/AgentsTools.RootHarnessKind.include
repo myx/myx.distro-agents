@@ -90,13 +90,8 @@ AgentsToolsRootHarnessKindWrite(){ ## session dir, kind
 	return 1
 }
 
-## ---------------------------------------------------------------------------------------------------------------------
-## THE ROUTINE OF A ROOT-HARNESS SESSION (epic S18.3, S18.5; sketch 3.1: "every tool ban is only a real access check in the tooling, with a real
-## redirection or rejection"). A root-harness session is one RootSession minted: the mint keeps its token and the routine it runs,
-## `magic-coordinator.root-harness.routine`, in its folder (`root-session.routine`). That routine's `access-control:` rows are the session's profile: the
-## tools it may not use are named there as deny-tool rows, and the one permission chain refuses them (AgentsToolsPermissionRoutineDenies), in the MCP request
-## and in the harness alike. The tool list a server serves does not change: every tool is listed for everyone and refused where a row denies it (S18.1).
-## ---------------------------------------------------------------------------------------------------------------------
+## The routine of a root-harness session: the mint keeps `magic-coordinator.root-harness.routine` in the session's folder (`root-session.routine`).
+## Its `access-control:` rows are the session's profile; the one permission chain refuses the tools they deny, in the MCP request and in the harness alike.
 
 agentsRootHarnessRoutine="magic-coordinator.root-harness.routine.md"
 agentsRootHarnessRoutineName="root-session.routine"

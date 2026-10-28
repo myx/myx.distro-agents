@@ -72,7 +72,7 @@ Named procedure blocks. Steps below call them by name. Not separate routines —
 ## `daily-idle-task` - pick and run one idle activity, log the outcome
 
 Steps:
-1. Select one eligible idle-run routine from this member's own `## Idle-Tasks` section (weighted-random by `weight`, honoring each entry's `min-interval` cap and `scope`); the universal research-own-duties activity is always one more eligible candidate.
+1. Select one eligible idle-run routine from this member's own `## Idle-Tasks` section, weighted-random by `weight`, honoring each entry's `min-interval` cap and `scope`. The universal research-own-duties activity is always one more eligible candidate.
 2. Run that routine's own procedure — its `<member>.<name>.routine.md` file — following its Steps and Closure steps.
 3. Logging the activity and its outcome as a `note-*` in this member's own inbox is the selected routine's own Closure step.
 
@@ -96,7 +96,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 ## Idle-Tasks
 
-[Scheduling policy for this member's idle-run routines — one entry per idle-run `<member>.<name>.routine`, each stating its relative `weight`, its `min-interval` (wall-clock "not more frequent than" cap), and its `scope`. The `## daily-idle-task` procedure selects from this list — weighted-random among eligible entries — never from a directory listing; a routine not listed here is not idle-run. The universal research-own-duties activity is always one more eligible candidate beyond the listed routines. Omit this subsection only if the member has no idle-run routines at all.]
+[Scheduling policy for this member's idle-run routines: one entry per idle-run `<member>.<name>.routine`. Each states its relative `weight`, its `min-interval` (wall-clock "not more frequent than" cap), and its `scope`. The `## daily-idle-task` procedure selects from this list — weighted-random among eligible entries — never from a directory listing; a routine not listed here is not idle-run. The universal research-own-duties activity is always one more eligible candidate beyond the listed routines. Omit this subsection only if the member has no idle-run routines at all.]
 
 # Team-Member's (-specific) tooling
 

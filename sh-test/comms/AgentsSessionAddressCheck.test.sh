@@ -384,11 +384,11 @@ rigWaitEnded(){ ## how the wait ended: the first word after WAIT-RESULT:
 ## The floor given is later than every message of the rig, so each wait ends by its bound.
 echo "-- Wait takes both names as sources --"
 rigRow waitCurrent "$rigCurrent" Wait '{"sources":"slack:session-current","timeout":1,"since_utime":"1700000100"}'
-rigAssert "slack:session-current: the session thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:replies:rig-child-id slack:$rigCurrent:conversation"
+rigAssert "slack:session-current: the session thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:replies:rig-child-id slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigRow waitParent "$rigCurrent" Wait '{"sources":"slack:session-parent","timeout":1,"since_utime":"1700000100"}'
-rigAssert "slack:session-parent: the parent's thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:replies:rig-child-id slack:$rigParent:conversation"
+rigAssert "slack:session-parent: the parent's thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:replies:rig-child-id slack:$rigParent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigRow waitMixed "$rigCurrent" Wait "{\"sources\":\"file:$rigTmp/waitMixed/drop slack:session-parent slack:session-current\",\"timeout\":1,\"since_utime\":\"1700000100\"}"
-rigAssert "beside other sources: each name its own thread, the rest as given" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:replies:rig-child-id file:$rigTmp/waitMixed/drop slack:$rigParent:conversation slack:$rigCurrent:conversation"
+rigAssert "beside other sources: each name its own thread, the rest as given" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:replies:rig-child-id file:$rigTmp/waitMixed/drop slack:$rigParent:conversation slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigRow waitNoCurrent "" Wait '{"sources":"slack:session-current","timeout":1}'
 rigAssert "no session thread: the one line, nothing waited on"    "$( rigFirst )" "ERROR: $rigNoCurrent Nothing was waited on."
 rigStart waitNoParent
@@ -408,7 +408,7 @@ rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-parent --wait-t
 rigAssert "slack:session-parent: the parent's thread was waited on" "$rigOpRc:$( LC_ALL=C sed -n '1p' "$rigScenarioDir/op.out" ):$( rigOpSources )" "0:WAIT-RESULT: TIMEOUT:slack:$rigParent:conversation"
 rigScene opWaitStored
 rigOp "$rigCurrent" --wait-for-input --wait-default --wait-session-id rig-child-id --wait-source "file:$rigTmp/opWaitStored/drop" --wait-source slack:session-parent --wait-source slack:session-current --wait-timeout 1 --wait-since-utime 1700000100
-rigAssert "a stored wait keeps each name as its thread, the rest as given" "$rigOpRc:$( rigWaited )" "0:replies:rig-child-id file:$rigTmp/opWaitStored/drop slack:$rigParent:conversation slack:$rigCurrent:conversation"
+rigAssert "a stored wait keeps each name as its thread, the rest as given" "$rigOpRc:$( rigWaited )" "0:replies:rig-child-id file:$rigTmp/opWaitStored/drop slack:$rigParent:conversation slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigScene opWaitNoCurrent
 : > "$RIG_CURL_LOG"
 rigOp "" --wait-for-input --wait-source slack:session-current --wait-timeout 1
@@ -457,16 +457,16 @@ rigScene nativeWaitName
 rigSessionRecord rig-native-id "$rigNativeThread"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"RIG-NATIVE-OPENER"}],"has_more":false}\n' "${rigNativeThread#*:}" > "$rigScenarioDir/replies.${rigNativeThread#*:}.json"
 rigCall native Wait '{"sources":"slack:session-current","timeout":1,"since_utime":"1700000100"}'
-rigAssert "Wait on slack:session-current: its recorded thread"    "$( rigWaitEnded ):$( rigWaited rig-native-id )" "TIMEOUT:replies:rig-native-id chat:rig-native-id slack:$rigNativeThread:conversation"
+rigAssert "Wait on slack:session-current: its recorded thread"    "$( rigWaitEnded ):$( rigWaited rig-native-id )" "TIMEOUT:replies:rig-native-id chat:rig-native-id slack:$rigNativeThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 
 echo "-- a bare Wait in such a session watches its recorded thread beside the two team conversations --"
 rigScene nativeWaitBare
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigCall native Wait '{"timeout":1}'
-rigAssert "the Wait tool: the floor, the two conversations, and the session thread" "$( rigWaited rig-native-id )" "replies:rig-native-id chat:rig-native-id slack:magic-team slack:human-owner slack:$rigNativeThread:conversation"
+rigAssert "the Wait tool: the floor, the two conversations, and the session thread" "$( rigWaited rig-native-id )" "replies:rig-native-id chat:rig-native-id slack:magic-team slack:human-owner slack:$rigNativeThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigScene nativeWaitBareNone
 rigCall native Wait '{"timeout":1}'
-rigAssert "with no thread recorded: the floor and the two conversations alone" "$( rigWaited rig-native-id )" "replies:rig-native-id slack:magic-team slack:human-owner"
+rigAssert "with no thread recorded: the floor and the two conversations alone" "$( rigWaited rig-native-id )" "replies:rig-native-id slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigScene nativeOpWaitBare
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigOp native --wait-for-input --wait-timeout 1

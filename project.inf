@@ -12,6 +12,11 @@ Declares: \
 	--magic-team:permissions:workspace:*:allow-tool:*:SubagentHandback \
 	--magic-team:permissions:workspace:*:allow-tool:*:AskUserQuestion \
 	--magic-team:permissions:workspace:*:allow-tool:magic-coordinator:AgentDispatcherTools \
+	--magic-team:permissions:workspace:*:deny-read:magic-coordinator:** \
+	--magic-team:permissions:workspace:*:deny-write:magic-coordinator:** \
+	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:Bash \
+	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:execute \
+	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:WorkspaceContextExecute \
 	--magic-team:permissions:workspace:*:allow-tool:*:AskQuestion \
 	--magic-team:permissions:workspace:*:allow-tool:*:ConfirmReadback \
 	--magic-team:permissions:workspace:*:allow-tool:*:EscalateDecision \

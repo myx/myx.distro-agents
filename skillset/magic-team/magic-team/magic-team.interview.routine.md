@@ -6,6 +6,7 @@ access-control: participants:allow-tool:WebSearch, participants:allow-tool:WebFe
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.interview.routine — the actual procedure
 
@@ -32,6 +33,8 @@ review-by: inherit
 
 `magic-team.interview.routine` captures another party's vision or inquiry precisely, before anything converges on it.
 
+Handles: interview
+
 ## Goals
 
 - Collect the other party's intent — the human-owner's design thinking, an external contact's need — in their own terms, without deciding anything on their behalf.
@@ -43,8 +46,8 @@ review-by: inherit
   - Collection by minimal-assumption questions, one topic per thread.
   - Opened manually — the human-owner or a member asks for an interview with a party on a topic — or by two intakes:
     - `magic-coordinator`'s `missing-tool-option-escalation` procedure, for a tooling gap that is not simple.
-    - **design-question-intake**: a member's open design question, filed to `magic-coordinator` with `post-inquiry`, when its answer fixes an interface or an invariant something will depend on **and** no written record answers it. A question the source answers is a fact to look up. Anything below this bar is the member's own judgement call.
-  - Continued by any pickup: this routine, a grooming pass, `magic-coordinator.coordination-session.routine`, or a `magic-coordinator.advance.routine` round.
+    - **design-question-intake**: a member's open design question, filed to `magic-coordinator` with `post-inquiry`. It applies when its answer fixes an interface or an invariant something will depend on **and** no written record answers it. A question the source answers is a fact to look up. Anything below this bar is the member's own judgement call.
+  - Continued by any pickup: this routine, a grooming pass, `magic-coordinator.coordination-session.routine`, or a `magic-team.advance.routine` round.
 - Doesn't:
   - Reach agreement (`magic-team.discuss.routine`).
   - Build anything bigger than its own inline cycles.
@@ -78,16 +81,18 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - check the draft keeps every verbatim-intent, verbatim-benchmark and stated goal.
    - a corrected draft shows what changed against the prior one.
    - prefer small steps gathering exact wording bit by bit over showing the whole draft.
-6. **inherit-check-restart**: on any resume, apply `magic-team.negotiations.md`'s "Check-restart procedure". A nudge restates the current open topic.
+6. **inherit-check-restart**: on any resume, apply **check-restart**. A nudge restates the current open topic.
 7. **collect-dont-converge**: ask small, minimal-assumption questions, one at a time; never bundle decisions. Once a point is clear and agreed, move on. Rules:
    - in an interactive chat, small structured questions (`AskQuestion`) are the default, one topic each.
    - **open-before-closed**: a design point new to this session opens with one open question in the party's own terms. A closed option list follows in a later round, once that framing is on record. Every option list carries a literal `none of these — my own:` choice.
    - switch from asking to proposing only once a piece is verified settled: a plain one-line restatement the party did not correct.
    - a piece not yet settled stays in full live context, never summarised.
 8. **dispatch-settled-points**: dispatch each piece the moment it settles and is approved, steps:
-   - send it where it belongs: a board item in `board-backlog` with `--grooming-create-backlog`, carrying `approved-by`/`approved-at` and `spawned-by` the interview item; or an `inquiry-*` to the member who owns it.
+   - send it where it belongs. That is a board item in `board-backlog` with `--grooming-create-backlog`, carrying `approved-by`/`approved-at` and `spawned-by` the interview item. Or it is an `inquiry-*` to the member who owns it.
    - compact it into one present-tense block: the resulting rule, fact or decision, never the question-and-answer history. Keep every distinct settled point. The wording is simple and drops no intent, detail or benchmark.
-   - give each settled design point two fields: `rejected:` — one line naming the live alternatives that lost, and why; `status:` — `settled`, or `superseded` with a pointer to its replacement.
+   - give each settled design point two fields:
+     - `rejected:`: one line naming the live alternatives that lost, and why.
+     - `status:`: `settled`, or `superseded` with a pointer to its replacement.
    - remove it from the open scope. Context changes may still reopen it.
    - keep the categories separate: plan, verbatim-intents, verbatim-benchmarks, corrections, settled facts, sub-parts.
    - periodically compact already-resolved material even before it is dispatched.
@@ -126,7 +131,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` is permitted and obliged to execute every step exactly as written, in order.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine follows `magic-team.negotiations.md`: both presentation modes are available.
+- This routine is the entry point of "Conversations" with interview as its main mode: both presentation modes are available.
 - Every exchange is kept as a `transcript-*` with `--append-transcript`, per **transcripts-are-verbatim-records**.
 - Before acting on anything the party just said, read back a one-line understanding and wait for confirmation, per **rephrase-and-confirm-before-acting**. Waiting follows **wait-never-quit**.
 - **Two gates.** A design point — a shape, an interface, an invariant — is approved by a one-line readback the party confirms. Executing anything — a dispatch, a spawn, a filing, a real change — passes the pre-dispatch gate as well, even for an approved design.
@@ -135,8 +140,8 @@ All statements apply at the same time, always. These rules override a participan
   - post a `DISPATCH PAYLOAD` block: the exact payload, verbatim.
   - a risky, irreversible or detail-sensitive action adds the line `member confirms dangerous/detail action`.
   - execute nothing until the human-owner answers `APPROVE` for that piece's own dispatch. `NO`: nothing runs.
-- Nothing is filed mid-interview unilaterally: propose the piece, type and goal, and wait for the session's own parent to confirm it, per "The ladder: one rung at a time", unless the human-owner asked for that filing himself.
-- **Unattended rounds.** `magic-coordinator.advance.routine` runs one round per pass on an open interview, with nobody present. The round runs **resume-review** for pieces whose approval is already recorded, then **reassess-before-next-message**, sending at most one message. It never creates an interview item, never approves, files or dispatches anything not already approved, and never reads silence as an answer.
+- Nothing is filed mid-interview unilaterally. Propose the piece, type and goal, and wait for the session's own parent to confirm it, per "The ladder: one rung at a time". The exception is a filing the human-owner asked for himself.
+- **Unattended rounds.** `magic-team.advance.routine` runs one round per pass on an open interview, with nobody present. The round runs **resume-review** for pieces whose approval is already recorded, then **reassess-before-next-message**, sending at most one message. It never creates an interview item, never approves, files or dispatches anything not already approved, and never reads silence as an answer.
 - `GOOD`/`BAD INTERVIEW`, or `GOOD`/`BAD ASSESSMENT` pinned to a quoted statement: read back the understood lesson and record it per **quality-marker-creates-reflection**. This file changes only by the skillset change rule.
 - **Scope-steering keywords.** Each is read back and confirmed before it counts. Its topic stays on the record, unlike content under the `DETOUR:` marker (**detour-offtopic-marker**):
   - `detour:` — the topic goes to the top of this interview's plan.
@@ -188,8 +193,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-team.discuss.routine` — convergence; `magic-team.brainstorm.routine` — idea generation.
-- `magic-coordinator.advance.routine` — runs the unattended rounds.
-- `magic-team/magic-team.negotiations.md` — the mechanics the steps cite.
+- `magic-team.advance.routine` — runs the unattended rounds.
 
 ### Conventions
 

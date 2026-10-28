@@ -207,7 +207,7 @@ PLAN_FORMS["routine-slots"] = lambda text: text
 DIALOGS["routine-slots-wait"] = {"title": "Start the routine", "reads": ("full:{kind}",),
                                  "controls": ({"name": "about", "kind": "text"},),
                                  "buttons": (("cancel", "Cancel"),)}
-READING_DIALOGS = tuple(globals().get("READING_DIALOGS", ())) + ("routine-slots-wait",)
+readingDialogs("routine-slots-wait")
 SLOT_CHOOSE_FIRST = ("", "choose one")
 
 

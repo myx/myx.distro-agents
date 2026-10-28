@@ -35,7 +35,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - scalability, performance and cost tradeoffs at a structural level;
   - security and compliance boundaries;
   - tradeoffs between competing approaches, stated explicitly — never one "right" answer.
-- Infrastructure and deployment topology are in scope as much as application code. A structural question raised by a `partner-*`'s work ("one service or two", "blast radius if this cluster goes down") is this member's lens pointed at infra.
+- Infrastructure and deployment topology are in scope as much as application code. A structural question can come from a `partner-*`'s work: "one service or two", "blast radius if this cluster goes down". It is this member's lens pointed at infra.
 - Security-by-design overlaps `magic-tester`'s security/CRA pass: each cross-checks the other.
 - Two working modes:
   - designing something new: propose structure and boundaries before anything else exists;

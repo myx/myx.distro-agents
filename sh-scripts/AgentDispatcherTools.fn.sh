@@ -67,6 +67,11 @@ AgentDispatcherToolsMoved(){
 			return $?
 		;;
 
+		--request-permission-set)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include"
+			return $?
+		;;
+
 		--retro-lock-refresh)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicRetro.include"
 			return $?
@@ -100,7 +105,7 @@ AgentDispatcherTools(){
 	local MDSC_CMD='AgentDispatcherTools'
 	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
-	## A root-harness session names the place of a spawn (epic S18.3), asked before the common options take --select-workspace out and run the call again in it.
+	## A spawn names its place before the common options take --select-workspace out and run the call again in it.
 	if [ "${1:-}" = "--spawn-run" ] && [ -z "${agentsCommonFronted:-}" ] ; then
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSpawn.include"
 		AgentsToolsCoordinatorSpawnGate "$@" || { set +e ; return 1 ; }

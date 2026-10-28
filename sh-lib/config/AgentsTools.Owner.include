@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
 
 ## One readable status row, `<label> ..... <status>`. The dot run is a fixed
 ## field so a column of rows aligns; a label longer than the field gets no dots

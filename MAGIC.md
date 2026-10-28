@@ -1253,15 +1253,26 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   with `--dispatch-doc:create`, the first starting the session and the rest joining by its `SESSION_ID=`.
   A `<type>-*` in the routine's executors or the caller's, and two or more members the caller names, partition
   the run instead: one session per member under an agent-less parent, whose id is the `SESSION_ID=`. The parent
-  owns the run as its caller: each child carries `reports-to:` the caller's `<session>:<member>` (else
-  `user-<account>`), and the parent's `sessions/<id>/session.thread` is the caller's thread. A caller's
+  carries `reports-to:` the caller's `<session>:<member>` (else `user-<account>`); each child carries
+  `reports-to:` the parent's session, and `AgentsToolsRunRoute` takes it one hop on, to where the parent
+  reports, never a second hop. So handbacks, escalations and the answers to them pass by the route, and review
+  stays with the caller. The parent's `sessions/<id>/session.thread` is the caller's thread. At most
+  `--workers <n>` children are open at once (default 4, as lib/parallel); the rest wait as `pending:`.
+  `--partition-scope <text>`, repeatable, partitions by scope too: one child per member and scope, deduped by
+  routine × member × scope, its brief starting `scope: <text>` and its record saying `scope:`. A caller's
   `<type>-?` is never resolved by the tooling, from the caller or a routine header, even with one member:
   the start is refused and lists the candidates, one a line (`AgentsToolsSpawnRoutineEntryMembers`, the one
   rule of both sides). The parent's record is written before the first child; it names the children started
-  (a failure partway included, and the error names them), its watcher's `run-process:` and `host:`, and
-  `session-comment: agent-less parent of <routine>` for the rosters. Its watcher, or housekeeping where the
-  watcher is gone, closes it from the children's outcomes (`AgentsToolsSpawnSessionParentClose`), with one
-  line in the caller's thread naming each child and its outcome. Scans that take an open
+  and `start-failed:` (a failed start does not stop the rest, and the error names the children started),
+  `session-comment: agent-less parent of <routine>` for the rosters, and the files beside it keep what each
+  start is given. Its watcher runs detached in a process group of its own, names its `run-process:` and
+  `host:`, and from then is the record's one writer: it rebuilds `children:` from the records whose
+  `parent-session-id:` is the parent, closes a dead child by the death path unless a control thread holds
+  that death, starts the queue while the caller is there (gone, the queue holds and says so once), and marks
+  each post in `posted:`, so a watcher started again never posts twice. Housekeeping starts a gone watcher
+  again (`AgentsToolsSpawnSessionParentRevive`), or closes the parent once nothing is open or queued
+  (`AgentsToolsSpawnSessionParentClose`), with its handback in the caller's thread naming each child and its
+  outcome. Scans that take an open
   magic-coordinator-owned record as a coordinator run skip `agent-less: true`, and a `reports-to:` whose
   caller no longer runs falls back as the route's own steps do.
   A wildcard or prose `executors` value is refused: the one function behind this,
@@ -1796,8 +1807,13 @@ contracts are here.
   latest first, its first line what it was before.
 - **A session's `Wait` always carries `replies:<session>` first, the floor** (`--wait-default` or
   `--wait-continue` with `--wait-session-id`; `AgentsWaitProbeReplies`, `AgentsTools.MemberWait.include`):
-  the replies to the run's own posts, whatever tool posted them, read from `last-own-post`. The sources
-  the caller names are added to it, never put in its place, and a post whose thread or conversation another
+  the replies to the run's own posts, whatever tool posted them, read from `last-own-post`. A named set is
+  the Wait's own (sketch 3.2: "either OWN set / either adding OWN implicit floor to current set"): the
+  sources a call names replace the defaults (the session thread, or the team channel and the owner DM),
+  which stand only where none is named, and the floor is added either way -- the replies, the session chat
+  (`chat:`), the DMs (`dms:`), the mentions (`mentions:`, not for a client-* member) and the wake
+  marker (`wake:`), every way a person may reach the member. The sources
+  the caller names are added to the floor, never put in its place, and a post whose thread or conversation another
   source of the same wait reads is left to that source, so a message is returned once. Three limits keep
   the watch bounded: a post is looked at when its TTL has passed, 5 seconds and 1 more for every 20 it has
   been quiet, so a quiet thread is looked at ever more rarely and never dropped by time alone; for a post
@@ -1810,8 +1826,9 @@ contracts are here.
   `mentions:<member>`, with a TTL of 60 seconds the session keeps across Waits (`mentions-checked:<member>`),
   so a Wait start inside it makes no call. A member with a Slack account is searched by `<@id>`, one with
   none by the text `"@<member>"`. The member's own user token searches; where it may not, the team identity
-  `WAIT_MENTIONS_SEARCHER` names (default `magic-coordinator`). Where neither may, the source is never read
-  and the Wait header says so. LIMIT: the text search is for the handle alone, not its aliases, until an OR
+  `WAIT_MENTIONS_SEARCHER` names (default `magic-coordinator`). Where neither may, that is an error in the Wait
+  header (`WAIT-SOURCE-ERROR:`), apart from the sources never read: a source denied for want of a permission
+  is known to be denied, so it does not hold back a keepalive. LIMIT: the text search is for the handle alone, not its aliases, until an OR
   of Slack search is confirmed live: one call cannot ask for several texts.
 - **A dismissal ends the run.** The session keeps its own dismissed mark, so every later `Wait` on it
   returns `DISMISSED` at once with no further read. The tooling ends the session once its handback is
@@ -2022,7 +2039,7 @@ contracts are here.
   - The type table is `AgentsToolsArtifactTypes`, one `<code> TAB <name>` row per numbered type;
     a kind matching a code or name (any case) is numbered, anything else is free text with no number.
   - The team place: Confluence when `CONFLUENCE_SPACE` is set -- the caller's own scope first (one
-    member, such as `client-ndm` beside a Google team), then `magic-team`, a general team key -- else
+    member, such as a `client-*` member beside a Google team), then `magic-team`, a general team key -- else
     Google; no key names Artifact (human-owner). The caller's own credentials for that place are
     required, and their absence is rc 6 naming the keys. The Google team root is listed, never
     configured: the one folder named `magic-team` the caller sees (none or several is rc 6).
@@ -2791,8 +2808,8 @@ op's own option arm.
   (`none` without a session or record).
 - **A skill linked in from another workspace still needs an ask.** magic-librarian's standing `.md`-edit
   grant covers only a real skill folder in the HOME skills folder, or one linked there into this
-  workspace's own source tree. From this workspace that excludes `client-ndm`, `keeper-mel`,
-  `keeper-acm`, `keeper-ndm`, `keeper-ae3` and the partner members, linked in from elsewhere.
+  workspace's own source tree. From this workspace that excludes the `client-*` members, every
+  `keeper-*` but `keeper-myx`, and the partner members, linked in from elsewhere.
 - **Grant and denial posts exist in event-track, beside the refusal post.** Whichever way an escalation's
   answer came, a `grant` where an allow is written and a `denial` where a deny is applied post once each,
   into the same session thread the refusal opened.
@@ -2959,12 +2976,12 @@ op's own option arm.
 
 Each instrument states what it proves and its red recipe in its own header. What a maintainer must know:
 
-- **One full suite runs on this machine at a time.** A run of `AgentsRunTests.sh` with no name given
-  is the whole suite, and waits its turn, machine-wide, in arrival order (`AgentsRunQueueTurn`,
-  ticket files under `$HOME/.agents/magic-team/suite-queue`, never under the package). A run of named
-  tests is never queued. The line is said once per wait, naming who it waits behind. The hand rule this
-  replaces, `mkdir $MMDAPP/.local/temp/suite-run.lock` around a full suite, is kept on both sides, so a
-  session still on the hand rule and a queued run never run at once.
+- **One run of `AgentsRunTests.sh` runs on this machine at a time.** Every run, of the whole suite or of
+  named tests, waits its turn, machine-wide, in arrival order (`AgentsRunQueueTurn`, ticket files under
+  `$HOME/.agents/magic-team/suite-queue`, never under the package). A run has one worker unless `-w` is
+  given. The line is said once per wait, naming who it waits behind. The hand rule this replaces,
+  `mkdir $MMDAPP/.local/temp/suite-run.lock` around a run, is kept on both sides, so a session still on the
+  hand rule and a queued run never run at once.
 - **A test is a session of its own.** `AgentsRunTests.sh` hands a test nothing of the session it was
   started in: every `MDAT_SPAWN_*` and `MDAT_SESSION_*` variable and `MDAT_CONVERSATION_THREADS` are
   taken out, and its session id is `rig-run-<test>-test-only`. So the suite gives the same result from

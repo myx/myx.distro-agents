@@ -204,7 +204,7 @@ rigAssert "control: the channel watch of the field case, with no floor, misses t
 rigFieldScene field-named
 rigWait field-named --wait-default --wait-session-id "$rigSession" --wait-source slack:CRIGDM001 --wait-timeout 3
 rigAssert "the same watch in a session: the floor is always in, and returns the reply" "$( rigFirstLine ):$( rigHolds 'RIG-FIELD-REPLY' )" "WAIT-RESULT: RECEIVED:yes"
-rigAssert "the sources named are added to the floor, behind it"  "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner slack:CRIGDM001"
+rigAssert "the sources named are added to the floor, behind it"  "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:CRIGDM001 dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigAssert "the conversation the Wait names is not read twice: the floor leaves it" "$( [ "$( rigReads conversations.history CRIGDM001 )" -le 1 ] && printf 1 || printf more )" 1
 
 ## ---------------------------------------------------------------------------
@@ -431,11 +431,11 @@ rigPost="$( rigAt 300 100 )"
 rigRecord "CRIGDM001:$rigPost $rigPost URIGADDR1 - - 0 - 0"
 rigThread CRIGDM001 "$rigPost" "$( rigMsg "$rigPost" URIGSELF1 RIG-QUESTION '' "$rigOwnMeta" )"
 rigPlain sources 2
-rigAssert "the plain Wait names the floor among its sources, first" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner"
+rigAssert "the plain Wait names the floor among its sources, first" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigWait sources-continue --wait-continue --wait-session-id "$rigSession" --wait-timeout 2
-rigAssert "a continued wait keeps it"                                "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner"
+rigAssert "a continued wait keeps it"                                "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigWait sources-named --wait-default --wait-session-id "$rigSession" --wait-source "file:$rigDir/nothing" --wait-timeout 2
-rigAssert "a Wait that names a source has the floor too, first"      "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner file:$rigDir/nothing"
+rigAssert "a Wait that names a source has the floor too, first, and the stored set beside it"      "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession file:$rigDir/nothing slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigWait sources-none --wait-timeout 2
 rigAssert "a call with no session has no record of posts to read: no floor"  "$( rigHolds 'replies:' )" no
 

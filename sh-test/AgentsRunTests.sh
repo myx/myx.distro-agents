@@ -15,7 +15,7 @@
 ##   --passed runs nothing: for each of those tests it prints one line, `<test> <when>`, the
 ##   time it passed on the very state it would run on now, or `<test> -` where no such pass
 ##   is on record (the pass record, below).
-##   Workers: lib/parallel's own default (ENV_PARALLEL_WORKER_COUNT, else 4) unless -w is given.
+##   Workers: one unless -w is given.
 ##   Each line of the run list is `<test> <timeout-seconds>`; -t sets the timeout written
 ##   into each line (default 900).
 ##   Status: 0 every test passed, 1 a test did not or the run was refused, 124 the run stood
@@ -40,20 +40,20 @@
 ## default the one reader of the mode gives, which a setting of the rig stands ahead of. Unset, a rig is just agents and keeps no team
 ## data (F13.1). The checks of the gate and of the digest set or unset it themselves.
 ##
-## ONE FULL SUITE AT A TIME, MACHINE-WIDE. A run of every test (no name given) waits its turn,
-## in arrival order, and says in one line that it waits and behind whom; a run of named tests
-## is never queued. The line is one folder on the machine, $HOME/.agents/magic-team/suite-queue,
+## ONE RUN AT A TIME, MACHINE-WIDE. Every run, of every test (no name given) or of named tests, waits
+## its turn, in arrival order, and says in one line that it waits and behind whom, across every
+## builder of the machine. The line is one folder on the machine, $HOME/.agents/magic-team/suite-queue,
 ## never a folder of the package: a runner started from any copy of the package (MDLT_ORIGIN)
 ## stands in the same line. A ticket is a file named by its arrival time, holding the pid of
 ## its runner; one whose runner no longer exists is taken out by whoever waits behind it, so
 ## no turn is held by the dead.
-## The hand rule this replaces, `mkdir $MMDAPP/.local/temp/suite-run.lock` around a full suite,
+## The hand rule this replaces, `mkdir $MMDAPP/.local/temp/suite-run.lock` around a run,
 ## is kept by both sides, so a session on the hand rule and a queued run never run at once: a
 ## run at its turn takes that lock itself and gives it back when it ends, and waits while
 ## another holds it. A lock taken by hand is no turn: one whose note names the folder this
 ## run's source root is in, under $MMDAPP/.local/temp, is the caller's own, and the run starts
 ## under it only when its own turn in the line has come, leaving it for the caller to remove;
-## with any full suite ahead of it in the line the run is refused, saying so, since the runs
+## with any run ahead of it in the line the run is refused, saying so, since the runs
 ## ahead wait behind that very lock. A lock left by a runner that no longer exists is removed;
 ## one taken by hand never is.
 ##
@@ -270,7 +270,7 @@ AgentsRunQueueLeave(){ ## -- out of the line, and the lock given back where this
 AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; says whom it waits behind, each time that changes
 	local turnStamp turnFile turnPid turnWhom turnAhead turnSaid=""
 	mkdir -p "$runQueueDir" 2>/dev/null || {
-		echo "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line for full suites: $runQueueDir -- a full suite is not run outside its turn; name the tests to run some without one" >&2 ; exit 1
+		echo "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line of test runs: $runQueueDir -- no run is started outside its turn" >&2 ; exit 1
 	}
 	turnStamp="$( python3 -I -B -c 'import time; print("%017.6f" % time.time(), end="")' 2>/dev/null )" || turnStamp=""
 	[ -n "$turnStamp" ] || turnStamp="$( date +%s ).000000"
@@ -281,7 +281,7 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 	## whole or not at all: a ticket half written would read as one of no runner
 	printf 'pid=%s\norigin=%s\nsince=%s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runQueueDir/.$runTicket" \
 		&& mv -f "$runQueueDir/.$runTicket" "$runQueueDir/$runTicket" || {
-		echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line for full suites: $runQueueDir" >&2 ; exit 1
+		echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line of test runs: $runQueueDir" >&2 ; exit 1
 	}
 	while : ; do
 		turnWhom="" ; turnAhead=0
@@ -300,13 +300,13 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 		## since each of them waits behind that lock and this run would wait behind them.
 		if [ -d "$runHandLock" ] && AgentsRunHandLockOwn ; then
 			[ "$turnAhead" != 0 ] || return 0
-			echo "⛔ ERROR: AgentsRunTests.sh: not started: this run's caller holds $runHandLock by hand, and its turn in the machine's line has not come: $turnAhead full suite(s) stand ahead of it, the first $turnWhom. A lock taken by hand is no turn. Remove it and run again: the run waits its turn by itself, and takes the lock itself when that comes." >&2
+			echo "⛔ ERROR: AgentsRunTests.sh: not started: this run's caller holds $runHandLock by hand, and its turn in the machine's line has not come: $turnAhead run(s) stand ahead of it, the first $turnWhom. A lock taken by hand is no turn. Remove it and run again: the run waits its turn by itself, and takes the lock itself when that comes." >&2
 			exit 1
 		fi
 		if [ -z "$turnWhom" ] ; then
 			if mkdir "$runHandLock" 2>/dev/null ; then
 				runLockMine=1
-				printf 'runner-pid: %s\nagent: AgentsRunTests.sh, a full suite from %s\ntaken: %s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runHandLock/holder.txt"
+				printf 'runner-pid: %s\nagent: AgentsRunTests.sh, a run from %s\ntaken: %s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runHandLock/holder.txt"
 				return 0
 			fi
 			turnPid="$( LC_ALL=C sed -n 's/^runner-pid: //p' "$runHandLock/holder.txt" 2>/dev/null | LC_ALL=C sed -n 1p )"
@@ -317,14 +317,14 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 			turnWhom="the lock $runHandLock, taken by hand and held by: $( AgentsRunHandLockNote ) -- where that was done for this very run, remove it: the run takes the turn itself"
 		fi
 		if [ "$turnWhom" != "$turnSaid" ] ; then
-			echo "# AgentsRunTests.sh: one full suite runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2
+			echo "# AgentsRunTests.sh: one run of the tests runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2
 			turnSaid="$turnWhom"
 		fi
 		sleep 2
 	done
 }
-## No name given is the whole suite, and that waits its turn.
-[ $# -gt 0 ] || AgentsRunQueueTurn
+## Every run waits its turn, a run of named tests as the whole suite does (ONE RUN AT A TIME, above).
+AgentsRunQueueTurn
 
 runRoot="$MMDAPP/.local/temp/mdat-tests"
 runDir="$runRoot/$( date -u +%Y%m%dT%H%M%SZ )"
@@ -455,10 +455,10 @@ mkdir -p "$runSlotDir" 2>/dev/null && [ -w "$runSlotDir" ] || {
 	echo "⛔ ERROR: AgentsRunTests.sh: cannot use the machine's budget of test workers: $runSlotDir -- no test is run outside it" >&2 ; exit 1
 }
 
-echo "# AgentsRunTests.sh: $runCount test(s), workers ${runWorkers:-lib/parallel default}, timeout ${runTimeout}s, run folder: $runDir" >&2
+echo "# AgentsRunTests.sh: $runCount test(s), workers ${runWorkers:-1}, timeout ${runTimeout}s, run folder: $runDir" >&2
 runStart="$( date +%s )"
 ## as many workers as the driver would run at once, and a line of the driver for each, never more lines than tests (THE DRIVER IS HANDED ITS WORKERS, above)
-runWorkerCount="${runWorkers:-${ENV_PARALLEL_WORKER_COUNT:-4}}"
+runWorkerCount="${runWorkers:-1}"
 runWorkerLines="$runCount"
 case "$runWorkerCount" in ''|*[!0123456789]*) ;; *) [ "$runWorkerCount" -ge "$runCount" ] || runWorkerLines="$runWorkerCount" ;; esac
 runWorkerList=""

@@ -35,9 +35,9 @@ HARNESS_TOKEN_MAIN="${XAI_API_KEY:-}"
 ## output maximum is declared: that answer carries none, and one of 100000000 was accepted.
 ## The family table (AgentsHarnessLimits.include): one row a version this leg serves, the outputs the budgets this leg
 ## chose. The macros low and normal or high resolve to the two models above; a version of neither is refused at start.
-## The effort none: this service has no none observed, so its lowest, low, is sent and the start line says so.
-HARNESS_MODEL_TABLE="grok-4.3*|1000000|30000|effort:low|context_length in GET /v1/models/<id> on 2026-09-28
-grok-4.7*|500000|65536|effort:low|context_length in GET /v1/models/<id> on 2026-09-28"
+## The effort none: grok-4.3 takes none (its page lists none to xhigh, read 2026-10-28); grok-4.7 has no none, so its lowest, low, is sent and the start line says so.
+HARNESS_MODEL_TABLE="grok-4.3*|1000000|30000|effort:none|https://docs.x.ai/developers/models/grok-4.3.md context 1,000,000 and efforts none to xhigh, output not stated there so 30000 is a budget, read 2026-10-28
+grok-4.7*|500000|65536|effort:low|https://docs.x.ai/developers/models/grok-4.7.md context 500,000 and efforts low to xhigh (no none), output not stated there so 65536 is a budget, read 2026-10-28"
 
 ## The service's own web search (AgentsHarnessSearchNative). xAI's docs (read 2026-10-27) offer the web_search tool of the Responses API, POST https://api.x.ai/v1/responses
 ## (https://docs.x.ai/developers/tools/web-search): filters allowed_domains or excluded_domains, 5 at most, never both; sources in citations. DuckDuckGo answers where it fails.

@@ -149,6 +149,10 @@ PushNotification)
 	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__PushNotification -- one notification path for this estate, under its own team identity, rather than the client own"
 ;;
 
+Monitor)
+	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__Wait -- in this estate Wait replaces Monitor: a process started detached through mcp__myx_distro__execute, a file, a thread are each a Wait source, watched with the session state of this estate"
+;;
+
 TodoWrite)
 	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__CheckList -- the checklist of session tasks of this session, with the same input, kept in the session state of this estate rather than the client own"
 ;;

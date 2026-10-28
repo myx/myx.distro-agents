@@ -12,6 +12,7 @@
 ##
 
 agentsFrontTable='DistroAgentsSession	--append-transcript	member
+DistroAgentsSession	--settle-pending-reply	member
 DistroAgentsSession	--wait-for-input	member
 DistroAgentsKnowledge	--get-path-history	member
 DistroAgentsKnowledge	--get-place-path	member
@@ -73,8 +74,6 @@ DistroAgentsQuestions	--read-escalation	member
 DistroAgentsQuestions	--read-pending-reply	member
 DistroAgentsQuestions	--readback-escalation	member
 DistroAgentsQuestions	--record-decision	member
-DistroAgentsQuestions	--request-permission-set	coordinator
-DistroAgentsQuestions	--settle-pending-reply	member
 DistroAgentsGrants	--list-permissions	member
 DistroAgentsGrants	--pass-permission	member
 DistroAgentsGrants	--revoke-permission	coordinator
@@ -141,6 +140,7 @@ AgentDispatcherTools	--client-operation-run	coordinator
 AgentDispatcherTools	--config-check	coordinator
 AgentDispatcherTools	--daily-lock-refresh	coordinator
 AgentDispatcherTools	--grooming-lock-refresh	coordinator
+AgentDispatcherTools	--request-permission-set	coordinator
 AgentDispatcherTools	--retro-lock-refresh	coordinator
 AgentDispatcherTools	--roster-upsert	coordinator
 AgentDispatcherTools	--state-note-lock-acquire	coordinator
@@ -149,6 +149,11 @@ AgentDispatcherTools	--sweep-state-advance	coordinator
 AgentDispatcherTools	--sweep-state-read	coordinator
 AgentDispatcherTools	--spawn-run	member
 AgentDispatcherTools	--sweep-state-upsert	coordinator'
+
+## agentsFrontStubs: <tool file>, <name>, the file that owns the name now. The old file still knows the name (AgentsToolsFrontKnows), the call goes on in the owner,
+## and a direct call of the old file says where the name lives.
+agentsFrontStubs='DistroAgentsQuestions	--request-permission-set	AgentDispatcherTools
+DistroAgentsQuestions	--settle-pending-reply	DistroAgentsSession'
 
 agentsFrontRetired='--magic-advance-batch-outcome	DistroAgentsItems.fn.sh --advance-batch-outcome
 --magic-advance-close-state-and-unlock	(the spawner gives the routine lock back itself)
@@ -224,10 +229,10 @@ agentsFrontRetired='--magic-advance-batch-outcome	DistroAgentsItems.fn.sh --adva
 --magic-grooming-to-retained	DistroAgentsItems.fn.sh --grooming-to-retained
 --magic-grooming-to-running	DistroAgentsItems.fn.sh --grooming-to-running
 --magic-pending-reply-amend	DistroAgentsQuestions.fn.sh --amend-pending-reply
---magic-pending-reply-settle	DistroAgentsQuestions.fn.sh --settle-pending-reply
+--magic-pending-reply-settle	DistroAgentsSession.fn.sh --settle-pending-reply
 --magic-permission-list	DistroAgentsGrants.fn.sh --list-permissions
 --magic-permission-revoke	DistroAgentsGrants.fn.sh --revoke-permission
---magic-permission-set-request	DistroAgentsQuestions.fn.sh --request-permission-set
+--magic-permission-set-request	AgentDispatcherTools.fn.sh --request-permission-set
 --magic-retro-close-state-and-unlock	(the spawner gives the routine lock back itself)
 --magic-retro-lock-acquire	(the spawner takes the routine lock itself)
 --magic-retro-lock-refresh	AgentDispatcherTools.fn.sh --retro-lock-refresh
@@ -310,7 +315,7 @@ agentsFrontRetired='--magic-advance-batch-outcome	DistroAgentsItems.fn.sh --adva
 --member-inbox-to-processed	DistroAgentsItems.fn.sh --mark-inbox-processed
 --member-namespace-list	DistroAgentsKnowledge.fn.sh --list-namespaces
 --member-pending-reply-read	DistroAgentsQuestions.fn.sh --read-pending-reply
---member-pending-reply-settle	DistroAgentsQuestions.fn.sh --settle-pending-reply
+--member-pending-reply-settle	DistroAgentsSession.fn.sh --settle-pending-reply
 --member-permission-list	DistroAgentsGrants.fn.sh --list-permissions
 --member-permission-pass	DistroAgentsGrants.fn.sh --pass-permission
 --member-retest-drain	DistroAgentsTesting.fn.sh --retest-drain
@@ -335,7 +340,12 @@ AgentsToolsFrontKnows(){ ## entry function name, arguments...
 	local knowsOp="${2:-}"
 	[ "${2:-}" != --mdat-output-format ] || [ "${3:-}" != json ] || knowsOp="${4:-}"
 	[ -n "$knowsOp" ] || return 1
-	printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' -v key="$1" -v op="$knowsOp" '$1 == key && ( $2 == op || op == "--help-syntax" ) { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }'
+	printf '%s\n%s\n' "$agentsFrontTable" "$agentsFrontStubs" | LC_ALL=C awk -F'\t' -v key="$1" -v op="$knowsOp" '$1 == key && ( $2 == op || op == "--help-syntax" ) { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }'
+}
+
+## The tool file a name was moved to from the file given, or rc 1: the stub row of that file.
+AgentsToolsFrontStubOwner(){ ## tool file, name
+	printf '%s\n' "$agentsFrontStubs" | LC_ALL=C awk -F'\t' -v key="$1" -v op="$2" '$1 == key && $2 == op { print $3 ; found = 1 ; exit } END { exit ( found ? 0 : 1 ) }'
 }
 
 ## Whether the call is a name of any tool file of the table (the first word, or the one after `--mdat-output-format json`).
@@ -381,23 +391,21 @@ DistroAgentsGoogle	The Google operations of the team.
 DistroAgentsMail	The mail operations of the team.
 DistroAgentsTrello	The Trello operations of the team.'
 
-## The tool files the myx.distro MCP serves as one tool each, the operation as the argument, so the
-## served catalogue stays short. The subsystems whose operations reach outside the team's own
-## process-flow are served: the external services, and the contacts the team reaches. The one coordination file served
-## is AgentDispatcherTools, the coordinator's role surface (sketch 10.5), whose spawn is the way a root-harness session
-## starts sessions (epic S18.3); the rest of the board, inbox, dispatcher, questions, grants and testing files
-## are the team's own coordination and are not served; neither is Knowledge, whose own entry is a query engine rather than an
-## operation dispatcher. ThisSession is the exception among them, and only ThisSession: it is a tool of the
-## harness floor, declared in AgentsOpenAiChatWire.sh and served as ThisSession by the mirror, so a
-## session posts to its own thread and runs its routine there rather than through a secondary entry
-## of this table. A tool is listed for everyone; who may use it is decided at call time (S18.1).
+## The tool files the myx.distro MCP serves as one tool each, the operation as the argument: the external services, the contacts, AgentDispatcherTools (the coordinator's
+## role surface, whose spawn starts the sessions of a root-harness session) and DistroAgentsDispatcher, Questions, Items, Knowledge and Testing. An operation's audience is the
+## column of the table above, checked at call time. DistroAgentsGrants and DistroAgentsSession are not served: ThisSession is a floor tool of the harness. A tool is listed for everyone.
 agentsFrontSecondary='DistroAgentsSlack
 DistroAgentsAtlassian
 DistroAgentsGoogle
 DistroAgentsMail
 DistroAgentsTrello
 DistroAgentsContacts
-AgentDispatcherTools'
+AgentDispatcherTools
+DistroAgentsDispatcher
+DistroAgentsQuestions
+DistroAgentsItems
+DistroAgentsKnowledge
+DistroAgentsTesting'
 
 AgentsToolsFrontSummary(){ ## entry function name
 	printf '%s\n' "$agentsFrontSummary" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'

@@ -38,7 +38,7 @@ esac
 ## and high qwen3.5-9b-q8_0, with high at the effort high. The three machine profiles this leg serves choose by naming the
 ## model in the preset: 1. a normal CPU with constrained or shared RAM, qwen3.5-4b-q8_0; 2. a dedicated or bigger CPU with
 ## more RAM, qwen3.5-9b-q8_0 (the default of normal); 3. the GPU machine, qwen3.8-27b-q8_0. A model of a family the table
-## below does not hold is refused by the core at start.
+## below does not hold gets its default row and a note, never a refusal.
 HARNESS_MODEL_FROM_LIGHT="${HARNESS_MODEL_LIGHT:+name}" ; HARNESS_MODEL_FROM_MAIN="${HARNESS_MODEL_MAIN:+name}"
 HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-qwen3.5-4b-q8_0}"
 HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-qwen3.5-9b-q8_0}"
@@ -54,9 +54,9 @@ HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-qwen3.5-9b-q8_0}"
 ## THE FAMILY TABLE (AgentsHarnessLimits.include): this leg serves a server it cannot ask, so it knows the popular open
 ## chat model families by name, in the sizes of the three machine profiles above (4b, 8b, 12b and 14b; a name carries its
 ## size after a `-`, `:` or `_`, as qwen3-8b, qwen3:8b or Qwen3_8B-Instruct) -- the ones the console is to install from a
-## command later -- and a model of none of them is refused at start with this list. The first row that matches wins, so a
-## size stands ahead of its family's own row. The figures are the families' published ones as the author knows them, NOT
-## re-read for this table (2026-10-26): qwen (the Qwen3 line: 32768 of native context, hybrid thinking, so the effort none
+## command later -- and a model of none of them gets the table's last row, a reasonable default, and one note at start. The first row that
+## matches wins, so a size stands ahead of its family's own row. The figures are the families' published ones, each row read from the vendor's
+## own card on 2026-10-28 (the source is in the row): qwen (the Qwen3 line: 32768 of native context, hybrid thinking, so the effort none
 ## switches it off), gemma (Gemma 3: 131072 of context from 4b up, does not reason), deepseek (the R1 distills and the open V3
 ## line: 131072, thinking switched off for none), llama (Llama 3.1 and after: 131072, does not reason). The output is a
 ## budget per size, not the maximum: it comes off the window for the restart threshold. A small machine cannot hold a large

@@ -1,5 +1,5 @@
 #!/usr/bin/env awk
-# Fills {{member}}/{{routine}}/{{kind}}/{{kind-routine}}/{{executors}}/{{invitees}}/{{open-warnings}} slots in a
+# Fills {{member}}/{{routine}}/{{kind}}/{{kind-routine}}/{{executors}}/{{invitees}}/{{open-warnings}}/{{directives}}/{{access}} slots in a
 # brief template's Skeleton block, keeping the [own]/[native] lines of BRIEF_HARNESS only.
 ## The slots are filled by the one shared filler, loaded ahead of this file
 ## (AgentsToolsToolingTemplateFill, AgentsToolingTemplateFill.awk): by position, never gsub,
@@ -17,12 +17,14 @@ function ttSlot( name ) {
 	if ( name == "invitees" ) { return invitees ; }
 	if ( name == "open-warnings" ) { return warnings ; }
 	if ( name == "directives" ) { return directives ; }
+	if ( name == "access" ) { return access ; }
 	return "{{" name "}}" ;
 }
 BEGIN {
 	member = ENVIRON["BRIEF_MEMBER"] ;
 	warnings = ENVIRON["BRIEF_WARNINGS"] ;
 	directives = ENVIRON["BRIEF_DIRECTIVES"] ;
+	access = ENVIRON["BRIEF_ACCESS"] ;
 	routine = ENVIRON["BRIEF_ROUTINE"] ;
 	kind = ENVIRON["BRIEF_KIND"] ;
 	lockDoc = ENVIRON["BRIEF_LOCK"] ;
@@ -47,6 +49,7 @@ inBlock {
 	line = $0 ;
 	if ( line == "{{open-warnings}}" ) { print warnings ; next ; }
 	if ( line == "{{directives}}" ) { print directives ; next ; }
+	if ( line == "{{access}}" ) { print access ; next ; }
 	if ( ! harnessLine( line ) ) { next ; }
 	sub( /^\[(own|native|lock|scan)\] /, "", line ) ;
 	print ttFillSlots( line, 1 ) ;

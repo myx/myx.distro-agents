@@ -446,7 +446,7 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 	done
 	trap "for applyTrapCand in $( printf '%q' "$applyStageDir" )/cand.* ; do [ ! -s \"\$applyTrapCand\" ] || rm -f -- \"\$( cat \"\$applyTrapCand\" )\" ; done 2> /dev/null ; rm -rf -- $( printf '%q %q' "$applyStageDir" "$applyLock" ) 2> /dev/null ; echo 'lock released'" EXIT
 	trap 'exit 129' HUP ; trap 'exit 130' INT ; trap 'exit 143' TERM
-	printf 'pid %s at %s by %s\n' "$$" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${USER:-?}" > "$applyLock/owner"
+	printf 'pid %s at %s by %s\n' "$( exec sh -c 'echo "$PPID"' )" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${USER:-?}" > "$applyLock/owner"
 	echo "lock taken $( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	rm -rf "$applyStageDir" 2> /dev/null ; mkdir -p "$applyStageDir" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: could not make the stage folder" >&2 ; exit 1 ; }
 	## 1. stage every file beside its live place, a snapshot of live as staged against kept: the writes in the order, then the removals.

@@ -187,8 +187,7 @@ AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
 				printf 'ERROR: RootSession: the channel kind of the session could not be kept, so no session was made.\n'
 				return 1
 			fi
-			## THE ROUTINE THE SESSION RUNS (epic S18.5): the root-harness routine, whose access-control rows are the session's profile. Kept before the token, as the kind
-			## is: a session whose routine could not be recorded is not made, since it would then run with none of the routine's denies.
+			## The routine the session runs is kept before the token: a session whose routine could not be recorded is not made, since it would run with none of the routine's denies.
 			if ! AgentsToolsRootHarnessRoutineWrite "$rootDir" ; then
 				AgentsToolsRootSessionDiscard "$rootDir" || :
 				AgentsToolsRootSessionLockGive "$rootLock"

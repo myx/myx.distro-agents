@@ -42,7 +42,7 @@ runLeg(){ ## environment pairs, then the arguments
 }
 check "the list: model, profile, window, output and the none form, one model a line" \
 	"$( runLeg HARNESS_ENDPOINT_URL=http://rig.invalid/v1 | tr '\t' ',' | tr '\n' ' ' )" \
-	"qwen3-4b,1,32768,4096,thinking:disabled qwen3:8b,2,32768,8192,thinking:disabled Qwen3-14B,3,32768,8192,thinking:disabled mystery-model-9,-,-,-,- "
+	"qwen3-4b,1,32768,4096,thinking:disabled qwen3:8b,2,32768,8192,thinking:disabled Qwen3-14B,3,32768,8192,thinking:disabled mystery-model-9,-,32768,8192,omit "
 check "a server that cannot be reached lists nothing and ends 1" \
 	"$( runLeg HARNESS_ENDPOINT_URL=http://rig-down.invalid/v1 > /dev/null ; echo "$?" )" 1
 

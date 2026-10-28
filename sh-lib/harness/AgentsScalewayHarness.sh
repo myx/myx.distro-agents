@@ -20,11 +20,8 @@ HARNESS_HOST="api.scaleway.ai"
 HARNESS_WIRE="OpenAiChat"
 
 ## --- the credential names, which the core reports but never chooses ------
-## The team's rigs hold one Scaleway key per model they run: a key named for the model
-## it serves (SCALEWAY_DEEPSEEK, SCALEWAY_GEMMA) beside the plain service-wide one. All
-## three are the leg's credentials, so a preset may name the one it holds, and the token
-## below takes the first that is set.
-HARNESS_CREDENTIAL_NAMES="SCALEWAY_API_KEY SCALEWAY_DEEPSEEK SCALEWAY_GEMMA"
+## One name, the key the user generates; the model is the preset's, never the key's name (sketch 13.2).
+HARNESS_CREDENTIAL_NAMES="SCALEWAY_API_KEY"
 
 ## --- tier -> model, and tier -> credential -------------------------------
 ## Scaleway is a cloud service provider, not a model: a key is scoped by Project and
@@ -45,14 +42,21 @@ HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-gemma-4-26b-a4b-it}"
 ## No output maximum is declared: that page gives "32k", with no exact figure, so the
 ## provider applies the model's own. A preset that names another model of its own knows
 ## that model's window, and names the restart threshold it wants.
-## The family table (AgentsHarnessLimits.include): deepseek, from the page above (2026-09-28); gemma, 40k of context and
-## 8k of output as that page gave gemma-3 when last read, NOT re-read for this table. The macros low and normal or high
-## resolve to the default model above; a model of neither family is refused at start. The effort none: deepseek is sent
-## its lowest, low (no none observed); gemma does not reason, so nothing is sent.
-HARNESS_MODEL_TABLE="deepseek*|256000|32768|effort:low|Scaleway supported-models page on 2026-09-28
-gemma*|40000|8192|omit|Scaleway supported-models page, not re-read for this table"
-HARNESS_TOKEN_LIGHT="${SCALEWAY_API_KEY:-${SCALEWAY_DEEPSEEK:-${SCALEWAY_GEMMA:-}}}"
-HARNESS_TOKEN_MAIN="${SCALEWAY_API_KEY:-${SCALEWAY_DEEPSEEK:-${SCALEWAY_GEMMA:-}}}"
+## The family table (AgentsHarnessLimits.include), every row from Scaleway's own supported-models page (source https://raw.githubusercontent.com/scaleway/docs-content/main/pages/generative-apis/reference-content/supported-models.mdx,
+## page validation date 2026-08-14), read 2026-10-28: deepseek (v4.1-flash and v4-flash-0731): 256k of context, 32k of output; gemma-4-26b-a4b-it, the
+## default light model: 256k of context, 32k of output; gemma-3-27b-it: 40k of context, 8k of output. Other gemma (gemma-4-31b-it has 262k and no serverless
+## output figure) and any other model get the open table's default (the last row). The macros low and normal or high resolve to the default models
+## above. The effort none: deepseek is sent its lowest, low (no none observed); gemma does not reason, so nothing is sent.
+HARNESS_MODEL_TABLE="deepseek*|256000|32768|effort:low|https://raw.githubusercontent.com/scaleway/docs-content/main/pages/generative-apis/reference-content/supported-models.mdx deepseek-v4.1-flash and deepseek-v4-flash-0731 read 2026-10-28
+gemma-4-26b*|256000|32768|omit|https://raw.githubusercontent.com/scaleway/docs-content/main/pages/generative-apis/reference-content/supported-models.mdx gemma-4-26b-a4b-it read 2026-10-28
+gemma-3*|40000|8192|omit|https://raw.githubusercontent.com/scaleway/docs-content/main/pages/generative-apis/reference-content/supported-models.mdx gemma-3-27b-it read 2026-10-28
+*|32768|8192|omit|the open table's default (AgentsHarnessLimits.include, sketch 13.1), for any model the user's key serves that no row above was read for (sketch 13.2)"
+HARNESS_TOKEN_LIGHT="${SCALEWAY_API_KEY:-}"
+HARNESS_TOKEN_MAIN="${SCALEWAY_API_KEY:-}"
+## Old per-model names are not read; say so where one is all that is set.
+if [ -z "${SCALEWAY_API_KEY:-}" ] && [ -n "${SCALEWAY_DEEPSEEK:-}${SCALEWAY_GEMMA:-}" ] ; then
+	echo "$HARNESS_SELF_NAME: SCALEWAY_DEEPSEEK and SCALEWAY_GEMMA are not read; this leg reads SCALEWAY_API_KEY, the key you generate, and the preset names the model" >&2
+fi
 
 ## --- prompt_cache_key: off by default here ---------------------------------
 ## UNOBSERVED: no request carrying the field has been sent to this endpoint, and an

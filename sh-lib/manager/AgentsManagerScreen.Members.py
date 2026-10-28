@@ -310,10 +310,7 @@ def hangLines(text, width):
 
 
 ## What a setting reads as: its value where it is set and no secret, and for a secret only
-## whether it is configured, never anything of its value. The mark of one that is missing.
-MARK_MISSING = "!"
-
-
+## whether it is configured, never anything of its value.
 def settingWords(settingState, value):
     if settingState == "secret-set":
         return "configured"

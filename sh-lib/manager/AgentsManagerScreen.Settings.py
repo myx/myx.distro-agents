@@ -526,7 +526,7 @@ for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + 
 ## nowhere else, and the form that closes leaves nothing of it. The mask is no security boundary: a shell read shows it.
 CREDENTIAL_DIALOG = "setting-credential"
 ## The dialogs whose form reads a value whole while it is open, which an app feature adds to (LocalManagerScreen.Scopes.py of `.local`): what they read is kept for them (applyResult).
-READING_DIALOGS = tuple(globals().get("READING_DIALOGS", ())) + (CREDENTIAL_DIALOG,)
+readingDialogs(CREDENTIAL_DIALOG)
 CREDENTIAL_READ = "full:credential"
 CREDENTIAL_SAYS = {
     "form": "Its value is shown in the form of a credential: its first quarter, then * for the rest. Reveal (Ctrl-R) shows it whole until this closes.",

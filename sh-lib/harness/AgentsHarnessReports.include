@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessReports.include: handbacks, findings, notifications and artifacts. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## The body of one report tool: the block of its own name in the report template

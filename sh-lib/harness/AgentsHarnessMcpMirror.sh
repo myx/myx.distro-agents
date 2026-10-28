@@ -56,6 +56,8 @@ mirrorToolsJson="$( LC_ALL=C awk -v q="'" '
 ## an MCP client's unless the caller names another (a wire the harness hosts).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReadCap.include"
 mirrorToolsJson="$( printf '%s\n' "$mirrorToolsJson" | AgentsReadCapFill "${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}" )"
+## Every tool takes background, timeout and timeout_action (epic S20): the declarations say so here, as the harness's own do.
+mirrorToolsJson="$( printf '%s\n' "$mirrorToolsJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessTaskArgsFill.awk" )"
 
 if [ -z "$mirrorToolsJson" ] ; then
 	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: no harnessToolsJson literal was extracted from ${mirrorWire##*/} -- an extraction that matched nothing must never read as a clean run" >&2

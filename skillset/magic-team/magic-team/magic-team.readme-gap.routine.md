@@ -6,6 +6,7 @@ invitees: none
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.readme-gap.routine — the actual procedure
 
@@ -30,12 +31,12 @@ review-by: inherit
 
 # Summary
 
-An idle-run routine of a `keeper-*` or `partner-*` member: it finds the most consequential README gap in that member's own territory, and closes it with one short, source-grounded README or a draft for `magic-librarian`.
+An idle-run routine of a `keeper-*` or `partner-*` member: it finds the most consequential README gap in that member's own territory. It closes it with one short, source-grounded README or a draft for `magic-librarian`.
 
 ## Goals
 
-- Find, in the executor's own territory, one directory or package with no README, or a near-empty or unedited-stub one, that a person would actually hit while trying to understand the tree.
-- Ground what is said in the real source, and say what the directory is and why it is distinct from its siblings, never a full manual.
+- Find, in the executor's own territory, one directory or package with no README, or a near-empty or unedited-stub one. Pick one a person would actually hit while trying to understand the tree.
+- Ground what is said in the real source. Say what the directory is and why it is distinct from its siblings, never a full manual.
 - Either write the README, or hand `magic-librarian` a precise, grounded draft: the executor's own inputs say which.
 - One gap per pass, cumulative.
 
@@ -79,8 +80,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **report-and-log**: Report back to whoever dispatched this run: the directory picked, why it is the most consequential gap found, and what was written or handed over. Then log it, rules:
-   - By default, log the outcome as a new dated file under `processed/` (`processed/<board-item-type>-<date>-<short-topic>.md`, a real board-item type, never an invented word), and file a `reflection-*` with `--upsert-inbox-reflection`.
+1. **report-and-log**: Report back to whoever dispatched this run. Give the directory picked, why it is the most consequential gap found, and what was written or handed over. Then log it, rules:
+   - By default, log the outcome as a new dated file under `processed/`: `processed/<board-item-type>-<date>-<short-topic>.md`, a real board-item type, never an invented word. File a `reflection-*` with `--upsert-inbox-reflection`.
    - Where the executor's `log` input names another form, that form is used instead.
    - Where the workspace keeps no team data, nothing is filed: what would have been filed goes into the report.
 

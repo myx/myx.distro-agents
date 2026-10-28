@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardItemHandler.include -- which routine runs a board item's next iteration. Sourced, never run. Functions only.
+##
+## The source is ONE table, "Next iteration by document type" of `magic-team.advance.routine`: a row for each board type with its default routine and a
+## gate column (`yes` where the iteration is a gate: every approval, the proposal root's reaction, the completion of a task or a project). An item may name
+## another routine in `handler-routine:` where its type's default would run the wrong iteration. The key CHOOSES AND NEVER OVERRIDES A GATE: a routine
+## handles an item's type when the table lists it for that type or when its own `# Summary` says so, in one line `Handles: <type>, <type>`. A value that is
+## no routine, a routine that does not handle the type, or a value that would replace a gate row is FLAGGED, and then NOTHING RUNS (rc 3).
+##
+##   AgentsToolsBoardItemHandler <item file> [--at-gate] [--for-round]
+##     stdout   `routine<TAB><file name, or - for an action with no routine><TAB>handler|default|gate`, then a `flag<TAB><reason><TAB><text>` line for each fault.
+##     rc       0 a routine is named (or `-`), 3 the item is flagged and nothing runs, 2 it cannot be decided (no table, no type).
+##     --for-round  the caller is about to run a round: one writer (see below), else `flag<TAB>held<TAB>text`, rc 3.
+##     --at-gate  the caller knows the item is at its gate (a completion claimed); an approval and a proposal root are always at theirs.
+##   AgentsToolsBoardTypeTable            the rows of the table, `type<TAB>routine file<TAB>gate`, one a line.
+##   AgentsToolsRoutineHandles <file> <type>   rc 0 where the routine's own text says it handles the type.
+##   AgentsToolsRoutineFileOf <name>      the file of a routine named by its file name, or as `<name>.routine`; rc 1 where no routine has it.
+##
+
+## The roots a routine file is looked for under: the skillset root of the run, and the package's own.
+AgentsToolsBoardItemRoutineDirs(){
+	printf '%s\n' "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
+}
+
+AgentsToolsRoutineFileOf(){ ## name
+	local ofWant="$1" ofRoot ofFile ofName
+	case "$ofWant" in ''|*/*|*' '*) return 1 ;; esac
+	case "$ofWant" in *.md) ;; *) ofWant="$ofWant.md" ;; esac
+	case "$ofWant" in *.routine.md) ;; *) return 1 ;; esac
+	while IFS= read -r ofRoot ; do
+		for ofFile in "$ofRoot"/*/*.routine.md ; do
+			[ -f "$ofFile" ] || continue
+			ofName="${ofFile##*/}"
+			if [ "$ofName" = "$ofWant" ] ; then printf '%s\n' "$ofFile" ; return 0 ; fi
+			case "$ofName" in *".$ofWant") printf '%s\n' "$ofFile" ; return 0 ;; esac
+		done
+	done <<< "$( AgentsToolsBoardItemRoutineDirs )"
+	return 1
+}
+
+AgentsToolsBoardTypeTable(){
+	local tableFile
+	tableFile="$( AgentsToolsRoutineFileOf magic-team.advance.routine.md )" || return 1
+	LC_ALL=C awk '
+		/^# / { inSection = ( $0 == "# Next iteration by document type" ) ; inTable = 0 ; next ; }
+		inSection && /^\|/ {
+			cellN = split($0, cell, "|") ;
+			for (idx = 1 ; idx <= cellN ; idx++) { gsub(/^[ \t]+|[ \t]+$/, "", cell[idx]) ; }
+			if (cell[2] == "type" || cell[2] ~ /^-+$/ || cell[2] == "") next ;
+			routine = cell[3] ;
+			if (routine == "-") routine = "-" ; else if (routine !~ /[.]md$/) routine = routine ".md" ;
+			printf "%s\t%s\t%s\n", cell[2], routine, cell[4] ;
+		}
+	' "$tableFile"
+}
+
+AgentsToolsRoutineHandles(){ ## routine file, type
+	[ -f "$1" ] || return 1
+	LC_ALL=C awk -v want="$2" '
+		/^# / { inSummary = ( $0 == "# Summary" ) ; next ; }
+		inSummary && /^Handles: / {
+			line = substr($0, 10) ; n = split(line, part, ",") ;
+			for (idx = 1 ; idx <= n ; idx++) { gsub(/^[ \t]+|[ \t]+$/, "", part[idx]) ; if (part[idx] == want) hit = 1 ; }
+		}
+		END { exit hit ? 0 : 1 }
+	' "$1"
+}
+
+AgentsToolsBoardItemKey(){ ## item file, key -- its frontmatter value
+	LC_ALL=C awk -v key="$2" 'NR == 1 { if ($0 != "---") exit ; next } $0 == "---" { exit } index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$1"
+}
+
+AgentsToolsBoardItemHandler(){ ## item file, [--at-gate]
+	local itemFile="$1" atGate="" itemType itemKey handlerValue handlerFile="" rowRoutine="" rowGate="" rowFound="" flags="" rowType rowFile rowGateWord pickRoutine pickSource
+	local forRound="" roundReason="" handlerArg
+	for handlerArg in "${@:2}" ; do
+		case "$handlerArg" in --at-gate) atGate="yes" ;; --for-round) forRound="yes" ;; esac
+	done
+	[ -f "$itemFile" ] || return 2
+	## A round is run by one writer (AgentsToolsBoardItemRoundMay): any other caller is refused naming the holder, and nothing runs.
+	if [ -n "$forRound" ] && ! roundReason="$( AgentsToolsBoardItemRoundMay "$itemFile" )" ; then
+		printf 'flag\theld\t%s\n' "$roundReason"
+		return 3
+	fi
+	itemType="$( AgentsToolsBoardItemKey "$itemFile" type )"
+	[ -n "$itemType" ] || return 2
+	itemKey="$itemType"
+	[ "$itemType" != proposal ] || [ -z "$( AgentsToolsBoardItemKey "$itemFile" communication-channel-id )" ] || itemKey="proposal-root"
+	AgentsToolsBoardTypeTable > /dev/null 2>&1 || return 2
+	while IFS=$'\t' read -r rowType rowFile rowGateWord ; do
+		[ "$rowType" = "$itemKey" ] || continue
+		rowFound="yes" rowRoutine="$rowFile" rowGate="$rowGateWord"
+	done <<< "$( AgentsToolsBoardTypeTable )"
+	handlerValue="$( AgentsToolsBoardItemKey "$itemFile" handler-routine )"
+	## An approval and a proposal root are always at their gate; a task or a project is, when the caller says so.
+	case "$itemKey" in approval|proposal-root) atGate="yes" ;; esac
+	if [ -n "$handlerValue" ] ; then
+		if ! handlerFile="$( AgentsToolsRoutineFileOf "$handlerValue" )" ; then
+			flags="${flags}flag"$'\t'"unknown-routine"$'\t'"handler-routine: $handlerValue names no routine of the skillset"$'\n'
+			handlerFile=""
+		else
+			handlerFile="${handlerFile##*/}"
+			if [ "$handlerFile" != "$rowRoutine" ] && ! AgentsToolsRoutineHandles "$( AgentsToolsRoutineFileOf "$handlerFile" )" "$itemType" && ! AgentsToolsRoutineHandles "$( AgentsToolsRoutineFileOf "$handlerFile" )" "$itemKey" ; then
+				flags="${flags}flag"$'\t'"type-mismatch"$'\t'"handler-routine: $handlerValue does not handle the type $itemKey: the table does not list it for it and its Summary has no Handles line naming it"$'\n'
+			fi
+			if [ "$rowGate" = yes ] && [ -n "$atGate" ] && [ "$handlerFile" != "$rowRoutine" ] ; then
+				flags="${flags}flag"$'\t'"gate-override"$'\t'"handler-routine: $handlerValue would replace the gate row of $itemKey (${rowRoutine:--}): a handler chooses, it never overrides a gate"$'\n'
+			fi
+		fi
+	fi
+	if [ -z "$rowFound" ] && [ -z "$handlerValue" ] ; then
+		flags="${flags}flag"$'\t'"no-row"$'\t'"the table has no row for the type $itemKey and the item names no handler: it is flagged for grooming"$'\n'
+	fi
+	if [ -n "$flags" ] ; then
+		printf '%s' "$flags"
+		return 3
+	fi
+	if [ "$rowGate" = yes ] && [ -n "$atGate" ] ; then pickRoutine="$rowRoutine" pickSource="gate"
+	elif [ -n "$handlerFile" ] ; then pickRoutine="$handlerFile" pickSource="handler"
+	else pickRoutine="${rowRoutine:--}" pickSource="default"
+	fi
+	printf 'routine\t%s\t%s\n' "$pickRoutine" "$pickSource"
+	return 0
+}
+
+## WHO MAY SET `handler-routine:` AND WHO MAY RUN A ROUND. Two rules, kept apart.
+##   SETTING the key is for magic-coordinator or a grooming run (the routine of the acting run's spawn record is a grooming routine), and a call from no
+##   spawned session (a human at the console). The board write records it on the item's Decisions (AgentsToolsBoardHandlerSetMay, board-upsert-move-edit).
+##   RUNNING a round on an item is one writer: the live run of the item's owner or of one of its `participants` (a spawn record with `status: spawn-started`,
+##   no `exit-code`, in the item's `session-id` where it names one); when none is live, magic-coordinator; any other caller is refused naming the holder.
+
+AgentsToolsBoardCallerBase(){
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+}
+
+AgentsToolsBoardHandlerSetMay(){ ## -- rc 0 may; rc 4 refused, the reason on stdout
+	local setMember setSession setRecord setRoutine=""
+	AgentsToolsBoardCallerBase
+	setMember="$( AgentsToolsActingMember )"
+	[ -n "$setMember" ] || return 0
+	[ "$setMember" != magic-coordinator ] || return 0
+	setSession="$( AgentsToolsActingSession )"
+	case "$setSession" in ''|*/*|.|..) ;; *)
+		for setRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$setSession.spawn.md" ; do
+			[ -f "$setRecord" ] || continue
+			setRoutine="$( AgentsToolsBoardItemKey "$setRecord" routine )"
+			break
+		done
+	;; esac
+	case "$setRoutine" in *grooming.routine.md|*grooming.routine) return 0 ;; esac
+	printf 'handler-routine may be set only by magic-coordinator or a grooming run, not by %s%s\n' "$setMember" "${setRoutine:+ (running $setRoutine)}"
+	return 4
+}
+
+AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and the participants: `member<TAB>spawn-id<TAB>session-id` a line
+	local holdMembers holdSession
+	holdMembers="$( AgentsToolsBoardItemKey "$1" owner ),$( AgentsToolsBoardItemKey "$1" participants )"
+	holdSession="$( AgentsToolsBoardItemKey "$1" session-id )"
+	[ -n "${MMDAPP:-}" ] || return 0
+	LC_ALL=C awk -v members="$holdMembers" -v session="$holdSession" '
+		BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
+		FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 }
+		$0 == "---" { if (++fm == 2 && (owner in want) && status == "spawn-started" && !ended && (session == "" || sid == session || spawn == session)) printf "%s\t%s\t%s\n", owner, spawn, sid ; next }
+		fm == 1 && index($0, "owner: ") == 1 { owner = substr($0, 8) }
+		fm == 1 && index($0, "session-id: ") == 1 { sid = substr($0, 13) }
+		fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
+		fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
+		fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
+	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null
+}
+
+AgentsToolsBoardItemRoundMay(){ ## item file -- rc 0 may run a round on it; rc 4 refused, the reason on stdout
+	local roundHolders roundMember roundSession roundHolder roundSpawn roundHolderSession
+	AgentsToolsBoardCallerBase
+	roundHolders="$( AgentsToolsBoardItemHolders "$1" )"
+	roundMember="$( AgentsToolsActingMember )"
+	roundSession="$( AgentsToolsActingSession )"
+	if [ -n "$roundHolders" ] ; then
+		if [ -n "$roundSession" ] ; then
+			while IFS=$'\t' read -r roundHolder roundSpawn roundHolderSession ; do
+				[ "$roundSession" != "$roundSpawn" ] && [ "$roundSession" != "$roundHolderSession" ] || return 0
+			done <<< "$roundHolders"
+		fi
+		printf 'the item is held by the live run of %s: one writer, so this caller (%s) runs no round on it\n' "$( printf '%s' "$roundHolders" | LC_ALL=C awk -F'\t' '{ printf "%s%s (%s)", sep, $1, $2 ; sep = ", " }' )" "${roundMember:-no member}"
+		return 4
+	fi
+	[ "$roundMember" = magic-coordinator ] && return 0
+	printf 'no live run holds the item: only magic-coordinator runs a round on it, not %s\n' "${roundMember:-a caller with no member}"
+	return 4
+}

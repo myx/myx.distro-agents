@@ -28,7 +28,7 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 
 ## Keys
 
-`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member; `either` is filled by the tooling where missing, and written by a member only to set another value.
+`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member. `either` is filled by the tooling where missing, and written by a member only to set another value.
 
 | key | presence | writer | value form | rule |
 |---|---|---|---|---|
@@ -60,7 +60,7 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 | `outcome` | optional | member | `text` | What an advance pass did. Written by `magic-coordinator`. |
 | `execution-receipt` | optional | member | `text` | The evidence for `outcome`, and for a move into `board-blocked`. Written by `magic-coordinator`. |
 | `references` | optional | member | `item-names` | Items this one cites. A board item may cite vault and audit items. |
-| `allows` | optional | tooling | `allows-set` | The approved permission set the tracked session carries, written when the set is approved (`--request-permission-set`). `<granted-by>` is a holder, not the session's own member. |
+| `access-control` | optional | tooling | `item-access-rows` | The approved permission set the tracked session carries, written when the set is approved (`--request-permission-set`), in the rows of a routine's `access-control:`. `<granted-by>` is a holder, not the session's own member. |
 | `processed-at` | optional | tooling | `date-time` | Stamped when the item is processed. |
 | `resolved-at` | optional | tooling | `date-time` | Stamped when the item resolves. |
 | `started-at` | optional | tooling | `date-time` | Stamped when work on the item starts. |
@@ -93,7 +93,7 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 - `members` — comma-separated `member` names.
 - `reviewer` — `human-owner`, a member, a session, `<session-id>:<member>`, a routine such as `grooming.routine`, or `none`.
 - `flag` — the word `true`.
-- `allows-set` — comma-separated entries `session:<tool>:<target>:<granted-by>:<stamp>` or `task:<tool>:<target>:<granted-by>:<stamp>`, `<stamp>` as `YYYYMMDD'T'HHmm'Z'`, target %-escaped.
+- `item-access-rows` — comma-separated rows `participants:allow-read:<target>:<granted-by>:<stamp>`, `participants:allow-write:<target>:<granted-by>:<stamp>` or `participants:allow-tool:<tool>:<target>:<granted-by>:<stamp>`, `<stamp>` as `YYYYMMDD'T'HHmm'Z'`, target %-escaped. A row holds for the session on the session's dispatch item, and for the task on the item it tracks.
 - `workspace-name` — a workspace's basename, or `unknown`.
 - `audit-path` — a path under the audit store, as the audit reader names it.
 - `tokens` — `in=<N> cache-read=<N> cache-write=<N> out=<N>`.

@@ -34,7 +34,7 @@ if ! type AgentsToolsAskToolRow > /dev/null 2>&1 ; then
 	agentsAskTools="AskQuestion|question|ask-question.post.format.md||question options select readback understood
 ConfirmReadback|readback|confirm-readback.post.format.md|confirm|question understood source will_do
 EscalateDecision|decision|escalate-decision.post.format.md|one|question options readback understood
-RequestPermission|permission|request-permission.post.format.md|grant|question refusal_id reason task_ref entries
+RequestPermission|permission|request-permission.post.format.md|grant|question refusal_id reason task_ref entries escalate escalate
 ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal document task_ref
 |review|review-prompt.post.format.md|verdict|
 |change|change-approve.post.format.md|approve|"

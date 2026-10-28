@@ -38,7 +38,9 @@ Safe to share with anyone, including unverified/external sources — no verifica
 
 # Contract
 
-- Frontmatter: `maintainers:` always; `attendance:` (optional) on an acting member — `present` (a default work-duty doer who attends retro and daily not by special invitation, and so is in `all-present-members`) or `invited` (attends by special invitation only). Where `attendance:` is absent, every `magic-*` member is `present` and every other member is `invited`.
+- Frontmatter: `maintainers:` always; `attendance:` (optional) on an acting member. Its values:
+  - `present`: a default work-duty doer who attends retro and daily not by special invitation, and so is in `all-present-members`.
+  - `invited`: attends by special invitation only. Where `attendance:` is absent, every `magic-*` member is `present` and every other member is `invited`.
 - Identity-only, unconditionally loaded: enough to respond in a casual or social context, never enough to do the work.
 - Opening lines, before `## Contents`: who the member is. `magic-team.basic.md` instead lists the team's always-on rules.
 - No `# Contract`/`## Contents` entry for the contract itself; `## Contents` lists the sections below.

@@ -342,12 +342,12 @@ rigAssert "the asking coordinator cannot approve its own set" "$( rigHas "$rigTm
 RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigSetId" allow-set
 rigAssert "the human-owner's allow-set is applied"         "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigSetId answered" ):$( rigHas "$rigTmp/op.out" 'GRANT: set ' )" "yes:yes"
 rigAssert "the set is recorded on the item's Decisions"    "$( rigHas "$rigData/board/running/task-rig.md" 'permission set approved for the task' )" yes
-rigAssert "and as its allows, for a later dispatch"        "$( rigHas "$rigData/board/running/task-rig.md" 'allows: task:WebFetch:https%3A//api.rig.example/*:human-owner:' )" yes
+rigAssert "and as its access-control row, for a later dispatch"        "$( rigHas "$rigData/board/running/task-rig.md" 'access-control: participants:allow-tool:WebFetch:https%3A//api.rig.example/*:human-owner:' )" yes
 rigAssert "every participant holds the extras now"         "$( rigGrantRead magic-tester rig-tester WebFetch https://api.rig.example/v1 ):$( rigGrantRead magic-developer rig-dev cred rig-api-token )" "task:task"
 rigAssert "the held entry was not granted to others"       "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/q.txt" )" ""
 
 echo "-- a spawn gets its defaults and the dispatch's approved extras; a planned allow by a non-holder is ignored --"
-printf -- '---\nstatus: dispatch-started\nowner: magic-frontender\nsession-id: rig-new\ntracks: task-rig\nallows: session:Write:%s:magic-coordinator:20261009T0000Z,session:Write:%s:magic-developer:20261009T0000Z\n---\n\n# Dispatch\n' \
+printf -- '---\nstatus: dispatch-started\nowner: magic-frontender\nsession-id: rig-new\ntracks: task-rig\naccess-control: participants:allow-write:%s:magic-coordinator:20261009T0000Z,participants:allow-write:%s:magic-developer:20261009T0000Z\n---\n\n# Dispatch\n' \
 	"$rigWs/ELSE/p.txt" "$rigWs/DEV/p.txt" > "$rigData/board/running/dispatch-rig-new.md"
 rigAssert "the tracked item's approved set reaches the spawn" "$( rigGrantRead magic-frontender rig-new WebFetch https://api.rig.example/v2 )" planned
 rigAssert "a planned allow signed by a holder admits"      "$( rigGrantRead magic-frontender rig-new Write "$rigWs/DEV/p.txt" )" planned
@@ -397,6 +397,9 @@ mkdir -p "$rigWs/.local/agents/spawned/rig-xcow"
 printf -- '---\nexecutors: magic-tester\nmaintainers: human-owner\nrequires-session-kind: standalone\naccess-control: participants:allow-tool:WebSearch, participants:deny-tool:WebSearch, participants:allow-write:RULES/**, participants:deny-write:RULES/no/**, participants:allow-read:RRD/**, participants:deny-read:RRD/secret/**, magic-tester:allow-tool:WebFetch\n---\n# rig routine with rows\n' \
 	> "$rigSkills/magic-tester/magic-tester.rig-rules.routine.md"
 printf -- '---\nsession-id: rig-xcow\nspawn-id: rig-xcow\nowner: magic-tester\nroutine: magic-tester.rig-rules.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-xcow/rig-xcow.spawn.md"
+mkdir -p "$rigWs/.local/agents/spawned/rig-ycow"
+printf -- '---\nexecutors: magic-tester\nmaintainers: human-owner\nrequires-session-kind: standalone\naccess-control: participants:allow-tool:RigSpecialTool, participants:allow-tool:RigControlTool\n---\n# rig routine with a tool both ways\n' > "$rigSkills/magic-tester/magic-tester.rig-ycow.routine.md"
+printf -- '---\nsession-id: rig-ycow\nspawn-id: rig-ycow\nowner: magic-tester\nroutine: magic-tester.rig-ycow.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-ycow/rig-ycow.spawn.md"
 rigAssert "allow-tool: the member holds the tool its row names" "$( rigHolds magic-tester WebFetch https://x.rig.example/a rig-xcow )" "HOLDS routine magic-tester.rig-rules.routine"
 rigAssert "deny-tool beats an allow-tool of the same tool in the same routine" "$( rigHolds magic-tester WebSearch rig-q rig-xcow )" "NOT-HOLDS"
 rigAssert "allow-write: every file tool holds the path it names, the read tools too" "$( rigHolds magic-tester Edit "$rigWs/RULES/a.txt" rig-xcow ):$( rigHolds magic-tester Read "$rigWs/RULES/a.txt" rig-xcow )" "HOLDS routine magic-tester.rig-rules.routine:HOLDS routine magic-tester.rig-rules.routine"
@@ -437,6 +440,48 @@ rigHarnessRead(){ ## acting member, path -- read, refused or other
 		*) printf other ;;
 	esac
 }
+echo "-- the member's own deny rows (project.inf deny-write, deny-read, deny-tool) override every allow of every layer --"
+mkdir -p "$rigWs/DNY/locked" "$rigWs/DNY/secret"
+printf 'magic-tester:ws:workspace:Edit(/%s/DNY/**)\nmagic-tester:ws:workspace:DenyEdit(/%s/DNY/locked/**)\nmagic-tester:ws:workspace:DenyRead(/%s/DNY/secret/**)\nmagic-tester:ws:deny:deny-tool:RigSpecialTool\n' "$rigWs" "$rigWs" "$rigWs" >> "$rigWs/.local/agents/permissions.registry"
+rigAssert "a standing write row holds its files" "$( rigHolds magic-tester Edit "$rigWs/DNY/a.txt" )" "HOLDS standing"
+rigAssert "a standing deny-write row takes the write tools of its path away, both of them" "$( rigHolds magic-tester Edit "$rigWs/DNY/locked/a.txt" ):$( rigHolds magic-tester Write "$rigWs/DNY/locked/b.txt" )" "NOT-HOLDS:NOT-HOLDS"
+rigAssert "...and leaves the read of it" "$( rigHolds magic-tester Read "$rigWs/DNY/locked/a.txt" )" "HOLDS standing"
+rigAssert "a standing deny-read row takes the read tools away, though the write row covers a read" "$( rigHolds magic-tester Read "$rigWs/DNY/secret/a.txt" ):$( rigHolds magic-tester Grep "$rigWs/DNY/secret/a.txt" )" "NOT-HOLDS:NOT-HOLDS"
+export MDAT_SKILLSET_ROOT="$rigSkills"
+rigAssert "a standing deny-tool row beats the routine's allow of the same tool, in the session that runs it" "$( rigHolds magic-tester RigSpecialTool "" rig-ycow )" "NOT-HOLDS"
+rigAssert "the control: without the deny row the routine's allow holds it" "$( rigHolds magic-tester RigControlTool "" rig-ycow )" "HOLDS routine magic-tester.rig-ycow.routine"
+export MDAT_SKILLSET_ROOT="$rigSkillsReal"
+echo "-- an orchestrator: deny rows over the whole workspace and over the shell tools, and the session's own sandbox stays (epic S18.2) --"
+mkdir -p "$rigSkillsReal/keeper-orch" ; printf "x\n" > "$rigSkillsReal/keeper-orch/keeper-orch.basic.md"
+mkdir -p "$rigWs/.local/agents/spawned/rig-orch/input" "$rigWs/.local/agents/spawned/rig-orch/output" "$rigWs/ORCH"
+printf 'x\n' > "$rigWs/ORCH/f.txt"
+printf -- '---\nsession-id: rig-orch\nspawn-id: rig-orch\nowner: keeper-orch\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-orch/rig-orch.spawn.md"
+printf 'keeper-orch:ws:workspace:DenyRead(/%s/**)\nkeeper-orch:ws:workspace:DenyEdit(/%s/**)\nkeeper-orch:ws:workspace:Read(/%s/ORCH/**)\nkeeper-orch:ws:deny:deny-tool:execute\nkeeper-orch:ws:deny:deny-tool:Bash\n' "$rigWs" "$rigWs" "$rigWs" >> "$rigWs/.local/agents/permissions.registry"
+rigAssert "the whole workspace is denied to the orchestrator, though a standing row names a folder of it" "$( rigHolds keeper-orch Read "$rigWs/ORCH/f.txt" rig-orch ):$( rigHolds keeper-orch Edit "$rigWs/ORCH/g.txt" rig-orch )" "NOT-HOLDS:NOT-HOLDS"
+rigAssert "the shell tools are denied by name" "$( rigHolds keeper-orch execute "" rig-orch ):$( rigHolds keeper-orch Bash "" rig-orch )" "NOT-HOLDS:NOT-HOLDS"
+rigAssert "its own sandbox, input and output, is the floor the session adds: no deny row takes it away" "$( rigHolds keeper-orch Read "$rigWs/.local/agents/spawned/rig-orch/input/a.txt" rig-orch ):$( rigHolds keeper-orch Edit "$rigWs/.local/agents/spawned/rig-orch/output/b.txt" rig-orch )" "HOLDS floor:HOLDS floor"
+rigAssert "and no sandbox of another session is" "$( rigHolds keeper-orch Read "$rigWs/.local/agents/spawned/rig-other/input/a.txt" rig-orch )" "NOT-HOLDS"
+rigAssert "the hint names the deny row, the owner and the way to ask" "$( ( cd "$rigWs" && env MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; AgentsToolsPermissionDenyRefusal keeper-orch Read "'"$rigWs"'/ORCH/f.txt" rig-orch' ) | LC_ALL=C grep -c -e 'deny row declared for keeper-orch in project.inf' )" "1"
+rigHarnessReadOut(){ ## acting member, path -- what the harness's Read answers, its first lines
+	( cd "$rigWs" && printf '{"path":"%s"}' "$2" | env -u MDAT_DATA_ROOT -u MDAT_SESSION_UNATTENDED -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT \
+		MDAT_SPAWN_SESSION_ID=rig-harness RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" ${1:+MDAT_SPAWN_AGENT="$1"} \
+		bash "$rigHarness" --intern-tool Read 2>/dev/null ) | head -3
+}
+rigAssert "the harness's Read refuses the orchestrator a file of the workspace, ahead of its roots, with the hint" "$( rigHarnessReadOut keeper-orch "$rigWs/ORCH/f.txt" | LC_ALL=C grep -c 'deny row declared for keeper-orch in project.inf' )" "1"
+rigAssert "and the same file is read by a member with no deny row" "$( rigHarnessReadOut magic-developer "$rigWs/ORCH/f.txt" | LC_ALL=C grep -c 'denied to this session' )" "0"
+echo "-- the access block of a dispatch: the same layers, said short --"
+rigBlock(){ ## member, routine file -- the block, lines joined by |
+	( cd "$rigWs" && env MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; AgentsToolsPermissionAccessBlock "$@"' rig-block "$@" ) | LC_ALL=C tr '\n' '|'
+}
+printf -- '---\nexecutors: keeper-orch\nmaintainers: human-owner\nrequires-session-kind: standalone\naccess-control: participants:deny-tool:RigBlockTool, executors:allow-write:RigBlockDir/**, keeper-other:allow-tool:RigNotMine, participants:allow-tool:RigBlockAdd\n---\n# rig routine for the block\n' > "$rigTmp/block.routine.md"
+rigBlockOut="$( rigBlock keeper-orch "$rigTmp/block.routine.md" )"
+rigAssert "the standing deny rows of the member are refused tools, reads and writes, and the sandbox is named open" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c -e 'refused tools: .*execute' -e 'refused reads: \*\*' -e 'refused writes: \*\*' -e 'always open: your sandbox' )" 1
+rigAssert "the routine's deny joins the refused tools" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c 'refused tools: .*RigBlockTool' )" 1
+rigAssert "the routine adds its allow rows for the member, participants and executors, and not another member's" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c -e 'adds tools: RigBlockAdd|' -e 'adds writes: RigBlockDir/\*\*|' )" 1
+rigAssert "another member's row is not shown" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c 'RigNotMine' )" 0
+rigAssert "the ask line names RequestPermission and the human-owner, last" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c 'to ask for more: call RequestPermission .*human-owner decides.*|$' )" 1
+rigAssert "a member with no deny row and no routine gets the ask line alone" "$( rigBlock magic-developer "" )" "to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides. Your other standing rows: --list-permissions.|"
+rigAssert "the human-owner is never refused by a deny row" "$( rigHolds human-owner Edit "$rigWs/DNY/locked/a.txt" )" "HOLDS human-owner"
 rigAssert "its member holds Read, Grep and Glob there, standing" \
 	"$( rigHolds magic-tester Read "$rigWs/RONLY/r.txt" ):$( rigHolds magic-tester Grep "$rigWs/RONLY/r.txt" ):$( rigHolds magic-tester Glob "$rigWs/RONLY/**" )" "HOLDS standing:HOLDS standing:HOLDS standing"
 rigAssert "and no Edit, Write or Execute there" \
@@ -686,11 +731,11 @@ rigAssert "the owner's click on the unlock allows the set, and its grants are wr
 	"$( rigHas "$rigTmp/op.out" "ESCALATION: $rigSetIdC answered" ):$( rigHas "$rigTmp/op.out" 'VERDICT: allow-set' ):$( rigGrantRead magic-tester rig-set-tester Read "$rigWs/SETC/a.txt" )" "yes:yes:task"
 ## An apply that stopped after the set was granted, before its record closed, is completed by
 ## the next read: the set is applied a second time there, and writes nothing twice.
-rigSetCounts(){ ## -> "<grant lines>:<set records>:<Decisions lines naming the request>:<allows entries>"
+rigSetCounts(){ ## -> "<grant lines>:<set records>:<Decisions lines naming the request>:<access-control rows>"
 	printf '%s:%s:%s:%s' "$( LC_ALL=C grep -c -F 'SETC' "$rigWs/.local/agents/sessions/rig-set/grants" 2>/dev/null )" \
 		"$( LC_ALL=C grep -l -x -F "escalation: $rigSetIdC" "$rigWs/.local/agents/sessions/rig-set"/set-*.md 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" \
 		"$( cat "$rigData"/board/*/dispatch-rig-set.md "$rigData"/board/*/task-rig-set.md 2>/dev/null | LC_ALL=C grep -c -F "($rigSetIdC" )" \
-		"$( cat "$rigData"/board/*/dispatch-rig-set.md "$rigData"/board/*/task-rig-set.md 2>/dev/null | LC_ALL=C grep '^allows: ' | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c -F 'SETC' )"
+		"$( cat "$rigData"/board/*/dispatch-rig-set.md "$rigData"/board/*/task-rig-set.md 2>/dev/null | LC_ALL=C grep '^access-control: ' | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c -F 'SETC' )"
 }
 rigSetBefore="$( rigSetCounts )"
 rigAssert "control: the set was applied once, and its note is marked applied" "$( [ "${rigSetBefore%%:*}" -gt 0 ] && printf granted || printf none ):$( [ -f "${rigSetFileC%.md}.answered/verdict.applied" ] && printf applied || printf none )" "granted:applied"
@@ -880,7 +925,7 @@ rigAssert "deciding who it goes to posts nothing"           "$(( $( rigCalls cha
 
 echo "-- a member's own set does not ask again for what is held (S11.4) --"
 ## What the asking member holds already is granted, nothing asked, nothing edited; what a running participant holds is named and the
-## member is told to ask that participant, until the same request is sent again.
+## member is told to ask that participant, until the explicit escalate parameter says the member needs it for itself.
 printf 'magic-tester:ws:workspace:Edit(/%s/OWN/**)\n' "$rigWs" >> "$rigWs/.local/agents/permissions.registry"
 rigIdOwn="$( rigRefusal magic-tester rig-tester Write "$rigWs/OWN/a.txt" )"
 RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-tester
@@ -898,7 +943,12 @@ rigAssert "an entry a running participant holds: a correction naming that partic
 	"$rigOpRc:$( rigHas "$rigTmp/op.err" 'CORRECTION: ' ):$( rigHas "$rigTmp/op.err" 'held by magic-developer' ):$(( $( rigCalls chat.postMessage ) - rigSetAskPosts ))" "6:yes:yes:0"
 rigOpRc=0
 rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdDev" --task-ref "the rig" --reason "rig" --entry "Write:$rigWs/DEV/setask.txt" || rigOpRc=$?
-rigAssert "the same request sent again is asked as it stands: no second correction for it" \
+rigAssert "the same request sent again is no override: the same correction, rc 6, nothing posted" \
+	"$( [ "$rigOpRc" = 6 ] && printf corrected || printf asked ):$( rigHas "$rigTmp/op.err" 'held by magic-developer' ):$(( $( rigCalls chat.postMessage ) - rigSetAskPosts ))" "corrected:yes:0"
+rigAssert "and the correction names the explicit parameter" "$( rigHas "$rigTmp/op.err" 'escalate true' )" yes
+rigOpRc=0
+rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdDev" --task-ref "the rig" --reason "rig" --entry "Write:$rigWs/DEV/setask.txt" --escalate || rigOpRc=$?
+rigAssert "with the explicit escalate option it is asked as it stands: no correction for it" \
 	"$( [ "$rigOpRc" = 6 ] && printf corrected || printf asked ):$( rigHas "$rigTmp/op.err" 'held by magic-developer' )" "asked:no"
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 

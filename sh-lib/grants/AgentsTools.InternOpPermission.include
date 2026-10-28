@@ -834,13 +834,56 @@ AgentsToolsPermissionSetRecordFill(){ ## want (post|closed|reactions|block), pen
 		"$( printf '%s' "$fillParts" | LC_ALL=C tr ' ' '\n' )" "$fillPurposes" "$1" "$fillPlaces" "$fillReason"
 }
 
+## An item's `access-control:` holds rows `participants:<verb>:<value>:<granted-by>:<stamp>` (verbs allow-read, allow-write, allow-tool; allow-tool's value is `<tool>:<target>`).
+## A dispatch item's rows hold for its session, the tracked item's for its task. Read is Read; Edit and Write are write; any other tool is allow-tool.
+AgentsToolsPermissionItemRow(){ ## tool, %-escaped target, granted-by, stamp
+	local rowVerb rowValue
+	case "$1" in
+		Read) rowVerb=allow-read ; rowValue="$2" ;;
+		Edit|Write) rowVerb=allow-write ; rowValue="$2" ;;
+		*) rowVerb=allow-tool ; rowValue="$1:$2" ;;
+	esac
+	printf 'participants:%s:%s:%s:%s' "$rowVerb" "$rowValue" "$3" "$4"
+}
+
+## An item's rows as the entries `<kind>:<tool>:<target>:<granted-by>:<stamp>` the planned-allow reader checks: read expands to Read, Grep, Glob; write to Edit, Write.
+## A row of another shape is passed on with its colons shown as `|`, for the reader to report once.
+AgentsToolsPermissionItemEntries(){ ## rows, kind (session|task)
+	local rowsList="$1" rowOne rowRest rowVerb rowStamp rowBy rowValue rowTool rowTarget rowOut="" rowAdd
+	while [ -n "$rowsList" ] ; do
+		rowOne="${rowsList%%,*}"
+		if [ "$rowOne" != "$rowsList" ] ; then rowsList="${rowsList#*,}" ; else rowsList="" ; fi
+		rowOne="${rowOne# }"
+		[ -n "$rowOne" ] || continue
+		rowAdd=""
+		rowRest="${rowOne#*:}"
+		rowVerb="${rowRest%%:*}" ; rowRest="${rowRest#*:}"
+		rowStamp="${rowRest##*:}"
+		rowRest="${rowRest%:*}"
+		rowBy="${rowRest##*:}" ; rowValue="${rowRest%:*}"
+		if [ "${rowOne%%:*}" = participants ] && [ "$rowRest" != "${rowRest%:*}" ] && [ -n "$rowValue" ] && [ -n "$rowBy" ] && [ -n "$rowStamp" ] ; then
+			case "$rowVerb" in
+				allow-read) rowAdd="$2:Read:$rowValue:$rowBy:$rowStamp,$2:Grep:$rowValue:$rowBy:$rowStamp,$2:Glob:$rowValue:$rowBy:$rowStamp" ;;
+				allow-write) rowAdd="$2:Edit:$rowValue:$rowBy:$rowStamp,$2:Write:$rowValue:$rowBy:$rowStamp" ;;
+				allow-tool)
+					rowTool="${rowValue%%:*}" ; rowTarget="${rowValue#*:}"
+					[ "$rowTool" != "$rowValue" ] && [ -n "$rowTool" ] && [ -n "$rowTarget" ] && rowAdd="$2:$rowTool:$rowTarget:$rowBy:$rowStamp"
+				;;
+			esac
+		fi
+		[ -n "$rowAdd" ] || rowAdd="${rowOne//:/|}"
+		rowOut="${rowOut:+$rowOut,}$rowAdd"
+	done
+	printf '%s' "$rowOut"
+}
+
 ## An approved permission set, applied: a grant of the set's scope for every
 ## participant and every extra entry, signed by the approver; for a task, also the
-## item's `allows:`, so a later dispatch tracking it carries the set; and the set on
+## item's `access-control:` rows, so a later dispatch tracking it carries the set; and the set on
 ## the item's Decisions. Called by the escalation verdict path only.
 ## Applied a second time for the same request -- an apply completed after it stopped
 ## (AgentsToolsEscalationApply) -- it writes only what is not there yet: a participant keeps
-## the set record it has, a grant line that stands is not written again, the item's allows
+## the set record it has, a grant line that stands is not written again, the item's access-control rows
 ## take no entry twice, and its Decisions no second line. A participant's grants are said
 ## in the tracking-thread only by the run that wrote one of them.
 AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
@@ -931,13 +974,13 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 	while IFS= read -r applySetLine ; do
 		[ -n "$applySetLine" ] || continue
 		AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
-		applySetAllows="${applySetAllows:+$applySetAllows,}task:$permEntryTool:$( AgentsToolsPermissionEscape "$permEntryTarget" ):$applySetBy:$applySetTime"
+		applySetAllows="${applySetAllows:+$applySetAllows,}$( AgentsToolsPermissionItemRow "$permEntryTool" "$( AgentsToolsPermissionEscape "$permEntryTarget" )" "$applySetBy" "$applySetTime" )"
 		applySetText="${applySetText:+$applySetText, }$applySetLine"
 	done <<< "$applySetEntries"
 	local applySetPath applySetState applySetOld applySetAdd="" applySetOne
 	if [ "$applySetScope" = "task" ] && applySetPath="$( AgentsToolsDecisionsItemPath "$applySetItem" )" ; then
 		applySetState="${applySetPath%/*}" ; applySetState="${applySetState##*/}"
-		applySetOld="$( AgentsToolsDecisionsField "$applySetPath" allows )" || applySetOld=""
+		applySetOld="$( AgentsToolsDecisionsField "$applySetPath" access-control | LC_ALL=C sed 's/, */,/g' )" || applySetOld=""
 		## Only what the item does not carry from this approver already, whenever it was stamped.
 		while IFS= read -r applySetOne ; do
 			[ -n "$applySetOne" ] || continue
@@ -945,9 +988,9 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 			applySetAdd="${applySetAdd:+$applySetAdd,}$applySetOne"
 		done < <( printf '%s\n' "$applySetAllows" | LC_ALL=C tr ',' '\n' )
 		[ -z "$applySetAdd" ] || printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$applySetState" "${applySetPath##*/}" --from-state:"$applySetState" \
-			--edit-script-from-stdin:awk "--header:upsert:allows:${applySetOld:+$applySetOld,}$applySetAdd" \
+			--edit-script-from-stdin:awk "--header:upsert:access-control:$( printf '%s' "${applySetOld:+$applySetOld,}$applySetAdd" | LC_ALL=C sed 's/,/, /g' )" \
 			--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 \
-			|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not written as $applySetItem's allows, so a later dispatch tracking it does not carry it" >&2
+			|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not written as $applySetItem's access-control, so a later dispatch tracking it does not carry it" >&2
 	fi
 	## On the item's Decisions once: the line of this request, there already, is not written again.
 	## A set that names no item -- a session's own calls, asked with no board item to record
@@ -1505,7 +1548,7 @@ case "$1" in
 			printf 'GRANT: %s\n' "$readFound"
 			return 0
 		fi
-		## Planned allows -- the approved permission set a dispatch carries: the session's
+		## Planned allows -- the access-control rows, the approved permission set a dispatch carries: the session's
 		## dispatch item and the one item it tracks. The same self-grant rule applies; a
 		## session entry is session-wide, a task entry lives while the item carrying it is open,
 		## and an entry to Edit or Write a path reads it too (AgentsToolsGrantsToolCovers).
@@ -1521,7 +1564,7 @@ case "$1" in
 					'front:session-id: '*) readItemSession="${readLine#session-id: }" ;;
 					'front:spawn-id: '*) readItemSpawn="${readLine#spawn-id: }" ;;
 					'front:owner: '*) readItemOwner="${readLine#owner: }" ;;
-					'front:allows: '*) readItemAllows="${readLine#allows: }" ;;
+					'front:access-control: '*) readItemAllows="$( AgentsToolsPermissionItemEntries "${readLine#access-control: }" session )" ;;
 					'front:tracks: '*) readItemTracks="${readLine#tracks: }" ;;
 					:*) break ;;
 				esac
@@ -1543,7 +1586,7 @@ case "$1" in
 					case "$readState:$readLine" in
 						':---') readState=front ;;
 						front:---) break ;;
-						'front:allows: '*) readPlanned="${readPlanned:+$readPlanned$'\n'}${readItem##*/}"$'\t'"${readLine#allows: }" ;;
+						'front:access-control: '*) readPlanned="${readPlanned:+$readPlanned$'\n'}${readItem##*/}"$'\t'"$( AgentsToolsPermissionItemEntries "${readLine#access-control: }" task )" ;;
 						:*) break ;;
 					esac
 				done < "$readItem"
@@ -1569,7 +1612,7 @@ case "$1" in
 				readShape="${readEntry//[!:]/}"
 				readIgnored=""
 				if [ "${#readShape}" -lt 4 ] || [ -z "$readEntryTool" ] || [ -z "$readEntryTarget" ] ; then
-					readIgnored="it is not <kind>:<tool>:<target>:<granted-by>:<time>"
+					readIgnored="it is not a row participants:<verb>:<value>:<granted-by>:<stamp> of access-control"
 				elif [ "$readKind" != "session" ] && [ "$readKind" != "task" ] ; then
 					readIgnored="its kind is $readKind, and a planned allow is session-wide or task-wide"
 				elif [ -z "$readBy" ] ; then
@@ -1903,7 +1946,7 @@ case "$1" in
 	## answer. After `PERMISSION-SET: asked` it also prints `SCOPE: <scope>[ <item>]`,
 	## `ENTRIES: <how many are asked>` and where the post stands, as a send reports one.
 	--request-permission-set|--intern-op-permission-set-ask)
-		local setOwn=""
+		local setOwn="" setEscalate=""
 		[ "$1" != "--intern-op-permission-set-ask" ] || setOwn=1
 		MDSC_CMD="$MDSC_CMD $1"
 		shift
@@ -1947,6 +1990,7 @@ case "$1" in
 					done
 					shift 2
 				;;
+				--escalate) setEscalate=1 ; shift ;;
 				--purpose)
 					setPurposeText="$( AgentsToolsTaskTextKept "${2:-}" )"
 					if [ -z "$setPurposeText" ] || [ -z "$setSince" ] ; then
@@ -2073,13 +2117,10 @@ case "$1" in
 				set +e ; return 6
 			fi
 		fi
-		## A member's own set does not ask again for what is held (S11.4). An entry the asking member holds now, through
-		## the session's own grants among others, is granted already: nothing is asked and no permission is edited. An entry
-		## another participant with a live run in the session holds is named, and the member is told to ask that participant
-		## to do it or to pass the permission on; the same request sent again is asked as it stands, since the member says
-		## it needs the access for itself (the refusal's own marker, <refusal>.holder-noted).
+		## A member's own set does not ask again for what the member holds. What a running participant holds is named, and the member is told to ask that participant;
+		## the explicit `--escalate` says the member needs it for itself, and the request is then asked as it stands.
 		if [ -n "$setOwn" ] ; then
-			local ownEntries=0 ownHeld=0 ownLine ownLayer ownPart ownRunning ownOther ownNamed="" ownMarker="$MMDAPP/.local/agents/sessions/$setSession/$setRefusal.holder-noted"
+			local ownEntries=0 ownHeld=0 ownLine ownLayer ownPart ownRunning ownOther ownNamed=""
 			ownRunning="$( AgentsToolsPermissionSessionRunning "$setSession" )"
 			while IFS= read -r ownLine ; do
 				[ -n "$ownLine" ] || continue
@@ -2103,9 +2144,8 @@ case "$1" in
 				printf 'PERMISSION-SET: held -- %s holds every entry already, so nothing was asked and no permission was changed\n' "$setBy"
 				return 0
 			fi
-			if [ -n "$ownNamed" ] && [ ! -e "$ownMarker" ] ; then
-				: > "$ownMarker" 2> /dev/null || :
-				echo "CORRECTION: $MDSC_CMD: nothing was asked. A participant who is running in this session already holds what you ask for: $( printf '%s' "$ownNamed" | LC_ALL=C tr '\n' ';' | LC_ALL=C sed 's/;$//;s/;/; /g' ). Ask that participant to do it for you, or to pass the permission on. If you need it for yourself, send this same request again and it is asked as it stands." >&2
+			if [ -n "$ownNamed" ] && [ -z "$setEscalate" ] ; then
+				echo "CORRECTION: $MDSC_CMD: nothing was asked. A participant who is running in this session already holds what you ask for: $( printf '%s' "$ownNamed" | LC_ALL=C tr '\n' ';' | LC_ALL=C sed 's/;$//;s/;/; /g' ). Ask that participant to do it for you, or to pass the permission on. If you need it for yourself, call RequestPermission again with escalate true and it is asked as it stands." >&2
 				set +e ; return 6
 			fi
 		fi
@@ -2390,10 +2430,10 @@ case "$1" in
 			set +e ; return 1
 		}
 		AgentsToolsGrantsStoreTouch "$revokeStore"
-		## A task grant's entries leave its item's `allows:` too, so no later dispatch tracking the
+		## A task grant's entries leave its item's `access-control:` too, so no later dispatch tracking the
 		## item carries them, and the revoke goes on the item's Decisions. Best effort: the grant
-		## is revoked either way. An allows entry is its grants line without the trailing ref.
-		local revokeEntries="" revokeTask="" revokePath revokeState revokeOld revokeNew="" revokeEntry revokeText="" revokeAllowsGone=""
+		## is revoked either way. An access-control row is made of its grants line without the trailing ref.
+		local revokeEntries="" revokeTask="" revokePath revokeState revokeOld revokeNew="" revokeEntry revokeText="" revokeAllowsGone="" revokeRows revokeTool revokeStamp revokeSigner
 		while IFS= read -r revokeLine ; do
 			case "$revokeLine" in
 				"task:"*":$revokeRef") revokeEntries="$revokeEntries${revokeLine%":$revokeRef"}"$'\n' ;;
@@ -2406,22 +2446,31 @@ case "$1" in
 			revokeTask="${revokeTask##*/}" ; revokeTask="${revokeTask%.md}"
 			if [ -n "$revokeTask" ] && revokePath="$( AgentsToolsDecisionsItemPath "$revokeTask" )" ; then
 				revokeState="${revokePath%/*}" ; revokeState="${revokeState##*/}"
-				revokeOld="$( AgentsToolsDecisionsField "$revokePath" allows )"
+				revokeOld="$( AgentsToolsDecisionsField "$revokePath" access-control | LC_ALL=C sed 's/, */,/g' )"
+				revokeRows=""
+				while IFS= read -r revokeEntry ; do
+					[ -n "$revokeEntry" ] || continue
+					revokeEntry="${revokeEntry#task:}"
+					revokeTool="${revokeEntry%%:*}" ; revokeEntry="${revokeEntry#*:}"
+					revokeStamp="${revokeEntry##*:}" ; revokeEntry="${revokeEntry%:*}"
+					revokeSigner="${revokeEntry##*:}" ; revokeEntry="${revokeEntry%:*}"
+					revokeRows="$revokeRows$( AgentsToolsPermissionItemRow "$revokeTool" "$revokeEntry" "$revokeSigner" "$revokeStamp" )"$'\n'
+				done <<< "$revokeEntries"
 				while [ -n "$revokeOld" ] ; do
 					revokeEntry="${revokeOld%%,*}"
 					if [ "$revokeEntry" != "$revokeOld" ] ; then revokeOld="${revokeOld#*,}" ; else revokeOld="" ; fi
 					revokeEntry="${revokeEntry# }"
 					[ -n "$revokeEntry" ] || continue
-					case $'\n'"$revokeEntries" in *$'\n'"$revokeEntry"$'\n'*) continue ;; esac
+					case $'\n'"$revokeRows" in *$'\n'"$revokeEntry"$'\n'*) continue ;; esac
 					revokeNew="${revokeNew:+$revokeNew,}$revokeEntry"
 				done
-				if [ "$revokeNew" != "$( AgentsToolsDecisionsField "$revokePath" allows )" ] ; then
+				if [ "$revokeNew" != "$( AgentsToolsDecisionsField "$revokePath" access-control | LC_ALL=C sed 's/, */,/g' )" ] ; then
 					if printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$revokeState" "${revokePath##*/}" --from-state:"$revokeState" \
-						--edit-script-from-stdin:awk "$( if [ -n "$revokeNew" ] ; then printf -- '--header:upsert:allows:%s' "$revokeNew" ; else printf -- '--header:remove:allows' ; fi )" \
+						--edit-script-from-stdin:awk "$( if [ -n "$revokeNew" ] ; then printf -- '--header:upsert:access-control:%s' "$( printf '%s' "$revokeNew" | LC_ALL=C sed 's/,/, /g' )" ; else printf -- '--header:remove:access-control' ; fi )" \
 						--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 ; then
 						revokeAllowsGone="$revokeTask"
 					else
-						echo "⚠️ WARNING: $MDSC_CMD: $revokeRef is revoked, but it is still written as $revokeTask's allows, so a later dispatch tracking it may carry it" >&2
+						echo "⚠️ WARNING: $MDSC_CMD: $revokeRef is revoked, but it is still written as $revokeTask's access-control, so a later dispatch tracking it may carry it" >&2
 					fi
 				fi
 				while IFS= read -r revokeEntry ; do

@@ -25,12 +25,12 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-`magic-devops` is the operations specialist for `myx.common`/`myx.distro-*` and the infrastructure it runs on — CDCI, builds, deploys, fleet execution, inventory — not the tools' own source, which is the owning `keeper-*`'s.
+`magic-devops` is the operations specialist for `myx.common`/`myx.distro-*` and the infrastructure it runs on: CDCI, builds, deploys, fleet execution, inventory. The tools' own source is not its; it is the owning `keeper-*`'s.
 
 ## Goals
 
 - Treat anything here the way live, paid infrastructure is treated: carefully.
-- Know how to operate the `myx.distro-*` tool family — consoles, fleet execution, build and deploy tools, index mechanics — and engage with that knowledge in any session touching it, unasked.
+- Know how to operate the `myx.distro-*` tool family: consoles, fleet execution, build and deploy tools, index mechanics. Engage with that knowledge in any session touching it, unasked.
 - Turn an operations need into the exact operation: the narrowest tool, its target set, its tier, and how to verify the result.
 
 ## Scope
@@ -73,21 +73,21 @@ All statements apply at the same time, always. These rules override a magic-team
 
 # Domain knowledge: myx.distro-* CDCI / fleet-execution command patterns, destructive-action classification
 
-`*.fn.sh` is the tool layer — the basic tools this skill composes, one set per package's own `sh-scripts/`. `actions/` is a separate path holding predefined parameter sets bound to those same tools, and is not the interface to them; any other script is a wrapper over the tool layer at best. Work the tools.
+`*.fn.sh` is the tool layer — the basic tools this skill composes, one set per package's own `sh-scripts/`. `actions/` is a separate path holding predefined parameter sets bound to those same tools, and is not the interface to them. Any other script is a wrapper over the tool layer at best. Work the tools.
 
 Read `reference/myxdistro-pipeline.md`, "Example command syntax on record", for the syntax examples.
 
 ## Reaching a tool is a fact to establish, not an assumption
 
-- **A tool is called by its full name, `<Tool>.fn.sh`.** Inside a console session that name resolves bare, because that console's own rc has put the owning package's `sh-scripts/` on `PATH`; outside a console — the session's own shell tool and `mcp__myx_distro__execute` included — nothing of this family is on `PATH` and the tool is reached by full path.
-- **What a console exposes is read from its own `PATH`, never assumed.** Each console's rc hardcodes its own list of `sh-scripts/` directories, one per installed `myx.distro-*` package — the family and the package are the same thing — so the lists differ console to console and a family reachable in one is absent from another. Print `PATH` in the session before reaching for a tool whose family has not already been used there.
+- **A tool is called by its full name, `<Tool>.fn.sh`.** Inside a console session that name resolves bare, because that console's own rc has put the owning package's `sh-scripts/` on `PATH`. Outside a console nothing of this family is on `PATH`, and the tool is reached by full path. That includes the session's own shell tool and `mcp__myx_distro__execute`.
+- **What a console exposes is read from its own `PATH`, never assumed.** Each console's rc hardcodes its own list of `sh-scripts/` directories, one per installed `myx.distro-*` package; the family and the package are the same thing. So the lists differ console to console, and a family reachable in one is absent from another. Print `PATH` in the session before reaching for a tool whose family has not already been used there.
 - Read `reference/myxdistro-pipeline.md`, "Reaching a tool is a fact to establish, not an assumption", for the other six rules.
 
 ## Which tier a mutating operation reads is measured before it runs
 
-- **A house-standard input spec names a resolution order, not a tree.** `--distro-path-auto` is the ordinary spelling across this family and resolves to whichever tier is present, so two calls written identically can read two different trees on two different days.
-- **Where the operation mutates, the resolved tier is measured first — before the call, not from its output.** A mutating operation derives what it writes from what it read, so a stale read is not a stale report: it is the stale content written over the current one. Reading the tier afterwards establishes what happened, never what is about to.
-- The read that settles it is a read-only listing call before acting, per this file's own narrowest-tool rule — never reasoning about which tier ought to be current, and never the fix's own run.
+- **A house-standard input spec names a resolution order, not a tree.** `--distro-path-auto` is the ordinary spelling across this family, and resolves to whichever tier is present. So two calls written identically can read two different trees on two different days.
+- **Where the operation mutates, the resolved tier is measured first — before the call, not from its output.** A mutating operation derives what it writes from what it read. So a stale read is not a stale report: it is the stale content written over the current one. Reading the tier afterwards establishes what happened, never what is about to.
+- The read that settles it is a read-only listing call before acting, per this file's own narrowest-tool rule. It is never reasoning about which tier ought to be current, and never the fix's own run.
 
 ## Piping one host's console into another hides the source-side failure
 
@@ -105,7 +105,10 @@ A floor, not a correction list: an operation below is Tier 2 even if the test re
 - Credential, token, or SSH-key rotation or revocation; ACL or firewall-rule removal.
 - Mass remote-state deletion: log, artifact, backup, or registry-tag purges.
 
-Tier 1, for contrast — passes both questions: a tracked-file edit (restore: the reverse edit), a single-host service restart that returns on its own, a rebuild of a generated tree (`CleanAllOutputs.fn.sh`, `RebuildActions.fn.sh`).
+Tier 1, for contrast, passes both questions:
+  - a tracked-file edit (restore: the reverse edit).
+  - a single-host service restart that returns on its own.
+  - a rebuild of a generated tree (`CleanAllOutputs.fn.sh`, `RebuildActions.fn.sh`).
 
 ## `$MMDAPP/.local/` is not ours to modify
 

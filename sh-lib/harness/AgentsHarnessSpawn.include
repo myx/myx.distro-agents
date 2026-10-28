@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessSpawn.include: Agent spawns, dispatch records, task output and stop, work duty. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## A value reaching a command line: one bare name, asked of the family's one bare-name gate
@@ -365,6 +367,8 @@ AgentsHarnessWindowedRead(){ ## path, byte offset, byte limit
 ## a stated ERROR instead, and is never dressed as a helper that was quiet.
 AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 	local toolHandle="$1" toolOffset="$2" toolLimit="$3" toolOutputFile="$4"
+	## A task a long call returned (TASK-ID=process-N, AgentsTools.ToolTask.include) is a session process: its output is the Bash read of its handle.
+	case "$toolHandle" in process-*) AgentsHarnessToolBash "" "" "" "" "$toolHandle" "" "$toolOffset" "$toolLimit" "" ; return 0 ;; esac
 	local itemPath itemName itemStatus sessionId receiptId logPath="" logHow="" logCandidate
 	local liveNow="unknown" logTotal
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
@@ -504,6 +508,8 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 ## reached, whatever process carries it.
 AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	local toolHandle="${3:-${4:-$1}}" toolForce="$2"
+	## A task a long call returned (TASK-ID=process-N) is a session process: stopping it is the Bash stop of its handle.
+	case "$toolHandle" in process-*) AgentsHarnessToolBash "" "" "" "" "$toolHandle" "true" "" "" "" ; return 0 ;; esac
 	local itemPath itemName itemStatus sessionId stopPids stopPid stopKept="" survivors forceWanted=no
 	local stopRecord stopItems stopNamed stopOf stopCloses="The dispatch item is closed by the spawn operation itself rather than here, so its status may still read as started for a moment."
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then

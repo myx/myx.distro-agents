@@ -61,6 +61,10 @@ case "$1" in
 		trap 'exit 130' INT
 		trap 'exit 143' TERM
 
+		## The tool list of this run, rendered once, now: every request reads this copy (AgentsTools.McpToolList.include), so it is the same for the whole run.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.McpToolList.include"
+		AgentsToolsMcpToolListRender "$MMDAPP/.local/temp/agent-mcp.$$/tools.d" || printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: the tool list of this run could not be rendered; each request will say so" >&2
+
 		## Check-init witness; stderr only.
 		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN root=$MMDAPP scratch=$MMDAPP/.local/temp/agent-mcp.$$ -- every request is served by a fresh --intern-mcp-request" >&2
 
@@ -68,8 +72,7 @@ case "$1" in
 		while IFS= read -r mcpLine || [ -n "$mcpLine" ] ; do
 			[ -n "$mcpLine" ] || continue
 			AGENTS_MCP_REQ_SEQ=$(( AGENTS_MCP_REQ_SEQ + 1 ))
-			## A mint of the root-harness session is marked pending from the moment its line is read, here, one line at a time, before any later request starts: a request
-			## that arrives while it is pending waits for it (AgentsTools.InternMcpRequest.include), so none runs ahead of the session's profile (epic S18.3, fail closed).
+			## A mint of the root-harness session is marked pending as its line is read, before any later request starts; a request that arrives meanwhile waits for it.
 			case "$mcpLine" in
 				*'"RootSession"'*) case "$mcpLine" in *'"mint"'*) : > "$MMDAPP/.local/temp/agent-mcp.$$/mint-pending.$AGENTS_MCP_REQ_SEQ" ;; esac ;;
 			esac

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessSearch.include: WebSearch and WebFetch, the service searches included. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## One scalar out of a search response, by path. Its own reader rather than a reuse

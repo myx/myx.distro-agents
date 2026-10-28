@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ToolTask.include -- a tool call never blocks beyond the caller's control (epic S20). Sourced, never run. Functions only.
+##
+## Every call runs as a task underneath and the caller waits for it here. The call comes back with its own result when it ends in time.
+## It comes back EARLY, with `TASK-ID=process-N` and a hint, when:
+##   - the caller asked for `background`
+##   - the default time passes (300 s, MDAT_TOOL_TASK_SECONDS)
+##   - the caller's own `timeout` passes and its `timeout_action` is `return` (the default action)
+##   - a message addressed to the member arrives in the session chat (the one source the specs class as immediate, sketch 7.1)
+## A `timeout_action` of `kill` ends the task at the caller's timeout instead, and returns what it wrote. A task that returned early and
+## still runs is ended after the ceiling (3600 s, MDAT_TOOL_TASK_CEILING).
+##
+## A returned task is a session process of the Bash tool's model (AgentsHarnessToolsBash.include): `process-N.{out,err,pid,began,status,cmd}`
+## in sessions/<session>/processes/, so `Wait sources=process:process-N` (output and end), the Bash tool read by handle, TaskOutput and TaskStop
+## work on it as they do on a detached Bash. Until it returns early a call has only a hidden folder `.run.*` there, so a call that ends in
+## time leaves nothing behind. The files of a returned task are links into that folder.
+##
+##   AgentsToolsTaskCall <label> <background true|empty> <timeout seconds|empty> <action kill|return|empty> <function> [args...]
+##     sets  agentsTaskOut       the text for the caller: the function's stdout, or the early-return text
+##           agentsTaskRc        the function's exit code (0 where it returned early)
+##           agentsTaskDetached  yes where the call returned early and the task goes on
+##           agentsTaskHandle    process-N where it did
+##     The function runs in a subshell: nothing it sets in this shell survives, as with a $( ) capture. Its stderr is replayed here once it ends.
+##     No session, or a call from inside a task (MDAT_TOOL_TASK_INNER), or MDAT_TOOL_TASK_OFF=yes: the function runs here, as a capture.
+##   AgentsToolsTaskMessagePending <session> <member>   rc 0 where a message addressed to the member waits in the session chat (nothing is consumed)
+##
+
+agentsTaskOut="" agentsTaskRc=0 agentsTaskDetached="no" agentsTaskHandle=""
+
+## This shell's own pid (bash 3.2 has no BASHPID) is the parent of a short-lived child: callSelf="$( exec sh -c 'echo $PPID' )". The capture's own subshell becomes
+## that child, so the call has to be made in the shell whose pid is wanted, never inside a function that opens another capture.
+
+## Sleeps <seconds> in steps of at most 5, and ends early (rc 1) when the process it serves is gone: a helper never outlives what it serves.
+AgentsToolsTaskTick(){ ## seconds, pid served
+	local tickLeft="$1" tickStep
+	while [ "$tickLeft" -gt 0 ] ; do
+		tickStep=5 ; [ "$tickLeft" -ge 5 ] || tickStep="$tickLeft"
+		sleep "$tickStep"
+		tickLeft=$(( tickLeft - tickStep ))
+		kill -0 "$2" 2> /dev/null || return 1
+	done
+	return 0
+}
+
+## rc 0 where a message addressed to the member waits in the session chat. The floor is read and nothing is delivered, so the member's next Wait gets the message.
+AgentsToolsTaskMessagePending(){ ## session, member
+	local pendingText
+	[ -n "$2" ] || return 1
+	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	type AgentsToolsSessionChatWaiting > /dev/null 2>&1 && AgentsToolsSessionChatWaiting "$1" 2> /dev/null || :
+	agentsSessionChatFilter="me"
+	pendingText="$( AgentsToolsSessionChatFloor "$1" "$2" 2> /dev/null )" || pendingText=""
+	agentsSessionChatFilter=""
+	[ -n "$pendingText" ]
+}
+
+## The handle a returned task owns: a link named for it, made exclusively, so no start can take a name a Bash detach holds.
+AgentsToolsTaskClaim(){ ## processes dir, hidden folder name
+	local claimNumber=1
+	while [ "$claimNumber" -le 9999 ] ; do
+		if ln -s "$2/out" "$1/process-$claimNumber.out" 2> /dev/null ; then
+			printf 'process-%s' "$claimNumber"
+			return 0
+		fi
+		claimNumber=$(( claimNumber + 1 ))
+	done
+	return 1
+}
+
+AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
+	local callLabel="$1" callBackground="$2" callTimeout="$3" callAction="$4" callFn="$5"
+	shift 5
+	local callSession callMember callDir="" callRun="" callPid callSelf callTimer="" callMessenger="" callGiven="" callEffective callReason="" callElapsed callStart
+	local callDefault="${MDAT_TOOL_TASK_SECONDS:-300}" callCeiling="${MDAT_TOOL_TASK_CEILING:-3600}" callPoll="${MDAT_TOOL_TASK_POLL:-2}" callRemaining callBegan callHandle callName
+	agentsTaskOut="" agentsTaskRc=0 agentsTaskDetached="no" agentsTaskHandle=""
+	callSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	case "$callSession" in ''|*/*|.|..) callSession="" ;; esac
+	case "$callDefault" in ''|*[!0123456789]*|0) callDefault=300 ;; esac
+	case "$callCeiling" in ''|*[!0123456789]*|0) callCeiling=3600 ;; esac
+	case "$callPoll" in ''|*[!0123456789]*|0) callPoll=2 ;; esac
+	case "$callTimeout" in ''|*[!0123456789]*|0) callTimeout="" ;; *) callGiven="yes" ;; esac
+	case "$callAction" in kill|return) ;; *) callAction="return" ;; esac
+	case "$callBackground" in true|1|yes) callBackground="true" ;; *) callBackground="" ;; esac
+	if [ -n "${MDAT_TOOL_TASK_INNER:-}" ] || [ "${MDAT_TOOL_TASK_OFF:-}" = yes ] || [ -z "$callSession" ] || [ -z "${MMDAPP:-}" ] ; then
+		agentsTaskOut="$( "$callFn" "$@" )" || agentsTaskRc=$?
+		return 0
+	fi
+	callDir="$MMDAPP/.local/agents/sessions/$callSession/processes"
+	if ! mkdir -p "$callDir" 2> /dev/null || ! callRun="$( mktemp -d "$callDir/.run.XXXXXX" 2> /dev/null )" || [ -z "$callRun" ] ; then
+		agentsTaskOut="$( "$callFn" "$@" )" || agentsTaskRc=$?
+		return 0
+	fi
+	callName="${callRun##*/}"
+	: > "$callRun/out" ; : > "$callRun/err"
+	printf '%s' "$callLabel" > "$callRun/cmd"
+	callMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-}}"
+	callStart="$( date +%s )"
+	callSelf="$( exec sh -c 'echo $PPID' )"
+	set -m
+	( set +m
+	  export MDAT_TOOL_TASK_INNER=1
+	  callInnerRc=0
+	  ## In a subshell of its own, as a $( ) capture would be: an exit in the function ends it and not the task's wrapper.
+	  ( "$callFn" "$@" ) > "$callRun/out" 2> "$callRun/err" < /dev/null || callInnerRc=$?
+	  printf '%s\n' "$callInnerRc" > "$callRun/status.tmp" && mv -f "$callRun/status.tmp" "$callRun/status"
+	) > /dev/null 2>&1 3>&- < /dev/null &
+	callPid=$!
+	## The timer and the message watcher wake this shell with a signal, naming the reason in a file first (the first to name one wins).
+	trap ':' USR1
+	if [ -n "$callGiven" ] ; then callEffective="$callTimeout" ; else callEffective="$callDefault" ; fi
+	( set +m ; AgentsToolsTaskTick "$callEffective" "$callSelf" && ( set -C ; printf 'timeout\n' > "$callRun/flag" ) 2> /dev/null && kill -USR1 "$callSelf" 2> /dev/null ) > /dev/null 2>&1 3>&- < /dev/null &
+	callTimer=$!
+	disown "$callTimer" 2> /dev/null || :
+	( set +m
+	  while :; do
+		AgentsToolsTaskTick "$callPoll" "$callSelf" || break
+		if AgentsToolsTaskMessagePending "$callSession" "${callMember:-}" ; then
+			( set -C ; printf 'message\n' > "$callRun/flag" ) 2> /dev/null && kill -USR1 "$callSelf" 2> /dev/null
+			break
+		fi
+	  done ) > /dev/null 2>&1 3>&- < /dev/null &
+	callMessenger=$!
+	disown "$callMessenger" 2> /dev/null || :
+	set +m
+	if [ -n "$callBackground" ] ; then
+		( set -C ; printf 'background\n' > "$callRun/flag" ) 2> /dev/null || :
+	fi
+	while [ ! -f "$callRun/status" ] && [ ! -f "$callRun/flag" ] ; do
+		wait "$callPid" 2> /dev/null || :
+		[ -f "$callRun/status" ] || [ -f "$callRun/flag" ] || kill -0 "$callPid" 2> /dev/null || break
+	done
+	trap - USR1
+	kill -TERM -- "-$callTimer" 2> /dev/null || :
+	kill -TERM -- "-$callMessenger" 2> /dev/null || :
+	kill -TERM "$callTimer" "$callMessenger" 2> /dev/null || :
+	callElapsed=$(( $( date +%s ) - callStart ))
+	if [ -f "$callRun/status" ] ; then
+		## Ended in time: the result is the function's own, and its stderr is said here.
+		read -r agentsTaskRc < "$callRun/status" || agentsTaskRc=0
+		agentsTaskOut="$( cat "$callRun/out" )"
+		[ ! -s "$callRun/err" ] || cat "$callRun/err" >&2
+		rm -rf "$callRun"
+		return 0
+	fi
+	if [ ! -f "$callRun/flag" ] ; then
+		agentsTaskOut="ERROR: $callLabel ended without recording a result, so whether it ran, and what it changed, is unknown. Check its effect before relying on it, then retry."
+		agentsTaskRc=1
+		rm -rf "$callRun"
+		return 0
+	fi
+	read -r callReason < "$callRun/flag" || callReason=""
+	if [ "$callReason" = timeout ] && [ -n "$callGiven" ] && [ "$callAction" = kill ] ; then
+		kill -TERM -- "-$callPid" 2> /dev/null || kill -TERM "$callPid" 2> /dev/null || :
+		callRemaining=0
+		while [ "$callRemaining" -lt 20 ] && { kill -0 -- "-$callPid" 2> /dev/null || kill -0 "$callPid" 2> /dev/null ; } ; do sleep 0.1 ; callRemaining=$(( callRemaining + 1 )) ; done
+		kill -KILL -- "-$callPid" 2> /dev/null || kill -KILL "$callPid" 2> /dev/null || :
+		agentsTaskOut="ERROR: $callLabel was ended at your timeout of ${callTimeout}s (timeout_action kill). What it had written, if anything, follows."$'\n'"$( cat "$callRun/out" )"
+		[ ! -s "$callRun/err" ] || cat "$callRun/err" >&2
+		agentsTaskRc=124
+		rm -rf "$callRun"
+		return 0
+	fi
+	## Returned early, and the task goes on: it becomes a session process the caller can wait on, read and stop.
+	if ! callHandle="$( AgentsToolsTaskClaim "$callDir" "$callName" )" || [ -z "$callHandle" ] ; then
+		agentsTaskOut="ERROR: $callLabel is still running and no handle could be claimed for it, so it is ended. Nothing more is known of what it changed."
+		agentsTaskRc=1
+		kill -TERM -- "-$callPid" 2> /dev/null || kill -TERM "$callPid" 2> /dev/null || :
+		rm -rf "$callRun"
+		return 0
+	fi
+	ln -sf "$callName/err" "$callDir/$callHandle.err"
+	ln -sf "$callName/status" "$callDir/$callHandle.status"
+	ln -sf "$callName/cmd" "$callDir/$callHandle.cmd"
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+	callBegan="$( printf '%s\n' "$callPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" || callBegan=""
+	[ -z "$callBegan" ] || printf '%s\n' "$callBegan" > "$callDir/$callHandle.began"
+	printf '%s\n' "$callPid" > "$callDir/$callHandle.pid"
+	disown "$callPid" 2> /dev/null || :
+	## A task that returned early is ended after the ceiling, counted from its start: a runaway cannot outlive it.
+	callRemaining=$(( callCeiling - callElapsed ))
+	[ "$callRemaining" -ge 1 ] || callRemaining=1
+	set -m
+	( set +m
+	  AgentsToolsTaskTick "$callRemaining" "$callPid" || exit 0
+	  if [ ! -f "$callRun/status" ] && kill -0 "$callPid" 2> /dev/null ; then
+		printf 'ended at the ceiling of %s seconds\n' "$callCeiling" > "$callRun/ceiling"
+		kill -TERM -- "-$callPid" 2> /dev/null || kill -TERM "$callPid" 2> /dev/null || :
+		sleep 2
+		kill -KILL -- "-$callPid" 2> /dev/null || kill -KILL "$callPid" 2> /dev/null || :
+		printf '137\n' > "$callRun/status"
+	  fi ) > /dev/null 2>&1 3>&- < /dev/null &
+	disown "$!" 2> /dev/null || :
+	set +m
+	case "$callReason" in
+		background) callReason="you asked for background" ;;
+		message) callReason="a message for you arrived in the session chat" ;;
+		*) if [ -n "$callGiven" ] ; then callReason="your timeout of ${callTimeout}s passed" ; else callReason="the default of ${callDefault}s passed" ; fi ;;
+	esac
+	agentsTaskHandle="$callHandle"
+	agentsTaskDetached="yes"
+	agentsTaskRc=0
+	agentsTaskOut="TASK-ID=$callHandle"$'\n'"$callLabel is still running as task $callHandle, and this call returned early because $callReason. Nothing has been lost: the task goes on."$'\n'"- Wait sources=process:$callHandle returns when its output grows and when it ends."$'\n'"- TaskOutput handle=$callHandle reads what it wrote so far, or takes the result once it ended."$'\n'"- TaskStop handle=$callHandle cancels it."$'\n'"- Call again with timeout=<seconds> and timeout_action=kill (ends it) or return (this answer) to bound a call."$'\n'"- A task that is still running after ${callCeiling}s is ended."
+	return 0
+}

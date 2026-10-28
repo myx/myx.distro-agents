@@ -87,14 +87,14 @@ rigNeverRead(){ ## result name -- the WAIT-NEVER-READ line, or none
 printf -- '---\ntype: note\nfrom: %s\n---\n\n# Note: scan last\n' "$rigMember" > "$rigD/inboxes/$rigMember/incoming/note-20261022T1800Z-scan-last.md"
 echo "-- 1. a scan named first is read last --"
 rigWait w1 rig-plain-session --wait-source scan:work-duty --wait-source "file:$rigQuiet"
-rigAssert "the scan follows the file"                              "$( rigSources w1 )" "slack:magic-team slack:human-owner file:$rigQuiet scan:work-duty"
+rigAssert "the scan follows the file"                              "$( rigSources w1 )" "file:$rigQuiet dms:$rigMember mentions:$rigMember wake:$rigMember scan:work-duty"
 echo "-- 2. a scan is not begun once something has arrived --"
 rigWait w2 rig-plain-session --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
-rigAssert "the inbox arrival is returned, the scan is not"        "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:inbox:$rigMember:[slack:magic-team] [slack:human-owner] [scan:work-duty]"
+rigAssert "the inbox arrival is returned, the scan is not"        "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:inbox:$rigMember:[scan:work-duty]"
 echo "-- 3. control, nothing else arrived: the scan is read --"
 rm -f "$rigD/inboxes/$rigMember/incoming/note-20261022T1800Z-scan-last.md"
 rigWait w3 rig-plain-session --wait-source scan:work-duty --wait-source "inbox:$rigMember" --wait-since-utime 1
-rigAssert "the scan arrives, nothing is named as never read"      "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:scan:work-duty:[slack:magic-team] [slack:human-owner]"
+rigAssert "the scan arrives, nothing is named as never read"      "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:scan:work-duty:none"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WAIT SCAN LAST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

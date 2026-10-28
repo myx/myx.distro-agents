@@ -477,7 +477,7 @@ rigWaitId(){ ## -> the pending id the last call left to wait on
 }
 rigFieldOf(){ ## pending id, field
 	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' \
-		"$rigScenarioDir/ws/.local/agents/pending/$1.md" 2>/dev/null || printf 'no-record'
+		"$( [ -f "$rigScenarioDir/ws/.local/agents/pending/$1.md" ] && printf '%s' "$rigScenarioDir/ws/.local/agents/pending/$1.md" || printf '%s' "$rigScenarioDir/ws/.local/agents/pending/closed/$1.md" )" 2>/dev/null || printf 'no-record'
 }
 ## The shared thread as it reads once both questions and the first one's update are in it,
 ## then the person's replies: each "<ts suffix>|<text>".

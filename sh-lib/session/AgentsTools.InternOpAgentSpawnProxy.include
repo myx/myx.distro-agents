@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+# ^^^ for syntax checking in the editor only
 ##
 ## AgentsTools.InternOpAgentSpawnProxy.include -- internal spawn-proxy
 ## primitive for agent/routine wrappers. No --help entry.
@@ -1422,7 +1422,7 @@ case "$1" in
 		## records its session and the second finds another's and is refused, so the member never holds two duties. A start that joined the kept
 		## session finds its own id there and goes on.
 		if [ -n "$dutyKeptFile" ] ; then
-			local dutyLockHeld="" dutyRecordedId=""
+			local dutyLockHeld="" dutyRecordedId="" dutyKeptTemp=""
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
 			! AgentsToolsLocalLockTake "work-duty-session-$callerName" 60 || dutyLockHeld="$agentsLocalLockPath"
 			[ -n "$dutyLockHeld" ] || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the lock on the work-duty session of $callerName could not be taken, so two starts at once may each open a session" >&2
@@ -1433,7 +1433,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			if [ -z "$dutyRecordedId" ] ; then
-				{ mkdir -p "${dutyKeptFile%/*}" && printf '%s\n' "$sessionId" > "$dutyKeptFile.$$.tmp" && mv -f "$dutyKeptFile.$$.tmp" "$dutyKeptFile" ; } 2> /dev/null \
+				{ mkdir -p "${dutyKeptFile%/*}" && dutyKeptTemp="$( mktemp "$dutyKeptFile.XXXXXX" )" && printf '%s\n' "$sessionId" > "$dutyKeptTemp" && mv -f "$dutyKeptTemp" "$dutyKeptFile" ; } 2> /dev/null \
 					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the work-duty session $sessionId of $callerName could not be recorded" >&2
 			fi
 			[ -z "$dutyLockHeld" ] || AgentsToolsLocalLockGive "$dutyLockHeld"

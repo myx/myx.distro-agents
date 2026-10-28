@@ -225,6 +225,13 @@ def askPresetNew(state, row):
 CLI_FORM_OPENERS = {}
 
 
+## A form a part adds to the choices of a new preset: its name, the words that offer it, and the function that opens it.
+def registerCliForm(name, label, opener):
+    global CLI_FORMS
+    CLI_FORMS = CLI_FORMS + ((name, label),)
+    CLI_FORM_OPENERS[name] = opener
+
+
 def submitPresetForm(state, dialog, button):
     form = dialogValue(dialog, "form")
     closeDialog(state)

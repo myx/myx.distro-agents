@@ -207,7 +207,11 @@ show M
 ## Reconciled for the removal of Pending Questions from Magic-Team (it is a root alone now): the sections
 ## are `.. activity launch team teamdata routines`, so the sessions are the first section after the row
 ## that goes up, and the members are two steps on from there
-keys ENTER DOWN
+keys ENTER
+wait focus 5
+	wait view 5
+show X
+keys DOWN
 wait sessions 5
 show S
 ## R3 put Launchpad between Activity and Team Members, so the members are one step further on
@@ -241,6 +245,9 @@ wait focus 5
 show F
 get end
 RIGSCRIPT
+rigMagicRows="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^X|│ \([^│║]*[^ │║]\) *│║.*/\1/p' )"
+rigAssert "Magic-Team: no section it holds has a dash in its WHAT column" "$( printf '%s\n' "$rigMagicRows" | LC_ALL=C grep -c -E '^(Activity|Launchpad|Team Members|Routines|Schedule) +-$' || : )" "0"
+rigAssert "and Launchpad, Routines and Schedule each say what they hold" "$( printf '%s\n' "$rigMagicRows" | LC_ALL=C grep -c -E '^(Launchpad|Routines|Schedule) +[a-z]' || : )" "3"
 rigAssert "the sessions: every session as a table, nothing above it, its state with the mark of a control thread that is gone, its agents, tokens and members" "$( rigLeft S )" " SESSION             STATE     AGE AGENTS TOKENS MEMBERS /  daily of Monday     running   -   3      57.1M  magic-coordinator, keeper-myx /  review of the board x waiting -   1      1K+    magic-architect /  s-open              unclosed  -   0      0      - /  old work            finished  -   2      900    - /  older work          finished  -   1      100    -"
 rigAssert "the asks: every ask as a table, nothing above it, with how long it waits, its kind, who asks whom and the question" "$( rigLeft Q )" "    AGE KIND  FROM         TO               QUESTION /  ❓ 10m ques… keeper-myx   human-owner      Which of the two layouts stays? /  ❓ 2h  ques… keeper-acm   magic-           Who owns the template of the report? /                            coordinator /     3d  appr… magic-devops human-owner      May the old volume be removed now that /                                             the copy is proven on the second host?"
 rigAssert "the members: their table alone, numbered, and no line of a summary" "$( rigLeft T )" "$( printf ' %s  %-17s  %-7s  %-8s  %-6s  %s / ' '#' MEMBER RUN STATUS KIND WHERE 1 magic-coordinator running active lead - 2 keeper-myx - active keeper - 3 human-owner - ref-only human - 4 far-member - active keeper - | LC_ALL=C sed 's| / $||' )"

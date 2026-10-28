@@ -82,10 +82,16 @@ function formFault(formWord, formArg, valueIn,   misfit, enumParts, enumN, idx, 
 	}
 	if (formWord == "reviewer") return (valueIn ~ /^[A-Za-z0-9][A-Za-z0-9._:-]*$/ ? "" : "is not a reviewer (a member, a session, <session-id>:<member>, a routine, none)") ;
 	if (formWord == "approval-ref") return (valueIn ~ /^[A-Za-z][A-Za-z0-9_-]* \([^,()]+, [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9](\.[0-9]+)?Z\)$/ ? "" : "is not <member> (<session-id>, <iso-utc>)") ;
-	if (formWord == "allows-set") {
+	if (formWord == "item-access-rows") {
 		entryN = split(valueIn, entries, ",") ;
 		for (entryIdx = 1 ; entryIdx <= entryN ; entryIdx++) {
-			if (trimText(entries[entryIdx]) !~ /^(session|task):[^:]*:[^:]*:[^:]*:[0-9]+T[0-9]+Z$/) { faultDetail = trimText(entries[entryIdx]) ; return "has an entry that is not session|task:<tool>:<target>:<granted-by>:<stamp>" ; }
+			rowText = trimText(entries[entryIdx]) ;
+			rowParts = split(rowText, rowField, ":") ;
+			rowOk = (rowField[1] == "participants" && rowField[rowParts] ~ /^[0-9]+T[0-9]+Z$/ && rowField[rowParts - 1] != "") ;
+			if (rowOk && (rowField[2] == "allow-read" || rowField[2] == "allow-write")) rowOk = (rowParts == 5 && rowField[3] != "") ;
+			else if (rowOk && rowField[2] == "allow-tool") rowOk = (rowParts == 6 && rowField[3] != "" && rowField[4] != "") ;
+			else rowOk = 0 ;
+			if (!rowOk) { faultDetail = rowText ; return "has a row that is not participants:<verb>:<value>:<granted-by>:<stamp>" ; }
 		}
 		return "" ;
 	}
@@ -99,6 +105,19 @@ function formFault(formWord, formArg, valueIn,   misfit, enumParts, enumN, idx, 
 		enumN = split(formArg, enumParts, /[ ,|]+/) ; hit = 0 ;
 		for (idx = 1 ; idx <= enumN ; idx++) { if (enumParts[idx] != "" && enumParts[idx] == valueIn) hit = 1 ; }
 		return (hit ? "" : "is not one of " formArg) ;
+	}
+	if (formWord == "routine") {
+		## A routine of the skillset, by its file name (<owner>.<name>.routine.md) or as the review-by key writes it (<name>.routine, or <owner>.<name>.routine):
+		## DOC_ROUTINES holds the file names of the routines there are (the include lists them), so a name no routine has is refused.
+		if (valueIn !~ /^[A-Za-z0-9][A-Za-z0-9._-]*[.]routine([.]md)?$/) return "is not a routine (<name>.routine or <name>.routine.md)" ;
+		if (ENVIRON["DOC_ROUTINES"] == "") return "" ;
+		routineWant = (valueIn ~ /[.]md$/ ? valueIn : valueIn ".md") ;
+		routineN = split(ENVIRON["DOC_ROUTINES"], routineNames, " ") ;
+		for (routineIdx = 1 ; routineIdx <= routineN ; routineIdx++) {
+			if (routineNames[routineIdx] == routineWant) return "" ;
+			if (length(routineNames[routineIdx]) > length(routineWant) && substr(routineNames[routineIdx], length(routineNames[routineIdx]) - length(routineWant)) == "." routineWant) return "" ;
+		}
+		return "is not a routine of the skillset" ;
 	}
 	if (formWord == "audit-path") return "" ;
 	return "has a value form this reader does not know: " formWord ;
@@ -192,7 +211,7 @@ END {
 			if (keyName in docHas) {
 				partN = split(docVal[keyName], parts, ",") ;
 				for (partIdx = 1 ; partIdx <= partN ; partIdx++) {
-					if (trimText(parts[partIdx]) ~ /^(project|task|change|idea|proposal|interview|approval|dispatch|warning)-/) {
+					if (trimText(parts[partIdx]) ~ /^(project|task|change|idea|proposal|interview|investigation|approval|dispatch|warning)-/) {
 						emitRow(docLine[keyName], "contract-references", "the key " keyName " names a board item", trimText(parts[partIdx])) ;
 					}
 				}

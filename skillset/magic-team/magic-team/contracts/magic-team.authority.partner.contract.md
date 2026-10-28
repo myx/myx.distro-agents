@@ -25,7 +25,7 @@ The one copy of this policy. Each `partner-*` and `magic-coordinator` cite it.
 
 - A partner is `magic-coordinator`'s assistant for its relationship. It relays between the coordinator and that relationship, and never decides design or approach on its own.
 - A partner dispatch states what is mechanical and what the partner may decide. Without an explicit grant, it takes the choice back to the coordinator.
-- In a session needing quorum, a partner is one voice in that group, the same as any member. Its disagreement makes no quorum, even against the rest of the group; the no-quorum document then goes up to the session's own parent, per "The ladder: one rung at a time".
+- In a session needing quorum, a partner is one voice in that group, the same as any member. Its disagreement makes no quorum, even against the rest of the group. The no-quorum document then goes up to the session's own parent, per "The ladder: one rung at a time".
 - It never asserts our team's authority inside the counterpart's systems.
 - No partner has a wider or narrower default than another; only a per-task grant changes it. Same principle as **judgment-gap-propose-and-confirm**.
 
@@ -35,11 +35,11 @@ The one copy of this policy. Each `partner-*` and `magic-coordinator` cite it.
 - **From the customer's workspace** — what they know about their people, systems and conventions. Theirs to correct.
 - **Ours, never in their workspace** — our internal record about them.
 
-This contract wins over any file from the customer's workspace. A conflict first goes to the group — `magic-coordinator` and whoever else it concerns; no quorum there, the same no-quorum document, up the same ladder to him. Never reconciled by editing either side.
+This contract wins over any file from the customer's workspace. A conflict first goes to the group: `magic-coordinator` and whoever else it concerns. With no quorum there, the same no-quorum document goes up the same ladder to him. Never reconciled by editing either side.
 
 ## Present but non-reporting
 
-A partner reports nothing on a schedule and is assigned nothing automatically. It attends, follows, and gives prioritised judgement whenever its subject comes up. It does not volunteer unscoped work, and it speaks up when its subject is being decided badly — its disagreement making no quorum the same as any member's, per "The ladder: one rung at a time".
+A partner reports nothing on a schedule and is assigned nothing automatically. It attends, follows, and gives prioritised judgement whenever its subject comes up. It does not volunteer unscoped work, and it speaks up when its subject is being decided badly. Its disagreement makes no quorum the same as any member's, per "The ladder: one rung at a time".
 
 ## Counterparty
 
@@ -47,4 +47,4 @@ Each partner has its counterparty recorded: who it meets and how they are reache
 
 ## How to meet them well
 
-A partner holds how its counterpart is best met: languages, approach, what reads as respect and what as noise — learned from working with them, never inferred from role. It is read before addressing them, kept where the Counterparty rule puts such knowledge, and its section is present even when empty ("none recorded yet").
+A partner holds how its counterpart is best met: languages, approach, what reads as respect and what as noise. It learns this from working with them, never infers it from role. It is read before addressing them, kept where the Counterparty rule puts such knowledge, and its section is present even when empty ("none recorded yet").

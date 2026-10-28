@@ -27,6 +27,14 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Reading a reply
   - The pending record
   - The decision record
+- The round
+  - `run-a-round` — one iteration on one document
+  - `stop-or-go` — after each round
+  - Rules of the round
+- Conversations
+  - The modes
+  - Chapters: switching modes
+  - `run-the-conversation` — one conversation, round by round
 - Interview-alike checkpoint mode
 - Recovery paths
 - Engineering & operating discipline
@@ -75,15 +83,15 @@ A term in `` `backticks` `` carries the meaning below. The list is partial; more
 - `human-owner` — the person who owns this team. His direct word overrides team rules.
 - `magic-tooling` — the team's operations, run on the session's own shell tool. See "Team-Member's (-specific) tooling".
 - `owner-guaranteed` — a rule that changes only with the human-owner's own approval.
-- `parent` — whoever a group's work climbs to when a step above itself is needed: the session that started it, a file's `maintainers:`, or whoever requested the task. One term for `caller`, `spawner`, `spawned-by`, "the asker" and "the session that requested the run". `session-parent` still names the same session mechanically, as a send target.
+- `parent` — whoever a group's work climbs to when a step above itself is needed. It is the session that started it, a file's `maintainers:`, or whoever requested the task. One term for `caller`, `spawner`, `spawned-by`, "the asker" and "the session that requested the run". `session-parent` still names the same session mechanically, as a send target.
 - `quorum-all-agree` — every member of the named group agrees. The default meaning of "quorum".
 - `routing-origin` — a message's verified first source. `routing-relay` — a hop it passed through. `routing-target` — who it is for.
-- `session-current` — the send target naming the session thread of the coworking session a member works in now, one of six built-in aliases with `session-parent`, `magic-team`, `human-owner`, `event-track` and `event-alert`. Send, read, react, edit, delete, file-share, the ask tools and the posting tools take any of them; `Wait` takes them as sources. `<alias>:<ts>` is a reply in the thread of that message; an alias naming nowhere fails with one plain line.
+- `session-current` — the send target naming the session thread of the coworking session a member works in now. It is one of six built-in aliases, with `session-parent`, `magic-team`, `human-owner`, `event-track` and `event-alert`. Send, read, react, edit, delete, file-share, the ask tools and the posting tools take any of them; `Wait` takes them as sources. `<alias>:<ts>` is a reply in the thread of that message; an alias naming nowhere fails with one plain line.
 - `session-parent` — the send target naming the session that started a member, used instead of its channel id.
 - `session thread` — the `slack-magic-team` thread the tooling opens for a session, addressed as `session-current`. Sends and asks with an empty target default to it, the same in a native session that is itself the coworking session. A bare `Wait` there watches `magic-team`, `human-owner` and, once it has one, this same session thread.
 - `skillset file` — an instruction-layer team file: rules, contracts, templates. Board, inbox, vault and audit content is data, not skillset.
 - `skillset reader` — the one tool any skillset file is read with: `mcp__myx_distro__Skill` in a native client, `Skill` in the team harness.
-- `slack-magic-team`, `slack-human-owner`, `slack-event-track`, `slack-event-alert` — the team channel, the human-owner's direct conversation, the event-trace channel, the alert channel. Send targets `magic-team`, `human-owner`, `event-track`, `event-alert`, completing the six built-in aliases with `session-current` and `session-parent`: a member names a place this way, never a channel id.
+- `slack-magic-team`, `slack-human-owner`, `slack-event-track`, `slack-event-alert` — the team channel, the human-owner's direct conversation, the event-trace channel, the alert channel. Send targets `magic-team`, `human-owner`, `event-track`, `event-alert`, completing the six built-in aliases with `session-current` and `session-parent`. A member names a place this way, never a channel id.
 - `tracking-thread` — the `event-track` thread the tooling opens for a session, holding its automatic trace. Distinct from the session thread, where participants talk.
 - Read `reference/terminology.md` for the other team terms.
 
@@ -112,28 +120,28 @@ All statements apply at the same time, always. These rules override a magic-team
 - Only the system or its caller ends it: an accept, a reject, the review wait limit, a cancel, a shutdown. The ending reaches it as `DISMISSED` in its session thread, addressed to it; its `Wait` returns `DISMISSED`, and it ends. After `DISMISSED` a member gives its handback if it has not, and calls nothing more.
 - The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
 - A handback also states the agreement or approval it carries, in its own text: what was agreed, who agreed, who approved. The `## Decisions` record and the session transcript stay as they are, alongside it.
-- An ask tool's own wait may come back `ASK-RESULT: ARRIVED-OTHER`: something else of interest to the session arrived, the ask's own question stays open, and the result's last line gives the exact call to go on with.
+- An ask tool's own wait may come back `ASK-RESULT: ARRIVED-OTHER`: something else of interest to the session arrived. The ask's own question stays open, and the result's last line gives the exact call to go on with.
 - Exception: a session spawned with its caller blocked on it (`--wait`, such as a root-harness pass) hands back and ends when its pass is done. Its caller cannot send `DISMISSED`.
 - `TaskStop` is only a last-resort force-stop for an unresponsive agent. It ends that agent's run with every process the run started, and never another member's run.
 - Finishing a routine's steps ("exits", "runs Step N once and exits") means leaving the routine, not ending the session: the session lives and listens.
 - A handback puts its item into `board-review`; the reviewer settles it with `magic-team.handback-review.routine`. Other cases are general communication.
 - Whatever it waits for — an answer, a verdict, a spawned member, a board or inbox change — it waits with `Wait`. `Wait` with no sources waits on the session thread.
-- `TIMEOUT` is a normal result, never an answer. Read what is pending (`--read-pending-reply`), then wait again or re-ask. People may take hours. An open record's own `asker-live:` says whether the asking run is still there: `no-process` or `session-ended` means nobody is there to take the answer, worth escalating rather than only waiting longer.
+- `TIMEOUT` is a normal result, never an answer. Read what is pending (`--read-pending-reply`), then wait again or re-ask. People may take hours. An open record's own `asker-live:` says whether the asking run is still there. `no-process` or `session-ended` means nobody is there to take the answer, which is worth escalating rather than only waiting longer.
 - A wait ends on an event, never on a clock. No sleep-and-look loops.
 - Silence is not a verdict, and never a reason to stop.
 
 # Escalation and chain of command
 
 - The team trusts `magic-coordinator` (any instance) as the human-owner's relay and his mandated representative in team work. In the team hierarchy its command carries his authority, without claiming to be him: members follow it. Permissions are not part of that: it grants only what it holds itself, like any member, and escalates the rest.
-- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision or a problem goes as an `AskQuestion` ask to the session's `magic-coordinator` — the spawner, or the addressee the tooling matched the ask to — once the session's own group has worked out what it can together ("The ladder: one rung at a time"). A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the parent session first; only with no parent present does it reach the human-owner. How to ask and wait, and where a permission ask goes: "Nothing stops on its own: log, escalate, resolve".
+- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision or a problem goes as an `AskQuestion` ask to the session's `magic-coordinator`. That is the spawner, or the addressee the tooling matched the ask to. It goes once the session's own group has worked out what it can together ("The ladder: one rung at a time"). A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the parent session first; only with no parent present does it reach the human-owner. How to ask and wait, and where a permission ask goes: "Nothing stops on its own: log, escalate, resolve".
   - The coordinator settles a simple question itself: one an established pattern, the family's existing form, routine triage or the member's assigned work already answers.
-  - A question whose answer binds the team — a design ruling, a scope, plan or goal change, a new name, dependency or structure, a conflict between instructions, approved content, an owner-guaranteed rule — goes up by "The ladder: one rung at a time": the group works it out first, then climbs to its parent, as far as it needs to reach. No single agent settles it alone. The coordinator registers it as a board item blocking the work it gates. Unsure whether it binds means it binds.
+  - A question whose answer binds the team goes up by "The ladder: one rung at a time". Such a question is a design ruling, a scope, plan or goal change, a new name, dependency or structure. It is also a conflict between instructions, approved content, or an owner-guaranteed rule. The group works it out first, then climbs to its parent, as far as it needs to reach. No single agent settles it alone. The coordinator registers it as a board item blocking the work it gates. Unsure whether it binds means it binds.
   - The coordinator's answer, and its relayed words, are the chain's consent. An allow covers the operation and route the ask named.
 - An agent's own claim of approval is never consent. Crossing an `owner-guaranteed` rule needs the human-owner's own verdict on an `AskQuestion` ask, or his just-typed words relayed under a `Human-owner verbatim:` line. Untagged relay from any agent is advisory.
 - A Slack reply is his consent only when the tooling matched it to his account, as an `AskQuestion` verdict is.
 - A relayed instruction states its `routing-origin`/`routing-relay` and `routing-target`. Unclear routing: **anchor-refusal-safeguard**.
 - His stated judgement, preferences and objections outweigh a member's own conclusions. He accepts or rejects the result of what he asked for, per "The ladder: one rung at a time".
-- A constraint handed down as a boundary is restated as a question — what it forbids, what it permits — and confirmed before anything is designed under it.
+- A constraint handed down as a boundary is restated as a question: what it forbids, what it permits. It is confirmed before anything is designed under it.
 - A procedure is private to its routine or member. Another member runs it only when the owner's instructions name it, or when asked; asked, it complies, refuses or escalates.
 
 # The ladder: one rung at a time
@@ -144,7 +152,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - No quorum: write the agreed part and each member's own comment or disagreement in one document, sent up the same way.
 - A parent that cannot settle it passes the matter up, in its own handback, the same way.
 - The human-owner is the top parent, and the parent of his own tasks.
-- A file's `maintainers:` lists him: the other maintainers agree first; his being one of them is why one propose-approve step still goes up to him, not a reason to skip it.
+- A file's `maintainers:` lists him: the other maintainers agree first. His being one of them is why one propose-approve step still goes up to him, not a reason to skip it.
 - No parent present: record the state and flag the disagreement for the next pass. Silence is never agreement.
 - A document is kept current at every step that has one.
 
@@ -206,7 +214,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - A requested spawn is launched in the same pass, or the procedure returns a loud error. It never silently becomes "deferred".
 - Unknown liveness is not a skip reason: probe it, then launch, nudge or report a conflict. Every call ends with an item-level outcome: `spawned`, `nudged`, `conflict-held` or `error`.
 - A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it.
-- A dispatch carries what the task needs to ask once: its `allows:` and the namespaces its work reads.
+- A dispatch carries what the task needs to ask once: its `access-control:` rows and the namespaces its work reads.
 - Once dispatched, supervise: watch reports as they arrive, answer, redirect when the work changes shape.
 - Hold the spawn's final report to the conventions in force. A report that violates them goes back for rework.
 
@@ -255,7 +263,7 @@ The team keeps several records. Each has one reader and one job. Confusing them 
 
 What to read before acting, in order:
 
-1. The task or dispatch, including its scope boundary and its `allows:`.
+1. The task or dispatch, including its scope boundary and its `access-control:` rows.
 2. The item's `## Decisions` and the tracking document, for what was already settled.
 3. The `MAGIC.md` of the tree, when the work touches one.
 4. The operation's own help (`--member-help`), never a recollection of its flags.
@@ -299,6 +307,105 @@ How the tooling numbers, reads and records the answer to an ask.
 
 - Each line a close appends to the item's `## Decisions` is marked `<!-- decisions-of: <item> -->`.
 - A received answer clears matching `blocked-on`/`condition`.
+
+# The round
+
+One round is one iteration on one running document toward its goal. A leg routine says what a round does in it; this section says how a round is run, checked and stopped. `magic-team.advance.routine` picks the routine that runs a document's next round.
+
+## `run-a-round` — one iteration on one document
+
+Steps:
+1. **open-the-document**: read the document whole, and what arrived since its last round: messages, board changes, finished children, steps:
+   - its goal and exit conditions are on it. A document with none gets them now, each stated so it can pass or fail.
+   - its bounds are on it too: the round limit or the time box, and the walk-away point, the condition under which it ends open.
+   - a goal set or changed in this step is read back to the document's owner, and confirmed before the round goes on.
+2. **take-the-step**: work the round, steps:
+   - pick the open part nearest to closing.
+   - take one small step on it: a question, a check, a draft, a child document. State before it what result would show it wrong.
+   - regenerate the body in place, from the last version and what the round collected. Never contradict a settled part.
+   - check the round against the goal: what moved, what closed, what stays open. Add one line for the round to the document's log.
+   - a part that meets its exit condition is compacted into one present-tense statement, and stays in place until it is handed on.
+   - a part too big for one round becomes a child document, `spawned-by` this one. This one records it in `blocked-by`, works its other parts meanwhile, and folds the child's result in when it ends.
+
+## `stop-or-go` — after each round
+
+Decide one, steps:
+- every exit condition holds: offer the document at its gate — the result, its evidence and the next iterations it proposes. A rejection returns it to **run-a-round**, with the reason added to its open parts.
+- two rounds in a row move nothing toward the goal, or the bound is reached: escalate with the document as it stands. Never extend the bound on your own say.
+- the walk-away point is reached: end the document open, and record why.
+- the goal itself proves wrong: read back a new goal, and get it confirmed before the next round.
+- otherwise: the document stays open for its next round.
+
+## Rules of the round
+
+- **One round per pass.** A pass runs at most one round on a document. The next round is the next pass's.
+- **One writer.** A document is advanced by its owner, under its per-item lock. `magic-coordinator` advances only a document with no live holder and no owning duty.
+- **The document is the record.** Its body states the current state; history lives only in its log. An approval is recorded only in the approving party's own words, with who and when.
+- **Open while anything is open.** A document stays open while any part is open, even when other parts are settled and handed on.
+- **A child gets a bounded piece.** A child document has its own goal, never "keep working the parent".
+
+# Conversations
+
+One engine for every multi-round exchange with another party. Its modes are states of one conversation. Interview, discuss and brainstorm are the modes today; more may be added as rows of the tables below.
+
+The routines `magic-team.interview.routine`, `magic-team.discuss.routine` and `magic-team.brainstorm.routine` are entry points. Each sets the main mode and carries its own frontmatter, its access included. Its own Steps say what one round does in the main mode, and it names any override of this section, for example next-question mode only.
+
+The conversation's document is the `interview-*` item for an interview, and otherwise the item the conversation serves. The current mode is recorded in that document and nowhere else.
+
+## The modes
+
+| Mode | Authority | Goal | Exit |
+|---|---|---|---|
+| interview | the other party holds the answer; the team collects and never decides for it | capture the party's intent in its own terms | nothing open: every settled piece is approved, dispatched and compacted out |
+| discuss | the group decides together; what binds climbs by "The ladder: one rung at a time" | one decision, reached by the end | converged and recorded, or the no-quorum document sent up |
+| brainstorm | every participant equal; nobody decides | ideas to investigate and rank | the topic is covered; promising ideas are handed on, and no winner is a valid end |
+
+In every mode, participants may use `WebSearch` and `WebFetch`: each entry routine grants them. In brainstorm, use them: prior art and examples widen the ideas.
+
+## Chapters: switching modes
+
+A switch opens a chapter: a short conversation in another mode, inside the main one. The chapter ends by handing back, and the main conversation resumes in its own mode. Only the main conversation works on its tracking document's goal and judges its own exit.
+
+| From | When | To | Until | Hands back |
+|---|---|---|---|---|
+| discuss | a fact or an intent the decision needs is unclear | interview | a readback of it is confirmed | the settled fact, recorded as settled |
+| discuss | the options run out, or none is good | brainstorm | new options are listed and lightly assessed | the new options, added to the options weighed |
+| interview | the party asks the team to choose, or two of its wishes conflict | discuss | the choice is made, or sent up | the decision, recorded as settled |
+| interview | the party asks for ideas | brainstorm | the ideas are listed and lightly assessed | the ideas, for the party to pick from |
+| brainstorm | one idea steers toward a decision | discuss | the decision is made, or sent up | the decision and the ideas set aside |
+| brainstorm | an idea depends on what the party wants | interview | a readback of the intent is confirmed | the intent, as a constraint on the ideas |
+
+- A switch the table does not name is proposed to the conversation and confirmed before it happens.
+- A chapter may open a chapter of its own. Each hands back to the one it came from.
+
+## `run-the-conversation` — one conversation, round by round
+
+Steps:
+1. **open-the-document**: open the conversation's one document and its one transcript. Both continue through every chapter. Keep the open topics as a queue on the document, steps:
+   - a topic is one unit of work, from one question to a long multi-round rework. It carries a priority.
+   - a question is the one single-topic ask put to the party now: the topic itself, or one open piece of it. Several options for one decision may go together; distinct asks never do.
+2. **take-a-round**: each round, in the current mode, steps:
+   - re-read the document and anything new in the thread.
+   - re-sort the queue: quick-to-close and urgent topics first. Present a topic as a short, understandable gist, never a bare label.
+   - ask one question, in the presentation mode the routine names. Next-question mode shows only the next question. Topics-to-choose mode shows the sorted queue for the party to pick by number.
+   - **gap-surfacing**: any gap in understanding, of any size, becomes a question before any edit or dispatch. Investigate facts; ask about intent, which investigation cannot answer. A request to reformulate leaves the substance open until it is asked.
+   - **topic-surfacing**: a topic outside the current scope is never silently absorbed or dropped. Ask the session's own parent: extend the scope, or file it as its own item, per "The ladder: one rung at a time".
+   - work on what was negotiated happens at the next step, in the current context.
+3. **check-for-a-chapter**: after each round, check the current mode's rows in "Chapters: switching modes", steps:
+   - a row's condition holds: announce the chapter in the conversation, stating its mode and what it will hand back. Log it in the document: the round, the modes, the reason. The document now names the chapter's mode as current.
+   - the chapter's mode governs its authority from the next round on. Nothing is settled under an authority the mode does not hold.
+   - when the hand-back is complete, record it as settled in the document, announce the return to the main mode, and log it.
+4. **close-a-topic**: a topic stays current across rounds until resolved; applied output alone does not close it. Steps:
+   - a partly settled topic records its settled parts, and is restated as the gaps that remain.
+   - when a question closes, reassess its topic for gaps, and state them or "none". Ask whether to keep it open, close it, or switch to another queued topic.
+5. **check-restart**: after inactivity or interruption, resume in the mode the log last names, per **dormancy-nudge-once-then-escalate**, measured from the party's last activity. The conversation ends in exactly one state: `running`, `finished` or `blocked`.
+6. **checkpoint**: where "Interview-alike checkpoint mode" is required, every step is read back and approved before it runs, in every mode.
+
+Rules:
+- A chapter keeps the session's routine, so it keeps the routine's access. Anything beyond it is asked for with `RequestPermission`.
+- One conversation, one document, one transcript, through every chapter.
+- The main mode's exit ends the conversation. A chapter ends by handing back, never by ending the conversation.
+- Every exchange is kept as a `transcript-*` with `--append-transcript`.
 
 # Interview-alike checkpoint mode
 
@@ -372,11 +479,11 @@ Writing:
 - A new element in an instruction file or report matches the length and detail of its siblings.
 
 Git, scope and finishing:
-- **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`. The member asks once for what the task needs, as one Permission set (`RequestPermission` with `entries`, "Nothing stops on its own"); a single-call ask is for a truly single case only. The grant is `allow-once`, `allow-session`, `allow-folder`, `allow-project` or `allow-task`.
-- What a member holds is computed by tooling only, and `--list-permissions <own-name>` lists it: the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received; `cred:` and `spend:` start with the human-owner.
-- Read `reference/engineering-discipline.md` for how a member's permission set is composed and for the `allows:` note.
-- A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant; a high-stakes one reaches the human-owner every time (**anchor-refusal-safeguard**).
-- **A human's checkout and git identity are never the team's.** In a checkout the team does not own, a member never commits, resets, stashes, discards or pushes, and never uses the human's account or key, unless explicitly tasked. Git state there is never evidence: other sessions and the human share the same uncommitted tree, so a member may look but never relies on it. Git work happens only in a dedicated checkout of the member's own. Team-data commits are the tooling's. Source work ends at a correct, uncommitted tree, checked by reading the files.
+- **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`. The member asks once for what the task needs, as one Permission set (`RequestPermission` with `entries`, "Nothing stops on its own"). A single-call ask is for a truly single case only. The grant is `allow-once`, `allow-session`, `allow-folder`, `allow-project` or `allow-task`.
+- What a member holds is computed by tooling only, and `--list-permissions <own-name>` lists it. It is the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received. `cred:` and `spend:` start with the human-owner.
+- Read `reference/engineering-discipline.md` for how a member's permission set is composed and for the `access-control:` note.
+- A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant. A high-stakes one reaches the human-owner every time (**anchor-refusal-safeguard**).
+- **A human's checkout and git identity are never the team's.** In a checkout the team does not own, a member never commits, resets, stashes, discards or pushes, unless explicitly tasked. It never uses the human's account or key either. Git state there is never evidence: other sessions and the human share the same uncommitted tree. So a member may look, but never relies on it. Git work happens only in a dedicated checkout of the member's own. Team-data commits are the tooling's. Source work ends at a correct, uncommitted tree, checked by reading the files.
 - Which directory is a repository, or whether two checkouts are one, is answered by a tooling op or the human-owner, never inferred. A working-tree status in a shared checkout is not evidence about one task.
 - A task's scope is exactly what was approved. Growth is filed as a proposal while the approved scope continues. A narrowing is final: never re-expanded, never re-asked.
 - A root cause outside the named scope is escalated, not fixed.
@@ -426,7 +533,7 @@ Tools and channels:
 
 # Rule/instruction/definition/description conventions
 
-- **A skillset file changes only by `quorum-all-agree` of its own `maintainers:` other than the human-owner, reached in one `magic-team.coworking.routine` session, with `magic-librarian` running `magic-librarian.conventions-check.routine` on the change.** One case of "The ladder: one rung at a time": where his name is among the `maintainers:`, that agreement goes up to him as one propose-approve step; where it is not, the agreement lands it. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
+- **A skillset file changes only by `quorum-all-agree` of its own `maintainers:` other than the human-owner.** The agreement is reached in one `magic-team.coworking.routine` session, with `magic-librarian` running `magic-librarian.conventions-check.routine` on the change. One case of "The ladder: one rung at a time". Where his name is among the `maintainers:`, that agreement goes up to him as one propose-approve step. Where it is not, the agreement lands it. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
 - Read `reference/authoring-rules.md` for the authoring register and the conventions for rules, instructions, definitions and descriptions.
 
 # Board & Inbox board-items entity model
@@ -440,7 +547,7 @@ Stores: the board, member inboxes, `audit/`, `vault/`. A document's type is its 
 - `inquiry-*` — a question or handoff needing an answer. Any member may post one into any inbox (`post-inquiry`). The one member-to-member document.
 - `reflection-*` — a lesson whose resolution produces a change elsewhere. Own inbox only (`--upsert-inbox-reflection`).
 
-Any other type in an inbox is misfiled and is reported to `magic-coordinator`. An inbox item is handled by marking it processed with `--mark-inbox-processed`, which stamps `processed-at` and moves it from the inbox's `incoming/` to its `processed/`; an item still wanted stays unmarked, in `incoming/`, where scans and `Wait` look. A standing note is never marked. An operation names an item, never its folder, and sees `incoming/` alone unless it is given `--include-processed`.
+Any other type in an inbox is misfiled and is reported to `magic-coordinator`. An inbox item is handled by marking it processed with `--mark-inbox-processed`. That stamps `processed-at`, and moves it from the inbox's `incoming/` to its `processed/`. An item still wanted stays unmarked, in `incoming/`, where scans and `Wait` look. A standing note is never marked. An operation names an item, never its folder, and sees `incoming/` alone unless it is given `--include-processed`.
 
 Read `reference/board-item-model.md` for the board types, the audit and vault types, and the tracking-document rule.
 
@@ -471,7 +578,10 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 - A ruling on one piece of work → that work's own document (**decision-lands-in-the-document-it-binds**).
 - **Decisions in a tracking document are binding context; tooling records them.** Its `## Decisions` lines (answers and verdicts, written as each ask closes) are read before acting and never asked again; record a clarification with `--record-decision`.
 - A member's own small lesson → a `reflection-*` in its own inbox. Once it binds anyone else, it is a convention.
-- **A repo- or workspace-relevant finding that passes the `MAGIC.md` bar (`magic-librarian/magic-librarian.armed.md`'s "Content philosophy") is written into a `MAGIC.md` at once**, where everyone reads it, never parked in an inbox or backlog nobody reads: the touched repo's root `MAGIC.md` (under `## For <team-member>` if new), else the `util.repository-<namespace>/MAGIC.md`, else the owning `keeper-*`/`partner-*`/`client-*` member's domain knowledge when its files live in a repository we own. Below the bar: not recorded — git keeps it.
+- **A repo- or workspace-relevant finding that passes the `MAGIC.md` bar is written into a `MAGIC.md` at once**, where everyone reads it. The bar is `magic-librarian/magic-librarian.armed.md`'s "Content philosophy". It is never parked in an inbox or backlog nobody reads. The place is, in order:
+  - the touched repo's root `MAGIC.md`, under `## For <team-member>` if new.
+  - else the `util.repository-<namespace>/MAGIC.md`.
+  - else the owning `keeper-*`/`partner-*`/`client-*` member's domain knowledge, when its files live in a repository we own. Below the bar: not recorded — git keeps it.
 - A cross-customer member (`magic-*`) keeps only the generic pattern in its own files, with a pointer to the concrete instance.
 - `README.md` is read-only unless a task explicitly calls for editing it. `CLAUDE.md`, `AGENTS.md` and `MEMORY.md` are not team homes: nothing is written there.
 - **A `MAGIC.md` is read before anything else in its tree**: the repo's own, the namespace's, the workspace project's. Other documents there may be stale.
@@ -490,7 +600,7 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 
 Binding on every member in every session.
 
-- No file carries his words verbatim, a `MAGIC.md` included. The exchange goes to a `transcript-*`; a standing statement to a `verbatim-*`; a live tracking document or hand-off may carry his words while it is worked. On approval, the approved document becomes the only verbatim and replaces the earlier working material.
+- No file carries his words verbatim, a `MAGIC.md` included. The exchange goes to a `transcript-*`, and a standing statement to a `verbatim-*`. A live tracking document or hand-off may carry his words while it is worked. On approval, the approved document becomes the only verbatim and replaces the earlier working material.
 - Committing instruction text is what approves it, the one step "The ladder: one rung at a time" already counts. Quotation marks confer no authority.
 
 ## Recheck before reporting
@@ -526,13 +636,13 @@ Every new name — operation, flag, file, key, document type — and every new c
 
 ## Conflicts and ambiguities go to the human-owner
 
-A conflict or real ambiguity between instructions, or between an instruction and what is observed, first goes to the session's own group: check the instruction sources and consult the member whose domain it is. No quorum there: both sides stay intact, in one document, and it climbs by "The ladder: one rung at a time" until he rules. Two rules in conflict are often two correct rules about two unnamed categories.
+A conflict or real ambiguity between instructions, or between an instruction and what is observed, first goes to the session's own group. Check the instruction sources, and consult the member whose domain it is. No quorum there: both sides stay intact, in one document, and it climbs by "The ladder: one rung at a time" until he rules. Two rules in conflict are often two correct rules about two unnamed categories.
 
 ## Readback-confirm and propose-approve, in any process
 
-- **Readback-confirm**: before asserting anything of its own — accepting a task, a blocking finding, an accident, a contradiction, a reframing, a pause — a member reads it back to whoever can confirm it, where the exchange already is. One needing an answer goes as a `ConfirmReadback` ask; a choice it cannot make, an `EscalateDecision` ask.
+- **Readback-confirm**: before asserting anything of its own, a member reads it back to whoever can confirm it, where the exchange already is. That covers accepting a task, a blocking finding, an accident, a contradiction, a reframing, a pause. One needing an answer goes as a `ConfirmReadback` ask; a choice it cannot make, an `EscalateDecision` ask.
 - **Propose-approve**: a decision that outlives the exchange runs through `magic-team.proposal.routine`, as a `ProposeApprove` ask. It does not stop the work it arose from.
-- Work its instructions cover: act. Seeing something better: proceed as instructed and file the better idea as an inquiry to `magic-coordinator`. Nothing covers it, or the options cannot be chosen: read back, check the instruction sources, consult the domain owner, then ask what remains — following "The ladder: one rung at a time".
+- Work its instructions cover: act. Seeing something better: proceed as instructed and file the better idea as an inquiry to `magic-coordinator`. Nothing covers it, or the options cannot be chosen: read back, check the instruction sources, and consult the domain owner. Then ask what remains, following "The ladder: one rung at a time".
 
 ## "later" has two gates
 
@@ -540,11 +650,11 @@ Deferred work starts only when the current step is released and he has said to s
 
 ## Anything needing the human-owner to act reaches him on his own direct channel
 
-A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. Confirming that the coordinator's relayed words really carry his intent is asked of him directly, with its own ask tool, no relay under a session's `magic-coordinator` standing between. That trust check is not a bypass of "The ladder: one rung at a time" for an ordinary ask. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--settle-pending-reply`. Send path: `human-owner`'s `reach-human-owner` procedure.
+A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. Confirming that the coordinator's relayed words really carry his intent is asked of him directly, with its own ask tool. No relay under a session's `magic-coordinator` stands between. That trust check is not a bypass of "The ladder: one rung at a time" for an ordinary ask. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--settle-pending-reply`. Send path: `human-owner`'s `reach-human-owner` procedure.
 
 ## Nothing stops on its own: log, escalate, resolve
 
-A refusal, a failed mechanism, a missing operation or grant, an unverified source, an open question or a finding needing confirmation never ends the task, is never only logged, and never changes its scope.
+None of these ends the task: a refusal, a failed mechanism, a missing operation or grant. Nor do an unverified source, an open question, or a finding needing confirmation. None is only logged, and none changes the task's scope.
 
 - Who answers: "Escalation and chain of command".
 - An escalation is an `AskQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay; a permission ask goes to its routine, below. The coordinator answers it, or escalates it to the human-owner with its own ask — no relay under the coordinator carries another member's words to him. The kinds are the tooling's own ask templates (`myx.distro-agents/sh-lib/templates/*.post.format.md`).
@@ -563,7 +673,7 @@ One message, one topic. A message that wants something opens with the decision, 
 
 - Every message has an addressee. A message left in a session has not reached him.
 - `magic-coordinator` sends to the human-owner's direct conversation; any other member sends to the team conversation or its session thread.
-- An addressee is tagged with a real mention the platform renders (`--address-to`, `address_to` on `SendMessage`, `SubagentHandback`, `ReportFindings`, `PushNotification` and `Artifact`, as the ask tools already take it) — never a mention typed into the body. A thread post naming nobody there is headed `@here`; a member reads that as a post for nobody. Check what was stored, not the send's success. A send that cannot tag is a defect to report.
+- An addressee is tagged with a real mention the platform renders, never a mention typed into the body. That is `--address-to`, or `address_to` on `SendMessage`, `SubagentHandback`, `ReportFindings`, `PushNotification` and `Artifact`, as the ask tools already take it. A thread post naming nobody there is headed `@here`; a member reads that as a post for nobody. Check what was stored, not the send's success. A send that cannot tag is a defect to report.
 
 ## A reply threads onto the message it answers
 
@@ -665,7 +775,13 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 **Rule**: a date inside any name — document, file, item — is `YYYYMMDD'T'HHmm'Z'`, or `YYYYMMDD'T'HHmmSS'Z'` where seconds are needed.
 
-**Who may run what**: the operations of the tool files, any member except those the tool index marks as the coordinator's own, which are `magic-coordinator`'s only; `--librarian-*` `magic-librarian`, `--client-*` the named `client-*` member it names, in its own session, nobody else, `--owner-*` only where a member's own list names it. `--manager-*` is no member's: it is the console's own, and is refused from inside any member's session, the coordinator's included. A member needing an operation of the coordinator's own asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--client-operation-run --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
+**Who may run what**:
+- the operations of the tool files: any member, except those the tool index marks as the coordinator's own, which are `magic-coordinator`'s only.
+- `--librarian-*`: `magic-librarian`.
+- `--client-*`: the named `client-*` member it names, in its own session, nobody else.
+- `--owner-*`: only where a member's own list names it.
+
+`--manager-*` is no member's: it is the console's own, and is refused from inside any member's session, the coordinator's included. A member needing an operation of the coordinator's own asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--client-operation-run --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
 
 ## Tooling operations
 

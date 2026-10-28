@@ -363,7 +363,33 @@ case "$1" in
 			printf '%s\n' "$body" | AgentsToolsDocValidateGate board-upsert-move-edit "$gateLabel" board "$itemName" "$gateBefore" "$gateMode" || { set +e ; return 1 ; }
 		fi
 
+		## `handler-routine:` is set only by magic-coordinator or a grooming run (AgentsTools.BoardItemHandler.include). The value the write leaves is compared
+		## with the one the item holds, under a lock per item, and a change by anyone else refuses the write. A change is recorded on the item's Decisions.
+		local handlerLock="" handlerOld="" handlerNew="" handlerWhy="" handlerChanged=""
+		type AgentsToolsBoardItemKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+		handlerNew="$( printf '%s\n' "$body" | LC_ALL=C awk 'NR == 1 { if ($0 != "---") exit ; next } $0 == "---" { exit } index($0, "handler-routine: ") == 1 { print substr($0, 18) ; exit }' )"
+		if [ "$isCreate" != "true" ] ; then handlerOld="$( AgentsToolsBoardItemKey "$sourcePath" handler-routine )" ; fi
+		if [ "$handlerNew" != "$handlerOld" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+			if AgentsToolsLocalLockTake "handler-${itemName%.md}" 30 "the handler-routine of $itemName" ; then handlerLock="$agentsLocalLockPath" ; fi
+			if [ "$isCreate" != "true" ] ; then handlerOld="$( AgentsToolsBoardItemKey "$sourcePath" handler-routine )" ; fi
+			if [ "$handlerNew" != "$handlerOld" ] ; then
+				if ! handlerWhy="$( AgentsToolsBoardHandlerSetMay )" ; then
+					[ -z "$handlerLock" ] || AgentsToolsLocalLockGive "$handlerLock"
+					echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: $handlerWhy -- nothing was written" >&2
+					set +e ; return 1
+				fi
+				handlerChanged="yes"
+			fi
+		fi
+
 		printf '%s\n' "$body" > "$targetPath"
+		[ -z "$handlerLock" ] || AgentsToolsLocalLockGive "$handlerLock"
+		if [ -n "$handlerChanged" ] ; then
+			type AgentsToolsDecisionsAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			AgentsToolsDecisionsAppend "$( AgentsToolsActingMember )" "$itemName" handler "handler-routine: ${handlerOld:--} -> ${handlerNew:--}" "$opContext" "" "" > /dev/null \
+				|| echo "$MDSC_CMD: board-upsert-move-edit: ⚠️ WARNING: the handler-routine change of $itemName was written, but its Decisions line was not" >&2
+		fi
 
 		## Commit gate: .git presence in the team-data root, presence only and
 		## independent of TEAM_DATA_GIT_REMOTE -- this op never pushes or syncs.

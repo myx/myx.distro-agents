@@ -32,7 +32,7 @@ rigAssert(){ ## what, got, want
 }
 rigRoutine(){ ## name, the lines of the key (may be empty)
 	{
-		printf -- '---\ntype: routine\nexecutors: rig-a\nmaintainers: human-owner\nrequires-session-kind: standalone\n'
+		printf -- '---\ntype: routine\nexecutors: rig-a\nmaintainers: human-owner\nrequires-session-kind: standalone\nruns-at: none\n'
 		[ -z "$2" ] || printf '%s\n' "$2"
 		printf -- '---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$1"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"

@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.verify.routine — the actual procedure
 
@@ -31,6 +32,8 @@ review-by: inherit
 # Summary
 
 `magic-team.verify.routine` checks a piece of work claimed complete against its done criteria and against what was asked, and gives a verdict carried by real evidence. For software it is `magic-tester`'s testing round.
+
+Handles: task, project
 
 ## Goals
 
@@ -60,7 +63,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - what the work changed, read from the work itself, never from the claim.
    - the scope of the round: what it checks, and what it leaves out.
 3. **design-the-checks**: give each done criterion a check that is independent of the work's own report, steps:
-   - recompute, reconcile, inspect or run, by the kind of work: a total recomputed from its source records, a document read against its requirements, a model measured, a program tested.
+   - recompute, reconcile, inspect or run, by the kind of work. Examples: a total recomputed from its source records, a document read against its requirements, a model measured, a program tested.
    - the cases the work is silent about: empty, one element, absent, extreme.
    - a criterion with no possible check is reported as unverifiable, never as passed.
    - for software, run **software-checks** as well.
@@ -97,7 +100,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines —
 
 Run by `magic-tester`, with its own methodology, cited by name. Steps:
 1. **find-the-real-suite**: find the tests that cover the touched code, per "Running the real test suite". A "no tests exist" claim is checked against the real test tree.
-2. **design-by-the-suite**: give each criterion the existing test that covers it, or a narrow new one in the suite's own form, per "Test design: the short form".
+2. **design-by-the-suite**: give each criterion the existing test that covers it, or a narrow new one in the suite's own form. Follow "Test design: the short form".
 3. **failing-case-first**: per "Evidence discipline: the short form".
 4. **queue-and-read**: queue the tests the change touched with `--retest-queue --wait`, and read each result with `--retest-result`. A check with real side effects follows "Verifying a change with real side effects: the short form".
 5. **security-pass**: run the "Security/CRA" pass on the change. Each item is checked-clean, concern-raised or not-applicable in the report.
@@ -111,7 +114,7 @@ All statements apply at the same time, always. These rules override a participan
 - **The claim is not evidence.** The builder's report of a pass is read as a claim. The round runs its own checks.
 - **The verifier is not the builder.** The member who did the work never gives its verdict.
 - **Partial is not clean.** A round with any criterion unchecked gives "not verified", whatever the rest shows.
-- **Run on a copy.** A check runs against a copy, a scratch workspace or a test rig, never the live original, unless the approval for that is held.
+- **Run on a copy.** A check runs against a copy, a scratch workspace or a test rig. It never runs against the live original without the approval for that.
 - **Domain questions go to the owner.** A question touching a domain's internals goes to the owning member, per **routing-to-owner**.
 - Waiting follows **wait-never-quit**.
 - Goal-directedness: verify the claimed work. Other findings are recorded quickly and filed, not checked now.
@@ -137,7 +140,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- (draft) This routine exists so that a claimed completion becomes a verdict carried by checks shown able to fail, against both the criteria and the ask.
+- (draft) This routine exists so that a claimed completion becomes a verdict carried by checks shown able to fail. The checks cover both the criteria and the ask.
 
 ## Verbatim-tests (benchmarks)
 

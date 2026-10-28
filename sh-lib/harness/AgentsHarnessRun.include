@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessRun.include: argument parsing, the arm gate and the tool dispatch. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 AgentsHarnessArgParse(){ ## raw arguments
@@ -412,7 +414,7 @@ AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the armi
 	[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || printf '%s\n' "$harnessArmedAt" > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" 2>/dev/null || :
 }
 
-AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
+AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
 	local harnessFuncName="$1" harnessFuncArgsRaw="$2"
 	## One parse per call -- a no-op when the announce already parsed this same string --
 	## and every arm below reads its fields from harnessArgV_*/harnessArgD_*.
@@ -448,8 +450,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "${harnessArgV_server}" "${harnessArgV_uri}" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "${harnessArgV_server}" "${harnessArgV_uri_prefix}" "${harnessArgV_limit}" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" "${harnessArgV_section}" )" ;;
-		## Agent has moved (epic S18.3): one way to start a session, AgentDispatcherTools operation=--spawn-run. This tool is the stub until callers move: it makes the same
-		## spawn, through the same function, and says where it went.
+		## Agent has moved to AgentDispatcherTools operation=--spawn-run; this tool is a stub that makes the same spawn and says where it went.
 		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" "${harnessArgV_description}" "${harnessArgV_new_session:-}" "${harnessArgV_settings_workspace:-}" )"$'\n'"MOVED: Agent is replaced by AgentDispatcherTools operation=--spawn-run (a member name and the prompt on stdin, or --routine <selector>); this tool is kept as a stub until its callers move."
 		;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "${harnessArgV_handle}" "${harnessArgV_force}" "${harnessArgV_task_id}" "${harnessArgV_shell_id}" )" ;;
@@ -463,8 +464,57 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
 		*)         harnessResult="ERROR: unknown tool: $harnessFuncName" ;;
 	esac
+}
+
+## EVERY CALL IS A TASK UNDERNEATH (epic S20, AgentsTools.ToolTask.include). The call runs in a subshell and this shell waits for it. It comes back with
+## its own result when it ends in time, and early, with `TASK-ID=process-N` and a hint, when the caller asked for `background`, the default time (300 s)
+## passes, the caller's `timeout` passes (with `timeout_action` return, the default, or kill), or a message addressed to the member arrives in the
+## session chat. Not wrapped: the tools that block by design on their own bound (Wait and the asking tools, ThisSession, TaskOutput and TaskStop), the
+## handback (it may end the session) and BatchTools (its entries run apart from this dispatcher). Bash and WorkspaceContextExecute keep their own
+## `timeout`, which kills: it is the task's timeout only where `timeout_action` is given too.
+harnessTaskStripTimeout="" harnessTaskScratch=""
+AgentsHarnessTaskBody(){ ## tool name, arguments JSON -- the result on stdout
+	## The task outlives this process when it returns early, and this process removes its scratch folder as it ends: the task works in a folder of its own.
+	harnessTaskScratch="$( mktemp -d "${harnessScratch%/*}/AgentsUniversalHarness.XXXXXX" 2> /dev/null )" || harnessTaskScratch=""
+	if [ -n "$harnessTaskScratch" ] ; then
+		harnessScratch="$harnessTaskScratch"
+		trap 'rm -rf -- "$harnessTaskScratch"' EXIT
+	fi
+	[ -z "$harnessTaskStripTimeout" ] || harnessArgV_timeout=""
+	AgentsHarnessRunToolNow "$1" "$2"
+	printf '%s\n' "$harnessResult"
+}
+
+AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
+	local taskName="$1" taskArgs="$2" taskTimeout taskAction taskBackground
+	case "$taskName" in
+		Wait|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove|ThisSession|TaskOutput|TaskStop|SubagentHandback|BatchTools)
+			AgentsHarnessRunToolNow "$taskName" "$taskArgs"
+			AgentsHarnessDismissedAfter "$taskName"
+			return 0
+		;;
+	esac
+	type AgentsToolsTaskCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include" || {
+		AgentsHarnessRunToolNow "$taskName" "$taskArgs"
+		AgentsHarnessDismissedAfter "$taskName"
+		return 0
+	}
+	AgentsHarnessArgParse "$taskArgs"
+	taskTimeout="${harnessArgV_timeout}" taskAction="${harnessArgV_timeout_action}" taskBackground="${harnessArgV_background}"
+	harnessTaskStripTimeout=""
+	case "$taskName" in
+		Bash|WorkspaceContextExecute)
+			## Their own timeout kills and stays theirs, unless the caller named an action: then it is the task's, and the tool is not given it.
+			if [ -n "$taskAction" ] ; then harnessTaskStripTimeout="yes" ; else taskTimeout="" ; fi
+			## Bash's own detach is not a background of this kind: it already returns at once with its own handle.
+			[ "${harnessArgV_detach:-}" != "true" ] || taskBackground=""
+		;;
+	esac
+	AgentsToolsTaskCall "$taskName" "$taskBackground" "$taskTimeout" "$taskAction" AgentsHarnessTaskBody "$taskName" "$taskArgs"
+	harnessResult="$agentsTaskOut"
 	## A session that was dismissed and has given its handback is ended by the harness itself.
-	AgentsHarnessDismissedAfter "$harnessFuncName"
+	[ "$agentsTaskDetached" = "yes" ] || AgentsHarnessDismissedAfter "$taskName"
+	return 0
 }
 
 AgentsHarnessReply(){ ## tool name, result -- sets harnessReply and harnessReplyDate

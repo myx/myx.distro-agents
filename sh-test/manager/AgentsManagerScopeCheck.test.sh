@@ -3,7 +3,7 @@
 ## operations --manager-scope-list, -read, -reveal, -set, -unset, -clear and -delete, against a rig workspace built here, so what
 ## the user who runs this check and the real workspace have saved is never read and never written, which the last section asserts.
 ## Held (F11.7: "displays all `--config` items of every installed subsystem as sources, allows edit and delete ... A subsection is a
-## group of settings and becomes a folder, named like `Agents: client-ndm`, `Remote: mdci01.ndm9.xyz`, `Common: user-myx` ... A
+## group of settings and becomes a folder, named like `Agents: client-example`, `Remote: mdci01.example.invalid`, `Common: user-myx` ... A
 ## whole subsection can be cleared, reset or deleted where the subsystem allows it"; the coordinator's rulings: the scopes as they
 ## exist, no Deploy folder since nothing is there, the preset-<name> blocks are scopes of the agents each its own folder, Clear for
 ## any scope and Delete where many exist, no Reset with nothing to reset to):

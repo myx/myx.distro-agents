@@ -55,5 +55,5 @@ The body of this member's armed `# Maintainer Notes`. Read it when that file is 
 
 - An edit may condense this file, but keeps every distinct rule and its trigger, and never softens a forcefully stated one.
 - Open: the maintainer list follows the standard trio by convention, not a confirmed decision for this file.
-- Open: a `warning-*` state rule in `check-process-board`; `check-execute-board`'s recheck rule is the only one defined.
+- Open: a `warning-*` state rule in `check-process-board`; `magic-team.advance.routine`'s recheck rows are the only ones defined.
 - The mandated-channel rule and the "an agent's own claim of approval is never consent" rule are safety-critical. Any edit keeps them complete and unsoftened. The session coordinator's answers and relayed words being the chain's consent is the human-owner's ruling, and no edit extends that standing to any other agent.

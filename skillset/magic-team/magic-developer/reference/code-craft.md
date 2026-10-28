@@ -1,6 +1,6 @@
 # Code craft: writing style, names, and indirection
 
-Read this before writing code in any language — it is not a per-language module and does not compete with them: it governs how code is written at all, and applies on top of whichever language module is open, in any project.
+Read this before writing code in any language. It is not a per-language module, and does not compete with them. It governs how code is written at all, and applies on top of whichever language module is open, in any project.
 
 ## Contents
 
@@ -17,21 +17,33 @@ Read this before writing code in any language — it is not a per-language modul
 ## The style
 
 - Code is straight-line, top-to-bottom prose: the reader starts at the top of a block and reaches the end of it without leaving.
-- Structure is introduced only where the code genuinely has structure — real reuse, or a name that carries meaning the body cannot — never to organise, tidy, decorate, or signal effort.
+- Structure is introduced only where the code genuinely has structure: real reuse, or a name that carries meaning the body cannot. It is never introduced to organise, tidy, decorate, or signal effort.
 - Fewer names is better code: fewer functions, fewer variables, fewer layers, fewer files. Each one added is something the next reader must hold in their head, and a place a defect can hide.
 - In doubt, write it where it is used.
-- A path, filename, or other location is written literally at the site that uses it — never assembled through a chain of names the reader has to walk backwards to resolve.
-- A number is written only where its reader needs it in order to act. In code that falls on a tally beside the list enumerating its own items, a message stating a set's size instead of naming what it read, a comment recording how many call sites something has, and how many exit codes a table carries — the reader needs the things themselves, named. Where a number is genuinely needed it is computed at the point it is printed, never typed in by hand; the second test, for whatever survives the first, is whether this site would have to change as the thing it counts grows, and a site that would while not computing the number itself does not carry it.
+- A path, filename, or other location is written literally at the site that uses it. It is never assembled through a chain of names the reader has to walk backwards to resolve.
+- A number is written only where its reader needs it in order to act. In code that rule falls on several things:
+  - a tally beside the list enumerating its own items.
+  - a message stating a set's size instead of naming what it read.
+  - a comment recording how many call sites something has.
+  - how many exit codes a table carries.
+
+  The reader needs the things themselves, named. Where a number is genuinely needed it is computed at the point it is printed, never typed in by hand. The second test, for whatever survives the first: would this site have to change as the thing it counts grows? A site that would, and does not compute the number itself, does not carry it.
 - A standing rule of the human-owner's: say it only if it is relevant to the reader or genuinely a fun fact. Stated in full in own human-owner standing rules.
-- A scratch file is a name too, and the costliest kind: on top of everything a variable costs it carries a path to construct, a cleanup, and a failure branch for each. A value that fits in a variable goes in a variable — `shell.md` states the shell mechanics and the two cases that genuinely earn a file.
-- Tooling is written in bash 3.2+ where bash is efficient for the task, else awk, else Python only where awk won't do. Perl is not used: Python is the chosen one of the two, for now, and switching needs proof that the other is universally better. No choice adds a dependency. The tool fits the file it will grow into after the first MVP, complications and improvements included, and working code is kept, never converted to follow the order by itself, until it is clearly a laggard or a blocker. `shell.md`'s "Which language a piece of tooling is written in" states it in full.
-- A failing step ends the run, so nothing that must happen is written after something that can fail. Code is written as though abort-on-first-failure is in force whether or not the file switches it on — `set -e` in shell, a propagating exception elsewhere — because a cleanup placed below the failure is skipped on exactly the runs that needed it. Work owed on the failing run belongs to the scope's own exit, a trap or a `finally`, and switching the mode off does not rescue the trailing line: it only makes the failure quiet.
-- Work the result does not need is a defect in its own right, not an optimisation to revisit later. Two operations doing what one does — `shift` then `commandName=$1 ; shift`, where `commandName=$2 ; shift 2` consumes both at once — is the needless-name fault with the name removed: the code reads correctly and the run still pays for it. It binds hardest on a path taken constantly, where the cost is paid on every pass.
-- A variable holding a value used once, or trivially derived from another, produces bad, low-quality, unreadable code that hides errors. The value it holds is already available where it is needed, so the name adds a second place the reader must resolve and a second place a wrong value can enter unnoticed — the defect is concealed behind a plausible name rather than sitting in view at the site that uses it. Banned outright below; this is why.
-- A declaration and its assignment are one line. The split form earns its place for one reason only — in shell, a plain assignment reports the command substitution's own status, while any declaring keyword in front of it (`local`, `export`, `readonly`) reports its own instead, so a status that is actually tested is captured on a line of its own. Where nothing tests the status, the split doubles the line count and names nothing the single line did not.
-- Banned outright: a function called from one place; a function that wraps a couple of lines; a variable holding a value used once; a variable trivially derived from another; a global used as an out-parameter; a wrapper that only renames an existing call.
+- A scratch file is a name too, and the costliest kind. On top of everything a variable costs, it carries a path to construct, a cleanup, and a failure branch for each. A value that fits in a variable goes in a variable — `shell.md` states the shell mechanics and the two cases that genuinely earn a file.
+- Tooling is written in bash 3.2+ where bash is efficient for the task, else awk, else Python only where awk won't do. Perl is not used: Python is the chosen one of the two, for now, and switching needs proof that the other is universally better. No choice adds a dependency. The tool fits the file it will grow into after the first MVP, complications and improvements included. Working code is kept until it is clearly a laggard or a blocker. It is never converted to follow the order by itself. `shell.md`'s "Which language a piece of tooling is written in" states it in full.
+- A failing step ends the run, so nothing that must happen is written after something that can fail. Code is written as though abort-on-first-failure is in force, whether or not the file switches it on: `set -e` in shell, a propagating exception elsewhere. A cleanup placed below the failure is skipped on exactly the runs that needed it. Work owed on the failing run belongs to the scope's own exit, a trap or a `finally`. Switching the mode off does not rescue the trailing line: it only makes the failure quiet.
+- Work the result does not need is a defect in its own right, not an optimisation to revisit later. Two operations doing what one does is the needless-name fault with the name removed. An example is `shift` then `commandName=$1 ; shift`, where `commandName=$2 ; shift 2` consumes both at once. The code reads correctly, and the run still pays for it. It binds hardest on a path taken constantly, where the cost is paid on every pass.
+- A variable holding a value used once, or trivially derived from another, produces bad, low-quality, unreadable code that hides errors. The value it holds is already available where it is needed. So the name adds a second place the reader must resolve, and a second place a wrong value can enter unnoticed. The defect is concealed behind a plausible name, instead of sitting in view at the site that uses it. Banned outright below; this is why.
+- A declaration and its assignment are one line. The split form earns its place for one reason only. In shell, a plain assignment reports the command substitution's own status. Any declaring keyword in front of it (`local`, `export`, `readonly`) reports its own instead. So a status that is actually tested is captured on a line of its own. Where nothing tests the status, the split doubles the line count and names nothing the single line did not.
+- Banned outright:
+  - a function called from one place.
+  - a function that wraps a couple of lines.
+  - a variable holding a value used once.
+  - a variable trivially derived from another.
+  - a global used as an out-parameter.
+  - a wrapper that only renames an existing call.
 - A name that earns its place is at least two words in camelCase — `doClose`, `needsClose`, `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `data`, `i`, `n`. Applies to every language and to every kind of name: parameter, local, field, function.
-- The rule is mechanical, not aesthetic. A bare word is the one shape that collides with a language's own vocabulary, and the diagnostic rarely says so: `close`, `index`, `length`, `split`, `sub` and `system` are AWK built-ins, and a parameter named after one is a parse error rather than a shadowing warning — `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the real cause is invisible in the message. Two words cannot collide. The same holds for a shell variable one `readonly` or one sourced file away from a clash it will never announce.
+- The rule is mechanical, not aesthetic. A bare word is the one shape that collides with a language's own vocabulary, and the diagnostic rarely says so. `close`, `index`, `length`, `split`, `sub` and `system` are AWK built-ins. A parameter named after one is a parse error, not a shadowing warning. `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the real cause is invisible in the message. Two words cannot collide. The same holds for a shell variable one `readonly` or one sourced file away from a clash it will never announce.
 
 ## Simplicity is a requirement
 
@@ -46,26 +58,26 @@ Standing rules from the human-owner:
 
 What follows from them:
 
-- **One fault, three shapes: an unnecessary temp file, an unnecessary variable, an unnecessary function.** Each is a unit created to hold a step that did not need holding, and each adds something to create, name, track and clean up. A helper called from one place, wrapping what its single caller could have stated directly, is the function-shaped version of materialising one dataset three times. The same principle read from the other side: a stub written for one call site takes mandatory arguments and does its mechanical steps itself, rather than distributing them to its caller as options.
-- **A shell file's standard is settled by what that file requires**, and an available construct still has to earn its place on all three of faster, readable and simpler at once. `shell.md` states the standards and the test.
+- **One fault, three shapes: an unnecessary temp file, an unnecessary variable, an unnecessary function.** Each is a unit created to hold a step that did not need holding, and each adds something to create, name, track and clean up. A helper called from one place, wrapping what its single caller could have stated directly, is the function-shaped version of materialising one dataset three times. The same principle, read from the other side: a stub written for one call site takes mandatory arguments and does its mechanical steps itself. It does not distribute them to its caller as options.
+- **A shell file's standard is settled by what that file requires.** An available construct still has to earn its place on all three of faster, readable and simpler at once. `shell.md` states the standards and the test.
 
 ## A check is code, and it is proven by its red
 
 A checker reports green on its own counterexample as readily as on a clean subject, and nothing in a green report tells the two apart. What settles it is the red.
 
 - **An instrument is finished once it has been watched to fail**, against a case that violates the very assertion it makes. Reasoning that it would fail is not the demonstration, and a green first run over a clean subject establishes nothing about the instrument.
-- **A stage that cannot reach its subject fails loudly; it never passes.** A rig that fails to extract the thing under test and then prints its PASS lines is reporting on nothing, and those lines read exactly like a result. Every step that loads, extracts or selects the subject is a failure branch, not a best effort.
-- **A control is a control only once its two directions return different values.** Run it both ways before the measurement it qualifies is trusted: one case that must pass, one that must fail. Where both come back the same, the instrument is broken rather than the subject clean, and the measurement is withdrawn rather than reported with a caveat.
-- **A tool that prints a hard error and still exits 0 makes every caller's status check dead code.** The message is written for a person reading a terminal; the status is the only thing a caller reads, and where the two disagree the caller is told the operation succeeded. A diagnostic is not a failure signal. Whatever prints the error exits non-zero on that same path, and every layer between it and the caller passes the status on; the caller's check is worth writing only once that chain holds. `shell.md` states the shell mechanics each layer drops it through.
-- **An axiom that keeps being violated in new code is not under-stated, it is unenforced.** Where the wording is already sound, what changes is the mechanism: the rule becomes an executable check wired into a pass that already runs, so it is met without anyone choosing to look. A stronger sentence in the same place the last violation walked past is not a fix.
+- **A stage that cannot reach its subject fails loudly; it never passes.** A rig that fails to extract the thing under test and then prints its PASS lines is reporting on nothing. Those lines read exactly like a result. Every step that loads, extracts or selects the subject is a failure branch, not a best effort.
+- **A control is a control only once its two directions return different values.** Run it both ways before the measurement it qualifies is trusted: one case that must pass, one that must fail. Where both come back the same, the instrument is broken, not the subject clean. The measurement is withdrawn, never reported with a caveat.
+- **A tool that prints a hard error and still exits 0 makes every caller's status check dead code.** The message is written for a person reading a terminal. The status is the only thing a caller reads. Where the two disagree, the caller is told the operation succeeded. A diagnostic is not a failure signal. Whatever prints the error exits non-zero on that same path, and every layer between it and the caller passes the status on. The caller's check is worth writing only once that chain holds. `shell.md` states the shell mechanics each layer drops it through.
+- **An axiom that keeps being violated in new code is not under-stated, it is unenforced.** Where the wording is already sound, what changes is the mechanism. The rule becomes an executable check wired into a pass that already runs, so it is met without anyone choosing to look. A stronger sentence in the same place the last violation walked past is not a fix.
 
 ## Comments: quantity and content are two separate checks
 
-- The limits are the team's existing ones, not a second set: "A comment is short, or it is not a comment" — an internal comment is one line, a header comment a few at most, and anything longer is documentation belonging in the package's own `MAGIC.md`. Where a package carries a `MAGIC.md`, it states the same limits for its own code.
-- **Quantity is checkable, and it is the half that gets failed.** The reviewer's question is asked of one comment at a time, against the limits above: a comment past its own limit is over it whatever those lines say.
-- **Content is the other check** — "Rule/instruction/definition/description conventions" (state a durable fact, never narrate a past action): a durable fact or convention, never a narration of a past action or an explanation of what changed. The two checks are independent: a comment can be entirely factual and still be forty lines that belong in `MAGIC.md`.
-- **Volume is a runtime cost too, not only a reading cost.** A file the shell reads often is lexed in full on every pass, comments included, so comment count is paid per source on a constantly-taken path — a file can sit within the per-comment limits above and still carry the cost through sheer number. This is a separate argument from the readability limits and does not replace them; `shell.md` states the measured per-source cost on bash 3.2 and dash.
-- **A rename that makes a comment false, rather than merely stale, is reworded in the same change.** The two are different defects: a stale comment describes an older state a reader can still map onto the code, while a false one asserts something the code now contradicts — most often a contrast between two names that the rename has just collapsed into one, leaving the comment drawing a distinction that no longer exists. Renaming is what produces this, so every comment naming either side of the old distinction is read as part of the rename, not left to a later pass that has no reason to look there.
+- The limits are the team's existing ones, not a second set: "A comment is short, or it is not a comment". An internal comment is one line, and a header comment a few at most. Anything longer is documentation belonging in the package's own `MAGIC.md`. Where a package carries a `MAGIC.md`, it states the same limits for its own code.
+- **Quantity is checkable, and it is the half that gets failed.** The reviewer's question is asked of one comment at a time, against the limits above. A comment past its own limit is over it, whatever those lines say.
+- **Content is the other check**, per "Rule/instruction/definition/description conventions": state a durable fact, never narrate a past action. A comment holds a durable fact or convention, never a narration of a past action or an explanation of what changed. The two checks are independent: a comment can be entirely factual and still be forty lines that belong in `MAGIC.md`.
+- **Volume is a runtime cost too, not only a reading cost.** A file the shell reads often is lexed in full on every pass, comments included. So comment count is paid per source on a constantly-taken path. A file can sit within the per-comment limits above and still carry the cost through sheer number. This is a separate argument from the readability limits and does not replace them; `shell.md` states the measured per-source cost on bash 3.2 and dash.
+- **A rename that makes a comment false, rather than merely stale, is reworded in the same change.** The two are different defects. A stale comment describes an older state a reader can still map onto the code. A false one asserts something the code now contradicts. Most often it is a contrast between two names that the rename has just collapsed into one. The comment then draws a distinction that no longer exists. Renaming is what produces this. So every comment naming either side of the old distinction is read as part of the rename. It is not left to a later pass that has no reason to look there.
 - Volume regenerates in new code even where an existing tree has been brought within the limit. The standard holds where it is enforced, which is why this is a review step and not a one-off sweep.
 
 ## A requirement is a property of the result, not a structure in the code
@@ -76,31 +88,36 @@ A checker reports green on its own counterexample as readily as on a clean subje
 
 ## The habit this exists to break
 
-- Agents over-structure by default — wrapping, naming, extracting and layering because it looks professional rather than because the code needed it — and the result reads as scaffolding around a small idea.
-- That single habit is what a whole class of defect comes out of: a capture bug hidden behind a helper, a scratch path no reader can resolve from the code, a convention imported from the wrong project and concealed behind a variable name, a 200-line heredoc inlined where every sibling package sources a dedicated include, a wrapper that re-sources its own file to reach a function in it.
+- Agents over-structure by default: wrapping, naming, extracting and layering because it looks professional, not because the code needed it. The result reads as scaffolding around a small idea.
+- That single habit is what a whole class of defect comes out of:
+  - a capture bug hidden behind a helper.
+  - a scratch path no reader can resolve from the code.
+  - a convention imported from the wrong project and concealed behind a variable name.
+  - a 200-line heredoc inlined where every sibling package sources a dedicated include.
+  - a wrapper that re-sources its own file to reach a function in it.
 - Subprocess inheritance, pipe semantics and the rest are symptoms, not the rule: write less structure and they do not arise.
 
 ## The three costs of needless work
 
-**Readability.** Straight-line logic scattered into named fragments cannot be followed in one pass, and a basic question — where does this file live — becomes a reverse-walk through four names that ends in giving up rather than in an answer. Code nobody will read is code nobody reviews, and unreviewable code is rejected.
+**Readability.** Straight-line logic scattered into named fragments cannot be followed in one pass. A basic question, where does this file live, becomes a reverse-walk through four names that ends in giving up, not in an answer. Code nobody will read is code nobody reviews, and unreviewable code is rejected.
 
-**Performance.** Every needless name, and every needless operation, is real work at runtime: a wrapper that forks — a command substitution, a pipeline, a subshell — costs a process where an inline expansion costs nothing, and a variable built from a command substitution forks to produce a value used once. Chained derivations repeat that at every call site, and in a loop or a per-request server path it multiplies. Inline straight-line code does the minimum work by construction.
+**Performance.** Every needless name, and every needless operation, is real work at runtime. A wrapper that forks (a command substitution, a pipeline, a subshell) costs a process where an inline expansion costs nothing. A variable built from a command substitution forks to produce a value used once. Chained derivations repeat that at every call site, and in a loop or a per-request server path it multiplies. Inline straight-line code does the minimum work by construction.
 
-**Hidden problems.** Indirection conceals both the construct in use and the place it acts on, and review then passes over defects that would have been visible written out:
+**Hidden problems.** Indirection conceals both the construct in use and the place it acts on. Review then passes over defects that would have been visible written out:
 - A helper is not inherited by a spawned subprocess, so code that works inline breaks silently the moment the same path is forked or exec'd.
-- A capture bug survives review when the `$( ... )` sits behind a helper and a variable chain: that a server waits on a pipe's writers rather than on the command is unreadable from the call site, and the defect is invisible precisely because it is named.
-- A location hidden behind a chain hides its own wrongness with it — an imported `mktemp -d "${TMPDIR:-/tmp}/..."` matching nothing in any sibling project of its family passes unnoticed behind one variable name.
+- A capture bug survives review when the `$( ... )` sits behind a helper and a variable chain. That a server waits on a pipe's writers, not on the command, is unreadable from the call site. The defect is invisible precisely because it is named.
+- A location hidden behind a chain hides its own wrongness with it. An imported `mktemp -d "${TMPDIR:-/tmp}/..."` matching nothing in any sibling project of its family passes unnoticed behind one variable name.
 
 ## The counter-rule
 
-- A genuinely reused block stays a function, and so does one whose name carries real meaning its body does not — the test is reuse or comprehension, never tidiness.
-- Inlining is not a licence to repeat a real algorithm at three sites: the ban is on names that carry nothing, not on abstraction that earns its place.
-- A convention the sibling packages of the family already follow outranks both: where they source a dedicated include, that is the structure the code genuinely has.
+- A genuinely reused block stays a function, and so does one whose name carries real meaning its body does not. The test is reuse or comprehension, never tidiness.
+- Inlining is not a licence to repeat a real algorithm at three sites. The ban is on names that carry nothing, not on abstraction that earns its place.
+- A convention the sibling packages of the family already follow outranks both. Where they source a dedicated include, that is the structure the code genuinely has.
 
 ## What already works is not rewritten
 
-- Working code is never rewritten for consistency alone — a difference in style, ordering, or phrasing between two correct pieces of code is not a defect, and is not fixed.
+- Working code is never rewritten for consistency alone. A difference in style, ordering, or phrasing between two correct pieces of code is not a defect, and is not fixed.
 - Only a behaviour-changing defect, or something the human-owner has explicitly asked for, justifies touching code that already works; reading differently from its neighbours is neither.
-- The cost of a consistency rewrite is paid in full whether or not it was needed — review effort spent, regressions introduced into code that was working, real fixes drowned in the diff — against no behavioural gain at all.
+- The cost of a consistency rewrite is paid in full whether or not it was needed, against no behavioural gain at all. It is review effort spent, regressions introduced into code that was working, and real fixes drowned in the diff.
 - A mass cosmetic pass buries real defects: a diff of hundreds of mechanical edits cannot be reviewed, so a genuine bug inside it goes unseen. Behavioural fixes and cosmetic passes stay separate, separately-approvable pieces of work.
-- This is the sibling of the structure rule above, and it binds harder: structure is introduced only where the code genuinely has structure, and code that already runs correctly is left where it stands.
+- This is the sibling of the structure rule above, and it binds harder. Structure is introduced only where the code genuinely has structure. Code that already runs correctly is left where it stands.

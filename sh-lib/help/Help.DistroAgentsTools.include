@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## --help-setup-<domain> answers ahead of the syntax block: it is asked for one
 ## domain's manual, and the syntax lines below would be noise in front of it.
 ## Routed by glob, so a domain gaining a setup document becomes readable with no
@@ -342,11 +345,11 @@ echo "📘 syntax: DistroAgentsQuestions.fn.sh --answer-escalation [--team-membe
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --readback-escalation [--team-member <team-member>] <request-id> <option word> [text]" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --forward-escalation [--team-member <team-member>] <request-id>" >&2
 echo "📘 syntax: DistroAgentsGrants.fn.sh --pass-permission [--team-member <team-member>] --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
-echo "📘 syntax: DistroAgentsQuestions.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
 echo "📘 syntax: DistroAgentsGrants.fn.sh --list-permissions [--team-member <team-member>] [--member <member>] [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsGrants.fn.sh --revoke-permission <ref> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]" >&2
-echo "📘 syntax: DistroAgentsQuestions.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>" >&2

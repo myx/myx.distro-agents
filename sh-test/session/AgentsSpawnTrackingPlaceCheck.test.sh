@@ -7,10 +7,12 @@
 ## session started before that rule, which still hands its tracking thread down as its
 ## session thread, has its members put in a session thread in magic-team too. A member's
 ## handback (session-parent) goes to that session thread, never to event-track. And A TRACKING
-## BOX GOES TO THE TRACKING THREAD ONLY: the box of a run that ended with no handback, and
-## the box of one that left a question open, are replies in the session's tracking thread,
-## and what the member that brought the run in must know is a message addressed to it in the
-## session thread, its text from sh-lib/templates/tooling-note.post.format.md (`# Session`).
+## BOX GOES TO THE TRACKING THREAD ONLY: the box of a run that ended with no handback is a
+## reply in the session's tracking thread, and the member that brought the run in is told in
+## the session thread by the run's end notice (AgentsToolsSpawnProxyEndNotice), a post of the
+## tooling addressed to it, its text from sh-lib/templates/tooling-note.post.format.md
+## (`# Session`). A question the run left open is withdrawn at its end (S4.3), so no box or
+## message says it is open.
 ## A fake console records the brief and its environment; the fake curl answers in the
 ## conversation a post names. Offline by construction.
 set -u
@@ -193,18 +195,21 @@ rigAssert "it says in that thread that it joined, and its own start post is a re
 echo "-- a tracking box goes to the tracking thread only, and the session thread gets a message --"
 rigAssert "no tracking box is posted in the session thread, or anywhere in magic-team" \
 	"$( rigPosts "$rigTeam" any handback ):$( rigPosts "$rigTeam" any notice ):$( rigPosts "$rigTeam" any start ):$( rigPosts "$rigTeam" any end )" "0:0:0:0"
-rigAssert "the box of a run that ended with no handback, and the box of its open question, are replies in the tracking thread" \
-	"$( rigPosts "$rigTrackChannel" "${rigPassTrack#*:}" handback 'none posted' ):$( rigPosts "$rigTrackChannel" "${rigPassTrack#*:}" notice 'ended with its own question still open' )" "1:1"
-rigNoticeAt(){ ## fixed text -- the number of the first message in the session thread that holds it
+rigAssert "the box of a run that ended with no handback is a reply in the tracking thread" \
+	"$( rigPosts "$rigTrackChannel" "${rigPassTrack#*:}" handback 'none posted' )" 1
+rigAssert "the question it left open is withdrawn at its end, as asked by a run that ended (S4.3)" \
+	"$( LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && ( index( $0, "status: " ) == 1 || index( $0, "withdraw-reason: " ) == 1 ) { printf "%s|", $0 ; }' "$rigWs/.local/agents/pending/closed/rig-open-$rigFirst.md" 2> /dev/null )" \
+	"status: withdrawn|withdraw-reason: the run that asked it ended, so no answer is needed any more|"
+rigAssert "so no box in the tracking thread and no post in the session thread says it is open" \
+	"$( rigPosts "$rigTrackChannel" "${rigPassTrack#*:}" notice 'ended with its own question still open' ):$( rigPosts "$rigTeam" "${rigThread#*:}" any 'left questions of its own open' )" "0:0"
+rigNoticeAt(){ ## fixed text -- the number of the first post of the tooling in the session thread that holds it (the end notice)
 	local noticeNo
-	for noticeNo in $( LC_ALL=C awk -v wantChannel="$rigTeam" -v wantThread="${rigThread#*:}" '$2 == wantChannel && $3 == wantThread && $4 == "message" { print $1 ; }' "$rigTmp/posts.log" ) ; do
+	for noticeNo in $( LC_ALL=C awk -v wantChannel="$rigTeam" -v wantThread="${rigThread#*:}" '$2 == wantChannel && $3 == wantThread && $4 == "tooling" { print $1 ; }' "$rigTmp/posts.log" ) ; do
 		[ "$( rigPostHolds "$noticeNo" "$1" )" != yes ] || { printf '%s' "$noticeNo" ; return 0 ; }
 	done
 }
-rigAssert "the member that brought it in is told of the missing handback in the session thread: a message, addressed to it, its text the template's" \
+rigAssert "the member that brought it in is told of the missing handback in the session thread: the end notice, addressed to it, its text the template's" \
 	"$( rigPostHolds "$( rigNoticeAt 'posted no handback' )" "→ 🤖 *_magic-coordinator_*.\\n📦 magic-tester ended its run \`${rigFirst:0:8}\` and posted no handback. What it did is not reported in this thread." )" yes
-rigAssert "and of the question left open, the same way" \
-	"$( rigPostHolds "$( rigNoticeAt 'left questions of its own open' )" "→ 🤖 *_magic-coordinator_*.\\n❓ magic-tester ended its run \`${rigFirst:0:8}\` and left questions of its own open: 1. Each one stays open and can still be answered." )" yes
 rm -f "$rigTmp/console.question"
 
 echo "-- the next member joins that thread, and one that hands back is told of nothing --"
@@ -239,7 +244,7 @@ rigAssert "a member it brings in is given a session thread in magic-team, opened
 rigAssert "its handback goes to that session thread, never to the tracking thread its parent's record names" "$( rigRecord parent-thread )" "$rigOldThread"
 rigAssert "no message of a member is posted in event-track: only the tooling's boxes, in the session's tracking thread" \
 	"$( rigPosts "$rigTrackChannel" any message ):$( rigPosts "$rigTrackChannel" top any ):$( rigPosts "$rigTrackChannel" "${rigOldTrack#*:}" start ):$( rigPosts "$rigTrackChannel" "${rigOldTrack#*:}" handback )" "0:0:1:1"
-rigAssert "and the session thread is told of the missing handback" \
+rigAssert "and the session thread is told of the missing handback, by the end notice" \
 	"$( rigThread="$rigOldThread" ; rigPostHolds "$( rigNoticeAt 'posted no handback' )" '→ 🤖 *_magic-coordinator_*.' )" yes
 
 echo "-- control: a spawn of a bare command line, in a session of its own --"

@@ -2,7 +2,7 @@
 
 The body of the section of the same name in this member's armed content.
 
-`linear()` normally controls *how smoothly* a transition moves from A to B. Repurposed instead as a pure-CSS way to bake an arbitrary simulated motion (spring, pendulum, bounce, any physics sim) into a native, main-thread-free animation, with no JS driving it at runtime:
+`linear()` normally controls *how smoothly* a transition moves from A to B. Repurposed instead as a pure-CSS way to bake an arbitrary simulated motion into a native, main-thread-free animation. That is a spring, a pendulum, a bounce, any physics sim, with no JS driving it at runtime:
 
 1. Run the physics simulation once, offline, sampling the animated property at regular time intervals.
 2. For each animated dimension, find its min/max across all samples.
@@ -12,6 +12,9 @@ The body of the section of the same name in this member's armed content.
 
 Two simultaneous axes (e.g. x/y) can't share one property's timing function — split them across two different CSS properties (e.g. `translate: x 0` for X, `transform: translateY(y)` for Y) so each gets its own `linear()`.
 
-Real limits: interpolation between samples is linear only (no curvature unless the sample rate is high enough to approximate one); rotation/scale stacked with translation needs a wrapper element to avoid compounding; skipped/irregular sample intervals need explicit progress-percentage stops in the `linear()` list, not just the raw value sequence.
+Real limits:
+  - interpolation between samples is linear only: no curvature, unless the sample rate is high enough to approximate one.
+  - rotation/scale stacked with translation needs a wrapper element to avoid compounding.
+  - skipped/irregular sample intervals need explicit progress-percentage stops in the `linear()` list, not just the raw value sequence.
 
-Motion/visual-styling knowledge, not a systems-depth topic — reach for it when a task genuinely needs custom spring/physics-feel easing, not as a default lens on unrelated styling work.
+Motion/visual-styling knowledge, not a systems-depth topic. Reach for it when a task genuinely needs custom spring/physics-feel easing, not as a default lens on unrelated styling work.

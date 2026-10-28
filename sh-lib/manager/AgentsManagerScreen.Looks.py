@@ -21,7 +21,7 @@ EDGE_ON, EDGE_ON_SHADE, EDGE, EDGE_SHADE, TRACK, THUMB, KEY_CHIP = 30, 31, 32, 3
 BOX_BUTTON_DEF, ALERT, ALERT_FRAME, ALERT_HEAD, ALERT_SHADE = 37, 38, 39, 40, 41
 BOX_EDGE = 42
 ROW, ROW_ALT, ROW_HEAD, ROW_LINE = 43, 44, 45, 46
-LOOKS = (
+BASE_LOOKS = (
     ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
     (".", "", "white", "blue", False),
     ("B", "B", "white", "blue", True),
@@ -110,8 +110,8 @@ LOOKS = (
 ## no colours, the text and the brightness of the look it is of. The first takes the ground of ROW_ALT
 ## where the ground of that look is the ground of PLAIN: a ground that is the meaning of a look,
 ## the red of a bad state, stays. The second is underlined (LINED_LOOKS).
-LOOK_ALT, LOOK_LINE = len(LOOKS), 2 * len(LOOKS)
-LOOKS = LOOKS + tuple(look if look[3] != LOOKS[PLAIN][3] else look[:3] + (LOOKS[ROW_ALT][3], look[4]) for look in LOOKS) + LOOKS
+LOOK_ALT, LOOK_LINE = len(BASE_LOOKS), 2 * len(BASE_LOOKS)
+LOOKS = BASE_LOOKS + tuple(look if look[3] != BASE_LOOKS[PLAIN][3] else look[:3] + (BASE_LOOKS[ROW_ALT][3], look[4]) for look in BASE_LOOKS) + BASE_LOOKS
 ## THE TABLE COLOUR RULE. Each set of colours of a style names a ground for every other row
 ## of a table (ROW_ALT) close to that of a row (ROW), or names none. The other rows differ
 ## from a row only in that ground, never in their text, its colour, its brightness or its

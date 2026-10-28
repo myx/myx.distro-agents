@@ -127,6 +127,9 @@ rigWsMake ws-main \
 	"magic-team:permissions:directory:no-such-place:allow-read:keeper-d" \
 	"magic-team:permissions:workspace:no-such-ws:allow-read:keeper-d:x/**" \
 	"magic-team:permissions:project:.:allow-write:keeper-w:p/**" \
+	"magic-team:permissions:workspace:.:deny-write:keeper-w:shared/locked/**" \
+	"magic-team:permissions:workspace:.:deny-read:keeper-w:shared/secret/**" \
+	"magic-team:permissions:workspace:*:deny-tool:keeper-w:RigDeniedTool" \
 	"${rigFloorDirectives[@]}"
 rigWsMake ws-side "magic-team:permissions:workspace:.:allow-write:keeper-two:mine/**"
 mkdir -p "$rigMain/.local/agents" "$rigMain/.local/temp" "$rigMain/shared"
@@ -152,6 +155,8 @@ rigAssert "namespace .: the declaring project's namespace, in this workspace" "$
 rigAssert "and in every other tooling workspace"                "$( rigRow "keeper-w:ws-main:namespace:Read(/$rigSide/source/rig/**)" )" 1
 rigAssert "workspace .: the declaring workspace"                "$( rigRow "keeper-w:ws-main:workspace:Edit(/$rigMain/shared/**)" )" 1
 rigAssert "workspace *: every tooling workspace"                "$( rigRow "*:ws-main:workspace:Read(/$rigMain/any/**)" ):$( rigRow "*:ws-main:workspace:Read(/$rigSide/any/**)" )" "1:1"
+rigAssert "deny-write, deny-read and deny-tool: the twins of the allow rows, kept as rows that are no grant" "$( rigRow "keeper-w:ws-main:workspace:DenyEdit(/$rigMain/shared/locked/**)" ):$( rigRow "keeper-w:ws-main:workspace:DenyRead(/$rigMain/shared/secret/**)" ):$( rigRow "keeper-w:ws-main:deny:deny-tool:RigDeniedTool" )" "1:1:1"
+rigAssert "and no row of the registry grants what a deny row denies: no Edit( or Read( row of those globs" "$( rigRow ':Edit(/'"$rigMain"'/shared/locked' ):$( rigRow ':Read(/'"$rigMain"'/shared/secret' )" "0:0"
 rigAssert "allow-tool for every member (*): one row, whatever the selector" "$( rigRow "*:ws-main:tool:RigTeamTool" ):$( rigRow ":tool:RigTeamTool" )" "1:1"
 rigAssert "workspace <name>: the place of that name"            "$( rigRow "keeper-w:ws-main:workspace:Read(/$rigSide/docs2/**)" )" 1
 rigAssert "directory <name>: through the places"                "$( rigRow "keeper-d:ws-main:directory:Edit(/$rigTmp/rw-dir/*.md)" )" 1
@@ -187,9 +192,12 @@ rigIdx(){ ## member, verb, glob -- how many index rows
 	LC_ALL=C awk -F'\t' -v m="$1" -v v="$2" -v g="$3" '$1 == m && $2 == v && $3 == g { n++ } END { print n + 0 }' "$rigIndex"
 }
 rigAssert "the index carries its header"                        "$( head -1 "$rigIndex" | cut -f1 )" "myx.distro grants.index 1"
-rigAssert "a * row is one row per member"                       "$( LC_ALL=C awk -F'\t' -v g="$rigSide/any/**" '$2 == "read" && $3 == g { print $1 }' "$rigIndex" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "keeper-d keeper-two keeper-w magic-architect magic-librarian magic-tester "
+rigAssert "a * row is one row per member"                       "$( LC_ALL=C awk -F'\t' -v g="$rigSide/any/**" '$2 == "read" && $3 == g { print $1 }' "$rigIndex" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "keeper-d keeper-two keeper-w magic-architect magic-coordinator magic-librarian magic-tester "
 rigAssert "no * member row is left"                             "$( LC_ALL=C awk -F'\t' '$1 == "*" && $2 != "ceiling"' "$rigIndex" | LC_ALL=C grep -c . )" 0
-rigAssert "a * tool row is one standing tool row per member"    "$( LC_ALL=C awk -F'\t' '$2 == "tool" && $3 == "RigTeamTool" { print $1 ":" $5 }' "$rigIndex" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "keeper-d:standing keeper-two:standing keeper-w:standing magic-architect:standing magic-librarian:standing magic-tester:standing "
+rigAssert "the index carries the deny rows, with the verb of each" "$( rigIdx keeper-w deny-write "$rigMain/shared/locked/**" ):$( rigIdx keeper-w deny-read "$rigMain/shared/secret/**" ):$( rigIdx keeper-w deny-tool RigDeniedTool )" "1:1:1"
+rigAssert "the package's own coordinator rows reach the index: no shell tool, no read or write but its sandbox" "$( rigIdx magic-coordinator deny-tool Bash ):$( rigIdx magic-coordinator deny-tool execute ):$( rigIdx magic-coordinator deny-tool WorkspaceContextExecute ):$( rigIdx magic-coordinator deny-read "$rigMain/**" ):$( rigIdx magic-coordinator deny-write "$rigMain/**" )" "1:1:1:1:1"
+rigAssert "a deny row is no grant: the member's allow rows are the same, no read or write row of its deny globs" "$( rigIdx keeper-w write "$rigMain/shared/locked/**" ):$( rigIdx keeper-w read "$rigMain/shared/secret/**" )" "0:0"
+rigAssert "a * tool row is one standing tool row per member"    "$( LC_ALL=C awk -F'\t' '$2 == "tool" && $3 == "RigTeamTool" { print $1 ":" $5 }' "$rigIndex" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "keeper-d:standing keeper-two:standing keeper-w:standing magic-architect:standing magic-coordinator:standing magic-librarian:standing magic-tester:standing "
 rigHoldsLine(){ ## member, tool -- the first line --intern-op-permission-holds answers, no target
 	rigRun ws-main --intern-op-permission-holds "$1" "$2" ''
 	head -1 "$rigTmp/out"
@@ -393,6 +401,12 @@ rigHomeMain="$rigHome" rigHome="$rigTmp/home-rig"
 rigRig="$rigTmp/ws-rig" rigTestbedD="$rigTmp/ws-d-testbed"
 mkdir -p "$rigHome" "$rigRig/.local/agents" "$rigRig/.local/temp" "$rigRig/.local/myx/myx.distro-agents" "$rigTestbedD/.local"
 cp "$rigPackage/project.inf" "$rigRig/.local/myx/myx.distro-agents/project.inf" || rigRefuse "the package's project.inf could not be installed in the rig"
+## The floor is read through the .local declares index, never by globbing the project.inf files: the index holds the package's own rows and one more, and the
+## installed project.inf one that the index does not hold.
+mkdir -p "$rigRig/.local/system-index"
+LC_ALL=C awk '/^[[:space:]]+--magic-team:/ { print "myx/myx.distro-agents " $1 }' "$rigPackage/project.inf" > "$rigRig/.local/system-index/distro-declares.txt"
+printf 'myx/myx.distro-agents --magic-team:permissions:workspace:*:allow-tool:magic-tester:RigIndexOnlyTool\n' >> "$rigRig/.local/system-index/distro-declares.txt"
+printf '\t--magic-team:permissions:workspace:*:allow-tool:magic-tester:RigGlobOnlyTool\n' >> "$rigRig/.local/myx/myx.distro-agents/project.inf"
 : > "$rigRig/.local/agents/members.registry"
 rigRun ws-rig --owner-workspace-upsert "$rigTestbedD"
 [ "$rigRc" = 0 ] || rigRefuse "the testbed could not be registered from the rig: $( head -3 "$rigTmp/err" )"
@@ -400,6 +414,7 @@ rigRun ws-rig --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the rig: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
 rigIndex="$rigRig/.local/agents/grants.index"
 rigAssert "its permissions registry is written from .local/myx"   "$( LC_ALL=C grep -c '^magic-tester:ws-rig:workspace:' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : )" 9
+rigAssert "from the declares index: a row only the index holds is read, a row only the project.inf holds is not" "$( LC_ALL=C grep -c 'RigIndexOnlyTool' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : ):$( LC_ALL=C grep -c 'RigGlobOnlyTool' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : )" "1:0"
 rigTesterRows=""
 for rigOne in "$rigRig" "$rigTestbedD" ; do
 	rigTesterRows="$rigTesterRows$( rigIdx magic-tester read "$rigOne/source/**/sh-test/**" )$( rigIdx magic-tester read "$rigOne/source/**/test/**" )$( rigIdx magic-tester read "$rigOne/source/**/tests/**" )$( rigIdx magic-tester read "$rigOne/.local/myx/**" ) "

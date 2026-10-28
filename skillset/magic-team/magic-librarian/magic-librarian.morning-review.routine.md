@@ -37,7 +37,7 @@ review-by: inherit
 
 ## Goals
 
-- Catch structural drift: does the board's state model still match what it represents, and do claims in one file still hold against another file's current content.
+- Catch structural drift. Check that the board's state model still matches what it represents. Check that claims in one file still hold against another file's current content.
 - Give the board a second pair of eyes once a day, `magic-librarian` alone.
 
 ## Scope
@@ -48,7 +48,7 @@ review-by: inherit
 - Doesn't:
   - The broad skillset audit — `magic-librarian`'s `team-self-sufficiency-audit`.
   - Board writes by `magic-librarian`, or garbage collection.
-  - Rechecking blocked and parked items — `magic-coordinator.advance.routine` and `magic-team.grooming.routine`.
+  - Rechecking blocked and parked items — `magic-coordinator.work-duty.routine` and `magic-team.grooming.routine`.
 
 # Opening steps
 
@@ -59,8 +59,8 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **read-board-shape**: `magic-librarian` reads this run's input scan result (`input/input-scan.md`).
-2. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape — for example `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`, losing the difference between "stalled on something external" and "deliberately deferred".
-   - step: check the skillset files the scan lists as changed for accreted dated narration, per "Skillset content hygiene"; a rewrite is proposed for the skillset change rule.
+2. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape. For example, `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`. That loses the difference between "stalled on something external" and "deliberately deferred".
+   - step: check the skillset files the scan lists as changed for accreted dated narration, per "Skillset content hygiene". A rewrite is proposed for the skillset change rule.
 3. **check-cross-file-consistency**: Check status claims in one file against the current content of another, starting from the skillset files the scan lists as changed.
 
 # Closure steps

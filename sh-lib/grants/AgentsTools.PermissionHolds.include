@@ -252,6 +252,36 @@ AgentsToolsPermissionStandingRows(){ ## member
 	AgentsToolsGrantsMemberRows "${MMDAPP:-}" "$1" 2>/dev/null || :
 }
 
+## The member's own deny rows from project.inf: rc 0 where one covers the call, printing `standing-deny`.
+## deny-write takes away Edit and Write on its glob, deny-read Read, Grep and Glob, deny-tool the tool it names.
+## All denies together override all allows together.
+AgentsToolsPermissionStandingDenied(){ ## member, tool, natural target
+	local denyVerb denyGlob denyPattern denyLayer denyRowTool denyRowTarget
+	while IFS=$'\t' read -r denyVerb denyGlob denyPattern denyLayer ; do
+		[ -n "$denyGlob" ] || continue
+		case "$denyVerb" in
+			deny-tool)
+				denyRowTool="${denyGlob%%:*}" ; denyRowTarget=""
+				case "$denyGlob" in *:*) denyRowTarget="${denyGlob#*:}" ;; esac
+				[ "$denyRowTool" = "$2" ] || continue
+				AgentsToolsPermissionCovers "$denyRowTarget" "$3" || continue
+			;;
+			deny-write)
+				case " Edit Write " in *" $2 "*) ;; *) continue ;; esac
+				AgentsToolsGrantsCovers "$denyGlob" "$denyPattern" "$3" || continue
+			;;
+			deny-read)
+				case "$agentsPermissionReadTools" in *" $2 "*) ;; *) continue ;; esac
+				AgentsToolsGrantsCovers "$denyGlob" "$denyPattern" "$3" || continue
+			;;
+			*) continue ;;
+		esac
+		printf 'standing-deny'
+		return 0
+	done <<< "$( AgentsToolsPermissionStandingRows "$1" )"
+	return 1
+}
+
 ## True while an item is on the board in an open state.
 AgentsToolsPermissionItemOpen(){ ## item name
 	local openName="${1##*/}" openState
@@ -436,7 +466,7 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 		srCow="$( AgentsToolsPermissionField "$srRecord" session-id )"
 		break
 	done
-	## A root-harness session RootSession minted has no spawn record: the routine its mint kept in its folder is the one it runs (epic S18.5).
+	## A root-harness session has no spawn record: the routine its mint kept in its folder is the one it runs.
 	if [ -z "$srRoutine" ] && [ -z "$srCow" ] ; then
 		type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
 		srRoutine="$( AgentsToolsRootHarnessRoutineRead "$srSession" 2> /dev/null )" || srRoutine=""
@@ -461,14 +491,9 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 	printf '%s' "$srRoutine"
 }
 
-## THE ROUTINE'S ACCESS-CONTROL (epic S18.5; one grant grammar, the project.inf verbs): the frontmatter line `access-control:` is comma-separated rows
-## `<member|executors|participants>:<verb>:<value>`. The verbs are allow-read, allow-write, allow-tool and their twins deny-read, deny-write, deny-tool. A path value
-## (read, write) is a glob, relative to the workspace or absolute; a tool value is `<tool>[:<target>]`. A write row speaks for every file tool, a read row for the read
-## tools only, as the standing rows do. A write row is the entries of Edit and Write, a read row those of Read, Grep and Glob; a deny row takes away exactly the tools
-## its verb names (deny-write the two write tools, not the read tools). The keys `allows:` and `denies:` of a routine are gone, with no alias (the routine validator refuses them). All denies together
-## override all allows together (AgentsToolsPermissionHolds).
-## The rows of one kind in the shape the layers below read, `<who>:<tool>[:<target>]`, comma-joined: allow-write is `Edit:<glob>`, allow-read `Read:<glob>`, allow-tool the
-## value as it stands; deny-* the same for the denies. A row of a wrong shape, or of the other kind, is left out here (the validator refuses the shape).
+## The routine's `access-control:` line: comma-separated rows `<member|executors|participants>:<verb>:<value>`.
+## Verbs: allow-read, allow-write, allow-tool and the deny twins. A path value is a glob; a tool value is `<tool>[:<target>]`.
+## Prints the rows of one kind as `<who>:<tool>[:<target>]`: write is Edit and Write, read is Read, Grep and Glob. A malformed row is left out.
 AgentsToolsPermissionAccessEntries(){ ## access-control value, allow|deny
 	local accRest="${1:-}" accKind="${2:-}" accRow accWho accVerb accValue accEntry accOut=""
 	while [ -n "$accRest" ] ; do
@@ -651,11 +676,72 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 ## The refusal of a call a routine's deny rows cover: rc 0 and the hint printed (the tool, the routine whose rows deny it, who owns the limit and how to ask),
 ## rc 1 and nothing printed where no deny row covers the call. The name of the tool is the caller's own word and is printed back only if it is a plain name.
 AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id
-	local denyLayer denyName denyTool="${2:-}"
-	denyLayer="$( AgentsToolsPermissionRoutineDenies "${1:-}" "$denyTool" "${3:-}" "${4:-}" 2> /dev/null )" || return 1
-	denyName="${denyLayer#routine-deny }"
+	local denyLayer denyName denyTool="${2:-}" denyWhy
 	case "$denyTool" in ''|*[!A-Za-z0-9_]*) denyTool="this call" ;; esac
-	printf 'ERROR: %s is denied to this session by the access-control rows of its routine %s. The owner of the limit is the human-owner; to ask for it, call RequestPermission naming the tool and why, or hand the work to a session that has it. Nothing was done.\n' "$denyTool" "$denyName"
+	if denyLayer="$( AgentsToolsPermissionRoutineDenies "${1:-}" "${2:-}" "${3:-}" "${4:-}" 2> /dev/null )" ; then
+		denyName="${denyLayer#routine-deny }"
+		denyWhy="the access-control rows of its routine $denyName"
+	elif AgentsToolsPermissionStandingDenied "${1:-}" "${2:-}" "${3:-}" > /dev/null 2>&1 ; then
+		denyWhy="a deny row declared for ${1:-} in project.inf"
+	else
+		return 1
+	fi
+	printf 'ERROR: %s is denied to this session by %s. The owner of the limit is the human-owner; to ask for it, call RequestPermission naming the tool and why, or hand the work to a session that has it. Nothing was done.\n' "$denyTool" "$denyWhy"
+}
+
+## The access block of a spawn brief: the refused tools and paths and what the routine adds for this member,
+## from the standing deny rows and the routine's `access-control:` rows, then always the line that says how to ask for more.
+AgentsToolsPermissionAccessBlock(){ ## member, routine file (optional)
+	local abMember="${1:-}" abFile="${2:-}" abLine abAccess="" abExecutors="" abRow abRest abWho abVerb abValue abOne abGlob abDenyTool="" abDenyRead="" abDenyWrite="" abAddTool="" abAddRead="" abAddWrite="" abIsExec=""
+	if [ -n "$abFile" ] && [ -f "$abFile" ] ; then
+		while IFS= read -r abLine ; do
+			case "$abLine" in
+				'access-control: '*) abAccess="${abLine#access-control: }" ;;
+				'executors: '*) abExecutors="${abLine#executors: }" ;;
+			esac
+		done < <( LC_ALL=C awk 'NR == 1 && $0 == "---" { fm = 1 ; next ; } fm && $0 == "---" { exit ; } fm { print ; }' "$abFile" )
+	fi
+	case ", ${abExecutors//,/ ,} ," in *" $abMember ,"*|*" magic-team ,"*|*" * ,"*) abIsExec=1 ;; esac
+	abRest="$abAccess"
+	while [ -n "$abRest" ] ; do
+		abRow="${abRest%%,*}"
+		if [ "$abRow" != "$abRest" ] ; then abRest="${abRest#*,}" ; else abRest="" ; fi
+		abRow="${abRow#"${abRow%%[![:space:]]*}"}" ; abRow="${abRow%"${abRow##*[![:space:]]}"}"
+		case "$abRow" in *:*:*) ;; *) continue ;; esac
+		abWho="${abRow%%:*}" ; abRow="${abRow#*:}" ; abVerb="${abRow%%:*}" ; abValue="${abRow#*:}"
+		case "$abWho" in
+			participants|"$abMember") ;;
+			executors) [ -n "$abIsExec" ] || continue ;;
+			*) continue ;;
+		esac
+		case "$abVerb" in
+			deny-tool) abDenyTool="$abDenyTool${abDenyTool:+, }$abValue" ;;
+			deny-read) abDenyRead="$abDenyRead${abDenyRead:+, }$abValue" ;;
+			deny-write) abDenyWrite="$abDenyWrite${abDenyWrite:+, }$abValue" ;;
+			allow-tool) abAddTool="$abAddTool${abAddTool:+, }$abValue" ;;
+			allow-read) abAddRead="$abAddRead${abAddRead:+, }$abValue" ;;
+			allow-write) abAddWrite="$abAddWrite${abAddWrite:+, }$abValue" ;;
+		esac
+	done
+	if [ -n "${MMDAPP:-}" ] && [ -n "$abMember" ] ; then
+		type AgentsToolsGrantsMemberRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" 2> /dev/null || :
+		while IFS=$'\t' read -r abVerb abGlob abOne abRest ; do
+			abGlob="${abGlob#"$MMDAPP"/}"
+			case "$abVerb" in
+				deny-tool) abDenyTool="$abDenyTool${abDenyTool:+, }$abGlob" ;;
+				deny-read) abDenyRead="$abDenyRead${abDenyRead:+, }$abGlob" ;;
+				deny-write) abDenyWrite="$abDenyWrite${abDenyWrite:+, }$abGlob" ;;
+			esac
+		done < <( AgentsToolsGrantsMemberRows "$MMDAPP" "$abMember" 2> /dev/null )
+	fi
+	[ -z "$abDenyTool" ] || printf 'refused tools: %s\n' "$abDenyTool"
+	[ -z "$abDenyRead" ] || printf 'refused reads: %s\n' "$abDenyRead"
+	[ -z "$abDenyWrite" ] || printf 'refused writes: %s\n' "$abDenyWrite"
+	{ [ -z "$abDenyRead" ] && [ -z "$abDenyWrite" ] ; } || printf 'always open: your sandbox, the input/ and output/ folders\n'
+	[ -z "$abAddTool" ] || printf 'your routine adds tools: %s\n' "$abAddTool"
+	[ -z "$abAddRead" ] || printf 'your routine adds reads: %s\n' "$abAddRead"
+	[ -z "$abAddWrite" ] || printf 'your routine adds writes: %s\n' "$abAddWrite"
+	printf 'to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides. Your other standing rows: --list-permissions.\n'
 }
 
 ## Whether <member> holds <tool> <target>, and through which layer: prints the layer and
@@ -663,14 +749,25 @@ AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id
 ## and the store of the coworking session it joined.
 AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optional)
 	local holdMember="$1" holdTool="$2" holdTarget="$3" holdSession="${4:-}"
-	local holdRoot holdVerb holdGlob holdPattern holdLayer holdRowTool holdRowTools holdRowTarget holdPurpose holdDir holdFound
+	local holdRoot holdVerb holdGlob holdPattern holdLayer holdRowTool holdRowTools holdRowTarget holdPurpose holdDir holdFound holdSandbox=""
 	[ -n "$holdMember" ] && [ -n "$holdTool" ] || return 1
 	if AgentsToolsPermissionIsHumanOwner "$holdMember" ; then
 		printf 'human-owner'
 		return 0
 	fi
+	## The session's own sandbox, input/ and output/, is exempt from every deny row.
+	holdSandbox=""
+	if [ -n "$holdSession" ] && [ -n "${MMDAPP:-}" ] && [ -n "$holdTarget" ] ; then
+		while IFS= read -r holdRoot ; do
+			case "$holdRoot" in */input|*/output) ;; *) continue ;; esac
+			AgentsToolsPermissionCovers "${holdRoot%/}/**" "$holdTarget" || continue
+			holdSandbox=1 ; break
+		done <<< "$( AgentsToolsPermissionFloorRoots "$MMDAPP" "$holdMember" read "$holdSession" )"
+	fi
+	## The member's own deny rows (project.inf) win over every allow of every layer, the routine's and the session grants' included.
+	[ -n "$holdSandbox" ] || ! AgentsToolsPermissionStandingDenied "$holdMember" "$holdTool" "$holdTarget" > /dev/null || return 1
 	## A routine's deny rows win over every layer below, the routine's allows and the session grants included.
-	! AgentsToolsPermissionRoutineDenies "$holdMember" "$holdTool" "$holdTarget" "$holdSession" || return 1
+	[ -n "$holdSandbox" ] || ! AgentsToolsPermissionRoutineDenies "$holdMember" "$holdTool" "$holdTarget" "$holdSession" || return 1
 	## A read-only place is written by nobody else, through any layer: its ceiling caps them all.
 	case " Edit Write Execute " in
 		*" $holdTool "*)
@@ -788,7 +885,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				front == 1 && index( $0, "owner: " ) == 1 { recOwner = substr( $0, 8 ) ; }
 			' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2>/dev/null || :
 		fi
-		## The root-harness session RootSession minted has no spawn record: it is the coordinator's own, the one participant (epic S18.5).
+		## A root-harness session has no spawn record: the coordinator is its one participant.
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
 			type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
 			! AgentsToolsRootHarnessRoutineRead "$partSession" > /dev/null 2>&1 || printf 'magic-coordinator\n'

@@ -15,6 +15,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - `daily-idle-check` — idle default when nothing else is pending
   - `own-inbox-batch-processing` — process this member's own inbox in one batch
   - `team-self-sufficiency-audit` — daily check across every `magic-*` skill folder
+  - `magic-md-spread` — move settled `MAGIC.md` content into the knowledge store
 - Team-Member's (-specific) local rules
 - Domain knowledge: documentation and skillset conventions
   - Routines (index)
@@ -40,7 +41,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ## Goals
 
 - Keep `README.md` and `MAGIC.md` current and sound per documentation unit. Content that does not match the implementation is flagged, never silently rewritten away.
-- Steward the skillset: run `magic-librarian.conventions-check.routine` on every skillset change, and write each change once its maintainers agree, by "The ladder: one rung at a time" ("Rule/instruction/definition/description conventions").
+- Steward the skillset: run `magic-librarian.conventions-check.routine` on every skillset change. Write each change once its maintainers agree, by "The ladder: one rung at a time" ("Rule/instruction/definition/description conventions").
 - Own one reference module per protocol or format that recurs across projects and workspaces, filled only as real need surfaces.
 - Steward the `Verbatim-intents`/`Verbatim-benchmarks` convention and skillset content hygiene, which every member's files — this one included — are checked against.
 
@@ -85,8 +86,8 @@ Steps:
 2. No specific target, steps:
    - run `mode-check`
    - fix what it found
-3. Every project with a `project.inf` carries both files: create whichever is missing, confirmed with whoever asked for the update first — the human-owner only when he is that requester.
-4. Fix a gap or a doc bug — a floor violation, a below-bar entry, a stale fact — once whoever asked for the update confirms it, the human-owner only when he is that requester.
+3. Every project with a `project.inf` carries both files: create whichever is missing. Confirm it with whoever asked for the update first, the human-owner only when he is that requester.
+4. Fix a gap or a doc bug, such as a floor violation, a below-bar entry or a stale fact. Do it once whoever asked for the update confirms it, the human-owner only when he is that requester.
 5. Edit surgically. Keep accurate wording, structure and tone; touch only what is stale, missing or wrong. A one-line fix is a one-line diff. A full rewrite only for an empty or new file, an explicit request, or content too broken to patch — and say so first. New content is grounded in what the code shows.
 
 ## `daily-idle-check` — idle default when nothing else is pending
@@ -106,6 +107,20 @@ Steps:
 
 Read `reference/team-self-sufficiency-audit.md` for the steps.
 
+## `magic-md-spread` — move settled `MAGIC.md` content into the knowledge store
+
+Where the knowledge store is installed, a `MAGIC.md` is a buffer: what is currently important stays in it. Settled content moves to the store beside it, where the Knowledge tool still finds it. Where the store is not installed, the `MAGIC.md` stays as it is. Steps:
+1. **pick-the-files**: take the `MAGIC.md` of each known documentation unit, and read each one's change history with `--get-path-history`.
+2. **choose-what-stays**: for each file, name the sections that stay:
+   - the sections a reader of the tree needs first: orientation, where things live, the gotchas that still bite.
+   - every section changed since the last spread of that file.
+   - every other section is settled, and moves.
+3. **spread**: run `--knowledge-store-spread <path> --keep <glob>...`, one `--keep` per section that stays, steps:
+   - a refusal that names `--install-knowledge-store` means the store is not installed in this workspace. Leave every `MAGIC.md` as it is, say so once in the report, and end the procedure.
+   - any other refusal is a fault: report it, and leave that file as it is.
+4. **retire**: a moved section found no longer true, by `mode-check`, is retired with `--knowledge-store-retire <path> --section <glob>`, once the fix to its source is recorded.
+5. **report**: per file, the sections kept and the sections moved, or that the store is not installed.
+
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
@@ -115,8 +130,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - Before acting on a note or report, resolve its quoted wording against the file (**source-over-memory**); a record quoting superseded text drives the change twice.
 - A project's documentation references a file in another project only where it requires that project. Where it does, it states the requirement, not the path.
 - A file this member generates from other sources carries a header saying so, and that the source is what gets fixed.
-- A skill folder and its source in the bundle are one file, not two copies: verify a skillset edit against its content (**source-over-memory**), not the two paths.
-- This member holds a standing grant to write the `.md` files of any team-member skill that is a real folder in the HOME skills folder (`.skillset-shared`), or a link there into the source tree of the workspace this session runs from (`.skillset-.local`) -- no ask needed. A skill linked in from another workspace is not covered, and is asked for as before. A permission is decided on the real file; a link and its target get the same answer. The grant is of the `approve` kind: an `Edit` or `Write` it covers is held and shown to the human-owner as a diff, and applied only once he approves it; a grant given for a task, session or single call instead comes ahead of the approval and writes at once.
+- A skill folder and its source in the bundle are one file, not two copies. Verify a skillset edit against its content (**source-over-memory**), not the two paths.
+- This member holds a standing grant to write the `.md` files of some team-member skills, with no ask needed. The skill is a real folder in the HOME skills folder (`.skillset-shared`). Or it is a link there into the source tree of the workspace this session runs from (`.skillset-.local`). A skill linked in from another workspace is not covered, and is asked for as before. A permission is decided on the real file; a link and its target get the same answer. The grant is of the `approve` kind: an `Edit` or `Write` it covers is held and shown to the human-owner as a diff. It is applied only once he approves it. A grant given for a task, session or single call instead comes ahead of the approval, and writes at once.
 - Content belongs in `.basic.md` only when it is identity, always true. Everything professional goes in `.armed.md`.
 
 # Domain knowledge: documentation and skillset conventions
@@ -138,7 +153,7 @@ Each is evaluated on its own, against its own code and existing style:
 - **`README.md`** is for users: what the project is, why it exists, how to install, configure, run and use it. It splits with `docs/` when it grows: installation, configuration, use, commands, formats, extension, examples and troubleshooting pages, each linking back to the README. `docs/` is user-facing only.
 - **`MAGIC.md`** is for maintainers: contributor mechanics, non-obvious conventions, gotchas, where things live. Distinctly different from the `README.md` above. It is always exactly one file, never a folder, even in a project we do not own. It may link to a `README.md`/`docs/` page rather than restating it. It is read before anything else in its tree ("Knowledge destinations").
 - User content found in a `MAGIC.md` — an operation's call contract, its usage — moves to the README's `docs/`, and `MAGIC.md` links to it. What a help entry already states is linked, never copied.
-- **The `MAGIC.md` bar**: an entry earns its place only if it is important — it makes a difference — and hard to come by: not readily available from the code or docs, learned from an external source, a correction, or non-obvious discovery.
+- **The `MAGIC.md` bar**: an entry earns its place only if it is important, making a difference, and hard to come by. Hard to come by means not readily available from the code or docs. It was learned from an external source, a correction, or non-obvious discovery.
 - Neither doc states who consumes the package, where it is deployed, or which hosts, instances or workspaces install it. The reasons: disclosure, irrelevance, and an unmaintainable list that is always wrong.
 - Neither doc states this copy's own place — a "primary copy", "synced to workspace X". The doc travels with every copy, so the statement is false in each one.
 - Match the tone and structure the unit already uses. A unit with no docs starts minimal: a section earns its place by being non-obvious.
@@ -169,7 +184,15 @@ Read `reference/text-groups.md` for the instruction layer and the data layer.
 
 Text a member emits is governed by "The output-style floor".
 
-**Language level and style.** One reading, never two. Rejected: rhetorical construction, emphasis for effect, a clever formulation where a plain one exists, a sentence needing a second read, a clause whose force depends on tone, and a citation, quotation or narration standing where the rule alone is wanted. US spelling already landed is not rewritten for.
+**Language level and style.** One reading, never two. Rejected:
+
+- rhetorical construction, and emphasis for effect.
+- a clever formulation where a plain one exists.
+- a sentence needing a second read.
+- a clause whose force depends on tone.
+- a citation, quotation or narration standing where the rule alone is wanted.
+
+US spelling already landed is not rewritten for.
 
 ## Applying the output-style floor
 
@@ -185,7 +208,7 @@ A shared skillset file — anything other than a `keeper-*`/`warden-*`/`partner-
 
 ## A role-family enumeration widens only where the capability does
 
-Completing `keeper-*`/`partner-*` to the full family list is right for a statement about membership or file shape, and wrong for one granting a capability: a `client-*` member is a representative, normally with no workspace or console. Check that each added family holds the capability before widening a list.
+Completing `keeper-*`/`partner-*` to the full family list is right for a statement about membership or file shape. It is wrong for one granting a capability: a `client-*` member is a representative, normally with no workspace or console. Check that each added family holds the capability before widening a list.
 
 ## Verbatim-intents and Verbatim-benchmarks convention
 
@@ -194,6 +217,7 @@ Read `reference/maintainer-notes.md` for the convention.
 ## Idle-Tasks
 
 - `daily-idle-check` (local procedure) — weight: 2, min-interval: 24h, scope: known documentation units.
+- `magic-md-spread` (local procedure) — weight: 1, min-interval: 24h, scope: the `MAGIC.md` files of known documentation units, in a workspace where the knowledge store is installed.
 - universal research-own-duties activity — weight: 1, min-interval: 24h, scope: documentation practice and the reference modules' protocols.
 
 # Team-Member's (-specific) tooling
@@ -207,6 +231,9 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed]`
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]`
 - `--upsert-inbox-inquiry <team-member> <item-filename>`
+- `--knowledge-store-spread <path> [--keep <glob>]...`
+- `--knowledge-store-retire <path> --section <glob>...`
+- `--get-path-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...`
 
 # Maintainer Notes
 

@@ -43,6 +43,9 @@
 ## nothing is written outside it, with no gate stubbed. The tree under test is whatever
 ## MDLT_ORIGIN names, so a red run needs the planted tree named there, not merely executed.
 set -u
+## This check holds the numbered-job path of a server that has no session to own a task (epic S20: with a session, execute is a task underneath, held by
+## AgentsMcpToolTaskCheck). The session of the machine running the check must not reach the server.
+export MDAT_TOOL_TASK_OFF=yes
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"

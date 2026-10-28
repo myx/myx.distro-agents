@@ -5,7 +5,7 @@
 ## AgentsTools.BoardRoundScan.include -- the sections of a scan that a round of the board's rules reads (F7.12): the board's items of the
 ## active states, the review items addressed to the advance routine, the registries of sessions, and the items whose recheck-date has arrived.
 ## The coordinator's work-duty scan prints them from here -- the scan the work-duty, the manual start of the advance routine and the daily declare -- so there is
-## one reading of the board for the rules of magic-coordinator.advance.routine, wherever they are run. (The advance scan, --intern-op-advance-input-scan, is retired.)
+## one reading of the board for the rules of magic-team.advance.routine, wherever they are run. (The advance scan, --intern-op-advance-input-scan, is retired.)
 ## Sourced, never run; functions only. All are pure reads: what a round acts on first (what a dead spawn left open, the edges of the
 ## dependencies) is done by the tooling before, in the main loop's housekeeping (AgentsTools.SpawnHousekeeping.include,
 ## AgentsTools.BoardDependencies.include).
@@ -35,7 +35,7 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 	AgentsReviewItemsForRoutine advance
 	## All three registries ride in the scan's output because the round that reads the board also needs to know who can be spawned, what is
 	## actually running and what is waiting on an answer. The rescan is what keeps each one a cache rather than a record anyone maintains by
-	## hand. The instruction to poll these and compare them with the board's own running items lives in magic-coordinator.advance.routine.
+	## hand. The instruction to poll these and compare them with the board's own running items lives in magic-team.advance.routine.
 	type AgentsToolsRegistryRenderAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	printf '\n'
 	AgentsToolsRegistryRenderAll || :

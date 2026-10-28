@@ -11,7 +11,7 @@ runs-at: none
 
 # Summary
 
-An epic's session: it works the epic's own step list — the features the epic declares, in their order — then hands back where the epic's project item says. A run of this routine is a run of the epic named by its file, so the epic's steps stand as this routine's `# Steps`.
+An epic's session: it works the epic's own step list, the features the epic declares, in their order. Then it hands back where the epic's project item says. A run of this routine is a run of the epic named by its file, so the epic's steps stand as this routine's `# Steps`.
 
 # Opening steps
 

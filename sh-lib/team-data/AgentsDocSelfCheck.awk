@@ -341,7 +341,7 @@ function readSpan(spanIn, lineNo,   pathText, placeText) {
 	pathText = spanIn ; sub(/#[A-Za-z0-9._-]*$/, "", pathText) ; sub(/:[0-9]+(-[0-9]+)?$/, "", pathText) ;
 	if (pathText ~ /^(ws-|util[.]workspace-)[A-Za-z0-9._-]+$/) { emitCite("PLACE", lineNo, pathText) ; return ; }
 	placeText = pathText ; sub(/[.]md$/, "", placeText) ;
-	if (placeText ~ /^(project|task|change|idea|proposal|interview|approval|dispatch|warning)-[0-9]+T[0-9]+Z-[A-Za-z0-9._-]+$/) { emitCite("BOARD", lineNo, placeText) ; return ; }
+	if (placeText ~ /^(project|task|change|idea|proposal|interview|investigation|approval|dispatch|warning)-[0-9]+T[0-9]+Z-[A-Za-z0-9._-]+$/) { emitCite("BOARD", lineNo, placeText) ; return ; }
 	if (pathText !~ /^[\/A-Za-z0-9_.@+-][A-Za-z0-9_.\/@+-]*[\/][A-Za-z0-9_.@+-]+[.](md|sh|include|awk|py|json|inf|txt|html|css|js|yaml|yml|xml|xsl|tpl|png|svg|env|conf)$/) return ;
 	if (pathText ~ /[.][.][.]/) return ;
 	if (pathText ~ /^(input|output|[.]local)[\/]/) return ;

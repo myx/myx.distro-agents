@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-## The scoped input scans (advance: the `--intern-op-<scan>-input-scan` ops, the wrappers having retired with F6.4) emit no section unrelated to their
-## routine: no comms, IM, Email, Trello or Other-Inbox heading, and no "not requested"
-## line. The same scan op run with nothing declined is the control that emits them.
+## The scoped board sections emit no section unrelated to their routine: no comms, IM, Email, Trello or Other-Inbox heading,
+## and no "not requested" line. They are the board digest, the review items and the registries that the rules of
+## magic-team.advance.routine read (AgentsToolsBoardRoundSections, AgentsTools.BoardRoundScan.include). The advance scan is
+## retired, and the work-duty scan prints these sections beside the inbox and Slack it reads by design, so the sections are run alone.
+## The same scan op run with nothing declined is the control that emits them.
 ## Offline: a temp board, data root and HOME; no comms source is configured.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -40,14 +42,18 @@ rigNotRequested(){ ## output file
 	LC_ALL=C grep -c -F '**NOTE:** not requested' "$1" || :
 }
 
-for rigStub in advance ; do
-	echo "-- the $rigStub input scan --"
-	rigRun "$rigTmp/$rigStub" "--intern-op-$rigStub-input-scan" magic-coordinator
-	rigReach='## board digest'
-	LC_ALL=C grep -q -x -F -- "$rigReach" "$rigTmp/$rigStub" || rigRefuse "the $rigStub scan printed no '$rigReach', so its output was never reached"
-	rigAssert "it emits no unrelated section heading"   "$( rigUnrelated "$rigTmp/$rigStub" )" 0
-	rigAssert "and no \"not requested\" line"           "$( rigNotRequested "$rigTmp/$rigStub" )" 0
-done
+echo "-- the board sections of the work-duty scan --"
+( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" bash -c '
+	DistroAgentsTools(){ bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 1
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardRoundScan.include" || exit 1
+	AgentsToolsBoardRoundSections magic-coordinator --intern-op-work-duty-input-scan
+' ) > "$rigTmp/board" 2> /dev/null
+rigReach='## board digest'
+LC_ALL=C grep -q -x -F -- "$rigReach" "$rigTmp/board" || rigRefuse "the board sections printed no '$rigReach', so their output was never reached"
+LC_ALL=C grep -q -x -F -- '## running/task-rig.md' "$rigTmp/board" || rigRefuse "the board sections did not list the rig's running item, so the board was never read"
+rigAssert "they emit no unrelated section heading"   "$( rigUnrelated "$rigTmp/board" )" 0
+rigAssert "and no \"not requested\" line"            "$( rigNotRequested "$rigTmp/board" )" 0
 
 echo "-- control: the scan op with nothing declined --"
 rigRun "$rigTmp/control" --intern-op-session-context-scan magic-coordinator --all-types --do-inbox-notes

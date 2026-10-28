@@ -505,7 +505,7 @@ else
 	harnessWindowTokens="$harnessFallbackWindow" harnessOutputTokens="$harnessFallbackOutput"
 	harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-${PRESET_CONTEXT_MAX_SIZE:-$(( ${harnessWindowTokens:-400000} - ${harnessOutputTokens:-0} ))}}"
 fi
-AgentsHarnessEffortApply
+AgentsHarnessEffortApply || exit 1
 
 ## A tool call reaches no endpoint and is not metered, so --intern-tool needs neither.
 if [ -z "$harnessToolOnly" ] ; then
@@ -1217,6 +1217,8 @@ if [ -n "$harnessNeedsMcp" ] ; then
 	. "$harnessWireFile"
 	## The declarations a hosted model is given state the cap this process applies.
 	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | AgentsReadCapFill "$harnessReadCap" )"
+	## Every tool takes background, timeout and timeout_action (epic S20): the declarations say so.
+	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessTaskArgsFill.awk" )"
 	## The declarations are UNCONDITIONAL, CheckList among them: it is a basic tool, listed
 	## wherever the wire declares it, and it refuses at execution where the harness knows no
 	## member or no place for its list (AgentsHarnessCheckListPlace) -- never by being absent.
@@ -1494,11 +1496,18 @@ AgentsHarnessCacheWatch(){
 			*) watchAsked="" ;;
 		esac
 	fi
-	if [ -n "$watchAsked" ] && [ "$watchValue" != "$harnessEffort" ] ; then
+	if [ -n "$watchAsked" ] && [ "$watchValue" != "$harnessEffort" ] && [ "$watchValue" != "${harnessEffortRefused:-}" ] ; then
 		watchOld="$harnessEffort" ; watchNew="$watchValue"
 		harnessEffort="$watchValue"
-		AgentsHarnessEffortApply
-		[ "$harnessRound" -le 1 ] || watchWhy="effort changed from $watchOld to $watchNew"
+		if ! AgentsHarnessEffortApply ; then
+			## refused by the model (an error already said): the run goes on at the effort it had, and says so
+			harnessEffort="$watchOld"
+			AgentsHarnessEffortApply || :
+			printf '%s\n' "${harnessWarn}⚠️ effort${harnessOff} ${harnessDim}-- $watchNew was refused for $harnessModel; the run stays at $watchOld${harnessOff}" >&2
+			harnessEffortRefused="$watchNew"
+			watchNew="$watchOld"
+		fi
+		[ "$harnessRound" -le 1 ] || [ "$watchNew" = "$watchOld" ] || watchWhy="effort changed from $watchOld to $watchNew"
 	fi
 	watchTools="$( printf '%s' "${harnessMcpToolsJson:-}" | cksum )" ; watchSystem="$( printf '%s' "$harnessSystemText" | cksum )"
 	if [ "$harnessRound" -gt 1 ] ; then
@@ -1745,6 +1754,8 @@ while : ; do
 	AgentsTranscriptHarnessRound "$harnessRound" "$harnessScratch" || :
 
 	if [ "$harnessStreamOk" != "1" ] && [ ! -s "$harnessScratch/stream.rawother" ] ; then
+		## a provider that gave no complete answer ends the run: kept beside the record with its reason, as a refusal is (sketch 3.6)
+		AgentsHarnessRefusalKeep "$harnessHost gave no complete answer -- gave up after $harnessStreamMaxAttempts stream attempts, none reached a clean [DONE]"
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: round $harnessRound: gave up after $harnessStreamMaxAttempts stream attempts, none reached a clean [DONE] (see DESIGN DECISION 1: a partial stream is always discarded, never spliced) -- last curl rc=$harnessCurlRc" >&2
 		exit 1
 	fi
@@ -1768,6 +1779,7 @@ while : ; do
 		AgentsHarnessRefusalKeep "$harnessHost refused the request -- $harnessErrorCode: ${harnessErrorDetail:-<no message>}"
 		exit 1
 	elif [ "$harnessErrorRc" != "3" ] ; then
+		AgentsHarnessRefusalKeep "$harnessHost gave an answer that was not a parseable JSON object (rc=$harnessErrorRc)"
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: response was not a parseable JSON object (rc=$harnessErrorRc): $harnessResponse" >&2
 		exit 1
 	fi
@@ -1821,6 +1833,8 @@ while : ; do
 		harnessFinal="$( AgentsWireFinalContent )"
 		if [ -z "$harnessFinal" ] ; then
 			harnessFinishReason="$( AgentsWireFinishReason )"
+			## an answer the provider ended empty (a content filter, a refusal stop and the like) is a block that ends the run: kept with its finish reason (sketch 3.6)
+			AgentsHarnessRefusalKeep "$harnessHost ended the answer empty -- finish_reason ${harnessFinishReason:-<none>}"
 			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no tool call and no final content came back (finish_reason=${harnessFinishReason:-<none>}) -- refusing to print an empty answer as if it were one" >&2
 			exit 1
 		fi

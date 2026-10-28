@@ -42,7 +42,7 @@ review-by: inherit
 ## Goals
 
 - Ask of every open item: still worth doing, owned by the right member, sequenced correctly? A daily roll call reports items; grooming re-examines them.
-- Make the board's state decisions: triage, backlog promotion, unblocking, recall to backlog, scoring. `magic-coordinator.advance.routine` only applies moves already decided.
+- Make the board's state decisions: triage, backlog promotion, unblocking, recall to backlog, scoring. The coordinator's board round (`magic-coordinator.work-duty.routine`) only applies moves already decided.
 
 ## Scope
 
@@ -63,12 +63,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **invite-participants**: invite `magic-librarian` and `magic-architect` per `magic-team.coworking.routine`'s **invite-participants-visibly**.
 2. **gather-the-backlog**: open with what changed since the last pass and today's top priority, steps:
-   - read the open board and `magic-coordinator`'s inbox from this run's input scan result (`input/input-scan.md`). Its `state-and-lock` note is this pass's tracking document: keep it current with `--update-routine-state`, referencing items by name rather than copying them, and hold the lock with `--grooming-lock-refresh` during a long pass.
+   - read the open board and `magic-coordinator`'s inbox from this run's input scan result (`input/input-scan.md`). Its `state-and-lock` note is this pass's tracking document. Keep it current with `--update-routine-state`, referencing items by name rather than copying them. Hold the lock with `--grooming-lock-refresh` during a long pass.
    - run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so fresh inbox items are triaged with the backlog.
    - refresh the `roster-note` with `--roster-upsert` where a member's `SKILL.md` description drifted from it.
    - check Trello board coverage.
    - check Google Drive and Sheets for files modified since the last grooming, with `--google-file-find`.
-   - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch, and send it to him with `--slack-send-message` during this pass — at **review-with-the-user** if he is live, else once this step ends.
+   - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch. Send it to him with `--slack-send-message` during this pass: at **review-with-the-user** if he is live, else once this step ends.
 3. **triage-per-item**: give every open item, old or new, one recorded triage verb or an explicit skip reason. Time-box each item. Steps:
    - decide each item by this tree, first match wins:
      - duplicate of another open item → **Merge**.
@@ -101,7 +101,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - `status: dispatch-succeeded` → `board-processed`.
      - `status: dispatch-failed` with `tracks:` → close it to `board-processed` with the reason; to retry, return the tracked item to `board-pending` with what the retry needs.
      - `status: dispatch-failed`, no `tracks:` → close it to `board-processed` with the failure. Its work may be dispatched anew by judgement.
-   - apply `magic-team.handback-review.routine` inline (`--routine-run-inline magic-team.handback-review.routine`) to each item the scan's `## review items addressed to grooming.routine` section lists, the group acting as this item's parent for review, per "The ladder: one rung at a time".
+   - apply `magic-team.handback-review.routine` inline (`--routine-run-inline magic-team.handback-review.routine`) to each item the scan's `## review items addressed to grooming.routine` section lists. The group acts as this item's parent for review, per "The ladder: one rung at a time".
    - recheck `board-running` items, steps:
      - a claimed completion gets a `magic-tester` testing round, in place.
      - testing clean → `board-processed`; clean but needing the human-owner's sign-off → `board-blocked`.
@@ -152,7 +152,7 @@ Used by **rescore-backlog-rice** and by any member scoring an item.
 Run per item during **triage-per-item**. Steps:
 1. `interview-*`, or a `task-*`/`proposal-*` explicitly awaiting interview (read its content, not its title):
    - `owner-session: interactive` with `owner-session-since` within about an hour: skip; a live session holds it.
-   - otherwise: `--grooming-to-pending`. `magic-coordinator.advance.routine` starts it and runs its interview rounds.
+   - otherwise: `--grooming-to-pending`. `magic-coordinator.work-duty.routine`'s **start-pending** starts it, and `magic-team.advance.routine` runs its interview rounds.
 2. Any other item already carrying `approved-by`/`approved-at` (created approved by another routine) → `--grooming-to-pending`.
 3. Any other item, by the group's consensus this pass:
    - dependencies clear and priority confirmed, nobody dissents → `--grooming-to-pending` with `approved-by`/`approved-at`.
@@ -177,14 +177,20 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator`, `magic-librarian` and `magic-architect` make every judgement call jointly; `magic-coordinator` alone executes the steps and writes the board. Another member may request a pass, never run one.
 - The group never lets one view win by default. Unresolved: escalate. Running unattended: leave the item where it is and flag the disagreement for the next pass.
 - Running unattended (its autorun): **review-with-the-user** does not block. Its findings are recorded as provisional and confirmed when the human-owner is next present. Silence is never approval.
-- Grooming never spawns a session. Work needing one lands in `board-pending`, for `magic-coordinator.advance.routine` to start.
+- Grooming may set or change an item's `handler-routine:` where its type's default would run the wrong iteration. It records the change with its reason in the item's `## Decisions`. A gate row is never overridden.
+- Grooming never spawns a session. Work needing one lands in `board-pending`, for `magic-coordinator.work-duty.routine`'s **start-pending** to start.
 - An item landing in `board-pending` carries the best guess its dispatch can make. The group works out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. The item names the likely members, permissions and tools, for the dispatcher's `--participants`, `--likely-permission` and `--likely-tool`.
 - Triage decides an item's state; **rescore-backlog-rice** decides its numbers. Never fold one into the other.
 - A pass-level "deferred" or "reviewed later" without per-item outcomes is invalid.
 - An item unchanged since the last pass still gets a glance, not a re-litigation.
 - A `blocked` item with nothing left to try is parked, never given a token action.
 - Scores and recorded dependency order that disagree are both recorded truthfully.
-- A promoted item passes the task-creation lifecycle before it reaches `board-pending`: investigation, assessment with `magic-architect`, doc and proposal check with `magic-librarian`, a polished proposal with `magic-coordinator`, the human-owner only where the group has no quorum, per "The ladder: one rung at a time". `magic-coordinator`'s "Dispatch & delegation" fast gate is a separate permission check, run at intake.
+- A promoted item passes the task-creation lifecycle before it reaches `board-pending`:
+  - investigation.
+  - assessment with `magic-architect`.
+  - doc and proposal check with `magic-librarian`.
+  - a polished proposal with `magic-coordinator`.
+  - the human-owner only where the group has no quorum, per "The ladder: one rung at a time". `magic-coordinator`'s "Dispatch & delegation" fast gate is a separate permission check, run at intake.
 - Each board move is announced in the session thread as it happens, plus one closing summary. A pass that finds nothing still reports "nothing new".
 - Slack reactions on resolved items are `magic-coordinator`'s `check-pending-comms-actions` procedure's job, never this routine's.
 
@@ -224,7 +230,8 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-team/reference/board-model.md` — board states and the grooming/advance split.
-- `magic-coordinator.advance.routine` — applies the moves this routine decides.
+- `magic-coordinator.work-duty.routine` — its board round applies the moves this routine decides.
+- `magic-team.advance.routine` — `handler-routine:`, which this routine may set.
 - `magic-team.handback-review.routine` — settles the `board-review` items addressed to this routine.
 - `magic-coordinator/magic-coordinator.armed.md` — "Dispatch & delegation" fast gate; `check-pending-comms-actions`.
 

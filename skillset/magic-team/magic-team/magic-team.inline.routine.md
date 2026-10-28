@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: inline
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.inline.routine — the actual procedure
 
@@ -30,7 +31,7 @@ review-by: inherit
 
 # Summary
 
-`magic-team.inline.routine` is what a routine run inline inherits, in place of its session kind's routine: the Closure steps and the rules of a call inside the caller's own session.
+`magic-team.inline.routine` is what a routine run inline inherits, in place of its session kind's routine. That is the Closure steps and the rules of a call inside the caller's own session.
 
 ## Goals
 
@@ -61,7 +62,7 @@ Run inline: the result goes back to the caller, below. Each step of this routine
 
 ## return-the-result
 
-Give the result back to the caller as the end of the call: what the routine did, what it found and what it leaves for the caller to do. The caller's own steps carry on from it. No handback, no dismissal and no reflection of its own: the caller's session closes them.
+Give the result back to the caller as the end of the call. Say what the routine did, what it found and what it leaves for the caller to do. The caller's own steps carry on from it. No handback, no dismissal and no reflection of its own: the caller's session closes them.
 
 # Routine's local procedures
 
@@ -75,7 +76,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - The caller is permitted and obliged to execute every step exactly as written, in order.
 - An inline run is the caller's own: the same member, the same session thread, the same workspace and tracking documents. It starts no session of its own, and every wait in it follows the caller's.
-- The input scan of the routine run inline was run for this call by `--routine-run-inline`, and its result is where that call said: "this run's input scan result" means that file.
+- The input scan of the routine run inline was run for this call by `--routine-run-inline`. Its result is where that call said: "this run's input scan result" means that file.
 - Steps are never inherited. A routine run inline inherits this routine's Closure steps and these rules, in place of those of its session kind, and runs its own Steps.
 
 # Routine-specific tooling
@@ -105,7 +106,6 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-team.standalone.routine`, `magic-team.coworking.routine` — the session kinds whose Opening and Closure steps an inline run does not inherit.
-- `magic-team/magic-team.negotiations.md` — "Gap surfacing".
 
 ### Conventions
 

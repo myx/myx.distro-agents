@@ -286,14 +286,6 @@ def runLines(run, width, info=None, limit=0):
     return lines[:limit] if limit else lines
 
 
-## The agents of a session in a few words, from its row: how many, and how many of each
-## state, as the row tallies them.
-def agentsText(session):
-    tally = ", ".join("%s %s" % (part.partition("=")[2], part.partition("=")[0])
-                      for part in session["tally"].split(",") if "=" in part)
-    return "%s: %s" % (session["count"], tally) if tally else session["count"]
-
-
 ## The members that run in a session, each once, in the order of its runs.
 def membersText(session):
     names = []

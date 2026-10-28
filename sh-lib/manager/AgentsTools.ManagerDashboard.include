@@ -217,7 +217,13 @@ AgentsToolsManagerDashboardSessions(){
 	## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT, with the date it reopens: the flag of the
 	## sessions panel, the date taken from the one wording the run's own store keeps (a
 	## Dashboard value writes its blanks as `_`, as its labels do).
-	[ "$dashboardUsageLimited" = 0 ] || LocalToolsManagerDashboardFigure sessions usage-limit "Stopped On Provider Usage Limit Reopens" "${dashboardUsageLimit##*reopens }" - warn ""
+	## A RUN STOPPED BY ANY OTHER PROVIDER REFUSAL OR BLOCK (sketch 3.6) has its own figure, with the provider's reason.
+	if [ "$dashboardUsageLimited" != 0 ] ; then
+		case "$dashboardUsageLimit" in
+			"stopped on the provider usage limit"*) LocalToolsManagerDashboardFigure sessions usage-limit "Stopped On Provider Usage Limit Reopens" "${dashboardUsageLimit##*reopens }" - warn "" ;;
+			*) LocalToolsManagerDashboardFigure sessions provider-refusal "Stopped By A Provider Refusal" "${dashboardUsageLimit#stopped by a provider refusal: }" - warn "" ;;
+		esac
+	fi
 	return 0
 }
 

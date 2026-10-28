@@ -928,7 +928,7 @@ rigAssert "default: the state is stored"                       "$( rigNewStateFi
 rigNewIn continue-control --wait-continue --wait-timeout 2
 rigAssert "control: continue with state is a wait"             "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
 rigAssert "control: the mode is continue"                      "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: continue"
-rigAssert "control: the stored source is watched beside the defaults" "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession slack:magic-team slack:human-owner file:$rigDropA2"
+rigAssert "control: the stored source is watched, with the floor and no defaults (sketch 3.2)" "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession file:$rigDropA2 dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigAssert "control: the trace says continue"                   "$( rigHolds "$rigNewErr" "# --wait-for-input: mode=continue member=$rigMember session=$rigNewSession" )" yes
 
 rigDropAfter 1 "$rigDropA2" RIG-CONTINUE-ARRIVAL
@@ -951,15 +951,15 @@ for rigRefused in "--wait-source file:$rigDropB2" "--wait-since-utime 1700000000
 done
 rigNewIn continue-after-refusals --wait-continue --wait-timeout 2
 rigAssert "control: the state survived the refusals"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
-rigAssert "control: still the stored source, beside the defaults" "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession slack:magic-team slack:human-owner file:$rigDropA2"
+rigAssert "control: still the stored source, with the floor" "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession file:$rigDropA2 dms:$rigMember mentions:$rigMember wake:$rigMember"
 
-## A default ADDS: it watches the defaults, the source it names, and the sources the
-## stored wait holds. The set never shrinks -- only --unwait, --wait-drop and --close
+## A default names its OWN set (sketch 3.2): the source it names and the sources the stored wait holds, with the floor,
+## and no defaults. The set never shrinks -- only --unwait, --wait-drop and --close
 ## take a source out -- so the second default keeps the first one's file.
 rigNewIn default-second --wait-default --wait-source "file:$rigDropB2" --wait-timeout 2
-rigAssert "default again: the new source beside the stored one"  "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession slack:magic-team slack:human-owner file:$rigDropB2 file:$rigDropA2"
+rigAssert "default again: the new source beside the stored one"  "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession file:$rigDropB2 file:$rigDropA2 dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigNewIn continue-after-reset --wait-continue --wait-timeout 2
-rigAssert "continue after a default: the same set, kept whole"  "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession slack:magic-team slack:human-owner file:$rigDropB2 file:$rigDropA2"
+rigAssert "continue after a default: the same set, kept whole"  "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession file:$rigDropB2 file:$rigDropA2 dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigAssert "and the stored one is still watched"                "$( rigHolds "$rigNewOut" "file:$rigDropA2" )" yes
 ## State belongs to its session: another session's continue finds nothing.
 rigNew continue-other-session --wait-continue --wait-session-id "rig-sess-other" --wait-timeout 600
@@ -1188,25 +1188,24 @@ rigAssert "control: the same call with clean ids runs"         "$( rigNth "$rigN
 rigAssert "control: the two named, and no second eyes on a message that has one" "$( rigLines "$rigNewDir/reactions" )" "$(( rigReactsBefore + 2 ))"
 
 ## A bare ts names a message only when the wait has EXACTLY ONE Slack source. A default
-## wait now watches the two team conversations beside what it names, so it has three and
-## refuses the bare ts (asserted below). The one-source case is the stateless call: no
+## wait that names one Slack source has that one alone (its own set, sketch 3.2): the bare
+## ts runs there too (asserted below). The one-source case is the stateless call: no
 ## mode means no defaults, and no automatic eyes either (S11.2 is a stateful wait's).
 rigBareBefore="$( rigLines "$rigNewDir/reactions" )"
 rigNew react-bare-one --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 30 --wait-react-done 1700000001.000400
 rigAssert "a bare ts on one Slack source runs"                 "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
 rigAssert "and that source is the only one"                    "$( rigSourcesLine "$rigNewOut" )" "# sources: $rigReactSource"
 rigAssert "and reacts on that source's conversation"           "$( rigLines "$rigNewDir/reactions" )" "$(( rigBareBefore + 1 ))"
-## The default wait on the same thread is the refusal control: three Slack sources.
+## The default wait on the same thread names one Slack source, its own set: the bare ts runs there too.
 rigNewIn react-bare-default --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 600 --wait-react-done 1700000001.000400
-rigAssert "a bare ts with the defaults beside it is refused"   "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
-rigAssert "it says the wait has three slack sources"           "$( rigHolds "$rigNewErr" 'exactly one slack source, and this one has 3' )" yes
-rigAssert "it reacted to nothing there"                        "$( rigLines "$rigNewDir/reactions" )" "$(( rigBareBefore + 1 ))"
+rigAssert "a bare ts on a default wait naming one Slack source runs"   "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "its one Slack source beside the floor"              "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession $rigReactSource dms:$rigMember mentions:$rigMember wake:$rigMember"
 ## A wait with NO Slack source at all can only be the stateless one: a default wait
 ## always carries the two team conversations. The bare ts then names no conversation.
 rigNew react-bare-none --wait-source "file:$rigDropR" --wait-timeout 600 --wait-react-done 1700000001.000400
 rigAssert "a bare ts with no Slack source is ERROR"            "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
 rigAssert "it returns 1"                                       "$rigNewStatus" 1
-rigAssert "it reacted to nothing"                              "$( rigLines "$rigNewDir/reactions" )" "$(( rigBareBefore + 1 ))"
+rigAssert "it reacted to nothing"                              "$( rigLines "$rigNewDir/reactions" )" "$(( rigBareBefore + 2 ))"
 
 ## Close and continue take id sets too, and close reacts before it removes state.
 ## The stored floor is the newest ts the last call returned (000500), so continue has
@@ -1482,7 +1481,7 @@ rigLossPosts="$rigLossPosts$( rigOwnerPost 1700000001.000400 loss-400 "$rigReact
 rigNewReplies "$rigLossPosts"
 MDAT_SESSION_THREAD="$rigReactChannel:$rigReactThread" MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-default-nosources --wait-default --wait-timeout 10
 rigAssert "default, no sources: RECEIVED"                      "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
-rigAssert "no sources: the session thread behind the floor, the two team conversations beside it" "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession $rigLossConv slack:magic-team slack:human-owner"
+rigAssert "no sources: the default, the session thread, behind the floor" "$( rigSourcesLine "$rigNewOut" )" "# sources: replies:$rigNewSession $rigLossConv dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigAssert "no sources: the post made between the calls is returned" "$( rigHolds "$rigNewOut" 'loss-400' )" yes
 rigAssert "no sources: what was already returned is not"       "$( rigHolds "$rigNewOut" 'loss-300' )" no
 ## A since newer than the stored floor -- the ts of the caller's own reply -- takes the older floor.
@@ -1543,7 +1542,8 @@ rigAssert "burst: one block"                                   "$( rigOpens "$ri
 rigAssert "burst: the newest ts is the next floor"             "$( rigHolds "$rigNewOut" 'WAIT-LAST-TS: 1700000001.000900' )" yes
 rigNewSession="rig-sess-burst-control"
 rigNewReplies ""
-( sleep 2 ; rigNewReplies "$rigBurstOne" ; sleep 5 ; rigNewReplies "$rigBurstAll" ) &
+## The late post comes well after the first round of a fresh session, which checks the floor's DMs and mentions once.
+( sleep 2 ; rigNewReplies "$rigBurstOne" ; sleep 15 ; rigNewReplies "$rigBurstAll" ) &
 rigBurstPid=$!
 MDAT_WAIT_SETTLE_SECONDS=0 rigNewIn burst-unsettled --wait-default --wait-source "$rigBurstConv" --wait-since-utime "$rigReactThread" --wait-timeout 30
 rigAssert "control, no settle: RECEIVED"                       "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
@@ -1570,7 +1570,7 @@ rigCdMarker="$rigNewDir/launch.marker"
 : > "$rigCdMarker"
 MDAT_SESSION_THREAD="$rigReactChannel:$rigCdSession" MDAT_CONVERSATION_THREADS="$rigReactChannel:$rigCdConv" MDAT_WAIT_SETTLE_SECONDS=1 \
 	rigNewIn cd-bare --wait-default --wait-since-utime 1700000001.000101 --wait-timeout 10
-rigAssert "bare: both threads are the sources, behind the floor" "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession slack:$rigReactChannel:$rigCdSession:conversation slack:$rigReactChannel:$rigCdConv:conversation" )" yes
+rigAssert "bare: both threads are the sources, behind the floor" "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession slack:$rigReactChannel:$rigCdSession:conversation slack:$rigReactChannel:$rigCdConv:conversation dms:$rigMember mentions:$rigMember wake:$rigMember" )" yes
 rigAssert "bare: the session thread post is returned"          "$( rigHolds "$rigNewOut" 'cd-session-post' )" yes
 rigAssert "bare: the conversation thread post is returned"     "$( rigHolds "$rigNewOut" 'cd-conv-post' )" yes
 rigAssert "bare: one block per thread"                         "$( rigOpens "$rigNewOut" '# arrived on: ' )" 2

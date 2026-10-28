@@ -6,6 +6,7 @@ invitees: magic-team
 requires-session-kind: coworking
 input-scan-def: routine-coworking-session
 review-by: inherit
+runs-at: none
 ---
 # magic-team.coworking.routine — the actual procedure
 
@@ -34,8 +35,8 @@ review-by: inherit
 
 ## Goals
 
-- Give genuinely shared work a named shape: members react to each other in real time on the same task, with `magic-coordinator` keeping the shared goal on track.
-- Anchor the session to the workspace it is started in, its default for everything in it ("Workspace"); every participant talks in its one session thread, and its automatic trace runs in its own tracking-thread in `event-track`.
+- Give genuinely shared work a named shape: members react to each other in real time on the same task. `magic-coordinator` keeps the shared goal on track.
+- Anchor the session to the workspace it is started in, its default for everything in it ("Workspace"). Every participant talks in its one session thread. Its automatic trace runs in its own tracking-thread in `event-track`.
 - Own the opening group (**session-start**) and closing group (**close-session**) that every session runs, and the session-type taxonomy they key off.
 
 ## Scope
@@ -51,7 +52,7 @@ review-by: inherit
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own, named as the step, in the order it runs.
+Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own. It is named as the step, in the order it runs.
 
 ## session-start
 
@@ -93,18 +94,18 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information, then make the `Agent` call.
    - read the `PARTICIPANTS_UNINVITED=` line of the `Agent` result: it names the participants still left to invite.
    - the member loads its own `Skill` and posts its armed confirmation into the same thread, in its own voice.
-   - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread, then continue without the member if the task allows, or escalate per "The ladder: one rung at a time".
+   - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread. Then continue without the member if the task allows, or escalate per "The ladder: one rung at a time".
 3. **orchestrate-the-shared-task**: the executor leads the work as a participant, rules:
    - keep the session on its goal; redirect drift.
    - make the real-time judgement calls a solo dispatch would leave to one member.
-   - carry every participant's stuck point to an outcome — the group's own agreement, carried up by "The ladder: one rung at a time", never a personal ruling.
+   - carry every participant's stuck point to an outcome. The outcome is the group's own agreement, carried up by "The ladder: one rung at a time", never a personal ruling.
    - the collaboration shape (hand-offs, parallel pieces, live back-and-forth) is the task's own; nothing here fixes it.
 4. **narrate-progress-in-thread**: post each scope change and each piece of work starting, as one short line in the session thread (`updated session scope: ...`, `applying ...`).
 5. **report-out-with-transcripts**: post the session's report into the session thread, with enough of the working transcript to show how the outcome was reached. The report is the executor's own text under the output-style floor; transcript excerpts are marked quotation, never restyled. Redact a sensitive part and keep the rest. A handback to the session's own parent follows, carrying what was agreed, per "The ladder: one rung at a time".
 
 # Closure steps
 
-Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own, named as the step, in the order it runs.
+Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own. It is named as the step, in the order it runs.
 
 ## close-session
 
@@ -164,15 +165,15 @@ All statements apply at the same time, always. These rules override a participan
 - A participant's own words are its own; only steps are constrained.
 - Each Slack coworking message names its speaker: `@<alias> (<verb>):`, then the message.
 - Every wait in this routine follows **wait-never-quit**.
-- A gap in understanding follows `magic-team.negotiations.md`'s "Gap surfacing": ask about intent, investigate facts.
-- **Sessions sharing a file edit it by turns.** Declare your region to the other session first, re-read the file before every edit, anchor each edit on text unique to your region, and hand the file back explicitly.
+- A gap in understanding follows **gap-surfacing**: ask about intent, investigate facts.
+- **Sessions sharing a file edit it by turns.** Declare your region to the other session first, and re-read the file before every edit. Anchor each edit on text unique to your region, and hand the file back explicitly.
 - **No default attendees.** `magic-coordinator` calls in the members the task needs. Responsibility overrides this:
   - code, shell or config output: `magic-developer` and `magic-librarian`.
   - team-facing text or prose: `magic-librarian`.
   - a workspace or namespace a `keeper-*`/`warden-*` owns: that member. A `partner-*`/`client-*` specialist stays `magic-coordinator`'s call.
 - **A real tool choice goes to `magic-devops`**, invited like any participant. The chair never picks the tool.
 - Solo dispatch is only for clear, checkable work one member fully owns. Independent pieces are fan-out; shared, interacting work is coworking.
-- A decision outside the session's mandate goes up to the session's own parent, by "The ladder: one rung at a time" — `magic-coordinator` where it is that parent, else whoever started the session.
+- A decision outside the session's mandate goes up to the session's own parent, by "The ladder: one rung at a time". That is `magic-coordinator` where it is that parent, else whoever started the session.
 - Goal-directedness: work toward the session's goal. Off-goal items are recorded quickly, not acted on now.
 
 # Routine-specific tooling
@@ -181,7 +182,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.
 
-Contacts, the people you meet and reach, are kept by tooling and not by hand: DistroAgentsContacts.fn.sh --contacted-by <value> when someone writes to you, --reach-contact <id> to write to someone, --collect-contact to record one.
+Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts.fn.sh`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
 
 ## Tooling operations
 
@@ -218,7 +219,6 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-team.process-inbox.routine`, `magic-team.process-reflections.routine` — run inside **session-start** and **close-session**.
 - `magic-coordinator.daily.routine` — the fan-out shape this routine is distinct from.
-- `magic-team/magic-team.negotiations.md` — "Gap surfacing".
 
 ### Conventions
 

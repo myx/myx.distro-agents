@@ -897,18 +897,20 @@ rigAssert "strict order: what stays open is every line given, in order, once" \
 	"$( printf '%s\n' "$rigOpen" | cksum )" "$( printf '%s\n' "$rigFeedIn" | cksum )"
 rigAssert "at the window's end the post goes once, whole, in order" \
 	"$( AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$rigFeedIn" rig-sid 1 > /dev/null ; LC_ALL=C grep -c '^BEGIN magic-tester CRIG:9.9 rig-sid$' "$rigSends" ):$( LC_ALL=C grep -v -e '^BEGIN ' -e '^END$' "$rigSends" | cksum )" "1:$( printf '%s\n' "$rigFeedIn" | cksum )"
+## A process this check keeps is signalled through the rig's one helper (sh-test/check-fixtures/rig-processes.include.sh), by when it began.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## The real poster loop: a line, another 5 s later (a poll after the first), then quiet. Both go in one post, 7 s after the first line is read.
 rigRunWs="$rigTmp/feed-run" ; rigRunFeed="$rigRunWs/.local/agents/sessions/rig-run/feed"
 mkdir -p "${rigRunFeed%/feed}" ; : > "$rigSends"
 ( MMDAPP="$rigRunWs" ; AgentsEventTrackFeedSend(){ { printf 'BEGIN %s\n' "$( date +%s )" ; cat ; } >> "$rigSends" ; } ; AgentsEventTrackFeedRun rig-run magic-tester "CRIG:9.8" ) &
-rigRunPid=$!
+rigRunPid=$! ; rigProcNote "$rigRunPid"
 rigRunAt="$( date +%s )"
 printf '%s\n' '2030-01-01T00:07:01Z TOOL Read path=/run/1 -> ok' >> "$rigRunFeed"
 sleep 5
 printf '%s\n' '2030-01-01T00:07:06Z TOOL Read path=/run/2 -> ok' >> "$rigRunFeed"
 sleep 12
 rigRunSends="$( LC_ALL=C grep -c '^BEGIN ' "$rigSends" )"
-kill -TERM "$rigRunPid" 2> /dev/null ; wait "$rigRunPid" 2> /dev/null
+rigProcSignal TERM "$rigRunPid" ; wait "$rigRunPid" 2> /dev/null
 rigRunSentAt="$( LC_ALL=C sed -n 's/^BEGIN //p' "$rigSends" | head -1 )"
 rigAssert "the poster holds its first line through the window: one post, both lines, in order" \
 	"$rigRunSends:$( LC_ALL=C grep -o '/run/[12]' "$rigSends" | LC_ALL=C tr '\n' ' ' )" "1:/run/1 /run/2 "
@@ -1146,6 +1148,11 @@ rigOutRecord(){ ## channel, member, kind, lines file, fields line (may be empty)
 rigOutSender(){ ## record dir
 	printf 'SEND %s %s %s %s\n' "${1##*/}" "$( cat "$rigOutClock" )" "$( LC_ALL=C awk 'END { print NR + 0 }' "$1/lines" )" "$( LC_ALL=C awk 'NR == 1 { print ; exit }' "$1/lines" )" >> "$rigOutSends"
 	LC_ALL=C awk '{ print "  | " $0 }' "$1/lines" >> "$rigOutSends"
+	local outAlso
+	for outAlso in "$1"/also/[0-9]* ; do
+		[ -f "$outAlso/lines" ] || continue
+		LC_ALL=C awk '{ print "  | " $0 }' "$outAlso/lines" >> "$rigOutSends"
+	done
 	return 0
 }
 rigOutSendsList(){ LC_ALL=C awk '/^SEND / { printf "%s ", $2 }' "$rigOutSends" ; }
@@ -1170,18 +1177,18 @@ rigOutRec4="$( rigOutRecord C0RIGOUT magic-tester feed "$rigOutTmp/d" )"
 MMDAPP="$rigTmp/ws" AgentsToolsEventTrackSendDrain "$( rigOutBox C0RIGOUT )" rigOutSender
 unset -f date sleep
 rigAssert "four posts queued, numbered in the order they were made" "$rigOutRec1:$rigOutRec2:$rigOutRec3:$rigOutRec4" '0000001:0000002:0000003:0000004'
-rigAssert "the two feed lines of one member that queued together are collected into ONE post, the two of them, in order" \
-	"$( rigOutSendsList ):$( rigOutCounts )" '0000001 0000003 0000004 :2 1 1 '
-rigAssert "nothing jumps the queue: the notice queued third goes third, the feed line queued after it last" \
-	"$( rigOutSendsList )" '0000001 0000003 0000004 '
+rigAssert "everything queued for the thread is collected into ONE post behind its lead, immediate posts included: the two feed lines joined in the lead" \
+	"$( rigOutSendsList ):$( rigOutCounts )" '0000001 :2 '
+rigAssert "nothing jumps the queue: the notice queued third travels third, the feed line queued after it last" \
+	"$( cat "$( rigOutBox C0RIGOUT )/done/0000001/group" )" '0000001 0000002 0000003 0000004'
 rigAssert "every line queued is posted once, in the order it was queued, nothing lost or reordered" \
 	"$( rigOutLines )" 'line one line two line three line four '
-rigAssert "no two messages into the channel are closer than the 7 second window" "$( rigOutStamps )" '1000 1007 1014 '
+rigAssert "one message, the first, goes at once" "$( rigOutStamps )" '1000 '
 rigAssert "the records collected into one post share its outcome: later arrival, same post" \
 	"$( cat "$( rigOutBox C0RIGOUT )/done/0000001/group" ):$( cat "$( rigOutBox C0RIGOUT )/done/0000002/group" ):$( [ "$( cat "$( rigOutBox C0RIGOUT )/done/0000001/out" 2>/dev/null )" = "$( cat "$( rigOutBox C0RIGOUT )/done/0000002/out" 2>/dev/null )" ] && printf same || printf other )" \
-	"0000001 0000002:0000001 0000002:same"
-## A second window: a post with fields of its own is never joined with another, whatever its
-## member and kind, and the pacing carries over the window before.
+	"0000001 0000002 0000003 0000004:0000001 0000002 0000003 0000004:same"
+## A second window: a post with fields of its own is collected with another, whatever its
+## member and kind, in the order they arrived, and the pacing carries over the window before.
 printf '2000\n' > "$rigOutClock"
 : > "$rigOutSends"
 rigOutRec5="$( rigOutRecord C0RIGOUT magic-tester feed "$rigOutTmp/a" 'what=one' )"
@@ -1190,17 +1197,18 @@ date(){ cat "$rigOutClock" ; }
 sleep(){ printf '%s\n' "$(( $( cat "$rigOutClock" ) + ${1:-0} ))" > "$rigOutClock" ; }
 MMDAPP="$rigTmp/ws" AgentsToolsEventTrackSendDrain "$( rigOutBox C0RIGOUT )" rigOutSender
 unset -f date sleep
-rigAssert "a post with fields of its own is never collected with another: a message each, 7 s apart, in order" \
-	"$( rigOutSendsList ):$( rigOutCounts ):$( rigOutStamps )" '0000005 0000006 :1 1 :2000 2007 '
+rigAssert "posts with fields of their own are collected into one message too: the lead and the one behind it, in order, at the pace of the window before" \
+	"$( rigOutSendsList ):$( rigOutLines ):$( rigOutStamps ):$( cat "$( rigOutBox C0RIGOUT )/done/0000006/group" )" '0000005 :line one line two :2000 :0000005 0000006'
 ## A drain always ends. Run in the background with a bound: ended, or still running (then stopped here, every process of it).
 rigOutDrainBounded(){ ## channel, sender, seconds -- ended or running
 	local boundPid boundLeft="$3"
 	( date(){ cat "$rigOutClock" ; } ; sleep(){ printf '%s\n' "$(( $( cat "$rigOutClock" ) + ${1:-0} ))" > "$rigOutClock" ; }
 	  MMDAPP="$rigTmp/ws" AgentsToolsEventTrackSendDrain "$( rigOutBox "$1" )" "$2" ) > /dev/null 2>&1 &
-	boundPid=$!
+	boundPid=$! ; rigProcNote "$boundPid"
 	while kill -0 "$boundPid" 2> /dev/null && [ "$boundLeft" -gt 0 ] ; do command sleep 1 ; boundLeft=$(( boundLeft - 1 )) ; done
 	if kill -0 "$boundPid" 2> /dev/null ; then
-		pkill -9 -f "event-track-send/$1/" 2> /dev/null ; pkill -9 -P "$boundPid" 2> /dev/null ; kill -9 "$boundPid" 2> /dev/null
+		## the drain and what it runs, a cat that appends to the file it reads among them
+		rigProcSignalWithChildren KILL "$boundPid"
 		printf running
 	else
 		printf ended
@@ -1268,6 +1276,20 @@ rigAssert "every post of the collected stream still names the member it is about
 	"$( for collectN in $( seq 1 "$rigOutPosts" ) ; do LC_ALL=C grep -c -F '"sender":"magic-tester"' "$rigTmp/scenario/post.$collectN" ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' ):$( for collectN in $( seq 1 "$rigOutPosts" ) ; do LC_ALL=C grep -c -F 'magic-tester' "$rigTmp/scenario/post.$collectN" | LC_ALL=C awk '{ print ( $1 >= 1 ? "named" : "missing" ) }' ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "1 :named "
 rigAssert "and the sender is the bot, as every tracking post's is" \
 	"$( rigLog | LC_ALL=C awk -F'\t' -v from="$rigLogBefore" 'NR > from && $6 == "ok" { if ( $5 == "bot" ) bot++ ; else other++ } END { print bot + 0 ":" other + 0 }' )" "$rigOutPosts:0"
+## Two callers, two members, two kinds, one with fields: the immediate post and the feed line queued behind it are ONE message, in the order they arrived, each
+## member named in its own box.
+rigReset
+rigOutSmall="$rigTmp/outbox.small"
+printf '2030-01-01T04:00:01Z TOOL Read path=/a/collect/part-S-001.md -> ok 10B/1L 1ms\n' > "$rigOutSmall"
+rigOutRecord CRIGTRACK magic-developer notice "$rigOutTmp/c" 'what=refused-one' > /dev/null
+rigLogBefore="$( rigLog | LC_ALL=C awk 'END { print NR }' )"
+rigOp "$rigOutSmall" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigAssert "a notice with fields queued by one member and a feed line posted by another go as ONE message" \
+	"$rigOpRc:$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )" "0:1"
+rigAssert "both members are named in it, the one queued first before the other" \
+	"$( LC_ALL=C grep -c -F 'magic-developer' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -F 'magic-tester' "$rigTmp/scenario/post.1" ):$( LC_ALL=C awk '{ d = index( $0, "magic-developer" ) ; t = index( $0, "magic-tester" ) ; print ( d > 0 && t > d ? "in-order" : "out-of-order" ) }' "$rigTmp/scenario/post.1" )" "1:1:in-order"
+rigAssert "the sender is the bot, and the post is logged once as sent" \
+	"$( rigLog | LC_ALL=C awk -F'\t' -v from="$rigLogBefore" 'NR > from && $6 == "ok" && $5 == "bot" { n++ } END { print n + 0 }' )" "1"
 ## ---------------------------------------------------------------------------
 echo "-- a spawn announces itself once, resolved first; what comes later is a reply --"
 ## ---------------------------------------------------------------------------

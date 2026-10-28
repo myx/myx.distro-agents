@@ -54,7 +54,7 @@ rigNote(){ ## inbox dir, member, state, body word
 }
 rigRoutine(){ ## owner member, the lock document
 	{
-		printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: %s\nrequires-session-kind: standalone\nroutine-lock-document: %s\n---\n' "$1" "$1" "$2"
+		printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: %s\nrequires-session-kind: standalone\nroutine-lock-document: %s\nruns-at: none\n---\n' "$1" "$1" "$2"
 		printf '# %s.advance.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$1"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"
 	} > "$rigSkills/$1/$1.advance.routine.md"

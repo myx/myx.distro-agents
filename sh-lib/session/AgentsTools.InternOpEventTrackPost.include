@@ -106,6 +106,48 @@ AgentsEventTrackPostLog(){ ## member, target, channel, ok|failed, reason
 	return 0
 }
 
+## The weight of a rendered part, Slack's way of counting a post: every block, a box's children counted too (the renderer's own blockCap, 50 to a message).
+AgentsEventTrackPostWeight(){ ## a .blocks file
+	LC_ALL=C awk '{ n += gsub( /\{"type":"(container|section|context|divider|header|actions|image|rich_text)"/, "&" ) } END { print n + 0 }' "$1"
+}
+
+## The parts of several records packed into messages, in order: a message takes the next part while its weight stays within 50 blocks.
+## Writes <out dir>/NNNNNN.blocks, .text and .plain.NNN; a part that does not fit starts the next message.
+AgentsEventTrackPostPack(){ ## out dir, .blocks files...
+	local packOut="$1" packNo=0 packWeight=0 packBlocks="" packText="" packPlain=() packPart packBody packWeightOne packTextOne packPlainOne packPlainNo packName
+	shift
+	mkdir -p "$packOut" || return 1
+	AgentsEventTrackPostPackFlush(){
+		[ -n "$packBlocks" ] || return 0
+		packNo=$(( packNo + 1 ))
+		packName="$packOut/$( printf '%06d' "$packNo" )"
+		printf '[%s]\n' "$packBlocks" > "$packName.blocks"
+		printf '%s' "$packText" > "$packName.text"
+		packPlainNo=0
+		for packPlainOne in ${packPlain[@]+"${packPlain[@]}"} ; do
+			packPlainNo=$(( packPlainNo + 1 ))
+			cp "$packPlainOne" "$packName.plain.$( printf '%03d' "$packPlainNo" )"
+		done
+		packBlocks="" ; packText="" ; packWeight=0 ; packPlain=()
+	}
+	for packPart in "$@" ; do
+		packBody="$( cat "$packPart" )"
+		packBody="${packBody#[}" ; packBody="${packBody%]}"
+		packWeightOne="$( AgentsEventTrackPostWeight "$packPart" )"
+		packTextOne="$( cat "${packPart%.blocks}.text" 2> /dev/null )"
+		if [ -n "$packBlocks" ] && [ $(( packWeight + packWeightOne )) -gt 50 ] ; then AgentsEventTrackPostPackFlush ; fi
+		packBlocks="$packBlocks${packBlocks:+,}$packBody"
+		packWeight=$(( packWeight + packWeightOne ))
+		[ -z "$packTextOne" ] || packText="$packText${packText:+, }$packTextOne"
+		for packPlainOne in "${packPart%.blocks}".plain.* ; do
+			[ ! -f "$packPlainOne" ] || packPlain+=( "$packPlainOne" )
+		done
+	done
+	AgentsEventTrackPostPackFlush
+	unset -f AgentsEventTrackPostPackFlush
+	return 0
+}
+
 ## The sender of the outbox: one queued record, rendered and posted, its output on stdout and
 ## stderr and its rc the post op's own. Called by the drain
 ## (AgentsToolsEventTrackSendDrain), never by a caller directly, so every post of a channel
@@ -134,12 +176,41 @@ AgentsEventTrackPostSend(){ ## record dir
 		return 1
 	}
 	mkdir -p "$postDir/posts"
+	local postDirPosts="$postDir/posts"
 	## What the log row says of the window: how many lines it held and how many parts it was cut into, so a window that passes Slack's size limit shows.
 	postLineCount="$( LC_ALL=C awk 'END { print NR + 0 }' "$postRec/lines" )"
 	AgentsEventTrackPostRender "$postKind" "$postMember" "$postSession" "$postDir/posts" "$postRec/lines" ${postFields[@]+"${postFields[@]}"} || postRc=$?
+	## The records the drain collected behind this one, in arrival order: each rendered as itself, the parts of all packed into messages up to Slack's block limit.
+	local postAlsoDir postAlsoMember postAlsoKind postAlsoSession postAlsoLines postAlsoFields postAlsoAt=0 postAlsoParts=() postAlsoFile
+	if [ -d "$postRec/also" ] && [ "$postRc" = "0" ] ; then
+		for postAlsoFile in "$postDir/posts"/*.blocks ; do
+			[ ! -f "$postAlsoFile" ] || postAlsoParts+=( "$postAlsoFile" )
+		done
+		for postAlsoDir in "$postRec"/also/[0-9]* ; do
+			[ -f "$postAlsoDir/meta" ] || continue
+			postAlsoAt=$(( postAlsoAt + 1 ))
+			IFS=$'\t' read -r postAlsoMember postAlsoKind postAlsoSession _ < "$postAlsoDir/meta" || :
+			postAlsoFields=()
+			if [ -s "$postAlsoDir/fields" ] ; then
+				while IFS= read -r -d '' postLine ; do
+					[ -z "$postLine" ] || postAlsoFields+=( "$postLine" )
+				done < "$postAlsoDir/fields"
+			fi
+			mkdir -p "$postDir/also.$postAlsoAt"
+			postLineCount=$(( postLineCount + $( LC_ALL=C awk 'END { print NR + 0 }' "$postAlsoDir/lines" ) ))
+			AgentsEventTrackPostRender "$postAlsoKind" "$postAlsoMember" "$postAlsoSession" "$postDir/also.$postAlsoAt" "$postAlsoDir/lines" ${postAlsoFields[@]+"${postAlsoFields[@]}"} || postRc=$?
+			for postAlsoFile in "$postDir/also.$postAlsoAt"/*.blocks ; do
+				[ ! -f "$postAlsoFile" ] || postAlsoParts+=( "$postAlsoFile" )
+			done
+		done
+		if [ "$postRc" = "0" ] ; then
+			AgentsEventTrackPostPack "$postDir/packed" "${postAlsoParts[@]}" || postRc=1
+			[ "$postRc" != "0" ] || postDirPosts="$postDir/packed"
+		fi
+	fi
 	local postPosts=()
 	local postFile
-	for postFile in "$postDir/posts"/*.blocks ; do
+	for postFile in "$postDirPosts"/*.blocks ; do
 		[ ! -f "$postFile" ] || postPosts+=( "$postFile" )
 	done
 	if [ "$postRc" != "0" ] || [ "${#postPosts[@]}" -eq 0 ] ; then

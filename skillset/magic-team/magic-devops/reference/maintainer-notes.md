@@ -47,4 +47,4 @@ The body of this member's armed `# Maintainer Notes`. Read it when that file is 
 
 ### Conventions
 
-- The owning `keeper-*` (source-authoring) vs. `magic-devops` (running/operating) split is this skill's core boundary — preserve it precisely in any future edit; don't let a synthesis blur the two into one undifferentiated "myx.common tooling" skill.
+- The owning `keeper-*` (source-authoring) vs. `magic-devops` (running/operating) split is this skill's core boundary. Preserve it precisely in any future edit. Don't let a synthesis blur the two into one undifferentiated "myx.common tooling" skill.

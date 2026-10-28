@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.process-reflections.routine — the actual procedure
 
@@ -34,7 +35,7 @@ review-by: inherit
 
 ## Goals
 
-- Close the loop on reflections: each lesson ends incorporated in the skillset, filed as an open question, or retired as already covered — never left in a growing pile.
+- Close the loop on reflections: each lesson ends incorporated in the skillset, filed as an open question, or retired as already covered. It is never left in a growing pile.
 
 ## Scope
 
@@ -64,7 +65,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - sort the rest: ready now, still open, stale or superseded.
    - re-assess each lesson against the others; a lesson complete alone may be incomplete or contradicted beside another.
    - a consolidated draft joins the batch for **agree-with-maintainers**, never landed from here.
-4. **agree-with-maintainers**: bring the drafts to a `magic-team.coworking.routine` session whose participants are each target file's `maintainers:` other than the human-owner, with `magic-librarian` running `magic-librarian.conventions-check.routine` on them. A draft lands on `quorum-all-agree` of those maintainers; where his name is also on the file's `maintainers:`, that agreement goes up to him as one propose-approve step first. No such session can run now: ask `magic-coordinator` to convene one, with `post-inquiry`. A draft not agreed returns to **assess-each-lesson**.
+4. **agree-with-maintainers**: bring the drafts to a `magic-team.coworking.routine` session whose participants are each target file's `maintainers:` other than the human-owner, with `magic-librarian` running `magic-librarian.conventions-check.routine` on them. A draft lands on `quorum-all-agree` of those maintainers. Where his name is also on the file's `maintainers:`, that agreement goes up to him as one propose-approve step first. No such session can run now: ask `magic-coordinator` to convene one, with `post-inquiry`. A draft not agreed returns to **assess-each-lesson**.
 5. **apply-approved-edit**: apply each agreed change to the real skillset file, exactly as agreed or as amended in that session.
 6. **reassess-against-new-cases**: re-check landed and pending lessons as new real cases arrive. A case exposing a gap reopens the lesson.
 7. **retire-ingested-files**: mark each lesson whose change has landed, and held against real cases, processed with `--librarian-inbox-to-processed`, which moves it to the inbox's `processed/`.

@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-An incident record. Thin until a writer exists: the team's model defines this type in one line, so this contract carries the common keys and the body is free.
+An incident record. Thin until a writer exists: the team's model defines this type in one line. So this contract carries the common keys, and the body is free.
 
 # Contract
 
@@ -28,7 +28,7 @@ An incident record. Thin until a writer exists: the team's model defines this ty
 
 ## Keys
 
-`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member; `either` is filled by the tooling where missing, and written by a member only to set another value.
+`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member. `either` is filled by the tooling where missing, and written by a member only to set another value.
 
 | key | presence | writer | value form | rule |
 |---|---|---|---|---|
@@ -54,4 +54,4 @@ An incident record. Thin until a writer exists: the team's model defines this ty
 ## Rules
 
 - `type` equals the type word in the filename (`incident`).
-- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-` or `warning-`.
+- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-`, `warning-` or `investigation-`.

@@ -260,6 +260,8 @@ rigAssert "Slack says wait: the first stays, the second is not tried"   "$( rigC
 rigPause="$( LC_ALL=C cat "$rigDir/ws/.local/agents/comms/pause" 2> /dev/null )"
 case "$rigPause" in ''|*[!0123456789]*) rigPause=0 ;; esac
 rigAssert "the Retry-After is kept as a time to wait for, two seconds on" "$( [ "$rigPause" -ge $(( rigNow + 1 )) ] && [ "$rigPause" -le $(( $( date +%s ) + 3 )) ] && printf ok )" ok
+## Under load the two seconds can pass before the next pass starts: the pause is set ten minutes on, so that pass is inside it.
+printf '%s\n' "$(( $( date +%s ) + 600 ))" > "$rigDir/ws/.local/agents/comms/pause"
 rigPass rate-2
 rigAssert "a pass inside it posts nothing"                             "$( rigCalls chat.postMessage )" 11
 printf '%s\n' "$(( rigNow - 5 ))" > "$rigDir/ws/.local/agents/comms/pause"

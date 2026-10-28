@@ -28,7 +28,7 @@ Context or coordination.
 
 ## Keys
 
-`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member; `either` is filled by the tooling where missing, and written by a member only to set another value.
+`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member. `either` is filled by the tooling where missing, and written by a member only to set another value.
 
 | key | presence | writer | value form | rule |
 |---|---|---|---|---|

@@ -267,7 +267,7 @@ RIG_AGENT="" RIG_SESSION=""
 
 echo "-- 8. revoking a task set takes it off its item --"
 rigAllowsLines(){ ## item path -- its frontmatter allows: lines
-	LC_ALL=C awk 'NR == 1 && $0 == "---" { inFm = 1 ; next ; } inFm && $0 == "---" { exit ; } inFm && /^allows: / { n++ ; } END { print n + 0 ; }' "$1"
+	LC_ALL=C awk 'NR == 1 && $0 == "---" { inFm = 1 ; next ; } inFm && $0 == "---" { exit ; } inFm && /^access-control: / { n++ ; } END { print n + 0 ; }' "$1"
 }
 rigSetItem="$rigData/board/running/task-set.md"
 printf -- '---\nstatus: task\nowner: keeper-d\n---\n\n# Task\n' > "$rigSetItem"
@@ -277,12 +277,12 @@ printf 'scope: task\nitem: task-set\nsession-id: s-set\nparticipants: keeper-d\n
 rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSetApply set-ask-rig human-owner > "$rigTmp/helper.in"
 RIG_STDIN="$rigTmp/helper.in" rigRun --intern-mcp-execute
 rigSetRef="$( LC_ALL=C sed -n 's/^task:Write:[^:]*:human-owner:[^:]*:\(set-[0-9a-f-]*\)$/\1/p' "$rigMain/.local/agents/sessions/s-set/grants" 2>/dev/null | head -1 )"
-rigAssert "control: the set is granted and is the item's allows" "$rigRc:$( [ -n "$rigSetRef" ] && printf ref || printf none ):$( rigN "$rigSetItem" "allows: task:Write:$rigTmp/rw-dir/sub/s.txt:human-owner:" )" "0:ref:1"
+rigAssert "control: the set is granted and is the item's access-control row" "$rigRc:$( [ -n "$rigSetRef" ] && printf ref || printf none ):$( rigN "$rigSetItem" "access-control: participants:allow-write:$rigTmp/rw-dir/sub/s.txt:human-owner:" )" "0:ref:1"
 printf -- '---\nstatus: dispatch-started\nowner: keeper-d\nsession-id: s-later\ntracks: task-set\n---\n\n# Dispatch\n' > "$rigData/board/running/dispatch-20261009T1200Z-later.md"
 rigAssert "control: a later dispatch tracking the item gets it" "$( rigGrantRead keeper-d s-later Write "$rigTmp/rw-dir/sub/s.txt" )" planned
 RIG_AGENT=magic-coordinator RIG_SESSION=s-coord rigRun --revoke-permission "$rigSetRef"
 rigAssert "revoked, and taken off the item"                    "$rigRc:$( LC_ALL=C tr '\n' '|' < "$rigTmp/out" )" "0:REVOKED: $rigSetRef|ALLOWS-REMOVED: task-set|"
-rigAssert "the item carries no allows any more"                "$( rigAllowsLines "$rigSetItem" )" 0
+rigAssert "the item carries no access-control any more"                "$( rigAllowsLines "$rigSetItem" )" 0
 rigAssert "the revoke is on the item's Decisions"              "$( rigN "$rigSetItem" "magic-coordinator verdict: task grant $rigSetRef revoked: Write:$rigTmp/rw-dir/sub/s.txt" )" 1
 rigAssert "a later dispatch tracking the item does not get it" "$( rigGrantRead keeper-d s-later Write "$rigTmp/rw-dir/sub/s.txt" )" none
 rigAssert "nor does the set's own session"                     "$( rigGrantRead keeper-d s-set Write "$rigTmp/rw-dir/sub/s.txt" )" none

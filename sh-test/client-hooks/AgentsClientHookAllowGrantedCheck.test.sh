@@ -124,6 +124,9 @@ rigIn="$( rigObj file_path "$rigTmp/granted/a.txt" old_string a new_string b )"
 rigAssert "no spawn identity: no answer"      "$( rigHookRun "" Edit "$rigIn" )" none
 rigAssert "and the reroute hook still denies it" "$( rigPayload Edit "$rigIn" | env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin bash "$rigReroute" Edit | LC_ALL=C grep -c '"permissionDecision": "deny"' )" 1
 
+rigAssert "Monitor is rerouted: the policy names it, and the reroute hook sends it to Wait (sketch 3.2)" \
+	"$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyRerouteToolNames' | LC_ALL=C grep -c -x Monitor ):$( printf '{}' | env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin bash "$rigReroute" Monitor | LC_ALL=C grep -c '"permissionDecision": "deny"' ):$( printf '{}' | env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin bash "$rigReroute" Monitor | LC_ALL=C grep -c 'method mcp__myx_distro__Wait' )" "1:1:1"
+
 echo "-- 5. our own harness never runs it --"
 rigAssert "the policy states it, class native" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyHookRecords' | LC_ALL=C awk -F'\t' '$5 == "allow-granted-native-tool.sh" { print $1 ":" $2 ":" $4 }' )" "PreToolUse:native:Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob"
 rigAssert "and the harness hook list leaves it out, with no fault" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
@@ -132,6 +135,21 @@ rigAssert "and the harness hook list leaves it out, with no fault" "$( env -i PA
 	AgentsHarnessHooksFromRecords "$( AgentsToolsClientToolPolicyHookRecords )"
 	printf "%s:%s" "[$harnessHooksFault]" "$( printf "%s" "$harnessHooksList" | LC_ALL=C grep -c allow-granted-native-tool )"
 ' )" "[]:0"
+
+echo "-- 6. a deny row of project.inf refuses first, the session sandbox stays open --"
+mkdir -p "$rigTmp/granted/locked"
+printf 'rig-deny:ws:workspace:Edit(/%s/granted/**)\nrig-deny:ws:workspace:DenyEdit(/%s/granted/locked/**)\nrig-deny:ws:workspace:DenyRead(/%s/others/**)\n' \
+	"$rigTmp" "$rigTmp" "$rigTmp" >> "$rigWs/.local/agents/permissions.registry"
+rigIn="$( rigObj file_path "$rigTmp/granted/locked/a.txt" old_string a new_string b )"
+rigAssert "Edit under a deny-write row, though granted" "$( rigHookRun rig-deny Edit "$rigIn" | cut -c1-48 )" "deny:ERROR: Edit is denied to this session by a "
+rigIn="$( rigObj file_path "$rigTmp/granted/a.txt" old_string a new_string b )"
+rigAssert "control: the granted file beside it"        "$( rigHookRun rig-deny Edit "$rigIn" )" allow
+rigIn="$( rigObj file_path "$rigTmp/others/a.txt" )"
+rigAssert "Read under a deny-read row"                 "$( rigHookRun rig-deny Read "$rigIn" | cut -c1-48 )" "deny:ERROR: Read is denied to this session by a "
+rigIn="$( rigObj file_path "$rigTmp/granted/locked/a.txt" old_string a new_string b )"
+rigAssert "control: another member is not denied"      "$( rigHookRun rig-member Edit "$rigIn" )" allow
+rigIn="$( rigObj file_path "$rigTmp/sandbox/output/n.txt" content x )"
+rigAssert "the sandbox output is exempt from the rows" "$( rigHookRun rig-deny Write "$rigIn" MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/sandbox")" "allow"
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ CLIENT HOOK ALLOW GRANTED CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

@@ -56,7 +56,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 ## A routine: folder, short name, executors, the operations: value or nothing, a tooling line or nothing.
 rigRoutine(){
 	{
-		printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n' "$3"
+		printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\nruns-at: none\n' "$3"
 		[ -z "$4" ] || printf 'operations: %s\n' "$4"
 		printf -- '---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$2"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\n## DistroAgentsTools magic-tooling operations\n\n"

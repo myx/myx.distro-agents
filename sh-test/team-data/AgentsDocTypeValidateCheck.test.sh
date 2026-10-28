@@ -79,7 +79,7 @@ for rigContract in "$rigTemplates"/*-item.*.contract.format.md ; do
 	[ "$rigRc" -eq 1 ] || rigKindFaults=$(( rigKindFaults + 1 ))
 	rigUnread=$(( rigUnread + $( rigHas 'contract-rule-unread' ) ))
 done
-rigAssert "19 contracts, each its own kind: a document with no key refuses (exit 1) under every one" "$rigKinds:$rigKindFaults" "19:0"
+rigAssert "22 contracts, each its own kind: a document with no key refuses (exit 1) under every one" "$rigKinds:$rigKindFaults" "22:0"
 rigAssert "the reader understands every unmarked rule of every contract: no contract-rule-unread row" "$rigUnread" "0"
 rigRun no-such-kind "$rigD/real.md"
 rigAssert "an unknown kind is refused, the kinds built named, the type kinds among them" "$rigRc:$( LC_ALL=C grep -o -E 'board-item[.]task|inbox-item[.]note|audit-item[.]transcript|vault-item[.]verbatim' "$rigTmp/said.err" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "1:audit-item.transcript board-item.task inbox-item.note vault-item.verbatim "
@@ -122,6 +122,15 @@ rigAssert "channel id, date-time, text and reviewer forms pass" "$rigRc:$( rigRu
 rigTask task-20261001T1009Z-a.md 'communication-channel-id: chat:C123'
 rigCheck board-item.task task-20261001T1009Z-a.md
 rigAssert "a channel id of no known channel refuses" "$rigRc:$( rigRules )" "1:contract-form"
+rigTask task-20261001T1011Z-a.md 'access-control: participants:allow-write:%2Frig%2Fa:keeper-x:20261001T1000Z, participants:allow-read:%2Frig%2Fb:keeper-x:20261001T1000Z, participants:allow-tool:WebFetch:https%3A//rig.example/*:keeper-x:20261001T1000Z'
+rigCheck board-item.task task-20261001T1011Z-a.md
+rigAssert "access-control rows of an item (allow-write, allow-read, allow-tool with its tool and target) pass" "$rigRc:$( rigRules )" "0:"
+rigTask task-20261001T1012Z-a.md 'access-control: session:Write:%2Frig%2Fa:keeper-x:20261001T1000Z'
+rigCheck board-item.task task-20261001T1012Z-a.md
+rigAssert "a set entry in the old shape, session:<tool>:<target>:<granted-by>:<stamp>, is no row and refuses" "$rigRc:$( rigRules ):$( rigHas 'has a row that is not participants:<verb>:<value>:<granted-by>:<stamp>' )" "1:contract-form:1"
+rigTask task-20261001T1013Z-a.md 'access-control: participants:allow-tool:WebFetch:keeper-x:20261001T1000Z'
+rigCheck board-item.task task-20261001T1013Z-a.md
+rigAssert "an allow-tool row with no target refuses" "$rigRc:$( rigRules )" "1:contract-form"
 rigTask change-20261001T1010Z-a.md
 rigCheck board-item.task change-20261001T1010Z-a.md
 rigAssert "type task in a file named change-: the type word of the file name refuses" "$rigRc:$( rigRules ):$( rigHas 'is not the type word of the file name change-20261001T1010Z-a.md: task (the file name says change)' )" "1:contract-type:1"
@@ -161,6 +170,9 @@ rigAssert "with blocks it passes" "$rigRc:$( rigRules )" "0:"
 rigDoc transcript-20261001T1022Z-a.md '---' 'document-contract: audit-item.transcript' 'type: transcript' 'references: task-20261001T1000Z-ok, audit-item-x' '---' '' 'keeper-rig (2026-10-01T10:22:00Z):' '' '> hello'
 rigCheck audit-item.transcript transcript-20261001T1022Z-a.md
 rigAssert "an audit item that names a board item refuses" "$rigRc:$( rigRules ):$( rigHas 'names a board item: task-20261001T1000Z-ok' )" "1:contract-references:1"
+rigDoc transcript-20261001T1024Z-a.md '---' 'document-contract: audit-item.transcript' 'type: transcript' 'references: investigation-20261001T1000Z-ok' '---' '' 'keeper-rig (2026-10-01T10:24:00Z):' '' '> hello'
+rigCheck audit-item.transcript transcript-20261001T1024Z-a.md
+rigAssert "an audit item that names an investigation refuses too" "$rigRc:$( rigRules ):$( rigHas 'names a board item: investigation-20261001T1000Z-ok' )" "1:contract-references:1"
 rigDoc note-20261001T1023Z-a.md '---' 'document-contract: inbox-item.note' 'type: note' 'from: keeper-rig' 'date: 2026-10-01 10:23 +0300' 'owner: keeper-rig' '---' '# Note: a matter'
 rigCheck inbox-item.note note-20261001T1023Z-a.md
 rigAssert "an inbox note that meets its contract passes" "$rigRc:$( rigRules )" "0:"
@@ -203,7 +215,7 @@ done
 for rigShape in "$rigPackage/sh-lib/templates"/board-item.*.document.format.md ; do
 	LC_ALL=C grep -q -E '^owner: <[^>]*optional' "$rigShape" || rigShapes=$(( rigShapes + 1 ))
 done
-rigAssert "the owner is required in all 9 board contracts, and no board shape shows it optional" "$rigOwners:$rigShapes" "9:9"
+rigAssert "the owner is required in all 10 board contracts, and no board shape (9 exist) shows it optional" "$rigOwners:$rigShapes" "10:9"
 rigAssert "a contract is no longer 'not built yet'" "$( LC_ALL=C grep -l 'not built yet' "$rigTemplates"/*-item.*.contract.format.md | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0"
 
 echo "-- 9. a pure rule set --"

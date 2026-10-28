@@ -245,11 +245,11 @@
 📘 syntax: DistroAgentsQuestions.fn.sh --readback-escalation [--team-member <team-member>] <request-id> <option word> [text]
 📘 syntax: DistroAgentsQuestions.fn.sh --forward-escalation [--team-member <team-member>] <request-id>
 📘 syntax: DistroAgentsGrants.fn.sh --pass-permission [--team-member <team-member>] --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
-📘 syntax: DistroAgentsQuestions.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
+📘 syntax: AgentDispatcherTools.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: DistroAgentsGrants.fn.sh --list-permissions [--team-member <team-member>] [--member <member>] [--session-id <id>]
 📘 syntax: DistroAgentsGrants.fn.sh --revoke-permission <ref> [--session-id <id>]
 📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
-📘 syntax: DistroAgentsQuestions.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
+📘 syntax: DistroAgentsSession.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>
 📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
 📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>
@@ -278,7 +278,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -5499,8 +5499,14 @@
 			Waits. A member with a Slack account is searched by its id,
 			one with none by the text `@<member>`; the member's own user
 			token searches, else the team identity that may. Where none
-			may (no user token with search:read), the source is never read
-			and the header says so: its mentions are unknown, not none.
+			may (no user token with search:read), the header says so on a
+			`WAIT-SOURCE-ERROR:` line: its mentions are unknown, not none.
+			`dms:<own member>` on every message of every DM of the member,
+			its user's and the team bot's, from the session's pointer, TTL
+			15 seconds. A Wait of a session always carries `dms:` and
+			`mentions:` with `wake:` in its floor; a source with a TTL is
+			checked, at the first round too, only once its TTL has passed
+			since any Wait of the session checked it.
 			--wait-collect <seconds> makes the call a collect (the
 			work-duty input scan): the window is its bound, it returns at
 			its end with everything the sources brought, or at once on an
@@ -5923,7 +5929,7 @@
 			<id>` and `WAIT-ID: ask:<id>` are printed; with none,
 			`PERMISSION-SET: held`. His allow-set grants every extra to
 			every participant for the scope, writes a task set as the
-			item's `allows:` too, and records the set on the item's
+			item's `access-control:` rows too, and records the set on the item's
 			`## Decisions`; the grants end when the task closes or the
 			session ends. deny and edit grant nothing. He answers by
 			click, :x: to deny or :unlock: to allow the set, which the
@@ -5998,7 +6004,7 @@
 			its record, every reader leaves it out from the next check
 			on, and `REVOKED: <ref>` is printed (`already` when it
 			was). An unknown reference is refused. A task grant's
-			entries also leave its item's `allows:`, so no later
+			entries also leave its item's `access-control:` rows, so no later
 			dispatch tracking the item carries them (`ALLOWS-REMOVED:
 			<item>` when they were there), and the revoke is recorded
 			on the item's `## Decisions`. Only magic-coordinator, or
@@ -6598,7 +6604,7 @@
 			waits there and a dismissal is addressed to the member
 			it is for.
 
-		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -6638,6 +6644,17 @@
 			whoever prepares the dispatch guesses it: checked for
 			shape and kept on the records as `likely-permissions:`
 			and `likely-tools:`, for a later hint.
+
+			`--workers <n>`, a partitioned run only, is how many
+			children are open at once, as lib/parallel's --workers:
+			default 4. The rest wait on the parent's record as
+			`pending:`, printed as `PENDING=`, and its watcher starts
+			them as children close. A start that fails is kept as
+			`start-failed:` and the rest go on.
+			`--partition-scope <text>`, given as often as needed,
+			partitions the run by scope: one child per member and
+			scope, a repeated scope once. Each child's brief starts
+			with `scope: <text>`, and its record says `scope:`.
 
 			Given no `<team-member>...` names, the spawned members
 			come from the resolved routine's own `executors`
@@ -6783,7 +6800,7 @@
 
 		--executor-checkpoint-push [<name>]
 			ThisSession's operation (DistroAgentsSession.fn.sh), for a single-participant
-			routine that names it in its `allows:` (`executors:--executor-checkpoint-push`).
+			routine that names it in its `access-control:` (`executors:allow-tool:--executor-checkpoint-push`).
 			A snapshot of this run's conversation under <name> (`checkpoint` where none is
 			given), made by the harness at the end of the round the call was made in, when
 			every call of the round has its result. A snapshot of a name already held

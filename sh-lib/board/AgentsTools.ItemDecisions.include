@@ -21,7 +21,7 @@
 
 ## The kinds a Decisions line carries.
 ## handback and review are the review flow's own (AgentsTools.ReviewFlow.include).
-agentsDecisionsKinds=" answer verdict resolved dismissed clarification handback review "
+agentsDecisionsKinds=" answer verdict resolved dismissed clarification handback review handler "
 
 ## The board path of an item, by name (with or without .md, a board/<state>/ prefix dropped).
 ## Prints nothing and rc 1 when no board state holds it.

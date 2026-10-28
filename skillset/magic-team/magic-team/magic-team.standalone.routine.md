@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.standalone.routine — the actual procedure
 
@@ -33,9 +34,9 @@ review-by: inherit
 
 ## Goals
 
-- Give one member's long-lived work the same named shape a coworking session has: a session thread, an opening, a closing, and a person free to drive it through many topics and long hours.
+- Give one member's long-lived work the same named shape a coworking session has. That is a session thread, an opening, a closing, and a person free to drive it through many topics and long hours.
 - Define the `standalone` session kind: the rules, the opening and closing steps and the default settings every routine naming `requires-session-kind: standalone` inherits.
-- Let a session start with no routine selected: the dispatch given at the start is the task, and it is updated and replaced as the session goes.
+- Let a session start with no routine selected. The dispatch given at the start is the task, and it is updated and replaced as the session goes.
 
 ## Scope
 
@@ -44,13 +45,13 @@ review-by: inherit
   - Start as itself, with no ready task: `--routine magic-team.standalone`.
 - Doesn't:
   - Members working together in one session: that is `magic-team.coworking.routine`.
-  - A task with a handback from a prompt or a raw dispatch, which has no session documents or folders: that is an ad-hoc start, never a routine.
+  - A task with a handback from a prompt or a raw dispatch, which has no session documents or folders. That is an ad-hoc start, never a routine.
 
 # Opening steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own, named as the step, in the order it runs.
+Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own. It is named as the step, in the order it runs.
 
 ## session-start
 
@@ -80,11 +81,11 @@ The last Opening step, only where this routine's `access-control:` carries `exec
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **work-the-dispatch**: the task is the dispatch given at the start, as it stands now: it is updated and replaced as the session goes, and the latest one is the task. Work it, and say each scope change and each piece of work starting as one short line in the session thread (`updated session scope: ...`, `applying ...`).
+1. **work-the-dispatch**: the task is the dispatch given at the start, as it stands now. It is updated and replaced as the session goes, and the latest one is the task. Work it, and say each scope change and each piece of work starting as one short line in the session thread (`updated session scope: ...`, `applying ...`).
 
 # Closure steps
 
-Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own, named as the step, in the order it runs.
+Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own. It is named as the step, in the order it runs.
 
 ## close-session
 
@@ -122,11 +123,11 @@ None.
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
 - The executor is permitted and obliged to execute every step exactly as written, in order. The executor is one of the running routine's own `executors:`: `magic-coordinator` for this routine itself, whoever the routine names for a routine of this kind.
-- **A standalone session has a session thread**, where humans and other members communicate with it. It does not aim to exit as soon as it can: a person may drive it through many topics and long hours, until it is dismissed.
+- **A standalone session has a session thread**, where humans and other members communicate with it. It does not aim to exit as soon as it can. A person may drive it through many topics and long hours, until it is dismissed.
 - **session-start and close-session are open to every session.** Any member, and any ad-hoc, solo or IDE-chat session, runs both groups under its own identity, in simplified form where a step is type-gated.
-- **Steps are never inherited.** A routine naming this kind inherits this routine's Opening steps, its Closure steps, these rules, its tooling block and its default settings, and runs its own Steps.
+- **Steps are never inherited.** A routine naming this kind runs its own Steps. It inherits this routine's Opening steps, its Closure steps, these rules, its tooling block and its default settings.
 - Every wait in this routine follows **wait-never-quit**.
-- A gap in understanding follows `magic-team.negotiations.md`'s "Gap surfacing": ask about intent, investigate facts.
+- A gap in understanding follows **gap-surfacing**: ask about intent, investigate facts.
 - A decision outside the session's mandate goes up to the session's own parent, by "The ladder: one rung at a time".
 - Goal-directedness: work toward the session's goal. Off-goal items are recorded quickly, not acted on now.
 
@@ -136,7 +137,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.
 
-Contacts, the people you meet and reach, are kept by tooling and not by hand: DistroAgentsContacts.fn.sh --contacted-by <value> when someone writes to you, --reach-contact <id> to write to someone, --collect-contact to record one.
+Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts.fn.sh`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
 
 ## Tooling operations
 
@@ -169,7 +170,6 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-team.coworking.routine` — the kind of members working together in one session; its **session-start** and **close-session** groups are the full forms of the solo groups here.
-- `magic-team/magic-team.negotiations.md` — "Gap surfacing".
 
 ### Conventions
 

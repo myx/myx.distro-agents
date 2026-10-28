@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessAsk.include: the ask tools, pending replies and escalations. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## Composed from the two tools it is built on and nothing else: the question goes out
@@ -587,7 +589,7 @@ AgentsHarnessAskCall(){ ## the tool name as called
 			callEntryNo=$(( callEntryNo + 1 ))
 		done
 	fi
-	AgentsHarnessAsk "${harnessArgV_to}" "${harnessArgV_question}" "${harnessArgV_options}" "${harnessArgV_context}" "${harnessArgV_wait}" "${harnessArgV_timeout}" "${harnessArgV_wait_source}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "$callKind" "${harnessArgV_understood}" "${harnessArgV_source}" "${harnessArgV_will_do}" "${harnessArgV_refusal_id}" "${harnessArgV_reason}" "${harnessArgV_task_ref}" "${harnessArgV_pending_id}" "${harnessArgV_readback}" "${harnessArgV_withdraw}" "${harnessArgV_select}" "${harnessArgV_revise}" "${harnessArgV_proposal}" "${harnessArgV_document}" "$callEntries"
+	AgentsHarnessAsk "${harnessArgV_to}" "${harnessArgV_question}" "${harnessArgV_options}" "${harnessArgV_context}" "${harnessArgV_wait}" "${harnessArgV_timeout}" "${harnessArgV_wait_source}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "$callKind" "${harnessArgV_understood}" "${harnessArgV_source}" "${harnessArgV_will_do}" "${harnessArgV_refusal_id}" "${harnessArgV_reason}" "${harnessArgV_task_ref}" "${harnessArgV_pending_id}" "${harnessArgV_readback}" "${harnessArgV_withdraw}" "${harnessArgV_select}" "${harnessArgV_revise}" "${harnessArgV_proposal}" "${harnessArgV_document}" "$callEntries" "${harnessArgV_escalate}"
 }
 
 ## The four tools that ask, each its own name over the one ask function.
@@ -612,7 +614,7 @@ AgentsHarnessAskAnnounce(){
 AgentsHarnessAsk(){
 	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8" toolAddressTo="$9"
 	local toolKind="${10:-question}" toolUnderstood="${11}" toolFrom="${12}" toolWillDo="${13}" toolRefusalId="${14}" toolReason="${15}" toolTaskRef="${16}" toolPendingId="${17}"
-	local toolReadback="${18:-}" toolWithdraw="${19:-}" toolSelect="${20:-}" toolRevise="${21:-}" toolProposal="${22:-}" toolDocument="${23:-}" toolEntries="${24:-}"
+	local toolReadback="${18:-}" toolWithdraw="${19:-}" toolSelect="${20:-}" toolRevise="${21:-}" toolProposal="${22:-}" toolDocument="${23:-}" toolEntries="${24:-}" toolEscalate="${25:-}"
 	local askBody askSent askWaitOut askFirst askOutcome askPendingId="" askSelectNote="" askPostName="" askRouteNote=""
 	## Free text is the form of a question with no select, so `text` names it too.
 	[ "$toolSelect" != "text" ] || toolSelect=""
@@ -980,6 +982,8 @@ AgentsHarnessAsk(){
 				*) askSetArgs+=( --entry "$askSetLine" ) ;;
 			esac
 		done <<< "$toolEntries"
+		## escalate: the member needs the access itself though a running participant holds it. An explicit parameter, never a repeated request.
+		case "$toolEscalate" in true|1|yes) askSetArgs+=( --escalate ) ;; esac
 		askWhere=""
 		askJoinedOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-set-ask "$harnessAgent" \
 			--session-id "$askSession" --refusal-id "$toolRefusalId" --task-ref "$toolTaskRef" --reason "$toolReason" "${askSetArgs[@]}" 2> "$harnessScratch/set-ask.err" )" || askSetRc=$?

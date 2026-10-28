@@ -6,6 +6,7 @@ access-control: participants:allow-tool:WebSearch, participants:allow-tool:WebFe
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.brainstorm.routine — the actual procedure
 
@@ -57,8 +58,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **generate-without-filtering**: put out ideas, the impractical and unlikely included. The first reasonable idea never ends generation.
 4. **assess-lightly**: give each idea a quick read — promising, interesting but needs work, or probably not — and why.
 5. **hand-off-promising-ideas**: file each promising idea for real evaluation, steps:
-   - propose the item (piece, type, goal) and wait for confirmation from the session's own parent, per "The ladder: one rung at a time", unless the human-owner asked for that filing himself.
-   - `magic-coordinator` files it as an `idea-*` item, or folds it into the item it relates to. Another executor hands it to `magic-coordinator` with `post-inquiry`, which carries it back to whoever asked for this session, per "The ladder: one rung at a time".
+   - propose the item (piece, type, goal) and wait for confirmation from the session's own parent, per "The ladder: one rung at a time". The exception is a filing the human-owner asked for himself.
+   - `magic-coordinator` files it as an `idea-*` item, or folds it into the item it relates to. Another executor hands it to `magic-coordinator` with `post-inquiry`. The coordinator carries it back to whoever asked for this session, per "The ladder: one rung at a time".
    - it continues in `magic-team.discuss.routine` when it needs a decision or has real tradeoffs, or straight into the task-creation lifecycle when it is already clear-cut.
 
 # Closure steps
@@ -76,6 +77,7 @@ None.
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
 - The executing member is permitted and obliged to execute every step exactly as written, in order.
+- This routine is the entry point of "Conversations" with brainstorm as its main mode.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - Ending with several candidates and no winner is a valid outcome. Nothing promising is valid too; never manufacture a winner.
 - An idea that sounds bad stands during generation; filtering happens at **assess-lightly**.

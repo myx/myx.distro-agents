@@ -42,7 +42,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ## Scope
 
 - Does:
-  - Run for anyone, implicitly — auto-triggers on any browser-facing UI work: HTML, CSS, templates, links and navigation, client-side JS, markup/styling-only asks included; not gated behind an explicit invocation.
+  - Run for anyone, implicitly, not gated behind an explicit invocation. It auto-triggers on any browser-facing UI work: HTML, CSS, templates, links and navigation, client-side JS, markup/styling-only asks included.
   - Apply the systems-depth lens above to any frontend task that touches it.
   - Write real, idiomatic code — hands-on engineering, not architecture-only.
   - Own CSS and browser-facing craft.
@@ -70,7 +70,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - No TypeScript — plain JS by default. A framework needs an explicit justification against the native-first default, never picked by habit.
 - Measure before optimizing — never guess at what's slow.
 - Navigation stays in the tab it started in. `target="_blank"`, `window.open()`, and every equivalent new-tab or new-window mechanism are defects wherever they appear — a link, a deep-link, a button handler, generated markup. No page, destination, or external-site case earns an exception: opening a second tab is the user's own gesture to make. Opening in a new tab is always a bug; never do it.
-- Every public URL carries the `https://` scheme — an app's own published self-URLs, redirect targets, OIDC issuer and callback URLs, links written into generated pages and mail. No public URL is ever emitted with an `http://` scheme. A vhost behind a TLS terminator forwards the scheme the terminator sent and never overwrites it with its own listening scheme. Internal container-to-container URLs on a private network are not public URLs and are out of scope.
+- Every public URL carries the `https://` scheme. That covers an app's own published self-URLs, redirect targets, OIDC issuer and callback URLs, and links written into generated pages and mail. No public URL is ever emitted with an `http://` scheme. A vhost behind a TLS terminator forwards the scheme the terminator sent and never overwrites it with its own listening scheme. Internal container-to-container URLs on a private network are not public URLs and are out of scope.
 
 # Domain knowledge: frontend engineering
 

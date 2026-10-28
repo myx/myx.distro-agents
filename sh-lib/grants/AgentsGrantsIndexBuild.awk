@@ -16,7 +16,7 @@
 ##                                                   ahead of every floor and standing row
 ## Prints the index, one row per line, TAB-separated:
 ##   *        ceiling <path>/** <pattern> <read-only|read-write> <place>   deepest first
-##   <member> <read|write|approve|tool|unresolved> <glob or tool text> <pattern or -> <floor|standing> <note>
+##   <member> <read|write|approve|tool|deny-read|deny-write|deny-tool|unresolved> <glob or tool text> <pattern or -> <floor|standing> <note>
 ##   end
 ## Fully unrolled: a `*` row is one row per member, and a write by approval is two rows, read
 ## and approve. A write row on a read-only place is a read row, with one warning, and so is a
@@ -32,8 +32,8 @@ mode == "bases" {
 	base = ""
 	if ( $1 == "place" && $5 ~ /^\// ) base = $5
 	else if ( $1 == "floor" && $3 ~ /^\// ) base = grantsGlobBase( $3 )
-	else if ( $1 == "grant" && match( $0, /:(Edit|Read)\(\/.*\)$/ ) ) {
-		base = substr( $0, RSTART + 6, RLENGTH - 7 ) ; sub( /^\/\/+/, "/", base ) ; base = grantsGlobBase( base )
+	else if ( $1 == "grant" && match( $0, /:(Deny)?(Edit|Read)\(\/.*\)$/ ) ) {
+		base = substr( $0, RSTART + 1, RLENGTH - 2 ) ; sub( /^[A-Za-z]*\(/, "", base ) ; sub( /^\/\/+/, "/", base ) ; base = grantsGlobBase( base )
 	}
 	if ( base != "" && base != "/" && !( base in baseSeen ) ) { baseSeen[base] = 1 ; print base ; }
 	next
@@ -58,12 +58,15 @@ $1 == "grant" {
 	kind = substr( line, 1, n - 1 ) ; text = substr( line, n + 1 )
 	if ( who == "" || text == "" ) next
 	if ( kind == "tool" ) { verb = "tool" ; glob = text ; }
+	else if ( kind == "deny" && text ~ /^deny-tool:./ ) { verb = "deny-tool" ; glob = substr( text, 11 ) ; }
 	else if ( kind == "unresolved" ) { verb = "unresolved" ; glob = text ; }
 	else if ( text ~ /^Edit\(\/.*\)$/ ) { verb = "write" ; glob = substr( text, 6, length( text ) - 6 ) ; }
 	else if ( text ~ /^approve:Edit\(\/.*\)$/ ) { verb = "approve" ; glob = substr( text, 14, length( text ) - 14 ) ; }
 	else if ( text ~ /^Read\(\/.*\)$/ ) { verb = "read" ; glob = substr( text, 6, length( text ) - 6 ) ; }
+	else if ( text ~ /^DenyEdit\(\/.*\)$/ ) { verb = "deny-write" ; glob = substr( text, 10, length( text ) - 10 ) ; }
+	else if ( text ~ /^DenyRead\(\/.*\)$/ ) { verb = "deny-read" ; glob = substr( text, 10, length( text ) - 10 ) ; }
 	else next
-	if ( verb == "read" || verb == "write" || verb == "approve" ) { sub( /^\/\/+/, "/", glob ) ; glob = resolvedGlob( glob ) ; }
+	if ( verb == "read" || verb == "write" || verb == "approve" || verb == "deny-read" || verb == "deny-write" ) { sub( /^\/\/+/, "/", glob ) ; glob = resolvedGlob( glob ) ; }
 	note = ws ":" kind
 	if ( ( verb == "write" || verb == "approve" ) && ( p = placeOf( grantsGlobBase( glob ) ) ) && placeCeiling[p] == "read-only" ) {
 		verb = "read"
@@ -112,7 +115,7 @@ function emit( who, verb, glob, from, note,    key ) {
 	key = who SUBSEP verb SUBSEP glob
 	if ( key in emitted ) return
 	emitted[key] = 1
-	print who, verb, glob, ( verb == "read" || verb == "write" || verb == "approve" ) ? grantsGlobPattern( glob ) : "-", from, note
+	print who, verb, glob, ( verb == "read" || verb == "write" || verb == "approve" || verb == "deny-read" || verb == "deny-write" ) ? grantsGlobPattern( glob ) : "-", from, note
 }
 
 END {

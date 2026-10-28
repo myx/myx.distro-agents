@@ -112,19 +112,16 @@ rigStart planned yes
 mkdir -p "$rigScenarioDir/ws/DATA/board/running"
 rigOk="$rigScenarioDir/ws/OUT/ok"
 rigBad="$rigScenarioDir/ws/OUT/bad"
-printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-plan\nallows: rig-garbage,once:Write:%s:magic-coordinator:20260928T2200Z,session:Write:%s::20260928T2200Z,session:Write:%s:%s:20260928T2200Z,session:Write:%s:magic-coordinator:20260928T2200Z\n---\n\n# Dispatch\n' \
+printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-plan\naccess-control: rig-garbage,participants:allow-once:%s:magic-coordinator:20260928T2200Z,participants:allow-write:%s::20260928T2200Z,participants:allow-write:%s:%s:20260928T2200Z,participants:allow-write:%s:magic-coordinator:20260928T2200Z\n---\n\n# Dispatch\n' \
 	"$rigMember" "$rigBad" "$rigBad" "$rigBad" "$rigMember" "$rigOk" > "$rigScenarioDir/ws/DATA/board/running/dispatch-rig.md"
 RIG_DATA_ROOT="$rigScenarioDir/ws/DATA"
 rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioDir/out.1"
 rigAssert "the malformed entries admit nothing"        "$( [ -e "$rigBad" ] && printf written || printf refused )" refused
-rigAssert "each malformed entry is reported"           "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 4
-## A tracking post sends Slack's control characters escaped, so the entry form reads as entities in the body.
-rigAssert "one says it is not the entry form"          "$( rigPostsWith 'is not &lt;kind&gt;:&lt;tool&gt;:&lt;target&gt;:&lt;granted-by&gt;:&lt;time&gt;' )" 1
-rigAssert "one says its kind is once"                  "$( rigPostsWith 'its kind is once' )" 1
-rigAssert "one says it names nobody"                   "$( rigPostsWith 'it names nobody who granted it' )" 1
-rigAssert "one says it is self-signed"                 "$( rigPostsWith "signed by the session's own member" )" 1
+rigAssert "each malformed row is reported, and a row of two tools once for each" "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 5
+rigAssert "three say they are no row of access-control (garbage, a verb that is not one, no signer)" "$( rigPostsWith 'it is not a row participants:' )" 3
+rigAssert "two say it is self-signed (allow-write is Edit and Write)" "$( rigPostsWith "signed by the session's own member" )" 2
 rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioDir/out.2"
-rigAssert "the same session is not told twice"         "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 4
+rigAssert "the same session is not told twice"         "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 5
 rigTool rig-plan Write "{\"path\":\"$rigOk\",\"content\":\"x\"}" "$rigScenarioDir/out.3"
 rigAssert "control: the well-formed entry admits its call" "$( LC_ALL=C sed -n '1s/^\(OK: wrote\).*/\1/p' "$rigScenarioDir/out.3" )" "OK: wrote"
 RIG_DATA_ROOT=""

@@ -93,7 +93,7 @@ rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out"
 rigAssert "it is in the stored wait" "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/$rigSession1/wait/state" "ask:rig-unwait-001" )" "yes"
 rigOp --wait-for-input "$rigMember" --unwait "ask:rig-unwait-001" --wait-session-id "$rigSession1"
 rigAssert "--unwait reports DROPPED" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: DROPPED"
-rigAssert "it leaves the stored sources line, the floor and the defaults staying: the replies, the team channel and the owner DM, and no ask" "$( rigSourcesLine "$rigScenarioDir/out" )" "replies:$rigSession1 slack:magic-team slack:human-owner"
+rigAssert "it leaves the stored sources line, the floor staying: the replies, the DMs, the mentions and the wake marker, and no ask" "$( rigSourcesLine "$rigScenarioDir/out" )" "replies:$rigSession1 dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming it again explicitly still works: dropping is not blocking" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 

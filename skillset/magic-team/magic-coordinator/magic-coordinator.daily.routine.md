@@ -49,12 +49,12 @@ review-by: inherit
 - Does:
   - The standup, dependency-ordered assignment, and the supervised work session.
   - Mechanical board moves (`check-process-board`), simple interview posts, and simple grooming-shaped decisions needing no spawn.
-  - Runs when the human-owner or a member asks for a daily meeting or standup, or by its autorun (`runs-at:` with `runs-after:`: after `magic-team.grooming.routine` completed that day).
+  - Runs when the human-owner or a member asks for a daily meeting or standup, or by its autorun. The autorun is `runs-at:` with `runs-after:`: after `magic-team.grooming.routine` completed that day.
 - Doesn't:
   - Dispatch board work in its Steps. The one dispatch point is the closure's **run-advance-dispatch**; the work-session participants are this session's own members, not board dispatches.
   - Re-triage the backlog where investigation or design is needed. That is grooming's.
 - Open, pending:
-  - Open: a BPMN diagram sync step — a cheap mtime check of the team's Camunda diagrams against the team definition files, handing a redeploy to the owning `partner-*`'s diagram-sync routine. Waits for that routine to exist.
+  - Open: a BPMN diagram sync step. It is a cheap mtime check of the team's Camunda diagrams against the team definition files, handing a redeploy to the owning `partner-*`'s diagram-sync routine. Waits for that routine to exist.
   - Held: idle-task assignment at **update-todos**, until the human-owner lifts the hold.
 
 # Opening steps
@@ -69,7 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them. Refresh the lock during the long pass (`--daily-lock-refresh`).
 3. **librarian-confirms-roster**: Invite `magic-librarian` to confirm that the `roster-note` and tooling section are current. Rewrite a drifted `roster-note` (`--roster-upsert`).
 4. **sweep-comms-read**: Run `magic-coordinator.communication-sweep.routine`'s **check** step inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`). Fold what is relevant into the roll call. Acting on it is the closure's advance pass, not this step.
-5. **roll-call**: For each permanent member except `magic-coordinator`, in a random order: read its board items (from the board sections of the `work-duty` scan in `input/input-scan.md`) and narrate what happened since last time, what is planned next and what blocks it. Every invitee gets a turn; `partner-*` members usually report nothing. Anything needing real discussion goes to **questions-then-conclude** or the backlog, never resolved here. The roll call must change the plan, not only record it.
+5. **roll-call**: For each permanent member except `magic-coordinator`, in a random order, read its board items. They are in the board sections of the `work-duty` scan in `input/input-scan.md`. Narrate what happened since last time, what is planned next and what blocks it. Every invitee gets a turn; `partner-*` members usually report nothing. Anything needing real discussion goes to **questions-then-conclude** or the backlog, never resolved here. The roll call must change the plan, not only record it.
 6. **run-check-process-board**: Run `check-process-board` against the board sections of this run's `work-duty` scan (`input/input-scan.md`), read by line range, for the dependency order the assignment follows. This read does no housekeeping: that runs only when the advance routine takes its lock.
 7. **update-todos**: Record the day's working list (`CheckList`) for the members getting a work session, in dependency order. The improvement the last retro filed for this daily (a `note-*` in `magic-coordinator`'s inbox) goes on it. Idle-task assignment is held until the human-owner lifts the hold: no idle task is assigned here meanwhile. Once lifted, a member with no assigned work gets one idle-run routine named explicitly, per "Duties".
 8. **questions-then-conclude**: Let the human-owner, or a member, ask anything before the standup closes. Running unattended, post the open questions to `magic-team` and continue. A question that must persist becomes an `inquiry-*` (`post-inquiry`) for the next daily. Nobody is present to work it out together — the "no parent present" branch of "The ladder: one rung at a time" applies.

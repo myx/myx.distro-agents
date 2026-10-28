@@ -53,7 +53,7 @@ Steps:
 1. **settle-who-asks**: The session's participants and its `magic-coordinator` assess the matter first, per "Escalation and chain of command".
    - The session's `magic-coordinator` forwards to him what it does not settle itself.
    - With no coordinator in the session, the member asks him directly.
-2. **ask-at-once**: Ask with `AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove`, of the fitting kind in the tooling's own ask templates (`myx.distro-agents/sh-lib/templates/*.post.format.md`), as soon as the assessment is done. The tooling delivers it on his direct channel and waits inside the call. One topic, the decision first.
+2. **ask-at-once**: Ask as soon as the assessment is done, with `AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove`. Pick the fitting kind in the tooling's own ask templates (`myx.distro-agents/sh-lib/templates/*.post.format.md`). The tooling delivers it on his direct channel and waits inside the call. One topic, the decision first.
 3. **keep-it-tracked**: A question whose answer binds the team is registered by `magic-coordinator` as a board item blocking the work it gates. A member with no coordinator present files it to `magic-coordinator` with `post-inquiry`.
 4. **wait-for-the-answer**: Wait per **wait-never-quit**. No reply is never a verdict, neither a deny nor an allow.
    - A follow-up goes into the same thread. Read the thread before re-asking, and the record's own `asker-live:` (`--read-pending-reply`): `no-process` or `session-ended` means nobody is there to take his answer.

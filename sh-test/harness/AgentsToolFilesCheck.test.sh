@@ -146,6 +146,16 @@ rigExecute="$( printf '%s\n' 'for rigF in DistroAgentsItems DistroAgentsMail Dis
 		bash "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute 2> /dev/null )"
 rigAssert "every tool file of the table is a command of an execute script" "$rigExecute" "DistroAgentsItems DistroAgentsMail DistroAgentsSession AgentDispatcherTools "
 
+## 10. a name that moved to another tool file: the old file keeps it as a stub
+rigAssert "the table gives --settle-pending-reply to DistroAgentsSession and --request-permission-set to AgentDispatcherTools, and DistroAgentsQuestions neither" "$( LC_ALL=C awk -F'\t' '$2 == "--settle-pending-reply" || $2 == "--request-permission-set" { printf "%s:%s ", $1, $2 }' "$rigTmp/table" )" "DistroAgentsSession:--settle-pending-reply AgentDispatcherTools:--request-permission-set "
+rigStubs="$( . "$rigInclude" && AgentsToolsFrontKnows DistroAgentsQuestions --settle-pending-reply && AgentsToolsFrontKnows DistroAgentsQuestions --request-permission-set && printf 'known:' ; . "$rigInclude" && AgentsToolsFrontStubOwner DistroAgentsQuestions --settle-pending-reply )"
+rigAssert "the old file still knows both names, and the stub row names the new owner" "$rigStubs" "known:DistroAgentsSession"
+rigAssert "a name the old file never had is not a stub" "$( . "$rigInclude" && AgentsToolsFrontKnows DistroAgentsQuestions --rig-no-such-operation && printf yes || printf no )" no
+rigCall DistroAgentsQuestions --settle-pending-reply --rig-argument-no-operation-takes
+rigAssert "a direct call of the old name says where it moved, and goes on there" "$( LC_ALL=C grep -c -F 'DistroAgentsQuestions: --settle-pending-reply moved to DistroAgentsSession.fn.sh --settle-pending-reply' "$rigTmp/call.out" )" 1
+rigCall DistroAgentsQuestions --request-permission-set --rig-argument-no-operation-takes
+rigAssert "and --request-permission-set to AgentDispatcherTools.fn.sh" "$( LC_ALL=C grep -c -F 'DistroAgentsQuestions: --request-permission-set moved to AgentDispatcherTools.fn.sh --request-permission-set' "$rigTmp/call.out" )" 1
+
 rigAssert "and nothing was posted" "$( LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" || : )" 0
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TOOL FILES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

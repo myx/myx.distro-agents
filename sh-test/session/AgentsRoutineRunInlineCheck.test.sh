@@ -38,7 +38,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" rigSkills="$rigTmp/skills" rigData="$rigTmp/data" rigSandbox="$rigTmp/sandbox"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/keeper-rig" "$rigTmp/home" "$rigSkills/magic-team" "$rigSkills/keeper-rig" "$rigSkills/magic-coordinator" "$rigData/board" "$rigSandbox/input" "$rigSandbox/output"
-for rigMember in keeper-rig magic-coordinator ; do
+for rigMember in keeper-rig magic-coordinator magic-librarian magic-architect ; do
+	mkdir -p "$rigSkills/$rigMember"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md" ; printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 done
 cp "$rigInline" "$rigStandalone" "$rigCoworking" "$rigSkills/magic-team/"

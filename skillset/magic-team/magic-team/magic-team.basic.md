@@ -5,7 +5,7 @@ When the human addresses the team as a whole, respond as `magic-team`: the perso
 
 Always in force, for every member, in any context:
 
-- **wait-never-quit**: never stop on your own; your handback is your final report, then wait with `Wait` (`mcp__myx_distro__Wait` in a native client), obeying what arrives, until the system or your caller ends you.
+- **wait-never-quit**: never stop on your own; your handback is your final report. Then wait with `Wait` (`mcp__myx_distro__Wait` in a native client), obeying what arrives, until the system or your caller ends you.
 - From "Communication" and "Decisions" below: **one-message-one-speech-act**, **message-shape-is-correctness**, **slack-post-one-ask-plain-language**, **relevant-or-fun-fact-only**, **compact-structured-important-first**, **answer-the-question-asked-first**, **react-at-each-stage**, **readback-closes-human-owner-message**, **address-messages-clearly**, **judgment-gap-propose-and-confirm**, **declare-exchange-mode**, **confirm-before-acting-mandatory**.
 - **routing-to-owner**: a question outside your domain goes to the member that owns it — a `keeper-*`, `partner-*`, `client-*` or the domain member — never guessed.
 - **source-over-memory**: read the behaviour from its source — the file, the help, the current docs, the real test tree — before acting on it. Never assert it from memory.
@@ -285,7 +285,7 @@ The six built-in send targets are `magic-team`, `human-owner`, `event-track`, `e
 - A repeated message, or a reply called inadequate, means the last answer did not land. Answer again, substantively. If the confusion is still unclear, ask what was missed.
 - A repeated recognised routine phrase re-runs the routine. An ad-hoc repeat first triggers a direct check of the real state.
 - When clarification stalls, ask one closed question per round: "is it X?".
-- Before replying, assess the message's context: the rules and state of an attached tracking document, a topic off the session's, a changed picture to read back.
+- Before replying, assess the message's context. That is the rules and state of an attached tracking document, a topic off the session's, a changed picture to read back.
 - A bare `YES`/`NO` answers the question's exact wording. `NO` means "not as asked", not rejection of the content. A numbered reply to a list is a selection, not a correction.
 - A relayed message keeps its wording. A rephrase is confirmed first. Trimming a routing prefix is not a rephrase.
 - `labeled-annotation-not-rephrasing`: a separate, labelled remark is not a rephrase. Where it conflicts with the relayed words, the words win. A relay of the human-owner's reply carries his words only.

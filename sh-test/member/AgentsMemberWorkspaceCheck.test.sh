@@ -131,7 +131,8 @@ rigConsole(){ ## workspace, label -- a console that records where it was started
 	chmod +x "$rigWork/$1/DistroAgentsConsole.sh"
 }
 rigWorld(){ ## -- a fresh machine: workspaces, members, scopes, registries, the members index and the tracked list
-	rm -rf "$rigWork" "$rigHome"
+	## A spawn leaves some of its files read-only: made writable first, so the fresh machine starts from nothing.
+	chmod -R u+rwX -- "$rigWork" "$rigHome" 2> /dev/null ; rm -rf "$rigWork" "$rigHome"
 	mkdir -p "$rigElsewhere" "$rigWork/decoy"
 	local wsName memberName
 	for wsName in ws-here ws-there ws-third ws-rig ; do mkdir -p "$rigWork/$wsName/.local/.agents" "$rigWork/$wsName/.local/agents/members" ; done

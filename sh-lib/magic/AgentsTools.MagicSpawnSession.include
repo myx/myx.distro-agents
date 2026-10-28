@@ -10,54 +10,8 @@
 ## "--spawn-session: starting a routine's own initial members".
 ##
 
-## THE AGENT-LESS PARENT of a partitioned spawn (a `<type>-*` in the routine's own executors or the
-## caller's, or several members the caller names): it runs no agent of its own -- no CLI is launched --
-## watches the member sessions it spawned, and finishes itself once all of them are done. It owns the
-## run as its caller: its owner is the calling member, it reports where the caller is, and each child
-## reports there too (`--reports-to`), so their handbacks and escalations reach the caller with no hop.
-## Its record is written by --spawn-session before the first child starts; this watcher, started detached once the children
-## are, closes it when the last child closes (AgentsToolsSpawnSessionParentClose), and housekeeping does where the watcher is gone.
-AgentsToolsSpawnSessionParent(){ ## parent session id
-	local watchRecord="$MMDAPP/.local/agents/spawned/$1/$1.spawn.md"
-	type AgentsToolsSpawnSessionParentClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" || return 1
-	while sleep 2 ; do
-		## Its own record removed is its tree removed; one closed already was closed by housekeeping.
-		[ -f "$watchRecord" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$watchRecord" status )" = spawn-started ] || return 0
-		! AgentsToolsSpawnSessionParentClose "$watchRecord" || return 0
-	done
-}
-
-## Header lines set on a spawn record another process may be writing too: read, changed, and moved in only where
-## the file is still what was read (three tries), as AgentsToolsSpawnProxyRunRecord does. Lines on stdin: `<header><TAB><value>`.
-AgentsToolsSpawnSessionRecordNote(){ ## record file
-	local noteFile="$1" noteOps noteSeen noteBody noteNow noteTries=0
-	[ -f "$noteFile" ] || return 1
-	noteOps="$( mktemp "$noteFile.ops.XXXXXX" )" || return 1
-	LC_ALL=C awk -F'\t' 'NF >= 2 { printf "upsert\t%s\t%s\n", $1, $2 }' > "$noteOps"
-	while [ "$noteTries" -lt 3 ] ; do
-		noteTries=$(( noteTries + 1 ))
-		noteSeen="" ; IFS= read -r -d '' noteSeen < "$noteFile" 2> /dev/null || :
-		[ -n "$noteSeen" ] || break
-		noteBody="$( printf '%s' "$noteSeen" | LC_ALL=C awk -v opsFile="$noteOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || noteBody=""
-		[ -n "$noteBody" ] || break
-		printf '%s\n' "$noteBody" 2> /dev/null > "$noteFile.note.$$" || break
-		noteNow="" ; IFS= read -r -d '' noteNow < "$noteFile" 2> /dev/null || :
-		[ "$noteNow" = "$noteSeen" ] || continue
-		chmod 644 "$noteFile.note.$$" 2> /dev/null ; mv -f "$noteFile.note.$$" "$noteFile" 2> /dev/null && { rm -f "$noteOps" ; return 0 ; }
-		break
-	done
-	rm -f "$noteOps" "$noteFile.note.$$"
-	return 1
-}
-## The founding record of a session this call started, given the lines; a warning, never a stop, where it cannot be.
-AgentsToolsSpawnSessionNoteSession(){ ## session id, the lines (`<header><TAB><value>` a line)
-	local noteRecord
-	for noteRecord in "$MMDAPP"/.local/agents/spawned/*/"$1.spawn.md" ; do
-		[ -f "$noteRecord" ] && printf '%s' "$2" | AgentsToolsSpawnSessionRecordNote "$noteRecord" && return 0
-	done
-	echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: the participants and the likely needs could not be written on the record of session $1" >&2
-	return 0
-}
+## The agent-less parent of a partitioned spawn, its watcher and the record writers this call uses live in
+## AgentsTools.SpawnSandbox.include (AgentsToolsSpawnSessionParent and its neighbours).
 
 case "$1" in
 
@@ -69,6 +23,11 @@ case "$1" in
 		## THE PARTICIPANTS and what the work likely needs, as whoever prepares the dispatch guesses them: validated before
 		## anything starts and recorded on the spawn records, never started here -- the executor invites each participant.
 		local participantsValue="" participantsGiven="false" likelyPermissions=() likelyTools=()
+		## At most this many children of a partitioned run open at once, as lib/parallel's --workers (default 4).
+		local partitionWorkers=""
+		## The scopes the run is partitioned by: one child per member and scope, each once (routine × member × scope).
+		local partitionScopes=()
+		type AgentsToolsSpawnSessionRecordNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" || { set +e ; return 1 ; }
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				## The session this call brings its members into instead of starting one: a work-duty that starts again is the
@@ -152,6 +111,29 @@ case "$1" in
 					likelyPermissions+=( "$2" )
 					shift 2
 				;;
+				--workers)
+					case "${2:-}" in
+						''|*[!0123456789]*|0*)
+							echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --workers requires a positive whole number, got: '${2:-}'" >&2
+							set +e ; return 1 ;;
+					esac
+					partitionWorkers="$2"
+					shift 2
+				;;
+				--partition-scope)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --partition-scope requires <text>" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*$'\n'*|*$'\t'*) echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --partition-scope '$2' holds a line break or a tab -- nothing was started" >&2 ; set +e ; return 1 ;;
+					esac
+					case $'\n'"$( printf '%s\n' ${partitionScopes[@]+"${partitionScopes[@]}"} )"$'\n' in
+						*$'\n'"$2"$'\n'*) ;;
+						*) partitionScopes+=( "$2" ) ;;
+					esac
+					shift 2
+				;;
 				--likely-tool)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --likely-tool requires <tool>" >&2
@@ -161,7 +143,7 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -353,6 +335,11 @@ case "$1" in
 		elif [ ${#spawnMembers[@]} -ge 2 ] ; then
 			partitionRoster="true"
 		fi
+		[ ${#partitionScopes[@]} -eq 0 ] || partitionRoster="true"
+		if [ -n "$partitionWorkers" ] && [ "$partitionRoster" != "true" ] ; then
+			echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --workers applies to a partitioned run only (a <type>-* or two or more members) -- nothing was started" >&2
+			set +e ; return 1
+		fi
 
 		## The first spawn starts the session; every further one joins it by the
 		## session id the first spawn's own output reports. An executor commands
@@ -363,7 +350,18 @@ case "$1" in
 		## A session joined has no first spawn that starts it: every member goes in under its id.
 		if [ -n "$sessionJoinId" ] ; then spawnFirst="false" ; spawnSessionId="$sessionJoinId" ; fi
 		local partitionParentId="" partitionChildren="" partitionMember="" partitionSession="" partitionThread="" partitionReports=""
-		local partitionRecord="" partitionFailed="" partitionTemp partitionWatcher partitionStart
+		local partitionRecord="" partitionFailed="" partitionPending="" partitionStartFailed="" partitionEntry partitionRest partitionStarted partitionCount=0
+		## The queue's entries: a member, or `<member>@<n>` for its n-th scope of partition.scopes.
+		local partitionQueue="" partitionScopeAt
+		if [ ${#partitionScopes[@]} -eq 0 ] ; then
+			partitionQueue="${spawnMembers[*]}"
+		else
+			for spawnMember in "${spawnMembers[@]}" ; do
+				for partitionScopeAt in "${!partitionScopes[@]}" ; do
+					partitionQueue="$partitionQueue${partitionQueue:+ }$spawnMember@$(( partitionScopeAt + 1 ))"
+				done
+			done
+		fi
 		if [ "$partitionRoster" = "true" ] ; then
 			## The caller the parent stands for: its member, its session and its thread, read before any spawn.
 			type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" || { set +e ; return 1 ; }
@@ -407,14 +405,29 @@ case "$1" in
 				printf 'session-comment: agent-less parent of %s\n' "$resolvedRoutineName"
 				[ -z "$partitionThread" ] || printf 'session-thread: %s\n' "$partitionThread"
 				[ -z "$partitionReports" ] || printf 'reports-to: %s\n' "$partitionReports"
+				[ -z "$partitionMember" ] || printf 'parent-member: %s\n' "$partitionMember"
 				printf 'agent-less: %s\n' "true"
 				[ -z "$recordNotes" ] || printf '%s' "$recordNotes" | LC_ALL=C awk -F'\t' 'NF >= 2 { printf "%s: %s\n", $1, $2 }'
+				printf 'workers: %s\n' "${partitionWorkers:-$agentsSpawnSessionParentWorkers}"
+				printf 'pending: %s\n' "$partitionQueue"
 				printf 'children:\n'
 				printf 'status: %s\n' "spawn-started"
 				printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 				printf '%s\n' "---"
 				printf '\n# Agent-less parent session: %s\n' "$partitionParentId"
 			} > "$partitionRecord" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not write the record of the agent-less parent $partitionParentId -- nothing was started" >&2 ; set +e ; return 1 ; }
+			## What every start of the queue is given, kept beside the record for its watcher (AgentsToolsSpawnSessionParentStart).
+			local partitionArgs=( --dispatch-doc:create )
+			if [ "$routineDefault" = "true" ] ; then partitionArgs+=( --routine-default ) ; else partitionArgs+=( --routine "$routineSelector" ) ; fi
+			[ -z "$sessionNameOrComment" ] || partitionArgs+=( --session-name-or-comment "$sessionNameOrComment" )
+			[ -z "$sessionDescription" ] || partitionArgs+=( --description "$sessionDescription" )
+			[ -z "$sessionCliService" ] || partitionArgs+=( --spawn-cli-service "$sessionCliService" )
+			[ -z "$sessionSettingsWorkspace" ] || partitionArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
+			{ printf '%s\0' "${partitionArgs[@]}" > "${partitionRecord%/*}/partition.args" \
+				&& printf '%s\n' "$spawnTaskText" > "${partitionRecord%/*}/partition.task" \
+				&& printf '%s' "$recordNotes" > "${partitionRecord%/*}/partition.notes" \
+				&& printf '%s\n' ${partitionScopes[@]+"${partitionScopes[@]}"} > "${partitionRecord%/*}/partition.scopes" ; } \
+				|| { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not keep what the starts of the agent-less parent $partitionParentId are given -- nothing was started" >&2 ; set +e ; return 1 ; }
 		fi
 		for spawnMember in "${spawnMembers[@]}" ; do
 			local spawnArgs=( "$spawnMember" --dispatch-doc:create )
@@ -428,14 +441,8 @@ case "$1" in
 			[ -z "$sessionCliService" ] || spawnArgs+=( --spawn-cli-service "$sessionCliService" )
 			[ -z "$sessionSettingsWorkspace" ] || spawnArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
 			if [ "$partitionRoster" = "true" ] ; then
-				[ -z "$partitionReports" ] || spawnArgs+=( --reports-to "$partitionReports" )
-				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --parent-session "$partitionParentId" --context --spawn-session )" \
-					|| { partitionFailed="the spawn of $spawnMember failed" ; break ; }
-				local partitionChildId
-				partitionChildId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
-				[ -n "$partitionChildId" ] || { partitionFailed="the spawn of $spawnMember reported no SESSION_ID" ; break ; }
-				partitionChildren="$partitionChildren${partitionChildren:+ }$partitionChildId"
-				[ -z "$recordNotes" ] || AgentsToolsSpawnSessionNoteSession "$partitionChildId" "$recordNotes"
+				## A partitioned run is started from its queue, below.
+				break
 			elif [ "$spawnFirst" = "true" ] ; then
 				## This operation starts a session, so its first spawn asks for one of its own:
 				## otherwise it would be brought into the calling session's.
@@ -453,22 +460,24 @@ case "$1" in
 			fi
 		done
 		if [ "$partitionRoster" = "true" ] ; then
-			## The children started, a failure partway included, are the parent's: named on its record, and its watcher starts over
-			## them, detached, so it outlives this call as a session does. Its pid and host are on the record, for liveness.
-			partitionTemp="$( mktemp "$partitionRecord.tmp.XXXXXX" )" \
-				&& LC_ALL=C awk -v kids="$partitionChildren" '$0 == "children:" { print "children: " kids ; next ; } { print ; }' "$partitionRecord" > "$partitionTemp" \
-				&& chmod 644 "$partitionTemp" && mv -f "$partitionTemp" "$partitionRecord" \
+			## The first children, up to --workers, are started here; a start that fails is kept and the rest go on, as lib/parallel
+			## goes on past a failed job. The record then names them and the queue left, and its watcher, launched detached, writes
+			## it from there: it starts the rest as children close, and closes the parent once all are done.
+			partitionPending="$partitionQueue"
+			while [ -n "$partitionPending" ] && [ "$partitionCount" -lt "${partitionWorkers:-$agentsSpawnSessionParentWorkers}" ] ; do
+				read -r partitionEntry partitionRest <<< "$partitionPending"
+				if partitionStarted="$( AgentsToolsSpawnSessionParentStart "$partitionParentId" "$partitionEntry" )" ; then
+					partitionChildren="$partitionChildren${partitionChildren:+ }$partitionStarted" ; partitionCount=$(( partitionCount + 1 ))
+				else
+					partitionStartFailed="$partitionStartFailed${partitionStartFailed:+ }$partitionEntry"
+					partitionFailed="the spawn of $partitionEntry failed"
+				fi
+				partitionPending="$partitionRest"
+			done
+			printf 'children\t%s\npending\t%s\nstart-failed\t%s\n' "$partitionChildren" "$partitionPending" "$partitionStartFailed" | AgentsToolsSpawnSessionRecordNote "$partitionRecord" \
 				|| { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not name the children ${partitionChildren:-none} on the record of the agent-less parent $partitionParentId" >&2 ; set +e ; return 1 ; }
-			mkdir -p "$MMDAPP/.local/agents/sessions" 2>/dev/null || :
-			( AgentsToolsSpawnSessionParent "$partitionParentId" ) >> "$MMDAPP/.local/agents/sessions/$partitionParentId.log" 2>&1 &
-			partitionWatcher=$!
-			type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-			partitionStart="$( AgentsToolsRegistryProcessStart "$partitionWatcher" )"
-			partitionTemp="$( mktemp "$partitionRecord.tmp.XXXXXX" )" \
-				&& LC_ALL=C awk -v host="$( hostname -s 2> /dev/null || echo unknown )" -v run="$partitionWatcher${partitionStart:+ $partitionStart}" \
-					'$0 == "---" && ++fence == 2 { print "host: " host ; print "run-process: " run ; } { print ; }' "$partitionRecord" > "$partitionTemp" \
-				&& chmod 644 "$partitionTemp" && mv -f "$partitionTemp" "$partitionRecord" \
-				|| echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: the watcher of the agent-less parent $partitionParentId runs as $partitionWatcher, and its record could not say so" >&2
+			AgentsToolsSpawnSessionParentLaunch "$partitionParentId" \
+				|| echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: the watcher of the agent-less parent $partitionParentId did not name itself on its record within 10 seconds" >&2
 			if [ -n "$partitionFailed" ] ; then
 				echo "$MDSC_CMD: spawn-session: ⛔ ERROR: $partitionFailed -- the agent-less parent $partitionParentId watches the children already started, and closes over them: ${partitionChildren:-none}" >&2
 				set +e ; return 1
@@ -478,6 +487,7 @@ case "$1" in
 			echo "MEMBERS=${spawnMembers[*]}"
 			[ "$participantsGiven" != "true" ] || echo "PARTICIPANTS=$participantsList"
 			echo "CHILDREN=$partitionChildren"
+			echo "PENDING=$partitionPending"
 			return 0
 		fi
 		echo "SESSION_ID=$spawnSessionId"

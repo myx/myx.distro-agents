@@ -69,7 +69,7 @@ for rigMemberName in magic-team magic-coordinator client-ndm client-acme ; do ri
 ## possible row about it is the one this check is about.
 rigRoutine(){ ## folder, file name, frontmatter lines
 	{
-		printf -- '---\ntype: routine\n%s\n---\n' "$3"
+		printf -- '---\ntype: routine\n%s\nruns-at: none\n---\n' "$3"
 		printf '# %s — probe\n\n# Opening steps\n\n- one.\n\n# Steps\n\n- two.\n\n# Closure steps\n\n- three.\n\n# Routine'"'"'s local procedures\n\n- four.\n' "$2"
 	} > "$rigSkills/$1/$2"
 }

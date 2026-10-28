@@ -30,7 +30,7 @@ AgentsMcpWireLockAcquire(){
 	return 0
 }
 
-## Whether a mint of the root-harness session, read before this request, has not ended: its marker (AgentsTools.InternMcpServer.include) is there.
+## Whether a mint of the root-harness session read before this request has not ended: its marker (AgentsTools.InternMcpServer.include) is there.
 AgentsMcpMintPending(){
 	local pendingMarker pendingSeq
 	for pendingMarker in "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid"/mint-pending.* ; do
@@ -190,6 +190,26 @@ AgentsMcpProgressBeat(){ ## raw token, seconds, pid, stop file
 	return 0
 }
 
+## Whether a call here runs as a task (epic S20, AgentsTools.ToolTask.include): it needs the session its process folder belongs to.
+AgentsMcpTaskUsable(){
+	[ "${MDAT_TOOL_TASK_OFF:-}" != yes ] && [ -n "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" ]
+}
+
+## The script of an execute call, run as the task AgentsToolsTaskCall makes of it: its stdout is the result. Its stderr is part of the result unless merge_stderr is
+## false; then it goes to the task's own stderr, which is said on the daemon side once the call ends.
+AgentsMcpExecuteRun(){
+	if [ -n "$mcpWorkspace" ] ; then
+		printf '%s\n' "$mcpScript" | ( exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) 4>&2 2>&$mcpStderrFd
+	else
+		printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute 4>&2 2>&$mcpStderrFd
+	fi
+}
+
+## A secondary tool's operation, run as a task: its stdout and stderr are the result.
+AgentsMcpSecondaryRun(){
+	DistroAgentsTools "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" 2>&1
+}
+
 ## The pid a job's pid file names: its first word. The file holds one line, `<pid> <start>`, the
 ## leader of the job's process group and when it began, as AgentsToolsRegistryProcessesBegan read it
 ## when the job was started, put in place together by one rename. A file written before start times
@@ -271,8 +291,7 @@ case "$1" in
 		## carries no session answers exactly as it did before this block existed. The id is
 		## held to a bare name, the gate every session folder is chosen by; the token is not
 		## read, since serving that session proves nothing about adopting it.
-		## A mint of the root-harness session read before this request is still pending: this request waits for it, so its profile binds this call too (epic S18.3).
-		## Bounded at a minute; a mint that has not ended by then leaves the call refused (fail closed), never run ungated.
+		## A mint still pending is waited for, up to a minute, so its profile binds this call too; one that has not ended by then leaves the call refused, never run ungated.
 		mcpMintStuck=''
 		mcpMintLeft=300
 		while [ "$mcpMintLeft" -gt 0 ] && AgentsMcpMintPending ; do
@@ -311,6 +330,7 @@ case "$1" in
 		mcpJob="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_job" 2>/dev/null || true )"
 		mcpAction="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_action" 2>/dev/null || true )"
 		mcpMergeStderr="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_merge_stderr" 2>/dev/null || true )"
+		mcpTimeoutAction="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_timeout_action" 2>/dev/null || true )"
 		## RootSession's own arguments: the operation, and for adopt the id and the token mint printed.
 		mcpRootSessionOp="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_operation" 2>/dev/null || true )"
 		mcpRootSessionGiven="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_session" 2>/dev/null || true )"
@@ -331,74 +351,11 @@ case "$1" in
 		done
 		rm -rf "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ"
 
-		## The harness tool floor, rendered for THIS request from the same wire declarations
-		## the model is offered, so a tool added, changed or removed there is served on the
-		## next call. Only the two methods that use it pay for it. Nothing here is a second
-		## list: AgentsHarnessMcpMirror.sh derives it, and a render that fails leaves this
-		## request served by `execute` alone rather than by a floor nobody rendered.
-		## Two tools are LISTED but not served: Bash, because arbitrary command execution
-		## is myx.common's own method, and WorkspaceContextExecute beside it; tools/call
-		## still names what to use instead, for Bash. A basic tool that
-		## refuses only where it has no place to write, CheckList, stays listed like any
-		## other and refuses at execution -- the floor is never made to depend on a session.
-		## THE TEST WHEN A NEW HARNESS TOOL LANDS: a tool that takes a command, or that
-		## hands back a handle only its own process can resolve, belongs on this list.
-		## Nothing else applies it, so MAGIC.md's own `A harness tool joins the served MCP
-		## floor by default` states it where a reader adding a tool will actually meet it.
-		## A marker inherited from an outer copy of this server means we were reached
-		## through another server: we then serve `execute` only, so enumeration cannot
-		## descend through us a second time.
-		## WorkspaceContextExecute is unserved beside Bash for the same reason: it runs a
-		## caller-supplied script, and this server serves its own 'execute' as the twin.
-		## The two are still LISTED, with a description that says they run in the harness, so the harness and this server list the same tools (AgentsHarnessUnserved.include).
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
-		mcpUnservedToolNames="$( printf '%s' "$agentsUnservedOnMcp" | LC_ALL=C tr '\n' ' ' )"
-		mcpUnservedEntriesJson=''
-		[ -n "${MDAT_MCP_SERVED_MARKER:-}" ] || mcpUnservedEntriesJson="$( AgentsToolsUnservedMcpEntries )"
-		mcpServedToolsJson=''
-		case "$mcpMethod" in
-			tools/list|tools/call)
-				if [ -n "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
-					[ "tools/list" != "$mcpMethod" ] || printf '%s\n' "$MDSC_CMD: mcp-request: reached through another MCP server (MDAT_MCP_SERVED_MARKER is set) -- serving 'execute' only, and declining every harness tool, so enumeration cannot recurse through this server." >&2
-				else
-					## CheckList is ALWAYS served: the sketch's own line -- "No gate: no permission check
-					## and no hook decides CheckList. It refuses only at execution, where it has no place
-					## to write." So nothing here asks the harness whether it may be offered, and no
-					## identity decides it; the tool refuses, with its own reason, when it is called and
-					## there is nowhere to keep the list.
-					mcpServedToolsJson="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpMirror.sh" "" "$mcpUnservedToolNames" )" || mcpServedToolsJson=''
-					case "$mcpServedToolsJson" in
-						'['*']')
-							## The array's own brackets go: the entries are spliced ahead of `execute`.
-							mcpServedToolsJson="${mcpServedToolsJson#\[}"
-							mcpServedToolsJson="${mcpServedToolsJson%\]},"
-						;;
-						*)
-							printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: the harness tool floor did not render, so ONLY 'execute' is served to this request. The mirror's own error is above; repair the declaration it names in sh-lib/harness/AgentsOpenAiChatWire.sh." >&2
-							mcpServedToolsJson=''
-						;;
-					esac
-				fi
-			;;
-		esac
-
-		## The secondary tools: one per tool file that reaches outside the team's own
-		## process-flow, rendered from the front table that routes them. They are this
-		## server's own, so they are withheld through another server beside execute.
-		mcpSecondaryToolsJson=''
-		[ -n "${MDAT_MCP_SERVED_MARKER:-}" ] || mcpSecondaryToolsJson="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpSecondaryMirror.sh" )" || mcpSecondaryToolsJson=''
-		case "$mcpSecondaryToolsJson" in
-			'['*']')
-				mcpSecondaryToolsJson="${mcpSecondaryToolsJson#\[}"
-				mcpSecondaryToolsJson="${mcpSecondaryToolsJson%\]},"
-			;;
-			'')
-			;;
-			*)
-				printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: the secondary tools did not render, so none is served to this request. The mirror's own error is above." >&2
-				mcpSecondaryToolsJson=''
-			;;
-		esac
+		## The tool list is the run's, rendered once when the server started (AgentsTools.McpToolList.include) and read here; nothing is a second list.
+		## Bash and WorkspaceContextExecute are listed but not served: tools/call names what to use instead. A server reached through another one serves `execute` only.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.McpToolList.include"
+		AgentsToolsMcpToolListLoad "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/tools.d" || { mcpUnservedToolNames='' ; mcpServedToolsJson='' ; mcpUnservedEntriesJson='' ; mcpSecondaryToolsJson='' ; }
+		[ "tools/list" != "$mcpMethod" ] || [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] || printf '%s\n' "$MDSC_CMD: mcp-request: reached through another MCP server (MDAT_MCP_SERVED_MARKER is set) -- serving 'execute' only, and declining every harness tool, so enumeration cannot recurse through this server." >&2
 
 		## The server's own RootSession tool, beside execute: the one root-harness session this
 		## server instance carries (AgentsTools.RootSession.include). Like the secondary tools it
@@ -406,7 +363,7 @@ case "$1" in
 		mcpRootSessionToolJson=''
 		[ -n "${MDAT_MCP_SERVED_MARKER:-}" ] || mcpRootSessionToolJson='{"name":"RootSession","description":"Mint, adopt or read the root-harness session this server instance carries. operation=mint mints one and returns its id, the token that proves it and where to use it; operation=adopt adopts an id with the token mint printed; operation=info returns the session this server already carries. Results name this server, never a path. Pass description to give a short description of why.","inputSchema":{"type":"object","properties":{"operation":{"type":"string","description":"Required. mint, adopt or info: mint a new session, adopt one with its id and token, or read the session this server carries."},"session":{"type":"string","description":"Optional, adopt only. The session id mint printed."},"token":{"type":"string","description":"Optional, adopt only. The token mint printed with that id; an id without its token is refused."},"description":{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}},"required":["operation"]}},'
 
-		mcpToolsListJson='{"tools":['"$mcpServedToolsJson$mcpUnservedEntriesJson$mcpSecondaryToolsJson$mcpRootSessionToolJson"'{"name":"execute","description":"Run a shell script with the myx.distro workspace environment already set up, and return its combined stdout and stderr and its exit status. A post goes through ThisSession post, a question or a wait through AskQuestion or Wait, never through this tool. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, which may differ. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are defined, and variables you already set are kept. The default input tier of the workspace is selected, the one its tools pick when run directly there, so a script needing another, such as source, selects it itself. Load a tool with Require before calling it through Distro. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all. Pass description to give a short description of why.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The shell script to run. May span multiple lines. Leave it out, and give job, to poll a background job."},"workspace":{"type":"string","description":"Optional. Absolute path of another myx.distro workspace, one with its own .local, to run this one call against. MMDAPP moves to it and MDLT_ORIGIN stays unchanged. Default: the workspace this server runs for."},"timeout":{"type":"integer","description":"Optional, foreground calls only. Seconds before the script is killed. Default 600, maximum 3600. On timeout the error names the file holding the partial output."},"background":{"type":"boolean","description":"Optional. true starts the script and returns at once with a job id. Use it for anything long, such as a build, deploy or sync. A background job has no timeout. Poll it with job and no command."},"job":{"type":"integer","description":"Optional. The id of a background job this server started. Give it without command to read the output since your last poll, and whether the job is still running or its exit code."},"action":{"type":"string","description":"Optional, only with job. kill stops the job. Leave it out to poll."},"merge_stderr":{"type":"boolean","description":"Optional. Default true: the script stderr is part of the result. false: it goes to the daemon log instead, so a command that needs both streams merges them itself with 2>&1."},"description":{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}},"required":[]}}]}'
+		mcpToolsListJson='{"tools":['"$mcpServedToolsJson$mcpUnservedEntriesJson$mcpSecondaryToolsJson$mcpRootSessionToolJson"'{"name":"execute","description":"Run a shell script with the myx.distro workspace environment already set up, and return its combined stdout and stderr and its exit status. A post goes through ThisSession post, a question or a wait through AskQuestion or Wait, never through this tool. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, which may differ. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are defined, and variables you already set are kept. The default input tier of the workspace is selected, the one its tools pick when run directly there, so a script needing another, such as source, selects it itself. Load a tool with Require before calling it through Distro. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all. Pass description to give a short description of why.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The shell script to run. May span multiple lines. Leave it out, and give job, to poll a background job."},"workspace":{"type":"string","description":"Optional. Absolute path of another myx.distro workspace, one with its own .local, to run this one call against. MMDAPP moves to it and MDLT_ORIGIN stays unchanged. Default: the workspace this server runs for."},"timeout":{"type":"integer","description":"Optional. Seconds after which the call returns early as a task, or is ended with timeout_action kill. With none, a call that runs 300 seconds returns early. A task still running after 3600 seconds is ended."},"timeout_action":{"type":"string","enum":["return","kill"],"description":"Optional. What happens at timeout: return (the default) hands back TASK-ID=process-N and the script goes on, kill ends it and returns what it wrote."},"background":{"type":"boolean","description":"Optional. true starts the script and returns at once with TASK-ID=process-N. Use it for anything long, such as a build, deploy or sync. Wait sources=process:process-N returns on its output and its end, TaskOutput handle=process-N reads it and TaskStop handle=process-N cancels it."},"job":{"type":["integer","string"],"description":"Optional. A job id an earlier background start returned (a task id process-N is read with TaskOutput). Give it without command to read the output since your last poll, and whether the job is still running or its exit code."},"action":{"type":"string","description":"Optional, only with job. kill stops the job. Leave it out to poll."},"merge_stderr":{"type":"boolean","description":"Optional. Default true: the script stderr is part of the result. false: it goes to the daemon log instead, so a command that needs both streams merges them itself with 2>&1."},"description":{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}},"required":[]}}]}'
 
 		case "$mcpMethod" in
 			initialize)
@@ -472,12 +429,13 @@ case "$1" in
 				## Bash is listed, described as harness-only, but not served: a call that
 				## names it is told where to run commands instead of being refused with
 				## nothing to go on.
-				## The deny rows of the routine the session runs (epic S18.3, S18.5; AgentsTools.PermissionHolds.include): the tool list is the same for everyone, and a tool a row
-				## denies is refused here, at call time, with the hint that names the owner and how to ask. The root-harness session's profile is that routine's rows.
+				## The deny rows of the routine the session runs refuse a tool at call time, with the hint that names the owner and how to ask; the list itself is the same for everyone.
 				mcpRootRefusal=''
-				if [ -n "${mcpRootSessionId:-}" ] && [ "RootSession" != "$mcpToolName" ] ; then
+				mcpGateMember="${MDAT_SPAWN_AGENT:-}" ; mcpGateSession="${mcpRootSessionId:-${MDAT_SPAWN_SESSION_ID:-}}"
+				[ -z "${mcpRootSessionId:-}" ] || [ -n "$mcpGateMember" ] || mcpGateMember="magic-coordinator"
+				if [ -n "$mcpGateMember" ] && [ "RootSession" != "$mcpToolName" ] ; then
 					type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || :
-					mcpRootRefusal="$( AgentsToolsPermissionDenyRefusal "${MDAT_SPAWN_AGENT:-magic-coordinator}" "$mcpToolName" "" "$mcpRootSessionId" 2> /dev/null )" || mcpRootRefusal=''
+					mcpRootRefusal="$( AgentsToolsPermissionDenyRefusal "$mcpGateMember" "$mcpToolName" "" "$mcpGateSession" 2> /dev/null )" || mcpRootRefusal=''
 				fi
 				if [ -n "${mcpMintStuck:-}" ] && [ "RootSession" != "$mcpToolName" ] ; then
 					AgentsMcpSendError "$mcpId" -32602 "The root-harness session of this server is still being minted, so no tool is run until its profile binds; nothing was run. Call again once RootSession has answered."
@@ -636,6 +594,15 @@ case "$1" in
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName requires a non-empty 'operation': the operation to run, such as --slack-send-message."
 					elif ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" ; then
 						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName: not an operation of that tool file, or not one: $mcpSecondaryOp"
+					elif AgentsMcpTaskUsable ; then
+						## A task underneath, as execute is (AgentsTools.ToolTask.include).
+						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include"
+							AgentsToolsTaskCall "$mcpToolName" "$mcpBackground" "$mcpTimeout" "$mcpTimeoutAction" AgentsMcpSecondaryRun
+						mcpOutput="$agentsTaskOut"
+						mcpIsError='false'
+						[ "$agentsTaskDetached" = "yes" ] || [ "$agentsTaskRc" = "0" ] || { mcpIsError='true' ; [ -n "$mcpOutput" ] || mcpOutput="[$mcpToolName produced no output and exited $agentsTaskRc]" ; }
+						[ -n "$mcpOutput" ] || { mcpIsError='true' ; mcpOutput="ERROR: $mcpToolName returned nothing and exited $agentsTaskRc, so whether it ran, and what it changed, is unknown. Check its effect before relying on it, then retry." ; }
+						AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}%s],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$( AgentsMcpReplyBesidePart )" "$mcpIsError" )"
 					else
 						mcpOutFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/tool.$AGENTS_MCP_REQ_SEQ"
 						mcpKillFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/toolkilled.$AGENTS_MCP_REQ_SEQ"
@@ -697,6 +664,9 @@ case "$1" in
 				## A job named, no command: poll or kill a script already running.
 				elif [ -n "$mcpJob" ] ; then
 					case "$mcpJob" in
+						process-*)
+							AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}%s],"isError":false}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpJob is a task, not a numbered job: read it with TaskOutput handle=$mcpJob, wait on it with Wait sources=process:$mcpJob, cancel it with TaskStop handle=$mcpJob." )" "$( AgentsMcpReplyBesidePart )" )"
+						;;
 						*[!0-9]*) AgentsMcpSendError "$mcpId" -32602 "job must be the numeric id returned by a background start: $mcpJob" ;;
 						*)
 							if [ ! -d "$mcpJobsDir/$mcpJob" ] ; then
@@ -777,6 +747,20 @@ case "$1" in
 					AgentsMcpSendError "$mcpId" -32602 "execute requires a non-empty 'command' argument, or a 'job' id to poll or kill"
 				elif [ -n "$mcpWorkspace" ] && [ ! -d "$mcpWorkspace/.local" ] ; then
 					AgentsMcpSendError "$mcpId" -32602 "workspace has no .local, not a set-up myx.distro workspace: $mcpWorkspace"
+				## A session to own it: the call is a task underneath. It returns its own result when it ends in time, and early with TASK-ID=process-N when background
+				## is asked, the default time passes, its timeout passes (timeout_action return, the default, or kill) or a message for the member arrives.
+				elif AgentsMcpTaskUsable ; then
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include"
+					AgentsToolsTaskCall "$mcpToolName" "$mcpBackground" "$mcpTimeout" "$mcpTimeoutAction" AgentsMcpExecuteRun
+					mcpOutput="$agentsTaskOut"
+					mcpIsError='false'
+					if [ "$agentsTaskDetached" != "yes" ] && [ "$agentsTaskRc" != "0" ] ; then
+						mcpIsError='true'
+						mcpOutput="$mcpOutput"$'\n'"[exit code: $agentsTaskRc]"
+					fi
+					[ -n "$mcpOutput" ] || mcpOutput='(no output)'
+					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}%s],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$( AgentsMcpReplyBesidePart )" "$mcpIsError" )"
+
 				## Starts and returns at once, with a job id to poll and to kill by.
 				## No timeout is imposed: a bound is what a foreground call needs,
 				## because nothing can watch it, and a job the caller can see needs none.

@@ -2,14 +2,11 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.CoordinatorSpawn.include -- AgentDispatcherTools --spawn-run (epic S18.3; sketch 10.5: the role surface "owns no state, delegates
-## everything"). One spawn of a session, delegated whole to DistroAgentsDispatcher --spawn-session with the arguments given. Functions only.
+## AgentsTools.CoordinatorSpawn.include -- AgentDispatcherTools --spawn-run: one spawn of a session, delegated whole to DistroAgentsDispatcher --spawn-session.
+## Functions only.
 ##
-## THE WORKSPACE RULE is the team members' (owner 2026-10-27): a set `$MMDAPP` is explicit, and the tool works with or without a workspace argument; with none set
-## (the tool file derived it from its own place, which its header block marks with MDAT_MMDAPP_IMPLIED) it requires a workspace by --select-workspace, a place
-## name the places API resolves (listed by --manager-place-list) or a path. A name that does not resolve is refused. No session kind is special-cased: the root
-## harness has no MMDAPP of its own, so the rule applies to it by itself. The gate runs ahead of the common option set (AgentsContext.FrontDoor.include), which
-## takes --select-workspace out and runs the call again in the workspace it names.
+## The workspace rule is the team members': a set $MMDAPP is explicit; with none set (the tool file's header marks it with MDAT_MMDAPP_IMPLIED)
+## the call names its workspace by --select-workspace, a place name the places API resolves or a path. The gate runs ahead of the common option set.
 ##
 
 ## The refusal of a place: one line that says what a spawn names where no workspace is set and where the places are listed. rc 1.
@@ -52,9 +49,8 @@ AgentsToolsCoordinatorSpawnGate(){ ## operation, arguments...
 	AgentsToolsCoordinatorSpawnRefuse "no workspace is named"
 }
 
-## WHICH FORM a call is: a routine given first (--routine <selector> or --routine-default) starts a coworking session, the `--spawn-session` form; a member named
-## first (a bare name) starts that member with a prompt on stdin, the `--spawn-prompt` form (the `Agent` tool's, which this operation replaces). Prints `session` or
-## `prompt`; rc 1, nothing printed, where the call is neither.
+## Which form a call is: `--routine <selector>` or `--routine-default` first is `session` (--spawn-session); a member name first is `prompt` (--spawn-prompt, stdin is its prompt).
+## Prints `session` or `prompt`; rc 1, nothing printed, where the call is neither.
 AgentsToolsCoordinatorSpawnForm(){ ## operation, arguments...
 	shift
 	case "${1:-}" in
@@ -75,10 +71,8 @@ AgentsToolsCoordinatorSpawnAllowed(){ ## operation
 	return 1
 }
 
-## The spawn: one way to start a session. The `--spawn-session` form is delegated whole to DistroAgentsDispatcher; the `--spawn-prompt` form (a member and its prompt on
-## stdin: `<member> [--cli-service <name>] [--session-name-or-comment <text>] [--session-id <id>] [--conversation <channel:ts>]... [--description <text>] [--new-session]
-## [--settings-workspace <name>]`) is the one function that always spawned a member by prompt, AgentsHarnessToolAgent (AgentsHarnessSpawn.include), made here with the
-## member this call is made as.
+## The spawn: the `session` form is delegated whole to DistroAgentsDispatcher; the `prompt` form starts the named member with its prompt on stdin, through
+## AgentsHarnessToolAgent (AgentsHarnessSpawn.include), made as the member this call is made as.
 AgentsToolsCoordinatorSpawn(){ ## operation, arguments...
 	local spawnForm spawnMember spawnCli="" spawnName="" spawnSession="" spawnConversation="" spawnDescription="" spawnNew="" spawnSettings="" spawnPrompt spawnOut
 	spawnForm="$( AgentsToolsCoordinatorSpawnForm "$@" )" || { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: give --routine <selector> (or --routine-default) to start a coworking session, or a member name with the prompt on stdin to start a member -- nothing was done" >&2 ; return 1 ; }
@@ -108,7 +102,7 @@ AgentsToolsCoordinatorSpawn(){ ## operation, arguments...
 			echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: the spawn function is missing from this package -- nothing was done" >&2 ; return 1 ; }
 	} > /dev/null 2>&1
 	harnessAgent="${MDAT_SPAWN_AGENT:-magic-coordinator}"
-	harnessScratch="$( mktemp -d "${TMPDIR:-${MMDAPP:-/nonexistent}/.local/temp}/spawn-run.XXXXXX" )" || return 1
+	harnessScratch="$( mktemp -d "${MMDAPP:-/nonexistent}/.local/temp/spawn-run.XXXXXX" )" || return 1
 	spawnOut="$( AgentsHarnessToolAgent "$spawnMember" "$spawnPrompt" "$spawnCli" "$spawnName" "$spawnSession" "$spawnConversation" "$spawnDescription" "$spawnNew" "$spawnSettings" )"
 	rm -rf "$harnessScratch"
 	printf '%s\n' "$spawnOut"

@@ -63,7 +63,7 @@ rigRoutine(){ ## folder, short name, mode, closure text, closure|steps
 	local routineSteps="1. **work**: work." routineClosure="1. **close**: close."
 	if [ "$5" = steps ] ; then routineSteps="$routineSteps"$'\n\n'"$4" ; else routineClosure="$routineClosure"$'\n\n'"$4" ; fi
 	{
-		printf -- '---\ntype: routine\nexecutors: rig-member-a\nmaintainers: magic-coordinator\nrequires-session-kind: coworking\n'
+		printf -- '---\ntype: routine\nexecutors: rig-member-a\nmaintainers: magic-coordinator\nrequires-session-kind: coworking\nruns-at: none\n'
 		rigContextLine "$3"
 		printf -- '---\n'
 		printf '# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n%s\n\n# Closure steps\n\n%s\n\n' "$2" "$routineSteps" "$routineClosure"

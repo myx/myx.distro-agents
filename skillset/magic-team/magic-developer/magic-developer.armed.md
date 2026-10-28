@@ -70,7 +70,7 @@ All statements apply at the same time, always. These rules override a magic-team
 Read the ones the task needs:
 
 - `reference/code-craft.md` — how code is written at all, in any language. Read before writing any code.
-- `reference/shell.md` — shell and awk across Linux, FreeBSD and Darwin: the two shell standards, the bash 3.2 baseline and its three-part test, the tooling language order, scratch files against variables, portable patterns and quiet failures.
+- `reference/shell.md` — shell and awk across Linux, FreeBSD and Darwin. It covers the two shell standards, the bash 3.2 baseline and its three-part test, and the tooling language order. It also covers scratch files against variables, portable patterns and quiet failures.
 - `reference/xslt.md` — XSLT, especially 1.0.
 - `reference/java.md` — Java axioms; thin.
 - `reference/go.md`, `reference/javascript.md` — stubs.

@@ -2,17 +2,11 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.SeenReaction.include -- the seen reaction (eyes) on a message to a member, given by the tooling (epic S11.2).
+## AgentsTools.SeenReaction.include -- the seen reaction (eyes) on a message handed to a member, given by the tooling.
 ##
-## THE MEMBER IS HANDED THE MESSAGE (sketch 12.3, settled). The paths that hand a
-## message over give it: the member's Wait, and the collect (--wait-collect) the work-duty scan reads its sources through. The scheduler's loop, which only notices a
-## call and starts a duty, gives none. A message handed over twice is reacted to once: the store is
-## $MMDAPP/.local/agents/schedule/seen/<member>/<ts>, one empty file for each message reacted to, keyed by the message's Slack ts alone, so every path that finds
-## the message, whatever conversation it names it by, finds it done. The reaction is claimed in the store before it is given and the claim is taken back
-## where the reaction fails, so a failure is tried again by the next delivery.
-## The member's own account reacts, the team bot where that account cannot reach the conversation.
-##
-## Dot-sourced; functions only.
+## Given where a message is handed over (the member's Wait, the work-duty scan's collect), never by the scheduler's loop. One reaction for each message:
+## a claim file in $MMDAPP/.local/agents/schedule/seen/<member>/<ts>, keyed by the Slack ts alone and taken back where the reaction fails.
+## The member's own account reacts, the team bot where that account cannot reach the conversation. Dot-sourced; functions only.
 ##
 
 AgentsToolsSeenReact(){ ## member, <conversation>:<ts> of the message

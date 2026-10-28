@@ -150,7 +150,7 @@ rigMake(){ ## names... -- the one operation
 rigNote(){ ## the operation as called, name -- the line that build step says on stderr here, for its file as it stands now; none for mcp.servers
 	case "$2" in
 		members|grants|tool-index) printf '# DistroAgentsTools %s: wrote %s\n' "$1" "$( rigFile "$2" )" ;;
-		permissions) printf '# DistroAgentsTools %s: workspace %s has no source folder, so none declares a grant -- nothing is removed\n' "$1" "$rigWs" ;;
+		permissions) printf '# DistroAgentsTools %s: workspace %s has no distro project in source/ and no package under .local/myx with a --magic-team: floor directive, so none declares a grant -- nothing is removed\n' "$1" "$rigWs" ;;
 		mcp.servers) ;;
 		harness.roots) printf '🧭 harness roots index written: .local/agents/harness.roots.index\n' ;;
 		harness.hooks) printf '🧭 harness hooks index written: .local/agents/harness.hooks.index\n' ;;
@@ -376,7 +376,7 @@ rigIntInstalled="$( rigIntMembers )"
 rigAssert "control: the install linked members, and wrote the member registry the member registries are made from" "$( [ "$rigIntInstalled" -gt 0 ] && echo members || echo "none: $rigIntInstalled" )" "members"
 rigAssert "at the end of the first install the two member registries hold every member just installed, and the two session registries are there with no rows" "$( rigLines "$rigIntAgents/team-members.registry" ) $( rigLines "$rigIntAgents/team-members-names.registry" ) $( rigLines "$rigIntAgents/spawned-sessions.registry" ) $( rigLines "$rigIntAgents/pending-replies.registry" )" "$rigIntInstalled $rigIntInstalled 0 0"
 rigAssert "every one of the eleven files is current at the end of the first install: a build run right after changes no byte of any" "$( rigIntCurrent )" "current"
-rigAssert "control: the files compared are the files of the build, ten of them there (no project of this workspace declares a grant, so no permissions registry)" "$( rigIntBytes | LC_ALL=C grep -c -v ' absent$' || : ) $( rigIntBytes | LC_ALL=C grep ' absent$' )" "10 permissions.registry absent"
+rigAssert "control: the files compared are the files of the build, all eleven there (the installed packages under .local/myx declare the grant floor, so the permissions registry is written)" "$( rigIntBytes | LC_ALL=C grep -c -v ' absent$' || : ) $( rigIntBytes | LC_ALL=C grep ' absent$' )" "11 "
 ## Between the install and the update a session ran and asked: the stores hold records the files do not.
 mkdir -p "$rigIntAgents/spawned/s-int" "$rigIntAgents/pending"
 printf -- '---\nsession-id: spawn-int\nspawn-id: spawn-int\nhost: righost\nowner: magic-coordinator\nstatus: spawn-started\n---\nbody\n' > "$rigIntAgents/spawned/s-int/spawn-int.spawn.md"

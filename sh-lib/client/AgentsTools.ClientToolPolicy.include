@@ -92,6 +92,9 @@ AgentsToolsClientToolPolicyClaudeMcpServersJson(){
 ## than the same job done elsewhere. NotebookEdit is native with no served
 ## counterpart at all, so there is nothing to route it to.
 ##
+## Monitor is rerouted to Wait (sketch 3.2: "Wait replaces the native Monitor"): a process started detached through the
+## served Bash, a file, a thread are each a Wait source, so watching one is a Wait, never the client's own monitor.
+##
 ## claude_ai stands for every claude.ai connector tool at once: its matcher is the pattern
 ## AgentsToolsClientToolPolicyRerouteMatcher states, and the hook reads the tool called
 ## from its input.
@@ -99,7 +102,7 @@ AgentsToolsClientToolPolicyClaudeMcpServersJson(){
 ## An empty list would install no reroute while still succeeding, so it is refused.
 AgentsToolsClientToolPolicyRerouteToolNames(){
 	local policyToolNames="" policyToolName
-	for policyToolName in Bash AskUserQuestion Read Write Edit Glob Grep WebFetch PushNotification TodoWrite claude_ai ; do
+	for policyToolName in Bash AskUserQuestion Read Write Edit Glob Grep WebFetch PushNotification TodoWrite Monitor claude_ai ; do
 		case "$policyToolName" in
 			""|*[!A-Za-z_]*)
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteToolNames: '$policyToolName' is not a bare tool name, and a PreToolUse matcher is written from it" >&2

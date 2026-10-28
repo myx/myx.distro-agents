@@ -51,8 +51,8 @@ HARNESS_TOKEN_MAIN="${COPILOT_GITHUB_TOKEN:-}"
 ## warns at start when that is far below these numbers.
 ## The effort none: gpt-5.6-sol takes reasoning_effort none; a claude model behind this endpoint is sent its lowest,
 ## low, because the endpoint's own spelling of none for it is not observed (the start line says so).
-HARNESS_MODEL_TABLE="gpt-5.6-sol*|272000|32768|effort:none|GitHub Copilot docs, models-and-pricing and supported-models, read 2026-10-26
-claude-fable*|1000000|65536|effort:low|GitHub Copilot docs, models-and-pricing and supported-models, read 2026-10-26"
+HARNESS_MODEL_TABLE="gpt-5.6-sol*|272000|32768|effort:none|https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing Default tier up to 272K (1M extended window per .../ai-models/supported-models), output not stated so 32768 is a budget, read 2026-10-28
+claude-fable*|1000000|65536|effort:low|https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing flat price, 1M window per .../ai-models/supported-models, output not stated so 65536 is a budget, read 2026-10-28"
 
 ## --- credential exchange, and extra headers: both declared empty ----------
 ## Empty spends the stored credential itself as the bearer and adds no header. That path is

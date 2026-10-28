@@ -101,9 +101,15 @@ two open.
 
 ## Byte-identical output over a full-grammar corpus, for a package that carries no checks
 
-**A package's checks live in its own `sh-test/`** (see "Where a package's checks live" below). Where a package has none, that absence is the gap to report, and a differential run over the same input is the method meanwhile — a harness built and discarded per session.
+**A package's checks live in its own `sh-test/`** (see "Where a package's checks live" below). Where a package has none, that absence is the gap to report. A differential run over the same input is the method meanwhile: a harness built and discarded per session.
 
-What a good suite gets right transfers to any domain: every assertion has a self-test mode running it against an input that must trip it and one that must not; assertions read the produced output, not reachability, because a broken route can still answer 200; each case is named and carries a written reason it exists; fixtures are added alongside the real assets and the originals are never edited; each run is isolated — loopback only, unprivileged port, fresh working directories, a read-only overlay over the real artifact tree so nothing checked in is written to; and a finding is recorded with its date and marked stale when its premise stops holding.
+What a good suite gets right transfers to any domain:
+  - every assertion has a self-test mode, running it against an input that must trip it and one that must not.
+  - assertions read the produced output, not reachability, because a broken route can still answer 200.
+  - each case is named, and carries a written reason it exists.
+  - fixtures are added alongside the real assets, and the originals are never edited.
+  - each run is isolated: loopback only, an unprivileged port, fresh working directories. A read-only overlay over the real artifact tree means nothing checked in is written to.
+  - a finding is recorded with its date, and marked stale when its premise stops holding.
 
 For a transformation with no dedicated suite — a converter, formatter, generator,
 template renderer — a regression net is cheap to build and reusable afterwards:

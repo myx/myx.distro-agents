@@ -40,7 +40,7 @@ The team's identifier is `magic-team`; its identity is The Conclave. A member's 
 
 ### Identity marks
 
-A member with a persona carries `## Identity marks` in its `.basic.md`; image files sit in its `resources/`. A member with its own mark keeps it; one with none is shown with the default icon of its prefix group instead — the rule is by group, never by one member.
+A member with a persona carries `## Identity marks` in its `.basic.md`; image files sit in its `resources/`. A member with its own mark keeps it. One with none is shown with the default icon of its prefix group instead. The rule is by group, never by one member.
 
 - **Unicode character** — required; the fallback that works everywhere.
 - **Slack shortcode** — `:name:`, optional, only together with the image.
@@ -63,7 +63,7 @@ A folder may be a symlink; resolve the real path before editing.
 
 ### A skillset file is not automatically ours
 
-A member's folder may live in a client's or counterparty's repository. Before writing, resolve which repository owns the destination. A fact about an organisation may live in its own repository. Our internal record about them — assessments, intentions, what we have not told them — is held in a repository we own, and the member's file points to it.
+A member's folder may live in a client's or counterparty's repository. Before writing, resolve which repository owns the destination. A fact about an organisation may live in its own repository. Our internal record about them is held in a repository we own: assessments, intentions, what we have not told them. The member's file points to it.
 
 **Every acting member's own files are sufficient on their own**, following their named cross-references. A routine file is sufficient without its owner's other files.
 
@@ -76,7 +76,7 @@ A member's skill is its `SKILL.md`, `.basic.md`, `.armed.md`, the routine a task
 **A duty instruction says how to perform the duty. Nothing else belongs in a skill file.** The test, applied per sentence: can a member perform this step without this sentence? If yes, remove it.
 
 Never in a skill file:
-- What a tool does by itself: stamps, commits, garbage collection, retries, paths and filenames it builds, file locations, output formats, which account or identity it uses.
+- What a tool does by itself: stamps, commits, garbage collection, retries, the paths and filenames it builds. Also file locations, output formats, and which account or identity it uses.
 - Flags a stub forwards, internal operation names, `file:line` citations into package code.
 - Unsettled design rationale, platform or vendor caveats, credential names.
 - A count or tally. A count belongs in a dated report.
@@ -100,13 +100,16 @@ Every `.basic.md`, `.armed.md` and `.routine.md` follows the contract for its ki
 - Oncall / Expert — `contracts/oncall-expert.contract.format.md`
 - Human-owner — `contracts/human-owner.contract.format.md`
 
-Document formats: the ask templates of the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds, `session-context.document.format.md` (the generated session sweep report) and `no-quorum.document.format.md` (the agreed-and-dissent document "The ladder: one rung at a time" names) are all the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
+Document formats are all the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's:
+  - the ask templates of the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds.
+  - `session-context.document.format.md`, the generated session sweep report.
+  - `no-quorum.document.format.md`, the agreed-and-dissent document "The ladder: one rung at a time" names.
 
 Every section a contract names is present, in contract order, with its lead-in, even when empty: write "none". Fix a gap when the file is next touched.
 
 ### Routine
 
-`# Steps`, with its direct synchronous sub-calls, completes before any extended, dispatched or spawned run begins. `# Closure steps` run after all of that finishes. A board-tracked dispatch counts as finished once tracked; its result still climbs to its own parent only as "The ladder: one rung at a time" directs.
+`# Steps`, with its direct synchronous sub-calls, completes before any extended, dispatched or spawned run begins. `# Closure steps` run after all of that finishes. A board-tracked dispatch counts as finished once tracked. Its result still climbs to its own parent only as "The ladder: one rung at a time" directs.
 
 ### Partner / Client (`partner-*`/`client-*`)
 
@@ -123,14 +126,14 @@ Three item kinds, in this order:
 
 A list of one kind drops the prefixes and declares the kind on the parent line (`, steps:`). A mixed list prefixes every line. Top-level steps are `<N>. **name-of-meaning**: …`. Moving a nested `rule:` into Local rules widens it; that is a change of meaning.
 
-**Actor phrases**: every step is the executor's. A step naming other members is the executor commanding them, announced in the session thread: inline (`- all participants: state blockers`) or as a prefix line with steps nested under it. A send a step instructs is the executor's unless the step names another actor. What a late joiner must do is a routine local rule.
+**Actor phrases**: every step is the executor's. A step naming other members is the executor commanding them, announced in the session thread. It is written inline (`- all participants: state blockers`), or as a prefix line with steps nested under it. A send a step instructs is the executor's unless the step names another actor. What a late joiner must do is a routine local rule.
 
 ## Access facts, maintainers and quorum
 
-- **Who runs it**: an acting member states it in `Scope` and Local rules; a routine in its `executors:` frontmatter. A `executors:` entry is a member name, or a team-member contract token: `<type>-*` (all members of that type — selected, fail on none) or `<type>-?` (one of that type — selected or specified). `*` or `magic-team` means any member. A `<type>-*` partitions the run into one session per member under one agent-less parent session.
+- **Who runs it**: an acting member states it in `Scope` and Local rules; a routine in its `executors:` frontmatter. An `executors:` entry is a member name, or a team-member contract token. `<type>-*` is all members of that type, selected, failing on none. `<type>-?` is one of that type, selected or specified. `*` or `magic-team` means any member. A `<type>-*` partitions the run into one session per member under one agent-less parent session.
 - **Who changes it**: `maintainers:` — always a group. Default `magic-coordinator`, `magic-librarian`, `magic-architect`, adding the domain's keeper or partner where it fits. A change lands by the rule in "Rule/instruction/definition/description conventions": `quorum-all-agree`, in one coworking session.
 - **Owner-guaranteed**: a file stating a rule that protects the human-owner's identity, consent and channel, or credential boundary carries `human-owner` in `maintainers:`.
-- **Invitees**: routines with multi-member sessions declare `invitees:` — a floor, not a cap. Acting members never declare it. Its entries take the same member-name and `<type>-*`/`<type>-?` tokens as `executors:`, plus the standing-members keyword `all-present-members`, which extends to every member whose `.basic.md` `attendance:` is `present` (every `magic-*` member where it says nothing).
+- **Invitees**: routines with multi-member sessions declare `invitees:` — a floor, not a cap. Acting members never declare it. Its entries take the same member-name and `<type>-*`/`<type>-?` tokens as `executors:`, plus the standing-members keyword `all-present-members`. That keyword extends to every member whose `.basic.md` `attendance:` is `present`, and to every `magic-*` member where it says nothing.
 - A routine's own executor notes and roster live in that routine's file. Which routines exist: each owner's `.armed.md` Domain knowledge index.
 
 ## Doc/disk mismatch repair loop

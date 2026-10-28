@@ -239,7 +239,7 @@ echo "-- 7. with nothing waiting, --rest runs only what has not passed on the st
 rigFresh
 rigAsk "$rigTmp/q7a" --by rig-first --why 'one test' RigOne
 rigOp "$rigTmp/d7a" --retest-drain
-rigAssert "control: a batch of one test ran that one alone, as a run of named tests, in no line for full suites" "$rigRc [$( rigBegun )] $( [ -e "$rigHome/.agents/magic-team/suite-queue" ] && printf line || printf no-line )" "0 [live:RigOne] no-line"
+rigAssert "control: a batch of one test ran that one alone, as a run of named tests, which stood in the machine's line and left it" "$rigRc [$( rigBegun )] $( ls "$rigHome/.agents/magic-team/suite-queue" 2> /dev/null | LC_ALL=C grep -c '\.ticket$' || : )" "0 [live:RigOne] 0"
 rigOp "$rigTmp/d7b" --retest-drain --rest
 rigAssert "the queue is empty, and --rest runs the two tests that have not passed on this state, not the one that has" "$rigRc [$( rigBegun )]" "0 [live:RigOne live:RigThree live:RigTwo]"
 rigAssert "it says so in one line" "$( LC_ALL=C grep '^RETEST ' "$rigTmp/d7b.out" | LC_ALL=C tr '\n' '|' )" "RETEST rest PASS -- about live: 2 passed, 1 passed on this very state before and not run again|"

@@ -31,9 +31,9 @@
 ## record already there is never overwritten.
 ##
 ## THE DRAIN, one sender at a time under the outbox's send lock:
-##   1. the oldest record, and every record after it that may go as one Slack message with
-##      it -- the same member, kind, session, target, channel and thread, and no fields,
-##      so only lines travel: their lines are joined, in order, into the oldest one's;
+##   1. the oldest record, and every record after it bound for the same thread of the same channel, in arrival order, up to the group's size:
+##      the same member, kind, session and target with no fields have their lines joined into the one before; any other travels beside the lead in `also/`,
+##      and the sender renders it as itself and packs the parts of all of them into messages up to Slack's block limit;
 ##   2. the window is waited out BEFORE the group is chosen, so what queued during the wait
 ##      is collected too, not left for the next window;
 ##   3. the sender renders and posts the record, cutting it at Slack's own limits when it is
@@ -45,7 +45,7 @@
 ##
 ## WHAT DOES NOT CHANGE, and must not: the sender is the bot, the identity every tracking
 ## post has always used, and the member a post is about is in its text and its boxes, as the
-## template writes it. This file joins and orders lines; it never renders one.
+## template writes it. This file joins and orders records; it never renders one.
 ##
 
 if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
@@ -54,6 +54,8 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 	## channel -- and so the window a post waits in before its group is taken, so that what
 	## arrives meanwhile travels with it.
 	agentsEventTrackSendPaceSeconds=7
+	## How many records one window collects behind its lead at most.
+	agentsEventTrackSendGroupMax=40
 
 	## The outbox of a channel, in this workspace's own state, made when it is first used.
 	## rc 1 with no workspace, or for a channel that is no bare name.
@@ -172,6 +174,15 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 			&& [ "$sameC1" = "$sameC2" ] && [ "$sameH1" = "$sameH2" ]
 	}
 
+	## Whether two records are bound for the same thread of the same channel: the only thing a collected group needs to share. rc 0 when they are.
+	AgentsToolsEventTrackSendSameThread(){ ## record A, record B
+		local sameA="$1" sameB="$2" thM1 thK1 thS1 thT1 thC1 thH1 thM2 thK2 thS2 thT2 thC2 thH2
+		[ -n "$sameA" ] && [ -f "$sameA/meta" ] && [ -n "$sameB" ] && [ -f "$sameB/meta" ] || return 1
+		IFS=$'\t' read -r thM1 thK1 thS1 thT1 thC1 thH1 < "$sameA/meta" || :
+		IFS=$'\t' read -r thM2 thK2 thS2 thT2 thC2 thH2 < "$sameB/meta" || :
+		[ "$thC1" = "$thC2" ] && [ "$thH1" = "$thH2" ]
+	}
+
 	## The moment of the last message into the outbox's channel, or nothing.
 	AgentsToolsEventTrackSendLastAt(){ ## outbox
 		local sendLastAt=""
@@ -247,7 +258,7 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 	## sent, and the record itself goes. rc 0 when every record was sent, 1 when the send lock
 	## could not be taken or a record failed (the rest still go).
 	AgentsToolsEventTrackSendDrain(){ ## outbox, sender function
-		local drainOut="$1" drainSender="$2" drainRc=0 drainLock="" drainLead="" drainNext="" drainMerged="" drainSeq="" drainGroup="" drainDone="" drainOne=""
+		local drainTail="" drainCount=1 drainOut="$1" drainSender="$2" drainRc=0 drainLock="" drainLead="" drainNext="" drainMerged="" drainSeq="" drainGroup="" drainDone="" drainOne=""
 		[ -n "$drainOut" ] && [ -d "$drainOut" ] && [ -n "$drainSender" ] || return 0
 		AgentsToolsEventTrackSendSendLockTake "$drainOut" "${drainOut##*/}" || {
 			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track outbox of ${drainOut##*/} is sending, so this drain left its posts to that sender" >&2
@@ -263,7 +274,7 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 			## The window first: what arrives in it is collected into this very post.
 			AgentsToolsEventTrackSendPace "$drainOut"
 			[ -d "$drainOut" ] && [ -d "$drainLead" ] || break
-			drainMerged="" ; drainGroup="${drainLead##*/}"
+			drainMerged="" ; drainGroup="${drainLead##*/}" ; drainTail="$drainLead" ; drainCount=1
 			while : ; do
 				drainNext="$( AgentsToolsEventTrackSendOldest "$drainOut" "$drainLead" )"
 				[ -n "$drainNext" ] && [ "$drainNext" != "$drainLead" ] || break
@@ -274,14 +285,24 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 					[ ! -e "$drainNext" ] && [ ! -L "$drainNext" ] || break
 					continue
 				fi
-				AgentsToolsEventTrackSendSame "$drainLead" "$drainNext" || break
+				## Everything bound for the same thread is collected behind the lead, in arrival order, whatever its member, kind or fields; up to the group's size.
+				AgentsToolsEventTrackSendSameThread "$drainLead" "$drainNext" || break
+				[ "$drainCount" -lt "$agentsEventTrackSendGroupMax" ] || break
+				drainCount=$(( drainCount + 1 ))
 				drainSeq="${drainNext##*/}"
-				## Read whole before it is appended: a bounded copy, so the append ends whatever the two files are.
-				drainOne="$( cat "$drainNext/lines" 2> /dev/null ; printf x )" ; drainOne="${drainOne%x}"
-				printf '%s' "$drainOne" >> "$drainLead/lines" 2>/dev/null || :
+				if AgentsToolsEventTrackSendSame "$drainTail" "$drainNext" ; then
+					## Only lines to join: read whole before it is appended, a bounded copy, so the append ends whatever the two files are.
+					drainOne="$( cat "$drainNext/lines" 2> /dev/null ; printf x )" ; drainOne="${drainOne%x}"
+					printf '%s' "$drainOne" >> "$drainTail/lines" 2>/dev/null || :
+					rm -rf "$drainNext"
+				else
+					## Another member, kind or fields: it travels beside the lead, in its place in the order.
+					mkdir -p "$drainLead/also" 2>/dev/null || break
+					mv "$drainNext" "$drainLead/also/$drainSeq" 2>/dev/null || break
+					drainTail="$drainLead/also/$drainSeq"
+				fi
 				drainMerged="$drainMerged $drainSeq"
 				drainGroup="$drainGroup $drainSeq"
-				rm -rf "$drainNext"
 			done
 			"$drainSender" "$drainLead" > "$drainLead/out" 2> "$drainLead/err" ; drainDone=$?
 			## Noted here too, whatever the sender did: a group that went paces the next one,

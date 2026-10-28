@@ -6,6 +6,7 @@ invitees: human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-coordinator.bootstrap.routine — the actual procedure
 
@@ -57,7 +58,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **check-auth-identity**: Take `SLACK_AUTH_IDENTITY` from **check-readiness**'s output. `OK` names her authenticated `user_id`; anything else is a blocker.
 3. **check-send-path**: Send a probe, carrying a timestamp marker, to `magic-team`, `event-track`, `event-alert` and `human-owner` (`--slack-send-message`; it fails a send whose `message.user` is not **check-auth-identity**'s `user_id`). Read each back (`--slack-read`). A probe counts only when it arrived where expected and reads as sent by Magic Vane. Delivered under another identity, or not found, is a blocker. App attribution alongside her own identity is a warning, not a failure.
 4. **check-alias-target**: A failed `human-owner` send leaves that target unresolved. Ask the human-owner for a reachable conversation; never guess a substitute.
-5. **check-slack-profile**: Read the profile (`--slack-profile-get magic-coordinator`) and compare it with `magic-coordinator.basic.md`: picture, display name Magic Vane, handle `dispatchr`, and a short role-aligned status line (baseline: "Dispatch and prioritization lead for magic-*"). A mismatch is set (`--slack-profile-set`) after the human-owner's go. A facet that could not be read is asked about, never assumed.
+5. **check-slack-profile**: Read the profile (`--slack-profile-get magic-coordinator`) and compare it with `magic-coordinator.basic.md`. Compare the picture, display name Magic Vane, and handle `dispatchr`. Compare the short role-aligned status line too (baseline: "Dispatch and prioritization lead for magic-*"). A mismatch is set (`--slack-profile-set`) after the human-owner's go. A facet that could not be read is asked about, never assumed.
 6. **checkpoint-ask-user**: For each blocker, ask the human-owner for exactly the next action, one question at a time (`AskQuestion`), and wait for the answer (**wait-never-quit**). After each answer, apply only the affected fix and re-run only the affected step.
 
 # Closure steps

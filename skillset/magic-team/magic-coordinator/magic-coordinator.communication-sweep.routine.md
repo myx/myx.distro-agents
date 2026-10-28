@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
 input-scan-def: sweep
 review-by: inherit
+runs-at: none
 ---
 # magic-coordinator.communication-sweep.routine — the actual procedure
 
@@ -42,7 +43,7 @@ review-by: inherit
 - Does:
   - Sweep the live platforms — email, Trello, Slack — for two source sets at once: the executor's own team sources, and every `client-*` member's own external sources. A `client-*` member is an avatar of this routine's executor, so its traffic is swept here; no routine belongs to one client.
   - Treat two kinds of traffic differently. A message addressed from one member to another is **routed**: the coordinator delivers it and does not answer it. A message addressed to the coordinator, any DM, any client DM, and an unaddressed external request in a team channel is **handled** here.
-  - Run inside `magic-coordinator.advance.routine` every pass, in `magic-coordinator.daily.routine`, in `magic-coordinator.coordination-session.routine`, or standalone on request.
+  - Run inside the coordinator's board round (`magic-coordinator.work-duty.routine`) every pass, in `magic-coordinator.daily.routine`, in `magic-coordinator.coordination-session.routine`, or standalone on request.
 - Doesn't:
   - Read Google Drive or Sheets. That is grooming's, when searching.
   - Triage or classify deeply. Grooming does that later.
@@ -70,18 +71,22 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Nothing new, could not be read, and no part at all are three different results. The run's exit status says whether all, some or none of the sources were scanned; output present is never evidence of success. A capped section is never read as complete.
    - A member's own inbox and board items in its part are read to know what is recorded, never answered.
    - A post by another member is inbound. Its author is the item's `author:`, who it is for its `addressees:`; `@here (unaddressed)` is unaddressed. The conversation it was posted in settles neither.
-3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call. On a `client-*` member's source each comms call to the other organisation runs through `--client-operation-run`, since a `--member-comms-*` call acts only as this executor and `--magic-comms-*` never reaches the other organisation. Steps:
+3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call. On a `client-*` member's source each comms call to the other organisation runs through `--client-operation-run`. A `--member-comms-*` call acts only as this executor, and `--magic-comms-*` never reaches the other organisation. Steps:
    1. **read**: Read the full message. A message quoting a block is read past the quote: the instruction is usually after it.
    2. **analyze**: Cross-reference it with the board and the current todo state. Identify what it needs: work ready to dispatch, an idle-pass candidate, a knowledge candidate for `magic-librarian`, a reply. Nothing needed is a normal result. Whether it was handled is judged from what it asked and whether that was done, never from a later reply existing. Slack: react 👀 now.
    3. **act**: Settle whether it is routed or handled:
       - Addressed to another member: deliver it into that member's inbox as an `inquiry-*` (`post-inquiry`), carrying its `communication-channel-id`. Routing is the whole handling. Never answer it on that member's behalf, however obvious the answer.
-      - Handled here, by size: approved, simple and obvious → do it now through the standard dispatch; bigger, needing the whole team → note it for the next daily; concerning specific members → propose a one-on-one; worth recording only → file it for grooming.
+      - Handled here, by size:
+        - approved, simple and obvious → do it now through the standard dispatch.
+        - bigger, needing the whole team → note it for the next daily.
+        - concerning specific members → propose a one-on-one.
+        - worth recording only → file it for grooming.
       - A genuinely new item is filed as a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`), or as an `inquiry-*` to the member it clearly concerns (`post-inquiry`). Filing settles where the record lives, not whose words it carries or who replies.
       - Slack: react per `slack-reaction-tracking`'s act stage.
    4. **reply-if-warranted**: Acknowledge every message not ignored, by each platform's own rules:
       - Slack: reply to `<channel>:<ts>` of this message, never a bare channel. `--format blocks`, always.
       - Email, and any reply into an external party's conversation: the human-owner's go first (`AskQuestion`; running unattended, `wait: false`, and the reply waits for it).
-      - In the coordinator's own Slack or Trello threads, lead the dialogue directly, but pause before anything reading as a commitment or decision on the human-owner's behalf.
+      - In the coordinator's own Slack or Trello threads, lead the dialogue directly. Pause before anything reading as a commitment or decision on the human-owner's behalf.
       - Never impersonate: nobody passes off words that are not their own. The source settles who sends: team sources send as the coordinator, a member's source as that member.
       - A question goes standalone. Distinct points go as threaded replies under one root message, never one long message (**one-message-one-speech-act**).
       - Mark it read on every platform (`--email-mark-seen` for email). Slack: react per `slack-reaction-tracking`'s reply stage.
@@ -169,7 +174,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.advance.routine` — runs this routine every pass at **advance-process-comms**.
+- `magic-coordinator.work-duty.routine` — runs this routine every pass at **communication-sweep**.
 - `check-pending-comms-actions` — adds deferred outcome reactions.
 - `magic-team/reference/skill-folder-model.md`'s "Partner / Client" section — the client sweep this routine wraps.
 

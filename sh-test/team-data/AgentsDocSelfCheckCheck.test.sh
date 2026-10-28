@@ -49,7 +49,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## What the citations are checked against: files, a board item, two places.
+## What the citations are checked against: files, two board items, two places.
 printf 'real\n' > "$rigD/real.txt" ; printf '# real\n' > "$rigD/real.md"
 printf -- '- **The root is posted once** and nothing else.\n- **`AgentsToolsFoo`** is a function.\n' > "$rigD/cited.md"
 printf '#!/usr/bin/env bash\nAgentsToolsFoo(){ :; }\n' > "$rigD/cited.sh"
@@ -106,16 +106,16 @@ rigDoc cites \
 	"A path from the document's own tree, \`docs/real.md\`, resolves; \`docs/gone.md\` does not." \
 	'Not citations: `input/input-scan.md`, `.local/agents/x.md`, `docs/<name>.md`, `docs/*.md`, `$MMDAPP/x.md`, `~/x.md`.' \
 	'A bare name is not checked: `gone.md`.' \
-	'Board: `task-20261001T1000Z-real-item` is on it, `task-20261001T1000Z-no-such-item` is not.' \
+	'Board: `task-20261001T1000Z-real-item` is on it, `task-20261001T1000Z-no-such-item` and `investigation-20261001T1000Z-no-such-item` are not.' \
 	'Places: `ws-rig-known` is registered, `ws-rig-unknown` is not; `--get-place-path ws-rig-nope` names none.' \
 	'The skillset root: `magic-team/magic-team.armed.md` is there, `magic-team/magic-team.gone.md` is not.' \
 	'' '```' "\`$rigD/in-a-fence.md\` and \`task-20261001T1000Z-in-fence\` and \`ws-in-fence\`" '```'
 rigCheck cites
-rigAssert "a file, a relative path, a board item, two places and a skillset path that are not there: one row each, at their line" \
-	"$( rigRowsAt report-citation )" "3,4,5,8,9,9,10"
+rigAssert "a file, a relative path, two board items, two places and a skillset path that are not there: one row each, at their line" \
+	"$( rigRowsAt report-citation )" "3,4,5,8,8,9,9,10"
 rigAssert "the row names what is not there" \
-	"$( LC_ALL=C grep -c -F -e "$rigD/gone.md" -e 'sh-lib/nowhere/Gone.include' -e 'docs/gone.md' -e 'task-20261001T1000Z-no-such-item' -e 'ws-rig-unknown' -e 'ws-rig-nope' -e 'magic-team/magic-team.gone.md' "$rigTmp/said.out" )" "7"
-rigAssert "nothing else is a fault: no other rule fires on this document" "$( rigRowCount )" "7"
+	"$( LC_ALL=C grep -c -F -e "$rigD/gone.md" -e 'sh-lib/nowhere/Gone.include' -e 'docs/gone.md' -e 'task-20261001T1000Z-no-such-item' -e 'investigation-20261001T1000Z-no-such-item' -e 'ws-rig-unknown' -e 'ws-rig-nope' -e 'magic-team/magic-team.gone.md' "$rigTmp/said.out" )" "8"
+rigAssert "nothing else is a fault: no other rule fires on this document" "$( rigRowCount )" "8"
 rigDoc citesAnc '# Ancestor' '' 'A tree path: `docs/sub/other.md`.'
 printf '# other\n' > "$rigD/sub/other.md"
 rigCheck citesAnc

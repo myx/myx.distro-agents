@@ -5,7 +5,7 @@
 ## fixture: the rows --manager-scope-list, --manager-scope-read <id> and --manager-scope-reveal <id> <key> print.
 ## Held (F11.7: "`Scope Settings` per subsystem, moved here from `Configuration` ... displays all `--config` items of every installed subsystem as sources,
 ## allows edit and delete, and shows visually which item belongs to which subsystem and group. A subsection is a group of settings and becomes a folder,
-## named like `Agents: client-ndm` ... A whole subsection can be cleared, reset or deleted where the subsystem allows it. Entering an exact variable name
+## named like `Agents: client-example` ... A whole subsection can be cleared, reset or deleted where the subsystem allows it. Entering an exact variable name
 ## unrolls it. The content pane shows a readable summary, with the variable name and value in a table and the pointless text removed. Enter edits, `d`
 ## deletes with confirmation"; the coordinator's rulings: the scopes as they exist, the preset-<name> blocks each its own folder of the agents, Clear for any
 ## scope, Delete where many exist, no Reset with nothing to reset to):

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessMessages.include: session messages, the agent list, the transcript and ThisSession. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## The thread a session address names, asked of the one address resolver: prints "<thread> <what it is>", or an

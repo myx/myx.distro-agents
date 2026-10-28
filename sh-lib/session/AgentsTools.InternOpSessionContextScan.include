@@ -1797,7 +1797,7 @@ case "$1" in
 			fi
 		fi
 
-		local h val mi
+		local h val mi handlerRc handlerOut
 		## Each item's token totals, summed now over what sits under it, never stored
 		## (AgentsTools.SessionTranscript.include); one read of the board for all of them.
 		local boardTokenRows=""
@@ -1821,6 +1821,22 @@ case "$1" in
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrint.awk" "$f"
 			else
 				LC_ALL=C awk -v headers="$headersJoined" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$f"
+			fi
+			## The routine that runs the item's next iteration (AgentsTools.BoardItemHandler.include): its handler-routine, else the default of its type in the
+			## table of magic-team.advance.routine. A flagged item runs nothing. Printed only where the table can be read and the item has a type.
+			type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+			handlerRc=0 ; handlerOut="$( AgentsToolsBoardItemHandler "$f" 2> /dev/null )" || handlerRc=$?
+			case "$handlerRc" in
+				0) printf 'handler-routine (resolved): %s (%s)\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $2 ; exit }' )" "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $3 ; exit }' )" ;;
+				3) printf 'handler-routine (resolved): FLAGGED %s -- nothing runs\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s%s", sep, $2 ; sep = "," }' )" ;;
+			esac
+			## Who holds the item for a round: the scan asks the round check itself, as the calling run, so a caller that may not run a round on it sees the holder.
+			if [ "$handlerRc" != 2 ] ; then
+				handlerOut="$( AgentsToolsBoardItemHandler "$f" --for-round 2> /dev/null )" || :
+				case "$handlerOut" in
+					*$'\t'held$'\t'"the item is held by the live run of "*) printf 'held (by %s)\n' "$( printf '%s' "$handlerOut" | LC_ALL=C sed -n 's/^.*the item is held by the live run of \(.*\): one writer, so this caller.*$/\1/p' | LC_ALL=C sed -n 1p )" ;;
+					*$'\t'held$'\t'"no live run holds the item"*) printf 'held (no live holder: only magic-coordinator runs it)\n' ;;
+				esac
 			fi
 			[ -z "$boardTokenRows" ] || AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$boardTokenRows" "$base" )" tokens-total
 			printf '\n'

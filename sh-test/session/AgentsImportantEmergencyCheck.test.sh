@@ -48,7 +48,8 @@ rigScheduleSetup 2
 ## Monday 2026-10-19 in Etc/GMT-3: 13:00 (worktime), 18:00 (after it).
 rigMon13=1792404000 ; rigMon18=1792422000
 ## The advance routine of the rig: a one-shot handling block, the same shape the work-duty routines of the rig take.
-printf -- '---\ntype: routine\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\ninput-scan-def: none\nruns-at: none\n---\n# magic-coordinator.advance.routine\n\n# Summary\n\nRig advance fixture: the one-shot handling block.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\nNone.\n' > "$rigSkills/magic-coordinator/magic-coordinator.advance.routine.md"
+mkdir -p "$rigSkills/magic-team"
+printf -- '---\ntype: routine\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\ninput-scan-def: none\nruns-at: none\n---\n# magic-team.advance.routine\n\n# Summary\n\nRig advance fixture: the one-shot handling block.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\nNone.\n' > "$rigSkills/magic-team/magic-team.advance.routine.md"
 rigEmergencySetting(){ ## -- the stored emergency override, `-` where none
 	[ -f "$rigWs/.local/.agents/magic-team.agent.env" ] || { printf -- '-\n' ; return 0 ; }
 	LC_ALL=C sed -n 's/^MDAT_SCHEDULE_EMERGENCY=//p' "$rigWs/.local/.agents/magic-team.agent.env"
@@ -65,7 +66,7 @@ echo "-- 1. out of worktime, an important item starts the advance one-shot --"
 rigAt "$rigMon18"
 rigMarkedItem note-20261019T1800Z-important.md important
 rigOneRun imp1 ; rigWaitStarts
-rigAssert "out of worktime, an important item starts the advance routine, and not the work-duty" "$( rigSaid imp1 'important-emergency: started the advance routine of magic-coordinator' ):$( rigRecordsOf magic-coordinator.advance.routine.md ):$( rigDutyCount magic-coordinator )" "1:1:0"
+rigAssert "out of worktime, an important item starts the advance routine, and not the work-duty" "$( rigSaid imp1 'important-emergency: started the advance routine of magic-coordinator' ):$( rigRecordsOf magic-team.advance.routine.md ):$( rigDutyCount magic-coordinator )" "1:1:0"
 rigAssert "nothing is posted for an important item: no confirmation to the owner, and no flag" "$( rigConfirmPosts ):$( rigEmergencySetting )" "0:-"
 
 echo "-- 2. an emergency item is confirmed with the owner and sets the flag --"
@@ -80,7 +81,7 @@ echo "-- 3. a handled marked item starts nothing again --"
 rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20261019T1810Z-emergency.md"
 rigAt $(( rigMon18 + 1202 ))
 rigOneRun after ; rigWaitStarts
-rigAssert "with the marked item gone, nothing new is started or said" "$( rigSaid after 'important-emergency:' ):$( rigRecordsOf magic-coordinator.advance.routine.md )" "0:2"
+rigAssert "with the marked item gone, nothing new is started or said" "$( rigSaid after 'important-emergency:' ):$( rigRecordsOf magic-team.advance.routine.md )" "0:2"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ IMPORTANT EMERGENCY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

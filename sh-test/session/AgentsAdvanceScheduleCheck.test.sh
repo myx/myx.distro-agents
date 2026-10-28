@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check that NOTHING STARTS THE ADVANCE ROUTINE BY ITSELF (F7.12, MAGIC.md "Each iteration"): the heartbeat is retired and the advance rules
-## stand in the coordinator's work duty, which includes them; `magic-coordinator.advance.routine` has `runs-at: none` and a console starts it by hand. The check
+## stand in the coordinator's work duty, which includes them; `magic-team.advance.routine` has `runs-at: none` and a console starts it by hand. The check
 ## was once the check of an advance pass the loop started whenever something was new; it now holds that the loop starts none in any of those situations, so
 ## a loop that starts the pass again fails it. The real loop (--one), the real spawner and the real advance routine run in the schedule rig of
 ## AgentsScheduleLoopCheck: its console ends at once, its clock is its own. Held, each as the pass count and the line count of one iteration, both 0:
@@ -38,7 +38,7 @@ rigScheduleSetup 1
 rigNow=1792404000 ; rigEnd=$(( rigNow - 3600 ))
 rigAt "$rigNow"
 ## The real advance routine, but for its scan (a check of the loop does not need it) and its executors' cli: the lock note is the coordinator's standing one.
-LC_ALL=C sed -e 's/^input-scan-def: .*$/input-scan-def: none/' "$rigPackage/skillset/magic-team/magic-coordinator/magic-coordinator.advance.routine.md" > "$rigSkills/magic-coordinator/magic-coordinator.advance.routine.md" \
+LC_ALL=C sed -e 's/^input-scan-def: .*$/input-scan-def: none/' "$rigPackage/skillset/magic-team/magic-team/magic-team.advance.routine.md" > "$rigSkills/magic-team/magic-team.advance.routine.md" \
 	|| rigRefuse "the advance routine is not in the package skillset"
 rigInbox="$rigData/inboxes/magic-coordinator/incoming"
 rigAdvanceNote="$rigInbox/note-20260809T154715Z-advance-state-and-lock.md"
@@ -58,7 +58,7 @@ rigBoardItem(){ ## state, name, mtime epoch, recheck-date (may be empty)
 rigRun(){ ## name -- one iteration of the loop; how many advance passes it started
 	rm -rf "$rigSp"/* 2> /dev/null
 	rigOneRun "$1" ; rigWaitStarts
-	printf '%s:%s' "$( rigRecordsOf magic-coordinator.advance.routine.md )" "$( rigSaid "$1" 'advance: started a pass' )"
+	printf '%s:%s' "$( rigRecordsOf magic-team.advance.routine.md )" "$( rigSaid "$1" 'advance: started a pass' )"
 }
 ## Whatever the autorun and the work duty do in the iteration is theirs: the console log is not asked.
 
@@ -137,7 +137,7 @@ rigAssert "at 0, no wait: still no pass" "$( rigRun n15 )" "0:0"
 echo "-- 7. control: the same loop does start a routine that has a time --"
 rigRun n16 > /dev/null
 rigAssert "the autorun routine of the rig is started by the same iteration" "$( rigRecordsOf keeper-rig-01.auto.routine.md )" "1"
-rigAssert "the advance routine says runs-at: none" "$( LC_ALL=C grep -c -x 'runs-at: none' "$rigPackage/skillset/magic-team/magic-coordinator/magic-coordinator.advance.routine.md" 2> /dev/null || :)" "1"
+rigAssert "the advance routine says runs-at: none" "$( LC_ALL=C grep -c -x 'runs-at: none' "$rigPackage/skillset/magic-team/magic-team/magic-team.advance.routine.md" 2> /dev/null || :)" "1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ADVANCE SCHEDULE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

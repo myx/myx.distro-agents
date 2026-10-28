@@ -427,6 +427,19 @@ rigAssert "the record's reason alone is enough: the same two facts, read from th
 	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4e/out" ):$( LC_ALL=C grep -h -F -- "The run \`${rigLimitOld:0:8}\` of rig-member-a $rigLimitText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
 	"1:⏳ The run \`${rigLimitOld:0:8}\` of rig-member-a $rigLimitText."
 
+echo "-- 4f. a run that any other provider refusal ended is told too, with the reason (sketch 3.6) --"
+rigRefusedRun="rtl4f$$x"
+rigRefusedText="stopped by a provider refusal: rate_limit_error: slow down"
+mkdir -p "$rigSp/$rigRefusedRun" "$rigTmp/s4f"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nsession-thread: CRIGOWN4F:1700000004.000600\n---\n' \
+	"$rigRefusedRun" "$rigRefusedRun" "$rigReportsTo" "$rigRefusedRun" "$rigHost" > "$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md"
+printf '%s\n' 'anthropic refused the request -- rate_limit_error: slow down' > "$rigSp/$rigRefusedRun/$rigRefusedRun.refused"
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyCloseSandbox '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' failed 1 ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigRefusedRun/$rigRefusedRun.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+	| rigEnv "$rigTmp/s4f" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4f/out" 2>&1
+rigAssert "the run's store keeps the flag, and the end is told once with the reason, as the template's line" \
+	"$( cat "$rigWs/.local/agents/sessions/$rigRefusedRun/usage-limit" 2> /dev/null ):$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4f/out" ):$( LC_ALL=C grep -h -F -- "The run \`${rigRefusedRun:0:8}\` of rig-member-a $rigRefusedText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
+	"$rigRefusedText:1:⏳ The run \`${rigRefusedRun:0:8}\` of rig-member-a $rigRefusedText."
+
 echo "-- 5. a killed run is told as killed, and by whom --"
 ## One call of the console in the rig workspace, as a bare console makes it.
 rigConsole(){ ## result file, tool arguments...

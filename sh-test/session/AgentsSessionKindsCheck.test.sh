@@ -71,7 +71,7 @@ rigRoutine(){ ## short name, frontmatter lines...
 	{
 		printf -- '---\n'
 		printf '%s\n' "$@"
-		printf 'maintainers: magic-coordinator\n---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$routineName"
+		printf 'maintainers: magic-coordinator\nruns-at: none\n---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$routineName"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"
 	} > "$rigSkills/magic-team/magic-team.$routineName.routine.md"
 }

@@ -257,9 +257,8 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 			esac
 		done
 	done
-	## THE ACCESS ROWS (epic S18.5): the frontmatter line `access-control:` is comma-separated rows `<member|executors|participants>:<verb>:<value>`, the verbs allow-read,
-	## allow-write, allow-tool, deny-read, deny-write, deny-tool. The keys `allows:` and `denies:` it replaces are gone, with no alias: a routine that still has one is
-	## refused and told the key to write.
+	## The access rows: the frontmatter line `access-control:` holds comma-separated rows `<member|executors|participants>:<verb>:<value>`.
+	## The keys `allows:` and `denies:` are gone, with no alias: a routine that still has one is refused and told the key to write.
 	{ [ -z "$routineOldAllowsLine" ] || [ "$routineOldAllowsLine" = 0 ] ; } || AgentsToolsDocValidateRow "$routineShown" "$routineOldAllowsLine" access-control "allows: is no key of a routine any more; write access-control: <member|executors|participants>:<verb>:<value> (verbs allow-read, allow-write, allow-tool, deny-read, deny-write, deny-tool)"
 	{ [ -z "$routineOldDeniesLine" ] || [ "$routineOldDeniesLine" = 0 ] ; } || AgentsToolsDocValidateRow "$routineShown" "$routineOldDeniesLine" access-control "denies: is no key of a routine any more; write access-control: <member|executors|participants>:deny-tool:<tool> (and deny-read, deny-write for paths)"
 	## The checkpoint operations (F10.5): an allow-tool row may name --executor-checkpoint-push, --executor-checkpoint-rewind and
@@ -327,6 +326,8 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	fi
 	## The autorun keys: `runs-at: <days> <HH:MM>` or `none`, days being workdays, weekend, daily or a list such as mon,thu; and
 	## `runs-after: <routine>`, one routine, kept apart from it.
+	## `runs-at:` is mandatory: a routine says when it auto-runs or `none`, so a reader tells one that never auto-runs from one nobody has considered.
+	[ -n "$routineRunsAt" ] || AgentsToolsDocValidateRow "$routineShown" "${routineRunsAtLine:-1}" runs-at "runs-at: is mandatory -- write runs-at: none, or runs-at: <days> <HH:MM>"
 	if [ -n "$routineRunsAt" ] && [ "$routineRunsAt" != "none" ] ; then
 		routineRunsDays="${routineRunsAt%% *}" ; routineRunsTime="${routineRunsAt#* }"
 		routineRunsOk="yes"

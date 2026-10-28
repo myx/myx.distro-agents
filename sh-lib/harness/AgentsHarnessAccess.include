@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessAccess.include: roots, children, path gates, grants and the refusal. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## Roots are canonicalised by the same rule the candidate is, in one helper used by
@@ -257,8 +259,28 @@ AgentsHarnessRefusal(){ ## tool, target, error line
 	LC_ALL=C grep '⚠️' "$harnessScratch/refusal.err" 2>/dev/null || :
 }
 
+## The deny rows of the member this run is: a path or tool a row covers is refused ahead of every root and grant, with the refusal recorded and the hint printed.
+## The session's own sandbox (input/, output/) is exempt. rc 0 where it is denied, 1 where no row covers the call.
+AgentsHarnessDeniedPath(){ ## tool, path
+	local deniedPath deniedRoot deniedText deniedSession
+	[ -n "$harnessAgent" ] || return 1
+	AgentsHarnessPathAllowed "$2" "$harnessRoots" > /dev/null 2>&1 || :
+	deniedPath="${harnessResolvedPath:-$2}"
+	for deniedRoot in "$harnessSandboxInReal" "$harnessSandboxOutReal" ; do
+		[ -z "$deniedRoot" ] || case "$deniedPath/" in "${deniedRoot%/}"/*) return 1 ;; esac
+	done
+	type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || return 1
+	deniedSession="$( AgentsHarnessSessionKey )"
+	deniedText="$( AgentsToolsPermissionDenyRefusal "$harnessAgent" "$1" "$deniedPath" "$deniedSession" 2> /dev/null )" || return 1
+	AgentsHarnessRefusal "$1" "$deniedPath" "$deniedText"
+	return 0
+}
+
 AgentsHarnessFileGate(){ ## tool, path, read|write
 	local gateRoots gateRootsOk=1 gateRc=0 gateSession gateOwn
+	if AgentsHarnessDeniedPath "$1" "$2" ; then
+		return 1
+	fi
 	if [ -z "$harnessGateIndexed" ] ; then
 		gateRoots="$harnessRoots" ; [ "$3" = read ] || gateRoots="$harnessWriteRoots"
 		AgentsHarnessPathAllowed "$2" "$gateRoots" && return 0

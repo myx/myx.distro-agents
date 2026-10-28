@@ -48,6 +48,7 @@ rigRoutine(){ ## name, kind, executors, invitees, allows
 		[ -z "$4" ] || printf 'invitees: %s\n' "$4"
 		printf 'requires-session-kind: %s\n' "$2"
 		[ -z "$5" ] || printf 'access-control: %s\n' "$5"
+		printf 'runs-at: none\n'
 		printf -- '---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$1"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"
 	} > "$rigTmp/skills/magic-team/magic-team.$1.routine.md"

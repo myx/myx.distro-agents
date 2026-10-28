@@ -42,8 +42,11 @@ echo "-- 1. the text --"
 rigAssert "the provider's date, time and zone come out as written" "$( AgentsToolsUsageLimitText "$rigFixtureText" )" "stopped on the provider usage limit: reopens $rigFixtureDate"
 rigAssert "no zone given: the time is kept" "$( AgentsToolsUsageLimitText 'You have reached your specified API usage limits. You will regain access on 2026-12-03 at 07:30.' )" "stopped on the provider usage limit: reopens 2026-12-03 07:30"
 rigAssert "a usage limit with no date is flagged, saying the time is not known" "$( AgentsToolsUsageLimitText 'You have reached your specified API usage limits.' )" "stopped on the provider usage limit: reopens at a time the provider did not give"
-AgentsToolsUsageLimitText 'rate_limit_error: slow down, too many requests' > "$rigTmp/out" ; rigRc=$?
-rigAssert "a rate limit that is no usage limit gives rc 1 and nothing" "$rigRc $( wc -c < "$rigTmp/out" | tr -d ' ' )" "1 0"
+## EVERY refusal that ends a run is flagged with its reason (sketch 3.6), not only the usage limit
+rigAssert "a refusal that is no usage limit is flagged with its reason, as the provider wrote it" "$( AgentsToolsUsageLimitText 'rate_limit_error: slow down, too many requests' )" "stopped by a provider refusal: rate_limit_error: slow down, too many requests"
+rigAssert "the host's wrapper words are left off, the reason stays" "$( AgentsToolsUsageLimitText 'openai refused the request -- invalid_request_error: your account is suspended' )" "stopped by a provider refusal: invalid_request_error: your account is suspended"
+rigAssert "a refusal that gives the date access returns says it" "$( AgentsToolsUsageLimitText 'anthropic refused the request -- invalid_request_error: Credit exhausted. You will regain access on 2026-12-03 at 07:30 UTC.' )" "stopped by a provider refusal: invalid_request_error: Credit exhausted. You will regain access on 2026-12-03 at 07:30 UTC. -- access returns 2026-12-03 07:30 UTC"
+rigAssert "a long reason is cut at 200 characters, saying so" "$( AgentsToolsUsageLimitText "$( printf 'x%.0s' $(seq 1 300) )" | wc -c | tr -d ' ' )" "$(( 31 + 200 + 3 ))"
 AgentsToolsUsageLimitText '' > "$rigTmp/out" ; rigRc=$?
 rigAssert "an empty reason gives rc 1 and nothing" "$rigRc $( wc -c < "$rigTmp/out" | tr -d ' ' )" "1 0"
 
@@ -55,16 +58,18 @@ rigAssert "the store file is one line" "$( wc -l < "$rigWs/.local/agents/session
 AgentsToolsUsageLimitMark run-one 'You have reached your specified API usage limits. You will regain access on 2027-01-02 at 03:04 UTC.'
 rigAssert "a later mark replaces the line, it adds none" "$( cat "$rigWs/.local/agents/sessions/run-one/usage-limit" )" "stopped on the provider usage limit: reopens 2027-01-02 03:04 UTC"
 
+AgentsToolsUsageLimitMark run-rate 'rate_limit_error: slow down' ; rigRc=$?
+rigAssert "a refusal that is no usage limit is marked too, and read back as its reason" "$rigRc $( AgentsToolsUsageLimitRun run-rate )" "0 stopped by a provider refusal: rate_limit_error: slow down"
+
 echo "-- 3. refusals write nothing --"
 rigBefore="$( find "$rigWs/.local/agents/sessions" | LC_ALL=C sort | tr '\n' ' ' )"
 rigRcs=""
-AgentsToolsUsageLimitMark run-two 'rate_limit_error: slow down' ; rigRcs="$rigRcs $?"
 AgentsToolsUsageLimitMark 'a/b' "$rigFixtureText" ; rigRcs="$rigRcs $?"
 AgentsToolsUsageLimitMark '..' "$rigFixtureText" ; rigRcs="$rigRcs $?"
 AgentsToolsUsageLimitMark '.' "$rigFixtureText" ; rigRcs="$rigRcs $?"
 AgentsToolsUsageLimitMark '' "$rigFixtureText" ; rigRcs="$rigRcs $?"
 AgentsToolsUsageLimitMark run-three '' ; rigRcs="$rigRcs $?"
-rigAssert "each refused mark returns 1" "$rigRcs" " 1 1 1 1 1 1"
+rigAssert "each refused mark returns 1" "$rigRcs" " 1 1 1 1 1"
 rigAssert "and the store is as it was: no folder, no flag, no temp file" "$( find "$rigWs/.local/agents/sessions" | LC_ALL=C sort | tr '\n' ' ' )" "$rigBefore"
 rigAssert "nothing was written beside the workspace" "$( [ -e "$rigTmp/ws/.local/agents/sessions/run-two" ] || [ -e "$rigTmp/ws/.local/agents/sessions/a" ] && echo yes || echo no )" "no"
 MMDAPP="" ; AgentsToolsUsageLimitMark run-four "$rigFixtureText" ; rigRc=$? ; MMDAPP="$rigWs"

@@ -18,12 +18,18 @@ Read this when creating, moving or reading board, audit and vault items. The inb
 - `proposal-*` — an undecided design: Goal / Approaches considered (two or more) / Recommendation / Open questions. `magic-team.proposal.routine` owns its state changes from the root post to the human-owner's closing reaction; `magic-team.discuss.routine` owns them while the team discusses it among itself. No quorum there follows "The ladder: one rung at a time".
 - `interview-*` — work whose core is talking it through with the human-owner. Created in `board-running`; `magic-team.interview.routine` owns its state changes.
 - `approval-*` — a live negotiation for the human-owner's go/no-go on another item, reached by "The ladder: one rung at a time". Created in `board-running`, carries `blocks` to the gated item, which waits in `board-blocked`.
+- `investigation-*` — a running investigation: the document `magic-team.investigate.routine` works on, round by round. Its result is an `ivr-*` vault item.
 - `dispatch-*` — the brief given to one spawned session, carried exactly, plus a dated log of its reports. Created in `board-running`.
 - `warning-*` — an open risk, kept visible in an active state until mitigated, accepted or converted. Every spawn brief lists the open ones.
 
 Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*` (use `project-*`), `assignment-*` and `session-*` (use `dispatch-*`), `pending-slack-reaction`/`pending-trello-update` (these are `note-*` records in `magic-coordinator`'s own inbox). A new type is added here first, then to every routine that creates or reads it.
 
-**Audit and vault types**: `transcript-*` (audit; append-only through `--append-transcript`; verbatim messages, UTC stamps; never on the board), `incident-*` (audit), `verbatim-*` (vault).
+**Audit and vault types:**
+- `transcript-*` — audit; append-only through `--append-transcript`; verbatim messages, UTC stamps; never on the board.
+- `incident-*` — audit.
+- `verbatim-*` — vault.
+- `ivr-*` — vault; an investigation report, the result of an `investigation-*`.
+- `adr-*` — vault; a decision record, one per technical question, kept by `magic-architect`.
 
 **Every board item is a tracking document.** It records who worked on it (`participants`) and the state they left it in; a restart spawns that group at that state.
 
@@ -38,7 +44,7 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `participants` — who worked on it, added as they join.
 - `restart-session` — members to spawn as a coworking session instead of running inline.
 - `review-by` — the reviewer of a `board-review` item. Unset, it is the run's `reports-to`. `none` means no review: the item closes straight to `board-processed`.
-- `allows` — the approved permission set the tracked session carries: `session|task:<tool>:<target>:<granted-by>:<YYYYMMDD'T'HHmm'Z'>`, target %-escaped, `granted-by` a holder and not the session's own member. Written by tooling when the set is approved (`--request-permission-set`).
+- `access-control` — the approved permission set the tracked session carries, in the rows of a routine's `access-control:` with the grant appended: `participants:allow-read:<target>:<granted-by>:<stamp>`, `participants:allow-write:<target>:<granted-by>:<stamp>` or `participants:allow-tool:<tool>:<target>:<granted-by>:<stamp>`. `<stamp>` is `YYYYMMDD'T'HHmm'Z'`, the target %-escaped, `granted-by` a holder and not the session's own member. A row holds for the session on its dispatch item, and for the task on the item it tracks. Written by tooling when the set is approved (`--request-permission-set`).
 - `tracks` — on a `dispatch-*`, the item its session's work is tracked in.
 - `archive: true` — keep this processed item permanently.
 - `outcome`/`execution-receipt` — what an advance pass did, and the evidence. Written by `magic-coordinator`.

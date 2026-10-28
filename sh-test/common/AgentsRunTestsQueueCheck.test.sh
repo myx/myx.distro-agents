@@ -3,13 +3,12 @@
 ## machine built here: a HOME, whose .agents/magic-team/suite-queue is the machine's one line, a workspace, and under
 ## its .local/temp several copies of a package, each a build session's scratch with the runner under test and one tiny
 ## test in it. Held: a run of every test waits its turn in arrival order, whichever copy it is started from, and says
-## in one line whom it waits behind; a run of named tests is not queued; a ticket whose runner no longer exists is taken
+## in one line whom it waits behind; a run of named tests stands in the same line; a ticket whose runner no longer exists is taken
 ## out by whoever waits behind it; and the hand rule's lock ($MMDAPP/.local/temp/suite-run.lock) is kept by both sides:
 ## a run at its turn holds it, waits while another holds it by hand and never removes that one, starts under one held
 ## by its own caller only when its own turn has come and is refused before that, and removes one left by a runner that
 ## is gone. And the one budget of test workers, $HOME/.agents/magic-team/suite-workers, that every runner shares, full
-## or named: the tests running at once on the machine never pass it, slots go in the order they were asked for so a
-## named run is not starved by a full suite, a slot whose process is gone comes back by itself, a runner says in one
+## or named: the tests running at once on the machine never pass it, slots go in the order they were asked for, a slot whose process is gone comes back by itself, a runner says in one
 ## line that a test of its waits and how many slots are in use, and every test runs at a lowered priority. The hand
 ## rule the budget replaces ($MMDAPP/.local/temp/one-test-run.lock, an `owner` file naming a scratch folder) is honoured
 ## while a session still holds it: no test starts beside it, unless it is the run's own caller's. Nothing here is told by how
@@ -173,21 +172,23 @@ rigLet b ; rigEnd "$rigPidB" ; rigRcB=$rigRc
 rigLet c ; rigEnd "$rigPidC" ; rigRcC=$rigRc
 rigAssert "all three ran" "$rigRcA $rigRcB $rigRcC" "0 0 0"
 rigAssert "one at a time and in arrival order: each began only after the one before it had ended" "$( rigOrder )" "BEGIN a END a BEGIN b END b BEGIN c END c"
-rigAssert "the second said, in one line, that it waits and behind whom: the first, by its pid, the copy it runs from and since when" "$( rigWaits b ) $( LC_ALL=C grep -c -F -- "# AgentsRunTests.sh: one full suite runs on this machine at a time -- this one waits its turn behind the run of pid $rigTicketA from $( rigRoot a ), in line since " "$rigTmp/b.out" || : )" "1 1"
+rigAssert "the second said, in one line, that it waits and behind whom: the first, by its pid, the copy it runs from and since when" "$( rigWaits b ) $( LC_ALL=C grep -c -F -- "# AgentsRunTests.sh: one run of the tests runs on this machine at a time -- this one waits its turn behind the run of pid $rigTicketA from $( rigRoot a ), in line since " "$rigTmp/b.out" || : )" "1 1"
 rigAssert "the third said it once for each it waited behind in turn: the first, then the second" "$( rigWaits c ) $( LC_ALL=C grep -F -- 'waits its turn behind' "$rigTmp/c.out" | LC_ALL=C sed -e 's/.* from //' -e 's/, in line since.*//' -e "s|$rigWs/.local/temp/||" | LC_ALL=C tr '\n' ' ' )" "2 rig-scratch-a/source rig-scratch-b/source "
 rigAssert "each held the lock itself while it ran" "$( rigHeld b | LC_ALL=C sed -n 's/^lock=\([0-9]*\) line=\1 .*/own/p' ) $( rigHeld c | LC_ALL=C sed -n 's/^lock=\([0-9]*\) line=\1 $/own/p' )" "own own"
 rigAssert "and the line and the lock are free again" "$( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free )" "0 free"
 
-echo "-- 3. a run of named tests is not queued --"
+echo "-- 3. a run of named tests stands in the same line --"
 rigFresh ; rigHold=1
 rigRun a ; rigPidA=$rigLast
 rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the full suite never began, so nothing below would be measured"
 rigHold=""
-rigRun n RigTiny ; rigEnd "$rigLast"
-rigAssert "it ran while the full suite was still running: begun and ended inside it" "$rigRc $( rigOrder )" "0 BEGIN a BEGIN n END n"
-rigAssert "it said nothing of waiting, stood in no line, and the lock stayed the full suite's" "$( rigWaits n ) $( rigHeld n | LC_ALL=C sed -n 's/^lock=\([0-9]*\) line=\1 $/the-full-suite-alone/p' )" "0 the-full-suite-alone"
-rigLet a ; rigEnd "$rigPidA"
-rigAssert "and the full suite ended as it would have" "$rigRc $( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free )" "0 0 free"
+rigRun n RigTiny ; rigPidN=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/n.out" || rigRefuse "the named run never said it waits, so the order below would be nobody's"
+rigAssert "while the full suite runs, the named run waits behind it, begins nothing, and both stand in the line" "$( rigOrder ) $( rigTickets ) $( rigWaits n )" "BEGIN a 2 1"
+rigLet a ; rigEnd "$rigPidA" ; rigRcA=$rigRc
+rigEnd "$rigPidN"
+rigAssert "it ran once the full suite had ended, holding the lock itself" "$rigRcA $rigRc $( rigOrder ) $( rigHeld n | LC_ALL=C sed -n 's/^lock=\([0-9]*\) line=\1 $/own/p' )" "0 0 BEGIN a END a BEGIN n END n own"
+rigAssert "and the line and the lock are free again" "$( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free )" "0 free"
 
 echo "-- 4. a turn held by a process that no longer exists is released by itself --"
 rigFresh
@@ -241,44 +242,44 @@ rigRun b ; rigPidB=$rigLast
 rigUntil 'waits its turn behind' "$rigTmp/b.out" || rigRefuse "the second waiting run never said it waits, so the line below would be shorter"
 rigTicketA="$( ls "$rigQueue" | LC_ALL=C sed -n 1p | LC_ALL=C sed -n 's/^[0-9.]*\.\([0-9]*\)\.ticket$/\1/p' )"
 rigRun c ; rigEnd "$rigLast"
-rigAssert "the run of the caller that holds the lock by hand is refused while others stand ahead of it: rc 1, nothing begun, and its one line says why, how many are ahead, who is first, and what to do" "$rigRc [$( rigOrder )] $( LC_ALL=C grep -c -F -- "⛔ ERROR: AgentsRunTests.sh: not started: this run's caller holds $rigLock by hand, and its turn in the machine's line has not come: 2 full suite(s) stand ahead of it, the first the run of pid $rigTicketA from $( rigRoot a ), in line since " "$rigTmp/c.out" || : ) $( LC_ALL=C grep -c -F -- 'A lock taken by hand is no turn. Remove it and run again: the run waits its turn by itself, and takes the lock itself when that comes.' "$rigTmp/c.out" || : )" "1 [] 1 1"
+rigAssert "the run of the caller that holds the lock by hand is refused while others stand ahead of it: rc 1, nothing begun, and its one line says why, how many are ahead, who is first, and what to do" "$rigRc [$( rigOrder )] $( LC_ALL=C grep -c -F -- "⛔ ERROR: AgentsRunTests.sh: not started: this run's caller holds $rigLock by hand, and its turn in the machine's line has not come: 2 run(s) stand ahead of it, the first the run of pid $rigTicketA from $( rigRoot a ), in line since " "$rigTmp/c.out" || : ) $( LC_ALL=C grep -c -F -- 'A lock taken by hand is no turn. Remove it and run again: the run waits its turn by itself, and takes the lock itself when that comes.' "$rigTmp/c.out" || : )" "1 [] 1 1"
 rigAssert "it left the line, the two ahead of it still stand there, and the lock is left as it was" "$( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free ) $( LC_ALL=C grep -c 'rig-scratch-c' "$rigLock/holder.txt" 2> /dev/null || : )" "2 held 1"
 rm -rf "$rigLock"
 rigEnd "$rigPidA" ; rigRcA=$rigRc ; rigEnd "$rigPidB"
 rigAssert "accepted sibling: with that lock removed, the two that waited run in the order they arrived" "$rigRcA $rigRc $( rigOrder )" "0 0 BEGIN a END a BEGIN b END b"
 
-echo "-- 6. no line, no full suite --"
+echo "-- 6. no line, no run --"
 rigFresh
 : > "$rigTmp/not-a-directory"
 rigHomeFor="$rigTmp/not-a-directory"
 rigRun a ; rigEnd "$rigLast"
-rigAssert "where the machine's line cannot be made, a full suite is refused rather than run outside its turn: rc 1, nothing begun, the place named" "$rigRc $( rigOrder ) $( LC_ALL=C grep -c -F -- "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line for full suites: $rigTmp/not-a-directory/.agents/magic-team/suite-queue" "$rigTmp/a.out" || : )" "1  1"
+rigAssert "where the machine's line cannot be made, a full suite is refused rather than run outside its turn: rc 1, nothing begun, the place named" "$rigRc $( rigOrder ) $( LC_ALL=C grep -c -F -- "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line of test runs: $rigTmp/not-a-directory/.agents/magic-team/suite-queue" "$rigTmp/a.out" || : )" "1  1"
 rigRun n RigTiny ; rigEnd "$rigLast"
-rigAssert "nor is a run of named tests run outside the machine's budget of test workers, where that cannot be reached: rc 1, nothing begun, the place named" "$rigRc [$( rigOrder )] $( LC_ALL=C grep -c -F -- "⛔ ERROR: AgentsRunTests.sh: cannot use the machine's budget of test workers: $rigTmp/not-a-directory/.agents/magic-team/suite-workers -- no test is run outside it" "$rigTmp/n.out" || : )" "1 [] 1"
+rigAssert "nor is a run of named tests run outside its turn, where the line cannot be made: rc 1, nothing begun, the place named" "$rigRc [$( rigOrder )] $( LC_ALL=C grep -c -F -- "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line of test runs: $rigTmp/not-a-directory/.agents/magic-team/suite-queue" "$rigTmp/n.out" || : )" "1 [] 1"
 rigHomeFor=""
 rigRun n RigTiny ; rigEnd "$rigLast"
-rigAssert "accepted sibling: with the machine's own directory there, the same named run runs at once, in no line" "$rigRc $( rigOrder ) $( rigWaits n ) $( rigTickets )" "0 BEGIN n END n 0 0"
+rigAssert "accepted sibling: with the machine's own directory there, the same named run runs at once, and leaves the line empty" "$rigRc $( rigOrder ) $( rigWaits n ) $( rigTickets )" "0 BEGIN n END n 0 0"
 
 echo "-- 7. one budget of test workers for the whole machine, shared by every runner --"
-## Two runs of named tests, three tests each, from two copies, every test held until the rig lets it end; the budget is 2.
+## A run of named tests, three tests on three workers, every test held until the rig lets it end; the budget is 2. A second run, of three more, waits its turn.
 rigFresh ; rigBudget 2 ; rigHold=1
-rigRun p RigTiny ; rigPidP=$rigLast
-rigRun q RigTiny ; rigPidQ=$rigLast
+rigRun p -w 3 RigTiny ; rigPidP=$rigLast
 rigUntilBegun 2 || rigRefuse "two tests never began under a budget of two, so nothing below would be measured"
-rigUntil 'a test waits for a worker slot' "$rigTmp/p.out" || rigRefuse "the first run never said a test of its waits"
-rigUntil 'a test waits for a worker slot' "$rigTmp/q.out" || rigRefuse "the second run never said a test of its waits"
-rigAssert "two runners together hold the budget and no more: two tests begun, two slots held, the other four asked for and waiting" "$( rigBegun | LC_ALL=C wc -w | LC_ALL=C tr -d ' ' ) $( rigSlots H ) $( rigSlots W )" "2 2 4"
-rigAssert "each runner said so in one line: a test of its waits, and how many slots are in use, of how many" "$( rigSlotWaits p ) $( rigSlotWaits q ) $( LC_ALL=C grep -h -F -- 'a test waits for a worker slot' "$rigTmp/p.out" "$rigTmp/q.out" | LC_ALL=C sort -u | LC_ALL=C sed "s|$rigWorkers|<the budget>|" )" "1 1 # AgentsRunTests.sh: a test waits for a worker slot: 2 of 2 in use on this machine, the one budget every runner shares (<the budget>)"
-rigAssert "neither is a full suite, so neither stands in the line for those, and nobody holds its lock" "$( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free )" "0 free"
-rigAssert "started in the same second or not, each run has a folder of its own for its list and its logs" "$( LC_ALL=C sed -n 's/.*run folder: //p' "$rigTmp/p.out" "$rigTmp/q.out" | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )" 2
-## each test let go in turn, whichever is running, until all six have ended
+rigUntil 'a test waits for a worker slot' "$rigTmp/p.out" || rigRefuse "the run never said a test of its waits"
+rigAssert "a run on more workers than the budget holds the budget and no more: two tests begun, two slots held, the third asked for and waiting" "$( rigBegun | LC_ALL=C wc -w | LC_ALL=C tr -d ' ' ) $( rigSlots H ) $( rigSlots W )" "2 2 1"
+rigAssert "it said so in one line: a test of its waits, and how many slots are in use, of how many" "$( rigSlotWaits p ) $( LC_ALL=C grep -h -F -- 'a test waits for a worker slot' "$rigTmp/p.out" | LC_ALL=C sort -u | LC_ALL=C sed "s|$rigWorkers|<the budget>|" )" "1 # AgentsRunTests.sh: a test waits for a worker slot: 2 of 2 in use on this machine, the one budget every runner shares (<the budget>)"
+rigAssert "it stands alone in the line, and holds its lock" "$( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free )" "1 held"
+## each test let go in turn, whichever is running, until all three have ended
 rigEndedWant=0
-while [ "$rigEndedWant" -lt 6 ] ; do
+while [ "$rigEndedWant" -lt 3 ] ; do
 	for rigRunningTest in $( rigBegun ) ; do rigLet "$rigRunningTest" ; done
 	rigEndedWant=$(( rigEndedWant + 1 ))
 	rigUntilEnded "$rigEndedWant" || rigRefuse "a held test never ended once let go"
 done
-rigEnd "$rigPidP" ; rigRcP=$rigRc ; rigEnd "$rigPidQ"
+rigEnd "$rigPidP" ; rigRcP=$rigRc
+rigHold=""
+rigRun q -w 3 RigTiny ; rigEnd "$rigLast"
+rigAssert "started in the same second or not, each run has a folder of its own for its list and its logs" "$( LC_ALL=C sed -n 's/.*run folder: //p' "$rigTmp/p.out" "$rigTmp/q.out" | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )" 2
 rigAssert "all six ran, and at no time were more than the budget running at once" "$rigRcP $rigRc $( LC_ALL=C grep -c '^END ' "$rigTmp/log" ) $( rigMostAtOnce )" "0 0 6 2"
 rigAssert "every slot was given back" "$( rigSlots H ) $( rigSlots W )" "0 0"
 rigAssert "every test ran at a lowered priority, nice 10 or lower still" "$( LC_ALL=C awk '$1 == "NICE" { n++ ; if ( $3 + 0 < 10 ) bad++ } END { printf "%d %d", n, bad }' "$rigTmp/log" )" "6 0"
@@ -300,24 +301,25 @@ rigAssert "control: the killed test's slot is still listed, since nobody was lef
 rigHold=""
 rigRun n RigTiny ; rigEnd "$rigLast"
 rigAssert "the next test to ask takes it all the same, and the dead holder is gone from the list" "$rigRc $( rigOrder ) $( LC_ALL=C grep -c "^H $rigSlotPid\$" "$rigWorkers/state" || : )" "0 BEGIN a BEGIN n END n 0"
-## A run of named tests is not starved by a full suite: slots go in the order they were asked for. Budget 1; a full
-## suite of three tests on two workers has one test running and one waiting when the named run's test asks.
+## A run of named tests waits for the whole of a full suite, whose slots it never shares. Budget 1; a full suite of three
+## tests on two workers has one test running and one waiting when the named run arrives.
 rigFresh ; rigBudget 1 ; rigHold=1
 rigRun p -w 2 ; rigPidP=$rigLast
 rigUntilBegun 1 || rigRefuse "the full suite's first test never began"
 rigUntil 'a test waits for a worker slot' "$rigTmp/p.out" || rigRefuse "the full suite's second test never asked for a slot"
 rigHold=""
 rigRun n RigTiny ; rigPidN=$rigLast
-rigUntil 'a test waits for a worker slot' "$rigTmp/n.out" || rigRefuse "the named run's test never asked for a slot"
-rigAssert "a named run starts at once beside a full suite, in no line, and its test waits for a slot as any test does: one held, two asked for" "$( rigTickets ) $( rigSlots H ) $( rigSlots W ) $( rigWaits n )" "1 1 2 0"
-for rigRunningTest in $( rigBegun ) ; do rigLet "$rigRunningTest" ; done
-rigUntilBegun 2 || rigRefuse "the full suite's waiting test never began"
-for rigRunningTest in $( rigBegun ) ; do rigLet "$rigRunningTest" ; done
-rigEnd "$rigPidN" ; rigRcN=$rigRc
-rigUntilBegun 4 || rigRefuse "the full suite's last test never began"
-for rigRunningTest in $( rigBegun ) ; do rigLet "$rigRunningTest" ; done
-rigEnd "$rigPidP"
-rigAssert "the slot goes to the suite's test that asked first, then to the named run's, and only then to the suite's next: the named run is not left behind every test of the suite" "$rigRcN $rigRc $( LC_ALL=C sed -n 's/^BEGIN \([a-z]\).*/\1/p' "$rigTmp/log" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ) $( rigMostAtOnce )" "0 0 p p n p 1"
+rigUntil 'waits its turn behind' "$rigTmp/n.out" || rigRefuse "the named run never said it waits its turn"
+rigAssert "a named run beside a full suite waits in the line and asks for no slot: two tickets, one slot held, one asked for, by the suite" "$( rigTickets ) $( rigSlots H ) $( rigSlots W ) $( rigWaits n )" "2 1 1 1"
+rigEndedWant=0
+while [ "$rigEndedWant" -lt 3 ] ; do
+	for rigRunningTest in $( rigBegun ) ; do rigLet "$rigRunningTest" ; done
+	rigEndedWant=$(( rigEndedWant + 1 ))
+	rigUntilEnded "$rigEndedWant" || rigRefuse "a held test of the full suite never ended once let go"
+done
+rigEnd "$rigPidP" ; rigRcP=$rigRc
+rigEnd "$rigPidN"
+rigAssert "the suite's three tests run one at a time, and only then the named run's" "$rigRcP $rigRc $( LC_ALL=C sed -n 's/^BEGIN \([a-z]\).*/\1/p' "$rigTmp/log" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ) $( rigMostAtOnce )" "0 0 p p p n 1"
 ## The budget where none is set: half the machine's cores. That many slots held by live processes leave none.
 rigFresh
 rigCores="$( sysctl -n hw.ncpu 2> /dev/null || getconf _NPROCESSORS_ONLN 2> /dev/null || echo 2 )"

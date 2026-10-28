@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.proposal.routine — the actual procedure
 
@@ -32,15 +33,17 @@ review-by: inherit
 
 `magic-team.proposal.routine` takes one proposal to the human-owner through propose, work-out and approve, in one standing thread.
 
+Handles: proposal, proposal-root
+
 ## Goals
 
-- Put the invariant question as the thread root, the proposed form as a clean reply, revise it in place across his comments, and close on his own reaction to the root.
+- Put the invariant question as the thread root, and the proposed form as a clean reply. Revise it in place across his comments, and close on his own reaction to the root.
 - Keep the flow in the Steps and the invariant thread shape in `proposal-thread-mechanic`.
 
 ## Scope
 
 - Does:
-  - The whole life of one proposal to the human-owner, once a proposed form exists. Reached by a request, by a decision that outlives its exchange (**Propose-approve**), by an escalation that did not settle, or by a `proposal-*` item `magic-team.discuss.routine` hands on.
+  - The whole life of one proposal to the human-owner, once a proposed form exists. Reached by a request, or by a decision that outlives its exchange (**Propose-approve**). Also reached by an escalation that did not settle, or by a `proposal-*` item `magic-team.discuss.routine` hands on.
   - The state of that proposal's tracking item, if it has one, from the root post until his closing reaction.
 - Doesn't:
   - Convergence among members (`magic-team.discuss.routine`) or collection (`magic-team.interview.routine`).
@@ -55,7 +58,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`).
-2. **put-the-proposal**: call `ProposeApprove` with `question` per the root clause, `proposal` per the in-thread-proposal clause, the proposal document's link as `document`, and `task_ref` naming the tracking item, if any. It posts the root once, the proposal as its reply, and waits for the verdict.
+2. **put-the-proposal**: call `ProposeApprove` with `question` per the root clause, and `proposal` per the in-thread-proposal clause. Pass the proposal document's link as `document`, and `task_ref` naming the tracking item, if any. It posts the root once, the proposal as its reply, and waits for the verdict.
 3. **work-out-across-his-comments**: a `VERDICT: RETURNED` result is his comment, kept as a clarification. Work the proposal out against it, then call `ProposeApprove` again with `pending_id` and `revise: true`, per the revision clause. Repeat until a verdict lands.
 4. **close-on-root-reaction**: `VERDICT: approved` or `VERDICT: rejected` on that call is the terminal verdict, per the root-reaction clause, already recorded on the tracking item's Decisions by the tool.
 
@@ -63,7 +66,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **closing-reflection**: reflect on how the proposal process went. A behaviour or pattern with no written rule behind it becomes a `reflection-*`.
 2. **carry-the-approved-work-forward**: act on the verdict, steps:
-   - approved: create the work documents the approved contents call for — as many, and of whatever types, as they call for — in `board-backlog`, each carrying `approved-by`/`approved-at` and `spawned-by` the tracking item.
+   - approved: create the work documents the approved contents call for in `board-backlog`, as many and of whatever types as they call for. Each carries `approved-by`/`approved-at` and `spawned-by` the tracking item.
    - resolve the tracking item, if any, to `board-processed`, its resolution stating the verdict: approved, or rejected.
 
 # Routine's local procedures
@@ -86,13 +89,13 @@ All statements apply at the same time, always. These rules override a participan
 - The routine never reacts on the root, for any reason.
 - A reply that is not clean is reworked before it stands.
 - **A proposal runs beside the work it came from, never in place of it.** A readback its source does not settle with yes or no goes through escalation first, and reaches here only where that does not settle it. A proposal never reduces back to a readback.
-- While the thread is open, `magic-coordinator.advance.routine` re-asks it when the tracking item's `recheck-date` is due.
+- While the thread is open, `magic-team.advance.routine`'s `proposal-*` gate re-asks it when the tracking item's `recheck-date` is due.
 
 # Routine-specific tooling
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-`ProposeApprove` runs the whole proposal thread itself — the root, the proposal reply, its revise and the wait for a verdict — replacing a by-hand send, delete and read.
+`ProposeApprove` runs the whole proposal thread itself: the root, the proposal reply, its revise and the wait for a verdict. It replaces a by-hand send, delete and read.
 
 ## Tooling operations
 
@@ -123,7 +126,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-team.discuss.routine` — hands binding `proposal-*` decisions here.
-- `magic-coordinator.advance.routine` — re-asks an open proposal thread.
+- `magic-team.advance.routine` — re-asks an open proposal thread.
 
 ### Conventions
 

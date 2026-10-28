@@ -155,14 +155,14 @@ rigAssert "the first Wait delivers the arrival" "$( rigHas RIG-FIRST-ARRIVAL )" 
 rigDefault rig-miss-resume
 rigAssert "the second Wait, in the same session, does not deliver it again: it resumes after the newest message the first returned" "$( rigHas RIG-FIRST-ARRIVAL )" "0"
 
-echo "-- 6. named sources join the defaults, the stored set never shrinks, a floor lives for a source of the set --"
+echo "-- 6. a named set is the wait's own (sketch 3.2), the stored set never shrinks, a floor lives for a source of the set --"
 printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigScenario/history.json"
 : > "$rigWs/named-a.txt" ; : > "$rigWs/named-b.txt"
 rigSourcesOf(){ LC_ALL=C sed -n 's/^# sources: //p' "$rigTmp/out" | head -1 ; }
 rigDefault rig-miss-named --wait-source "file:$rigWs/named-a.txt"
-rigAssert "a default call naming a source watches the defaults as well: the team channel, the owner DM, and the file" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner -e "file:$rigWs/named-a.txt" )" "3"
+rigAssert "a default call naming a source watches it in place of the defaults: the file, and no team channel or owner DM" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner ):$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" )" "0:1"
 rigDefault rig-miss-named --wait-source "file:$rigWs/named-b.txt"
-rigAssert "and the next call, naming another, keeps the first in the stored set: both files and both defaults" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "4"
+rigAssert "and the next call, naming another, keeps the first in the stored set: both files" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "2"
 rigDefault rig-miss-named
 rigAssert "a call naming nothing keeps them all" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "4"
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" bash "$rigTools" --wait-for-input "$rigMember" --unwait "file:$rigWs/named-a.txt" --wait-session-id rig-miss-named ) > "$rigTmp/out" 2> "$rigTmp/err"

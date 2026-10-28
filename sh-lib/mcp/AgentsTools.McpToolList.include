@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.McpToolList.include -- the tool list of an MCP server run: rendered once as the server starts, kept in its scratch tools.d/,
+## and read by every request, so the list is the same for the whole run. A new list is a new server. Functions only.
+##
+## The pieces: the harness floor (AgentsHarnessMcpMirror.sh), the tools the harness lists but does not serve, the secondary tools (AgentsMcpSecondaryMirror.sh).
+## A render that fails leaves its piece empty for the whole run, said once on stderr.
+##
+
+## Whether one rendered piece is an array, and its entries spliced ahead of the next, a comma after each; an empty piece is empty. Prints the entries.
+AgentsToolsMcpToolListSplice(){ ## array text
+	case "${1:-}" in
+		'['*']') local spliceText="${1#\[}" ; printf '%s' "${spliceText%\]},"
+		;;
+		*) return 1 ;;
+	esac
+}
+
+## Renders the three pieces into <dir>/served, unserved and secondary, then <dir>/ready: written in a folder of its own and moved into place, so a reader sees all of
+## them or none, and a second renderer finds it done. A server reached through another server (MDAT_MCP_SERVED_MARKER) serves none of them.
+AgentsToolsMcpToolListRender(){ ## dir
+	local renderDir="$1" renderTmp="" renderServed="" renderUnserved="" renderSecondary="" renderNames=""
+	[ -n "$renderDir" ] || return 1
+	[ ! -f "$renderDir/ready" ] || return 0
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
+	renderNames="$( printf '%s' "$agentsUnservedOnMcp" | LC_ALL=C tr '\n' ' ' )"
+	renderTmp="$( mktemp -d "${renderDir%/*}/.tools.XXXXXX" 2>/dev/null )" || return 1
+	if [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
+		renderUnserved="$( AgentsToolsUnservedMcpEntries )"
+		## CheckList is ALWAYS served: no gate, no permission check and no hook decides it; it refuses only at execution, where it has no place to write.
+		renderServed="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpMirror.sh" "" "$renderNames" )" || renderServed=''
+		if renderServed="$( AgentsToolsMcpToolListSplice "$renderServed" )" ; then : ; else
+			printf '%s\n' "${MDSC_CMD:-mcp}: mcp-server: ⛔ ERROR: the harness tool floor did not render, so ONLY 'execute' is served for this run. The mirror's own error is above; repair the declaration it names in sh-lib/harness/AgentsOpenAiChatWire.sh." >&2
+			renderServed=''
+		fi
+		renderSecondary="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpSecondaryMirror.sh" )" || renderSecondary=''
+		## Every secondary tool takes background, timeout and timeout_action too (epic S20); their schemas are flat, so the first properties object is the only one.
+		[ -z "$renderSecondary" ] || renderSecondary="$( printf '%s' "$renderSecondary" | LC_ALL=C sed 's/"properties":{/"properties":{"background":{"type":"boolean","description":"true returns at once with TASK-ID=process-N and the call goes on as a task."},"timeout":{"type":"integer","description":"Seconds after which the call returns early as a task, or is ended with timeout_action kill. With none, a call that runs 300 seconds returns early."},"timeout_action":{"type":"string","enum":["return","kill"],"description":"What happens at timeout: return (the default) or kill."},/g' )"
+		if [ -n "$renderSecondary" ] ; then
+			if renderSecondary="$( AgentsToolsMcpToolListSplice "$renderSecondary" )" ; then : ; else
+				printf '%s\n' "${MDSC_CMD:-mcp}: mcp-server: ⛔ ERROR: the secondary tools did not render, so none is served for this run. The mirror's own error is above." >&2
+				renderSecondary=''
+			fi
+		fi
+	fi
+	printf '%s' "$renderServed" > "$renderTmp/served" && printf '%s' "$renderUnserved" > "$renderTmp/unserved" && printf '%s' "$renderSecondary" > "$renderTmp/secondary" && : > "$renderTmp/ready" || { rm -rf "$renderTmp" ; return 1 ; }
+	mv "$renderTmp" "$renderDir" 2>/dev/null || rm -rf "$renderTmp"
+	[ -f "$renderDir/ready" ]
+}
+
+## Reads the run's list into mcpServedToolsJson, mcpUnservedEntriesJson, mcpSecondaryToolsJson and mcpUnservedToolNames. A run whose server did not render it (a request
+## reached directly) renders it now, once, and every later request reads that.
+AgentsToolsMcpToolListLoad(){ ## dir
+	local loadDir="$1"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
+	mcpUnservedToolNames="$( printf '%s' "$agentsUnservedOnMcp" | LC_ALL=C tr '\n' ' ' )"
+	mcpServedToolsJson='' ; mcpUnservedEntriesJson='' ; mcpSecondaryToolsJson=''
+	[ -f "$loadDir/ready" ] || AgentsToolsMcpToolListRender "$loadDir" || return 1
+	[ -z "${MDAT_MCP_SERVED_MARKER:-}" ] || return 0
+	mcpServedToolsJson="$( cat "$loadDir/served"; printf x )" ; mcpServedToolsJson="${mcpServedToolsJson%x}"
+	mcpUnservedEntriesJson="$( cat "$loadDir/unserved"; printf x )" ; mcpUnservedEntriesJson="${mcpUnservedEntriesJson%x}"
+	mcpSecondaryToolsJson="$( cat "$loadDir/secondary"; printf x )" ; mcpSecondaryToolsJson="${mcpSecondaryToolsJson%x}"
+	return 0
+}

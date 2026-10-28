@@ -6,6 +6,7 @@ invitees: none
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.file-comment-gap.routine — the actual procedure
 
@@ -30,11 +31,11 @@ review-by: inherit
 
 # Summary
 
-An idle-run routine of a `keeper-*` member: it adds one grounded file-header comment to an understood file of that keeper's own legacy tree that lacks one.
+An idle-run routine of a `keeper-*` member. It adds one grounded file-header comment to an understood file of that keeper's own legacy tree that lacks one.
 
 ## Goals
 
-- Pick one file of the executor's own territory that has been read and actually understood but lacks a good comment, and add a short file-header comment stating why this file is distinct from all the others: its specific reason for existing, the non-obvious thing about it.
+- Pick one file of the executor's own territory that has been read and actually understood but lacks a good comment. Add a short file-header comment stating why this file is distinct from all the others. That is its specific reason for existing, the non-obvious thing about it.
 - Never how it works line by line, and never a restatement of the interface it implements.
 - One file per pass, cumulative.
 
@@ -59,7 +60,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - `scope` is the territory, and the kinds of file in it.
    - `covers`, `lands-in`, `log` and `rules`, where given, are the executor's own: they apply in the steps below.
    - An entry with no `lands-in` is a gap in that file: escalate it, and do not guess one.
-2. **pick-understood-file**: Pick one file of the territory that has been read and actually understood, lacks a good comment, and is not already logged in `processed/`, rules:
+2. **pick-understood-file**: Pick one file of the territory that has been read and actually understood. It lacks a good comment, and is not already logged in `processed/`, rules:
    - Understanding comes from reading the file and its own dependencies, never from its name or its package's place in a taxonomy.
    - A file that cannot be described in one specific, true sentence is not understood: pick another.
 3. **add-distinctness-comment**: Add a short file-header comment stating why this file is distinct from all the others, at the angle `covers` names, rules:
@@ -71,7 +72,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **log-outcome**: Log the activity and its outcome, rules:
    - By default, log it as a new dated file under `processed/` (`processed/<board-item-type>-<date>-<short-topic>.md`, a real board-item type, never an invented word). Then run this member's own post-activity reflection (`--upsert-inbox-reflection`), per its own `.armed.md`.
    - Where the executor's `log` input names another form, that form is used instead.
-   - Where the workspace keeps no team data (the tool answers `this workspace keeps no team data`), nothing is filed: what would have been filed goes into the report to whoever dispatched this run.
+   - Where the workspace keeps no team data (the tool answers `this workspace keeps no team data`), nothing is filed. What would have been filed goes into the report to whoever dispatched this run.
 
 # Routine's local procedures
 

@@ -69,14 +69,27 @@ check "the request names the model the preset gave, on the chat wire (stream_opt
 runWire anthropic > /dev/null
 check "an /anthropic base: the request is the Messages wire's (a top-level system, cache_control, no stream_options)" \
 	"$( LC_ALL=C grep -c -F '"system":"' "$rigScn/req.1" ) $( LC_ALL=C grep -c -F '"cache_control"' "$rigScn/req.1" ) $( LC_ALL=C grep -c -F '"stream_options"' "$rigScn/req.1" )" "1 1 0"
-runUnknownModel(){ ## the refusal text of a model of no known family, then the requests made
+runUnknownModel(){ ## the note on a model of no known family, then the requests made
 	rm -f -- "$rigScn"/req.* ; printf '0' > "$rigScn/round"
 	( cd "$rigTmp/work" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MMDAPP="$MMDAPP" RIG_SCENARIO="$rigScn" \
 		HARNESS_ENDPOINT_URL="https://standard-check.invalid/v1" HARNESS_MODEL_LIGHT=rig-light HARNESS_MODEL_MAIN=rig-main OPENAI_API_KEY=rig-not-a-credential \
 		bash "$leg" --access-root "$rigTmp/work" "rig prompt" ) > "$rigOut" 2> "$rigErr"
 	printf '%s %s' "$( LC_ALL=C grep -c 'rig-main.*is of no family' "$rigErr" )" "$( cat "$rigScn/round" )"
 }
-check "a model of no known family is refused before any request, naming it" "$( runUnknownModel )" "1 0"
+runBlocked(){ ## the finish reason the provider ends an empty answer with -- the leg's rc; the reason it keeps beside the record is read from $rigScn/sb
+	rm -f -- "$rigScn"/req.* "$rigScn"/stdin.* ; rm -rf -- "$rigScn/sb" ; mkdir -p "$rigScn/sb" ; printf '0' > "$rigScn/round"
+	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"%s"}],"usage":{"prompt_tokens":5,"completion_tokens":0,"total_tokens":5}}\ndata: [DONE]\n' "$1" > "$rigScn/res.1"
+	( cd "$rigTmp/work" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MMDAPP="$MMDAPP" RIG_SCENARIO="$rigScn" \
+		MDAT_SPAWN_SANDBOX_ROOT="$rigScn/sb" MDAT_SPAWN_SESSION_ID=blocked1 \
+		HARNESS_ENDPOINT_URL="https://standard-check.invalid/v1" HARNESS_MODEL_LIGHT=qwen3-4b HARNESS_MODEL_MAIN=qwen3-8b OPENAI_API_KEY=rig-not-a-credential \
+		bash "$leg" --access-root "$rigTmp/work" "rig prompt" ) > "$rigOut" 2> "$rigErr"
+	echo $?
+}
+## sketch 3.6: a provider block that ends the run is kept beside the record with its reason, as a refusal is, so the flag and the alert show it
+check "an answer the provider ended empty on a content filter: the run ends 1" "$( runBlocked content_filter )" 1
+check "and the reason it kept names the provider's finish reason" "$( head -1 "$rigScn/sb/blocked1.refused" 2> /dev/null | LC_ALL=C grep -c 'content_filter' )" 1
+
+check "a model of no known family gets the default limits and one note naming it, and the request is made (sketch 13.1: the default is reasonable)" "$( runUnknownModel )" "1 1"
 echo "-- the wire follows the endpoint's own path --"
 ## Stated statically: reaching either branch needs a live request, which this check never makes.
 check "the leg names the Anthropic Messages wire for a /anthropic base" \

@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-coordinator.ingest-task.routine — the actual procedure
 
@@ -51,7 +52,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **process-own-inbox**: Run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so asks already queued are settled with this one rather than duplicated.
 2. **gather-and-agree**: Gather and agree with the requester, one topic at a time, with small, minimal-assumption questions, until the content is settled. Once a point is clear and agreed, move on.
-3. **epic-threshold-hand-over**: When the open and queued items reach the threshold where the change needs waves and lanes — ordering and grouping of many tasks across several subsystems — hand over to `magic-team.epic-intake.routine` instead of filing. The hand-over reads the same inputs that routine reads, a dispatch naming a sketch or an epic draft, and is described in it: end the run with a handback naming the sketch or epic draft and that `epic-intake` runs next. Below the threshold, file as **output**.
+3. **epic-threshold-hand-over**: When the open and queued items reach the threshold where the change needs waves and lanes, hand over to `magic-team.epic-intake.routine` instead of filing. Waves and lanes are the ordering and grouping of many tasks across several subsystems. The hand-over reads the same inputs that routine reads, a dispatch naming a sketch or an epic draft, and is described in it. End the run with a handback naming the sketch or epic draft, and that `epic-intake` runs next. Below the threshold, file as **output**.
 4. **output**: Once settled, file it, steps:
    - Default: a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`), or an `inquiry-*` to the member it belongs to (`post-inquiry`). Never the board. Filing does not start the work.
    - Dispatch: only within `magic-coordinator`'s own mandate, or on a live authorisation from someone holding it — still filed first, then dispatched through `spawn-one-dispatch`.
@@ -79,7 +80,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unclear which inbox it belongs in: `magic-coordinator`'s own, which routes it on.
 - A requester declining further questions is respected, and the filed task states plainly what remains ambiguous. Where that requester is a group needing quorum, the unresolved part becomes the no-quorum document instead, per "The ladder: one rung at a time".
 - Keep `event-track` current as the routine runs.
-- The epic hand-over is a threshold judgement, made fresh each time against the open and queued items, never from precedent: at the threshold the run hands over to `magic-team.epic-intake.routine`; below it, the task is filed as today.
+- The epic hand-over is a threshold judgement, made fresh each time against the open and queued items, never from precedent. At the threshold the run hands over to `magic-team.epic-intake.routine`. Below it, the task is filed as today.
 
 # Routine-specific tooling
 

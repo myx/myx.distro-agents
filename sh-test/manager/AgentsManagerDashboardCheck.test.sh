@@ -263,6 +263,14 @@ rigAssert "named blocks alone are printed, in the declared order whatever the or
 rigRun "$rigRead" disk no-such-block
 rigAssert "a word that is no block refuses the call, rc 1, nothing on stdout, in one line that lists the blocks and does not repeat the word" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigRead: a word given is none of its blocks -- nothing was printed. Its blocks: sessions, pending, tokens, team, team-data, team-data-git, loop, machine, disk, testing" ) $( rigTroubles ) $( LC_ALL=C grep -c -F -e 'no-such-block' "$rigTmp/err" || : )" "1 0 1 1 0"
 
+echo "-- 2b. a refusal that is no usage limit is flagged too, with its reason (sketch 3.6) --"
+( MMDAPP="$rigWs" ; . "$rigPackage/sh-lib/session/AgentsTools.UsageLimit.include" ; AgentsToolsUsageLimitMark sp-today 'openai refused the request -- invalid_request_error: your account is suspended' ) \
+	|| rigRefuse "the refusal flag could not be kept in the store of sp-today"
+rigRun "$rigRead" sessions
+rigAssert "the sessions panel carries a figure for the refusal, naming its reason (blanks as _), and none for a usage limit" "$( rigBlock sessions | LC_ALL=C grep -o -e '/figure sessions provider-refusal [^/]*' -e '/figure sessions usage-limit [^/]*' | LC_ALL=C tr '\n' ' ' )" "/figure sessions provider-refusal Stopped_By_A_Provider_Refusal invalid_request_error:_your_account_is_suspended - warn - "
+## the usage limit again, so the later sections read what they always did
+( MMDAPP="$rigWs" ; . "$rigPackage/sh-lib/session/AgentsTools.UsageLimit.include" ; AgentsToolsUsageLimitMark sp-today "$( cat "$rigLimitFixture" )" ) || rigRefuse "the usage-limit flag could not be put back"
+
 echo "-- 3. the machine by the stand-ins of FreeBSD, and the volumes on one --"
 rigSystem freebsd ; printf 'one\n' > "$rigTmp/df.mode"
 rigRun "$rigRead" machine disk

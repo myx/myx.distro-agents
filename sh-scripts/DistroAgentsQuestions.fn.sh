@@ -45,8 +45,15 @@ DistroAgentsQuestions(){
 	[ -z "$frontDone" ] || return "$frontRc"
 	case "$1" in
 
-		--amend-pending-reply|--read-pending-reply|--settle-pending-reply)
+		--amend-pending-reply|--read-pending-reply)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include"
+			return $?
+		;;
+
+		## Stubs: the operations that moved to another tool file. The call goes on there, and the place is said.
+		--settle-pending-reply)
+			echo "$MDSC_CMD: $1 moved to DistroAgentsSession.fn.sh $1 -- this name still works" >&2
+			DistroAgentsSession "$@"
 			return $?
 		;;
 
@@ -61,7 +68,8 @@ DistroAgentsQuestions(){
 		;;
 
 		--request-permission-set)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include"
+			echo "$MDSC_CMD: $1 moved to AgentDispatcherTools.fn.sh $1 -- this name still works" >&2
+			AgentDispatcherTools "$@"
 			return $?
 		;;
 

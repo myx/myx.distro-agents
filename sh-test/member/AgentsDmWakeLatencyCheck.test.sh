@@ -173,8 +173,8 @@ rigAssert "the setting's member searches, not the coordinator" \
 echo "-- no identity may search: an error in the Wait's header, never an empty result --"
 rigScene noscope 60
 rigCall noscope --intern-op-wait-for-input keeper-rig --wait-source mentions:keeper-rig --wait-timeout 2
-rigAssert "the source is named never read, and why is said" \
-	"$( LC_ALL=C grep -c '^WAIT-NEVER-READ: .*\[mentions:keeper-rig\]' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c -F 'no identity may search its mentions' "$rigDir/noscope.err" )" "1:1"
+rigAssert "an error of its own in the header, why said, and no source never read" \
+	"$( LC_ALL=C grep -c '^WAIT-SOURCE-ERROR: \[mentions:keeper-rig\] no identity may search' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c '^WAIT-NEVER-READ: .*mentions' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c -F 'no identity may search its mentions' "$rigDir/noscope.err" )" "1:0:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DM WAKE LATENCY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

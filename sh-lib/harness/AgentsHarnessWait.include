@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessWait.include: dismissal records, seats and the Wait tool. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## The mark's file. rc 1, nothing printed, for a session that keeps none.

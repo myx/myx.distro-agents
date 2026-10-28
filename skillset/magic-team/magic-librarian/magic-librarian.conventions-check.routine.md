@@ -6,6 +6,7 @@ requires-session-kind: standalone
 start-context: any
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-librarian.conventions-check.routine — the actual procedure
 
@@ -54,12 +55,12 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **identify-target-and-analog**: Identify what is reviewed and its closest real analog — a sibling operation, a sibling file of the same type. Read the analog directly. In a batch, resolve the analog per finding.
-2. **compare-against-analog**: Compare the proposal with the analog: naming, error-message shape, placement, shape and verbosity, and style rules stated in the analog itself, including "Two writing modes".
+2. **compare-against-analog**: Compare the proposal with the analog: naming, error-message shape, placement, shape and verbosity. Compare it also against style rules stated in the analog itself, including "Two writing modes".
    - rule: shape and verbosity means how much the analog carries — lead-in length, prose around the substance, element count. A proposal several times more elaborate than its analog fails here alone.
-   - rule: a `MAGIC.md` or `README.md` change is also measured against the `MAGIC.md` bar ("Content philosophy") and the no-narration floor ("Rule/instruction/definition/description conventions"), not only against a sibling file.
+   - rule: a `MAGIC.md` or `README.md` change is measured not only against a sibling file. It is also measured against the `MAGIC.md` bar ("Content philosophy") and the no-narration floor ("Rule/instruction/definition/description conventions").
    - rule: emitted text is compared against "The output-style floor", as "Applying the output-style floor" applies it. Carried spans are not measured.
 3. **structure-the-output**: Structure every output in labelled sections, with before and after where relevant.
-4. **classify-each-finding**: Classify each finding: genuine violation, judgement call worth flagging, or clean. A formulation is a genuine finding when it is not easily understood, when a readback drops an intent, detail or benchmark the original had, or when a better candidate exists.
+4. **classify-each-finding**: Classify each finding: genuine violation, judgement call worth flagging, or clean. A formulation is a genuine finding when it is not easily understood, or when a better candidate exists. It is also one when a readback drops an intent, detail or benchmark the original had.
 5. **cite-real-evidence**: Cite the file and line each finding is checked against. An output-style finding cites the clause number and the measured value. A clause carrying no number is a judgement call.
 6. **check-substance-not-wording**, steps:
    - check the content agrees with related rules elsewhere: no contradiction, no missing connection
@@ -89,7 +90,12 @@ A declaration is a member's own claim about the text it labelled — relay, repo
 
 Steps:
 1. Read the declarations log with `--get-audit-item`, by document name.
-   - Open: three gaps block this read — the accessor's type policy admits only `transcript-*`, its folder resolver matches only `transcript-` with a hyphenated date, and the team's compact date form conflicts with that resolver (`magic-librarian`'s to settle). Until all three close, report the after-send check as required and missing; never substitute a path read.
+   - Open: three gaps block this read, `magic-librarian`'s to settle:
+     - the accessor's type policy admits only `transcript-*`.
+     - its folder resolver matches only `transcript-` with a hyphenated date.
+     - the team's compact date form conflicts with that resolver.
+
+     Until all three close, report the after-send check as required and missing; never substitute a path read.
 2. Run this routine's Steps against the text each entry carries, at the group it declares.
 3. Report a declaration that does not match its text: a relay declaration on the member's own words, a report declaration on a message.
 4. Apply the reader-judged clauses here.
@@ -102,7 +108,10 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- **Who runs it**: `magic-librarian` on every skillset change ("Rule/instruction/definition/description conventions"); any armed member on its own proposed work before landing it; `magic-coordinator` and the human-owner on anything.
+- **Who runs it**:
+  - `magic-librarian`, on every skillset change ("Rule/instruction/definition/description conventions").
+  - any armed member, on its own proposed work before landing it.
+  - `magic-coordinator` and the human-owner, on anything.
 - **A change is the only trigger — never a run.** An instruction already in force is not re-checked because something is about to execute it.
 - A change to a member's or routine's rules is assessed against that file's `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)`. Where assessment cannot settle it, a concrete testing request goes to `magic-coordinator` for a `magic-tester` round.
 - **Blocking model**: a genuine finding blocks the change until addressed, except for the human-owner, for whom it is advisory — the one ground only he holds. `magic-coordinator` overriding alone still files the finding as the no-quorum document, briefly: not blocked, but not silent either. A cosmetic finding never blocks. Unsure: surface it.

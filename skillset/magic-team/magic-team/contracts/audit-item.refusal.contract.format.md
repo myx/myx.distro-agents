@@ -21,14 +21,14 @@ The output-style check's record of text the floor stopped or only reported, one 
 # Contract
 
 - Kind `audit-item.refusal`: store audit, type word `refusal`.
-- Filename: `refusal-<day>T0000Z-<host>-output-style.md`, `<day>` as `YYYYMMDD` (UTC), `<host>` the short name of the machine that writes it, lower case. One document per machine and UTC day: the writer creates it with its header and appends rows, and no other machine appends to it, so a merge of the team data never conflicts on it. A reader takes the union of the day's documents. A document of the days before this change has no `<host>` part and is read the same way.
+- Filename: `refusal-<day>T0000Z-<host>-output-style.md`, `<day>` as `YYYYMMDD` (UTC), `<host>` the short name of the machine that writes it, lower case. One document per machine and UTC day: the writer creates it with its header and appends rows. No other machine appends to it, so a merge of the team data never conflicts on it. A reader takes the union of the day's documents. A document of the days before this change has no `<host>` part and is read the same way.
 - A document names this contract in `document-contract`, with the value `audit-item.refusal`. The writer fills it where missing.
 - A key the Keys table does not name is not part of this contract. How a stored document that does not match is treated is set by the validator's per-rule disposition, not here.
 - The validator reads the Keys table, the Body and the unmarked Rules. A rule marked `[store]` needs more than the file to check: the item's board state, its inbox, its writer or its authority. A rule marked `[judged]` is for a reader to judge.
 
 ## Keys
 
-`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member; `either` is filled by the tooling where missing, and written by a member only to set another value.
+`presence`: `required` is present on every document of the kind; `optional` is present when it applies. `writer`: `member` is written by a member; `tooling` is never written by a member. `either` is filled by the tooling where missing, and written by a member only to set another value.
 
 | key | presence | writer | value form | rule |
 |---|---|---|---|---|

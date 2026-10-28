@@ -200,6 +200,16 @@ DIALOGS = {
 ## when a button other than "cancel" is pressed. It gives nothing, and the dialog closes;
 ## or it gives what it refuses, which then stands in the dialog, and the dialog stays open.
 ## Set where each is defined.
+## The dialogs that hold a plan read while they are open (full:{kind}): the reads of those are kept alive and asked for again while one is open (Reads.py). A part that
+## declares such a dialog names it here, once, by readingDialogs.
+READING_DIALOGS = ()
+
+
+def readingDialogs(*names):
+    global READING_DIALOGS
+    READING_DIALOGS = READING_DIALOGS + tuple(names)
+
+
 DIALOG_HANDLERS = {}
 ## What fills a dialog from what was read, while it is open: fill(state, dialog), called at
 ## every turn of the screen. Set where each is defined.

@@ -543,7 +543,7 @@ AgentsToolsScheduleImportantEmergency(){
 	[ -n "$markImportant$markEmergency" ] || return 0
 	[ -z "$markEmergency" ] || AgentsToolsScheduleEmergencyConfirm "$markEmergencyItem"
 	if [ "$markWork" = no ] ; then
-		if AgentsToolsScheduleSpawn "advance.magic-coordinator" --routine "magic-coordinator.advance.routine.md" magic-coordinator ; then
+		if AgentsToolsScheduleSpawn "advance.magic-coordinator" --routine "magic-team.advance.routine.md" magic-coordinator ; then
 			printf 'important-emergency: started the advance routine of magic-coordinator\n'
 		fi
 	fi

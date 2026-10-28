@@ -83,7 +83,16 @@ rigWaitFor(){ ## file -- up to 90 seconds
 
 echo "-- 1. the routine and the validator --"
 rigAssert "the real work-duty routine declares the per-member lock" "$( LC_ALL=C grep -c -x "routine-lock-document: inbox:{{team-member}}:$rigNoteName" "$rigRoutineFile" || : )" 1
-rigOut="$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --intern-doc-validate routine "$rigRoutineFile" 2>&1 < /dev/null ; echo "rc=$?" )"
+## The validator refuses a maintainer no member answers to: its own skills root holds the routine's maintainers, so the spawn rig keeps its two.
+rigValidateSkills="$rigTmp/skills-validate"
+mkdir -p "$rigValidateSkills/magic-team" && cp "$rigRoutineFile" "$rigValidateSkills/magic-team/"
+for rigMember in $( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "maintainers: " ) == 1 { gsub( /,/, " ", $0 ) ; for ( i = 2 ; i <= NF ; i++ ) print $i ; }' "$rigRoutineFile" ) ; do
+	case "$rigMember" in human-owner|magic-team) continue ;; esac
+	mkdir -p "$rigValidateSkills/$rigMember"
+	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigValidateSkills/$rigMember/$rigMember.basic.md"
+	printf '# rig armed\n' > "$rigValidateSkills/$rigMember/$rigMember.armed.md"
+done
+rigOut="$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigValidateSkills" bash "$rigTool" --intern-doc-validate routine "$rigRoutineFile" 2>&1 < /dev/null ; echo "rc=$?" )"
 rigAssert "the routine validator takes it: no row, rc 0" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^rc=0$' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'routine-lock-document' || : )" "1:0"
 
 echo "-- 2 and 3. the first start, a second one, another member's, and the start after the end --"
@@ -155,7 +164,7 @@ rigAssert "work-duty is refused, rc 1, with the gate's own line naming the start
 rigAssert "at once, with no brief, no console, no note, nothing in the team data" "$( [ "$rigJustSeconds" -le 20 ] && echo fast || echo "slow:$rigJustSeconds" ):$( ls "$rigTmp"/brief.* 2> /dev/null | LC_ALL=C grep -c . || : ):$( find "$rigData" -mindepth 1 2> /dev/null | LC_ALL=C grep -c . || : )" "fast:0:0"
 ## A standalone routine that locks nothing runs there.
 {
-	printf -- '---\ntype: routine\nexecutors: rig-keeper\nmaintainers: rig-keeper\nrequires-session-kind: standalone\n---\n'
+	printf -- '---\ntype: routine\nexecutors: rig-keeper\nmaintainers: rig-keeper\nrequires-session-kind: standalone\nruns-at: none\n---\n'
 	printf '# rig-keeper.plain.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n'
 	printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"
 } > "$rigSkills/rig-keeper/rig-keeper.plain.routine.md"

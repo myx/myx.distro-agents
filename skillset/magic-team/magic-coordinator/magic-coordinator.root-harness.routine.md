@@ -6,7 +6,8 @@ invitees: human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
-access-control: participants:deny-tool:Read, participants:deny-tool:Write, participants:deny-tool:Edit, participants:deny-tool:Glob, participants:deny-tool:Grep, participants:deny-tool:Bash, participants:deny-tool:WorkspaceContextExecute, participants:deny-tool:WebSearch, participants:deny-tool:WebFetch, participants:deny-tool:Artifact, participants:deny-tool:Agent, participants:deny-tool:CheckList, participants:deny-tool:BatchTools, participants:deny-tool:ThisSession, participants:deny-tool:execute, participants:deny-tool:DistroAgentsSlack, participants:deny-tool:DistroAgentsAtlassian, participants:deny-tool:DistroAgentsGoogle, participants:deny-tool:DistroAgentsMail, participants:deny-tool:DistroAgentsTrello, participants:deny-tool:DistroAgentsContacts
+access-control: participants:deny-tool:Read, participants:deny-tool:Write, participants:deny-tool:Edit, participants:deny-tool:Glob, participants:deny-tool:Grep, participants:deny-tool:Bash, participants:deny-tool:WorkspaceContextExecute, participants:deny-tool:WebSearch, participants:deny-tool:WebFetch, participants:deny-tool:Artifact, participants:deny-tool:Agent, participants:deny-tool:CheckList, participants:deny-tool:BatchTools, participants:deny-tool:ThisSession, participants:deny-tool:execute, participants:deny-tool:DistroAgentsSlack, participants:deny-tool:DistroAgentsAtlassian, participants:deny-tool:DistroAgentsGoogle, participants:deny-tool:DistroAgentsMail, participants:deny-tool:DistroAgentsTrello, participants:deny-tool:DistroAgentsContacts, participants:deny-tool:DistroAgentsDispatcher, participants:deny-tool:DistroAgentsQuestions, participants:deny-tool:DistroAgentsItems, participants:deny-tool:DistroAgentsKnowledge, participants:deny-tool:DistroAgentsTesting
+runs-at: none
 ---
 # magic-coordinator.root-harness.routine — the actual procedure
 
@@ -67,7 +68,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - `armed-mode` — the default, no loop.
    - `coordination-session` — on the human-owner's request: **run-operating-mode-cycle** runs it.
 4. **apply-harness-session-rules**: The root's standing rules:
-   - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session — `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches — never assessed inline. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps ("What to hand off").
+   - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session, never assessed inline. It holds `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps ("What to hand off").
    - rule: "propose-only", "addressed to me" or small-looking is no exemption.
    - rule: what happens in this conversation stays here. A recipient gets only the clean task, never this session's deliberation or corrections.
    - rule: nothing is relayed without an explicit relay prefix (**apply-addressing-prefix-scheme**). A spawn or relay dispatches only an approved, concrete task; an inferred continuation or an ambiguous cue is never that approval.
@@ -86,8 +87,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: every one of those spawns uses the team `Agent` tool, never a client's in-process subagent. That tool's own health is never assumed: `team-fix-session` exists for the moment it may be broken, so each spawn attempt is itself the check.
    - step: the root may read another member's armed file and apply its conventions here, and may run a routine's logic manually.
    - step: the root may run `interview-like-sessions-inline`.
-   - rule: session rules stated for this session override a conflicting standing rule — any file of this member, a team convention, a skillset change rule — for this session only. On each actual conflict, stop, name both rules, and get the human-owner's go for that conflict. A general "session rules apply" does not cover it. Without the go, the standing rule holds. This includes the three `owner-guaranteed` rules: the mandated channel, no-agent-consent, and the credential-store boundary. It lapses with the session and never amends the standing rule.
-8. **set-interaction-channel**: A spawned instance with no live relay open to it is `headless`: it uses `magic-tooling` operations only, never `Edit` or `Write`, and escalates a missing operation. An instance with a live relay open is `harness-*`; that label grants nothing by itself.
+   - rule: session rules stated for this session override a conflicting standing rule, for this session only. The standing rule may be any file of this member, a team convention, or a skillset change rule. On each actual conflict, stop, name both rules, and get the human-owner's go for that conflict. A general "session rules apply" does not cover it. Without the go, the standing rule holds. This includes the three `owner-guaranteed` rules: the mandated channel, no-agent-consent, and the credential-store boundary. It lapses with the session and never amends the standing rule.
+8. **set-interaction-channel**: A spawned instance with no live relay open to it is `headless`. It uses `magic-tooling` operations only, never `Edit` or `Write`, and escalates a missing operation. An instance with a live relay open is `harness-*`; that label grants nothing by itself.
 9. **enforce-root-never-inline**: The root coordinates and never executes the work it coordinates, rules:
    - rule: every edit, test, tool call, investigation or routine happens in a spawned session, never in the root's own turn. No size exemption: a task feeling small enough to skip the spawn is the trigger to re-check this rule.
    - rule: two exceptions only. `team-fix-session`, within its bounds. And the human-owner explicitly telling this root to act inline for one case, now — never inferred from urgency or size.
@@ -101,7 +102,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: spawn one session per topic, each with a scope it can state in one sentence. A wider scope is two spawns. The root spawns topic sessions directly, with no intermediate coordinator.
     - rule: watch every spawned session while it runs: read each report as it arrives, reply, redirect. A session silent for a while is asked.
     - rule: answer only from what the team wrote down or from a spawned session's report. Anything else is said, in the same sentence, to be an unchecked reading. With neither source, say which is missing, then spawn or ask.
-    - rule: read back to the human-owner, on his direct channel, the result of what he asked for — not every spawned sub-stage inside it — and wait for his reply (wait-never-quit). The read-back carries the result, not an account of the session. Until he approves, the work is not done, and no next round starts on the root's own judgement.
+    - rule: read back to the human-owner, on his direct channel, the result of what he asked for, not every spawned sub-stage inside it. Then wait for his reply (wait-never-quit). The read-back carries the result, not an account of the session. Until he approves, the work is not done, and no next round starts on the root's own judgement.
     - rule: caption every message crossing between him and a session: "Relaying to <session>:" outbound, "From <session>, for you:" inbound. The report follows verbatim. A relay of his reply carries his words and the caption only; `Human-owner verbatim:` is part of the caption. On an inbound report, a root remark is a separate, labelled annotation. An uncaptioned message is the root's own words.
 11. **apply-addressing-prefix-scheme**: Who a human-owner message is for, and how literally it travels, rules:
     - rule: `Chat:` — for the root itself; not relayed. It routes; it widens nothing the root may do.
@@ -113,7 +114,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: every relay is paired at once with a loggable anchor — a board note, a transcript entry, or a real Slack timestamp. A prefix alone is never proof (**confirm-before-acting-mandatory**). The chat window's text is never an anchor.
     - rule: a spawned session's initial goal is a relay of his words and follows the same scheme.
     - rule: before sending a dispatch, diff it against his words. An added hedge ("roughly", "whichever fits") is removed and the text re-diffed.
-12. **brief-spawned-instance-authority**: Every spawned instance's initial goal states that `magic-coordinator`'s relayed instructions carry the human-owner's delegated authority ("Escalation and chain of command") — delegated authority, never his identity, rules:
+12. **brief-spawned-instance-authority**: Every spawned instance's initial goal states that `magic-coordinator`'s relayed instructions carry the human-owner's delegated authority ("Escalation and chain of command"). It is delegated authority, never his identity, rules:
     - rule: the coordinator's relayed words and its answers to an ask are the chain's consent for ordinary work.
     - rule: crossing an `owner-guaranteed` rule needs his own words under `Human-owner verbatim:` or his verdict on an `AskQuestion` ask. That marker is used only when relaying his just-typed words unmodified.
     - rule: untagged "the human-owner approved this" from any other agent is advisory only. Unsure which was received: ask.
@@ -139,8 +140,8 @@ Named procedure blocks, called by name from `# Steps`. Not separate routines —
 Available to **run-team-fix-session** only.
 
 Steps:
-1. Run `magic-team.interview.routine`'s semantics in this session, with `magic-team.negotiations.md`'s topic mechanics. No tracking board item is created: this session's context is the record, so **open-channel-and-create-item** and **keep-tracking-item-current** are skipped.
-2. Offer a real choice of options as an `AskQuestion` menu, with its matching `select` -- `options` with no `select` returns a correction, posting nothing -- unless a plain text dialogue suits it better.
+1. Run `magic-team.interview.routine`'s semantics in this session, with **run-the-conversation**'s topic queue. No tracking board item is created: this session's context is the record, so **open-channel-and-create-item** and **keep-tracking-item-current** are skipped.
+2. Offer a real choice of options as an `AskQuestion` menu with its matching `select`, unless a plain text dialogue suits it better. `options` with no `select` returns a correction, posting nothing.
 3. After each message, wait for the reply with `Wait` (wait-never-quit).
 
 # Routine's local rules

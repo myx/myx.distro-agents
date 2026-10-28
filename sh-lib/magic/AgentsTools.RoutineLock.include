@@ -30,6 +30,11 @@ AgentsToolsAdvanceCloneSync(){
 	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
 	set -e
+	## Every sync pushes: what the resync left ahead of origin goes out now, best effort, with the owed marker of every team-data push.
+	if [ "$syncRc" -eq 0 ] ; then
+		type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || :
+		! type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || AgentsToolsTeamDataPushIfAhead "the advance-lock resync" || :
+	fi
 	return "$syncRc"
 }
 

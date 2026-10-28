@@ -60,6 +60,7 @@ rigRoutine(){ ## name, what to leave out...
 	{
 		printf -- '---\ntype: routine\nexecutors: magic-tester\nmaintainers: magic-tester\ninvitees: magic-coordinator\n'
 		[ -z "$routineKind" ] || printf 'requires-session-kind: coworking\n'
+		printf 'runs-at: none\n'
 		printf -- '---\n# magic-tester.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n' "$routineName"
 		[ -z "$routineOpen" ] || printf '# Opening steps\n\n1. **open**: open.\n\n'
 		printf '# Steps\n\n1. **work**: work.\n\n'

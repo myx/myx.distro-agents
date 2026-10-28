@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.investigate.routine — the actual procedure
 
@@ -32,9 +33,11 @@ review-by: inherit
 
 `magic-team.investigate.routine` finds out what is true about a thing by looking into the thing itself: its content, its records and its behaviour. It ends with one decision — record, investigate further, or act — and names the next flow step for it.
 
+Handles: investigation, task, project
+
 ## Goals
 
-- Answer a question about a thing with findings shown by evidence, never a guess: a codebase, a tool, a data set, a set of accounts, a document, a 3D model, a process.
+- Answer a question about a thing with findings shown by evidence, never a guess. The thing may be a codebase, a tool, a data set, a set of accounts, a document, a 3D model or a process.
 - Keep what is shown apart from what is inferred or assumed.
 - End every investigation with a decision someone can act on, and the next step it leads to.
 
@@ -57,7 +60,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), collecting earlier notes on the same question.
-2. **state-the-question**: state what is to be found out, before looking, steps:
+2. **state-the-question**: state what is to be found out, before looking. Write it in the investigation's own document, its `investigation-*` item (`board-item.investigation`). Its sections are Question, Goal, Current, Settled, Open and Log. Steps:
    - the question, the thing it is about, and what the answer is for.
    - the scope: what the investigation may touch, and what it must not touch.
    - the answer that would settle it.
@@ -92,12 +95,14 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **act**, larger or several pieces — `magic-team.plan.routine`.
      - **act**, with a choice between options — `magic-team.discuss.routine`.
      - outside facts needed — `magic-team.research.routine`.
+   - on closing, the settled answer becomes an investigation report, an `ivr-*` vault item (`vault-item.investigation-report`), named in the item's `references`.
+   - a technical decision the investigation took or needs is recorded as an `adr-*` vault item (`vault-item.decision-record`), by `magic-architect`, one per distinct question.
    - a handback to the session's own parent follows, carrying the decision and the next step, per "The ladder: one rung at a time".
 
 # Closure steps
 
 1. **closing-reflection**: reflect on how the investigation went: a check that could not fail, a wrong first assumption, a record that was missing. A pattern with no written rule behind it becomes a `reflection-*`.
-2. **hand-off-open-work**: every open part — the next check, work outside the scope, a question in another member's domain — is filed for its owner: propose the item (piece, type, goal) and wait for confirmation from the session's own parent, per "The ladder: one rung at a time".
+2. **hand-off-open-work**: file every open part for its owner: the next check, work outside the scope, a question in another member's domain. Propose the item (piece, type, goal), and wait for confirmation from the session's own parent, per "The ladder: one rung at a time".
 
 # Routine's local procedures
 
@@ -105,7 +110,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines —
 
 ## `defect-branch` — why something deviates from what was expected
 
-Taken from **look-into-the-thing** when the question is why something does other than expected: a failure, a wrong total, a model that will not print, a surprise. Steps:
+Taken from **look-into-the-thing** when the question is why something does other than expected. Examples: a failure, a wrong total, a model that will not print, a surprise. Steps:
 1. **reproduce-it**: make the deviation show on demand, with the smallest case that shows it and a time limit on every run. Show the same case where it works, if such a place exists. A deviation that will not show is reported as not reproduced, with what was tried, never as gone.
 2. **bound-it**: for each of what, where, when and how much, set down what is affected and what similar thing is not. List what is distinct about the affected side, and what changed there and when. A cause must explain both sides.
 3. **build-a-timeline**: for a deviation that appeared at some point, set down the last known good state, each change since, and the first known bad state. Read the changes; never infer them from a working copy you do not own.
@@ -120,9 +125,10 @@ All statements apply at the same time, always. These rules override a participan
 
 - The executing member is permitted and obliged to execute every step exactly as written, in order.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- Each round follows **run-a-round** and **stop-or-go**.
 - **Evidence before a finding.** A finding is named only with the check that showed it. Until then it is an assumption, and is called one.
 - **A check that cannot fail proves nothing.** Show each check able to fail on a known bad case before trusting its clean result.
-- **Read before you change.** No check changes a live system, a shared copy, a set of books or another member's work without the approval that change needs.
+- **Read before you change.** No check changes a live system, a shared copy, a set of books or another member's work without its approval.
 - **Systems, not people.** The report names the conditions that led to the finding, never a person or a member to blame.
 - **Outside the scope.** A cause or a change outside the named scope is escalated, never handled in passing.
 - **The owner of the domain.** A question in another member's domain loops that member in, never works around it.
@@ -149,7 +155,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- (draft) This routine exists so that every question about a thing is answered by looking into the thing itself, and ends in a decision — record, investigate further or act — with the next flow step named.
+- (draft) This routine exists so that every question about a thing is answered by looking into the thing itself. It ends in a decision — record, investigate further or act — with the next flow step named.
 
 ## Verbatim-tests (benchmarks)
 

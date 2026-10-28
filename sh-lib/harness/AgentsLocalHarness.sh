@@ -37,7 +37,7 @@ HARNESS_TOKEN_MAIN="${LOCAL_AI_API_KEY:-local}"
 ## --- the models: the macros low, normal and high resolve to the agreed set, by the ids setup.feature-local-ai serves --
 ## As the standard-v1 leg has them: low is Qwen3.5 4B Q8_0 (machine profile 1), normal and high Qwen3.5 9B Q8_0 (profile 2),
 ## high at the effort high. The GPU machine (profile 3) is chosen by naming qwen3.8-27b-q8_0 in the preset. A model the preset
-## names stands ahead, and one of no family in the table is refused by the core at start.
+## names stands ahead, and one of no family in the table gets the default row of the table and a note, never a refusal.
 HARNESS_MODEL_FROM_LIGHT="${HARNESS_MODEL_LIGHT:+name}" ; HARNESS_MODEL_FROM_MAIN="${HARNESS_MODEL_MAIN:+name}"
 HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-qwen3.5-4b-q8_0}"
 HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-qwen3.5-9b-q8_0}"

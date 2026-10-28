@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## AgentsHarnessBatch.include: BatchTools and the CheckList tool. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## CheckList: the checklist of session tasks of a member in a session, kept as the native

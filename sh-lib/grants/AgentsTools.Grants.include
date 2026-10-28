@@ -239,7 +239,7 @@ AgentsToolsGrantsMemberRows(){ ## workspace, member
 	AgentsToolsGrantsIndexEnsure "$1" || return 0
 	while IFS=$'\t' read -r rowsWho rowsVerb rowsGlob rowsPattern rowsFrom rowsRest ; do
 		[ "$rowsWho" = "$2" ] || continue
-		case "$rowsVerb" in read|write|tool) printf '%s\t%s\t%s\t%s\n' "$rowsVerb" "$rowsGlob" "$rowsPattern" "$rowsFrom" ;; esac
+		case "$rowsVerb" in read|write|tool|deny-read|deny-write|deny-tool) printf '%s\t%s\t%s\t%s\n' "$rowsVerb" "$rowsGlob" "$rowsPattern" "$rowsFrom" ;; esac
 	done < <( if [ -n "$agentsGrantsIndexFile" ] ; then cat "$agentsGrantsIndexFile" ; else printf '%s\n' "$agentsGrantsIndexText" ; fi )
 }
 
@@ -391,13 +391,18 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 	local declNamespace="" declWorkspace="" declFloor="" declDirectory="" declProject="" declTesting="" declScope declLines declLine declSel declRest
 	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern declInf declLocal=""
 	declName="${declWs##*/}"
-	## The floor directives of the packages installed under .local/myx, `<package folder> <rest>` as the cut prints them.
-	for declInf in "$declWs"/.local/myx/*/project.inf ; do
-		[ -f "$declInf" ] || continue
-		declOne="$( LC_ALL=C awk -v pkg="${declInf%/project.inf}" '{ t = $1 ; if ( sub( /^--magic-team:permissions:workspace:/, "", t ) ) print pkg " " t ; }' "$declInf" )" \
+	## The floor directives of the packages installed under .local/myx, `<package folder> <rest>` as the cut prints them: read through the .local declares index
+	## (system-index/distro-declares.txt, one `<project id> <declare>` row each), never by globbing the project.inf files. An installed package with no index to
+	## read is a fault, said, and no row may be dropped on its strength.
+	declInf="$declWs/.local/system-index/distro-declares.txt"
+	if [ -f "$declInf" ] ; then
+		declLocal="$( LC_ALL=C awk -v pkg="$declWs/.local/myx/" '{ t = $2 ; if ( sub( /^--magic-team:permissions:workspace:/, "", t ) ) { n = split( $1, id, "/" ) ; print pkg id[n] " " t ; } }' "$declInf" )" \
 			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: cannot read $declInf" >&2 ; return 2 ; }
-		declLocal="$declLocal$declOne"$'\n'
-	done
+		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
+	elif [ -n "$( ls -A "$declWs/.local/myx" 2> /dev/null )" ] ; then
+		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: packages are installed under $declWs/.local/myx but $declInf is not there to read" >&2
+		return 2
+	fi
 	if [ -d "$declWs/source" ] ; then
 		## Source, never --distro-path-auto: the grants are read off project.inf as it stands, and
 		## a prepared or output cache that lags source drops real declarations a rewrite would drop.
@@ -446,7 +451,11 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 		[ "$declVerb" = "allow-write" ] && declPerm="Edit" && return 0
 		[ "$declVerb" = "allow-read" ] && declPerm="Read" && return 0
 		[ "$declVerb" = "allow-tool" ] && [ -n "$declGlob" ] && return 0
-		echo "⛔ ERROR: $declOp: unsupported permissions verb in $declLine: $declVerb (allow-write, allow-read, and allow-tool with a <tool>[:<target>], are implemented)" >&2
+		## The deny twins: a deny row overrides every allow. They are kept as `DenyEdit(...)`, `DenyRead(...)` or a `deny` row, and are no grant.
+		[ "$declVerb" = "deny-write" ] && declPerm="DenyEdit" && return 0
+		[ "$declVerb" = "deny-read" ] && declPerm="DenyRead" && return 0
+		[ "$declVerb" = "deny-tool" ] && [ -n "$declGlob" ] && return 0
+		echo "⛔ ERROR: $declOp: unsupported permissions verb in $declLine: $declVerb (allow-write, allow-read, allow-tool, deny-write, deny-read and deny-tool with a <tool>[:<target>] are implemented)" >&2
 		declTrusted=2
 		return 1
 	}
@@ -471,6 +480,10 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 			## A tool row names no path: one row, whatever the selector.
 			if [ "$declVerb" = "allow-tool" ] ; then
 				printf 'row\t%s:%s:tool:%s\n' "$declMember" "$declName" "$declGlob"
+				continue
+			fi
+			if [ "$declVerb" = "deny-tool" ] ; then
+				printf 'row\t%s:%s:deny:deny-tool:%s\n' "$declMember" "$declName" "$declGlob"
 				continue
 			fi
 			case "$declScope" in

@@ -162,6 +162,21 @@ hookAnswer(){ ## allow|deny, reason
 	exit 0
 }
 
+## A deny row over this path (project.inf, or the access-control rows of the session
+## routine) refuses first, whatever was granted. The session sandbox is exempt.
+hookDenied=""
+hookSandboxPath=""
+if [ -n "$hookIn" ] ; then
+	case "$hookReal" in
+		"$hookIn"|"$hookIn"/*|"$hookOut"|"$hookOut"/*) hookSandboxPath=1 ;;
+	esac
+fi
+if [ -z "$hookSandboxPath" ] && [ -f "$hookLib/grants/AgentsTools.PermissionHolds.include" ] ; then
+	. "$hookLib/grants/AgentsTools.PermissionHolds.include" 2>/dev/null || true
+	hookDenied="$( AgentsToolsPermissionDenyRefusal "$hookMember" "$hookTool" "$hookReal" "$hookSession" 2>/dev/null )" || hookDenied=""
+fi
+[ -z "$hookDenied" ] || hookAnswer deny "$hookDenied"
+
 case "$hookRc" in
 	0)
 		if [ -n "$agentsGrantsCheckOnce" ] ; then

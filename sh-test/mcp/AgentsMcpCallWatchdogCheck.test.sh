@@ -43,6 +43,9 @@
 ## while its caller is told that it was killed.
 ## Offline: one mktemp tree, the watched processes lines of shell that wait, no endpoint and no console started.
 set -u
+## This check holds the numbered-job path of a server that has no session to own a task (epic S20: with a session, execute is a task underneath, held by
+## AgentsMcpToolTaskCheck). The session of the machine running the check must not reach the server.
+export MDAT_TOOL_TASK_OFF=yes
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigSource="${MDLT_ORIGIN:=$MMDAPP/.local}"
 rigPackage="$rigSource/myx/myx.distro-agents"

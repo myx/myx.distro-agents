@@ -108,7 +108,7 @@ rigList(){
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|main-loop.config-check.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-collect.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-remind.last.$$|written by the main loop itself, a step after another in its own shell' \
-		'sh-lib/mcp/AgentsTools.InternMcpServer.include|6|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \
+		'sh-lib/mcp/AgentsTools.InternMcpServer.include|8|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|pid=$$|no file name: said in a log line' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|--intern-mcp-request "$$"|no file name: the server names itself to its request' \
 		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a receipt id, made its own by the first eight of the spawn id' \

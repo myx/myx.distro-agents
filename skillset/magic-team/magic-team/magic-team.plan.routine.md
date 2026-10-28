@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 input-scan-def: none
 review-by: inherit
+runs-at: none
 ---
 # magic-team.plan.routine — the actual procedure
 
@@ -29,7 +30,9 @@ review-by: inherit
 
 # Summary
 
-`magic-team.plan.routine` turns one decided piece of work, smaller than an epic, into a plan the team can approve and run: its pieces, their order, who and what each needs, and how each is verified.
+`magic-team.plan.routine` turns one decided piece of work, smaller than an epic, into a plan the team can approve and run. The plan holds the pieces, their order, who and what each needs, and how each is verified.
+
+Handles: task, project
 
 ## Goals
 
@@ -71,7 +74,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - record each dependency as `blocks`/`blocked-by` between the pieces.
 6. **name-what-each-piece-needs**: for each piece, make the best guess its dispatch can carry, steps:
    - the members and expertise, the access permissions, and the tools, worked out from its targets: paths, pages, any text.
-   - its verification: the check that proves it done, and the case it must fail on, agreed with the member who will verify it (`magic-tester` for software).
+   - its verification: the check that proves it done, and the case it must fail on. Agree both with the member who will verify it (`magic-tester` for software).
    - a destructive or irreversible step inside it, marked for confirmation before it runs.
 7. **imagine-it-failed**: assume the plan was carried out and failed, steps:
    - each participant names what went wrong, without debate.
@@ -108,6 +111,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - The executing member is permitted and obliged to execute every step exactly as written, in order.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- Each round follows **run-a-round** and **stop-or-go**.
 - **Plan, never build.** No piece starts during planning. An experiment the plan needs is filed as `magic-team.investigate.routine` work.
 - **Every piece is checkable.** A piece with no check that can fail is not ready for the plan.
 - **The whole scope, and only it.** A piece outside the stated scope is filed as a proposal, never planned in.
@@ -133,7 +137,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- (draft) This routine exists so that every task smaller than an epic starts from one approved plan: whole in scope, ordered so the system keeps working, and checkable piece by piece.
+- (draft) This routine exists so that every task smaller than an epic starts from one approved plan. The plan is whole in scope, ordered so the work stays usable, and checkable piece by piece.
 
 ## Verbatim-tests (benchmarks)
 
