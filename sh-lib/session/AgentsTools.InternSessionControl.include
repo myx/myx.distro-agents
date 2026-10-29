@@ -314,6 +314,10 @@ AgentsToolsSessionControlJudge(){
 		fi
 		case "$rowState" in
 			finished) ;;
+			## A settled death closes this way too (S21.4, spawn-ended-without-close): the state
+			## word reads failed, same as a run that died on its start, but a settled one is done
+			## with, not open. A genuine spawn-failed keeps the existing open behaviour below.
+			failed) [ "$rowStatus" = "spawn-ended-without-close" ] || controlOpen=$(( controlOpen + 1 )) ;;
 			unknown-foreign)
 				controlForeign=$(( controlForeign + 1 ))
 				case " $controlForeignHosts " in *" $rowHost "*) ;; *) controlForeignHosts="${controlForeignHosts:+$controlForeignHosts }$rowHost" ;; esac
@@ -1117,7 +1121,7 @@ case "$1" in
 			AgentsToolsSessionControlRepoint
 			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
 			## A pipe of its own on 9 that nothing writes: a wait the shell must make itself is a timed read on it, no process.
-			{ controlPipe="$MMDAPP/.local/temp/mdat-waitout.$$" ; rm -f "$controlPipe" ; mkfifo "$controlPipe" && exec 9<> "$controlPipe" && controlPipeOpen="yes" ; rm -f "$controlPipe" ; } 2> /dev/null || :
+			{ controlPipe="$( mktemp "$MMDAPP/.local/temp/mdat-waitout.XXXXXX" )" ; rm -f "$controlPipe" ; mkfifo "$controlPipe" && exec 9<> "$controlPipe" && controlPipeOpen="yes" ; rm -f "$controlPipe" ; } 2> /dev/null || :
 			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
 			if [ "$agentsSessionControlRounds" = 0 ] ; then
 				AgentsToolsSessionControlSay event "the control thread of session $controlSession runs as pid $controlPid, a tick every ${controlTick}s"

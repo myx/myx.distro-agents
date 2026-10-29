@@ -296,6 +296,14 @@
 📘 syntax: DistroAgentsTools.fn.sh --intern-context-show [--team-member <team-member>] [--session-id <session-id>] [--spawn-id <spawn-id>] [--select-workspace <place-name|absolute-path>] [--tooling-origin <spec|absolute-path>]
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-spread <path> [--keep <glob>]...
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-retire <path> --section <glob>...
+📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-state [<key>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-add <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-approve <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-revoke <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-remove <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-harness-read
+📘 syntax: DistroAgentsTools.fn.sh --manager-harness-apply
 
 **IMPORTANT -- for `mcp__myx_distro__execute` and team-harness `Bash` callers:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. Those execution contexts already have `DistroAgentsTools` defined as a shell function before your command runs (except a harness `Bash` command run under a timeout); every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
 
@@ -3582,6 +3590,24 @@
 			`created agents:preset-<preset> <model-id>`
 			Exit 1 with one error line, and no preset left, for a model that is not
 			installed, is none of the feature's or is not a chat model.
+
+		--manager-harness-apply
+			One of the console's own operations (see Notes). The write side of
+			the console's Harness Configuration form: reads its answers off
+			standard input, one `<key>` TAB `<value>` a line, and puts them in
+			the team scope. The keys are HARNESS_STREAM_ATTEMPTS (a whole number
+			from 1 to 10), HARNESS_RETRY_DELAY (a whole number of seconds from
+			0 to 30) and HARNESS_PARALLEL_TOOL_CALLS (on or off). An empty value
+			takes the setting out of the scope. Every line is checked before any
+			is written, and one refused line writes nothing at all, the form's
+			other lines included. Prints one `<word>` TAB `<key>` line an
+			answer: `set`, `removed`, or `unchanged` where the scope already
+			held that value.
+
+		--manager-harness-read
+			One of the console's own operations (see Notes). The read side of
+			that form: the three settings as the team scope holds them, one
+			`<key>` TAB `<value>` row each, an empty value where it holds none.
 
 		--manager-help-read
 		--manager-help-read <Name>.fn.sh
@@ -7629,6 +7655,14 @@
 		them, a person or a script. A call from inside a member's session
 		is refused in one line, magic-coordinator's among them. Each prints
 		plain text for a program to read, in the form its entry gives.
+
+		The syntax list `--help-syntax` prints is the family's, not this
+		tool's alone. It carries the call forms of DistroAgentsSession.fn.sh,
+		DistroAgentsDispatcher.fn.sh, DistroAgentsContacts.fn.sh,
+		DistroAgentsTesting.fn.sh, AgentDispatcherTools.fn.sh and
+		DistroAgentsKnowledge.fn.sh too, so an operator reads one list. Those
+		forms are described in the manual of the tool that serves them, which
+		`--help` prints for that tool.
 
 ##  Examples:
 

@@ -164,6 +164,9 @@ case "$1" in
 					set +e ; return 1
 				fi
 				echo "# $MDSC_CMD: board-trash: deleted and committed ${inboxSourcePath#"$MDAT_DATA_ROOT"/}" >&2
+				## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
+				type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+				AgentsToolsTeamDataPushIfAhead "board-trash inbox source"
 			else
 				## trash/ is flat, has several writers, and `mv` cannot refuse a
 				## collision: this test is the only thing that reports one.
@@ -298,6 +301,9 @@ case "$1" in
 				set +e ; return 1
 			fi
 			echo "# $MDSC_CMD: board-trash: deleted and committed ${sourcePath#"$MDAT_DATA_ROOT"/}" >&2
+			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
+			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataPushIfAhead "board-trash"
 		else
 			## Same flat-trash/ collision refusal as the inbox arm above.
 			local targetPath="$MDAT_DATA_ROOT/trash/$itemName"

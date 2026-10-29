@@ -232,10 +232,31 @@ AgentsHarnessToolListAgents(){
 	esac
 	## A failed run's own reason stands under its row, the first line of the marker the harness kept
 	## beside its record when it ended refused (<sandbox>/<run>.refused). Nothing where none was kept.
+	## A dead run closed by the advance pass (S21.4, spawn-ended-without-close) keeps no such
+	## marker: its reason comes from control/dead of the session instead, the found= moment of
+	## its own line there.
 	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions "$toolView" "$toolSessionId" "$toolState" ) 2>&1 \
 		| LC_ALL=C awk '
 			NF == 13 && $13 == "failed" {
 				print
+				if ( $6 == "spawn-ended-without-close" ) {
+					deadFile = ENVIRON["MMDAPP"] "/.local/agents/sessions/" $2 "/control/dead"
+					foundAt = ""
+					if ( $8 != "-" ) {
+						while ( ( getline deadLine < deadFile ) > 0 ) {
+							if ( index( deadLine, $8 " " ) == 1 ) {
+								deadWordN = split( deadLine, deadWord, " " )
+								for ( deadIdx = 1 ; deadIdx <= deadWordN ; deadIdx++ ) {
+									if ( index( deadWord[deadIdx], "found=" ) == 1 ) { foundAt = substr( deadWord[deadIdx], 7 ) }
+								}
+								break
+							}
+						}
+						close( deadFile )
+					}
+					if ( foundAt != "" ) { print "reason: the process died, found " foundAt }
+					next
+				}
 				reasonFile = ENVIRON["MMDAPP"] "/.local/agents/spawned/" $1 "/" $8 ".refused"
 				if ( $8 != "-" && ( getline reasonLine < reasonFile ) > 0 ) { print "reason: " reasonLine ; close( reasonFile ) ; }
 				next
@@ -366,7 +387,14 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 	toolOut="$( MDAT_SPAWN_AGENT="$harnessAgent" MDAT_SPAWN_SESSION_ID="$( AgentsHarnessSessionKey )" \
 		"$BASH" "$toolFn" "${toolArgs[@]}" 2>&1 )" || toolRc=$?
 	if [ "$toolRc" != "0" ] ; then
+		## A CORRECTION from the plain-language floor is no error: it is the member's to rewrite, and is returned whole.
+		case "$toolOut" in
+			*"CORRECTION"*) printf '%s\n' "$toolOut" | LC_ALL=C sed -n '/CORRECTION/,$p' ; return 0 ;;
+		esac
+		local toolAll="$toolOut"
 		toolOut="$( printf '%s\n' "$toolOut" | LC_ALL=C grep -F 'ERROR:' | tail -1 )"
+		## No ERROR line: what the call did say is returned, never dropped.
+		[ -n "$toolOut" ] || [ -z "$toolAll" ] || toolOut="ERROR: the call failed (rc=$toolRc); its last words were: $( printf '%s\n' "$toolAll" | tail -5 | tr '\n' ' ' )"
 		[ -n "$toolOut" ] || toolOut="ERROR: the call failed (rc=$toolRc) and reported nothing, so what it did is not known. Check the session thread before repeating it."
 		printf 'ERROR: %s\n' "${toolOut#*ERROR: }" ; return 0
 	fi

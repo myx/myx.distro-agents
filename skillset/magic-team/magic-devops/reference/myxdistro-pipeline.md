@@ -95,7 +95,10 @@ The implemented pipeline names one tier more than the sketch does. `README.md`'s
 One `deploy-export:<local-path>:<public-url-path>` declaration lands in two shapes, at two tiers:
 
 - `builders/source-process/2801-copy-exports.sh` places the content at `$MDSC_OUTPUT/distro/<project>/<src>` — one location, organised per project.
-- `builders/image-prepare/3895-sync-export.sh` places it at `.local/output-cache/export/<external-url-path>` — organised by the external address itself, so the export tree mirrors the layout of the public URLs the declarations name.
+- `builders/image-prepare/3895-sync-export.sh` places it at
+  `.local/output-cache/export/<external-url-path>`. That placement follows the
+  external address itself, so the export tree mirrors the layout of the public
+  URLs the declarations name.
 
 What each tree is:
 
@@ -213,7 +216,9 @@ Two genuinely separate mechanisms exist in the index system, feeding different c
 
 ## Building blocks vs. actions — two different layers, don't conflate them
 
-**The building blocks are the dispatchable `sh-scripts/*.fn.sh` commands themselves** — `ExecuteParallel.fn.sh`, `ExecuteSequence.fn.sh`, `BuildDistroFromSource.fn.sh`, `DistroImageSync.fn.sh`, `DeployRouting.fn.sh`, `BuildCachedFromSource.fn.sh`, and the rest of each package's `sh-scripts/` tree. Each one is documented exactly like a myx.common command, by a pair under the owning package's `sh-lib/help/`. The pair is a `Help.<Name>.include` (short syntax) and a `Help.<Name>.help.md` (full manual, rendered the same `myx.common lib/catMarkdown` way). It is invoked as `<Verb> <Name> [args]` through a console (`Source`/`Deploy`/`Local`/`Remote`). **Run `Help` (or `<Verb> --help`) inside the relevant console to see the current roster** — same "check the documented interface before reading source" discipline as myx.common itself. These are what you compose when building something new.
+**The building blocks are the dispatchable `sh-scripts/*.fn.sh` commands themselves** — `ExecuteParallel.fn.sh`, `ExecuteSequence.fn.sh`, `BuildDistroFromSource.fn.sh`, `DistroImageSync.fn.sh`, `DeployRouting.fn.sh`, `BuildCachedFromSource.fn.sh`, and the rest of each package's `sh-scripts/` tree. Each one is documented exactly like a myx.common command, by a pair under the owning package's `sh-lib/help/`. The pair is a `Help.<Name>.include` (short syntax) and a `Help.<Name>.help.md` (full manual, rendered the same `myx.common lib/catMarkdown` way). It is invoked as `<Verb> <Name> [args]` through a console (`Source`/`Deploy`/`Local`/`Remote`). **Run `Help` (or `<Verb> --help`) inside the relevant console to see the current
+roster.** That is the same "check the documented interface before reading
+source" discipline as myx.common itself. These are what you compose when building something new.
 
 **`actions/**` is the opposite layer: complete, proven, predefined pipelines, not raw material.** `myx.distro-deploy`'s own README folder-mask table states it: `actions/** - usable actions (predefined parameters for other scripts)` — a per-project, hand-authored fixed parameter set already bound to one of the building-block commands above. The workspace-root `/actions` tree, of the shape `actions/<category>/<script>.sh`, is explicitly documented as **"workspace actions - executable, non-editable (generated)"**. It is a flattened, aggregated view of every project's own `actions/**`, not something to decompose or chain further.
 
@@ -229,17 +234,18 @@ Two genuinely separate mechanisms exist in the index system, feeding different c
 
 ## A bare `<Tool>.fn.sh` run answers from a built snapshot, not from the working tree
 
-Run by full path outside a console, a `sh-scripts/*.fn.sh` command resolves its own input spec and
-lands on a built artefact — `--distro-from-cached` or `--distro-from-output` depending on what that
-workspace has built — where the same command through `DistroSourceConsole.sh --non-interactive`
-resolves `spec: --distro-from-source`. The bare run reports no staleness: it answers correctly for the
+Run by full path outside a console, a `sh-scripts/*.fn.sh` command resolves
+its own input spec and lands on a built artefact. That artefact is
+`--distro-from-cached` or `--distro-from-output` depending on what that
+workspace has built. The same command through `DistroSourceConsole.sh
+--non-interactive` resolves `spec: --distro-from-source`. The bare run reports no staleness: it answers correctly for the
 snapshot it read, and says nothing about source.
 
 **A console honours an ambient `MMDAPP` exactly as a bare run does.** It derives one from its own
-location only when `MMDAPP` is unset or names no directory — the same guard in every `Distro*Console.sh`. So a session already scoped to one workspace that runs
-a second workspace's console gets the second workspace's tooling pointed at the first one's source
-tree: `ScanSourceProjects.include: no source folder!`, then "No matching projects found" for projects
-that plainly exist. A set-but-wrong `MMDAPP` naming a real directory that is not a workspace fails loud
+location only when `MMDAPP` is unset or names no directory — the same guard in every `Distro*Console.sh`. So a session scoped to one workspace can run a second workspace's console. The
+second workspace's tooling then points at the first one's source tree:
+`ScanSourceProjects.include: no source folder!`, then "No matching projects
+found" for projects that plainly exist. A set-but-wrong `MMDAPP` naming a real directory that is not a workspace fails loud
 instead, on the missing `.local`. To cross a workspace boundary, clear the inherited environment rather
 than relying on the `cd`:
 
@@ -261,14 +267,13 @@ above — that is about a file going stale, this is about which file was read at
 ## The workspace-root consoles are generated, so a correct template proves nothing about a workspace
 
 `DistroSourceConsole.sh`, `DistroLocalConsole.sh`, `DistroDeployConsole.sh` and
-`DistroAgentsConsole.sh` at a workspace root are generated artefacts, not hand-source. The caller runs
-the generated copy, so a fix that has landed in the generating template has not landed for anyone
-until each workspace is regenerated. Reading the template establishes what a *fresh* console would do
+`DistroAgentsConsole.sh` at a workspace root are generated artefacts, not hand-source. The caller runs the generated copy. So a fix that has landed in the generating
+template has not landed for anyone until each workspace is regenerated. Reading the template establishes what a *fresh* console would do
 and nothing about the one on disk.
 
-**And regenerating does not settle it either, because the generator can itself be stale.** A console
-regenerated from a generator that did not yet carry a change is byte-for-byte indistinguishable from
-one never regenerated, and a spawn path guarding on a flag in the generated file then breaks.
+**And regenerating does not settle it either, because the generator can itself be stale.** A console regenerated from a generator that did not yet carry a change is
+byte-for-byte indistinguishable from one never regenerated. A spawn path
+guarding on a flag in the generated file then breaks.
 
 So: **compare a generated artefact's mtime against its generator's, never against the clock.** "It was
 regenerated recently" is not the question; "was the generator current when it ran" is. And state which
@@ -278,9 +283,9 @@ behaves unexpectedly: check it.
 
 ## `BuildSingleIndex.awk` accumulates every provider of a required name, silently
 
-`myx.distro-system/sh-lib/system-context/BuildSingleIndex.awk`, in its requires-resolution block:
-for each `Requires:` value it walks every registered provider of that name and appends all of them to
-the requiring project's list. Only the zero-provider case reports, as `⛔ MISSING:` on stderr. Two
+`myx.distro-system/sh-lib/system-context/BuildSingleIndex.awk`, in its
+requires-resolution block, walks every registered provider of a `Requires:`
+value. It appends all of them to the requiring project's list. Only the zero-provider case reports, as `⛔ MISSING:` on stderr. Two
 projects providing one name is therefore invisible in the sequence, and shows up downstream as work
 done twice or in an order nobody chose.
 
@@ -289,8 +294,9 @@ provided by all three of `os-myx.common-{freebsd,macosx,ubuntu}` and required by
 selector pattern, not a collision. Read duplicates off plain `ListDistroProvides.fn.sh
 --all-provides`, grouping by the provided name in column 2. That option accepts no further options: a
 `--all-provides --no-cache --no-index` form is refused outright, which is easy to misread as the query
-finding nothing. The duplicate set differs per workspace, so a result names the workspace it was taken
-in — the same name that is deliberate in one tree may be absent from another.
+finding nothing. The duplicate set differs per workspace, so a result names the workspace it
+was taken in. A name that is deliberate in one tree may be absent from
+another.
 
 ## Reaching one target, and checking a generated installer
 

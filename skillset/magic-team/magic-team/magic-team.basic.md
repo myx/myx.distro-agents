@@ -269,7 +269,7 @@ The six built-in send targets are `magic-team`, `human-owner`, `event-track`, `e
 - `wtf-reaction-creates-reflection` and `quality-marker-creates-reflection`: a strong confusion or frustration signal, or a `GOOD`/`BAD CONVERSATION`, `INTERVIEW` or `COMMUNICATION` marker, is recorded with `--upsert-inbox-reflection`.
 - `detour-offtopic-marker`: `DETOUR:` and `OFFTOPIC:` content stays out of the active routine's record and transcript.
 - `foreign-language-handling`: reply in the participant's language; keep book-keeping and reasoning in English. A transcript holds the original wording plus an English translation.
-- `transcripts-are-verbatim-records`: interview, discuss and brainstorm exchanges are kept via `--append-transcript`, stamped UTC, verbatim messages only. Commentary is separate.
+- `transcripts-are-verbatim-records`: interview, discuss and brainstorm exchanges are kept via `--append-transcript --transcript-name`, stamped UTC, verbatim messages only. `SessionTranscriptAppend` takes a note line. Commentary is separate.
 - A relay records only that it happened, never the relayed substance.
 
 ### Confirmations, corrections and readbacks

@@ -20,7 +20,9 @@ How the magic-* team is organised: execution model, operating rhythm, work pacin
 
 ## Operating rhythm: seven days a week, one continuous loop
 
-- The team runs a continuous rhythm while the host loop runs: comms checked promptly, inboxes processed, the backlog groomed once a day, the daily work session held.
+- The team runs a continuous rhythm while the host loop runs. Comms is checked
+  promptly, inboxes processed, the backlog groomed once a day, and the daily
+  work session held.
 - Each pass depends on stored state, the day of the week and today's progress.
 - Weekends: communication and light reactive admin, only in answer to an actual request. No proactive dispatch.
 - Work is organised as small, short projects with their own context, goal, states and decisions. Triaged work joins an open project. A project grows by a new task, never by widening a task in progress.
@@ -29,7 +31,9 @@ How the magic-* team is organised: execution model, operating rhythm, work pacin
 
 ## Work-lifecycle pacing: staged by default
 
-- Work moves through stages, not necessarily all, not strictly in order: triage, assignment, investigation and planning, small approved tasks, single-member implementation, testing by a different member.
+- Work moves through stages, not necessarily all, not strictly in order. They
+  are triage, assignment, investigation and planning, small approved tasks,
+  single-member implementation, and testing by a different member.
 - Real pause points sit between stages.
 - Marathon execution, straight through without pauses, is granted explicitly per case. It is never the default.
 

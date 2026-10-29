@@ -165,7 +165,11 @@ function wireData(payload,   errorText, usagePrompt, usageCompletion, usageTotal
 			wireWrite("stream.usage", usagePrompt " " usageCompletion " " usageTotal "\n")
 			usageCached = wireHas("usage.prompt_tokens_details.cached_tokens") ? wireTrim(wireLeaf("usage.prompt_tokens_details.cached_tokens")) : "absent"
 			## The split for the session transcript: cached prompt tokens are a cache read, never a write.
-			wireWrite("stream.usage.detail", ((usagePrompt + 0) - (usageCached + 0)) " " (usageCached + 0) " 0 " (usageCompletion + 0) "\n")
+			## DeepSeek names its cache write: prompt_cache_miss_tokens, the prompt tokens it stored this round. Plain input is what neither read nor wrote.
+			usageMiss = wireHas("usage.prompt_cache_miss_tokens") ? (wireTrim(wireLeaf("usage.prompt_cache_miss_tokens")) + 0) : 0
+			usagePlain = (usagePrompt + 0) - (usageCached + 0) - usageMiss
+			if (usagePlain < 0) usagePlain = 0
+			wireWrite("stream.usage.detail", usagePlain " " (usageCached + 0) " " usageMiss " " (usageCompletion + 0) "\n")
 			print "U"
 			wireField(usagePrompt)
 			wireField(usageCached)

@@ -4,6 +4,7 @@
 📘 syntax: DistroAgentsKnowledge.fn.sh --list-places
 📘 syntax: DistroAgentsKnowledge.fn.sh --get-place-path <name>[/<relative>]
 📘 syntax: DistroAgentsKnowledge.fn.sh --list-namespaces [<namespace>]
+📘 syntax: DistroAgentsKnowledge.fn.sh --local-models-list
 📘 syntax: DistroAgentsKnowledge.fn.sh [--mdat-output-format json] [<project selector: --select-*|--filter-*|--remove-*>] (--add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items)... (--query-keyword <text>|--query-pattern <regex>|--query-glob <glob>|--query-open-and|--query-open-or|--query-close)...
 📘 syntax: DistroAgentsKnowledge.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsKnowledge.fn.sh [--help]
@@ -38,6 +39,17 @@
 		--list-places
 			The registries read: the namespaces, one or all, and every place with its
 			path.
+
+		--local-models-list
+			Prints the models the local server really has installed (the
+			`local` CLI service, AgentsLocalHarness.sh --list-models), one
+			per line, TAB-separated: model, machine profile (1 a normal
+			CPU with constrained or shared RAM, 2 a dedicated or bigger
+			CPU with more RAM, 3 the GPU machine, - where the name carries
+			no size), context window, output budget and the form of the
+			effort none of its family; a model of no known family has -
+			in the last three. Reads only. Prints nothing and ends 1 where
+			the local server cannot be reached. Takes no arguments.
 
 		--get-roster [--team-member <team-member>]
 			The team's roster, a row each, as the tooling holds it.

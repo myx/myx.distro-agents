@@ -121,7 +121,9 @@ NF != 16 && NF != 18 { next ; }
 	## A RUN THAT DIED ON ITS START READS `failed` (sketch 3.6), whatever the registry derives of it: its status says so.
 	runStateWord = ( $6 == "spawn-failed" ? "failed" : $13 ) ;
 	if (runStateWord == "failed") sessionFailed[sessionKey] = 1 ;
-	else if ($6 == "spawn-succeeded" || $6 == "spawn-ended-without-close") sessionEnded[sessionKey] = 1 ;
+	## A settled death and a clean advance-pass close share one status word (spawn-ended-without-close):
+	## $13 already tells them apart (S21.4), so this reads the derived word, never the raw status again.
+	else if (runStateWord == "finished") sessionEnded[sessionKey] = 1 ;
 	if (runStateWord == "unknown-foreign") sessionForeign[sessionKey] = 1 ;
 	if (runStateWord == "unclosed" || runStateWord == "waiting") sessionOpen[sessionKey] = 1 ;
 	if (runStateWord == "starting") sessionStarting[sessionKey] = 1 ;

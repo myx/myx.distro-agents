@@ -19,6 +19,8 @@
 📘 syntax: AgentDispatcherTools.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]
 📘 syntax: AgentDispatcherTools.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]
 📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>)
+📘 syntax: AgentDispatcherTools.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
+📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
 📘 syntax: AgentDispatcherTools.fn.sh [--help-syntax [<op>]]
 📘 syntax: AgentDispatcherTools.fn.sh [--help]
 
@@ -71,6 +73,10 @@
 		--tasks
 			The coordinator's read of the team: the runs (active, waiting, or all),
 			the worktime flags now, and the board's counts with the active items.
+
+		--request-permission-set <item> (--entry <tool[,tool...]:target>... [--purpose <text>])...
+			Asks the human-owner for one permission set covering a whole task or session: one
+			post for every place and tool it needs, answered once.
 
 		--spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<--spawn-session options>]
 			One session spawned, handed whole to DistroAgentsDispatcher.fn.sh

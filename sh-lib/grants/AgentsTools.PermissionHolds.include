@@ -673,20 +673,58 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 	return 1
 }
 
+## The first live session or task grant that covers a call, printed as `<kind> <ref>`: a grant of an
+## approved set, which is the owner's own word and which a standing deny row (project.inf) does not
+## take away. A routine's deny rows still win over it. rc 1 where none covers the call.
+AgentsToolsPermissionSetCovers(){ ## member, tool, natural target, session id
+	local setcMember="$1" setcTool="$2" setcTarget="$3" setcSession="${4:-}" setcStore setcFound
+	[ -n "$setcMember" ] && [ -n "$setcTool" ] && [ -n "$setcSession" ] && [ -n "${MMDAPP:-}" ] || return 1
+	case "$setcSession" in */*|.|..) return 1 ;; esac
+	while IFS= read -r setcStore ; do
+		[ -n "$setcStore" ] || continue
+		if setcFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$setcStore" "$setcMember" "$setcTool" "$setcTarget" hold )" ; then
+			printf '%s' "$setcFound"
+			return 0
+		fi
+	done <<< "$( AgentsToolsPermissionRelatedStores "$setcSession" )"
+	return 1
+}
+
 ## The refusal of a call a routine's deny rows cover: rc 0 and the hint printed (the tool, the routine whose rows deny it, who owns the limit and how to ask),
 ## rc 1 and nothing printed where no deny row covers the call. The name of the tool is the caller's own word and is printed back only if it is a plain name.
-AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id
-	local denyLayer denyName denyTool="${2:-}" denyWhy
+## With `record` as its fifth word the refusal is recorded and its id printed under the hint, so the member can ask
+## for the call by that id. The harness records its own, and passes nothing here.
+AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id, record (optional)
+	local denyLayer denyName denyTool="${2:-}" denyWhy denyId="" denyTools
 	case "$denyTool" in ''|*[!A-Za-z0-9_]*) denyTool="this call" ;; esac
 	if denyLayer="$( AgentsToolsPermissionRoutineDenies "${1:-}" "${2:-}" "${3:-}" "${4:-}" 2> /dev/null )" ; then
 		denyName="${denyLayer#routine-deny }"
 		denyWhy="the access-control rows of its routine $denyName"
 	elif AgentsToolsPermissionStandingDenied "${1:-}" "${2:-}" "${3:-}" > /dev/null 2>&1 ; then
+		## The run's own session folder is its sandbox (epic 20261026 S8 item 2): a read there, such as a result the tooling kept and named, is never denied.
+		case "${2:-}:${3:-}" in
+			Read:"$MMDAPP/.local/agents/sessions/${4:-.}/"*|Grep:"$MMDAPP/.local/agents/sessions/${4:-.}/"*|Glob:"$MMDAPP/.local/agents/sessions/${4:-.}/"*) [ -z "${4:-}" ] || return 1 ;;
+		esac
+		## An approved set's grant is the owner's own word, and outranks a standing deny row.
+		AgentsToolsPermissionSetCovers "${1:-}" "${2:-}" "${3:-}" "${4:-}" > /dev/null && return 1
 		denyWhy="a deny row declared for ${1:-} in project.inf"
 	else
 		return 1
 	fi
 	printf 'ERROR: %s is denied to this session by %s. The owner of the limit is the human-owner; to ask for it, call RequestPermission naming the tool and why, or hand the work to a session that has it. Nothing was done.\n' "$denyTool" "$denyWhy"
+	## The id RequestPermission takes: a denial the member sees is a refusal it can escalate.
+	[ "${5:-}" != record ] || {
+		denyTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		case "${1:-}:${4:-}" in
+			:*|*:) printf 'REFUSAL-ID: none -- this session has no team identity or session id, so the refusal was not recorded and cannot be escalated by id.\n' ; return 0 ;;
+		esac
+		denyId="$( "$BASH" "$denyTools" --intern-op-permission-refusal-log "${1}" --session-id "${4}" --tool "${2}" --target "${3}" --reason "denied by $denyWhy" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
+		case "$denyId" in
+			refusal-*) printf 'REFUSAL-ID: %s\n' "$denyId" ;;
+			*) printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id.\n' ;;
+		esac
+	}
+	return 0
 }
 
 ## The access block of a spawn brief: the refused tools and paths and what the routine adds for this member,
@@ -764,8 +802,10 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 			holdSandbox=1 ; break
 		done <<< "$( AgentsToolsPermissionFloorRoots "$MMDAPP" "$holdMember" read "$holdSession" )"
 	fi
-	## The member's own deny rows (project.inf) win over every allow of every layer, the routine's and the session grants' included.
-	[ -n "$holdSandbox" ] || ! AgentsToolsPermissionStandingDenied "$holdMember" "$holdTool" "$holdTarget" > /dev/null || return 1
+	## The member's own deny rows (project.inf) win over every allow of every layer but one: an
+	## approved set of a session or task, which is the owner's own word (epic S21, entry 20).
+	[ -n "$holdSandbox" ] || ! AgentsToolsPermissionStandingDenied "$holdMember" "$holdTool" "$holdTarget" > /dev/null \
+		|| AgentsToolsPermissionSetCovers "$holdMember" "$holdTool" "$holdTarget" "$holdSession" > /dev/null || return 1
 	## A routine's deny rows win over every layer below, the routine's allows and the session grants included.
 	[ -n "$holdSandbox" ] || ! AgentsToolsPermissionRoutineDenies "$holdMember" "$holdTool" "$holdTarget" "$holdSession" || return 1
 	## A read-only place is written by nobody else, through any layer: its ceiling caps them all.

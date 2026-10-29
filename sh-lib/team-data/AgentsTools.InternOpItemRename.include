@@ -180,6 +180,9 @@ case "$1" in
 				set +e ; return 1
 			fi
 			echo "# $MDSC_CMD: item-rename: committed ${targetPath#"$MDAT_DATA_ROOT"/} (+$touched reference file(s))" >&2
+			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
+			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataPushIfAhead "item-rename"
 		fi
 		return 0
 	;;

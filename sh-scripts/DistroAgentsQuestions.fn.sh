@@ -53,6 +53,7 @@ DistroAgentsQuestions(){
 		## Stubs: the operations that moved to another tool file. The call goes on there, and the place is said.
 		--settle-pending-reply)
 			echo "$MDSC_CMD: $1 moved to DistroAgentsSession.fn.sh $1 -- this name still works" >&2
+			type DistroAgentsSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSession.fn.sh"
 			DistroAgentsSession "$@"
 			return $?
 		;;
@@ -69,6 +70,7 @@ DistroAgentsQuestions(){
 
 		--request-permission-set)
 			echo "$MDSC_CMD: $1 moved to AgentDispatcherTools.fn.sh $1 -- this name still works" >&2
+			type AgentDispatcherTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentDispatcherTools.fn.sh"
 			AgentDispatcherTools "$@"
 			return $?
 		;;

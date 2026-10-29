@@ -63,12 +63,43 @@ hookWs="${MMDAPP:-}"
 [ -n "$hookWs" ] || hookWs="$( cd -P "${0%/*}/../.." 2>/dev/null && pwd -P )" || hookWs=""
 hookWs="${hookWs%/}"
 
+## The run's tokens for the panel and the session read: <workspace>/.local/agents/sessions/<id>/tokens, one line,
+## `<in> <cache-read> <cache-write> <out>`, as a harness run's transcript keeps it. Summed whole from a log: each assistant
+## message once, by its id, at the last usage the log gives it (a message's blocks repeat it).
+hookTokensWrite(){ ## log
+	local tokensFile tokensTmp
+	[ -n "$hookWs" ] && [ -d "$hookWs/.local/agents/sessions/$hookId" ] && [ -f "$1" ] || return 0
+	tokensFile="$hookWs/.local/agents/sessions/$hookId/tokens"
+	tokensTmp="$( mktemp "$tokensFile.XXXXXX" 2> /dev/null )" || return 0
+	LC_ALL=C awk '
+		function num(key,    at, rest) { at = index(usage, "\"" key "\":") ; if (at == 0) return 0 ; rest = substr(usage, at + length(key) + 3) ; sub(/^ */, "", rest) ; return rest + 0 }
+		index($0, "\"type\":\"assistant\"") && index($0, "\"usage\":{") {
+			if (!match($0, /"id":"msg_[^"]*"/)) next
+			msgId = substr($0, RSTART, RLENGTH)
+			usage = substr($0, index($0, "\"usage\":{"))
+			if (!(msgId in seen)) { seen[msgId] = 1 ; order[++count] = msgId }
+			tin[msgId] = num("input_tokens") ; tcr[msgId] = num("cache_read_input_tokens") ; tcw[msgId] = num("cache_creation_input_tokens") ; tout[msgId] = num("output_tokens")
+		}
+		END { for (i = 1 ; i <= count ; i++) { k = order[i] ; a += tin[k] ; b += tcr[k] ; c += tcw[k] ; d += tout[k] } ; if (count > 0) printf "%d %d %d %d\n", a, b, c, d }
+	' "$1" > "$tokensTmp" 2> /dev/null && [ -s "$tokensTmp" ] && mv -f "$tokensTmp" "$tokensFile" 2> /dev/null || rm -f "$tokensTmp"
+	return 0
+}
+
 case "$hookMode" in
 	start)
 		printf '%s\n' "$hookLog" > "$hookRoot/$hookId.native.path" 2> /dev/null || :
 		if [ -n "$hookWs" ] && [ -d "$hookWs/.local/agents" ] && mkdir -p "$hookWs/.local/agents/sessions/$hookId" 2> /dev/null ; then
 			printf '%s\n' "$hookCopy" > "$hookWs/.local/agents/sessions/$hookId/native-log" 2> /dev/null || :
 		fi
+		exit 0
+	;;
+	tokens)
+		## PostToolUse: a spawned member works in one long turn, so Stop may not come while it runs. The sum is taken from the
+		## client's live log, at most once in 30 s.
+		hookTokensFile="$hookWs/.local/agents/sessions/$hookId/tokens"
+		[ ! -f "$hookTokensFile" ] || [ -z "$( find "$hookTokensFile" -newermt '-30 seconds' 2> /dev/null )" ] || exit 0
+		[ -f "$hookLog" ] && [ -r "$hookLog" ] || exit 0
+		hookTokensWrite "$hookLog"
 		exit 0
 	;;
 	keep|end) ;;
@@ -87,4 +118,5 @@ if chmod 600 "$hookTemp" 2> /dev/null && cp -- "$hookLog" "$hookTemp" 2> /dev/nu
 else
 	rm -f "$hookTemp"
 fi
+hookTokensWrite "$hookCopy"
 exit 0

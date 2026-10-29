@@ -1788,7 +1788,7 @@ case "$1" in
 		shift
 		MDSC_CMD="$MDSC_CMD $passOp"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-		local passBy="${1:-}" passTo="" passTool="" passTarget="" passKind="" passTask="" passSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
+		local passBy="${1:-}" passTo="" passTool="" passTarget="" passKind="" passTask="" passSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 		shift || true
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -1952,7 +1952,7 @@ case "$1" in
 		shift
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-		local setBy="${1:-}" setItem="${2:-}" setScope="task" setSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" setEntries="" setExtra="" setHeld="" setNamed=""
+		local setBy="${1:-}" setItem="${2:-}" setScope="task" setSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" setEntries="" setExtra="" setHeld="" setNamed=""
 		## --purpose <text> says what the access will be used for: it follows the entries of the
 		## place it is for, and is the purpose of every entry since the --purpose before it.
 		local setSince="" setPurposeOf="" setPurposeText setSinceOne

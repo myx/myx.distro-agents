@@ -690,7 +690,8 @@ AgentsToolsGrantsSessionEnded(){ ## session store directory
 			case "$endedFront:$endedLine" in
 				':---') endedFront=1 ;;
 				'1:status: spawn-started') return 1 ;;
-				'1:status: spawn-'*) return 0 ;;
+				## A session whose first launch failed may run on under a later spawn of its own folder: it has not ended while one is started.
+				'1:status: spawn-'*) LC_ALL=C grep -qs '^status: spawn-started$' "$endedRoot/$endedId"/*.spawn.md && return 1 ; return 0 ;;
 				'1:---'|'1:# '*|':'*) break ;;
 			esac
 		done < "$endedRecord"

@@ -10,10 +10,39 @@
 ## dependencies) is done by the tooling before, in the main loop's housekeeping (AgentsTools.SpawnHousekeeping.include,
 ## AgentsTools.BoardDependencies.include).
 ##
+## S4.5/5.5: AgentsToolsBoardRoundSections' own call to the session-context-scan board digest, once per active board item (239 of them on
+## prv-farm's real team data), re-derived the fixed type table and, for a --for-round check, rescanned the whole real spawned/ tree -- both
+## again per item. Timed against that real data: 37s, almost all of it there. This function now scans each of those ONCE here and exports them
+## (AGENTS_BOARD_TYPE_TABLE_CACHE, AGENTS_BOARD_LIVE_HOLDERS_CACHE) for AgentsTools.BoardItemHandler.include's functions to use instead of
+## recomputing -- an opt-in override those functions fall back from when unset, so every other caller (AgentsBoardItemHandlerCheck.test.sh
+## among them) keeps its original, unchanged behaviour. AgentsToolsBoardRecheckDueSection had the same one-fork-per-file shape and is batched
+## the same way, into one awk call over every matched file instead of two per file.
+##
 
 ## The board digest, the review items addressed to advance.routine and the registries. rc: that of the digest.
 AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is called as (for the log)
 	local roundRc=0
+	## One scan of the type table and of the real spawned/ tree, for this one round -- not kept past this call, and not visible to any
+	## caller of AgentsToolsBoardTypeTable/AgentsToolsBoardItemHolders that does not itself set these two variables.
+	## Computed into plain locals FIRST: declaring the AGENTS_BOARD_*_CACHE locals before they hold a real value would
+	## already read as "set" to the very call below that is supposed to compute them, short-circuiting it to empty.
+	local roundTypeTable roundLiveHolders
+	type AgentsToolsBoardTypeTable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+	roundTypeTable="$( AgentsToolsBoardTypeTable )" || roundTypeTable=""
+	roundLiveHolders=""
+	[ -z "${MMDAPP:-}" ] || roundLiveHolders="$(
+		LC_ALL=C awk '
+			FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 }
+			$0 == "---" { if (++fm == 2 && status == "spawn-started" && !ended) printf "%s\t%s\t%s\n", owner, spawn, sid ; next }
+			fm == 1 && index($0, "owner: ") == 1 { owner = substr($0, 8) }
+			fm == 1 && index($0, "session-id: ") == 1 { sid = substr($0, 13) }
+			fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
+			fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
+			fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
+		' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null
+	)"
+	local AGENTS_BOARD_TYPE_TABLE_CACHE="$roundTypeTable" AGENTS_BOARD_LIVE_HOLDERS_CACHE="$roundLiveHolders"
+	export AGENTS_BOARD_TYPE_TABLE_CACHE AGENTS_BOARD_LIVE_HOLDERS_CACHE
 	## Scoped to what the rules act on, per the owner's "grooming reads backlog+inquiries+notes, advance does not": no backlog (promotion is
 	## grooming's), and no inbox at all: the one caller, the work-duty scan, prints the own inbox (notes among it, the pending-slack-reaction and
 	## pending-trello-update records check-pending-comms-actions reads) in its first section, and a second print of the notes was 56 KB of the
@@ -44,22 +73,39 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 
 ## The items of the active states whose recheck-date has arrived: one `- <state>/<item> recheck-date <date>` line each, or `(none)`.
 AgentsToolsBoardRecheckDueSection(){
-	local dueNow dueState dueFile dueRow dueItem dueDate dueEpoch dueOut="" dueN=0
+	local dueNow dueState dueFile dueOut="" dueN=0
 	dueNow="$( date +%s )"
 	printf '\n%s\n\n' "## recheck dates due"
+	local dueFiles=() dueLabels=()
 	for dueState in pending running review blocked parked ; do
 		for dueFile in "$MDAT_DATA_ROOT/board/$dueState"/*.md ; do
 			[ -f "$dueFile" ] || continue
-			dueRow="$( LC_ALL=C awk -v row="$dueState/${dueFile##*/}" 'FNR == 1 { fm = ( $0 == "---" ) ; next } fm && $0 == "---" { exit } fm && index( $0, "recheck-date: " ) == 1 { print row "\t" substr( $0, 15 ) ; exit }' "$dueFile" )"
-			[ -n "$dueRow" ] || continue
-			dueItem="${dueRow%%$'\t'*}" dueDate="${dueRow#*$'\t'}"
+			dueFiles+=( "$dueFile" )
+			dueLabels+=( "$dueState/${dueFile##*/}" )
+		done
+	done
+	if [ ${#dueFiles[@]} -gt 0 ] ; then
+		local dueRows dueItem dueDate dueEpoch
+		## One awk pass over every matched file instead of one fork each: FNR == 1 marks a new file, exactly as the
+		## labels array does, so the two stay in step without re-opening any file a second time.
+		dueRows="$(
+			LC_ALL=C awk -v labelsStr="$( printf '%s\x1c' "${dueLabels[@]}" )" '
+				BEGIN { split(labelsStr, labelArr, "\x1c") }
+				FNR == 1 { fm = 1 ; found = 0 ; fileIdx++ ; if ( $0 != "---" ) fm = 0 ; next }
+				fm == 0 { next }
+				$0 == "---" { fm = 0 ; next }
+				!found && index($0, "recheck-date: ") == 1 { printf "%s\t%s\n", labelArr[fileIdx], substr($0, 15) ; found = 1 }
+			' "${dueFiles[@]}"
+		)"
+		while IFS=$'\t' read -r dueItem dueDate ; do
+			[ -n "$dueItem" ] || continue
 			dueEpoch="$( printf '%s\n' "$dueDate" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
 			case "$dueEpoch" in ''|*[!0123456789]*) continue ;; esac
 			[ "$dueEpoch" -le "$dueNow" ] || continue
 			dueN=$(( dueN + 1 ))
 			dueOut="$dueOut- $dueItem recheck-date $dueDate"$'\n'
-		done
-	done
+		done <<< "$dueRows"
+	fi
 	if [ "$dueN" -gt 0 ] ; then printf '%s' "$dueOut" ; else printf '(none)\n' ; fi
 	return 0
 }

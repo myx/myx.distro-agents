@@ -24,7 +24,10 @@
 ##                   transcripts of 2026-10-10 to 12): after 5.5 to 50 minutes idle every
 ##                   round read its history from the cache, 41 of 41, and the first that
 ##                   did not came after 54 minutes. So three quarters of an hour.
-agentsCliServiceWaitRounds="claude-native:2700"
+##   deepseek        its context cache is kept on disk and cleared only after hours to days
+##                   unused (the service's own documentation), so the same three quarters of an
+##                   hour: a round of 270 s re-sent the whole context every 4.5 minutes idle.
+agentsCliServiceWaitRounds="claude-native:2700 deepseek:2700"
 ## The safe round, of every other service: four and a half minutes, under a five-minute cache.
 agentsCliServiceWaitRoundSafe=270
 

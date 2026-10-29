@@ -172,7 +172,7 @@ case "$1" in
 			exec < /dev/null >> "$commsDir/log" 2>&1
 			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
 			## A pipe of its own on 9 that nothing writes: a wait the shell must make itself is a timed read on it, no process.
-			{ commsPipe="$MMDAPP/.local/temp/mdat-waitout.$$" ; rm -f "$commsPipe" ; mkfifo "$commsPipe" && exec 9<> "$commsPipe" && commsPipeOpen="yes" ; rm -f "$commsPipe" ; } 2> /dev/null || :
+			{ commsPipe="$( mktemp "$MMDAPP/.local/temp/mdat-waitout.XXXXXX" )" ; rm -f "$commsPipe" ; mkfifo "$commsPipe" && exec 9<> "$commsPipe" && commsPipeOpen="yes" ; rm -f "$commsPipe" ; } 2> /dev/null || :
 			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
 		fi
 		if [ -n "$commsTookOver" ] ; then

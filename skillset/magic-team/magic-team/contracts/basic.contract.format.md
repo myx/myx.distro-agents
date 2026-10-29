@@ -21,7 +21,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Name**: [persona name.]
 - **Gender**: [.]
 - **Eyes**: [.]
-- **Alias**: [`handle`. For a `client-*` member this is its own member name — its persona `Name` above is the other organisation's presentation only, never used inside the team.]
+- **Alias**: [`handle`. For a `client-*` member this is its own member name. Its persona `Name` above
+  is the other organisation's presentation only, never used inside the team.]
 - **AKA**: [the short forms this member answers to.]
 - **Birthday**: [YYYY-MM-DD.]
 

@@ -74,7 +74,7 @@ AgentsToolsCoordinatorSpawnAllowed(){ ## operation
 ## The spawn: the `session` form is delegated whole to DistroAgentsDispatcher; the `prompt` form starts the named member with its prompt on stdin, through
 ## AgentsHarnessToolAgent (AgentsHarnessSpawn.include), made as the member this call is made as.
 AgentsToolsCoordinatorSpawn(){ ## operation, arguments...
-	local spawnForm spawnMember spawnCli="" spawnName="" spawnSession="" spawnConversation="" spawnDescription="" spawnNew="" spawnSettings="" spawnPrompt spawnOut
+	local spawnForm spawnMember spawnCli="" spawnName="" spawnSession="" spawnConversation="" spawnDescription="" spawnNew="" spawnSettings="" spawnPrompt spawnOut spawnPromptFile=""
 	spawnForm="$( AgentsToolsCoordinatorSpawnForm "$@" )" || { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: give --routine <selector> (or --routine-default) to start a coworking session, or a member name with the prompt on stdin to start a member -- nothing was done" >&2 ; return 1 ; }
 	AgentsToolsCoordinatorSpawnAllowed "$1" || return 1
 	shift
@@ -92,11 +92,18 @@ AgentsToolsCoordinatorSpawn(){ ## operation, arguments...
 			--description) spawnDescription="${2:-}" ; shift 2 ;;
 			--new-session) spawnNew="true" ; shift ;;
 			--settings-workspace) spawnSettings="${2:-}" ; shift 2 ;;
+			## A caller with no stdin of its own, such as a tool call, names a file that holds the prompt.
+			--prompt-file) spawnPromptFile="${2:-}" ; shift 2 ;;
 			*) echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: invalid option: $1 -- nothing was done" >&2 ; return 1 ;;
 		esac
 	done
-	[ -t 0 ] && { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: the prompt of the member goes in on stdin -- nothing was done" >&2 ; return 1 ; }
+	if [ -n "$spawnPromptFile" ] ; then
+		[ -s "$spawnPromptFile" ] || { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: --prompt-file names no readable, non-empty file: $spawnPromptFile -- nothing was done" >&2 ; return 1 ; }
+		IFS= read -r -d '' spawnPrompt < "$spawnPromptFile" || :
+	else
+	[ -t 0 ] && { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: the prompt of the member goes in on stdin, or in --prompt-file -- nothing was done" >&2 ; return 1 ; }
 	IFS= read -r -d '' spawnPrompt || :
+	fi
 	type AgentsHarnessToolAgent > /dev/null 2>&1 || {
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" || {
 			echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: the spawn function is missing from this package -- nothing was done" >&2 ; return 1 ; }

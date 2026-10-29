@@ -206,12 +206,13 @@ AgentsHarnessAnnounceTool(){
 			announceIcon="👥"
 			announceDetail="$harnessDim running agent sessions$harnessOff"
 		;;
-		## Every argument is optional here, so the whole object is shown rather than one
-		## named field: a call that may hold this run for minutes has to be visible in
-		## full, and a bare Wait{} announcing an empty detail would look like a stall.
+		## Every argument is optional here, so its mode is shown even when none was given: a call
+		## that may hold this run for minutes has to be visible, and a bare Wait{} announcing an
+		## empty detail would look like a stall.
 		Wait)
 			announceIcon="⏳"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announceArgsRaw" )$harnessOff"
+			## Its mode and bound, never the raw object: what it is for follows on the why line.
+			announceDetail="$harnessValue${harnessArgV_mode:-default}$harnessOff${harnessArgV_timeout:+$harnessDim, ${harnessArgV_timeout} s$harnessOff}${harnessArgV_sources:+$harnessDim, sources$harnessOff $harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_sources}" )$harnessOff}"
 		;;
 		## The four report tools are SendMessage with a fixed shape, so each announces the
 		## one field that identifies the call rather than the whole body it composed.
@@ -344,6 +345,9 @@ AgentsHarnessAnnounceTool(){
 	esac
 	## Named in the title as it starts, so a long call says what it is waiting on
 	## without the reader hunting back through scrollback for the announce line.
+	## What the call is for, as the model said it, on its own labelled line below, for every tool that carries one:
+	## a native run shows it the same way (AgentsClaudeStreamJsonFormat.awk).
+	[ -z "${harnessArgV_description:-}" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim why$harnessOff $harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_description}" )$harnessOff"
 	AgentsHarnessTitleState "$announceFuncName"
 	printf '   %s %s%-*s%s %s\n' "$announceIcon" "$harnessTool" "$harnessLabelWidth" "$( AgentsHarnessTruncateArg "$announceFuncName" )" "$harnessOff" "$announceDetail" >&2
 }

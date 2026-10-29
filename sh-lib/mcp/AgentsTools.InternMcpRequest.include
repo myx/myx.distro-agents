@@ -206,10 +206,18 @@ AgentsMcpExecuteRun(){
 }
 
 ## A secondary tool's operation, run as a task, in the tool file that is the tool: sourced and called as
-## DistroAgentsTools routes a name (AgentsToolsFrontRoute). Its stdout and stderr are the result.
+## DistroAgentsTools routes a name (AgentsToolsFrontRoute). Its stdout and stderr are the result. The
+## acting member is already known from the calling session (mcpGateMember): passed explicitly by
+## --team-member, so a bare positional argument is never mistaken for it and stays the operation's own.
+## --help-syntax is excepted: it reads its own next word as the name to show, before any common option
+## is parsed, so --team-member is never its own to receive.
 AgentsMcpSecondaryRun(){
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh"
-	"$mcpToolName" "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" 2>&1
+	if [ -n "$mcpGateMember" ] && [ "--help-syntax" != "$mcpSecondaryOp" ] ; then
+		"$mcpToolName" "$mcpSecondaryOp" --team-member "$mcpGateMember" "${mcpSecondaryArgs[@]}" 2>&1
+	else
+		"$mcpToolName" "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" 2>&1
+	fi
 }
 
 ## The pid a job's pid file names: its first word. The file holds one line, `<pid> <start>`, the
@@ -434,10 +442,18 @@ case "$1" in
 				## The deny rows of the routine the session runs refuse a tool at call time, with the hint that names the owner and how to ask; the list itself is the same for everyone.
 				mcpRootRefusal=''
 				mcpGateMember="${MDAT_SPAWN_AGENT:-}" ; mcpGateSession="${mcpRootSessionId:-${MDAT_SPAWN_SESSION_ID:-}}"
+				mcpGateTarget=''
+				## The path the call names, for the refusal record: a refused Read is asked for again by its target.
+				case "$mcpToolName" in
+					Read|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|Execute|Bash)
+						mcpGateTarget="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments.file_path" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || mcpGateTarget=''
+						[ -n "$mcpGateTarget" ] || mcpGateTarget="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments.path" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || mcpGateTarget=''
+					;;
+				esac
 				[ -z "${mcpRootSessionId:-}" ] || [ -n "$mcpGateMember" ] || mcpGateMember="magic-coordinator"
 				if [ -n "$mcpGateMember" ] && [ "RootSession" != "$mcpToolName" ] ; then
 					type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || :
-					mcpRootRefusal="$( AgentsToolsPermissionDenyRefusal "$mcpGateMember" "$mcpToolName" "" "$mcpGateSession" 2> /dev/null )" || mcpRootRefusal=''
+					mcpRootRefusal="$( AgentsToolsPermissionDenyRefusal "$mcpGateMember" "$mcpToolName" "$mcpGateTarget" "$mcpGateSession" record 2> /dev/null )" || mcpRootRefusal=''
 				fi
 				if [ -n "${mcpMintStuck:-}" ] && [ "RootSession" != "$mcpToolName" ] ; then
 					AgentsMcpSendError "$mcpId" -32602 "The root-harness session of this server is still being minted, so no tool is run until its profile binds; nothing was run. Call again once RootSession has answered."
@@ -613,7 +629,7 @@ case "$1" in
 						rm -f "$mcpKillFile"
 						mcpExitCode=0
 						set -m
-						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh" ; "$mcpToolName" "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" ) > "$mcpOutFile" 3>&- 2>&1 &
+						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh" ; if [ -n "$mcpGateMember" ] && [ "--help-syntax" != "$mcpSecondaryOp" ] ; then "$mcpToolName" "$mcpSecondaryOp" --team-member "$mcpGateMember" "${mcpSecondaryArgs[@]}" ; else "$mcpToolName" "$mcpSecondaryOp" "${mcpSecondaryArgs[@]}" ; fi ) > "$mcpOutFile" 3>&- 2>&1 &
 						mcpCmdPid=$!
 						AgentsMcpCallWatch 3600 "$mcpCmdPid" "$mcpKillFile" 3>&- &
 						mcpWatchPid=$!

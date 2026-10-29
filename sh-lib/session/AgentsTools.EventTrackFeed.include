@@ -123,10 +123,13 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
 	## Its starter, the shell whose TERM ends it, read once. Once its parent is no longer that shell (a proxy ended by KILL),
 	## nothing would end it: it posts what is open and ends by itself.
-	local runSelf runStarter runEpoch0 runSecs0 runRound=0
+	local runSelf runStarter runEpoch0 runSecs0 runRound=0 runPipe runPipeOpen=""
 	runSelf="$( exec sh -c 'echo "$PPID"' )"
 	runStarter="$( ps -o ppid= -p "$runSelf" 2> /dev/null | tr -d ' ' )"
-	## The clock is read once and counted on by the shell: an idle poll starts no process but its sleep.
+	## A pipe of its own, nothing writing it: the wait between two polls is the shell's own timed read on
+	## it, no process. Without one, a sleep is started and waited for, as before.
+	{ runPipe="$( mktemp "$MMDAPP/.local/temp/mdat-etfeed.XXXXXX" )" ; rm -f "$runPipe" ; mkfifo "$runPipe" && exec 9<> "$runPipe" && runPipeOpen="yes" ; rm -f "$runPipe" ; } 2> /dev/null || :
+	## The clock is read once and counted on by the shell: an idle poll starts no process at all.
 	runEpoch0="$( date +%s )" ; runSecs0="$SECONDS"
 	while : ; do
 		## The starter gone is asked of the shell itself (kill -0) each poll; whether its parent is still that shell (a reused pid)
@@ -169,7 +172,6 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 		runNap="$runPoll"
 		[ -z "$runOpen" ] || [ $(( runSince + 7 - runNow )) -ge "$runNap" ] || runNap=$(( runSince + 7 - runNow ))
 		[ "$runNap" -ge 1 ] || runNap=1
-		sleep "$runNap" &
-		wait $! 2>/dev/null || :
+		if [ -n "$runPipeOpen" ] ; then read -t "$runNap" -u 9 2> /dev/null || : ; else sleep "$runNap" 2> /dev/null || : ; fi
 	done
 }

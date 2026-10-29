@@ -96,7 +96,9 @@ All statements apply at the same time, always. These rules override a magic-team
 
 ## Idle-Tasks
 
-[Scheduling policy for this member's idle-run routines: one entry per idle-run `<member>.<name>.routine`. Each states its relative `weight`, its `min-interval` (wall-clock "not more frequent than" cap), and its `scope`. The `## daily-idle-task` procedure selects from this list — weighted-random among eligible entries — never from a directory listing; a routine not listed here is not idle-run. The universal research-own-duties activity is always one more eligible candidate beyond the listed routines. Omit this subsection only if the member has no idle-run routines at all.]
+[Scheduling policy for this member's idle-run routines: one entry per idle-run `<member>.<name>.routine`. Each states its relative `weight`, its `min-interval` (wall-clock "not more frequent than" cap), and its `scope`. The `## daily-idle-task` procedure selects from this list, weighted-random
+among eligible entries, never from a directory listing. A routine not listed
+here is not idle-run. The universal research-own-duties activity is always one more eligible candidate beyond the listed routines. Omit this subsection only if the member has no idle-run routines at all.]
 
 # Team-Member's (-specific) tooling
 

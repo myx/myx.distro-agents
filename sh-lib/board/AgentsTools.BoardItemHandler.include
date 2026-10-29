@@ -19,6 +19,14 @@
 ##   AgentsToolsRoutineHandles <file> <type>   rc 0 where the routine's own text says it handles the type.
 ##   AgentsToolsRoutineFileOf <name>      the file of a routine named by its file name, or as `<name>.routine`; rc 1 where no routine has it.
 ##
+## S4.5/5.5: AgentsToolsBoardTypeTable and AgentsToolsBoardItemHolders take an OPT-IN override from the environment,
+## AGENTS_BOARD_TYPE_TABLE_CACHE and AGENTS_BOARD_LIVE_HOLDERS_CACHE -- set by a caller that already scanned once for
+## its whole round (AgentsToolsBoardRoundSections, AgentsTools.BoardRoundScan.include). Unset, both behave exactly as
+## before: no caller that does not know about the override sees any different answer. A per-function self-cache was
+## tried first and rejected: AgentsBoardItemHandlerCheck.test.sh sources this once and runs several differing
+## scenarios in that one process, and a self-cache cannot tell those apart. An externally-supplied override has no
+## such problem, because nothing is cached here across calls -- the caller that computed it owns its one lifetime.
+##
 
 ## The roots a routine file is looked for under: the skillset root of the run, and the package's own.
 AgentsToolsBoardItemRoutineDirs(){
@@ -42,6 +50,10 @@ AgentsToolsRoutineFileOf(){ ## name
 }
 
 AgentsToolsBoardTypeTable(){
+	if [ -n "${AGENTS_BOARD_TYPE_TABLE_CACHE+x}" ] ; then
+		[ -z "$AGENTS_BOARD_TYPE_TABLE_CACHE" ] || printf '%s\n' "$AGENTS_BOARD_TYPE_TABLE_CACHE"
+		return 0
+	fi
 	local tableFile
 	tableFile="$( AgentsToolsRoutineFileOf magic-team.advance.routine.md )" || return 1
 	LC_ALL=C awk '
@@ -160,6 +172,14 @@ AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and th
 	holdMembers="$( AgentsToolsBoardItemKey "$1" owner ),$( AgentsToolsBoardItemKey "$1" participants )"
 	holdSession="$( AgentsToolsBoardItemKey "$1" session-id )"
 	[ -n "${MMDAPP:-}" ] || return 0
+	if [ -n "${AGENTS_BOARD_LIVE_HOLDERS_CACHE+x}" ] ; then
+		[ -n "$AGENTS_BOARD_LIVE_HOLDERS_CACHE" ] || return 0
+		LC_ALL=C awk -F '\t' -v members="$holdMembers" -v session="$holdSession" '
+			BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
+			($1 in want) && (session == "" || $3 == session || $2 == session) { print }
+		' <<< "$AGENTS_BOARD_LIVE_HOLDERS_CACHE"
+		return 0
+	fi
 	LC_ALL=C awk -v members="$holdMembers" -v session="$holdSession" '
 		BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
 		FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 }

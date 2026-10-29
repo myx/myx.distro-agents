@@ -123,7 +123,8 @@ AgentsWireToolResultRecord(){ ## call id, result text, date line (optional)
 	local resultCallId="$1" resultText="$2" resultDate="${3:-}" resultCallIdEsc resultTextEsc
 	resultCallIdEsc="$resultCallId"
 	AgentsWireEscapeBare "$resultCallId" > /dev/null || resultCallIdEsc="$( printf '%s' "$resultCallId" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
-	resultTextEsc="$( printf '%s' "$resultText" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	## Valid UTF-8 only: a byte cap can cut a character, and the service refuses the whole request for one bad byte.
+	resultTextEsc="$( printf '%s' "$resultText" | { iconv -f UTF-8 -t UTF-8 -c 2> /dev/null || cat ; } | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
 	if [ -n "$resultDate" ] ; then
 		printf '%s' '{"role":"tool","tool_call_id":"'"$resultCallIdEsc"'","content":[{"type":"text","text":"'"$resultTextEsc"'"},{"type":"text","text":"'"$( printf '%s' "$resultDate" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}]}'
 		return 0

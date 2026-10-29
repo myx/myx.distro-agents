@@ -41,7 +41,9 @@ runs-at: none
 ## Scope
 
 - Does:
-  - Sweep the live platforms — email, Trello, Slack — for two source sets at once: the executor's own team sources, and every `client-*` member's own external sources. A `client-*` member is an avatar of this routine's executor, so its traffic is swept here; no routine belongs to one client.
+  - Sweep the live platforms (email, Trello, Slack) for two source sets at once.
+    Those are the executor's own team sources, and every `client-*` member's
+    own external sources. A `client-*` member is an avatar of this routine's executor, so its traffic is swept here; no routine belongs to one client.
   - Treat two kinds of traffic differently. A message addressed from one member to another is **routed**: the coordinator delivers it and does not answer it. A message addressed to the coordinator, any DM, any client DM, and an unaddressed external request in a team channel is **handled** here.
   - Run inside the coordinator's board round (`magic-coordinator.work-duty.routine`) every pass, in `magic-coordinator.daily.routine`, in `magic-coordinator.coordination-session.routine`, or standalone on request.
 - Doesn't:

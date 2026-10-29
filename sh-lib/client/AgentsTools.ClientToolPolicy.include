@@ -231,6 +231,8 @@ AgentsToolsClientToolPolicyHookRecords(){
 	## the end of every turn and at the end of the session, which carries its own timeout, 5 s, as the root session's end does.
 	recordOut="${recordOut}SessionStart	native	.claude/hooks/native-transcript-keep.sh start		native-transcript-keep.sh	start"$'\n'
 	recordOut="${recordOut}Stop	native	.claude/hooks/native-transcript-keep.sh keep		native-transcript-keep.sh	keep"$'\n'
+	## A spawned member works in one long turn, so Stop may not come while it runs: after each tool call, its tokens from the live log, at most once in 30 s.
+	recordOut="${recordOut}PostToolUse	native	.claude/hooks/native-transcript-keep.sh tokens		native-transcript-keep.sh	tokens"$'\n'
 	## After the client compacts the conversation of a spawned session, its floor may be gone: the matcher `compact` of SessionStart adds a
 	## pointer to the context that tells the member to load it again (client-hooks/floor-after-compact.sh). Grok Build and Copilot CLI have
 	## no such matcher: the same script serves them through a PostCompact/preCompact marker and the next tool call (its `config` mode).

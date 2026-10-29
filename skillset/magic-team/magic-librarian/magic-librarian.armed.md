@@ -72,8 +72,8 @@ Named procedure blocks. Steps below call them by name. Not separate routines —
 
 Steps:
 1. Resolve the documentation units in scope (Documentation units, below).
-2. Run the structural pass: `README.md` and `MAGIC.md` exist where expected; files, commands and paths they reference still exist; internal links resolve.
-3. Go deeper — documented behaviour against the implementation — only when asked for a deep check, or when the structural pass cannot settle something.
+2. Run the structural pass: `README.md` and `MAGIC.md` exist where expected, and every file, command and path they reference still exists. Internal links resolve.
+3. Go deeper only when asked for a deep check, or when the structural pass cannot settle something. Going deeper means documented behaviour against the implementation.
 4. Flag content that does not match the implementation as a discrepancy. Never delete or rewrite it away.
 5. Report a flat list grouped by unit and file: stale, missing, diverged, broken link. Leave out what is fine.
 
@@ -88,7 +88,7 @@ Steps:
    - fix what it found
 3. Every project with a `project.inf` carries both files: create whichever is missing. Confirm it with whoever asked for the update first, the human-owner only when he is that requester.
 4. Fix a gap or a doc bug, such as a floor violation, a below-bar entry or a stale fact. Do it once whoever asked for the update confirms it, the human-owner only when he is that requester.
-5. Edit surgically. Keep accurate wording, structure and tone; touch only what is stale, missing or wrong. A one-line fix is a one-line diff. A full rewrite only for an empty or new file, an explicit request, or content too broken to patch — and say so first. New content is grounded in what the code shows.
+5. Edit surgically. Keep accurate wording, structure and tone; touch only what is stale, missing or wrong. A one-line fix is a one-line diff. A full rewrite is only for an empty or new file, an explicit request, or content too broken to patch. Say so first. New content is grounded in what the code shows.
 
 ## `daily-idle-check` — idle default when nothing else is pending
 
@@ -99,8 +99,8 @@ Steps:
 ## `own-inbox-batch-processing` — process this member's own inbox in one batch
 
 Steps:
-1. Once per workday, before `magic-coordinator.daily.routine`, collect every doc-fix item in this member's inbox: its own `note-*` items and the `inquiry-*` items other members posted.
-2. Apply them together as one pass, each edit under the rule its file falls under: a skillset edit lands only by the skillset change rule. Writing the `.md` file itself needs no separate ask, under this member's standing grant below.
+1. Once per workday, before `magic-coordinator.daily.routine`, collect every doc-fix item in this member's inbox. That is its own `note-*` items, and the `inquiry-*` items other members posted.
+2. Apply them together as one pass, each edit under the rule its file falls under. A skillset edit lands only by the skillset change rule. Writing the `.md` file itself needs no separate ask, under this member's standing grant below.
 3. Mark each handled item processed with `--librarian-inbox-to-processed`.
 
 ## `team-self-sufficiency-audit` — daily check across every `magic-*` skill folder
@@ -118,7 +118,7 @@ Where the knowledge store is installed, a `MAGIC.md` is a buffer: what is curren
 3. **spread**: run `--knowledge-store-spread <path> --keep <glob>...`, one `--keep` per section that stays, steps:
    - a refusal that names `--install-knowledge-store` means the store is not installed in this workspace. Leave every `MAGIC.md` as it is, say so once in the report, and end the procedure.
    - any other refusal is a fault: report it, and leave that file as it is.
-4. **retire**: a moved section found no longer true, by `mode-check`, is retired with `--knowledge-store-retire <path> --section <glob>`, once the fix to its source is recorded.
+4. **retire**: a moved section found no longer true, by `mode-check`, is retired with `--knowledge-store-retire <path> --section <glob>`. That happens once the fix to its source is recorded.
 5. **report**: per file, the sections kept and the sections moved, or that the store is not installed.
 
 # Team-Member's (-specific) local rules
@@ -127,7 +127,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - The output-style floor is this member's own criterion for other members' text, at `magic-librarian.conventions-check.routine`'s **compare-against-analog** and **cite-real-evidence**. A clause carrying a number is measured and cited with that number. A clause carrying none is a judgement call, never reported as a violation.
-- Before acting on a note or report, resolve its quoted wording against the file (**source-over-memory**); a record quoting superseded text drives the change twice.
+- Before acting on a note or report, resolve its quoted wording against the file (**source-over-memory**). A record quoting superseded text drives the change twice.
 - A project's documentation references a file in another project only where it requires that project. Where it does, it states the requirement, not the path.
 - A file this member generates from other sources carries a header saying so, and that the source is what gets fixed.
 - A skill folder and its source in the bundle are one file, not two copies. Verify a skillset edit against its content (**source-over-memory**), not the two paths.
@@ -152,7 +152,7 @@ Each is evaluated on its own, against its own code and existing style:
 
 - **`README.md`** is for users: what the project is, why it exists, how to install, configure, run and use it. It splits with `docs/` when it grows: installation, configuration, use, commands, formats, extension, examples and troubleshooting pages, each linking back to the README. `docs/` is user-facing only.
 - **`MAGIC.md`** is for maintainers: contributor mechanics, non-obvious conventions, gotchas, where things live. Distinctly different from the `README.md` above. It is always exactly one file, never a folder, even in a project we do not own. It may link to a `README.md`/`docs/` page rather than restating it. It is read before anything else in its tree ("Knowledge destinations").
-- User content found in a `MAGIC.md` — an operation's call contract, its usage — moves to the README's `docs/`, and `MAGIC.md` links to it. What a help entry already states is linked, never copied.
+- User content found in a `MAGIC.md` moves to the README's `docs/`, and `MAGIC.md` links to it. That covers an operation's call contract and its usage. What a help entry already states is linked, never copied.
 - **The `MAGIC.md` bar**: an entry earns its place only if it is important, making a difference, and hard to come by. Hard to come by means not readily available from the code or docs. It was learned from an external source, a correction, or non-obvious discovery.
 - Neither doc states who consumes the package, where it is deployed, or which hosts, instances or workspaces install it. The reasons: disclosure, irrelevance, and an unmaintainable list that is always wrong.
 - Neither doc states this copy's own place — a "primary copy", "synced to workspace X". The doc travels with every copy, so the statement is false in each one.
@@ -204,7 +204,7 @@ Read `reference/member-addressed-files.md` for the rule.
 
 ## Keeper/partner references stay generic in shared files
 
-A shared skillset file — anything other than a `keeper-*`/`warden-*`/`partner-*`/`client-*` member's own files — never names a specific one of them in a real rule. It says "the owning `keeper-*`", "any matching `partner-*`". An illustrative example names an ordinary `magic-*` member. The roster is open-ended, so a hardcoded name is a wrong assumption.
+A shared skillset file never names a specific `keeper-*`, `warden-*`, `partner-*` or `client-*` in a real rule. That covers anything other than such a member's own files. It says "the owning `keeper-*`", "any matching `partner-*`". An illustrative example names an ordinary `magic-*` member. The roster is open-ended, so a hardcoded name is a wrong assumption.
 
 ## A role-family enumeration widens only where the capability does
 

@@ -243,7 +243,7 @@ AgentsHarnessToolWrite(){
 	AgentsHarnessChangeMode Write "$toolGateRc" || return 0
 	case "$toolGateRc" in
 		1) return 0 ;;
-		2) AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0 ;;
+		2) AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath$( [ -z "$harnessSandboxOutReal" ] || printf ' -- write to your session sandbox instead, or a folder under it: %s/' "$harnessSandboxOutReal" )" ; return 0 ;;
 		4) [ -n "$harnessChangeApply" ] || toolHeld=1 ;;
 	esac
 	toolPath="$harnessResolvedPath"
@@ -303,7 +303,7 @@ AgentsHarnessToolEdit(){
 	AgentsHarnessChangeMode Edit "$toolGateRc" || return 0
 	case "$toolGateRc" in
 		1) return 0 ;;
-		2) AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0 ;;
+		2) AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath$( [ -z "$harnessSandboxOutReal" ] || printf ' -- write to your session sandbox instead, or a folder under it: %s/' "$harnessSandboxOutReal" )" ; return 0 ;;
 		4) [ -n "$harnessChangeApply" ] || toolHeld=1 ;;
 	esac
 	toolPath="$harnessResolvedPath"

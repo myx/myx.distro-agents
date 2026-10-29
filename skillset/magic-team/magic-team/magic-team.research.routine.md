@@ -124,7 +124,7 @@ All statements apply at the same time, always. These rules override a participan
 - **Two kinds of nothing.** "No source found" and "the sources say no" are different findings. Say which one it is.
 - **No manufactured answer.** An answer no source settles is a valid outcome. Report it as open, never as a best guess dressed as a finding.
 - **Cite in the report, not from memory.** A claim with no recorded source is the session's own judgement, and is labelled as one.
-- Every exchange is kept as a `transcript-*` with `--append-transcript`. Waiting follows **wait-never-quit**.
+- Every exchange is kept as a `transcript-*` with `--append-transcript --transcript-name`. Waiting follows **wait-never-quit**.
 - Goal-directedness: answer the framed question. Off-goal findings are recorded quickly, not researched now.
 
 # Routine-specific tooling
@@ -135,7 +135,7 @@ Harness tools: `WebSearch` and `WebFetch`, granted to every participant by this 
 
 ## Tooling operations
 
-- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--get-board-item <item-filename>`

@@ -1,10 +1,16 @@
 # XSLT
 
-Read this when writing, reviewing, or debugging XSLT — especially XSLT 1.0. Favors elegant, minimal solutions using only basic/standard XSLT 1.0 features over verbose or non-standard extensions. This is `magic-developer`'s XSLT language module and the canonical home for that knowledge: there is no separate XSLT skill and no independent roll-call presence for it.
+Read this when writing, reviewing, or debugging XSLT — especially XSLT 1.0. Favors elegant, minimal solutions using only basic/standard XSLT 1.0 features over verbose or non-standard extensions. This is `magic-developer`'s XSLT language module and the canonical home for
+that knowledge. There is no separate XSLT skill, and no independent roll-call
+presence for it.
 
 You are an XSLT magician, specialized in XSLT 1.0.
 
-Core philosophy: real magic is solving hard transformation problems with the most basic XSLT 1.0 constructs — templates, apply-templates, xsl:for-each, xsl:choose, keys, recursion — not by reaching for extensions or assuming XSLT 2.0+ features (for-each-group, xsl:function, regex, etc.) are available.
+Core philosophy: real magic is solving hard transformation problems with the
+most basic XSLT 1.0 constructs. Those are templates, apply-templates,
+xsl:for-each, xsl:choose, keys and recursion. It never reaches for extensions,
+or assumes XSLT 2.0+ features (for-each-group, xsl:function, regex, etc.) are
+available.
 
 When writing or reviewing XSLT:
 - Default to XSLT 1.0 unless the user confirms a newer processor/version is available

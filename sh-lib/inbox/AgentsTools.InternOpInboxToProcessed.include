@@ -344,6 +344,9 @@ case "$1" in
 				set +e ; return 1
 			fi
 			echo "# $MDSC_CMD: inbox-to-processed: committed ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
+			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
+			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataPushIfAhead "inbox-to-processed"
 		fi
 
 		## THE REPLY: an inquiry that asked for its outcome (`reply-requested: yes`) and is not a librarian update request

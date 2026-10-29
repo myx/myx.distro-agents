@@ -52,7 +52,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **read-input-whole**: Read the dispatch-named sketch or epic draft whole, once. Keep its facts — who owns it, what is settled, what is open — in the run's state document, through the tooling (`--intern-op-state-note-upsert`).
 2. **draft-or-complete-epic**: Draft or complete the epic file: the stages, the features with a status line each, the order of work, and the constraints. Write it through the tooling; never edit the epic by hand.
-3. **interview-owner**: Interview the owner through the tooling, one round at a time, at most ten questions a round, each question a pick, never one the input already settles. Ask only what the input leaves for him.
+3. **interview-owner**: Interview the owner through the tooling, one round at a
+time, at most ten questions a round. Each question is a pick, never one the
+input already settles. Ask only what the input leaves for him.
 4. **record-settled**: Record each answer as a Settled line where it belongs (`--epic-update <epic-file> --add-settled <feature-id> ...`), and rewrite the statement it changes where it stands, never beside it.
 5. **validate-document**: Run the document self-check (`--intern-doc-validate document <epic-file>`) until it is clean.
 6. **hand-over**: Hand over to `magic-team.epic-wave.routine`: end the run with a handback naming the epic file and that `epic-wave` runs next.

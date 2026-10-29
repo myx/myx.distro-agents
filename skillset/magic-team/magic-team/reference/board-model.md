@@ -66,6 +66,8 @@ The tooling removes processed board and inbox items after a retention period; `a
 # Process-Flow, the board dynamics
 
 - `magic-team.grooming.routine` decides and applies: triage, RICE scoring, backlog readiness and promotion (approved backlog → pending included), recall to backlog. Once per workday or on request.
-- The coordinator's board round applies decided moves only: dispatch → running, review and unblock handling, signalled reopens, the judgement left of the dependencies, deferred comms actions. It runs at each wake of `magic-coordinator.work-duty.routine`, or on a manual start of `magic-coordinator.advance.routine`. It never makes a go decision.
+- The coordinator's board round applies decided moves only. They are dispatch →
+  running, review and unblock handling, signalled reopens, the judgement left
+  of the dependencies, and deferred comms actions. It runs at each wake of `magic-coordinator.work-duty.routine`, or on a manual start of `magic-coordinator.advance.routine`. It never makes a go decision.
 - `magic-team.advance.routine` picks each running document's next iteration: its gate row, else its `handler-routine:`, else its type's default.
 - `handler-routine: <routine>` — an optional item header naming the routine that runs the item's next iteration, over its type's default. It never overrides a gate row. Only grooming or `magic-coordinator` sets it, with its reason in the item's `## Decisions`. A value naming no routine that accepts the item's type is flagged, and nothing runs.

@@ -45,7 +45,7 @@ AgentsToolsTrackingDrop(){ ## member
 			agentsTrackingAwayList="$awayIds"
 		else
 			agentsTrackingAwayList="$( AgentsToolsTrackingLaunchedAway "$1" )"
-			{ mkdir -p "${awayFile%/*}" && printf '%s %s\n' "$awayNow" "$agentsTrackingAwayList" > "$awayFile.$$" && mv -f "$awayFile.$$" "$awayFile" ; } 2> /dev/null || rm -f "$awayFile.$$" 2> /dev/null
+			{ mkdir -p "${awayFile%/*}" && awayTmp="$( mktemp "$awayFile.XXXXXX" )" && printf '%s %s\n' "$awayNow" "$agentsTrackingAwayList" > "$awayTmp" && mv -f "$awayTmp" "$awayFile" ; } 2> /dev/null || rm -f "${awayTmp:-}" 2> /dev/null
 		fi
 		agentsTrackingAwayMember="$1" agentsTrackingAwayAt="$SECONDS"
 	fi

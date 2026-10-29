@@ -132,7 +132,7 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator` is permitted and obliged to execute every step exactly as written, in order.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - This routine is the entry point of "Conversations" with interview as its main mode: both presentation modes are available.
-- Every exchange is kept as a `transcript-*` with `--append-transcript`, per **transcripts-are-verbatim-records**.
+- Every exchange is kept as a `transcript-*` with `--append-transcript --transcript-name`, per **transcripts-are-verbatim-records**.
 - Before acting on anything the party just said, read back a one-line understanding and wait for confirmation, per **rephrase-and-confirm-before-acting**. Waiting follows **wait-never-quit**.
 - **Two gates.** A design point — a shape, an interface, an invariant — is approved by a one-line readback the party confirms. Executing anything — a dispatch, a spawn, a filing, a real change — passes the pre-dispatch gate as well, even for an approved design.
 - **Pre-dispatch gate**, steps:
@@ -171,7 +171,7 @@ Harness tools: `WebSearch` and `WebFetch`, granted to every participant by this 
 - `--create-running <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
 - `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
-- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--routine-run-inline <routine>`

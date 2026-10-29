@@ -190,6 +190,24 @@ rigAssert "an operation of its own runs, with no row of the front table" \
 rigAssert "and is not refused as another file's" \
 	"$( rigHolds "$rigOwn7Text$rigOwn7Error" 'not an operation of that tool file' )" no
 
+## S21.3: the acting member is already known from the calling session (MDAT_SPAWN_AGENT), so a bare
+## positional argument of the operation's own -- a Slack <channel>:<ts> -- must never be mistaken for it.
+{
+	printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+	printf '%s\n' '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"DistroAgentsSlack","arguments":{"operation":"--slack-read","args":["C0BJ49W7ZCM:1793183355.637489"]}}}'
+} | MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SPAWN_AGENT="magic-coordinator" \
+	bash "$rigTool" --intern-mcp-server --run > "$rigTmp/memberwire" 2> "$rigTmp/membererr" || :
+
+LC_ALL=C grep '"id":9,' "$rigTmp/memberwire" > "$rigTmp/member" 2>/dev/null || :
+[ -s "$rigTmp/member" ] || rigRefuse "the member-positional call was never answered, so the fix was never observed"
+rigMemberText="$( rigValue "$rigTmp/member" result.content.0.text )"
+
+echo "-- a bare positional stays the operation's own, never the acting member (S21.3) --"
+rigAssert "the target is not rejected as a bad member name" \
+	"$( rigHolds "$rigMemberText" 'outside the allowed set' )" no
+rigAssert "the call reaches the Slack arm with the real target" \
+	"$( rigHolds "$rigMemberText" 'channel=C0BJ49W7ZCM' )" yes
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SECONDARY TOOL DISPATCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
 	exit 1

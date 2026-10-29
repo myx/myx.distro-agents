@@ -54,7 +54,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **identify-target-and-analog**: Identify what is reviewed and its closest real analog — a sibling operation, a sibling file of the same type. Read the analog directly. In a batch, resolve the analog per finding.
+1. **identify-target-and-analog**: Identify what is reviewed, and the closest real analog. That is a sibling operation or a sibling file of the same type. Read the analog directly. In a batch, resolve the analog per finding.
 2. **compare-against-analog**: Compare the proposal with the analog: naming, error-message shape, placement, shape and verbosity. Compare it also against style rules stated in the analog itself, including "Two writing modes".
    - rule: shape and verbosity means how much the analog carries — lead-in length, prose around the substance, element count. A proposal several times more elaborate than its analog fails here alone.
    - rule: a `MAGIC.md` or `README.md` change is measured not only against a sibling file. It is also measured against the `MAGIC.md` bar ("Content philosophy") and the no-narration floor ("Rule/instruction/definition/description conventions").
@@ -97,7 +97,7 @@ Steps:
 
      Until all three close, report the after-send check as required and missing; never substitute a path read.
 2. Run this routine's Steps against the text each entry carries, at the group it declares.
-3. Report a declaration that does not match its text: a relay declaration on the member's own words, a report declaration on a message.
+3. Report a declaration that does not match its text. Examples are a relay declaration on the member's own words, and a report declaration on a message.
 4. Apply the reader-judged clauses here.
 
 A clean queue is not evidence the measurements are sound: a member rewriting correct text into worse text to pass leaves no entry.
@@ -114,7 +114,7 @@ All statements apply at the same time, always. These rules override a participan
   - `magic-coordinator` and the human-owner, on anything.
 - **A change is the only trigger — never a run.** An instruction already in force is not re-checked because something is about to execute it.
 - A change to a member's or routine's rules is assessed against that file's `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)`. Where assessment cannot settle it, a concrete testing request goes to `magic-coordinator` for a `magic-tester` round.
-- **Blocking model**: a genuine finding blocks the change until addressed, except for the human-owner, for whom it is advisory — the one ground only he holds. `magic-coordinator` overriding alone still files the finding as the no-quorum document, briefly: not blocked, but not silent either. A cosmetic finding never blocks. Unsure: surface it.
+- **Blocking model**: a genuine finding blocks the change until addressed. The exception is the human-owner, for whom it is advisory — the one ground only he holds. `magic-coordinator` overriding alone still files the finding as the no-quorum document, briefly: not blocked, but not silent either. A cosmetic finding never blocks. Unsure: surface it.
 - **A check is shown able to pass before it gates anything.** Run a candidate check, predicate or rule against text that must pass before text that must fail. A check that refuses correct work teaches people to route around it.
 - Two calls that read alike may touch different contexts and document types. Check what each touches before treating them as duplicates.
 

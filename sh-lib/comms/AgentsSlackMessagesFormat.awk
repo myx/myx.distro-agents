@@ -192,6 +192,17 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 	if (afterIdx == "metadata.event_payload.tracking") { trackingOf[idx] = val; return; }
 	## and the spawn id of the session it belongs to, `[session: <id>]`, which says whose launch it is (AgentsTools.TrackingDrop.include).
 	if (afterIdx == "metadata.event_payload.session") { sessionOf[idx] = val; return; }
+	## The body of a tracking post is in its blocks, its `text` only the line a notification shows: the text leaves of its blocks are
+	## kept, a block to a line, and stand in for the text of a tracking post (below), so a read of a tooling thread carries what it says.
+	if (index(afterIdx, "blocks.") == 1 && afterIdx ~ /\.text$/) {
+		j = substr(afterIdx, length("blocks.") + 1)
+		sub(/\..*/, "", j)
+		if (j !~ /^[0-9]+$/) return
+		if (idx in blockTextOf) blockTextOf[idx] = blockTextOf[idx] ((blockLastOf[idx] != j) ? "\n" : " ")
+		blockTextOf[idx] = blockTextOf[idx] val
+		blockLastOf[idx] = j
+		return
+	}
 	## A message's files (Slack's files[]): each said on the head line as `[file: <id> <name> (<size> bytes, <type>)]`, so a reader and
 	## the comms cache know it carried one; the id is what --slack-file-info takes.
 	if (index(afterIdx, "files.") == 1) {
@@ -358,6 +369,6 @@ END {
 			}
 		}
 
-		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownStart(ownLines(dateFallbacks(textOf[i]))))
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownStart(ownLines(dateFallbacks(((i in trackingOf) && blockTextOf[i] != "") ? blockTextOf[i] : textOf[i]))))
 	}
 }

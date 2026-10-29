@@ -265,6 +265,7 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		if ($0 ~ /"is_error":true/) exit 1
 		exit 0
 	} else if ($0 ~ /"type":"assistant"/) {
+		reportRound($0)
 		## A turn's content array can carry a thinking block alongside tool_use
 		## blocks on the same line -- checked independently of the tool_use/text
 		## branch below so it is never silently dropped just because the same
@@ -297,4 +298,31 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		## drops rather than re-printing "session started" on every occurrence.
 		if ($0 ~ /"subtype":"init"/) printProgress("session started")
 	}
+}
+
+# The round lines of our own harness (AgentsUniversalHarness.sh), so a native run reads like a
+# harness one: a new assistant message is a new round, its line carries the run's tokens so
+# far, and the prompt cache line follows from that message's usage. A message's blocks come as
+# several lines that repeat its usage; it is counted once, at the last figures it gave, when
+# the next one begins.
+function reportRound(sourceLine,   messageId, usageText, usageIn, usageRead, usageWrite) {
+	if (!match(sourceLine, /"id":"msg_[^"]*"/)) return
+	messageId = substr(sourceLine, RSTART, RLENGTH)
+	usageText = substr(sourceLine, index(sourceLine, "\"usage\":{"))
+	if (index(sourceLine, "\"usage\":{") == 0) usageText = ""
+	if (messageId == roundMessageId) {
+		if (usageText != "") roundOut = extractJsonNumber(usageText, "output_tokens") + 0
+		return
+	}
+	roundTotal += roundIn + roundRead + roundWrite + roundOut
+	roundMessageId = messageId
+	roundNumber++
+	usageIn = (usageText == "") ? 0 : extractJsonNumber(usageText, "input_tokens") + 0
+	usageRead = (usageText == "") ? 0 : extractJsonNumber(usageText, "cache_read_input_tokens") + 0
+	usageWrite = (usageText == "") ? 0 : extractJsonNumber(usageText, "cache_creation_input_tokens") + 0
+	roundIn = usageIn ; roundRead = usageRead ; roundWrite = usageWrite
+	roundOut = (usageText == "") ? 0 : extractJsonNumber(usageText, "output_tokens") + 0
+	print "── round " roundNumber " ─────────────────────────────────" (roundTotal > 0 ? " · " roundTotal " tokens so far" : "") > "/dev/stderr"
+	if (usageText != "") print "   💾 prompt cache -- " (usageIn + usageRead + usageWrite) " prompt tokens this round, cached: " usageRead ", written: " usageWrite > "/dev/stderr"
+	fflush("/dev/stderr")
 }

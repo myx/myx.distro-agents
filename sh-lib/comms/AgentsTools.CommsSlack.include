@@ -368,9 +368,10 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 	[ "$rvRc" = "0" ] && [ -n "$rvOut" ] || return "$rvRc"
 	{
 		mkdir -p "${rvFile%/*}" \
-			&& { [ ! -f "$rvFile" ] || LC_ALL=C awk -F'\t' -v k="$rvKey" '$1 != k' "$rvFile" ; printf '%s\t%s\t%s\n' "$rvKey" "$rvNow" "${rvOut//$'\n'/$'\037'}" ; } > "$rvFile.$$" \
-			&& mv -f "$rvFile.$$" "$rvFile"
-	} 2> /dev/null || rm -f "$rvFile.$$" 2> /dev/null
+			&& rvTmp="$( mktemp "$rvFile.XXXXXX" )" \
+			&& { [ ! -f "$rvFile" ] || LC_ALL=C awk -F'\t' -v k="$rvKey" '$1 != k' "$rvFile" ; printf '%s\t%s\t%s\n' "$rvKey" "$rvNow" "${rvOut//$'\n'/$'\037'}" ; } > "$rvTmp" \
+			&& mv -f "$rvTmp" "$rvFile"
+	} 2> /dev/null || rm -f "${rvTmp:-}" 2> /dev/null
 	return 0
 }
 DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)

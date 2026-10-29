@@ -35,7 +35,9 @@ review-by: inherit
 
 ## Goals
 
-- Give recurring friction — a routine running long, a convention nobody follows, a boundary keeps getting straddled — a dedicated moment to surface and become concrete fixes.
+- Give recurring friction a dedicated moment to surface and become concrete
+  fixes. That friction is a routine running long, a convention nobody follows,
+  a boundary keeps getting straddled.
 - Include recurring problems with retro itself.
 
 ## Scope
@@ -52,17 +54,24 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them; refresh the lock during the long pass (`--retro-lock-refresh`).
+1. **keep-tracking-note-current**: Write this pass's tracking note
+(`--update-routine-state`) and keep it current, referencing items by name
+rather than copying them. Refresh the lock during the long pass
+(`--retro-lock-refresh`).
 2. **invite-participants**: Spawn every participant into this session (`spawn-one-dispatch`) before **gather-recent-history**. Each stays to the close, listening to the others.
 3. **gather-recent-history**: Read recent `board-processed` items, `reflection-*` items included, and the last several dailies' results and repeated blockers. Raw material, not something to re-narrate.
 4. **self-analyse-per-member**: For each participant with enough recent history, steps:
-   - Have it analyse itself against its own `.basic.md`/`.armed.md` (do they still match what it is asked to do), its past incidents and reflections, the team rules that apply to it, and its stated goals.
+   - Have it analyse itself against its own `.basic.md`/`.armed.md`: do they still
+     match what it is asked to do. Then set that beside its past incidents and
+     reflections, the team rules that apply to it, and its stated goals.
    - Have it speak first-person: what felt slow, what was satisfying, what keeps recurring.
    - Have it formulate one improvement proposal of its own, carried into **assess-methodology-failures**.
    A member with nothing meaningful to reflect on is skipped, not sent away.
 5. **surface-cross-member-patterns**: Name what showed up in more than one member's self-talk.
 6. **assess-methodology-failures**: Where did a routine, convention or way of working fall short this period, and why. Turn findings into concrete proposals, alongside the members' own. An empty result is fine.
-7. **discuss-with-the-user**: Pause for the human-owner to react, add his reading or push back. This routine's maintainers other than him decide which proposals to adopt; that agreement goes to him as one propose-approve step, per "The ladder: one rung at a time". Refresh the lock on entering this step and at each pause.
+7. **discuss-with-the-user**: Pause for the human-owner to react, add his reading or push back. This routine's maintainers other than him decide which proposals to adopt.
+That agreement goes to him as one propose-approve step, per "The ladder: one
+rung at a time". Refresh the lock on entering this step and at each pause.
 
 # Closure steps
 
@@ -84,7 +93,10 @@ All statements apply at the same time, always. These rules override a participan
 - First-person narration stays inside the session. Every external post is third person.
 - Retro produces proposals, never actions, however small — a member's own proposal included.
 - A cross-member pattern that looks like a design question goes to `magic-architect`.
-- A proposal big enough to change how the whole team works is agreed by this routine's maintainers first; that agreement is confirmed with the human-owner as build work before it goes anywhere, per "The ladder: one rung at a time".
+- A proposal big enough to change how the whole team works is agreed by this
+  routine's maintainers first. That agreement is confirmed with the
+  human-owner as build work before it goes anywhere, per "The ladder: one rung
+  at a time".
 - A finding about re-prioritising existing work is filed for grooming (`--upsert-inbox-note`), not worked here.
 - No schedule or automation without the human-owner's confirmation.
 - Keep `event-track` current as the routine runs.

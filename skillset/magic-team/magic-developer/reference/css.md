@@ -1,6 +1,8 @@
 # CSS
 
-Starter module — tentative, not yet confirmed this module belongs in magic-developer (`magic-frontender` owns CSS and browser-facing craft; this module holds only language-level axioms that hold in any project). Seeded with first axioms; grows as real estate work surfaces more.
+Starter module — tentative, not yet confirmed this module belongs in
+magic-developer (`magic-frontender` owns CSS and browser-facing craft. This
+module holds only language-level axioms that hold in any project). Seeded with first axioms; grows as real estate work surfaces more.
 
 ## Axioms
 

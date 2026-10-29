@@ -29,7 +29,9 @@ review-by: inherit
 
 # Summary
 
-`magic-team.epic-build.routine` is the builder's run on one feature: the four beats of "How a feature is delivered", the build brief, and the apply tool, ending with the apply report.
+`magic-team.epic-build.routine` is the builder's run on one feature. It holds
+the four beats of "How a feature is delivered", the build brief, and the apply
+tool, ending with the apply report.
 
 ## Goals
 
@@ -50,11 +52,21 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **readback-and-gaps**: Read the feature, its Settled lines, the constraints naming it, and the code it touches. Where the epic is silent, send each gap with its proposed reading, before building that part; build only the parts the gap does not touch until it is answered.
+1. **readback-and-gaps**: Read the feature, its Settled lines, the constraints naming it, and the code it touches. Where the epic is silent, send each gap with its proposed reading, before
+building that part. Build only the parts the gap does not touch until it is
+answered.
 2. **sandbox**: Build and test in your own scratch under `.local/temp/`. Write a test for each statement of the spec, red against live first for the stated reason, then green.
-3. **gate**: Send the coordinator the conformance gate, in the compact form (the gate's form, filled by the tooling): the diff path; each statement mapped to `file:line`; the tests, red on live then green; anything the coordinator must rule; the economy and script-writes cases left undone. Nothing else.
-4. **apply**: On a yes, apply through the apply tool (W2), then smoke, the named tests on live, a queued retest, and the knowledge lines for the librarian (`--request-update --kind knowledge ...`).
-5. **apply-report**: End the run with the apply report (the apply report's form, filled by the tooling): what was applied, the smoke, the named tests on live, the queued retest, the knowledge lines, and the time.
+3. **gate**: Send the coordinator the conformance gate, in the compact form (the
+gate's form, filled by the tooling). The gate carries the diff path, and each
+statement mapped to `file:line`. It carries the tests, red on live then green.
+It carries anything the coordinator must rule, and the economy and
+script-writes cases left undone. Nothing else.
+4. **apply**: On a yes, apply through the apply tool (W2). Then smoke, the named
+tests on live, a queued retest, and the knowledge lines for the librarian
+(`--request-update --kind knowledge ...`).
+5. **apply-report**: End the run with the apply report (the apply report's form,
+filled by the tooling). It carries what was applied, the smoke, the named
+tests on live, the queued retest, the knowledge lines, and the time.
 
 # Closure steps
 

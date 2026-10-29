@@ -35,14 +35,16 @@ LC_ALL=C awk '{ n = split( $0, w, /[^A-Za-z0-9_.-]+/ ) ; for ( i = 1 ; i <= n ; 
 	"$rigWaitInclude" | sort -u > "$rigTmp/words.txt" || exit 1
 rigShimmed=0
 while read -r rigWord ; do
-	case "$rigWord" in ''|-*|*[!a-z0-9_.-]*) continue ;; esac
+	## bash, sh and env are never shimmed: the shim's own interpreter line names bash through
+	## env, so shimming either would have env resolve "bash" back into this very shim dir.
+	case "$rigWord" in ''|-*|*[!a-z0-9_.-]*|bash|sh|env) continue ;; esac
 	[ "$( type -t "$rigWord" )" = "file" ] || continue
 	rigReal=""
 	for rigDir in /bin /usr/bin /usr/sbin /sbin ; do
 		[ -x "$rigDir/$rigWord" ] && { rigReal="$rigDir/$rigWord" ; break ; }
 	done
 	[ -n "$rigReal" ] || continue
-	printf '#!/bin/bash\nprintf "%%s\\n" "${0##*/}" >> "$FORKLOG"\nexec %s "$@"\n' "$rigReal" > "$rigTmp/shim/$rigWord" || exit 1
+	printf '#!/usr/bin/env bash\nprintf "%%s\\n" "${0##*/}" >> "$FORKLOG"\nexec %s "$@"\n' "$rigReal" > "$rigTmp/shim/$rigWord" || exit 1
 	chmod +x "$rigTmp/shim/$rigWord" || exit 1
 	rigShimmed=$(( rigShimmed + 1 ))
 done < "$rigTmp/words.txt"

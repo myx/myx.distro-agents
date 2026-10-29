@@ -1,8 +1,9 @@
 # Verifying changes with real side effects (network/filesystem/live execution)
 
-Read this when a change needs verification but running the real thing means real
-consequences — git clone/pull across repos, remote SSH execution, anything that
-touches the network or filesystem for real rather than in a sandbox. Distinct from
+Read this when a change needs verification but the real thing means real
+consequences. Those are git clone/pull across repos, remote SSH execution, and
+anything that touches the network or filesystem for real. It is about work
+done outside a sandbox. Distinct from
 ordinary unit/integration test running: there's no fixture to reset, so the
 verification technique itself has to manage the blast radius.
 
@@ -20,24 +21,23 @@ verification technique itself has to manage the blast radius.
 ## Preview mode beats grepping for blast radius
 
 Before anything does real clone/pull/write across a workspace's repos, run its
-preview/dry-run flag first if one exists (`myx.distro-*`'s
-convention: a `--print-*` twin next to the `--execute-*` verb, e.g.
+preview/dry-run flag first if one exists. That is `myx.distro-*`'s convention:
+a `--print-*` twin next to the `--execute-*` verb, e.g.
 `DistroImageSync --all-tasks --print-source-prepare-pull` before
-`--execute-source-prepare-pull`). **A static grep for the declare/config pattern
-is not the same as the tool's actual resolved task list** — a
-`project.inf` grep estimating ~5 target repos sits against a real preview
-resolving 12, because one workspace project's own `project.inf` re-declares 11 of
-the 15 sync-task lines itself. Declares can be transitively re-asserted by other
+`--execute-source-prepare-pull`). **A static grep for the declare/config pattern is not the same as the tool's
+actual resolved task list.** A `project.inf` grep estimating ~5 target repos
+sits against a real preview resolving 12. One workspace project's own
+`project.inf` re-declares 11 of the 15 sync-task lines itself. Declares can be transitively re-asserted by other
 projects, not just self-registered by the project they describe. When blast
 radius matters, ask the tool (preview mode), don't trust a grep-based estimate.
 
 ## Timeout-guard every live-execution reproduction attempt
 
-When a user reports "it hangs," the reflex to just re-run it is a trap: an
+When a user reports "it hangs," the reflex to just re-run it is a trap. An
 unguarded re-run of something that might genuinely hang blocks the debugging
-session with zero diagnostic output. Wrap every reproduction attempt in a hard
-wall-clock limit before doing anything else, so a real hang fails loud and fast
-instead of stalling the session.
+session with zero diagnostic output. Wrap every reproduction attempt in a hard wall-clock limit before doing
+anything else. A real hang then fails loud and fast instead of stalling the
+session.
 
 **Gotcha: a dev box may carry no `timeout`/`gtimeout` binary at all.** Check
 for `timeout`/`gtimeout` first; with neither, use the hand-rolled wall-clock
@@ -56,9 +56,9 @@ For diagnosing exactly where a pipeline stalls, check whether the codebase
 already has a tracing env var before adding `set -x` or print statements.
 `myx.distro-*`'s shell codebase: `MDSC_DETAIL=full` gates verbose `>&2` tracing
 throughout — grep any `sh-scripts/*.fn.sh` for `[ -z "$MDSC_DETAIL" ] ||` to see
-the pattern live. Check the equivalent for whatever codebase is actually in
-front of you — each is likely to have its own — and ask the owning
-keeper/partner if it's not obvious from a quick grep.
+the pattern live. Check the equivalent for whatever codebase is actually in front of you. Each
+is likely to have its own. Ask the owning keeper or partner if a quick grep
+does not show it.
 
 ## Stale background state is a false-positive class for "hang"
 
@@ -72,20 +72,19 @@ orphaned background state that can *look* exactly like an application hang:
 
 A self-expiring session from an interrupted earlier run (e.g. a
 `ControlPersist=3m` master) can present as a fresh hang if you don't know to
-check process/socket state first. This generalizes beyond SSH multiplex
-sockets — any codebase with backgrounded/persistent helper processes has an
-equivalent class of stale-state false positive; ask what the equivalent is
-before diagnosing a "hang" as a code bug.
+check process/socket state first. This generalizes beyond SSH multiplex sockets. Any codebase with backgrounded
+or persistent helper processes has an equivalent class of stale-state false
+positive. Ask what the equivalent is before diagnosing a "hang" as a code bug.
 
 ## Clean diff + static audit is necessary, not sufficient
 
-A thorough static audit (no stale path self-references to the old location
-after a file move, correct file permissions matching git-tracked mode and
-sibling convention, each changed file read back showing only the intended change) catches what it can
-catch, but **only a real end-to-end run is actual proof a change didn't break
-runtime behavior.** Static/diff-level checks can't catch a runtime-only issue by
-construction. For anything with real side effects, the live run (twice if a
-fluke is plausible) is part of "done", not an optional extra past the diff
+A thorough static audit catches what it can catch. It checks for no stale path
+self-references to the old location after a file move. It checks correct file
+permissions against git-tracked mode and sibling convention. It reads each
+changed file back, showing only the intended change. **Only a real end-to-end
+run is actual proof that a change didn't break runtime behavior.** Static/diff-level checks can't catch a runtime-only issue by
+construction. For anything with real side effects, the live run is part of "done". Run it
+twice if a fluke is plausible. It is not an optional extra past the diff
 review. Run it within your granted permissions, asking for more when the run
 needs it, and judge the result from its output.
 
@@ -96,12 +95,12 @@ report that as if it settled the question. Distinguish, out loud, in the report
 back to the user:
 - **Weak**: "I couldn't reproduce it." (tried once or twice, nothing happened)
 - **Strong**: "I checked the specific mechanisms that would cause this and
-  ruled them out." (e.g. traced every path reference in the changed files to
-  confirm none pointed at a stale location, confirmed no stale process/socket
-  state existed) — before concluding the change itself wasn't the mechanism.
+  ruled them out." (e.g. traced every path reference in the changed files to confirm none pointed at a
+  stale location. Confirmed no stale process or socket state existed) — before
+  concluding the change itself wasn't the mechanism.
 
 A user who hit something that then stops reproducing needs to know which claim
-they're getting; conflating the two erodes trust in the next report even if
+they're getting. Conflating the two erodes trust in the next report, even if
 this one happened to be right.
 
 ## Two checkouts of one repository are not divergence
@@ -130,22 +129,23 @@ up does not substitute for that test.
 
 ## A detection check with only negative results, run for real against live traffic
 
-Applies "Engineering & operating discipline"
-rule — a check you would act on is not a result until it has been shown able to
-fail — including its positive-control-alongside-the-result requirement.
+Applies the "Engineering & operating discipline" rule on a check you would act
+on. Such a check is not a result until it has been shown able to fail. It includes that
+rule's positive-control-alongside-the-result requirement.
 
 Concrete magnitude of the risk: a live multi-hour fleet traffic-inspection
-detector (`tcpdump`-based, scanning for a specific protocol signature) can run
-silently broken for dozens of consecutive check rounds with zero errors, every
-round rendering as a clean "no hits" result — indistinguishable from the target
-genuinely being absent unless the check is re-tested against a known-positive
-sample. One defect class that produces exactly this failure mode: a
-context-matching bug in how a detector recovers a packet's source IP from its
-payload (see `magic-devops`' `reference/live-traffic-diagnostics.md` for the
-technical detail — a `tcpdump -A`/`grep -B<N>` fragility, not repeated here).
+detector scans for a specific protocol signature (`tcpdump`-based). It can run
+silently broken for dozens of consecutive check rounds with zero errors. Every
+round renders as a clean "no hits" result. That is indistinguishable from the
+target genuinely being absent, unless the check is re-tested against a
+known-positive sample. One defect class produces exactly this failure mode. It is a context-matching
+bug in how a detector recovers a packet's source IP from its payload. See
+`magic-devops`' `reference/live-traffic-diagnostics.md` for the technical
+detail, a `tcpdump -A`/`grep -B<N>` fragility not repeated here.
 
 Takeaway for this member's own methodology: a long streak of clean negative
-rounds from a live monitoring/detection check is equally consistent with the
-check itself being broken as with the target genuinely being absent. Re-test
+rounds from a live monitoring or detection check is ambiguous. It is equally
+consistent with the check itself being broken as with the target genuinely
+being absent. Re-test
 the check against a known-positive sample before trusting the negative streak
 — proactively, not only when asked.

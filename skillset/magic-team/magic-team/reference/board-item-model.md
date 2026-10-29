@@ -25,7 +25,7 @@ Read this when creating, moving or reading board, audit and vault items. The inb
 Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*` (use `project-*`), `assignment-*` and `session-*` (use `dispatch-*`), `pending-slack-reaction`/`pending-trello-update` (these are `note-*` records in `magic-coordinator`'s own inbox). A new type is added here first, then to every routine that creates or reads it.
 
 **Audit and vault types:**
-- `transcript-*` — audit; append-only through `--append-transcript`; verbatim messages, UTC stamps; never on the board.
+- `transcript-*` — audit; append-only through `--append-transcript --transcript-name`; verbatim messages, UTC stamps; never on the board.
 - `incident-*` — audit.
 - `verbatim-*` — vault.
 - `ivr-*` — vault; an investigation report, the result of an `investigation-*`.

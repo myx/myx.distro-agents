@@ -2453,6 +2453,13 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## A workspace whose restrictions were installed before keeps its hooks current: the hooks
+		## and their settings entries come from the policy as it stands now. The hook index is the mark,
+		## written only by --install-workspace-restrictions.
+		if [ -f "$workspace/.local/agents/harness.hooks.index" ] ; then
+			DistroAgentsTools --install-workspace-restrictions --workspace "$workspace" || { set +e ; return 1 ; }
+		fi
+
 		## Prepare the copilot launch fragment from the same single access-root
 		## source, so a workspace set up here has copilot's --add-dir access
 		## ready for the generated console -- installer prepares it, launcher

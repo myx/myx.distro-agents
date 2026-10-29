@@ -143,7 +143,7 @@ Contacts, the people you meet and reach, are kept by tooling, not by hand, with 
 
 - `--slack-send-message <target> [text...]`
 - `--slack-react <channel>:<ts> <emoji-name>`
-- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`

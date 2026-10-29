@@ -640,6 +640,9 @@ case "$1" in
 				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: git commit failed for deleted paths: $gitOut" >&2
 				set +e ; return 1
 			fi
+			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
+			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataPushIfAhead "team-data-final-gc-deletion"
 		fi
 
 		## 2 means this pass deleted nothing, and a diversion is not a deletion:

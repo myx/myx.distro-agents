@@ -1,6 +1,9 @@
 # Live-fleet network-traffic inspection methodology
 
-Read this when inspecting live network traffic on a real fleet (e.g. `tcpdump`-based sweeps across multiple hosts) — a different sub-domain from `myxdistro-pipeline.md`'s fleet-execution/console mechanics, covering the traffic-capture and packet-content-classification layer itself, not the SSH/parallelism plumbing around it. `(draft)` — filename is a first-draft proposal, open to renaming.
+Read this when inspecting live network traffic on a real fleet (e.g. `tcpdump`-based sweeps across multiple hosts), a different sub-domain from
+`myxdistro-pipeline.md`'s fleet-execution and console mechanics. It covers the
+traffic-capture and packet-content-classification layer itself, not the SSH or
+parallelism plumbing around it. `(draft)` — filename is a first-draft proposal, open to renaming.
 
 ## Contents
 

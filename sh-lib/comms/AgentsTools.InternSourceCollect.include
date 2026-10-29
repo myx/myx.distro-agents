@@ -147,7 +147,7 @@ case "$1" in
 			exec < /dev/null >> "$colThreadDir/thread.log" 2>&1
 			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
 			## A pipe of its own on 9 that nothing writes: a wait the shell must make itself is a timed read on it, no process.
-			{ colThreadPipe="$MMDAPP/.local/temp/mdat-waitout.$$" ; rm -f "$colThreadPipe" ; mkfifo "$colThreadPipe" && exec 9<> "$colThreadPipe" && colThreadPipeOpen="yes" ; rm -f "$colThreadPipe" ; } 2> /dev/null || :
+			{ colThreadPipe="$( mktemp "$MMDAPP/.local/temp/mdat-waitout.XXXXXX" )" ; rm -f "$colThreadPipe" ; mkfifo "$colThreadPipe" && exec 9<> "$colThreadPipe" && colThreadPipeOpen="yes" ; rm -f "$colThreadPipe" ; } 2> /dev/null || :
 			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
 		fi
 		if [ -n "$colThreadTookOver" ] ; then
@@ -155,7 +155,7 @@ case "$1" in
 		fi
 		[ "$colThreadMode" != "--run" ] || AgentsToolsCollectThreadSay "the source collector runs as pid $colThreadPid: it updates the sources the scans of $MMDAPP read, and TERM ends it in order"
 
-		local colThreadPassGap colThreadIdleLimit colThreadLastPass=-1000 colThreadLoops=0 colThreadFrom
+		local colThreadPassGap colThreadIdleLimit colThreadLastPass=-1000 colThreadLoops=0 colThreadTicks=0 colThreadFrom
 		colThreadPassGap="${MDAT_COLLECT_PASS_SECONDS:-60}"
 		case "$colThreadPassGap" in ''|*[!0123456789]*|0) colThreadPassGap=60 ;; esac
 		colThreadIdleLimit="${MDAT_COLLECT_IDLE_SECONDS:-600}"
@@ -172,7 +172,10 @@ case "$1" in
 			[ "$colThreadMode" != "--one" ] || break
 			[ -z "$colThreadEnd" ] || break
 			## The ends of its own: nobody wants it for the time set; its folder, or its lock, gone.
-			if [ "$( AgentsToolsCollectThreadWantedAge )" -ge "$colThreadIdleLimit" ] ; then
+			## The wanted age is asked every fifteenth tick: it changes by the second, and its limit
+			## is minutes or hours.
+			colThreadTicks=$(( colThreadTicks + 1 ))
+			if [ $(( colThreadTicks % 15 )) = 1 ] && [ "$( AgentsToolsCollectThreadWantedAge )" -ge "$colThreadIdleLimit" ] ; then
 				colThreadLeave="nobody has wanted it for ${colThreadIdleLimit}s"
 				break
 			fi
@@ -182,10 +185,10 @@ case "$1" in
 				break
 			fi
 			## The wait between two ticks is waited for and never slept through: TERM ends it at once, and so does a signal that asks
-			## for a pass. A sleep that cannot be made would spin, so the second is waited out by the shell itself.
+			## for a pass. A pipe of its own is waited on by the shell's own timed read, no process. Without one, a sleep it waits for
+			## is the only wait the shell can make; one that cannot be made would spin, so the second is waited out by the shell.
 			colThreadFrom="$SECONDS"
-			sleep 1 &
-			{ wait "$!" ; } 2> /dev/null || :
+			[ -n "${colThreadPipeOpen:-}" ] || { sleep 1 & { wait "$!" ; } 2> /dev/null || : ; }
 			while [ "$SECONDS" = "$colThreadFrom" ] && [ -z "$colThreadEnd" ] && [ -z "$colThreadWoken" ] ; do if [ -n "${colThreadPipeOpen:-}" ] ; then read -t 1 -u 9 2> /dev/null || : ; else sleep 1 2> /dev/null || break ; fi ; done
 		done
 

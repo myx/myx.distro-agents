@@ -29,7 +29,10 @@ review-by: inherit
 
 # Summary
 
-`magic-team.epic-close.routine` closes an epic in order: the owner's commit before the last large change, the final run, the librarian pass, the owner's rig update, then the scratch packed into the next epic's input and deleted.
+`magic-team.epic-close.routine` closes an epic in this order. First the
+owner's commit before the last large change, then the final run, then the
+librarian pass, then the owner's rig update. Last, the scratch is packed into
+the next epic's input and deleted.
 
 ## Goals
 
@@ -51,10 +54,15 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **owner-commit**: Tell the owner a large change is about to start, and get his commit before it, so its diff stands apart.
-2. **final-run**: Run the final run: the retests and the guards, once, late; the whole suite only before one large atomic switch, in a scratch, never on live.
+2. **final-run**: Run the final run: the retests and the guards, once, late. Run
+the whole suite only before one large atomic switch, in a scratch, never on
+live.
 3. **librarian-pass**: Run the librarian pass over the builders' knowledge lines, from the librarian's queue (`AgentLibrarianTools.fn.sh --queue-take`, `--queue-done`), never a loose file.
-4. **rig-update**: The owner runs his rig update, and the fixes kept under "The rigs, once, at the end" are applied in place, once, after the installer update.
-5. **pack-delete**: Pack every temporary file and scratch folder of the run into the next epic's input, and delete them from the workspace, so nothing of the run lingers.
+4. **rig-update**: The owner runs his rig update. The fixes kept under "The rigs,
+once, at the end" are then applied in place, once, after the installer update.
+5. **pack-delete**: Pack every temporary file and scratch folder of the run into
+the next epic's input, and delete them from the workspace. That way nothing of
+the run lingers.
 
 # Closure steps
 

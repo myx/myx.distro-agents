@@ -19,6 +19,8 @@
 ##     the team channel that feeds the tags at its own cadence of one minute (AgentsToolsScheduleTeamTags, the 1-5 minute band);
 ##   - the mentions of a member anywhere (`mentions:<member>`): 60, one search call, its check kept by the session across Waits;
 ##   - the DMs of a member (`dms:<member>`): 15, a read of each DM from the session's pointer, part of the floor of every Wait;
+##   - a named Slack source (`slack:<target>`): 15, the same floor as the DMs and the tags -- a Wait of no explicit poll interval
+##     does not read it again inside that floor, round 1 of a fresh call of the session included (sketch 3.2);
 ##   - a scan (`scan:<scan>`): 300, how long an unchanged scan is left to stand (AgentsWaitProbeScan). It is no floor on
 ##     noticing a message: a wake marker runs the scan at once (THE SCAN IS WOKEN AND NOT ON ITS TTL, AgentsTools.MemberWait.include),
 ##     and the TTL only keeps a scan with nothing to report from running again and again;
@@ -30,6 +32,7 @@ AgentsToolsSourceTtlOf(){ ## source
 		tagged:*) printf '15\n' ;;
 		mentions:*) printf '60\n' ;;
 		dms:*) printf '15\n' ;;
+		slack:*) printf '15\n' ;;
 		scan:*) printf '300\n' ;;
 		mail:*) printf '300\n' ;;
 		trello:*) printf '120\n' ;;

@@ -810,9 +810,9 @@ if [ -n "${MDAT_HARNESS_STATUS_LINE:-}" ] && [ -n "$harnessTitleActive" ] ; then
 	[ -z "$harnessStatusRows" ] || printf '\n\n\033[1;%dr\033[%d;1H' "$(( harnessStatusRows - 1 ))" "$(( harnessStatusRows - 1 ))" >&2
 fi
 
-## Wall-clock bound on Bash and on an MCP call. 0, the default, is no bound: a hung
-## command stays visible in its own announce line and Ctrl-C still reaches it.
-harnessRunTimeout="${MDAT_HARNESS_RUN_TIMEOUT:-0}"
+## Wall-clock bound on Bash and on an MCP call, 300 s by default (epic S20, "about 5 minutes"): a command that reads a pipe
+## nobody closes would otherwise hold its run for hours (epic S20). 0 is no bound; a long job runs in the background.
+harnessRunTimeout="${MDAT_HARNESS_RUN_TIMEOUT:-300}"
 ## Whole seconds, by explicit enumeration rather than a collation-dependent range.
 harnessRunTimeoutRest="$harnessRunTimeout"
 while [ -n "$harnessRunTimeoutRest" ] ; do
@@ -1377,8 +1377,25 @@ fi
 ## A spawned session never ends on its own, its work done or not: its spawner dismisses it.
 ## Not one whose caller blocks on it (MDAT_SPAWN_CALLER_WAITS): that caller cannot send DISMISSED.
 harnessSpawnedWaitNote=""
-## Nor one that reports to no one, which ends on its report (AgentsHarnessReportsNone).
-[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own, not even when your work is done. When it is done, report that to whoever started you with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting with Wait on your session thread and keep obeying what arrives there. End your run only when a Wait returns DISMISSED."
+if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+	## Nor one that reports to no one, which ends on its report (AgentsHarnessReportsNone).
+	[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own, not even when your work is done. When it is done, report that to whoever started you with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting with Wait on your session thread and keep obeying what arrives there. End your run only when a Wait returns DISMISSED."
+## AN EXECUTOR IS NOT LET GO BEFORE IT IS THE LAST ONE RUNNING (sketch 5.3, the owner's own example: a
+## coordinator that ended with questions of its own still open). A root run, one that started this
+## coworking session itself rather than being spawned into it, has no spawner to carry the rule above --
+## so it is checked here instead, straight against the session's other live participants.
+elif [ -n "${MDAT_SESSION_ID:-}" ] ; then
+	type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" 2> /dev/null || :
+	type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	harnessExecutorRecord=""
+	if type AgentsHarnessSpawnRecordPath > /dev/null 2>&1 ; then
+		harnessExecutorRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SESSION_ID" 2> /dev/null )" || harnessExecutorRecord=""
+	fi
+	if [ -n "$harnessExecutorRecord" ] && type AgentsToolsSessionOthersRunning > /dev/null 2>&1 \
+		&& AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; then
+		harnessSpawnedWaitNote=" You lead this coworking session, and another participant of it still runs: you are not the last one running, so you do not end on your own yet. Wait for the others with the Wait tool, and keep obeying what arrives there, until you are the last one running or a Wait returns DISMISSED."
+	fi
+fi
 
 ## THE TEXT OF THIS RUN ALONE (F10.7), told in the task block of the first message, after the marker of the prefetch block, and in no other place:
 ## the roots only this run has (its sandbox's input/ and output/, its results folder, its children's sandboxes), the sentence of a spawned session,

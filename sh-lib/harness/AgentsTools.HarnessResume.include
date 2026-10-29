@@ -12,7 +12,7 @@
 
 agentsHarnessResumeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 ## The one function that starts the console for every spawn, loaded with this file.
-type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$agentsHarnessResumeLib/session/AgentsTools.SpawnConsoleLaunch.include"
+type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnConsoleLaunch.include"
 
 ## Whether a context file parses as one the harness can load. rc 0 and its message count;
 ## rc 1 and the reason.

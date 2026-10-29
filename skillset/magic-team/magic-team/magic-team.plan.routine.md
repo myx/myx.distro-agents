@@ -116,7 +116,7 @@ All statements apply at the same time, always. These rules override a participan
 - **Every piece is checkable.** A piece with no check that can fail is not ready for the plan.
 - **The whole scope, and only it.** A piece outside the stated scope is filed as a proposal, never planned in.
 - **A gap is asked, not filled.** A fact the plan needs and nobody holds goes to `magic-team.investigate.routine`, `magic-team.research.routine` or the owner, never into a guess.
-- Every exchange that decides something is kept as a `transcript-*` with `--append-transcript`. Waiting follows **wait-never-quit**.
+- Every exchange that decides something is kept as a `transcript-*` with `--append-transcript --transcript-name`. Waiting follows **wait-never-quit**.
 - Goal-directedness: plan the stated task. Other work found on the way is recorded quickly, not planned now.
 
 # Routine-specific tooling
@@ -125,7 +125,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## Tooling operations
 
-- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--get-board-item <item-filename>`

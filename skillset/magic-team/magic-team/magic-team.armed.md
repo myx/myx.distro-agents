@@ -405,7 +405,7 @@ Rules:
 - A chapter keeps the session's routine, so it keeps the routine's access. Anything beyond it is asked for with `RequestPermission`.
 - One conversation, one document, one transcript, through every chapter.
 - The main mode's exit ends the conversation. A chapter ends by handing back, never by ending the conversation.
-- Every exchange is kept as a `transcript-*` with `--append-transcript`.
+- Every exchange is kept as a `transcript-*` with `--append-transcript --transcript-name`.
 
 # Interview-alike checkpoint mode
 
@@ -553,7 +553,7 @@ Read `reference/board-item-model.md` for the board types, the audit and vault ty
 
 **Frontmatter fields:**
 - `type` — required; the filename's type word (`task`, `note`, …). Never a genre.
-- `from`, `date`, `owner` — author, creation `date-time`, current assignee. `owner` may be a non-acting owner — the human-owner or an external contact — whose inbox content lives in `magic-coordinator`'s inbox and is handled by `magic-coordinator.external-inbox-handle-loop.routine`.
+- `from`, `date`, `owner` — author, creation `date-time`, current assignee. `owner` may be a non-acting owner, such as the human-owner or an external contact. That owner's inbox content lives in `magic-coordinator`'s inbox and is handled by `magic-coordinator.external-inbox-handle-loop.routine`.
 - `communication-channel-id` — the one external message the item traces to: `slack:<channel>`, `slack:<channel>:<ts>` or `email:<…>`.
 - `processed-at`, `resolved-at`, `started-at`, `groomed-at`, `groomed-from`, `track` — stamped by the tooling. A member never writes them.
 - `type`, `date`, `from` (and an inbox item's `owner`) — filled by inbox upsert and board create where missing. A member writes them only to set another value; `--from-member` only on another member's behalf.
@@ -657,7 +657,7 @@ A question, link or blocking decision reaches him at once on his direct channel,
 None of these ends the task: a refusal, a failed mechanism, a missing operation or grant. Nor do an unverified source, an open question, or a finding needing confirmation. None is only logged, and none changes the task's scope.
 
 - Who answers: "Escalation and chain of command".
-- An escalation is an `AskQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay; a permission ask goes to its routine, below. The coordinator answers it, or escalates it to the human-owner with its own ask — no relay under the coordinator carries another member's words to him. The kinds are the tooling's own ask templates (`myx.distro-agents/sh-lib/templates/*.post.format.md`).
+- An escalation is an `AskQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay; a permission ask goes to its routine, below. The coordinator answers it, or escalates it to the human-owner with its own ask. No relay under the coordinator carries another member's words to him. The kinds are the tooling's own ask templates (`myx.distro-agents/sh-lib/templates/*.post.format.md`).
 - An escalation is synchronous. A typed ask (readback, decision, permission) waits inside its own call. A plain question waits with `Wait`, per **wait-never-quit**.
 - Before starting a task, work out what it needs: every place, in every workspace, and every tool. Ask once with `entries`, one Permission set covering all of it. Ask one call alone only when it is truly a single case. A refusal still met is escalated as a `permission` ask to `magic-coordinator.permission-escalation.routine` (its `to`), citing its `REFUSAL-ID:` and why the task needs it. On an allow, run the operation and route the ask named. A write refused in a read-only place is not asked for: write to the session sandbox `output/`, or find another suitable location.
 - A problem or contradiction is escalated even when it does not block. Another non-blocking matter is filed with `post-inquiry` and the member carries on; answers are collected before closure steps.

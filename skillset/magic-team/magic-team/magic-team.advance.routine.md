@@ -103,7 +103,9 @@ All statements apply at the same time, always. These rules override a participan
 `type` is the item's board type word; `proposal-root` is a `proposal` item that carries a `communication-channel-id`. `routine` is the routine file name without `.md`, or `-` where the iteration is an action with no routine of its own. A row with `gate` `yes` is never overridden by `handler-routine:`. A routine also handles a type when its `# Summary` carries the line `Handles: <type>, <type>`.
 
 What each row does:
-- `approval`: `recheck-date` due and unresolved — ask the human-owner again in its tracked thread, else on his direct channel (`AskQuestion`, `wait: false`), alone in its own message. Extend it with `--recheck-in 17±2`.
+- `approval`: `recheck-date` due and unresolved means asking the human-owner
+  again, in its tracked thread. Otherwise use his direct channel
+  (`AskQuestion`, `wait: false`), alone in its own message. Extend it with `--recheck-in 17±2`.
 - `proposal-root`: read the thread root's closing reaction (the human-owner's own) and apply it per `magic-team.proposal.routine`'s **close-on-root-reaction**. None there: take the `approval` row.
 - `proposal`: one round of `magic-team.discuss.routine` over it. Its **record-the-outcome** makes the move.
 - `task`, `project`: completion claimed and no clean verification — `magic-team.verify.routine`; a stale verification gets a fresh one. No completion claimed: no row runs, and the board round's staleness rules apply.

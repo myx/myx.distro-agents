@@ -2879,7 +2879,7 @@ blocks|verbatim|caller|stdin file"
 			authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$authHeader" 2>&1 )"
 			authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || authUserIdRc=$?
 			case "$authUserIdRc:$authUserId" in
-				0:U[A-Z0-9]*) { mkdir -p "${authCache%/*}" && printf '%s %s\n' "$authNow" "$authUserId" > "$authCache.$$" && mv -f "$authCache.$$" "$authCache" ; } 2> /dev/null || : ;;
+				0:U[A-Z0-9]*) { mkdir -p "${authCache%/*}" && authTmp="$( mktemp "$authCache.XXXXXX" )" && printf '%s %s\n' "$authNow" "$authUserId" > "$authTmp" && mv -f "$authTmp" "$authCache" ; } 2> /dev/null || : ;;
 			esac
 			fi
 			if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then

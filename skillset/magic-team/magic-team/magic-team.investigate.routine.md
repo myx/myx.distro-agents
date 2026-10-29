@@ -132,7 +132,7 @@ All statements apply at the same time, always. These rules override a participan
 - **Systems, not people.** The report names the conditions that led to the finding, never a person or a member to blame.
 - **Outside the scope.** A cause or a change outside the named scope is escalated, never handled in passing.
 - **The owner of the domain.** A question in another member's domain loops that member in, never works around it.
-- Every exchange that decides something is kept as a `transcript-*` with `--append-transcript`. Waiting follows **wait-never-quit**.
+- Every exchange that decides something is kept as a `transcript-*` with `--append-transcript --transcript-name`. Waiting follows **wait-never-quit**.
 - Goal-directedness: answer the stated question. Other questions found on the way are recorded quickly, not investigated now.
 
 # Routine-specific tooling
@@ -143,7 +143,7 @@ Harness tools: `ReportFindings` posts the report.
 
 ## Tooling operations
 
-- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--get-board-item <item-filename>`

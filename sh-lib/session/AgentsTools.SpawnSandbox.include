@@ -68,8 +68,10 @@ AgentsToolsSpawnSandboxNearestMagic(){ ## path
 ## credentials line in pointers.md names the identity the tooling acts as, not a value.
 AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member, conversation threads (may be empty), input scan result file (may be empty)
 	local fillInput="$1/input" fillBrief="$2" fillItem="$3" fillMember="$4" fillConversations="${5:-}"
-	local fillText fillPath fillMagic fillName fillCount=0 fillMembers fillMemberName fillMemberDir
+	local fillText fillPath fillMagic fillName fillCount=0 fillMembers fillMemberName fillMemberDir fillScanKept=""
 	[ -d "$fillInput" ] || return 0
+	## The scan result this sandbox already holds is the session's, not one start's: read before the clean below wipes it.
+	[ ! -f "$fillInput/input-scan.md" ] || fillScanKept="$( cat "$fillInput/input-scan.md" 2>/dev/null )"
 	## A joined sandbox may hold a run's read-only input/ still: opened and emptied first.
 	AgentsToolsSpawnSandboxCleanInput "$1"
 	printf '%s\n' "$fillBrief" > "$fillInput/dispatch.md" || {
@@ -112,8 +114,13 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
 	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"
-	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers.
-	[ -z "${6:-}" ] || [ ! -f "$6" ] || mv -f "$6" "$fillInput/input-scan.md" 2>/dev/null || :
+	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers. A start
+	## that ran no scan keeps the one the session already had: no brief names a file this fill does not leave there.
+	if [ -n "${6:-}" ] && [ -f "$6" ] ; then
+		mv -f "$6" "$fillInput/input-scan.md" 2>/dev/null || :
+	elif [ -n "$fillScanKept" ] ; then
+		printf '%s\n' "$fillScanKept" > "$fillInput/input-scan.md" 2>/dev/null || :
+	fi
 	## Read-only by mode, whatever the client's access flag can say: a flag with no verb
 	## grants input/ for writing too, so the files and the folder carry no write bit.
 	chmod -R a-w "$fillInput" 2>/dev/null || :

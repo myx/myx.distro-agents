@@ -54,7 +54,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **pick-the-member**: Use the member the human-owner named. None named: ask, never guess.
 2. **prep-member-context**: Gather the member's board items, and the reflections, notes and inquiries held for the session, from the session's input scan in `input/input-scan.md`. Gather also any board item that references it, so the conversation does not start cold. Little or nothing found is fine.
 3. **invite-target-member**: Spawn the member into this session (`spawn-one-dispatch`). It loads its own skill and processes its own inbox at its own session start.
-4. **hold-the-conversation**: Carry the conversation between the human-owner's relayed turns and the member, in the session thread. Waiting is per **wait-never-quit**. A member silent past a reply is asked; one found dead is reported to the root ("the one-on-one session appears to have died — restart it?"). Genuinely private phrasing goes to the human-owner's DM instead of the thread.
+4. **hold-the-conversation**: Carry the conversation between the human-owner's relayed turns and the member, in the session thread. Waiting is per **wait-never-quit**. A member silent past a reply is asked. One found dead is reported to the root
+("the one-on-one session appears to have died — restart it?"). Genuinely private phrasing goes to the human-owner's DM instead of the thread.
 
 # Closure steps
 

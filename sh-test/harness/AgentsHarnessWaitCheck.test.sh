@@ -36,6 +36,15 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsHarnessWaitCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
+## The main operation gets a rig workspace of its own, never the real one: MMDAPP
+## points at a scratch tree with its own .local/.agents tokens, so a Slack-shaped
+## scenario here never reads the real team's config or writes into the real comms
+## cache under the workspace this check happens to run from.
+rigOpWs="$rigTmp/ws"
+mkdir -p "$rigOpWs/.local/.agents" "$rigOpWs/.local/temp"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIGWAITTEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGWAITOWNER\nSLACK_BOT_TOKEN=rig-bot-token-WAITTEAM\n' > "$rigOpWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_USER_TOKEN=rig-user-token-WAITTESTER\n' > "$rigOpWs/.local/.agents/$rigMember.agent.env"
+
 ## Every request any part of this check could issue passes through here, and it
 ## opens no socket. A model round replays this round's canned stream; anything
 ## else -- a Slack read above all -- is recorded and refused. The log is what turns
@@ -243,7 +252,7 @@ rigOp(){ ## output basename, then the operation's own arguments
 	rigOpErr="$rigTmp/$opName.err"
 	rigOpStatus=0
 	opStart="$( date +%s )"
-	"$rigTool" --wait-for-input "$@" > "$rigOpOut" 2> "$rigOpErr" &
+	MMDAPP="$rigOpWs" "$rigTool" --wait-for-input "$@" > "$rigOpOut" 2> "$rigOpErr" &
 	opPid=$!
 	(
 		opLeft="$rigOpGuard"
@@ -258,7 +267,7 @@ rigOp(){ ## output basename, then the operation's own arguments
 		kill -KILL "$opPid" 2>/dev/null
 		## The operation names its own working directory after its own pid, so a
 		## killed run's leftovers are removable by name rather than by pattern.
-		rm -rf -- "$MMDAPP/.local/temp/mdat-member-wait.$rigMember.$opPid"
+		rm -rf -- "$rigOpWs/.local/temp/mdat-member-wait.$rigMember.$opPid"
 	) &
 	opWatchPid=$!
 	wait "$opPid" || rigOpStatus=$?

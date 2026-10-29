@@ -13,9 +13,10 @@
 if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 	## The member a session the tooling spawned acts as: MDAT_SPAWN_AGENT, else the harness's
 	## own harnessAgent, else the `owner:` of the spawn record MDAT_SPAWN_SESSION_ID names.
-	## Prints nothing for a call from no such session: a human at the console.
+	## An adopted root session has no spawn record: it acts as the member whose routine it runs,
+	## which its own store names. Prints nothing otherwise: a human at the console.
 	AgentsToolsActingMember(){
-		local actingName="${MDAT_SPAWN_AGENT:-${harnessAgent:-}}" actingRecord
+		local actingName="${MDAT_SPAWN_AGENT:-${harnessAgent:-}}" actingRecord actingStore actingRoutine
 		if [ -z "$actingName" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
 			case "$MDAT_SPAWN_SESSION_ID" in
 				*/*|.|..) ;;
@@ -25,6 +26,19 @@ if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 						actingName="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "owner: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$actingRecord" 2> /dev/null )" || actingName=""
 						[ -z "$actingName" ] || break
 					done
+				;;
+			esac
+		fi
+		if [ -z "$actingName" ] && [ -n "${MMDAPP:-}" ] ; then
+			## An MCP server hands its adopted root session down as MDAT_SPAWN_SESSION_ID, so that id is
+			## read here too: a root session has no spawn record, and its own store names its member.
+			actingStore="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-}}}"
+			case "$actingStore" in
+				''|*/*|.|..) ;;
+				*)
+					actingRoutine="$MMDAPP/.local/agents/sessions/$actingStore/root-session.routine"
+					[ -f "$actingRoutine" ] || actingRoutine=""
+					[ -z "$actingRoutine" ] || actingName="$( LC_ALL=C sed -n 's/^\([a-z][a-z0-9-]*\)\..*$/\1/p' "$actingRoutine" 2> /dev/null | head -1 )"
 				;;
 			esac
 		fi

@@ -53,7 +53,7 @@ AgentsToolsCommsCacheSlackAccount(){ ## member, as bot (true|false)
 			accountId="$( DistroAgentsTools --intern-op-slack-call "$1" --api auth.test --context "--comms-cache" 2> /dev/null | LC_ALL=C sed -n 's/.*"user_id":"\(U[A-Z0-9]*\)".*/\1/p' | head -1 )"
 			case "$accountId" in U[A-Z0-9]*) ;; *) return 1 ;; esac
 			accountNow="$( date +%s )"
-			{ mkdir -p "${accountFile%/*}" && printf '%s %s\n' "$accountNow" "$accountId" > "$accountFile.$$" && mv -f "$accountFile.$$" "$accountFile" ; } 2> /dev/null || :
+			{ mkdir -p "${accountFile%/*}" && accountTmp="$( mktemp "$accountFile.XXXXXX" )" && printf '%s %s\n' "$accountNow" "$accountId" > "$accountTmp" && mv -f "$accountTmp" "$accountFile" ; } 2> /dev/null || :
 		;;
 	esac
 	agentsCommsAccountSeen="${agentsCommsAccountSeen:-} $1=$accountId"
@@ -262,11 +262,19 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 				if ( index(line, " [body: " $1 ".body.txt]") ) { line = "" ; while ( ( getline part < body ) > 0 ) { line = ( line == "" ? part : line "\037" part ) ; } close(body) ; }
 				print $1 "\t" line ; }' "$1/$mergeMonth/messages.txt"
 		} | LC_ALL=C sort -s -t "$tab" -k1,1n | LC_ALL=C awk -F'\t' -v dir="$1/$mergeMonth" -v cap="$agentsCommsCacheLineCap" '
+			## A body that already holds this text is left alone: a re-merge rewrites no long message.
+			function putBody(path, whole,   have, one) {
+				have = ""
+				while ( ( getline one < path ) > 0 ) { have = ( have == "" ? one : have "\n" one ) }
+				close(path)
+				if ( have == whole ) { return }
+				printf "%s\n", whole > path ; close(path)
+			}
 			$1 == prev { next ; }
 			{
 				prev = $1 ; line = substr($0, length($1) + 2)
 				if ( length(line) > cap ) {
-					body = dir "/" $1 ".body.txt" ; whole = line ; gsub(/\037/, "\n", whole) ; printf "%s\n", whole > body ; close(body)
+					body = dir "/" $1 ".body.txt" ; whole = line ; gsub(/\037/, "\n", whole) ; putBody(body, whole)
 					line = substr(line, 1, cap) " [body: " $1 ".body.txt]"
 				}
 				print line
@@ -280,5 +288,6 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 	case "${agentsCommsCacheNewest%%.*}" in ''|*[!0-9]*) ;; *) [ -n "$mergeNewest" ] && [ "${mergeNewest%%.*}" -ge "${agentsCommsCacheNewest%%.*}" ] || mergeNewest="$agentsCommsCacheNewest" ;; esac
 	[ -n "$mergeNewest" ] || mergeNewest="$mergeFrom"
 	[ -n "$mergeHead" ] || mergeHead="$agentsCommsCacheHead"
-	{ printf '%s %s %s\n%s\n%s\n' "$4" "$mergeFrom" "$mergeNewest" "$mergeHead" "${5:-$agentsCommsCacheRecipe}" ; } > "$1/.state.txt.$$" && mv -f "$1/.state.txt.$$" "$1/.state.txt"
+	mergeStateTmp="$( mktemp "$1/.state.txt.XXXXXX" )" || return 1
+	{ printf '%s %s %s\n%s\n%s\n' "$4" "$mergeFrom" "$mergeNewest" "$mergeHead" "${5:-$agentsCommsCacheRecipe}" ; } > "$mergeStateTmp" && mv -f "$mergeStateTmp" "$1/.state.txt"
 }

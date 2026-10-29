@@ -90,7 +90,9 @@ Steps:
    - `warnings:` — the open `warning-*` items relevant to this dispatch, restated short. Relevance is this session's judgement now; a warning it cannot say why it includes is left out. `none relevant` when the open set was read and none qualified, `none open` when there was none.
    - `held-context:` — the messages and relays the calling session holds that the spawn needs, or `none`.
    - `checked:` — what this brief did on both points above, so a brief that looked and found nothing differs from one that never looked.
-   - `access:` — the places and tools this work needs, worked out before launch, so the spawned member asks once with `entries` rather than call by call.
+   - `access:` names the places and tools this work needs, worked out before
+     launch. That way the spawned member asks once with `entries`, rather than
+     call by call.
    Make the dispatch the best guess you can. Work out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. That tells whom to invite.
    Re-read the drafted brief for the block before sending.
 3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`. Name the likely members, permissions and tools on it with `--participants`, `--likely-permission` and `--likely-tool`.

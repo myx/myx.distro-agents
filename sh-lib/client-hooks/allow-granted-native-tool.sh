@@ -172,8 +172,8 @@ if [ -n "$hookIn" ] ; then
 	esac
 fi
 if [ -z "$hookSandboxPath" ] && [ -f "$hookLib/grants/AgentsTools.PermissionHolds.include" ] ; then
-	. "$hookLib/grants/AgentsTools.PermissionHolds.include" 2>/dev/null || true
-	hookDenied="$( AgentsToolsPermissionDenyRefusal "$hookMember" "$hookTool" "$hookReal" "$hookSession" 2>/dev/null )" || hookDenied=""
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2>/dev/null || true
+	hookDenied="$( AgentsToolsPermissionDenyRefusal "$hookMember" "$hookTool" "$hookReal" "$hookSession" record 2>/dev/null )" || hookDenied=""
 fi
 [ -z "$hookDenied" ] || hookAnswer deny "$hookDenied"
 

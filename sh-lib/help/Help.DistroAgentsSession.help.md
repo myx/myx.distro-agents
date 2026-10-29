@@ -6,6 +6,7 @@
 📘 syntax: DistroAgentsSession.fn.sh --get-session-channel-id [--team-member <team-member>]
 📘 syntax: DistroAgentsSession.fn.sh --post-session-channel [--team-member <team-member>] [--address-to <team-member>]... [--identity-bot] (<text...>|--from-stdin)
 📘 syntax: DistroAgentsSession.fn.sh --get-session-thread [--team-member <team-member>] [--own]
+📘 syntax: DistroAgentsSession.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsSession.fn.sh --wait-session-channel [--team-member <team-member>] [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]
 📘 syntax: DistroAgentsSession.fn.sh --get-dispatch-text [--team-member <team-member>]
 📘 syntax: DistroAgentsSession.fn.sh --get-uninvited-participants [--team-member <team-member>]
@@ -82,6 +83,10 @@
 			The participants the session's record names that have no run in the
 			session yet, one a line: the default list the executor invites from.
 			Any member may be invited all the same.
+
+		--settle-pending-reply <pending-id> --reason <text> [--withdraw]
+			Closes a question that was settled elsewhere, so it stops waiting for an answer,
+			and says why. `--withdraw` closes it with no verdict at all.
 
 		--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]
 			The update of the locked document of the session's routine. The session

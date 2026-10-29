@@ -34,11 +34,11 @@ managing blast radius when the run itself has real consequences.
 Ask it of any measurement before trusting it. Where there is no such result,
 nothing has been measured.
 
-Every section below is one form of that question. A check that cannot fail, a
-probe answering its own predicate, an instrument returning the same answer for
-every subject, a census whose buckets are drawn from the rule under test — each
-is a measurement with no disconfirming outcome available to it, and each reads
-exactly like a result.
+Every section below is one form of that question. A check that cannot fail is one form. A probe answering its own predicate is
+another. So is an instrument returning the same answer for every subject, and
+a census whose buckets are drawn from the rule under test. Each is a
+measurement with no disconfirming outcome available to it. Each reads exactly
+like a result.
 
 Worked evidence: five premises held as fact and falsified the same day, each by
 a single read:
@@ -55,18 +55,19 @@ rather than measured here; the rule stands independently of the count.
 
 ## Establish the failing case before the passing one
 
-Reinforces "Engineering & operating
-discipline" rule — a check you would act on is not a result until it has been
-shown able to fail — with the ordering that makes it operational:
+Reinforces the "Engineering & operating discipline" rule: a check you would
+act on is not a result until it has been shown able to fail. This section adds
+the ordering that makes that operational:
 
 1. Construct the input the defect makes fail, and watch it fail, against the code
    as it stands.
 2. Apply the fix.
 3. Watch that same input pass.
 
-A pass observed only at step 3 is equally consistent with the fix working and
-with the check being unable to fail at all — a filter matching nothing, a
-comparison against a file that was already correct, an assertion the run does not reach.
+A pass observed only at step 3 is equally consistent with two readings. The
+fix may be working. The check may be unable to fail at all. Consider a filter matching nothing, a
+comparison against a file that was already correct, or an assertion the run
+does not reach.
 **A clean comparison becomes a result once the same comparison has been seen to
 come out dirty.** Where the defect predates the session, the failing case already
 exists: check out or reconstruct the prior state and run against that. This is
@@ -75,27 +76,27 @@ before spending it anywhere else.
 
 **A planted positive is verified as planted before the sweep's result is read.**
 A decoy built to be found is a control only once it is present where the
-instrument actually looks. A marker meant to identify a process, which never
-reached any argument list, leaves the scan hunting something that was never
-there — and the clean answer that follows is about the decoy rather than about
-the subject. Confirm the plant is visible to the instrument, through the
+instrument actually looks. A marker meant to identify a process may never reach any argument list. The
+scan then hunts something that was never there. The clean answer that follows
+is about the decoy, rather than about the subject. Confirm the plant is visible to the instrument, through the
 instrument, before the negative counts.
 
 ## Verify what stores, not what sends
 
-A write path's own success — an API's `ok: true`, the echo of the payload that
-was sent, the writer's exit status — reports that the send happened. What was
+A write path's own success reports that the send happened. That covers an
+API's `ok: true`, the echo of the payload that was sent, and the writer's exit
+status. What was
 stored is a second question, answered by reading it back through the independent
 read path. What a reader sees is a third, answered by inspecting the rendered
 surface.
 
-The three diverge routinely, one divergence per pair: emoji
-submitted as glyphs and stored as shortcodes; line breaks submitted as newlines
-and stored as spaces; a bare email address stored as plain text and rendered as a
-link at display time.
+The three diverge routinely, one divergence per pair. Emoji are submitted as
+glyphs and stored as shortcodes. Line breaks are submitted as newlines and
+stored as spaces. A bare email address is stored as plain text, and rendered
+as a link at display time.
 
-So: read back through a separate path (a fetch call, a fresh open of the file, a
-query against the store), and where the question concerns what a person sees,
+So read back through a separate path: a fetch call, a fresh open of the file,
+a query against the store. Where the question concerns what a person sees,
 look at the rendered form as well. An answer to one of the three leaves the other
 two open.
 
@@ -120,39 +121,38 @@ template renderer — a regression net is cheap to build and reusable afterwards
 3. Run the post-change implementation over the same corpus and diff byte for
    byte.
 
-Where the change is an addition to a shared index rather than a transformation of
-an input, the same three steps hold with the "before" manufactured rather than
-found: hold the new thing out, ingest, and snapshot every existing entry; put it
-back, ingest again, snapshot again; diff the two snapshots. A single snapshot
-taken after the fact cannot answer "did anything else change" — it has nothing to
-be compared against, and the question it appears to answer is a different one.
+The change may be an addition to a shared index, rather than a transformation
+of an input. The same three steps hold, with the "before" manufactured rather
+than found. Hold the new thing out, ingest, and snapshot every existing entry.
+Put it back, ingest again, and snapshot again. Then diff the two snapshots. A single snapshot taken after the fact cannot answer "did anything else
+change". It has nothing to be compared against. The question it appears to
+answer is a different one.
 
 A byte-identical diff bounds the change to what it was meant to touch. The net's
 strength is exactly its corpus coverage, so grow the corpus by the constructs a
-change touches rather than by volume. A change designed to be purely additive is
-expected to produce an identical diff over the pre-existing grammar — the net
-pays for itself on the change that was supposed to be additive and turned out not
-to be.
+change touches rather than by volume. A change designed to be purely additive should produce an identical diff over
+the pre-existing grammar. The net pays for itself on the change that was
+supposed to be additive and turned out not to be.
 
 ## Read the instrument before trusting the measurement
 
 A count's name is a label someone chose; its definition is the code that produced
 it. Before a number is quoted as evidence, establish what the tool actually
-counted: which unit (a thread against a conversation, a file against a record, a
-row against an entity), over which population, after which filters.
+counted. Which unit is it: a thread against a conversation, a file against a
+record, a row against an entity? Over which population, and after which
+filters?
 
-The shape of the failure: a coverage figure quoted for a
-message class, where the counter's unit is threads rather than conversations —
-two populations that merely look interchangeable. The check is one step: find
+The shape of the failure is a unit mismatch. A coverage figure is quoted for a
+message class, where the counter's unit is threads rather than conversations.
+Those two populations merely look interchangeable. The check is one step: find
 where the number is produced, read the unit off the code, and restate the claim
 in that unit.
 
 A negative that comes back identical for every subject is the same question
-asked of the instrument. A probe that enumerates a config directory's
-subdirectories, where the configuration is held in files inside it, finds
-nothing and concludes no member holds the key — while every member with real
-configuration holds one. **A uniform "none anywhere" — none configured, none matching, none
-present — is a finding about the instrument until one subject with a known
+asked of the instrument. A probe may enumerate a config directory's subdirectories, where the
+configuration is held in files inside it. It finds nothing, and concludes no
+member holds the key. Every member with real configuration holds one. **A uniform "none anywhere" — none configured, none matching, none present — is
+a finding about the instrument. It stays one until a subject with a known
 positive answer has been put through the same probe.** That positive control is
 the cheap half: a single known-yes case through the identical command shape,
 before the sweep's result is offered as a result.
@@ -161,25 +161,23 @@ its Principles, for recursive searches whose empty output looks the same either
 way.
 
 **A census whose categories are drawn from the rule under test can only confirm
-it.** A proposal that a quotation closes a sentence where a capital follows was
-tested by counting every quotation site in the canon, bucketed by whether a
-capital followed; six lowercase-follows sites then read as defects. The table
-was the hypothesis restated with counts beside it. Reading the instances refuted
-it three ways: a quotation followed by a code span leaves a lowercase word and
-is a boundary, one followed by a parenthetical gloss opens with a bracket and is
-a boundary, and an ellipsis quotation followed by a proper noun is not one.
+it.** A proposal held that a quotation closes a sentence where a capital follows. It
+was tested by counting every quotation site in the canon, bucketed by whether
+a capital followed. Six lowercase-follows sites then read as defects. The table
+was the hypothesis restated with counts beside it. Reading the instances refuted it three ways. A quotation followed by a code
+span leaves a lowercase word, and is a boundary. One followed by a
+parenthetical gloss opens with a bracket, and is a boundary. An ellipsis
+quotation followed by a proper noun is not one.
 Neither outcome was a bucket, so neither could appear. Draw the categories from
 the subject before the rule exists, or read the instances themselves. A count is
 evidence only where a disconfirming bucket was available to it.
 
 **The same failure appears one level earlier than bucketing, in how the candidate
-population is built.** A check on a naming convention — `--intern-op-*` or
-`board-ops-*` naming, tested by grepping for names already shaped like the
-pattern under test — can find no violation: anything not shaped like the rule was
-never a candidate. Build the population by a method that does not presuppose the
-rule — a full listing, a broader grep, the schema itself — then test membership
-against the rule, never search for the rule's own shape to build the set being
-tested.
+population is built.** A check on a naming convention can find no violation. It takes `--intern-op-*`
+or `board-ops-*` naming, and greps for names already shaped like the pattern
+under test. Anything not shaped like the rule was never a candidate. Build the population by a method that does not presuppose the rule: a full
+listing, a broader grep, the schema itself. Then test membership against the
+rule. Never search for the rule's own shape to build the set being tested.
 
 **A measurement's scope and the claim's scope are one sentence, or the number is
 wrong.** A count taken inside one package and reported as a property of the
@@ -191,14 +189,14 @@ than the wording.
 ## A system's enforcement path and its reporting path are different surfaces
 
 Neither one's silence describes the other. Reading the code that enforces a rule
-establishes what that code does when the rule is broken. It establishes nothing
-about whether the system reports that condition somewhere else, through a listing
-command, a query option, a log line or a help entry.
+establishes what that code does when the rule is broken. That establishes nothing about whether the system reports the condition
+somewhere else. The other surface may be a listing command, a query option, a
+log line or a help entry.
 
-The gap is easy to miss because the first reading is genuinely correct. A resolver
-that accepts a malformed state without complaint is a true finding about the
-resolver; "the tooling has no diagnostic for that state" is a claim about every
-surface the tooling has, resting on a search that was never run. The second is
+The gap is easy to miss because the first reading is genuinely correct. A resolver that accepts a malformed state without complaint is a true finding
+about the resolver. By contrast, "the tooling has no diagnostic for that
+state" is a claim about every surface the tooling has. It rests on a search
+that was never run. The second is
 what a reader plans around.
 
 So name the surface that was actually read, in the sentence stating the result,
@@ -206,9 +204,8 @@ and check the reporting surfaces before generalising to the system. Where a
 pre-flight check does exist, it is usually cheaper than the failure it prevents.
 
 A second worked case, same shape. A resolver's hardcoded scope name says what
-that resolver uses; it says nothing about what the estate defines. A session read
-one scope, found no channel key under it, concluded the channel role was missing,
-and the proposal built on that reading was refused. The read was correct about
+that resolver uses; it says nothing about what the estate defines. A session read one scope and found no channel key under it. It concluded the
+channel role was missing. The proposal built on that reading was refused. The read was correct about
 the resolver and wrong about every other surface that holds configuration. Name
 the scope actually read in the sentence stating the result, and check the other
 definition sites before generalising to the estate.
@@ -216,47 +213,44 @@ definition sites before generalising to the estate.
 ## A refusal for want of privilege reads exactly like an empty result
 
 An instrument answering under insufficient rights reports absence in the words of
-a genuine negative, and nothing that counts rows can tell the two apart. `vm list`
-under a non-root identity answers that virtual machines can only be managed by
-root; recorded as "no guests, vmm not loaded", every conclusion drawn downstream
-was wrong.
+a genuine negative, and nothing that counts rows can tell the two apart. `vm list` under a non-root identity answers that virtual machines can only be
+managed by root. It was recorded as "no guests, vmm not loaded". Every
+conclusion drawn downstream was wrong.
 
-This is the authorisation case of the positive-control family above, and it takes
+This is the authorisation case of the positive-control family above. It takes
 the same instrument: one known-positive subject, through the identical command
-shape, under the identical identity. Establish that the identity used actually had
-the rights to see the thing before reporting that the thing is absent — the output
-alone never carries that difference.
+shape, under the identical identity. Establish that the identity used actually had the rights to see the thing. Do
+that before reporting the thing absent. The output alone never carries that
+difference.
 
 ## A probe answers its own predicate, not the question it was asked
 
-A check that runs cleanly reports on the condition it actually evaluates, and
-the distance between that condition and the claim it gets quoted for is where a
-false positive lives. Two shapes it takes, each producing a wrong
+A check that runs cleanly reports on the condition it actually evaluates. A
+false positive lives in the distance between that condition and the claim it
+gets quoted for. Two shapes it takes, each producing a wrong
 report to the owner:
 
-- **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Where
-  most `.agent.env` files in a workspace are empty, a `[ -f ]` probe reports
-  every one of them as configured, and a member whose files are all 0 bytes reads
-  the same as a fully configured one. The
+- **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. In a workspace where most `.agent.env` files are empty, a `[ -f ]` probe
+reports every one of them as configured. A member whose files are all 0 bytes
+then reads the same as a fully configured one. The
   discriminator is `[ -s ]`, or parsing the file for the key the claim is about.
   Where a layer creates the file on first access, existence carries no
-  information at all by construction; `myx.distro-agents`' `MAGIC.md` records
+  information at all by construction. `myx.distro-agents`' `MAGIC.md` records
   that as a contract of `--agents-config-option`.
-- **A pipeline's exit status is the last command's.** `op | tail -2 ; echo
-  "rc=$?"` reports `tail`'s status, so a rejected call reads back as `rc=0` —
-  which is how "the op accepted it" gets reported for a call the op refused.
+- **A pipeline's exit status is the last command's.** `op | tail -2 ; echo "rc=$?"` reports `tail`'s status, so a rejected call
+reads back as `rc=0`. That is how "the op accepted it" gets reported for a
+call the op refused.
   Capture the status of the command whose success is the claim, ahead of any
-  pipe or substitution. `magic-developer/reference/shell.md` carries the
-  adjacent `cmd ; rc=$?` under `set -e` case in "Shell constructs that fail
-  quietly": a different cause with the same result, a status that reads clean
-  for something else.
-- **A clean exit and an empty answer share one exit status.** A project that was
-  never indexed resolves as exit 0 with an empty sequence, shaped exactly like a
-  successful resolution of a project that genuinely requires nothing. A console
+  pipe or substitution. `magic-developer/reference/shell.md` carries the adjacent `cmd ; rc=$?` under
+  `set -e` case in "Shell constructs that fail quietly". It is a different
+  cause with the same result: a status that reads clean for something else.
+- **A clean exit and an empty answer share one exit status.** A project that was never indexed resolves as exit 0, with an empty sequence.
+It is shaped exactly like a successful resolution of a project that genuinely
+requires nothing. A console
   can mask the other half: the failing call prints `exited with error status (1)`
-  on stderr while the pipeline still returns 0. Assert the exit status *and* a
-  non-empty result — neither alone separates the two, and a baseline captured
-  before an ingest is worth nothing whichever it was.
+  on stderr while the pipeline still returns 0. Assert the exit status *and* a non-empty result. Neither alone separates the
+  two. A baseline captured before an ingest is worth nothing, whichever it
+  was.
 
 So state the claim, read the predicate the probe evaluates, and check the two
 are the same sentence. Where they differ, the fix is the stronger probe rather
@@ -269,11 +263,11 @@ moment rather than of the file. Two readers reaching opposite conclusions about
 the same flag, line, or absent block are both reporting accurately from either
 side of an edit.
 
-So a finding about file state states when it was taken, and a finding that
-contradicts another gets re-measured against current state before either is
-called wrong. Where the conclusion matters, capture the evidence with its instant
-— the command output plus the commit or mtime it was taken at — so a
-disagreement resolves by ordering rather than by argument.
+So a finding about file state states when it was taken. A finding that
+contradicts another is re-measured against current state, before either is
+called wrong. Where the conclusion matters, capture the evidence with its instant: the
+command output plus the commit or mtime it was taken at. A disagreement then
+resolves by ordering, rather than by argument.
 
 ## A guard that fires is evidence; a guard that stays silent carries none
 
@@ -287,38 +281,43 @@ exactly like the work having been done:
 - a conditional whose branch was taken silently, where only the other branch
   logs.
 
-Two ways to make these observable: have the guard report when it fires (a
-message, a distinct exit path, a counter in the output), and verify the
-postcondition directly instead of the command's status — that the destination now
-holds what was moved, that the returned count sits below the cap rather than
-equal to it. A result whose size equals the cap is a signal to re-run with a
+Two ways make these observable. Have the guard report when it fires: a
+message, a distinct exit path, a counter in the output. Also verify the
+postcondition directly, instead of the command's status. Check that the
+destination now holds what was moved, and that the returned count sits below
+the cap rather than equal to it. A result whose size equals the cap is a signal to re-run with a
 larger one before quoting it.
 
 ## A check that leaves a process running signals it only while it is still that process
 
-A check that signals a process it kept from an earlier step sources the one shared helper for this,
-`sh-test/check-fixtures/rig-processes.include.sh` (`AgentsTestSignalsCheck` holds it and guards
-against a new `kill`, `pkill` or `killall` outside it). Process ids come round quickly while tests run,
-so a kept number can belong to a different process by the time it is signalled; the helper notes a
-process together with when it began, and signals it later only while its pid is still that same one.
+A check that signals a process it kept from an earlier step sources the one
+shared helper for this, `sh-test/check-fixtures/rig-processes.include.sh`.
+`AgentsTestSignalsCheck` holds it, and guards against a new `kill`, `pkill` or
+`killall` outside it. Process ids come round quickly while tests run. A kept number can belong to a
+different process by the time it is signalled. The helper notes a process
+together with when it began, and signals it later only while its pid is still
+that same one.
 
 ## A check compares a tool's own result, not its whole reply
 
-Every reply of a tool call carries the host's time as a content part of its own beside the result (a second
-text item in MCP, a separate part of a tool message in the model loop), never a line of the tool's own
-output, and a result over 8 KB comes back as a reference to a kept file. A check that compares what a tool
+Every reply of a tool call carries the host's time as a content part of its
+own, beside the result. That is a second text item in MCP, and a separate part
+of a tool message in the model loop. It is never a line of the tool's own
+output. A result over 8 KB comes back as a reference to a kept file. A check that compares what a tool
 gives sources the one shared helper for this, `sh-test/check-fixtures/rig-reply.include.sh`, and passes the
-reply through `rigReplyBare`. It gives the tool's own result: the kept file read back where the reply names
-one, else the reply with its date part dropped, and, where the result is then the tool message's only part,
-folded back to the string the message had before it.
+reply through `rigReplyBare`. It gives the tool's own result. Where the reply names a kept file, that file
+read back. Otherwise the reply with its date part dropped. Where the result is
+then the tool message's only part, it is folded back to the string the message
+had before it.
 
 ## A check makes its rig under the workspace, never in the system's temp folder
 
 No file of the package is kept in the system's temp folder (the owner's rule, held for every file of the
-package by `AgentsTempNamesCheck`). A check that needs a folder to live in sources the one shared helper for
-this, `sh-test/check-fixtures/rig-temp.include.sh`, and asks `rigTempDir <name>`: a new, empty folder under
-`$MMDAPP/.local/agents/scratch/sh-test/`, made by `mktemp -d`, beside the harness's own scratch and outside every
-member's floor, so no grant of the workspace reaches a path of a rig. With no workspace it makes nothing, says so
+package by `AgentsTempNamesCheck`). A check that needs a folder to live in sources the one shared helper for this,
+`sh-test/check-fixtures/rig-temp.include.sh`, and asks `rigTempDir <name>`. It
+gets a new, empty folder under `$MMDAPP/.local/agents/scratch/sh-test/`, made
+by `mktemp -d`. The folder sits beside the harness's own scratch and outside
+every member's floor, so no grant of the workspace reaches a path of a rig. With no workspace it makes nothing, says so
 on stderr and returns 1, for the check to end on before it reports a result.
 
 ## Establish which way a check errs before deciding whether it needs a fallback
@@ -327,38 +326,40 @@ A pre-check wrong in one direction only is adoptable on its own; one that can be
 wrong in either direction needs something behind it. Which of the two it is gets
 measured before the design is settled, not assumed from how accurate it feels.
 
-Worked case — workspace resolution: the members table can answer
-"don't know" where the true answer is yes, and cannot answer "stay" where the
-true answer is a different workspace. A member carrying one row while operating
+Worked case, workspace resolution. The members table can answer "don't know"
+where the true answer is yes. It cannot answer "stay" where the true answer is
+a different workspace. A member carrying one row while operating
 correctly from three workspaces is exactly that false
-"don't know". The costs sit the same way round: a false "don't know" spends an
-unnecessary workspace switch, a false "stay" would aim work at the wrong target,
-and it is unreachable. That one-directional failure mode is what makes the
+"don't know". The costs sit the same way round. A false "don't know" spends an unnecessary
+workspace switch. A false "stay" would aim work at the wrong target, and it is
+unreachable. That one-directional failure mode is what makes the
 table-check adoptable with no fallback path behind it.
 
 So enumerate a proposed check's wrong answers and price each one before arguing
-about its hit rate. Errors that all land on the expensive-but-safe side need no
-fallback; a check that can be confidently wrong in the costly direction needs
-one however rarely it is.
+about its hit rate. Errors that all land on the expensive-but-safe side need no fallback. A check
+that can be confidently wrong in the costly direction needs one, however
+rarely it is.
 
 ## An oracle settles what opinions divide
 
-Where the question is conformance to a specification — a markup dialect, a date
-format, an escaping rule, a protocol frame — and a reference implementation
+The question may be conformance to a specification: a markup dialect, a date
+format, an escaping rule, a protocol frame. Where a reference implementation
 exists, run the input through it and read the answer off the output. `pandoc`
 settles a GitHub-Flavored-Markdown question that reading the spec alone leaves
 two members answering differently.
 
-The same move covers the class: a validator for a schema, a parser from the
-spec's own project, the actual consuming product where rendering is the question.
+The same move covers the class. It may be a validator for a schema, a parser
+from the spec's own project, or the actual consuming product where rendering
+is the question.
 Cite the tool and its version alongside the answer so the finding stays
 checkable. Where no reference implementation exists, say which reading the answer
 rests on.
 
 ## Test the inputs the design is silent about
 
-A specification describes the shapes it anticipated; defects concentrate in the
-shapes it did not mention, and those are enumerable up front for any input type:
+A specification describes the shapes it anticipated. Defects concentrate in
+the shapes it did not mention. Those are enumerable up front for any input
+type:
 
 - **empty** — zero rows, an empty string, an empty variable used to build a path
   or an argument list;
@@ -368,33 +369,32 @@ shapes it did not mention, and those are enumerable up front for any input type:
 - **absent** — an unset variable, a missing file, an option with no value;
 - **extreme** — one very large element, a very long line, deep nesting.
 
-Empty earns first attention because empty tends to expand rather than fail:
-an unset base path resolving a check against `/etc`, an empty argument list
-leaving `find` to walk the current directory, an empty glob passed through
-literally. Build these into the corpus as a transformation or path-handling
-routine is written, and assert the intended behavior for each — a stronger
-statement than the absence of a crash.
+Empty earns first attention, because empty tends to expand rather than fail.
+An unset base path resolves a check against `/etc`. An empty argument list
+leaves `find` to walk the current directory. An empty glob is passed through
+literally. Build these into the corpus as a transformation or path-handling routine is
+written. Assert the intended behavior for each. That is a stronger statement
+than the absence of a crash.
 
 ## A sanitised environment manufactures the failure it then reports
 
-`env -i` strips `PATH` and `HOME` along with everything else, so a probe run
-under it reports a tool as absent and a home-rooted path as missing whatever the
-real state is. The verdict looks decisive — "CLI NOT INSTALLED" — and it conceals
+`env -i` strips `PATH` and `HOME` along with everything else. A probe run
+under it reports a tool as absent, and a home-rooted path as missing, whatever
+the real state is. The verdict looks decisive — "CLI NOT INSTALLED" — and it conceals
 the blocker that actually exists. Nothing is learned about the subject; the
 measurement describes the harness.
 
-Sanitise named variables, never the whole environment, and where a clean
-environment is genuinely the point, put a known-positive subject through the same
-sanitised shape first. The general form is the positive control above: an
+Sanitise named variables, never the whole environment. Where a clean
+environment is genuinely the point, put a known-positive subject through the
+same sanitised shape first. The general form is the positive control above: an
 instrument that answers "absent" for every subject is answering about itself.
 
 The mirror failure costs as much: an environment variable **inherited** and not
-noticed. A shell channel carrying its own `MMDAPP`, `KUBECONFIG`, `AWS_PROFILE` or
-`GIT_DIR` points every command that honours it at a subject the operator did not
-choose, and a `cd` does not change it. Two commands compared side by side can then
-be reading two different systems while the transcript shows one directory. So
-before an A/B run, print the variables that select the subject, and state the
-subject in the finding rather than the directory the command was typed in.
+noticed. A shell channel may carry its own `MMDAPP`, `KUBECONFIG`, `AWS_PROFILE` or
+`GIT_DIR`. Each of those points every command that honours it at a subject the
+operator did not choose. A `cd` does not change it. Two commands compared side by side can then
+be reading two different systems while the transcript shows one directory. So before an A/B run, print the variables that select the subject. State the
+subject in the finding, rather than the directory the command was typed in.
 
 ## Absence of a notification is not evidence of progress
 
@@ -402,60 +402,58 @@ A spawned session can end its turn without any completion notification firing �
 finished, silent, and indistinguishable on the notification channel from one still
 working. Waiting longer produces the same nothing.
 
-So a session's state is established by asking something that answers either way:
-the roster, the tracking document it was told to write, a direct ping. Never treat
+A session's state is established by asking something that answers either way.
+Candidates are the roster, the tracking document it was told to write, and a
+direct ping. Never treat
 "I have not heard back" as "it is still running", and never report progress that
 rests on it. This is the reporting-surface rule applied to sessions — the channel
 that would have carried the news is not the channel that holds the state.
 
 **Presence of output is not evidence of liveness either.** A log tail shows what
-was written, never that anything is still writing. The last lines of a finished
-session and of a working one are identical, and a tail re-read a moment later is
-identical again whenever the session ended between the two reads. So liveness is
-established by something that answers — the roster, a direct ping, the document
-the session was told to update — never by output already on disk.
+was written, never that anything is still writing. The last lines of a finished session and of a working one are identical. A
+tail re-read a moment later is identical again, whenever the session ended
+between the two reads. So liveness is established by something that answers: the roster, a direct
+ping, the document the session was told to update. It is never established by
+output already on disk.
 
 ## A working-tree probe is evidence only in a checkout the task owns
 
 A working tree that another session is editing is not one state, it is two: what
-is committed and what is not. A measurement that does not separate them reports
-in-progress lines as settled fact, cites line numbers that have already moved, and
-produces findings that will not reproduce for whoever reads them next.
+is committed and what is not. A measurement that does not separate them reports in-progress lines as settled
+fact. It cites line numbers that have already moved. It produces findings that
+will not reproduce for whoever reads them next.
 
 **That separation is only available where the checkout belongs to the task alone.**
-Version control runs asynchronously to the work and sweeps parallel work in with
-it, so in a shared checkout a status probe answers about every session active on
-that machine rather than about the task that ran. It cannot attribute a change to
-the task, and neither a clean nor a dirty answer means what it appears to mean —
-which makes it useless for the question it is most often reached for, whether only
-the expected files changed. Verify that by reading the specific files the task was
+Version control runs asynchronously to the work, and sweeps parallel work in
+with it. In a shared checkout, a status probe then answers about every session
+active on that machine. It does not answer about the task that ran. It cannot attribute a change to the task. Neither a clean nor a dirty answer
+means what it appears to mean. That makes it useless for the question it is
+most often reached for: whether only the expected files changed. Verify that by reading the specific files the task was
 expected to touch.
 
 The probe is real evidence in a task-own branch, a task-own checkout, or on a
-machine operating under other rules, and there it is worth running first: every
-finding then names which of the two states it holds in — HEAD, working tree, or
+machine operating under other rules. There it is worth running first. Every
+finding then names which of the two states it holds in: HEAD, working tree, or
 both. Untracked files are the sharpest case: a file that exists only in the working
-tree makes the code around it read as finished work. Where a cited line number does
-not carry what a report said it carried, treat that as the coordinates having moved
-under an active edit, and re-measure by content rather than by line — not as the
-finding being false.
+tree makes the code around it read as finished work. A cited line number may not carry what a report said it carried. Treat that as
+the coordinates having moved under an active edit, and re-measure by content
+rather than by line. Do not treat it as the finding being false.
 
 ## Where a package's checks live, and how a row is shown able to fail
 
 - **A package's checks live in its own `sh-test/`, fixtures in
   `sh-test/check-fixtures/`, named by their type, such as `<check>.<command>.stub.sh`.
-  Nothing but a check ends in `.test.sh`.** A check finds
-  its package from its own location, with an override variable for a mutated
-  copy, and does not assume `MDLT_ORIGIN` points at the package.
-- **A row is shown able to fail on a copy.** Copy the package tree to a
-  temporary directory (siblings symlinked, no `.git`), break the one line the row
-  guards, and run the same check against the copy, once per behaviour.
+  Nothing but a check ends in `.test.sh`.** A check finds its package from its own location, with an override variable for
+  a mutated copy. It does not assume `MDLT_ORIGIN` points at the package.
+- **A row is shown able to fail on a copy.** Copy the package tree to a temporary directory: siblings symlinked, no `.git`.
+Break the one line the row guards. Run the same check against the copy, once
+per behaviour.
 - **A reader for words, dates or names proves only that those patterns are
   absent.** Each pattern needs a sample that trips it. An allowance is
   structural, never a hand-written list: a name inside backticks is a value, for
   example.
 - **A rig that runs a tool on a copied tree puts the copy under a scratch
-  workspace used as `MMDAPP`**, because a path outside the workspace and the
+  workspace used as `MMDAPP`.** A path outside the workspace and the
   access roots is refused by design. Run `chmod -R u+w` before `rm -rf` when the
   tree holds `u=rX` files. Never copy `ssh/`, secrets or keys into a scratch
   tree: use dummy files.
