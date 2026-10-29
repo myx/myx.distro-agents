@@ -3125,8 +3125,11 @@ op's own option arm.
   one sender at a time. That covers the feed's collected lines, a start or end
   post, a refusal, a grant, a denial, a notice, and a handback. It also covers
   the activity lines of a batch. The oldest goes first, and never two messages closer than 7 s (fixed in code).
-  What queued during that window is collected into the same post. That needs
-  the records to agree in member, kind, session, target, channel and thread,
+  Its window opens at the later of the last message into the channel and the lead record's own
+  arrival, so a post that finds the channel quiet waits its own 7 s and collects the burst it
+  leads. A `feed` record is exempt, its poster having collected its lines already, so two
+  participants' feed lines never share a post. What queued during that window is collected into
+  the same post. That needs the records to agree in member, kind, session, target, channel and thread,
   and to carry no fields. So only lines are joined. A post over Slack's limit is still cut by the post op into ordered follow-ups,
   each paced the same way. Nothing is lost, nothing is reordered, and no
   immediate post jumps the queue.
@@ -3297,9 +3300,14 @@ op's own option arm.
 - **A member's own set does not ask again for what is held** (`--intern-op-permission-set-ask`). An entry the
   asking member holds now, through the session's grants among others, is not asked: the answer is
   `PERMISSION-SET: held`, nothing posted, no permission edited. An entry another participant with a live run in the session holds returns a
-  correction naming that participant. Ask them, or have them pass it on. The
-  same request sent again is asked as it stands, which the marker
-  `sessions/<id>/<refusal>.holder-noted` records.
+  correction naming that participant. Ask them, or have them pass it on. A request sent again is
+  no override: the same correction comes back. The call says `--escalate`, or `escalate: true`,
+  when the member needs the access itself, and it is asked as it stands.
+- **One call asked alone keeps that rule** (`AgentsHarnessAsk`). A call a participant running in
+  the session holds is not put to the human-owner: the asker gets a correction naming the holder.
+  `escalate: true` asks it as it stands. A call the asker holds now is not asked either; the
+  member is told to make the call again. A routing to a named member is unchanged: only the
+  human-owner named is refused this way.
   `AgentsPermissionHoldsCheck` holds it.
 - **A further refused call joins a session's already-open permission question**
   instead of asking anew (`--intern-op-escalation-permission-add`). That turns

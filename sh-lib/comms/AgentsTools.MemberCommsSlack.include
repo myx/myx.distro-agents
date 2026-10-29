@@ -579,15 +579,15 @@ case "$1" in
 				fi
 				## THROUGH THE COMMS CACHE (AgentsTools.CommsCache.include), slack/<channel>: a read from a floor it covers is served from
 				## it; once its TTL has passed only what came after its newest is pulled from Slack and added. A read with no floor is not cached.
-				local convFile="" convTmp="" convAt="" convFrom="" convNewest="" convNow="" convKey convFetch="$readOldest" convTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-5}"
-				case "$convTtl" in ''|*[!0-9]*) convTtl=5 ;; esac
+				local convFile="" convTmp="" convAt="" convFrom="" convNewest="" convNow="" convKey convFetch="$readOldest" convTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
+				case "$convTtl" in ''|*[!0-9]*) convTtl=15 ;; esac
 				if [ -n "$readOldest" ] && [ -n "${MMDAPP:-}" ] && [ "$convTtl" != 0 ] && AgentsToolsCommsCacheSlackDir "$memberName" "$identityAsBot" "$channel" ; then
 					convFile="$agentsCommsCacheDir"
 					convNow="$( date +%s )"
 					if AgentsToolsCommsCacheState "$convFile" ; then
 						convAt="$agentsCommsCacheAt" convFrom="$agentsCommsCacheFrom" convNewest="$agentsCommsCacheNewest"
 					fi
-					AgentsToolsCommsCacheInterest "$convFile" "$convNow"
+					AgentsToolsCommsCacheInterest "$convFile" "$convNow" "$convTtl"
 					## Covered: the cache starts at or before this floor. Fresh: inside its TTL, served as it is.
 					if [ -n "$convAt" ] && [ -d "$convFile" ] && [ "${convFrom%%.*}" -le "${readOldest%%.*}" ] ; then
 						if [ $(( convNow - convAt )) -lt "$convTtl" ] ; then
@@ -601,8 +601,22 @@ case "$1" in
 					else
 						convFrom=""
 					fi
+					## STALE IS ENOUGH for a call that waits no longer than the TTL (MDAT_COMMS_CACHE_STALE_OK): it is served what the cache
+					## covers at once, and one detached read of its own brings the channel up to date for the next read.
+					if [ "${MDAT_COMMS_CACHE_STALE_OK:-}" = "true" ] && [ -n "$convFrom" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+						[ -f "$convFile/.pulling.txt" ] || ( MDAT_COMMS_CACHE_STALE_OK="" DistroAgentsTools --intern-op-comms-slack-read "$memberName" "$channel" --oldest "$readOldest" $( [ "$identityAsBot" = "false" ] || printf '%s' --identity-bot ) ) > /dev/null 2>&1 < /dev/null &
+						echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache as it stands, a pull of it runs" >&2
+						[ -z "$readErrFile" ] || rm -f "$readErrFile"
+						return 0
+					fi
 					## One pull at a time: where another holds the channel, what the cache covers is served as it stands.
 					if ! AgentsToolsCommsCachePullTake "$convFile" "$convNow" ; then
+						## One pull at a time: a miss waits for the one that runs, and is served what it brought.
+						if AgentsToolsCommsCachePullAwait "$convFile" && AgentsToolsCommsCacheState "$convFile" && [ "${agentsCommsCacheFrom%%.*}" -le "${readOldest%%.*}" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+							echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache after the pull that ran" >&2
+							[ -z "$readErrFile" ] || rm -f "$readErrFile"
+							return 0
+						fi
 						if [ -n "$convFrom" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
 							echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache while another pull runs" >&2
 							[ -z "$readErrFile" ] || rm -f "$readErrFile"
@@ -2910,7 +2924,14 @@ blocks|verbatim|caller|stdin file"
 			asyncPid="${asyncLock%% *}"
 			case "$asyncPid" in ''|*[!0-9]*) asyncPid="" ;; esac
 			if [ "$asyncOwn" = "$channel:$threadTs" ] && [ -n "$asyncPid" ] && kill -0 "$asyncPid" 2> /dev/null ; then
-				AgentsToolsSlackSendChatKeep retry "queued for the comms reader: an async post to the session thread"
+				## Into the outbox of the session thread's channel in the comms cache (S21.13), which the comms reader pushes in order;
+				## the session's own outbox where that cannot take it, or for the other organisation's side, which the writer refuses.
+				type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				if AgentsToolsSlackClientSide "$memberName" || ! type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 \
+					|| ! AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" = "bot" ] && printf true || printf false )" "$channel" "$threadTs" \
+					|| ! AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "$chatKey" "$chatNo" "$memberName" "$sendIdentity" "$sendApi" "$payload" ; then
+					AgentsToolsSlackSendChatKeep retry "queued for the comms reader: an async post to the session thread"
+				fi
 				printf '{"ok":true,"queued":true,"channel":"%s","message":{"thread_ts":"%s"}}\n' "$channel" "$threadTs"
 				echo "SENT_MESSAGE_CHANNEL=$channel" >&2
 				echo "SENT_MESSAGE_TS=" >&2

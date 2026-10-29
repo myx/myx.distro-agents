@@ -146,7 +146,7 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 		## write, so the next write starts a new one.
 		[ -f "$runTaken" ] || [ ! -s "$runFeed" ] || { mv -f "$runFeed" "$runTaken" 2>/dev/null && runOffset=0 ; }
 		if [ -f "$runTaken" ] ; then
-			runSize="$( wc -c < "$runTaken" | tr -d ' ' )"
+			runSize="$( wc -c < "$runTaken" )"
 			if [ "${runSize:-0}" -gt "$runOffset" ] ; then
 				## Up to the last newline: a block being written is taken next time.
 				runNew="$( tail -c +"$(( runOffset + 1 ))" "$runTaken" | head -c "$(( runSize - runOffset ))" ; printf X )"

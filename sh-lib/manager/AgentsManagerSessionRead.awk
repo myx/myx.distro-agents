@@ -151,7 +151,7 @@ BEGIN {
 	rowTotal = split(ENVIRON["MDAT_MANAGER_ROWS"], rowLines, "\n") ;
 	for (rowAt = 1 ; rowAt <= rowTotal ; rowAt++) {
 		rowWidth = split(rowLines[rowAt], rowWords, " ") ;
-		if (rowWidth != 16 && rowWidth != 18) continue ;
+		if (rowWidth != 16 && rowWidth != 18 && rowWidth != 19) continue ;
 		if (rowWords[8] != "-" && !( rowWords[8] in trackingOf )) trackingOf[rowWords[8]] = rowWords[1] ;
 		if (rowWords[8] != "-" && rowWords[8] == rowWords[2]) { if (rowWords[9] != "-") trackingThread = rowWords[9] ; if (rowWords[10] != "-") sessionThread = rowWords[10] ; }
 		if (anyTracking == "" && rowWords[9] != "-") anyTracking = rowWords[9] ;

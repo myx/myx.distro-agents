@@ -46,6 +46,7 @@ dashboardSessions="" ; dashboardSize="" ; dashboardDeaths=0 ; dashboardSessionRo
 sessionsRunning=0 ; sessionsWaiting=0 ; sessionsUnclosed=0 ; sessionsPaused=0 ; agentsWorking=0 ; agentsWaiting=0 ; controlAlive=0 ; controlGone=0
 tokensRunning=0 ; tokensToday=0 ; tokensPartial=0 ; tokensRunningSessions=0 ; tokensTodaySessions=0 ; membersLive=0
 dashboardUsageLimited=0 ; dashboardUsageLimit=""
+dashboardRefusedSessions=0 ; dashboardRefusedTotal=0
 
 
 ## For how long the size of the team data is kept once it was measured, in seconds.
@@ -112,7 +113,7 @@ AgentsToolsManagerDashboardSessionMeasured(){
 			rowsMeasure="$rowsNarrow"
 		fi
 	fi
-	AgentsToolsRegistryMeasureRows "$rowsMeasure" "" "" 16
+	AgentsToolsRegistryMeasureRows "$rowsMeasure" "" "" 17
 	[ -z "$rowsNarrow" ] || rm -f "$rowsNarrow" 2> /dev/null || :
 	if stat -f '%m' / > /dev/null 2>&1 ; then
 		rowsStat="bsd"
@@ -122,7 +123,7 @@ AgentsToolsManagerDashboardSessionMeasured(){
 	while IFS= read -r rowsSpawn ; do
 		[ -n "$rowsSpawn" ] || continue
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
-	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
+	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 19 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
 		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$rowsControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C cut -f6-
@@ -143,13 +144,19 @@ AgentsToolsManagerDashboardSessionCounts(){
 		AgentsToolsManagerDashboardSessionMeasured 2> /dev/null )" || countsRows=""
 	[ -n "$countsRows" ] || return 0
 	dashboardSessionRows="$countsRows"
-	read -r dashboardSessions sessionsRunning sessionsWaiting sessionsUnclosed sessionsPaused agentsWorking agentsWaiting controlAlive controlGone tokensRunning tokensToday tokensPartial membersLive tokensRunningSessions tokensTodaySessions dashboardUsageLimited dashboardUsageLimit <<< "$( printf '%s\n' "$countsRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
+	## dashboardUsageLimit stands last of the read: the one value here with spaces of its
+	## own, so it is read last and takes every word the summary line has left, as it always
+	## did. The refused figures are plain numbers and stand safely ahead of it.
+	read -r dashboardSessions sessionsRunning sessionsWaiting sessionsUnclosed sessionsPaused agentsWorking agentsWaiting controlAlive controlGone tokensRunning tokensToday tokensPartial membersLive tokensRunningSessions tokensTodaySessions dashboardUsageLimited dashboardRefusedSessions dashboardRefusedTotal dashboardUsageLimit <<< "$( printf '%s\n' "$countsRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
 		$1 == "session" {
 			sessionStates[$4]++ ;
 			if ($11 == "alive") controlAlive++ ; else if ($11 == "gone") controlGone++ ;
 			## The usage-limit flag of its runs, with the date the provider said it reopens: the
 			## last of its refused runs wins, as the session row itself says.
 			if ($13 != "-") { usageLimited++ ; if (usageLimit == "" || $13 > usageLimit) usageLimit = $13 ; }
+			## EVERY REFUSAL IS FLAGGED, NOT ONLY THE USAGE LIMIT (sketch 3.6): the refused count
+			## a session row carries, its last field, added into the total of every session that has one.
+			if ($14 != "-" && $14 ~ /^[0-9]+$/ && $14 + 0 > 0) { refusedSessions++ ; refusedTotal += $14 ; }
 			## The tokens of a session that runs now, and of one whose last run closed today.
 			if ($4 == "running" || ( $4 == "finished" && substr($6, 1, 10) == todayDate )) {
 				tokenFigure = $12 ; tokenWhole = 1 ;
@@ -165,7 +172,7 @@ AgentsToolsManagerDashboardSessionCounts(){
 		$1 == "counters" { countersSeen = 1 ; sessionsPaused = $3 ; agentsWorking = $4 ; agentsWaiting = $5 ; next ; }
 		END {
 			if (!countersSeen) { print "none" ; exit ; }
-			printf "read %d %d %d %d %d %d %d %d %.0f %.0f %d %d %d %d %d %s\n", sessionStates["running"], sessionStates["waiting"], sessionStates["unclosed"], sessionsPaused, agentsWorking, agentsWaiting, controlAlive, controlGone, tokensRunning, tokensToday, tokensPartial, membersLive, runningSessions, todaySessions, usageLimited, ( usageLimit == "" ? "-" : usageLimit ) ;
+			printf "read %d %d %d %d %d %d %d %d %.0f %.0f %d %d %d %d %d %d %d %s\n", sessionStates["running"], sessionStates["waiting"], sessionStates["unclosed"], sessionsPaused, agentsWorking, agentsWaiting, controlAlive, controlGone, tokensRunning, tokensToday, tokensPartial, membersLive, runningSessions, todaySessions, usageLimited, refusedSessions + 0, refusedTotal + 0, ( usageLimit == "" ? "-" : usageLimit ) ;
 		}
 	' )" || dashboardSessions="none"
 	return 0
@@ -223,6 +230,13 @@ AgentsToolsManagerDashboardSessions(){
 			"stopped on the provider usage limit"*) LocalToolsManagerDashboardFigure sessions usage-limit "Stopped On Provider Usage Limit Reopens" "${dashboardUsageLimit##*reopens }" - warn "" ;;
 			*) LocalToolsManagerDashboardFigure sessions provider-refusal "Stopped By A Provider Refusal" "${dashboardUsageLimit#stopped by a provider refusal: }" - warn "" ;;
 		esac
+	fi
+	## EVERY REFUSAL IS FLAGGED, NOT ONLY THE USAGE LIMIT (sketch 3.6): beside the figure above,
+	## which shows only the last run's own wording, this one counts every refusal of every
+	## session that ever had one, and how many sessions carry at least one.
+	if [ "$dashboardRefusedSessions" != 0 ] ; then
+		LocalToolsManagerDashboardFigure sessions sessions-refused "Sessions Refused" "$dashboardRefusedSessions" count warn ""
+		LocalToolsManagerDashboardFigure sessions refusals-total "Refusals Total" "$dashboardRefusedTotal" count - ""
 	fi
 	return 0
 }

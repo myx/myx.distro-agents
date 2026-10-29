@@ -22,8 +22,9 @@
 ## record with no header) is a session of its own under its tracking name. Nothing here
 ## measures: live and state are the row's own, as the render derives them, and the state of a
 ## session is nothing but those states, added up (the END block). A row that is
-## not eighteen words, a sandbox folder named with a space, cannot be read and is left out;
-## one of sixteen is a row of a caller that counts no state of a session, and reads `-` there.
+## not sixteen, eighteen or nineteen words, a sandbox folder named with a space, cannot be
+## read and is left out; one of sixteen is a row of a caller that counts no state of a
+## session, and reads `-` there; one of nineteen carries the refused count too (sketch 3.6).
 ## The state its control thread stored for a session stands at the end of its row beside the
 ## state derived here, each as it is: where the two differ, neither is changed.
 ## THE TOKENS OF A SESSION are the last field but one of its row, one number: the four figures
@@ -31,11 +32,14 @@
 ## are not known is left out, and the number then ends with `+`: it is not the whole. `-` where
 ## no run of the session has known figures. One small file of a run's store is read for it,
 ## where the run has one; a spawn id that two records carry is one run.
-## THE USAGE-LIMIT FLAG of a session, the last field of its row, is the one wording the run's
-## own store keeps when the provider refused it for its API usage limit -- that it stopped on
-## the provider usage limit and the date it reopens (usageLimitOfRun, one more small file of a
-## run's store), `-` where no run of the session was refused. The last of its refused runs
-## wins, since a later refusal is the one that still holds.
+## THE USAGE-LIMIT FLAG of a session, the second-last field of its row, is the one wording
+## the run's own store keeps when the provider refused it for its API usage limit -- that it
+## stopped on the provider usage limit and the date it reopens (usageLimitOfRun, one more
+## small file of a run's store), `-` where no run of the session was refused. The last of its
+## refused runs wins, since a later refusal is the one that still holds.
+## THE REFUSED COUNT of a session, the last field of its row, is every one of its runs' own
+## `refused` count added (sketch 3.6): not only the refusal that stopped a run, every one a
+## run's harness loop hit. `-` where none of the session's runs ever carried one.
 ##
 ## Every line goes out behind five sort keys and a TAB each, for
 ## `sort -t <TAB> -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n` and a cut of them: the session's
@@ -92,7 +96,7 @@ FILENAME == ARGV[1] {
 	next ;
 }
 
-NF != 16 && NF != 18 { next ; }
+NF != 16 && NF != 18 && NF != 19 { next ; }
 
 {
 	sessionKey = ( $2 == "-" ? $1 : $2 ) ;
@@ -104,7 +108,7 @@ NF != 16 && NF != 18 { next ; }
 	}
 	## The stored state of the session: every row of it carries the same two, and where a
 	## row was read from its record after the others, the later one is the newer.
-	if (NF == 18 && $17 != "-") { sessionStored[sessionKey] = $17 ; sessionStoredAt[sessionKey] = $18 ; }
+	if (( NF == 18 || NF == 19 ) && $17 != "-") { sessionStored[sessionKey] = $17 ; sessionStoredAt[sessionKey] = $18 ; }
 	## A row with no session id is a session under its tracking name, which is no id of a
 	## session: no control thread is its own.
 	if ($2 != "-") sessionById[sessionKey] = 1 ;
@@ -144,6 +148,10 @@ NF != 16 && NF != 18 { next ; }
 		limitText = usageLimitOfRun(agentsDir, $8) ;
 		if (limitText != "" && ( !( sessionKey in sessionUsageLimit ) || limitText > sessionUsageLimit[sessionKey] )) sessionUsageLimit[sessionKey] = limitText ;
 	}
+	## EVERY REFUSAL IS FLAGGED, NOT ONLY THE USAGE LIMIT (sketch 3.6): the session's own total,
+	## the refused count of every one of its runs added, field nineteen where the row carries
+	## it, `-` where none of its runs ever were. A run with no bare id, or none refused, adds nothing.
+	if (NF == 19 && $19 != "-" && $19 ~ /^[0-9]+$/) sessionRefused[sessionKey] += $19 ;
 	sessionStates[sessionKey, runStateWord]++ ;
 	if (sessionName[sessionKey] == "-") sessionName[sessionKey] = $16 ;
 	runMinutes[runTotal] = dateMinutes(runStart[runTotal]) ;
@@ -184,7 +192,8 @@ END {
 		## its tokens; and, last, the usage-limit flag of its runs, `-` where none was refused.
 		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally, sessionStored[sessionKey], sessionStoredAt[sessionKey], ( ( sessionKey in sessionById ) && ( sessionKey in controlOf ) ? controlOf[sessionKey] : "none" ), \
 			( ( sessionKey in sessionTokenRuns ) ? tokensFigure(sessionTokens[sessionKey]) ( ( sessionKey in sessionTokenUnknown ) ? "+" : "" ) : "-" ), \
-			( ( sessionKey in sessionUsageLimit ) ? sessionUsageLimit[sessionKey] : "-" ) ;
+			( ( sessionKey in sessionUsageLimit ) ? sessionUsageLimit[sessionKey] : "-" ), \
+			( ( sessionKey in sessionRefused ) && sessionRefused[sessionKey] > 0 ? sessionRefused[sessionKey] : "-" ) ;
 	}
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		sessionKey = runSession[runAt] ;

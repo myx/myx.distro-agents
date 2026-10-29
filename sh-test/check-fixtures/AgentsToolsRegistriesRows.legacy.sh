@@ -50,7 +50,7 @@ AgentsToolsRegistryLegacySessionState(){ ## session id
 AgentsToolsRegistryLegacySpawnedSessionsRows(){
 	local sandboxDir sessionFile headerText sawRecord
 	local rowTracking rowRecordTracking rowSession rowParent rowHost rowOwner rowStatus rowExit
-	local rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowStated
+	local rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowStated rowRefused
 	for sandboxDir in "$MMDAPP/.local/agents/spawned"/*/ ; do
 		[ -d "$sandboxDir" ] || continue
 		## The sandbox root's own name is the tracking name, and is the fallback for
@@ -80,15 +80,18 @@ AgentsToolsRegistryLegacySpawnedSessionsRows(){
 			rowComment="$( AgentsToolsRegistryLegacyHeader "$headerText" session-comment )"
 			## The two appended after those: the state of the row's session, read once more for every row.
 			rowStated="$( AgentsToolsRegistryLegacySessionState "$rowSession" )"
+			## The one appended after those: the record's own `refused` header, the count of
+			## every refusal the run hit (sketch 3.6), read the same per-column way.
+			rowRefused="$( AgentsToolsRegistryLegacyHeader "$headerText" refused )"
 			## The record's own tracking-name wins over the folder name where it has
 			## one -- they agree unless a sandbox was moved by hand, and then the
 			## record is what the spawn itself wrote.
 			[ "$rowRecordTracking" = "-" ] || rowTracking="$rowRecordTracking"
-			printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n' "$rowTracking" "$rowSession" "$rowParent" "$rowHost" "$rowOwner" "$rowStatus" "$rowExit" "$rowSpawn" "$rowAgentLogThread" "$rowSessionThread" "$rowWorkspace" "$rowStarted" "$rowResolved" "$rowComment" "$rowStated"
+			printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n' "$rowTracking" "$rowSession" "$rowParent" "$rowHost" "$rowOwner" "$rowStatus" "$rowExit" "$rowSpawn" "$rowAgentLogThread" "$rowSessionThread" "$rowWorkspace" "$rowStarted" "$rowResolved" "$rowComment" "$rowStated" "$rowRefused"
 		done
 		## An empty sandbox is a listed session, not a missing one. It has no session
 		## id to be reached by, and saying so is the point.
-		[ "$sawRecord" = "true" ] || printf '%s - - - - no-session-record - - - - - - - - - -\n' "$rowTracking"
+		[ "$sawRecord" = "true" ] || printf '%s - - - - no-session-record - - - - - - - - - - -\n' "$rowTracking"
 	done
 	return 0
 }
@@ -206,12 +209,12 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 	printf 'this-host: %s\n' "$thisHost"
 	printf 'this-workspace: %s\n' "$thisWorkspace"
 	psText="$( ps -A -ww -o pid=,args= 2>/dev/null )" || psText=""
-	## The five columns appended to the registry file since are not this render's: it prints thirteen.
+	## The six columns appended to the registry file since are not this render's: it prints fourteen.
 	## A row of more words than columns keeps them all together, as it did before them.
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowAppended ; do
 		[ -n "$rowTracking" ] || continue
 		sawAny="true"
-		case "$rowAppended" in *' '*' '*' '*' '*' '*) rowWorkspace="$rowWorkspace $rowAppended" ;; esac
+		case "$rowAppended" in *' '*' '*' '*' '*' '*' '*) rowWorkspace="$rowWorkspace $rowAppended" ;; esac
 		if [ "$rowSpawn" = "-" ] ; then
 			## No spawn id, so there is no handle to ask about on any machine.
 			rowLive="no-spawn-id"

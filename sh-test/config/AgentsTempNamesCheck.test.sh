@@ -368,7 +368,8 @@ rigNoTmpList(){
 		"myx.distro-agents/sh-test/harness/AgentsHarnessPermissionCheck.test.sh|1|rm -rf $rigNoTmpRoot/rig x|data: the text of a command the permission hook records, never run" \
 		"myx.distro-agents/sh-test/harness/AgentsWireStreamDiffCheck.test.sh|1|\"input_json_delta\",\"partial_json\"|data: a path inside a streamed tool call of a fixture, never a place written" \
 		"myx.distro-agents/sh-test/harness/AgentsRunRuleReadersCheck.test.sh|1|rig-sw-ended-\$\$$rigNoTmpRoot|data: the tmp folder inside a spawn sandbox of the rig, a path of the rig and never the system's" \
-		"myx.distro-.local/sh-lib/python/LocalTools.EmbeddedPython.include|1|$rigNoTmpVar=\"\$embeddedBase/tmp\"|data: the temp-dir variable handed to uv's own process, set to the tmp folder of .local/embedded-python so that uv never writes in the system's"
+		"myx.distro-.local/sh-lib/python/LocalTools.EmbeddedPython.include|1|$rigNoTmpVar=\"\$embeddedBase/tmp\"|data: the temp-dir variable handed to uv's own process, set to the tmp folder of .local/embedded-python so that uv never writes in the system's" \
+		"myx.distro-agents/sh-test/mcp/AgentsMcpServerEndsHandlersCheck.test.sh|1|$rigNoTmpVar=\"\$runDir\" bash|data: the temp-dir variable handed to one spawned server, set to its own run folder under the rig's tmp so it never writes in the system's"
 }
 ## Rule 1: the root temp folder as a path of its own -- at the start, or after anything that ends no other path (not a
 ## letter, digit, `_`, `.`, `}` or `)`), and not followed by a letter, digit or `_` -- or under /private or /var; or

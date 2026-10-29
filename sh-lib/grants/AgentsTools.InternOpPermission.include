@@ -1936,7 +1936,8 @@ case "$1" in
 	## A task's or session's permission set, asked for at spawn or brief time. Entries any
 	## participant already holds are held, and pass on per --pass-permission when the
 	## holder delegates. The rest are the extras, asked of the human-owner as ONE
-	## permission-set escalation: allow-set, deny or edit.
+	## permission-set escalation: allow-set, deny or edit. The explicit `--escalate` says the asker
+	## needs what a participant holds for itself: such an entry is asked as an extra, not held.
 	## A MEMBER'S OWN SET (--intern-op-permission-set-ask, the harness's, for a RequestPermission
 	## with entries) is the same request, made by the member a call was refused for: for itself
 	## alone, starting from that refusal, whose call its entries must cover, and for its task --
@@ -2188,10 +2189,13 @@ case "$1" in
 				printf '%s\n' "$setRunning" | LC_ALL=C grep -q -x -F -- "${setHolderOne%% *}" || continue
 				setHolder="$setHolderOne" ; break
 			done <<< "$( AgentsToolsPermissionHolders "$permEntryTool" "$permEntryTarget" "$setSession" "$setItem" "" )"
-			if [ -n "$setHolder" ] ; then
+			if [ -n "$setHolder" ] && [ -z "$setEscalate" ] ; then
 				printf 'HELD: %s by %s\n' "$setLine" "$setHolder"
 				setHeld="${setHeld}${setLine}"$'\t'"${setHolder%% *}"$'\n'
 			else
+				## `--escalate`: the asker needs this entry for itself, so a participant's holding of it
+				## neither stands it down nor is it shown as held: it is asked, as it stands.
+				[ -z "$setHolder" ] || printf 'ESCALATED: %s, held by %s\n' "$setLine" "$setHolder"
 				printf 'EXTRA: %s\n' "$setLine"
 				setExtra="${setExtra}${setLine}"$'\n'
 			fi

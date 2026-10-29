@@ -4435,7 +4435,7 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average> <host>`
 			A session row is followed by its runs, the earliest started
@@ -4527,7 +4527,7 @@
 			measured in the same call. It writes nothing else. Prints
 			rows of TAB-separated fields on stdout, the first naming the
 			row. An absent value reads `-`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused>`
 			`dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description>`
 			`control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`
 			`tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown>`

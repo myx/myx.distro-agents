@@ -147,12 +147,29 @@ case "$1" in
 	## What the form of a wizard needs: the choices and what stands now, as rows. Its form is the help entry's.
 	--manager-wizard-read)
 		local readOp="$1" readName="${2:-}" readPreset readService readKey readFile readWhy readLabel readGroup readFor readRow readSeen=$'\n'
+		local readLocalCheck readLocalTsv readLocalModel readLocalState
 		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is $readOp <cli-service|git-settings>, got $(( $# - 1 )) argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
 		case "$readName" in
 			cli-service)
 				for readService in $agentsPresetCliServices ; do
 					printf 'option\tcli-service\t%s\t%s\n' "$readService" "$readService"
 				done
+				## The local preset's own form chooses its model from the installed list, never a free
+				## text field: every chat model of the local AI feature that this host already has
+				## (sketch 13.4), read the same way --manager-feature-models reads an installed state,
+				## never by guessing from the tsv alone.
+				if AgentsToolsManagerFeatureNames 2> /dev/null | LC_ALL=C grep -q -x -F -- setup.feature-local-ai ; then
+					readLocalCheck="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai 2> /dev/null )" || readLocalCheck=""
+					readLocalTsv="$( AgentsToolsManagerFeatureRoot )/setup.feature-local-ai/data/local-ai/models.tsv"
+					if [ -n "$readLocalCheck" ] && [ -f "$readLocalTsv" ] ; then
+						while IFS= read -r readLocalModel ; do
+							[ -n "$readLocalModel" ] || continue
+							readLocalState="$( printf '%s\n' "$readLocalCheck" | AgentsToolsManagerFeaturePartState setup.feature-local-ai "$readLocalModel" 2> /dev/null )" || readLocalState="unknown"
+							[ "$readLocalState" = installed ] || continue
+							printf 'option\tlocal-model\t%s\t%s\n' "$readLocalModel" "$readLocalModel"
+						done <<< "$( LC_ALL=C awk -F'\t' '/^#/ || NF < 6 { next } $2 == "chat" { print $1 }' "$readLocalTsv" )"
+					fi
+				fi
 				for readKey in $agentsPresetEfforts ; do
 					printf 'option\teffort\t%s\t%s\n' "$readKey" "$readKey"
 				done

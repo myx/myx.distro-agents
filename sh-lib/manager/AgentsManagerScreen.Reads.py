@@ -279,7 +279,9 @@ def startDueReads(state, reader, now):
         ## a read that is made once is not due again because its period has passed; neither
         ## is one that is read seldom, but while it is the list shown
         once = readEntry(key).get("once") or seldomNow(state, key) or (key in focused and not came)
-        aged = now - last["at"] >= REFRESH_SECONDS and not once if last else False
+        ## the period runs from the end of the last read, three times its length where that is longer: a slow read never runs back to back
+        took = last["ended"] - last["at"] if last and "ended" in last else 0.0
+        aged = now - last.get("ended", last["at"]) >= max(REFRESH_SECONDS, 3 * took) and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}

@@ -948,6 +948,9 @@ def screenTurn(surface, state, reader, now, key):
         sizeTaken(surface, state)
     if reader is not None:
         for result in reader.collect():
+            ## when its read ended: the period of a read is counted from there (startDueReads)
+            if result.get("key") in state.started:
+                state.started[result["key"]]["ended"] = now
             applyResult(state, result)
         startCalls(state, reader)
         startDueReads(state, reader, now)

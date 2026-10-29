@@ -63,20 +63,45 @@ AgentsToolsCommsCacheSlackAccount(){ ## member, as bot (true|false)
 ## The UTC month of an epoch, YYYYMM, by arithmetic: no date process per message.
 agentsCommsMonthAwk='function monthOf(t,  z, era, doe, yoe, y, doy, mp, m) { z = int(t / 86400) + 719468 ; era = int(z / 146097) ; doe = z - era * 146097 ; yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365) ; y = yoe + era * 400 ; doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100)) ; mp = int((5 * doy + 2) / 153) ; m = mp + (mp < 10 ? 3 : -9) ; if (m <= 2) { y++ } ; return sprintf("%04d%02d", y, m) }'
 
-## A READ MARKS ITS CHANNEL AS OF INTEREST: it touches .local/cache/comms/.interest/<service>-<id>, an empty file whose time is the
-## read's, at most every 15 s a process. The rig's comms reader pulls only channels read lately (AgentsToolsCommsCachePullWatched).
-AgentsToolsCommsCacheInterest(){ ## cache folder, now
-	local interestName="${1##*/}" interestAt=""
+## A READ MARKS ITS CHANNEL AS OF INTEREST: .local/cache/comms/.interest/<service>-<id> holds `<epoch> <ttl>`, the read that marked it and
+## the TTL it reads at. It is rewritten at most once an hour (owner 2026-10-29), and at once for a reader that needs a shorter TTL, by the
+## shell alone. The rig's reader pulls only channels read lately, each from its mark's TTL (AgentsToolsCommsCachePullWatched).
+AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optional)
+	local interestName="${1##*/}" interestAt="" interestMark interestWas="" interestWasTtl="" interestTtl="${3:-}"
+	case "$interestTtl" in ''|*[!0-9]*) interestTtl="" ;; esac
 	## The rig's own pull is no reader: it never keeps a channel of interest.
 	[ "${MDAT_COMMS_CACHE_PULLER:-}" != "true" ] && [ -n "${MMDAPP:-}" ] || return 0
 	case "${agentsCommsInterestSeen:-} " in
 		*" $interestName:"*)
 			interestAt="${agentsCommsInterestSeen##* $interestName:}" ; interestAt="${interestAt%% *}"
-			case "$interestAt" in ''|*[!0-9]*) ;; *) [ $(( $2 - interestAt )) -ge 15 ] || return 0 ;; esac
+			case "$interestAt" in ''|*[!0-9]*) ;; *) [ $(( $2 - interestAt )) -ge 3600 ] || return 0 ;; esac
 		;;
 	esac
-	mkdir -p "$MMDAPP/.local/cache/comms/.interest" 2> /dev/null && touch "$MMDAPP/.local/cache/comms/.interest/$interestName" 2> /dev/null || :
 	agentsCommsInterestSeen="${agentsCommsInterestSeen:-} $interestName:$2"
+	interestMark="$MMDAPP/.local/cache/comms/.interest/$interestName"
+	{ read -r interestWas interestWasTtl < "$interestMark" ; } 2> /dev/null || interestWas=""
+	case "$interestWasTtl" in ''|*[!0-9]*) interestWasTtl="" ;; esac
+	case "$interestWas" in
+		''|*[!0-9]*) ;;
+		*)
+			if [ $(( $2 - interestWas )) -lt 3600 ] ; then
+				[ -n "$interestTtl" ] && { [ -z "$interestWasTtl" ] || [ "$interestTtl" -lt "$interestWasTtl" ] ; } || return 0
+			fi
+		;;
+	esac
+	{ [ -d "${interestMark%/*}" ] || mkdir -p "${interestMark%/*}" ; } 2> /dev/null && printf '%s %s\n' "$2" "${interestTtl:-$interestWasTtl}" > "$interestMark" 2> /dev/null || :
+	## ON A TEAM RIG the reader that pulls what is read lately runs whenever anything is read: started here where it is not running
+	## (lazy, owner 2026-10-29), its mode read once a process. Elsewhere a read pulls by itself, past its TTL.
+	if [ -z "${agentsCommsRigMode+set}" ] ; then
+		type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null
+		agentsCommsRigMode="$( AgentsToolsWorkspaceMode 2> /dev/null )" || agentsCommsRigMode=""
+	fi
+	case "$agentsCommsRigMode" in
+		team-rig*)
+			type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null
+			! type AgentsToolsSessionCommsStart > /dev/null 2>&1 || AgentsToolsSessionCommsStart > /dev/null 2>&1 || :
+		;;
+	esac
 	return 0
 }
 
@@ -96,12 +121,22 @@ AgentsToolsCommsCachePullGive(){ ## cache folder
 	rm -f "$1/.pulling.txt" 2> /dev/null || :
 }
 
+## THE PULL ANOTHER HOLDS, waited for: a read that misses where another pull of the same channel runs waits for that one, at most
+## its bound (default 30 s), by the shell itself, and is then served from what it brought. rc 0 once no pull holds the channel.
+AgentsToolsCommsCachePullAwait(){ ## cache folder, bound in seconds (optional)
+	local awaitUntil=$(( SECONDS + ${2:-30} ))
+	while [ -f "$1/.pulling.txt" ] && [ "$SECONDS" -lt "$awaitUntil" ] ; do
+		sleep 1 2> /dev/null || return 1
+	done
+	[ ! -f "$1/.pulling.txt" ]
+}
+
 ## A WHOLE SLACK THREAD THROUGH THE CACHE, slack/slack-<channel>-<thread ts>, rendered into a file: served from it within its TTL,
 ## else only the replies after its newest are read from Slack and merged. Where another pull holds the channel, what the cache
 ## holds is served. rc 0 the rendering is written, 1 the cache cannot serve (the caller reads Slack itself), 2 the read failed.
 AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the rendering file, as bot (true|false), now
-	local tcChannel="${2%%:*}" tcTs="${2#*:}" tcDir tcNow="$5" tcFetch="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-5}" tcArgs tcRc=0
-	case "$tcTtl" in ''|*[!0-9]*) tcTtl=5 ;; esac
+	local tcChannel="${2%%:*}" tcTs="${2#*:}" tcDir tcNow="$5" tcFetch="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}" tcArgs tcRc=0
+	case "$tcTtl" in ''|*[!0-9]*) tcTtl=15 ;; esac
 	[ "$tcTtl" != 0 ] && [ -n "${MMDAPP:-}" ] || return 1
 	case "$tcChannel:$tcTs" in *[!A-Za-z0-9.:]*|:*|*:) return 1 ;; esac
 	case "$tcNow" in ''|*[!0-9]*) tcNow="$( date +%s )" ;; esac
@@ -112,8 +147,18 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 			return 0
 		fi
 		tcFetch="$agentsCommsCacheNewest"
+		## STALE IS ENOUGH for a call that waits no longer than the TTL (MDAT_COMMS_CACHE_STALE_OK): it is served what the cache
+		## holds at once, and one pull of its own, detached, brings the channel up to date for the next read.
+		if [ "${MDAT_COMMS_CACHE_STALE_OK:-}" = "true" ] && AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" ; then
+			if [ ! -f "$tcDir/.pulling.txt" ] ; then
+				( MDAT_COMMS_CACHE_STALE_OK="" AgentsToolsCommsCacheSlackThread "$1" "$2" "$tcDir/.swr.rendered" "${4:-false}" "$tcNow" ; rm -f "$tcDir/.swr.rendered" "$tcDir/.swr.rendered.read" "$tcDir/.swr.rendered.err" ) > /dev/null 2>&1 < /dev/null &
+			fi
+			return 0
+		fi
 	fi
 	if ! AgentsToolsCommsCachePullTake "$tcDir" "$tcNow" ; then
+		## One pull at a time: a miss waits for the one that runs, and is served what it brought.
+		AgentsToolsCommsCachePullAwait "$tcDir" && AgentsToolsCommsCacheState "$tcDir" && AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" && return 0
 		[ -z "$tcFetch" ] || ! AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" || return 0
 		return 1
 	fi
@@ -129,6 +174,79 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 	AgentsToolsCommsCachePullGive "$tcDir"
 	[ "$tcRc" = 0 ] || return "$tcRc"
 	AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" || return 1
+	return 0
+}
+
+## THE OUTBOX OF A CHANNEL (S21.13): <entry>/outbox.messages.txt, one record a line, appended by a send that returns at once,
+## `<session>\t<block>\t<member>\t<identity>\t<method>\t<payload>`, the payload's line ends kept as \037. The pusher takes the file
+## aside as outbox.pushing.txt and keeps how far it got in .push.txt (`<sent> <retry-at> <attempts>`, its one writer). Once all of it
+## is sent that file is gone, so the outbox is cut back to nothing; a send made meanwhile is in the next one. rc 1 not appended.
+AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, identity, method, payload
+	local appendPayload="${7//$'\n'/$'\037'}"
+	{ [ -d "$1" ] || mkdir -p "$1" ; } 2> /dev/null || return 1
+	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$5" "$6" "$appendPayload" >> "$1/outbox.messages.txt" 2> /dev/null
+}
+
+## ONE PUSH OF A CHANNEL'S OUTBOX, by one pusher at a time (.pushlock.txt, stale after 120 s): the records after `sent`, oldest first,
+## each posted as the session's writer posts one (AgentsToolsSessionCommsPost). Posted or given up moves `sent`. One left for later
+## keeps its place, sets `retry-at` and counts the attempt, and nothing after it overtakes it.
+AgentsToolsCommsCachePush(){ ## cache folder, now
+	local pushDir="$1" pushNow="$2" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0
+	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload
+	[ -f "$pushDir/outbox.pushing.txt" ] || [ -s "$pushDir/outbox.messages.txt" ] || return 0
+	if ! ( set -o noclobber ; printf '%s\n' "$pushNow" > "$pushDir/.pushlock.txt" ) 2> /dev/null ; then
+		{ read -r pushLock < "$pushDir/.pushlock.txt" ; } 2> /dev/null || pushLock=0
+		case "$pushLock" in ''|*[!0-9]*) pushLock=0 ;; esac
+		[ $(( pushNow - pushLock )) -ge 120 ] || return 0
+		rm -f "$pushDir/.pushlock.txt"
+		( set -o noclobber ; printf '%s\n' "$pushNow" > "$pushDir/.pushlock.txt" ) 2> /dev/null || return 0
+	fi
+	while : ; do
+		if [ ! -f "$pushDir/outbox.pushing.txt" ] ; then
+			[ -s "$pushDir/outbox.messages.txt" ] || break
+			mv -f "$pushDir/outbox.messages.txt" "$pushDir/outbox.pushing.txt" 2> /dev/null || break
+			printf '0 0 0\n' > "$pushDir/.push.txt" 2> /dev/null
+		fi
+		{ read -r pushSent pushRetry pushTries < "$pushDir/.push.txt" ; } 2> /dev/null || :
+		case "$pushSent:$pushRetry:$pushTries" in *[!0-9:]*|:*|*::*|*:) pushSent=0 pushRetry=0 pushTries=0 ;; esac
+		[ "$pushNow" -ge "$pushRetry" ] || break
+		pushWork="$( mktemp -d "$pushDir/.post.XXXXXX" 2> /dev/null )" || break
+		pushNo=0 pushRc=0
+		while IFS=$'\t' read -r pushSession pushBlock pushMember pushIdentity pushMethod pushPayload ; do
+			pushNo=$(( pushNo + 1 ))
+			[ "$pushNo" -gt "$pushSent" ] || continue
+			case "$pushBlock" in ''|*[!0-9]*) pushSent="$pushNo" ; continue ;; esac
+			printf '%s\t%s\t%s\n-\n%s\n' "$pushMember" "$pushIdentity" "$pushMethod" "${pushPayload//$'\037'/$'\n'}" > "$pushWork/$pushBlock.retry"
+			AgentsToolsSessionCommsPost "$pushSession" "$pushWork/$pushBlock.retry" ; pushRc=$?
+			rm -f "$pushWork/$pushBlock".*
+			if [ "$pushRc" = 1 ] ; then
+				pushTries=$(( pushTries + 1 ))
+				pushRetry=$(( pushNow + ( pushTries < 6 ? 5 * pushTries : 30 ) ))
+				printf '%s %s %s\n' "$pushSent" "$pushRetry" "$pushTries" > "$pushDir/.push.txt"
+				break
+			fi
+			pushSent="$pushNo" pushRetry=0 pushTries=0
+			printf '%s 0 0\n' "$pushSent" > "$pushDir/.push.txt"
+		done < "$pushDir/outbox.pushing.txt"
+		rm -rf "$pushWork"
+		[ "$pushRc" != 1 ] || break
+		## All of it sent: the outbox is cut back, and the next one, where a send came meanwhile, is taken.
+		rm -f "$pushDir/outbox.pushing.txt" "$pushDir/.push.txt"
+	done
+	rm -f "$pushDir/.pushlock.txt"
+	return 0
+}
+
+## Every channel's outbox that holds a post, pushed: the shell's own expansion finds them, so a pass with none starts no process.
+AgentsToolsCommsCachePushAll(){ ## now
+	local allOut allSeen=" "
+	[ -n "${MMDAPP:-}" ] || return 0
+	for allOut in "$MMDAPP/.local/cache/comms"/*/*/outbox.pushing.txt "$MMDAPP/.local/cache/comms"/*/*/outbox.messages.txt ; do
+		[ -f "$allOut" ] || continue
+		case "$allSeen" in *" ${allOut%/*} "*) continue ;; esac
+		allSeen="$allSeen${allOut%/*} "
+		AgentsToolsCommsCachePush "${allOut%/*}" "$1"
+	done
 	return 0
 }
 
@@ -148,21 +266,47 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 	printf '%s\n' "$filePath"
 }
 
-## THE RIG'S PULL (owner 2026-10-28), run by the session comms reader: every channel read in the last 10 minutes whose last pull is
+## THE RIG'S PULL (owner 2026-10-28), run by the session comms reader: every channel read in the last 61 minutes whose last pull is
 ## past its TTL is pulled once, by the way its state names, so a member's read on the rig is served from the cache and never waits on
-## the service. Once an hour it deletes the marks older than a week.
+## the service. Once an hour it deletes the marks older than 48 hours (owner 2026-10-29).
 AgentsToolsCommsCachePullWatched(){ ## now
-	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchName watchDir watchHow watchTarget watchMember watchBot watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-5}"
-	case "$watchTtl" in ''|*[!0-9]*) watchTtl=5 ;; esac
+	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchName watchDir watchHow watchTarget watchMember watchBot watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
+	case "$watchTtl" in ''|*[!0-9]*) watchTtl=15 ;; esac
 	[ -n "${MMDAPP:-}" ] && [ -d "$watchMarks" ] || return 0
 	if [ $(( $1 - ${agentsCommsInterestCleanAt:-0} )) -ge 3600 ] ; then
 		agentsCommsInterestCleanAt="$1"
-		find "$watchMarks" -type f -mtime +7 -delete 2> /dev/null || :
+		find "$watchMarks" -type f -mmin +2880 -delete 2> /dev/null || :
+		## An entry whose mark is gone or as old goes with it (owner 2026-10-29): its folder, named from its fixed parts, and never one
+		## whose outbox still holds a post.
+		for watchService in $( ls -1 "$MMDAPP/.local/cache/comms" 2> /dev/null ) ; do
+			case "$watchService" in ''|.*) continue ;; esac
+			[ -d "$MMDAPP/.local/cache/comms/$watchService" ] || continue
+			for watchEntry in $( ls -1 "$MMDAPP/.local/cache/comms/$watchService" 2> /dev/null ) ; do
+				case "$watchEntry" in ''|.|..|*[!A-Za-z0-9._-]*) continue ;; esac
+				[ -d "$MMDAPP/.local/cache/comms/$watchService/$watchEntry" ] || continue
+				watchEntryMark="$watchMarks/$watchEntry"
+				[ ! -f "$watchEntryMark" ] || [ -n "$( find "$watchEntryMark" -mmin +2880 2> /dev/null )" ] || continue
+				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.messages.txt" ] || continue
+				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.pushing.txt" ] || continue
+				rm -rf -- "$MMDAPP/.local/cache/comms/$watchService/$watchEntry" 2> /dev/null || :
+			done
+		done
 	fi
-	for watchName in $( find "$watchMarks" -type f -mmin -10 2> /dev/null | LC_ALL=C sed 's#^.*/##' ) ; do
+	for watchName in $( find "$watchMarks" -type f -mmin -61 2> /dev/null | LC_ALL=C sed 's#^.*/##' ) ; do
 		watchDir="$MMDAPP/.local/cache/comms/${watchName%%-*}/$watchName"
 		AgentsToolsCommsCacheState "$watchDir" || continue
-		[ $(( $1 - agentsCommsCacheAt )) -ge "$watchTtl" ] || continue
+		## Each channel from the TTL its readers read it at, kept in its mark; the default where the mark names none.
+		watchBase="$watchTtl" watchMarkTtl=""
+		{ read -r watchMarkAt watchMarkTtl < "$watchMarks/$watchName" ; } 2> /dev/null || watchMarkTtl=""
+		case "$watchMarkTtl" in ''|*[!0-9]*|0) ;; *) watchBase="$watchMarkTtl" ;; esac
+		## The puller's own clock (owner 2026-10-29): a channel quiet since its newest message is pulled ever more rarely, to
+		## nineteen times the TTL at two hundred and ten times it, so a reader that needs it sooner pulls it itself.
+		watchQuiet="${agentsCommsCacheNewest%%.*}"
+		case "$watchQuiet" in ''|*[!0-9]*) watchQuiet="$1" ;; esac
+		watchQuiet=$(( $1 - watchQuiet ))
+		[ "$watchQuiet" -ge 0 ] || watchQuiet=0
+		[ "$watchQuiet" -le $(( watchBase * 210 )) ] || watchQuiet=$(( watchBase * 210 ))
+		[ $(( $1 - agentsCommsCacheAt )) -ge $(( watchBase + 18 * watchQuiet / 210 )) ] || continue
 		read -r watchHow watchTarget watchMember watchBot <<< "$agentsCommsCacheRecipe"
 		case "$watchHow" in
 			slack-thread)

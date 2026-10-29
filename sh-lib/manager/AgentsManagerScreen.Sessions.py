@@ -33,8 +33,13 @@ def registryDate(value):
 
 
 ## The mark of a session one of whose runs the provider refused for its API usage limit: the
-## row keeps the one wording of it, and its date, in its last field.
+## row keeps the one wording of it, and its date, in its last field but one.
 MARK_LIMIT = "⏳"
+
+## The mark of a session that was refused at all, not only by the provider's usage limit
+## (sketch 3.6): every refusal of every run of it added, kept in the row's last field. Shown
+## beside MARK_LIMIT, since a session can carry both: the latest wording and the whole count.
+MARK_REFUSED = "⛔"
 
 
 ## What `--manager-session-list` printed, as the rows of its sessions: rows of TAB-separated
@@ -49,10 +54,13 @@ MARK_LIMIT = "⏳"
 ## whether it is `alive`, `gone` or `none`. A session whose thread is gone carries the mark
 ## of a process that is gone (MARK_GONE) ahead of its state; one whose thread lives, or that
 ## has none, carries no mark. A row of the eight fields alone says nothing of it: `-`.
-## The last field is the usage-limit flag of its runs, where the provider refused one: the
-## mark of it (MARK_LIMIT) stands ahead of the state, so the session list shows that a run
-## stopped on the provider usage limit; the wording with the date it reopens is kept in the
-## session (usageLimit) for the pane and for whoever asks.
+## The last field but one is the usage-limit flag of its runs, where the provider refused
+## one: the mark of it (MARK_LIMIT) stands ahead of the state, so the session list shows that
+## a run stopped on the provider usage limit; the wording with the date it reopens is kept in
+## the session (usageLimit) for the pane and for whoever asks.
+## The last field is every refusal of every run of the session added, not only the one that
+## stopped a run (sketch 3.6): the mark of it (MARK_REFUSED) stands ahead of MARK_LIMIT where
+## both apply, and the count itself is kept in the session (refused) for whoever asks.
 def parseSessionRows(text):
     rows = []
     sessions = {}
@@ -61,12 +69,14 @@ def parseSessionRows(text):
         if fields[0] == "session" and len(fields) >= 8:
             session = {"id": fields[1], "name": unspaced(fields[2]), "state": fields[3], "started": fields[4],
                        "stateAt": fields[5], "count": fields[6], "tally": fields[7], "runs": [], "lone": False,
-                       "usageLimit": fields[12] if len(fields) >= 13 else "-"}
+                       "usageLimit": fields[12] if len(fields) >= 13 else "-",
+                       "refused": fields[13] if len(fields) >= 14 else "-"}
             session["stored"], session["storedAt"], session["control"] = fields[8:11] if len(fields) >= 11 else ("-", "-", "-")
             row = newRow(fields[1], session["name"] or fields[1], "record", True, fields)
             row["session"] = session
             limitMark = MARK_LIMIT + " " if session["usageLimit"] != "-" else ""
-            row["tail"] = limitMark + (MARK_GONE + " " if session["control"] == "gone" else "") + session["state"]
+            refusedMark = MARK_REFUSED + " " if session["refused"] != "-" else ""
+            row["tail"] = refusedMark + limitMark + (MARK_GONE + " " if session["control"] == "gone" else "") + session["state"]
             row["look"] = BOLD if session["state"] == "running" else PLAIN
             if len(fields) >= 12:
                 ## the total of its tokens, the last field of its row: the narrow column of the list
@@ -193,6 +203,11 @@ def sessionLines(session, width, info=None, limit=0, wrap=True):
     if runs:
         lines.extend(headingLines("Agents") + agentsTable(runs, width, wrap))
     lines.extend(dispatchLines(dispatch, width))
+    ## The checklist of each member, as it keeps it (owner 2026-10-29): what is done, being done and still to do, at a glance.
+    for member, items in sorted(((info or {}).get("checklists") or {}).items()):
+        lines.extend(headingLines("CheckList of " + member))
+        for item in items:
+            lines.extend(wrapToCells(item, max(10, width - 1)))
     lines.extend([""] + factLines([("session", session["id"])], width))
     return lines
 

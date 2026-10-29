@@ -304,9 +304,12 @@ AgentsToolsRegistryAgentsIndicesBuild(){ ## the operation as it was called, regi
 ## spawned-sessions -- every spawn recorded in this workspace's sandbox roots.
 ## Columns: tracking-name session-id parent-spawn-id host owner status exit-code
 ##          spawn-id agent-log-thread session-thread workspace started-at resolved-at
-##          session-comment session-state session-state-at
+##          session-comment session-state session-state-at refused
 ##
 ## session-id is the session's own shared id (spawn-id for a lone spawn); spawn-id is this row's own spawn. Every column after exit-code was appended, never inserted.
+##
+## refused is the record's own `refused:` header: the count of every refusal this run hit, not only the one that ended it (sketch 3.6), kept by
+## the closer from the harness's own marker, the same shape `restarts` already has. `-` where the run was never refused, or carries no such header.
 ##
 ## started-at, resolved-at and session-comment are the record's own headers of those names: when the run started, when its closed state was recorded, and how its session was named.
 ## A date reads `2026-10-12_16:57_+0300`, its spaces written `_` like any value's.
@@ -364,7 +367,7 @@ AgentsToolsRegistrySpawnedSessionsRows(){
 			## id to be reached by, and saying so is the point.
 			[ "$sawRecord" = "true" ] || printf 'E\n'
 		done
-	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=16 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
+	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
 	return 0
 }
 
@@ -751,12 +754,36 @@ AgentsToolsRegistryRunProcesses(){ ## spawn id, its record file (found by the id
 ## any more. For a caller that signalled processes and must know which are still there: the
 ## same pid begun at another time is another process, and is never signalled for the first.
 AgentsToolsRegistryProcessesBegan(){ ## -- stdin: process ids, a line each
-	local beganPids
-	beganPids="$( LC_ALL=C awk '$1 ~ /^[0-9]+$/ { printf "%s%s", ( beganSaid++ ? "," : "" ), $1 ; }' )" || beganPids=""
+	local beganPids="" beganPid
+	## Joined by the shell itself, with no process: every session control thread calls this at every tick.
+	while read -r beganPid _ || [ -n "$beganPid" ] ; do
+		case "$beganPid" in ''|*[!0123456789]*) ;; *) beganPids="${beganPids:+$beganPids,}$beganPid" ;; esac
+	done
 	[ -n "$beganPids" ] || return 0
 	LC_ALL=C ps -o pid=,stat=,lstart= -p "$beganPids" 2>/dev/null | LC_ALL=C awk '
 		NF > 2 && $2 !~ /^Z/ { beganPid = $1 ; $1 = "" ; $2 = "" ; sub( /^ +/, "" ) ; gsub( / +/, "_" ) ; print beganPid, $0 ; }
 	' || :
+	return 0
+}
+
+## THE PROCESS LIST WITH ARGUMENTS, shared: `ps -A -ww` reads the arguments of every process, the costliest read of the host, and
+## every control thread, list of sessions and ask asks it. One read serves them all for 10 s, kept in .local/temp/ps-args.txt
+## (its first line the epoch of the read). Into agentsProcessArgs. Only for telling what runs: a caller that signals reads ps itself.
+AgentsToolsRegistryProcessArgs(){
+	local argsFile="${MMDAPP:-}/.local/temp/ps-args.txt" argsNow argsAt="" argsTmp=""
+	agentsProcessArgs=""
+	argsNow="$( date +%s )"
+	if [ -n "${MMDAPP:-}" ] && [ -f "$argsFile" ] ; then
+		{ IFS= read -r -d '' agentsProcessArgs < "$argsFile" ; } 2> /dev/null || :
+		argsAt="${agentsProcessArgs%%$'\n'*}"
+		case "$argsAt" in
+			''|*[!0-9]*) ;;
+			*) if [ $(( argsNow - argsAt )) -ge 0 ] && [ $(( argsNow - argsAt )) -lt 10 ] ; then agentsProcessArgs="${agentsProcessArgs#*$'\n'}" ; agentsProcessArgs="${agentsProcessArgs%$'\n'}" ; return 0 ; fi ;;
+		esac
+	fi
+	agentsProcessArgs="$( ps -A -ww -o pid=,args= 2> /dev/null )" || agentsProcessArgs=""
+	[ -n "$agentsProcessArgs" ] && [ -d "${argsFile%/*}" ] || return 0
+	{ argsTmp="$( mktemp "$argsFile.XXXXXX" )" && printf '%s\n%s\n' "$argsNow" "$agentsProcessArgs" > "$argsTmp" && mv -f "$argsTmp" "$argsFile" ; } 2> /dev/null || rm -f "$argsTmp" 2> /dev/null
 	return 0
 }
 
@@ -1078,14 +1105,14 @@ AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text, state 
 ## are this session's pids". The caller has rebuilt both registries in the same call: the
 ## pending-replies one is what the "waiting" state is derived from, never once per row, and
 ## never stale for it either.
-AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (asked of the host where not given), session-id filter, the stored columns the caller counts (14 where not given, 16 for the state of the session too)
+AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (asked of the host where not given), session-id filter, the stored columns the caller counts (14 where not given, 16 for the state of the session too, 17 for the refused count as well)
 	local measuredFile="$1" thisHost="${2:-}" filterSession="${3:-}" measuredColumns="${4:-14}" psText openSet="" runningSet="" derivedState=""
-	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowSessionState rowSessionStateAt rowRest rowLive rowStated
+	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowSessionState rowSessionStateAt rowRefused rowRest rowLive rowStated
 	measuredRows="" ; measuredDated="" ; measuredAny="false"
 	[ -f "$measuredFile" ] || return 0
 	[ -n "$thisHost" ] || thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
 	[ -n "$thisHost" ] || thisHost="unknown"
-	psText="$( ps -A -ww -o pid=,args= 2>/dev/null )" || psText=""
+	AgentsToolsRegistryProcessArgs ; psText="$agentsProcessArgs"
 	## The open asks are read once for every row too, never by an awk per row.
 	openSet="$( AgentsToolsRegistryPendingOpenSessions "$measuredFile" )
 "
@@ -1101,12 +1128,12 @@ AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (
 		case "$startingMark" in *.rc|*.out) continue ;; esac
 		[ -e "$startingMark.rc" ] || startingKeys="$startingKeys${startingMark##*/} "
 	done
-	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowSessionState rowSessionStateAt rowRest ; do
+	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowSessionState rowSessionStateAt rowRefused rowRest ; do
 		[ -n "$rowTracking" ] || continue
 		measuredAny="true"
 		## More words than columns: a sandbox folder named with a space. Its words stay
 		## together as they always did, so no reader takes it for a row of thirteen columns.
-		[ -z "$rowRest" ] || rowWorkspace="$rowWorkspace $rowStarted $rowResolved $rowComment $rowSessionState $rowSessionStateAt $rowRest"
+		[ -z "$rowRest" ] || rowWorkspace="$rowWorkspace $rowStarted $rowResolved $rowComment $rowSessionState $rowSessionStateAt $rowRefused $rowRest"
 		if [ "$rowSpawn" = "-" ] ; then
 			## No spawn id, so there is no handle to ask about on any machine.
 			rowLive="no-spawn-id"
@@ -1141,9 +1168,13 @@ $rowSpawn
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
 		measuredRows="$measuredRows$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $derivedState
 "
-		## The state of the session, as the file stores it, for the caller that counts it.
+		## The state of the session, as the file stores it, for the caller that counts it; the
+		## refused count beside it where the caller asked for seventeen.
 		rowStated=""
-		[ "$measuredColumns" != 16 ] || rowStated=" ${rowSessionState:--} ${rowSessionStateAt:--}"
+		case "$measuredColumns" in
+			16) rowStated=" ${rowSessionState:--} ${rowSessionStateAt:--}" ;;
+			17) rowStated=" ${rowSessionState:--} ${rowSessionStateAt:--} ${rowRefused:--}" ;;
+		esac
 		measuredDated="$measuredDated$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $derivedState ${rowStarted:--} ${rowResolved:--} ${rowComment:--}$rowStated
 "
 	done < "$measuredFile"

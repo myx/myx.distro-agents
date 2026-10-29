@@ -54,9 +54,7 @@ type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 
 ## The reads a minute the whole reader is held to; the gaps of the cadence, in seconds.
 agentsSessionCommsReadsPerMinute=20
-agentsSessionCommsActiveGap=5
-agentsSessionCommsQuietGap=30
-agentsSessionCommsQuietMax=300
+agentsSessionCommsActiveGap=3
 
 ## The folder of the reader's files. rc 1 for no workspace.
 AgentsToolsSessionCommsDir(){
@@ -235,6 +233,11 @@ AgentsToolsSessionCommsSessions(){
 	done | AgentsToolsSessionControlLive | while read -r liveId livePid ; do
 		sessionThread=""
 		{ IFS= read -r sessionThread < "$sessionsDir/$liveId/session.thread" ; } 2> /dev/null || :
+		## A session whose thread is named only in the record of its founding run: read there once, and kept in session.thread.
+		if [ -z "$sessionThread" ] ; then
+			sessionThread="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-thread: " ) == 1 { print substr( $0, 17 ) ; exit }' "$MMDAPP/.local/agents/spawned/$liveId/$liveId.spawn.md" 2> /dev/null )"
+			case "$sessionThread" in [A-Z]*:[0-9]*.[0-9]*) printf '%s\n' "$sessionThread" > "$sessionsDir/$liveId/session.thread" 2> /dev/null || : ;; *) sessionThread="" ;; esac
+		fi
 		[ -z "$sessionThread" ] || printf '%s %s\n' "$liveId" "$sessionThread"
 	done
 	return 0
@@ -303,12 +306,12 @@ AgentsToolsSessionCommsActive(){ ## session, now
 
 ## Whether a read of the session is due: never read, or its gap has passed, or it is active and five seconds have. rc 0 it is.
 AgentsToolsSessionCommsDue(){ ## session, now
-	local dueDir dueLine="" dueLast=0 dueGap="$agentsSessionCommsActiveGap"
+	local dueDir dueLine="" dueLast=0 dueGap="$agentsSessionCommsActiveGap" dueQuiet=""
 	## The folder of AgentsToolsSessionCommsDir, built here: asked of every session every pass.
 	[ -n "${MMDAPP:-}" ] || return 1
 	dueDir="$MMDAPP/.local/agents/comms"
 	{ IFS= read -r dueLine < "$dueDir/looked/$1" ; } 2> /dev/null || return 0
-	read -r dueLast dueGap <<< "$dueLine" || :
+	read -r dueLast dueGap dueQuiet <<< "$dueLine" || :
 	case "$dueLast" in ''|*[!0123456789]*) return 0 ;; esac
 	case "$dueGap" in ''|*[!0123456789]*) dueGap="$agentsSessionCommsActiveGap" ;; esac
 	[ $(( $2 - dueLast )) -lt "$dueGap" ] || return 0
@@ -316,22 +319,23 @@ AgentsToolsSessionCommsDue(){ ## session, now
 	AgentsToolsSessionCommsActive "$1" "$2"
 }
 
-## Keeps the moment of a read of the session and the gap to the next: five seconds where it is active, else the quiet gap
-## doubled from the last, 30 to 300.
+## Keeps the moment of a read of the session and the gap to the next: three seconds where it is active, else backed off linearly
+## from the moment it went quiet, to twenty times that at two hundred times it, 60 s after ten minutes (owner 2026-10-29).
 AgentsToolsSessionCommsLookedSet(){ ## session, now
-	local setDir setLine="" setLast setGap="" setNext
+	local setDir setLine="" setLast setGap="" setQuiet="" setFor setNext
 	setDir="$( AgentsToolsSessionCommsDir )" || return 0
 	{ IFS= read -r setLine < "$setDir/looked/$1" ; } 2> /dev/null || :
-	read -r setLast setGap <<< "$setLine" || :
-	case "$setGap" in ''|*[!0123456789]*) setGap="$agentsSessionCommsActiveGap" ;; esac
+	read -r setLast setGap setQuiet <<< "$setLine" || :
+	case "$setQuiet" in ''|*[!0123456789]*) setQuiet="$2" ;; esac
 	if AgentsToolsSessionCommsActive "$1" "$2" ; then
-		setNext="$agentsSessionCommsActiveGap"
+		setNext="$agentsSessionCommsActiveGap" setQuiet="$2"
 	else
-		setNext=$(( setGap * 2 ))
-		[ "$setNext" -ge "$agentsSessionCommsQuietGap" ] || setNext="$agentsSessionCommsQuietGap"
-		[ "$setNext" -le "$agentsSessionCommsQuietMax" ] || setNext="$agentsSessionCommsQuietMax"
+		setFor=$(( $2 - setQuiet ))
+		[ "$setFor" -ge 0 ] || setFor=0
+		[ "$setFor" -le $(( agentsSessionCommsActiveGap * 200 )) ] || setFor=$(( agentsSessionCommsActiveGap * 200 ))
+		setNext=$(( agentsSessionCommsActiveGap + 19 * setFor / 200 ))
 	fi
-	{ mkdir -p "$setDir/looked" && printf '%s %s\n' "$2" "$setNext" > "$setDir/looked/$1.aside" && mv -f "$setDir/looked/$1.aside" "$setDir/looked/$1" ; } 2> /dev/null \
+	{ mkdir -p "$setDir/looked" && printf '%s %s %s\n' "$2" "$setNext" "$setQuiet" > "$setDir/looked/$1.aside" && mv -f "$setDir/looked/$1.aside" "$setDir/looked/$1" ; } 2> /dev/null \
 		|| rm -f "$setDir/looked/$1.aside" 2> /dev/null
 	return 0
 }

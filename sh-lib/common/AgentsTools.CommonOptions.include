@@ -33,6 +33,9 @@ AgentsToolsTeamMember(){
 	local teamActing teamAccount
 	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 	teamActing="$( AgentsToolsActingMember )"
+	## A root session, never minted through a spawn, names itself here (S21.21): no tooling
+	## file read this before, so it fell to user-<account> even where it was a real member.
+	[ -n "$teamActing" ] || teamActing="${MDAT_TEAM_MEMBER:-}"
 	if [ -n "$teamActing" ] ; then printf '%s' "$teamActing" ; return 0 ; fi
 	teamAccount="$( AgentsToolsConsoleAccount )" || return 0
 	case "$teamAccount" in ''|*[!A-Za-z0-9._-]*) return 0 ;; esac
@@ -184,7 +187,7 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 		case "$runName" in
 			--team-member) runFirst="${runGivenMember:-$( AgentsToolsTeamMember )}" ; runHere="MDAT_SPAWN_AGENT in this context and no account (USER)" ;;
 			--session-id) runFirst="${runGivenSession:-${MDAT_SESSION_ID:-}}" ; runHere="MDAT_SESSION_ID in this context" ;;
-			--spawn-id) runFirst="${runGivenSpawn:-${MDAT_SPAWN_SESSION_ID:-shell-console}}" ; runHere="MDAT_SPAWN_SESSION_ID in this context" ;;
+			--spawn-id) runFirst="${runGivenSpawn:-${MDAT_SPAWN_SESSION_ID:-${MDAT_SPAWNED_ID:-shell-console}}}" ; runHere="MDAT_SPAWN_SESSION_ID in this context" ;;
 		esac
 		[ -n "$runFirst" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: needs $runName: no $runHere -- nothing was done" >&2 ; return 1 ; }
 	done
@@ -199,7 +202,7 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 	for runName in session spawn ; do
 		case "$runName" in
 			session) runFirst="$runGivenSession" ; runHere="${MDAT_SESSION_ID:-}" ;;
-			spawn) runFirst="$runGivenSpawn" ; runHere="${MDAT_SPAWN_SESSION_ID:-shell-console}" ;;
+			spawn) runFirst="$runGivenSpawn" ; runHere="${MDAT_SPAWN_SESSION_ID:-${MDAT_SPAWNED_ID:-shell-console}}" ;;
 		esac
 		[ -z "$runFirst" ] || case "$runFirst" in
 			[A-Za-z0-9]*) case "$runFirst" in *[!A-Za-z0-9._-]*) echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --$runName-id is letters, digits, '.', '_' and '-': $runFirst -- nothing was done" >&2 ; return 1 ;; esac ;;
@@ -302,7 +305,7 @@ AgentsToolsContextShow(){ ## operation, arguments...
 	type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
 	printf 'team-member: %s\n' "$showMember"
 	printf 'session-id: %s\n' "${MDAT_SESSION_ID:-}"
-	printf 'spawn-id: %s\n' "${MDAT_SPAWN_SESSION_ID:-shell-console}"
+	printf 'spawn-id: %s\n' "${MDAT_SPAWN_SESSION_ID:-${MDAT_SPAWNED_ID:-shell-console}}"
 	printf 'select-workspace: %s\n' "$( AgentsToolsCommonAbsolute "${MMDAPP%/}" 2> /dev/null || printf '%s' "${MMDAPP:-}" )"
 	printf 'tooling-origin: %s\n' "$( AgentsToolsCommonAbsolute "${MDLT_ORIGIN:-}" 2> /dev/null || printf '%s' "${MDLT_ORIGIN:-}" )"
 	for showName in $( { for showName in ${!MDAT_*} ${!MDLT_*} ; do printf '%s\n' "$showName" ; done ; } | LC_ALL=C sort -u ) ; do

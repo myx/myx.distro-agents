@@ -1667,12 +1667,19 @@ while : ; do
 	## attempt waits before the next: HARNESS_RETRY_DELAY seconds, doubled each time. A
 	## test or a provider that wants none sets it to 0.
 	harnessStreamAttempt=0
-	harnessStreamMaxAttempts="${HARNESS_STREAM_ATTEMPTS:-3}"
-	case "$harnessStreamMaxAttempts" in ''|*[!0123456789]*|0) harnessStreamMaxAttempts=3 ;; esac
+	## 6 attempts from 5 s, doubled: about 2.5 minutes, so a provider's short outage no longer ends a long run.
+	harnessStreamMaxAttempts="${HARNESS_STREAM_ATTEMPTS:-6}"
+	case "$harnessStreamMaxAttempts" in ''|*[!0123456789]*|0) harnessStreamMaxAttempts=6 ;; esac
 	[ "$harnessStreamMaxAttempts" -le 10 ] || harnessStreamMaxAttempts=10
-	harnessRetryDelay="${HARNESS_RETRY_DELAY:-1}"
-	case "$harnessRetryDelay" in ''|*[!0123456789]*) harnessRetryDelay=1 ;; esac
+	harnessRetryDelay="${HARNESS_RETRY_DELAY:-5}"
+	case "$harnessRetryDelay" in ''|*[!0123456789]*) harnessRetryDelay=5 ;; esac
 	harnessRetryWait=0
+	## A request that never reached the provider (no name resolved, no connection) is safe to send again:
+	## it waits on a budget of its own, HARNESS_CONNECT_BUDGET seconds, and uses up no attempt.
+	harnessConnectBudget="${HARNESS_CONNECT_BUDGET:-600}"
+	case "$harnessConnectBudget" in ''|*[!0123456789]*) harnessConnectBudget=600 ;; esac
+	harnessConnectWaited=0
+	harnessConnectWait=0
 	harnessStatus=""
 	harnessStreamOk=0
 	while [ "$harnessStreamAttempt" -lt "$harnessStreamMaxAttempts" ] ; do
@@ -1742,6 +1749,17 @@ while : ; do
 				echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts was refused${harnessStatus:+ with HTTP $harnessStatus} as a temporary condition -- retrying the whole round after the backoff" >&2
 			fi
 		else
+			if [ ! -s "$harnessScratch/stream.headers" ] && [ ! -s "$harnessScratch/stream.content" ] \
+				&& case "$harnessCurlRc" in 6|7|28|35) true ;; *) false ;; esac \
+				&& [ "$harnessConnectWaited" -lt "$harnessConnectBudget" ] ; then
+				harnessConnectWait=$(( harnessConnectWait > 0 ? harnessConnectWait * 2 : 5 ))
+				[ "$harnessConnectWait" -le 60 ] || harnessConnectWait=60
+				echo "${harnessWarn}🔁 RETRY:${harnessOff} the request never reached $harnessHost (curl rc=$harnessCurlRc) -- waiting ${harnessConnectWait}s, ${harnessConnectWaited}s of ${harnessConnectBudget}s spent; no attempt used" >&2
+				sleep "$harnessConnectWait" 2>/dev/null || :
+				harnessConnectWaited=$(( harnessConnectWaited + harnessConnectWait ))
+				harnessStreamAttempt=$(( harnessStreamAttempt - 1 ))
+				continue
+			fi
 			echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts disconnected mid-stream (curl rc=$harnessCurlRc$( [ ! -s "$harnessScratch/stream.curlerr" ] || printf ': %s' "$( cat "$harnessScratch/stream.curlerr" )" )) -- discarding partial output and retrying the whole round" >&2
 		fi
 		## Backoff before the next attempt: the base, doubled each time, capped at 30 seconds.

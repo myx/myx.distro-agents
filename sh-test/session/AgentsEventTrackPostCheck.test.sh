@@ -1183,7 +1183,7 @@ rigAssert "nothing jumps the queue: the notice queued third travels third, the f
 	"$( cat "$( rigOutBox C0RIGOUT )/done/0000001/group" )" '0000001 0000002 0000003 0000004'
 rigAssert "every line queued is posted once, in the order it was queued, nothing lost or reordered" \
 	"$( rigOutLines )" 'line one line two line three line four '
-rigAssert "one message, the first, goes at once" "$( rigOutStamps )" '1000 '
+rigAssert "one message, the first, goes at once -- a feed post pulls nothing in behind it" "$( rigOutStamps )" '1000 '
 rigAssert "the records collected into one post share its outcome: later arrival, same post" \
 	"$( cat "$( rigOutBox C0RIGOUT )/done/0000001/group" ):$( cat "$( rigOutBox C0RIGOUT )/done/0000002/group" ):$( [ "$( cat "$( rigOutBox C0RIGOUT )/done/0000001/out" 2>/dev/null )" = "$( cat "$( rigOutBox C0RIGOUT )/done/0000002/out" 2>/dev/null )" ] && printf same || printf other )" \
 	"0000001 0000002 0000003 0000004:0000001 0000002 0000003 0000004:same"
@@ -1239,6 +1239,42 @@ rigAssert "the post op queues every post and drains the outbox, and has no post 
 	"$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendAppend "\$etpQueue"' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendDrain "\$etpQueue" AgentsEventTrackPostSend' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'chat.postMessage' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" )" 1:1:1
 rigAssert "the window is 7 s, fixed in code, and nothing configures it" \
 	"$( LC_ALL=C grep -c 'agentsEventTrackSendPaceSeconds=7' "$rigLib/session/AgentsTools.EventTrackSend.include" ):$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_PACE' -e 'EVENT_TRACK_PACE_SECONDS' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 1:0
+
+## A QUIET CHANNEL'S IMMEDIATE POSTS COLLECT, A FEED POST DOES NOT. The window opens at the lead
+## record's own arrival, so the first immediate post of a burst waits its 7 s and collects what
+## arrives in it. A feed record is exempt: its poster already collected its lines, and two
+## participants' feed lines never share a post. The real clock, since the window is what is measured.
+rigReset
+rigQuietReal(){ ## stdin file, op arguments... -- the op on the real clock, none of the short sleep
+	local quietIn="$1" ; shift
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+		MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID=rig-sender-session RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
+			case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: curl is not the rig fake" >&2 ; exit 99 ;; esac
+			cd "$MMDAPP" && exec bash "$RIG_FN" "$@"
+		' rig "$@" < "$quietIn" > "$rigTmp/op.out" 2> "$rigTmp/op.err"
+}
+printf '%s\n' '2030-01-01T05:00:00Z TOOL Read path=/a/quiet/one.md -> ok 1B/1L 1ms' > "$rigTmp/quiet.one"
+printf '%s\n' '2030-01-01T05:00:01Z TOOL Read path=/a/quiet/two.md -> ok 1B/1L 1ms' > "$rigTmp/quiet.two"
+rigQuietAt="$( date +%s )"
+rigQuietReal "$rigTmp/quiet.one" --intern-op-event-track-post magic-tester event-track --kind notice --from-stdin &
+sleep 0.5
+rigQuietReal "$rigTmp/quiet.two" --intern-op-event-track-post magic-tester event-track --kind activity --from-stdin &
+wait
+rigAssert "two immediate posts queued half a second apart on a quiet channel: ONE message" \
+	"$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )" 1
+rigAssert "and it carries both, having waited the window from the first one's arrival" \
+	"$( [ $(( $( date +%s ) - rigQuietAt )) -ge 7 ] && printf yes || printf no ):$( rigYes env LC_ALL=C grep -q -F 'quiet/one.md' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F 'quiet/two.md' "$rigTmp/scenario/post.1" )" yes:yes:yes
+rigReset
+rigQuietAt="$( date +%s )"
+rigQuietReal "$rigTmp/quiet.one" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin &
+sleep 0.5
+rigQuietReal "$rigTmp/quiet.two" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin &
+wait
+rigAssert "two feed posts of one quiet channel stay two posts: a feed post pulls nothing in behind it" \
+	"$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 ):$( rigYes env LC_ALL=C grep -q -F 'quiet/two.md' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F 'quiet/two.md' "$rigTmp/scenario/post.2" )" 2:no:yes
 rigReset
 rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
 rigAssert "an op's post lands in its channel's outbox and notes the window it may go in" \

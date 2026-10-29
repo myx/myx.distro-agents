@@ -900,6 +900,41 @@ AgentsHarnessAsk(){
 			;;
 		esac
 	fi
+	## A CALL ANOTHER PARTICIPANT RUNNING IN THIS SESSION ALREADY HOLDS IS NOT ASKED OF HIM (sketch
+	## 12.5): the member is told to ask that participant, or to pass the permission on. The explicit
+	## `escalate` says the member needs it for itself, and the call is asked as it stands. A call the
+	## asker holds already is not asked either, the refusal standing only where the call was refused.
+	## The same rule a Permission set keeps (--intern-op-permission-set-ask), for one call asked alone.
+	if [ -n "$askOwnerBot" ] && [ "$toolKind" = "permission" ] && [ -z "$toolEntries" ] && [ -n "$toolRefusalId" ] && [ -n "$harnessAgent" ] ; then
+		local askHolderRecord="$MMDAPP/.local/agents/sessions/$askSession/$toolRefusalId.md" askHeldTool="" askHeldTarget="" askHolder=""
+		if [ -f "$askHolderRecord" ] ; then
+			type AgentsToolsPermissionHolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || :
+			type AgentsToolsPermissionSessionRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" 2> /dev/null || :
+			askHeldTool="$( AgentsToolsPermissionField "$askHolderRecord" tool 2> /dev/null )"
+			askHeldTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$askHolderRecord" target 2> /dev/null )" 2> /dev/null )"
+		fi
+		if [ -n "$askHeldTool" ] && [ -n "$askHeldTarget" ] ; then
+			if AgentsToolsPermissionHolds "$harnessAgent" "$askHeldTool" "$askHeldTarget" "$askSession" > /dev/null 2>&1 ; then
+				printf 'CORRECTION: %s: nothing was asked: you hold %s on %s already, so a refusal stands only where the call was refused. Make the call again.\n' "$harnessAskName" "$askHeldTool" "$( AgentsToolsPermissionShownTarget "$askHeldTarget" 2> /dev/null )"
+				return 0
+			fi
+			case "$toolEscalate" in true|1|yes) ;; *)
+				local askHeldRun="" askHeldOne=""
+				askHeldRun="$( AgentsToolsPermissionSessionRunning "$askSession" 2> /dev/null )"
+				while IFS= read -r askHeldOne ; do
+					askHeldOne="${askHeldOne%% *}"
+					[ -n "$askHeldOne" ] || continue
+					printf '%s\n' "$askHeldRun" | LC_ALL=C grep -q -x -F -- "$askHeldOne" || continue
+					askHolder="$askHeldOne"
+					break
+				done <<< "$( AgentsToolsPermissionHolders "$askHeldTool" "$askHeldTarget" "$askSession" "" "$harnessAgent" 2> /dev/null )"
+				if [ -n "$askHolder" ] ; then
+					printf 'CORRECTION: %s: nothing was asked. A participant who is running in this session already holds what you ask for: %s on %s, held by %s. Ask that participant to do it for you, or to pass the permission on. If you need it for yourself, call RequestPermission again with escalate true and it is asked as it stands.\n' "$harnessAskName" "$askHeldTool" "$( AgentsToolsPermissionShownTarget "$askHeldTarget" 2> /dev/null )" "$askHolder"
+					return 0
+				fi
+			;; esac
+		fi
+	fi
 	## Whether the question is posted (AgentsTools.AskThread.include): an identical open
 	## question to the same addressee is not asked again. Every other question is a message
 	## of its own: a top-level message where `to` names a conversation or a person, so its

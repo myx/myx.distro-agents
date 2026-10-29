@@ -238,7 +238,7 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		return 1
 	fi
 	[ -d "$MMDAPP/.local/agents/spawned" ] || echo "# $MDSC_CMD $rowsOp: no spawn sandbox root exists yet, so no session has run in this workspace" >&2
-	AgentsToolsRegistryMeasureRows "$rowsFile" "" "" 16
+	AgentsToolsRegistryMeasureRows "$rowsFile" "" "" 17
 	if stat -f '%m' / > /dev/null 2>&1 ; then
 		rowsStat="bsd"
 	elif stat -c '%Y' / > /dev/null 2>&1 ; then
@@ -250,7 +250,7 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	while IFS= read -r rowsSpawn ; do
 		[ -n "$rowsSpawn" ] || continue
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
-	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
+	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 19 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
 		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
@@ -377,7 +377,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	scopeReread="$( {
 			[ -z "$scopeState" ] || [ ! -f "$scopeState" ] || AgentsToolsRegistryRowsEntry T "$scopeState"
 			AgentsToolsManagerSessionRecordEntries "$scopeStore" entries <<< "$scopeRows"
-		} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=16 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" )"
+		} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=17 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" )"
 	scopeRows="$( AgentsToolsManagerSessionRecordEntries "$scopeStore" kept <<< "$scopeRows" )$scopeNl$scopeReread"
 	## The one measuring of a row takes a registry file: the rows of this session alone, in a
 	## file of this call's own, so that no other session is measured for it.
@@ -386,7 +386,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 		return 1
 	}
 	printf '%s\n' "$scopeRows" > "$scopeTemp"
-	AgentsToolsRegistryMeasureRows "$scopeTemp" "" "" 16
+	AgentsToolsRegistryMeasureRows "$scopeTemp" "" "" 17
 	rm -f "$scopeTemp"
 	scopeMeasured="$measuredDated"
 	## The store of a live run is read, never of an ended one.
@@ -412,6 +412,31 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 ## One session, or one run of it, in full: the rows --manager-session-read prints and the Dispatcher's
 ## --session-record (DistroAgentsDispatcher.fn.sh) prints, the one function both call. The records and
 ## the stores of that one session are read, never another's.
+## THE CHECKLISTS OF A SESSION'S MEMBERS, for its summary (owner 2026-10-29): `checklist <session> <member> <line>`, a row a line of each
+## member's list, read where its run keeps it (the folder of a record of the session), else in the session's store. A member once.
+AgentsToolsManagerSessionChecklistRows(){ ## session id
+	{
+		printf '%s\n' "$MMDAPP/.local/agents/spawned/$1/-"
+		printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null
+		printf '%s\n' "$MMDAPP/.local/agents/sessions/$1/-"
+	} | {
+		local listRecord listFile listMember listLine listSeen=" "
+		while IFS= read -r listRecord ; do
+			for listFile in "${listRecord%/*}"/*.checklist.md ; do
+				[ -f "$listFile" ] || continue
+				listMember="${listFile##*/}" ; listMember="${listMember%.checklist.md}"
+				case "$listSeen" in *" $listMember "*) continue ;; esac
+				listSeen="$listSeen$listMember "
+				while IFS= read -r listLine || [ -n "$listLine" ] ; do
+					[ -n "$listLine" ] || continue
+					printf 'checklist\t%s\t%s\t%s\n' "$1" "$listMember" "${listLine//$'\t'/ }"
+				done < "$listFile"
+			done
+		done
+	}
+	return 0
+}
+
 AgentsToolsManagerSessionReadRows(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
 	local readOp="$1" readId="$2" readOwn="${3:-}" readStores="" readSkip readSpawn readRest
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
@@ -943,6 +968,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsManagerSessionReadRows "$readOp" "$readId" "$readOwn" || { set +e ; return 1 ; }
+		[ -n "$readOwn" ] || AgentsToolsManagerSessionChecklistRows "$readId"
 		return 0
 	;;
 
@@ -1094,6 +1120,8 @@ case "$1" in
 			checklistFolder="${checklistRecord%/*}" ; break
 		done
 		[ -n "$checklistFolder" ] || checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId"
+		## A session whose checklist was kept in its store, a root session among them, is read there where its record's folder holds none.
+		[ -f "$checklistFolder/$checklistMember.checklist.md" ] || checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId"
 		[ ! -f "$checklistFolder/$checklistMember.checklist.md" ] || cat "$checklistFolder/$checklistMember.checklist.md"
 		return 0
 	;;

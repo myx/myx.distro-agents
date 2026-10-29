@@ -34,7 +34,7 @@ case "$1" in
 			printf '%s\n' "$MDSC_CMD --intern-session-comms -- the communications reader and writer of this workspace: a shell process of the tooling that keeps the session chat files up to date with Slack and Slack with them. No agent." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-session-comms --run" >&2
-			printf '%s\n' "      The reader: takes the lock of the workspace, and every second looks after the live sessions: reads each thread from the newest ts the chat file holds (every 5 seconds while a wait is blocked on it or it spoke in the last minute, else 30 seconds doubling to 300; at most 20 reads a minute), posts what could not be posted when it was sent, and sends what the console left. Ends on TERM, and by itself when nothing has been for it to do for MDAT_COMMS_IDLE_SECONDS (600)." >&2
+			printf '%s\n' "      The reader: takes the lock of the workspace, and every second looks after the live sessions: reads each thread from the newest ts the chat file holds (every 3 seconds while a wait is blocked on it or it spoke in the last minute, else backed off linearly to 60 seconds after ten quiet minutes; at most 20 reads a minute), posts what could not be posted when it was sent, and sends what the console left. Ends on TERM, and by itself when nothing has been for it to do for MDAT_COMMS_IDLE_SECONDS (600)." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-session-comms --one [--session-id <id>]" >&2
 			printf '%s\n' "      One pass over the live sessions, or over the one named, whatever its cadence and its control thread, under the same lock, then the end: for a test, and for a check by hand." >&2
@@ -210,6 +210,11 @@ case "$1" in
 				[ -z "$commsEnd" ] || break
 			done <<< "$( printf '%s\n' "$commsList" | AgentsToolsSessionCommsOrder )"
 			[ -z "$commsAny" ] || commsIdleFrom="$SECONDS"
+			## What waits in the outboxes of the comms cache, pushed every pass: a pass with none starts no process (AgentsToolsCommsCachePushAll).
+			if [ -z "$commsEnd" ] ; then
+				type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				! type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || AgentsToolsCommsCachePushAll "$commsPassNow"
+			fi
 			## The rig's pull of the channels members read lately (AgentsToolsCommsCachePullWatched), every 5 s.
 			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ $(( SECONDS - ${commsPullAt:--100} )) -ge 5 ] ; then
 				commsPullAt="$SECONDS"

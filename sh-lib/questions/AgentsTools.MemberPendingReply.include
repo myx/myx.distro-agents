@@ -47,7 +47,7 @@ AgentsToolsPendingReplyAskers(){ ## stdin: the asking ids, a line each
 	askersIds="$( cat )"
 	[ -n "$askersIds" ] || return 0
 	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	printf '%s\n' "$askersIds" | AgentsToolsRegistryAskersLive "$( ps -A -ww -o pid=,args= 2>/dev/null )"
+	printf '%s\n' "$askersIds" | AgentsToolsRegistryAskersLive "$( AgentsToolsRegistryProcessArgs ; printf '%s' "$agentsProcessArgs" )"
 }
 
 ## Where the stores keep more of one ask than its record, for the read of that one record,

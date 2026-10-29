@@ -83,7 +83,7 @@ AgentsToolsPendingReplySessionsRunning(){
 			no-spawn-record) [ ! -d "$MMDAPP/.local/agents/sessions/$runningRoot" ] || runningIds="$runningIds$runningRoot " ;;
 		esac
 	done <<< "$( LC_ALL=C awk 'FNR == 1 { dashes = 0 } $0 == "---" { dashes++ ; next } dashes == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) }' "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null | LC_ALL=C sort -u \
-		| AgentsToolsRegistryAskersLive "$( ps -A -ww -o pid=,args= 2> /dev/null )" )"
+		| AgentsToolsRegistryAskersLive "$( AgentsToolsRegistryProcessArgs ; printf '%s' "$agentsProcessArgs" )" )"
 	printf ' %s \n' "$runningIds"
 }
 

@@ -397,7 +397,7 @@ AgentsToolsSessionControlStateWrite(){ ## state word, reason
 AgentsToolsSessionControlWitness(){
 	local witnessList witnessPids="" witnessFound witnessFile witnessSkip witnessSpawn witnessLive witnessRest
 	controlWitness=""
-	witnessList="$( ps -A -ww -o pid=,args= 2> /dev/null )" || witnessList=""
+	AgentsToolsRegistryProcessArgs ; witnessList="$agentsProcessArgs"
 	while read -r witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSpawn witnessSkip witnessSkip witnessSkip witnessLive witnessRest ; do
 		[ "$witnessLive" = "running" ] || continue
 		case "$witnessSpawn" in ''|-) continue ;; esac
@@ -416,21 +416,16 @@ AgentsToolsSessionControlWitness(){
 	return 0
 }
 
-## Whether one of those processes is still that process: the same pid, begun at the same
-## time. One read of the processes it names, and no other. rc 0 one is.
+## Whether one of those processes is alive, asked of each by signal 0: a builtin, so a cheap tick starts no process. That it is still
+## the same process, begun when it was, is read at every read in full (AgentsToolsSessionControlWitness), at most twelve ticks on.
+## rc 0 one is.
 AgentsToolsSessionControlWitnessLives(){
-	local witnessNow witnessLine
+	local witnessPid witnessRest
 	[ -n "$controlWitness" ] || return 1
-	witnessNow="$( printf '%s\n' "$controlWitness" | AgentsToolsRegistryProcessesBegan )" || witnessNow=""
-	[ -n "$witnessNow" ] || return 1
-	while IFS= read -r witnessLine ; do
-		[ -n "$witnessLine" ] || continue
-		case "
-$controlWitness
-" in *"
-$witnessLine
-"*) return 0 ;; esac
-	done <<< "$witnessNow"
+	while read -r witnessPid witnessRest ; do
+		case "$witnessPid" in ''|*[!0-9]*) continue ;; esac
+		kill -0 "$witnessPid" 2> /dev/null && return 0
+	done <<< "$controlWitness"
 	return 1
 }
 

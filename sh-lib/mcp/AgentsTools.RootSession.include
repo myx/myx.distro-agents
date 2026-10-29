@@ -109,6 +109,24 @@ AgentsToolsRootSessionFacts(){ ## id, token (empty: omit it)
 ## Serves one RootSession call: prints the facts, rc 0. Prints `ERROR: ...`, rc 1, where the
 ## operation or its arguments are wrong, where the id is unknown, where the token is missing or
 ## does not match, or where a session cannot be made. A refusal writes nothing.
+## THE SESSION'S RUN RECORD (owner 2026-10-29): a root session is a session of this workspace, listed with the others. Its run is the
+## client's own, carried by this server, so the record names the server as its process: alive while the server lives. Written at a
+## mint and at an adopt, one rename. Quiet, and never a reason for the call to fail.
+AgentsToolsRootSessionRecord(){ ## id, server pid
+	local recordDir="$MMDAPP/.local/agents/spawned/$1" recordStart recordTemp
+	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+	recordStart="$( AgentsToolsRegistryProcessStart "$2" )" || recordStart=""
+	[ -n "$recordStart" ] || return 0
+	mkdir -p "$recordDir" 2> /dev/null || return 0
+	recordTemp="$( mktemp "$recordDir/$1.spawn.md.XXXXXX" 2> /dev/null )" || return 0
+	{
+		printf -- '---\nsession-id: %s\nspawn-id: %s\nstart-context: root-harness\ntracking-name: %s\n' "$1" "$1" "$1"
+		printf 'host: %s\nworkspace: %s\nowner: magic-coordinator\nstatus: spawn-started\n' "$( hostname -s 2> /dev/null || printf unknown )" "${MMDAPP##*/}"
+		printf 'started-at: %s\ndescription: Root harness session\nrun-process: %s %s\n---\n' "$( date '+%Y-%m-%d %H:%M %z' )" "$2" "$recordStart"
+	} > "$recordTemp" 2> /dev/null && mv -f "$recordTemp" "$recordDir/$1.spawn.md" 2> /dev/null || rm -f "$recordTemp" 2> /dev/null
+	return 0
+}
+
 AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
 	local rootPid="$1" rootOp="$2" rootGiven="$3" rootTokenGiven="$4"
 	local rootStore rootLock rootHeld="" rootHeldToken="" rootDir="" rootId="" rootToken="" rootKind=""
@@ -207,6 +225,7 @@ AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
 				return 1
 			fi
 			AgentsToolsRootSessionLockGive "$rootLock"
+			AgentsToolsRootSessionRecord "$rootId" "$rootPid"
 			AgentsToolsRootSessionFacts "$rootId" "$rootToken"
 			return 0
 		;;
@@ -244,6 +263,7 @@ AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
 				return 1
 			fi
 			AgentsToolsRootSessionLockGive "$rootLock"
+			AgentsToolsRootSessionRecord "$rootGiven" "$rootPid"
 			AgentsToolsRootSessionFacts "$rootGiven" ""
 			return 0
 		;;

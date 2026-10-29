@@ -173,11 +173,11 @@ def wizardAnswer(held, step, name, default=""):
 ## What `--manager-wizard-read cli-service` printed: the choices (option rows), the credentials each service reads, what each preset holds (preset rows) and
 ## what the team holds (team rows). A credential is in its one form.
 def parseCliWizard(text):
-    data = {"services": [], "efforts": [], "caches": [], "presets": [], "credentials": {}, "held": {}, "team": {}}
+    data = {"services": [], "efforts": [], "caches": [], "presets": [], "localModels": [], "credentials": {}, "held": {}, "team": {}}
     for printed in text.split("\n"):
         fields = printed.split("\t")
         if fields[0] == "option" and len(fields) >= 4:
-            key = {"cli-service": "services", "effort": "efforts", "cache": "caches", "preset": "presets"}.get(fields[1])
+            key = {"cli-service": "services", "effort": "efforts", "cache": "caches", "preset": "presets", "local-model": "localModels"}.get(fields[1])
             if key:
                 data[key].append(fields[2])
         elif fields[0] == "credential" and len(fields) >= 3:
@@ -399,6 +399,39 @@ def cliApplyExtend(state, held):
     pairs = [("PRESET_EXTEND", wizardAnswer(held, 0, "extends", presetHeld(held, preset, "PRESET_EXTEND")),
               presetHeld(held, preset, "PRESET_EXTEND"))] + cliModelPairs(held, preset)
     return cliApply(held, pairs)
+
+
+## ---- the local form (sketch 13.4): a local preset's model is one of the models installed on this machine, never a free text field ----
+
+def cliStepLocalFields(state, held):
+    preset = wizardPreset(held)
+    about = ["Preset: %s." % preset, "The CLI service is the local AI's own; nothing else is asked for it."]
+    models = held["data"]["localModels"]
+    modelValue = presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")
+    modelOptions = [(name, name) for name in models]
+    if not modelOptions:
+        modelOptions = [("", "no local model is installed")]
+    elif modelValue and modelValue not in models:
+        modelOptions = modelOptions + [(modelValue, "%s, as it is set" % modelValue)]
+    controls = [{"name": "about", "kind": "text"}, cliNameControl(),
+                {"name": "model", "kind": "radios", "label": "Model: one of the local models installed on this machine"},
+                {"name": "effort", "kind": "radios", "label": "Effort"},
+                {"name": "cache", "kind": "radios", "label": "Input cache lifetime"},
+                {"name": "context", "kind": "input", "label": "Restart threshold (context size), whole tokens, or none"}]
+    fill = {"about": {"lines": about}, "name": {"value": held["context"].get("preset", "")},
+            "model": {"options": modelOptions, "value": modelValue},
+            "effort": cliChoiceFill(held, preset, "PRESET_EFFORT", [name for name in held["data"]["efforts"] if name != "unset"]),
+            "cache": cliChoiceFill(held, preset, "PRESET_INPUT_CACHE_TIME", held["data"]["caches"]),
+            "context": {"value": presetHeld(held, preset, "PRESET_CONTEXT_MAX_SIZE")}}
+    return {"title": cliTitle(preset), "first": "name", "controls": controls, "fill": fill}
+
+
+def cliApplyLocal(state, held):
+    preset = wizardPreset(held)
+    pairs = [("PRESET_CLI_SERVICE", "local", presetHeld(held, preset, "PRESET_CLI_SERVICE"))] + cliModelPairs(held, preset)
+    return cliApply(held, pairs)
+
+
 ## ---- the wizard of the git settings ----
 
 ## What `--manager-wizard-read git-settings` printed: the three settings as they stand, and the private keys git may be told to connect with.
@@ -798,6 +831,8 @@ registerPlugin({
          "steps": ("cliStepUniversalFields", "cliStepUniversalCredential"), "apply": "cliApplyUniversal"},
         {"name": "cli-service-extend", "title": "Configure CLI Service: extending", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
          "steps": ("cliStepExtendFields",), "apply": "cliApplyExtend"},
+        {"name": "cli-service-local", "title": "Configure CLI Service: local", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
+         "steps": ("cliStepLocalFields",), "apply": "cliApplyLocal"},
         {"name": "git-settings", "title": "Configure Git Settings", "read": ["--manager-wizard-read", "git-settings"], "parse": "parseGitWizard",
          "steps": ("gitStepSettings",), "apply": "gitApply"},
         {"name": "server-key-generate", "title": "Generate Server Key", "steps": ("keyStepGenerate",), "apply": "keyApplyGenerate"},

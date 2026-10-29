@@ -11,7 +11,7 @@
 ##      its own, previewed and referenced in the return and in the index line; the file holds it whole, the return does not.
 ##   4. The form goes with the source: it is stored with a stateful wait, and --wait-continue serves the next message in it; --wait-add
 ##      stores one, --wait-drop takes it away.
-##   5. What is refused: a form on a source that is not a Slack source, and a form that is neither short nor full. A call with no session
+##   5. What is refused: a form on a source that is not a Slack source, and a form that is neither short, full nor ttl=<seconds>. A call with no session
 ##      folder to keep messages in returns them whole, and says so.
 ## Offline: a Slack-shaped fake curl is first on PATH, every workspace is a folder of the rig's own, and no model CLI is started.
 set -u
@@ -148,7 +148,7 @@ rigScene refuse
 rigWait refuse-1 --wait-source "file:$rigDir/none#short" --wait-timeout 0
 rigAssert "a form on a source that is no Slack source"             "$( rigFirst ):$( LC_ALL=C grep -c 'only a Slack source takes a short or a full form' "$rigDir/refuse-1.err" )" "WAIT-RESULT: ERROR:1"
 rigWait refuse-2 --wait-source "slack:CRIGXXX01#huge" --wait-timeout 0
-rigAssert "a form that is neither short nor full"                  "$( rigFirst ):$( LC_ALL=C grep -c 'is short or full, and nothing else' "$rigDir/refuse-2.err" )" "WAIT-RESULT: ERROR:1"
+rigAssert "a form that is neither short, full nor ttl=<seconds>" "$( rigFirst ):$( LC_ALL=C grep -c 'is short, full or ttl=<seconds>, and nothing else' "$rigDir/refuse-2.err" )" "WAIT-RESULT: ERROR:1"
 rigScene nofolder
 rigKey=""
 rigWait nofolder-1 --wait-source "$( rigSource full )" --wait-since-utime "$(( rigNow - 120 ))" --wait-timeout 4

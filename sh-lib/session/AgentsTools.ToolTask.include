@@ -24,7 +24,8 @@
 ##           agentsTaskDetached  yes where the call returned early and the task goes on
 ##           agentsTaskHandle    process-N where it did
 ##     The function runs in a subshell: nothing it sets in this shell survives, as with a $( ) capture. Its stderr is replayed here once it ends.
-##     No session, or a call from inside a task (MDAT_TOOL_TASK_INNER), or MDAT_TOOL_TASK_OFF=yes: the function runs here, as a capture.
+##     No session, or MDAT_TOOL_TASK_OFF=yes: the function runs here, as a capture. MDAT_TOOL_TASK_INNER does not bring that about: a harness
+##     process that inherited it would otherwise run every call with no bound at all (Q102, owner).
 ##   AgentsToolsTaskMessagePending <session> <member>   rc 0 where a message addressed to the member waits in the session chat (nothing is consumed)
 ##
 
@@ -84,7 +85,7 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	case "$callTimeout" in ''|*[!0123456789]*|0) callTimeout="" ;; *) callGiven="yes" ;; esac
 	case "$callAction" in kill|return) ;; *) callAction="return" ;; esac
 	case "$callBackground" in true|1|yes) callBackground="true" ;; *) callBackground="" ;; esac
-	if [ -n "${MDAT_TOOL_TASK_INNER:-}" ] || [ "${MDAT_TOOL_TASK_OFF:-}" = yes ] || [ -z "$callSession" ] || [ -z "${MMDAPP:-}" ] ; then
+	if [ "${MDAT_TOOL_TASK_OFF:-}" = yes ] || [ -z "$callSession" ] || [ -z "${MMDAPP:-}" ] ; then
 		agentsTaskOut="$( "$callFn" "$@" )" || agentsTaskRc=$?
 		return 0
 	fi

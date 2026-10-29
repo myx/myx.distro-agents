@@ -755,7 +755,52 @@ export HOME="$rigRealHome"
 rigVerdict "an ask to a routine -- recorded with no DM, scanned, answered by its executor only, returned by the wait"
 
 ## ---------------------------------------------------------------------------
-## 19. Forward: the coordinator forwards to the human-owner, and the human-owner's
+## 19. RequestPermission for one call alone: what another participant running in the session
+##     holds is refused with a comment naming them, and the explicit escalate asks it as it is.
+## ---------------------------------------------------------------------------
+rigStart held-by-participant no
+printf 'magic-coordinator:ws:workspace:Write(/%s/**)\n' "$rigScenarioDir/ws" >> "$rigScenarioDir/ws/.local/agents/permissions.registry"
+## The session's two spawn records: the asker's, and a colleague's, both of the one coworking
+## session rig-cow. The colleague runs, and holds a session grant on the call asked for.
+rigHeldTarget="$rigScenarioDir/ws/OUT/held.txt"
+rigSpawnRecord(){ ## directory, spawn id, owner
+	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nstatus: spawn-started\nowner: %s\n---\n\n# Spawn session\n' "$1" "$2" "$( hostname -s 2>/dev/null || printf rig-host )" "$3" \
+		> "$rigScenarioDir/ws/.local/agents/spawned/$1/$2.spawn.md"
+}
+rigSpawnRecord rig-cow rig-session magic-tester
+rigSpawnRecord rig-cow rig-dev magic-developer
+printf '%s rig-run --session-id rig-dev\n' 900111 >> "$rigTmp/ps.list"
+## The colleague's own refusal and its session grant, in the store of the session they share.
+( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT MMDAPP="$rigScenarioDir/ws" \
+	bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-refusal-log magic-developer \
+	--session-id rig-cow --tool Write --target "$rigHeldTarget" --reason rig ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err"
+rigHeldRefusal="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$rigScenarioDir/op.out" | head -1 )"
+rigAssert "control: the colleague's refusal is recorded in the session they share" "$( [ -n "$rigHeldRefusal" ] && printf yes || printf no )" yes
+( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT MMDAPP="$rigScenarioDir/ws" \
+	bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-open human-owner \
+	--session-id rig-cow --refusal-id "$rigHeldRefusal" --kind session ) > "$rigScenarioDir/grant.out" 2> "$rigScenarioDir/grant.err"
+rigAssert "control: the human-owner opens the colleague's session grant on that call" \
+	"$( LC_ALL=C sed -n 's/^\(GRANT: .*\)$/\1/p' "$rigScenarioDir/grant.out" | head -1 )" "GRANT: session $rigHeldRefusal"
+## The asker's own refusal of the very same call, then the ask for one call alone.
+rigTool rig-session Write "{\"path\":\"$rigHeldTarget\",\"content\":\"x\"}"
+rigAskId="$( rigRefusalId )"
+rigAskPosts="$( rigCalls chat.postMessage )"
+rigTool rig-session RequestPermission "{\"to\":\"human-owner\",\"question\":\"May this task write the refused file?\",\"address_to\":\"human-owner\",\"refusal_id\":\"$rigAskId\",\"reason\":\"the task report goes there\",\"task_ref\":\"dispatch-rig\"}"
+rigAssert "a call a running participant holds: nothing was asked, and the correction names them" \
+	"$( LC_ALL=C grep -c '^CORRECTION: RequestPermission: nothing was asked\. A participant who is running in this session already holds what you ask for: Write on ' "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'held by magic-developer' ):$(( $( rigCalls chat.postMessage ) - rigAskPosts ))" \
+	"1:yes:0"
+rigAssert "and it names the explicit parameter" "$( rigHolds "$rigScenarioDir/out" 'escalate true' )" yes
+## The same call with escalate: asked as it stands, answered as any permission question is.
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+rigAskPosts="$( rigCalls chat.postMessage )"
+rigTool rig-session RequestPermission "{\"to\":\"human-owner\",\"question\":\"May this task write the refused file?\",\"address_to\":\"human-owner\",\"refusal_id\":\"$rigAskId\",\"reason\":\"the task report goes there\",\"task_ref\":\"dispatch-rig\",\"escalate\":true}"
+rigAssert "with escalate true the same call is asked as it stands, and posted" \
+	"$( rigFirstLine "$rigScenarioDir/out" ):$( [ $(( $( rigCalls chat.postMessage ) - rigAskPosts )) -ge 1 ] && printf posted || printf silent ):$( rigHolds "$rigScenarioDir/out" 'held by magic-developer' )" \
+	"ASK-RESULT: RECEIVED:posted:no"
+rigVerdict "one call asked alone -- held by a running participant it is refused, and escalate asks it"
+
+## 20. Forward: the coordinator forwards to the human-owner, and the human-owner's
 ##     reply in the forward's thread is the verdict for the original request.
 ## ---------------------------------------------------------------------------
 rigStart forward no
@@ -814,7 +859,7 @@ rigAskFinish 0 > /dev/null
 rigVerdict "forward -- the reason read out belongs to the forward thread"
 
 ## ---------------------------------------------------------------------------
-## 20. Planned allows: written on the session's dispatch item, or on the one item it
+## 21. Planned allows: written on the session's dispatch item, or on the one item it
 ##     tracks, at planning time; honoured with no refusal and no escalation.
 ## ---------------------------------------------------------------------------
 rigStart planned no
@@ -840,7 +885,7 @@ RIG_DATA_ROOT=""
 rigVerdict "planned allows -- dispatch and tracked item, session-wide, never self-planned"
 
 ## ---------------------------------------------------------------------------
-## 21. The native PermissionRequest hook: silent in an interactive session, and in an
+## 22. The native PermissionRequest hook: silent in an interactive session, and in an
 ##     unattended one the same refusal, grant and target the harness gate uses.
 ## ---------------------------------------------------------------------------
 rigHook="$rigHere/client-hooks/permission-request-escalation.sh"
@@ -890,7 +935,7 @@ rigAssert "with the tooling unreachable it still denies, saying why" "$( rigHold
 rigVerdict "PermissionRequest hook -- silent when attended, the gate's own refusal and grant when unattended"
 
 ## ---------------------------------------------------------------------------
-## 22. Harness and hook key the same call to the same target: a plain path, a
+## 23. Harness and hook key the same call to the same target: a plain path, a
 ##     symlinked parent, a missing parent.
 ## ---------------------------------------------------------------------------
 rigStart equivalence no
@@ -909,7 +954,7 @@ rigAssert "a missing parent is compared as given"          "$rigEqHarness" "$rig
 rigVerdict "the harness gate and the hook resolve one call to one target"
 
 ## ---------------------------------------------------------------------------
-## 23. The outbound contact gate knows the team's own configured addresses: the
+## 24. The outbound contact gate knows the team's own configured addresses: the
 ##     human-owner's EMAIL_USER in any case, and a member's own EMAIL_USER for a
 ##     member the member index lists. An unknown address is still refused, and its
 ##     record and event-track post say the host and the workspace by name, no path.
@@ -946,7 +991,7 @@ rigAssert "the post carries no path of this check"         "$( rigHolds "$rigSce
 rigVerdict "the contact gate -- own configured addresses known, a refusal says where by name"
 
 ## ---------------------------------------------------------------------------
-## 24. Reads are gated as writes are: a read outside the read roots is refused and
+## 25. Reads are gated as writes are: a read outside the read roots is refused and
 ##     recorded with an id, a Grep and a Glob over that root the same way; an
 ##     allow-once admits its exact retry once, and one left unused lapses after its TTL.
 ## ---------------------------------------------------------------------------

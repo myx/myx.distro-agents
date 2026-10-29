@@ -42,7 +42,7 @@ printf 'EMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=rig@rig.invalid\nEMAIL_APP_
 printf 'EMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=client@rig.invalid\nEMAIL_APP_PASSWORD=%s\n' "$rigSecret" > "$rigWs/.local/.agents/client-rig.agent.env"
 ## A clock of the rig's own: `date +%s` reads the fixed instant in now.epoch (a Sunday out of worktime by default, so the mail TTL of the
 ## collection is its five-minute floor), every other call goes to the real date. MDAT_SCHEDULE_TIMEZONE=UTC above makes the offset 0, so
-## worktime is decided by now.epoch alone (AgentsToolsCollectTtlOf's stretch, T2).
+## worktime is decided by now.epoch alone (AgentsToolsCollectTtlOf, the table's TTL).
 ln -s "$( command -v date )" "$rigTmp/bin/date.real" 2> /dev/null || rigRefuse "no real date on PATH"
 cat > "$rigTmp/bin/date" <<'RIGDATE'
 #!/bin/sh
@@ -229,18 +229,18 @@ rigAssert "all the members of a pass are one commit too" "$rigRc:$(( $( rigCommi
 rigRun --member rig-member --kind mail --force
 rigAssert "a pass that wrote nothing makes no commit" "$rigRc:$(( $( rigCommits ) - rigBefore - 1 ))" "0:0"
 
-echo "-- 9. the worktime mail TTL (T2) --"
+echo "-- 9. the mail TTL in worktime: five minutes, no stretch (owner 2026-10-29) --"
 rigMailbox "801 unseen"
 rm -f "$rigState/mail.rig-member.state"
 printf '1793008800\n' > "$rigTmp/now.epoch"
 rigRun --member rig-member --kind mail --force
 rigAssert "in worktime the mailbox is collected, its check time stamped" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: 1 new$' ):$( [ "$( rigKey mail.rig-member checked-at )" = "1793008800" ] && echo stamped || echo none )" "0:1:stamped"
+printf '1793009040\n' > "$rigTmp/now.epoch"
+rigRun --member rig-member --kind mail
+rigAssert "four minutes on, in worktime: fresh, its TTL five minutes, nothing fetched" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: fresh \(checked [0-9]+s ago, ttl 300s\)$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:0"
 printf '1793009100\n' > "$rigTmp/now.epoch"
 rigRun --member rig-member --kind mail
-rigAssert "five minutes on, still in worktime: fresh, its TTL ten minutes, nothing fetched" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: fresh \(checked [0-9]+s ago, ttl 600s\)$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:0"
-printf '1793131200\n' > "$rigTmp/now.epoch"
-rigRun --member rig-member --kind mail
-rigAssert "out of worktime the mailbox checked over ten minutes ago is fetched again" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: 0 new$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:1"
+rigAssert "five minutes on, still in worktime: fetched again, worktime stretches nothing" "$rigRc:$( rigCount "$rigTmp/out" '^collect: mail:rig-member: 0 new$' ):$( rigCount "$rigFix/imap.log" '^CONNECT ' )" "0:1:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ COLLECT SOURCES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

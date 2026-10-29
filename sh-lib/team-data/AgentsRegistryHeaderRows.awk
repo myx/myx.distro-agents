@@ -6,7 +6,9 @@
 ## with -v registryRows=spawned|pending. With -v registryColumns=14 a spawned row carries,
 ## after its eleven columns, the three appended to them: started-at, resolved-at and
 ## session-comment; with -v registryColumns=16 the two appended after those as well,
-## session-state and session-state-at, the state of the row's session (the T entries).
+## session-state and session-state-at, the state of the row's session (the T entries); with
+## -v registryColumns=17 one more after those, refused, the record's own count of every
+## refusal the run hit (sketch 3.6), appended, never inserted.
 ## A caller that names no count gets the eleven, and one that names fourteen gets fourteen,
 ## so one that loaded its reader before a column existed still counts its rows. stdin is one
 ## entry per line, in the order the caller's own glob loops found them, so the row order is
@@ -113,7 +115,7 @@ registryRows == "spawned" && entryKind == "D" {
 }
 
 registryRows == "spawned" && entryKind == "E" {
-	printf "%s - - - - no-session-record - - - - -%s%s\n", sandboxTracking, ( registryColumns >= 14 ? " - - -" : "" ), ( registryColumns >= 16 ? " - -" : "" ) ;
+	printf "%s - - - - no-session-record - - - - -%s%s%s\n", sandboxTracking, ( registryColumns >= 14 ? " - - -" : "" ), ( registryColumns >= 16 ? " - -" : "" ), ( registryColumns >= 17 ? " -" : "" ) ;
 	next ;
 }
 
@@ -130,6 +132,7 @@ registryRows == "spawned" && entryKind == "S" {
 		if ( recordSession != "-" && ( recordSession in stateWordOf ) ) printf " %s %s", stateWordOf[recordSession], stateDateOf[recordSession] ;
 		else printf " - -" ;
 	}
+	if ( registryColumns >= 17 ) printf " %s", registryHeader("refused") ;
 	printf "\n" ;
 	next ;
 }

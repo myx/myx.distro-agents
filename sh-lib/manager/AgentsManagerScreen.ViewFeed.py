@@ -101,6 +101,8 @@ def parseSessionRead(text):
                    "host": fields[9], "workspace": fields[10], "activity": fields[11], "headers": {}, "store": None}
             info["runs"].append(run)
             info["bySpawn"][fields[2]] = run
+        elif fields[0] == "checklist" and len(fields) >= 4:
+            info.setdefault("checklists", {}).setdefault(fields[2], []).append(fields[3])
         elif fields[0] == "header" and len(fields) >= 4 and fields[1] in info["bySpawn"]:
             info["bySpawn"][fields[1]]["headers"][fields[2]] = unescaped(fields[3])
         elif fields[0] == "store" and len(fields) >= 16 and fields[1] in info["bySpawn"]:

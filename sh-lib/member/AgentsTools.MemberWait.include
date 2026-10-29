@@ -243,6 +243,26 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
 	personId="$( DistroAgentsToolsResolveTarget "$personTarget" "$personMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1 )" || personId=""
 	case "$personId" in U*|W*) ;; *) return 1 ;; esac
+	## A PERSON WITH NOTHING NEW IS NOT WRITTEN, as a conversation (AgentsWaitProbeSlack): each direct conversation with them, known
+	## by its id, is read once through the cache. Where each reads as at the last round (its length and
+	## its tail), the files stand as they are. rc 3 says so.
+	local personKey="" personKeyIdentity personKeyLine personKeyP personKeyD personKeyAt personKeyOut personKeyN=0
+	if [ -f "$personOut" ] && [ -f "$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt" ] ; then
+		personKey="$personOut@$personTarget"
+		for personKeyIdentity in user bot ; do
+			personKeyD=""
+			while read -r personKeyLine personKeyP personKeyD personKeyAt ; do
+				[ "$personKeyLine:$personKeyP" = "$personKeyIdentity:$personId" ] && break
+				personKeyD=""
+			done < "$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt"
+			case "$personKeyD" in D[A-Z0-9]*) personKeyN=$(( personKeyN + 1 )) ;; *) continue ;; esac
+			personKeyOut="$( DistroAgentsTools --intern-op-comms-slack-read "$personMember" "$personKeyD" ${personSince:+--oldest "$personSince"} $( [ "$personKeyIdentity" = bot ] && printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || { personKey="" ; break ; }
+			personKeyOut="${#personKeyOut}:${personKeyOut: -120}"
+			personKey="$personKey/${personKeyOut//[[:space:]]/_}"
+		done
+		[ "$personKeyN" -gt 0 ] || personKey=""
+		[ -z "$personKey" ] || case " ${agentsWaitConvSeen:-} " in *" $personKey "*) return 3 ;; esac
+	fi
 	: > "$personOut.rendered" || return 2
 	## The id of a direct conversation never changes: kept a week, per member, in .local/cache/comms/slack/.dm-<member>.txt
 	## (`<identity> <person> <dm id> <at>`), so a probe asks conversations.info only for one it does not know.
@@ -282,6 +302,7 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 		{ printf '# in %s\n' "$personDm" ; cat "$personOut.part.kept" ; } >> "$personOut.rendered"
 	done
 	[ "$personFailed" -lt "$personParts" ] || return 2
+	[ -z "$personKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $personKey"
 	return 0
 }
 ## THE STATE OF A WAIT, stored: its sources, addressee, include-own, modes and floors (the newest ts returned for a slack source), the baselines of the rest. Run in the wait's own
@@ -320,6 +341,7 @@ AgentsWaitStateStore(){
 			echo "include-own: $waitIncludeOwn"
 			for checkSource in $waitSources ; do
 				[ -z "$( AgentsWaitModeOf "$checkSource" )" ] || echo "mode $checkSource $( AgentsWaitModeOf "$checkSource" )"
+				[ -z "$( AgentsWaitTtlOwn "$checkSource" )" ] || echo "ttl $checkSource $( AgentsWaitTtlOwn "$checkSource" )"
 			done
 			for checkSource in $waitSources ; do
 				floorIndex=$(( floorIndex + 1 ))
@@ -329,9 +351,9 @@ AgentsWaitStateStore(){
 					replies:*|chat:*) ;;
 					*)
 						if [ -f "$waitDir/now.$floorIndex" ] ; then
-							cp "$waitDir/now.$floorIndex" "$waitStateDir/base.$floorIndex"
+							AgentsWaitCopy "$waitDir/now.$floorIndex" "$waitStateDir/base.$floorIndex"
 						elif [ -f "$waitDir/base.$floorIndex" ] ; then
-							cp "$waitDir/base.$floorIndex" "$waitStateDir/base.$floorIndex"
+							AgentsWaitCopy "$waitDir/base.$floorIndex" "$waitStateDir/base.$floorIndex"
 						fi
 					;;
 				esac
@@ -381,6 +403,8 @@ AgentsWaitProbeSlack(){
 		*:*|'') ;;
 		*) case "$probeMember" in client-*) ;; *) [ "$probeAsBot" = "true" ] || { AgentsWaitProbeSlackPerson "$probeMember" "$probeTarget" "$probeSince" "$probeOut" && probePersonRc=0 || probePersonRc=$? ; } ;; esac ;;
 	esac
+	## Nothing new from the person (AgentsWaitProbeSlackPerson rc 3): the source file stands as the last round left it.
+	[ "$probePersonRc" != "3" ] || return 0
 	if [ "$probePersonRc" = "2" ] ; then
 		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
 		return 2
@@ -435,11 +459,29 @@ AgentsWaitProbeSlack(){
 			;;
 		esac
 	fi
+	## A CONVERSATION WITH NOTHING NEW IS NOT WRITTEN: read once through the cache, which decides hit or pull. Where it reads as
+	## at the last round from the same floor (its length and its tail), the files stand as they are. Otherwise what was read is the round's read.
+	local probeConvKey="" probeQuick="" probeQuickRest="" probeQuickRc=1
+	if [ "$probeThread" = "false" ] && [ "$probeCached" != "0" ] ; then
+		probeQuickRc=0
+		probeQuick="$( DistroAgentsTools --intern-op-comms-slack-read "${probeArgs[@]}" 2> /dev/null < /dev/null )" || probeQuickRc=$?
+		if [ "$probeQuickRc" = 0 ] ; then
+			probeQuickRest="${#probeQuick}:${probeQuick: -120}"
+			probeConvKey="$probeOut@$probeTarget/${probeAsBot:-}/${probeQuickRest//[[:space:]]/_}"
+			if [ -f "$probeOut" ] ; then
+				case " ${agentsWaitConvSeen:-} " in *" $probeConvKey "*) return 0 ;; esac
+			fi
+		fi
+	fi
 	if [ "$probeCached" != "0" ] ; then
 	## Output to a file, never a capture: the read operation forks curl, and a
 	## capture returns on pipe EOF rather than on the process that holds it.
+	if [ "$probeQuickRc" = 0 ] ; then
+		printf '%s\n' "$probeQuick" > "$probeOut.read" ; : > "$probeOut.err"
+	else
 	DistroAgentsTools --intern-op-comms-slack-read "${probeArgs[@]}" \
 		> "$probeOut.read" 2> "$probeOut.err" || probeRc=$?
+	fi
 	if [ "$probeRc" != "0" ] ; then
 		## Actually onto stderr: the TIMEOUT text tells the caller a failed probe's
 		## diagnostics are there, and without this the file is written, read by
@@ -514,14 +556,17 @@ AgentsWaitProbeSlack(){
 				/^[0-9]+\.[0-9]+ \| / { keep = ( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ; }
 				keep { print ; }' < "$probeOut.rendered" 2>> "$probeOut.err" )" || return 2
 			AgentsWaitPut "$probeOut" "${probeNext:+$probeNext$'\n'}" || return 2
+			[ -z "$probeConvKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeConvKey"
 			return 0
 		fi
 		## The rendering is already the final content here: a rewrite this round buys
 		## nothing once it matches what the last round left in place.
 		if [ -f "$probeOut" ] && cmp -s "$probeOut.rendered" "$probeOut" 2> /dev/null ; then
+			[ -z "$probeConvKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeConvKey"
 			return 0
 		fi
 		mv -f "$probeOut.rendered" "$probeOut" || return 2
+		[ -z "$probeConvKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeConvKey"
 		return 0
 	fi
 	## A thread several questions share answers each by its tag (AgentsTools.AskThread.include).
@@ -832,6 +877,10 @@ AgentsWaitProbeAsk(){
 		: > "$probeOut" || return 2
 	fi
 	[ "$probeStatus" = "reply-pending" ] || { [ -n "$probeFollow" ] && [ -z "$probeByOperation" ] ; } || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
+	## The closed note above has now been shown once (S21.6): a sibling marker, so the
+	## carry-forward below stops holding this ask in the stored wait once it has. The record
+	## itself is retained for good (T9), never deleted, so its own existence is no signal of that.
+	[ "$probeStatus" = "reply-pending" ] || { [ -n "$probeFollow" ] && [ -z "$probeByOperation" ] ; } || : > "${probeRecord%.md}.closed-delivered" 2> /dev/null || :
 	return 0
 }
 
@@ -1183,6 +1232,13 @@ AgentsWaitTsNewer(){ ## candidate, floor
 ## the short form, the whole message's first words, or the preview with its file. A source with neither is returned whole, as it always was. The
 ## form is kept in the stored wait (`mode <source> <form>`) and goes with the source. A long return follows F2.4 as every result does.
 ## Prints the form of a source, nothing for none.
+## The TTL a caller gave a source (#ttl=<seconds>, --wait-source-ttl), nothing for none: the table's then holds (AgentsWaitTtlOf).
+AgentsWaitTtlOwn(){ ## source
+	local ttlRest
+	case "$waitTtls" in *" $1="*) ;; *) return 0 ;; esac
+	ttlRest="${waitTtls#* $1=}"
+	printf '%s' "${ttlRest%% *}"
+}
 AgentsWaitModeOf(){ ## source
 	local modeRest
 	case "$waitModes" in *" $1="*) ;; *) return 0 ;; esac
@@ -1408,8 +1464,6 @@ AgentsWaitProbeDms(){
 	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probePointer="" probeRoster="" probeRosterFile="" probeLine probeConv probeKind probeIdentity probeParty probeIdentArg
 	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0
 	[ "$probeTarget" = "$probeMember" ] || return 2
-	: > "$probeOut" || return 2
-	rm -f "$probeOut.newest"
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
 	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
 	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
@@ -1423,6 +1477,8 @@ AgentsWaitProbeDms(){
 	probeNow="$( date +%s )"
 	case "$probeMember" in
 		client-*)
+			: > "$probeOut" || return 2
+			rm -f "$probeOut.newest"
 			probeClientConvs="$( DistroAgentsTools --agents-config-option "$probeMember" --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || probeClientConvs=""
 			for probeClientConv in ${probeClientConvs//,/ } ; do
 				probeParts=$(( probeParts + 1 ))
@@ -1445,6 +1501,33 @@ AgentsWaitProbeDms(){
 				probeRoster="$( AgentsToolsCommsSlackConversationsRoster "$probeMember" --types im,mpim 2> /dev/null )" || probeRosterRc=$?
 				[ -z "$probeRoster" ] || [ -z "$probeRosterFile" ] || printf '%s\n' "$probeRoster" > "$probeRosterFile" 2> /dev/null || :
 			fi
+			## A DM ROUND WITH NOTHING NEW WRITES NOTHING: each DM is read once through the cache, into the shell. Where every one reads
+			## as at the last round (its length and its tail), the files stand as they are.
+			local probeQuickKey="" probeQuickOut probeQuickSeen=" "
+			if [ -f "$probeOut" ] && [ -n "$probeRoster" ] ; then
+				probeQuickKey="$probeOut@$probeMember"
+				while IFS= read -r probeLine ; do
+					case "$probeLine" in "CONV|"*) ;; *) continue ;; esac
+					probeConv="" probeKind="" probeIdentity=""
+					for probeIdentArg in ${probeLine//|/ } ; do
+						case "$probeIdentArg" in
+							id=*) probeConv="${probeIdentArg#id=}" ;;
+							kind=*) probeKind="${probeIdentArg#kind=}" ;;
+							identity=*) probeIdentity="${probeIdentArg#identity=}" ;;
+						esac
+					done
+					[ -n "$probeConv" ] || continue
+					case "$probeKind" in im|mpim) ;; *) continue ;; esac
+					case "$probeQuickSeen" in *" $probeConv "*) continue ;; esac
+					probeQuickSeen="$probeQuickSeen$probeConv "
+					probeQuickOut="$( DistroAgentsTools --intern-op-comms-slack-read "$probeMember" "$probeConv" ${probePointer:+--oldest "$probePointer"} $( [ "$probeIdentity" != "bot" ] || printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || probeQuickOut="#failed"
+					probeQuickOut="${#probeQuickOut}:${probeQuickOut: -120}"
+					probeQuickKey="$probeQuickKey/$probeConv=${probeQuickOut//[[:space:]]/_}"
+				done <<< "$probeRoster"
+				[ -z "$probeQuickKey" ] || case " ${agentsWaitConvSeen:-} " in *" $probeQuickKey "*) return 0 ;; esac
+			fi
+			: > "$probeOut" || return 2
+			rm -f "$probeOut.newest"
 			probeParts=$(( probeParts + 1 ))
 			if [ -n "$probeRoster" ] || [ "$probeRosterRc" = 0 ] ; then
 				while IFS= read -r probeLine ; do
@@ -1477,6 +1560,7 @@ AgentsWaitProbeDms(){
 	AgentsWaitOwnFile "$probeOut" || return 2
 	[ "$probeParts" -eq 0 ] || [ "$probeFailed" -lt "$probeParts" ] || return 2
 	LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" > "$probeOut.newest" 2> /dev/null || :
+	[ -z "${probeQuickKey:-}" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeQuickKey"
 	return 0
 }
 ## Keeps the newest DM a wait has returned as the session's pointer of the source (else the call's own, with no session).
@@ -1503,10 +1587,11 @@ AgentsWaitDmsCommit(){ ## member, the file holding the newest ts
 ## that is an error said on stderr and in the Wait header (WAIT-SOURCE-ERROR, rc 4), never an empty result, and no source never read. Each mention stands
 ## behind a `# in <conversation>` line, so the seen reaction finds its conversation (AgentsWaitSeenIds).
 AgentsWaitProbeMentions(){
-	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probeNow probeChecked="" probeTtl probePointer="" probeId probeQuery probeAfter probeJson probeRc=1 probeAs probeErr="" probeStored=""
+	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probeNow probeChecked="" probeTtl probePointer="" probeId probeQuery probeAfter probeJson probeRc=1 probeAs probeErr="" probeStored="" probeKept="" probeNewest=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
-	: > "$probeOut" || return 2
-	rm -f "$probeOut.newest"
+	## A quiet round writes no file: the result and its newest are put only where their content changed (AgentsWaitPut).
+	AgentsWaitEmpty "$probeOut" || return 2
+	[ ! -e "$probeOut.newest" ] || rm -f "$probeOut.newest"
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
 	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
 	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
@@ -1583,7 +1668,7 @@ AgentsWaitProbeMentions(){
 		[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$probeMember" $agentsWaitCoverSources )"
 		case " $agentsWaitCoverSources " in *" chat:"?*) [ -z "$probeKey" ] || probeChatThread="$( AgentsToolsSessionChatThread "$probeKey" 2> /dev/null )" || probeChatThread="" ;; esac
 	fi
-	LC_ALL=C awk -v after="$probePointer" -v covered=" $agentsWaitCovered $probeChatThread " '
+	probeKept="$( LC_ALL=C awk -v after="$probePointer" -v covered=" $agentsWaitCovered $probeChatThread " '
 		match( $0, /^[0-9]+\.[0-9]+ \| / ) {
 			split( $0, head, " " ) ; keep = ( head[1] + 0 > after + 0 )
 			if ( keep && match( $0, / \[in [A-Z0-9]+\]/ ) ) {
@@ -1596,9 +1681,13 @@ AgentsWaitProbeMentions(){
 				if ( where != last ) { print "# in " where ; last = where }
 			}
 		}
-		keep { print }' "$probeOut.found" > "$probeOut" 2> /dev/null || return 2
+		keep { print }' "$probeOut.found" 2> /dev/null )" || return 2
+	[ -z "$probeKept" ] || probeKept="$probeKept"$'\n'
+	AgentsWaitPut "$probeOut" "$probeKept" || return 2
 	AgentsWaitOwnFile "$probeOut" || return 2
-	LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" > "$probeOut.newest" 2> /dev/null || :
+	probeNewest="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" 2> /dev/null )" || :
+	[ -z "$probeNewest" ] || probeNewest="$probeNewest"$'\n'
+	AgentsWaitPut "$probeOut.newest" "$probeNewest" || :
 	return 0
 }
 ## Keeps the newest mention a wait has returned as the session's pointer of the source (else the call's own, with no session).
@@ -1778,15 +1867,15 @@ AgentsWaitThreadCached(){ ## member, <channel>:<thread ts>, the rendering file, 
 	local tcNow="${roundNow:-}"
 	type AgentsToolsCommsCacheSlackThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || return 1
 	case "$tcNow" in ''|*[!0-9]*) tcNow="$( date +%s )" ;; esac
-	local tcServed="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-5}" tcRc=0
-	case "$tcTtl" in ''|*[!0-9]*) tcTtl=5 ;; esac
+	local tcServed="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}" tcRc=0
+	case "$tcTtl" in ''|*[!0-9]*) tcTtl=15 ;; esac
 	## Says to the caller that the file is as it left it, so it keeps what it made of it (agentsWaitThreadUnchanged).
 	agentsWaitThreadUnchanged=""
 	case "$2" in
 		*[!A-Za-z0-9.:]*|:*|*:) ;;
 		*:*)
 			if AgentsToolsCommsCacheSlackDir "$1" "${4:-false}" "${2%%:*}" "${2#*:}" ; then
-				AgentsToolsCommsCacheInterest "$agentsCommsCacheDir" "$tcNow"
+				AgentsToolsCommsCacheInterest "$agentsCommsCacheDir" "$tcNow" "$tcTtl"
 				## Served into this file already, from a pull still inside its TTL: the file holds it, and is not written again.
 				if [ -f "$3" ] && AgentsToolsCommsCacheState "$agentsCommsCacheDir" && [ $(( tcNow - agentsCommsCacheAt )) -lt "$tcTtl" ] ; then
 					case " ${agentsWaitThreadServed:-} " in *" $3=$agentsCommsCacheAt "*) agentsWaitThreadUnchanged="yes" ; return 0 ;; esac
@@ -1800,6 +1889,16 @@ AgentsWaitThreadCached(){ ## member, <channel>:<thread ts>, the rendering file, 
 		agentsWaitThreadServed="${agentsWaitThreadServed:-} $3=$agentsCommsCacheAt"
 	fi
 	return "$tcRc"
+}
+## A file copied only where the copy differs from it, and an empty one made only where it is not empty already: a quiet call
+## writes no baseline. rc as cp's.
+AgentsWaitCopy(){ ## from, to
+	[ -f "$2" ] && AgentsWaitSameFile "$1" "$2" && return 0
+	cp "$1" "$2"
+}
+AgentsWaitEmpty(){ ## file
+	[ -f "$1" ] && [ ! -s "$1" ] && return 0
+	: > "$1"
 }
 ## A rendering emptied only where it holds something: a quiet tick writes no file.
 AgentsWaitClear(){ ## file
@@ -1894,15 +1993,16 @@ AgentsWaitBackoffNap(){ ## now (epoch), newest activity (epoch)
 ## a call, and a run that could not start is said there too. MDAT_WAIT_REMIND=off switches
 ## it off for a call: the test runner sets it for every test (sh-test/AgentsRunTests.sh).
 AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working directory
-	local remindLine
+	local remindLine remindOut
 	[ "${MDAT_WAIT_REMIND:-}" != "off" ] || return 0
 	[ -z "${agentsPendingReplyRemindRunning:-}" ] || return 0
 	[ -n "$1" ] || case " $2" in *" ask:"*) ;; *) return 0 ;; esac
+	remindOut="$(
 	(
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRemind.include"
 		AgentsToolsPendingReplyRemindWaitRun "$1" "$2"
-	) > "$3/remind.out" 2> /dev/null || {
+	) 2> /dev/null )" || {
 		echo "# --wait-for-input: the reminders of this wait could not run" >&2
 		return 0
 	}
@@ -1914,7 +2014,7 @@ AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working di
 		LC_ALL=C grep -q -x -F -- "$remindLine" "$3/remind.said" 2> /dev/null && continue
 		printf '%s\n' "$remindLine" >> "$3/remind.said"
 		echo "# --wait-for-input: $remindLine" >&2
-	done < "$3/remind.out"
+	done <<< "$remindOut"
 	return 0
 }
 
@@ -1954,7 +2054,7 @@ AgentsWaitFolderSweep(){ ## member -- keeps this shell's own `<pid> <start>` for
 		if [ -z "$sweepOwner" ] ; then
 			sweepAged="$( stat -c %Y "$sweepDir" 2>/dev/null || stat -f %m "$sweepDir" 2>/dev/null )" || sweepAged=""
 			case "$sweepAged" in ''|*[!0123456789]*) continue ;; esac
-			[ $(( sweepNow - sweepAged )) -lt 86400 ] || rm -rf "$sweepDir" 2>/dev/null || true
+			[ $(( sweepNow - sweepAged )) -lt 86400 ] || rm -rf "$MMDAPP/.local/temp/mdat-member-wait.$1.${sweepDir##*.}" 2> /dev/null || :
 			continue
 		fi
 		[ "${sweepOwner%%$'\t'*}" = "$sweepHere" ] || continue
@@ -1965,12 +2065,25 @@ AgentsWaitFolderSweep(){ ## member -- keeps this shell's own `<pid> <start>` for
 	[ -n "$agentsWaitFolderShell" ] || return 0
 	printf '%s' "$sweepList" | while IFS=$'\t' read -r sweepOwner sweepDir ; do
 		case $'\n'"$sweepBegan"$'\n' in *$'\n'"$sweepOwner"$'\n'*) continue ;; esac
-		rm -rf "$sweepDir" 2>/dev/null || true
+		rm -rf "$MMDAPP/.local/temp/mdat-member-wait.$1.${sweepDir##*.}" 2> /dev/null || :
 	done
 	return 0
 }
 ## The record the sweep reads, written by the wait into the directory it just made. A shell the
 ## process list did not give keeps no process there: its directory is then one with no whole record.
+## The end of a Wait's folder: a kept one only lets its hold go, one of its own under .local/temp goes whole. Run in the wait's scope.
+AgentsWaitFolderEnd(){
+	if [ -n "${waitDirKept:-}" ] ; then
+		rm -f "$waitStateDir/work.$memberName/.held" 2> /dev/null
+	elif [ -n "${waitDetachedTask:-}" ] ; then
+		## A probe detached at the bound (S20, S21.11) still writes into this directory: it
+		## outlives this call, and is the detached task's own problem to clean up once it ends.
+		:
+	else
+		rm -rf "$MMDAPP/.local/temp/mdat-member-wait.$memberName.${waitDir##*.}" 2> /dev/null
+	fi
+	return 0
+}
 AgentsWaitFolderOwn(){ ## the working directory
 	local ownHere
 	ownHere="$( hostname -s 2>/dev/null )" || ownHere="unknown"
@@ -2035,7 +2148,7 @@ case "$1" in
 			type AgentsToolsRoutineLockRefreshOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include" 2> /dev/null || :
 			! type AgentsToolsRoutineLockRefreshOwn > /dev/null 2>&1 || AgentsToolsRoutineLockRefreshOwn "$MDAT_SPAWN_SESSION_ID" || :
 		fi
-		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false" waitAddressee="" waitIncludeOwn="false" waitCollect="" waitModes=" "
+		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false" waitAddressee="" waitIncludeOwn="false" waitCollect="" waitModes=" " waitTtls=" " waitTtlNext=""
 		local waitMode="" waitSessionId="" waitReactions="" waitFloors="" reactWord
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -2098,22 +2211,38 @@ case "$1" in
 						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source: value required (<kind>:<target>)" >&2
 						set +e ; return 1
 					fi
-					## A source the caller adds may end in #short or #full, chosen when it is added (F3.3, AgentsWaitSourceModeApply).
-					case "$2" in
-						*'#'*)
-							case "${2##*#}" in
-								short|full) ;;
-								*)
-									echo "WAIT-RESULT: ERROR"
-									echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$2': what follows # is short or full, and nothing else. Nothing was waited on." >&2
-									set +e ; return 1
-								;;
-							esac
-							waitModes="$waitModes${2%'#'*}=${2##*#} "
-							waitSources="$waitSources${2%'#'*} "
+					## A source the caller adds may end in #short or #full, chosen when it is added (F3.3, AgentsWaitSourceModeApply), and in
+					## #ttl=<seconds>, its own TTL (owner 2026-10-29); --wait-source-ttl before it gives the same. Either, both or neither.
+					local sourceSpec="$2" sourceTail sourceTtl="$waitTtlNext" sourceMode=""
+					waitTtlNext=""
+					while : ; do
+						case "$sourceSpec" in *'#'*) ;; *) break ;; esac
+						sourceTail="${sourceSpec##*#}" ; sourceSpec="${sourceSpec%'#'*}"
+						case "$sourceTail" in
+							short|full) sourceMode="$sourceTail" ;;
+							ttl=[1-9]*) case "${sourceTail#ttl=}" in *[!0-9]*) sourceTail="" ;; *) sourceTtl="${sourceTail#ttl=}" ;; esac ;;
+							*) sourceTail="" ;;
+						esac
+						if [ -z "$sourceTail" ] ; then
+							echo "WAIT-RESULT: ERROR"
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$2': what follows # is short, full or ttl=<seconds>, and nothing else. Nothing was waited on." >&2
+							set +e ; return 1
+						fi
+					done
+					[ -z "$sourceMode" ] || waitModes="$waitModes$sourceSpec=$sourceMode "
+					[ -z "$sourceTtl" ] || waitTtls="$waitTtls$sourceSpec=$sourceTtl "
+					waitSources="$waitSources$sourceSpec "
+					shift 2
+				;;
+				--wait-source-ttl)
+					case "${2:-}" in
+						''|*[!0-9]*|0)
+							echo "WAIT-RESULT: ERROR"
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source-ttl: whole seconds above zero, the TTL of the --wait-source after it" >&2
+							set +e ; return 1
 						;;
-						*) waitSources="$waitSources$2 " ;;
 					esac
+					waitTtlNext="$2"
 					shift 2
 				;;
 				--wait-timeout)
@@ -2243,6 +2372,7 @@ case "$1" in
 			esac
 			## The form chosen for the name the caller gave stays with the thread it names.
 			[ "$sessionSource" = "${sessionOriginal:-$sessionSource}" ] || waitModes="${waitModes/ ${sessionOriginal}=/ ${sessionSource}=}"
+			[ "$sessionSource" = "${sessionOriginal:-$sessionSource}" ] || waitTtls="${waitTtls/ ${sessionOriginal}=/ ${sessionSource}=}"
 			sessionSources="$sessionSources$sessionSource "
 		done
 		waitSources="$sessionSources"
@@ -2298,6 +2428,10 @@ case "$1" in
 						"sources: "*) waitSources="${waitStateLine#sources: }" ;;
 						"addressee: "*) waitAddressee="${waitStateLine#addressee: }" ;;
 						"include-own: "*) waitIncludeOwn="${waitStateLine#include-own: }" ;;
+						"ttl "*)
+							waitStateLine="${waitStateLine#ttl }"
+							waitTtls="$waitTtls${waitStateLine% *}=${waitStateLine##* } "
+						;;
 						"mode "*)
 							waitStateLine="${waitStateLine#mode }"
 							waitModes="$waitModes${waitStateLine% *}=${waitStateLine##* } "
@@ -2386,6 +2520,10 @@ case "$1" in
 						carryRecord="$MMDAPP/.local/agents/pending/${carrySource#ask:}.md"
 						[ -f "$carryRecord" ] || carryRecord="$MMDAPP/.local/agents/pending/closed/${carrySource#ask:}.md"
 						[ -f "$carryRecord" ] || continue
+						## Closed for good once its note has been shown once (S21.6): the record
+						## itself is retained forever (T9), so its mere existence carries this
+						## forward with no end otherwise.
+						[ ! -f "${carryRecord%.md}.closed-delivered" ] || continue
 					;;
 					## the floor adds these itself, below, in its own order
 					replies:*|chat:*|dms:*|mentions:*|wake:*) continue ;;
@@ -2643,7 +2781,7 @@ case "$1" in
 						"addressee: "*) editAddressee="${editLine#addressee: }" ;;
 						"include-own: "*) editIncludeOwn="${editLine#include-own: }" ;;
 						"floor "*) editFloors="$editFloors$editLine"$'\n' ;;
-						"mode "*) editModes="$editModes$editLine"$'\n' ;;
+						"mode "*|"ttl "*) editModes="$editModes$editLine"$'\n' ;;
 					esac
 				done < "$waitStateDir/state"
 			fi
@@ -2653,7 +2791,7 @@ case "$1" in
 					rm -f "$waitStateDir/base.$editIndex"
 					editFloors="$( printf '%s' "$editFloors" | LC_ALL=C awk -v gone="$editSource" '$1 == "floor" && $2 == gone { next ; } { print ; }' )"
 					[ -z "$editFloors" ] || editFloors="$editFloors"$'\n'
-					editModes="$( printf '%s' "$editModes" | LC_ALL=C awk -v gone="$editSource" '$1 == "mode" && $2 == gone { next ; } { print ; }' )"
+					editModes="$( printf '%s' "$editModes" | LC_ALL=C awk -v gone="$editSource" '( $1 == "mode" || $1 == "ttl" ) && $2 == gone { next ; } { print ; }' )"
 					[ -z "$editModes" ] || editModes="$editModes"$'\n'
 					continue
 				fi
@@ -2670,10 +2808,11 @@ case "$1" in
 				done
 				## The form an added source was added in is kept with it, a new one replacing an old.
 				for editSource in $waitSources ; do
-					case "$waitModes" in *" $editSource="*) ;; *) continue ;; esac
-					editModes="$( printf '%s' "$editModes" | LC_ALL=C awk -v gone="$editSource" '$1 == "mode" && $2 == gone { next ; } { print ; }' )"
+					case "$waitModes$waitTtls" in *" $editSource="*) ;; *) continue ;; esac
+					editModes="$( printf '%s' "$editModes" | LC_ALL=C awk -v gone="$editSource" '( $1 == "mode" || $1 == "ttl" ) && $2 == gone { next ; } { print ; }' )"
 					[ -z "$editModes" ] || editModes="$editModes"$'\n'
-					editModes="${editModes}mode $editSource $( AgentsWaitModeOf "$editSource" )"$'\n'
+					[ -z "$( AgentsWaitModeOf "$editSource" )" ] || editModes="${editModes}mode $editSource $( AgentsWaitModeOf "$editSource" )"$'\n'
+					[ -z "$( AgentsWaitTtlOwn "$editSource" )" ] || editModes="${editModes}ttl $editSource $( AgentsWaitTtlOwn "$editSource" )"$'\n'
 				done
 			fi
 			if [ -z "$editNew" ] ; then
@@ -2834,13 +2973,36 @@ case "$1" in
 		AgentsWaitFolderSweep "$memberName"
 		## What mktemp says of a failure is kept and said: the wait then ends on one line, never on a
 		## name that is no directory. A directory its record cannot be written into holds no rendering either.
-		waitDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-member-wait.$memberName.XXXXXX" 2>&1 )" || { waitDirWhy="${waitDir//$'\n'/ }" ; waitDir="" ; }
-		if [ -n "$waitDir" ] && [ ! -d "$waitDir" ] ; then
-			waitDirWhy="mktemp named ${waitDir//$'\n'/ }, which is no directory" ; waitDir=""
+		## ONE WORKING FOLDER A MEMBER KEEPS IN ITS SESSION, across its Waits (owner 2026-10-29): sessions/<id>/wait/work.<member>,
+		## held by one Wait at a time (.held, its owner a live process). A quiet first round then finds its files as the last Wait
+		## left them, and the keys of what it read in seen.txt, so it writes nothing. A Wait with no session, or one that finds the
+		## folder held, takes one of its own under .local/temp, as before.
+		local waitDirKept="" waitSeenBefore=""
+		if [ -n "${waitStateDir:-}" ] && [ -d "${waitStateDir%/wait}" ] ; then
+			waitDirKept="$waitStateDir/work.$memberName"
+			if [ -f "$waitDirKept/.held" ] ; then
+				local heldBy=""
+				heldBy="$( LC_ALL=C awk 'index( $0, "process: " ) == 1 { print substr( $0, 10 ) ; exit ; }' "$waitDirKept/.held" 2> /dev/null )" || heldBy=""
+				case "$heldBy" in
+					[0-9]*' '*) [ -z "$( printf '%s\n' "${heldBy%% *}" | AgentsToolsRegistryProcessesBegan 2> /dev/null | LC_ALL=C awk -v want="$heldBy" '$0 == want' )" ] || waitDirKept="" ;;
+				esac
+			fi
 		fi
-		if [ -n "$waitDir" ] && ! AgentsWaitFolderOwn "$waitDir" 2>/dev/null ; then
-			rm -rf "$waitDir" 2>/dev/null || true
-			waitDirWhy="the owner record could not be written into $waitDir" ; waitDir=""
+		if [ -n "$waitDirKept" ] && mkdir -p "$waitDirKept" 2> /dev/null && AgentsWaitFolderOwn "$waitDirKept" 2> /dev/null && cp -f "$waitDirKept/owner" "$waitDirKept/.held" 2> /dev/null ; then
+			waitDir="$waitDirKept"
+			rm -f "$waitDir/kept" 2> /dev/null
+			{ IFS= read -r waitSeenBefore < "$waitDir/seen.txt" ; } 2> /dev/null || waitSeenBefore=""
+			agentsWaitConvSeen="$waitSeenBefore"
+		else
+			waitDirKept=""
+			waitDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-member-wait.$memberName.XXXXXX" 2>&1 )" || { waitDirWhy="${waitDir//$'\n'/ }" ; waitDir="" ; }
+			if [ -n "$waitDir" ] && [ ! -d "$waitDir" ] ; then
+				waitDirWhy="mktemp named ${waitDir//$'\n'/ }, which is no directory" ; waitDir=""
+			fi
+			if [ -n "$waitDir" ] && ! AgentsWaitFolderOwn "$waitDir" 2>/dev/null ; then
+				rm -rf "$MMDAPP/.local/temp/mdat-member-wait.$memberName.${waitDir##*.}" 2> /dev/null || :
+				waitDirWhy="the owner record could not be written into $waitDir" ; waitDir=""
+			fi
 		fi
 		if [ -z "$waitDir" ] ; then
 			echo "WAIT-RESULT: ERROR"
@@ -2936,11 +3098,11 @@ case "$1" in
 			case "$checkSource" in
 				slack:*)
 					waitFloorsUsed="$waitFloorsUsed$checkSource=${waitFloorOf[$floorIndex]} "
-					: > "$waitDir/base.$floorIndex"
+					AgentsWaitEmpty "$waitDir/base.$floorIndex"
 				;;
 				*)
 					if [ "$waitMode" = "continue" ] ; then
-						[ ! -f "$waitStateDir/base.$floorIndex" ] || cp "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
+						[ ! -f "$waitStateDir/base.$floorIndex" ] || AgentsWaitCopy "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
 						## An inbox renders from its floor (AgentsWaitProbeInbox): continued, from when the
 						## stored wait ended, so what came between the two calls is rendered, and is new.
 						case "$checkSource" in
@@ -2958,7 +3120,7 @@ case "$1" in
 						for floorStoredSource in $waitStoredSources ; do
 							floorStoredIndex=$(( floorStoredIndex + 1 ))
 							[ "$floorStoredSource" = "$checkSource" ] || continue
-							[ ! -f "$waitStateDir/base.$floorStoredIndex" ] || cp "$waitStateDir/base.$floorStoredIndex" "$waitDir/base.$floorIndex"
+							[ ! -f "$waitStateDir/base.$floorStoredIndex" ] || AgentsWaitCopy "$waitStateDir/base.$floorStoredIndex" "$waitDir/base.$floorIndex"
 							break
 						done
 					fi
@@ -2969,7 +3131,7 @@ case "$1" in
 		[ "$waitMode" != "default" ] || rm -f "$waitStateDir"/base.* 2>/dev/null || true
 
 		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
-		local waitProbeFailures="" waitReadSources="" waitRemindNext=0 waitProbedAt=() waitDeferred="" waitReturned="" waitPermissionErrors=""
+		local waitProbeFailures="" waitReadSources="" waitRemindNext=0 waitProbedAt=() waitDeferred="" waitReturned="" waitPermissionErrors="" waitDetachedTask=""
 		## THE TTL HOLDS ACROSS WAITS (sketch 3.2, sources of different frequencies): a source with a TTL is checked at a round, the first
 		## included, only once its TTL has passed since its last check by any Wait of the session (`probed` beside the stored wait).
 		local waitProbedFile="" probedSource probedAt probedIndex=0
@@ -3000,7 +3162,7 @@ case "$1" in
 				''|*[!0-9]*) ;;
 				*)
 					if ! kill -0 "$waitCallerPid" 2> /dev/null ; then
-						rm -rf "$waitDir" 2> /dev/null || true
+						AgentsWaitFolderEnd
 						echo "WAIT-RESULT: ERROR"
 						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the process that started this wait is gone, so nothing is waiting for its result. The wait ended at once." >&2
 						set +e ; return 1
@@ -3009,7 +3171,7 @@ case "$1" in
 			esac
 			## A wait whose directory was taken from under it reads nothing any more: it ends here (AgentsWaitLost).
 			if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
-			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc roundEvery roundNow roundTtl roundSlowGap=""
+			local roundSource roundKind roundTarget roundFn roundQuietFrom roundQuiet roundStaleOk roundCacheTtl roundIndex=0 roundRc roundEvery roundNow roundTtl roundSlowGap="" roundProbeTimeout=""
 			roundNow=$(( waitStart + SECONDS - waitSecs0 ))
 			for roundSource in $waitSources ; do
 				roundIndex=$(( roundIndex + 1 ))
@@ -3027,6 +3189,8 @@ case "$1" in
 				case "$roundKind" in
 					tagged|scan|mentions|dms)
 						roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
+						## The TTL the caller gave the source when it added it, where it gave one (AgentsWaitTtlOwn).
+						case "$waitTtls" in *" $roundSource="*) roundTtl="${waitTtls#* $roundSource=}" ; roundTtl="${roundTtl%% *}" ;; esac
 						if [ "$roundTtl" != "0" ] && [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -lt "$roundTtl" ] ; then
 							case "$waitReadSources" in *"[$roundSource]"*) ;; *) waitReadSources="$waitReadSources[$roundSource] " ;; esac
 							continue
@@ -3047,6 +3211,16 @@ case "$1" in
 							## branch: a caller naming its own --wait-poll-interval still reads every round.
 							if [ "$roundKind" = "slack" ] ; then
 								roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
+								## The TTL the caller gave the source when it added it, where it gave one (AgentsWaitTtlOwn).
+								case "$waitTtls" in *" $roundSource="*) roundTtl="${waitTtls#* $roundSource=}" ; roundTtl="${roundTtl%% *}" ;; esac
+								## BACKED OFF while the source brings nothing (owner 2026-10-29): from its TTL to twenty times it, reached after two
+								## hundred times the TTL since its floor -- the newest it returned, or its since -- kept by the session across Waits.
+								roundQuietFrom="${waitFloorOf[$roundIndex]%%.*}"
+								case "$roundQuietFrom" in ''|*[!0-9]*) roundQuietFrom="$waitStart" ;; esac
+								roundQuiet=$(( roundNow - roundQuietFrom ))
+								[ "$roundQuiet" -ge 0 ] || roundQuiet=0
+								[ "$roundQuiet" -le $(( roundTtl * 200 )) ] || roundQuiet=$(( roundTtl * 200 ))
+								roundTtl=$(( roundTtl + 19 * roundQuiet / 200 ))
 								if [ "$roundTtl" != "0" ] && [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -lt "$roundTtl" ] ; then
 									case "$waitReadSources" in *"[$roundSource]"*) ;; *) waitReadSources="$waitReadSources[$roundSource] " ;; esac
 									continue
@@ -3085,7 +3259,38 @@ case "$1" in
 				fi
 
 				roundRc=0
-				"$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" || roundRc=$?
+				## A Slack source read for a Wait that waits no longer than its TTL takes what the cache holds at once, its refresh detached
+				## (MDAT_COMMS_CACHE_STALE_OK, AgentsTools.CommsCache.include).
+				roundStaleOk=""
+				[ "$roundKind" != "slack" ] || [ -z "$waitDeadline" ] || [ $(( waitDeadline - roundNow )) -gt "${roundTtl:-15}" ] || roundStaleOk="true"
+				## The cache is read at the source's own TTL where the caller gave one, never at its backed-off one.
+				roundCacheTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
+				case "$waitTtls" in *" $roundSource="*) roundCacheTtl="${waitTtls#* $roundSource=}" ; roundCacheTtl="${roundCacheTtl%% *}" ;; esac
+				## A PROBE PAST THE BOUND IS NEVER CUT SHORT, BUT IT NO LONGER HOLDS THE CALL (S20, S21.11): a costly probe,
+				## with the caller's own deadline in sight, is handed to the task wrapper on the deadline's own remaining
+				## seconds (AgentsTools.ToolTask.include). One still running at it returns early as a task, the rest of
+				## this wait ending on it, never silently past the bound it was given. A local probe never stalls on the
+				## network, so it keeps running here, unwrapped, as it always did.
+				roundProbeTimeout=""
+				case " $agentsWaitKindLocal " in
+					*" $roundKind "*) ;;
+					*) [ -z "$waitDeadline" ] || roundProbeTimeout=$(( waitDeadline - roundNow )) ;;
+				esac
+				case "$roundProbeTimeout" in ''|*[!0-9]*) roundProbeTimeout="" ;; *) [ "$roundProbeTimeout" -ge 1 ] || roundProbeTimeout=1 ;; esac
+				if [ -n "$roundProbeTimeout" ] ; then
+					type AgentsToolsTaskCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include" 2> /dev/null || :
+					MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$roundCacheTtl" \
+						AgentsToolsTaskCall "wait probe $roundSource" "" "$roundProbeTimeout" return "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" \
+						|| roundRc=$?
+					if [ "$agentsTaskDetached" = yes ] ; then
+						waitDetachedTask="$agentsTaskHandle ($roundSource)"
+						waitOutcome="TIMEOUT"
+						break
+					fi
+					[ "$agentsTaskRc" = 0 ] || roundRc="$agentsTaskRc"
+				else
+					MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$roundCacheTtl" "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" || roundRc=$?
+				fi
 				## A source that cannot be read for want of a permission is an error of its own, said in the header, and no source never
 				## read: what the member is denied is known, so it never stands for an unknown (rc 4, its reason in the rendering's .permission).
 				if [ "$roundRc" = "4" ] ; then
@@ -3172,6 +3377,7 @@ case "$1" in
 			done
 			[ "$waitOutcome" != "LOST" ] || break
 			[ "$waitOutcome" != "RECEIVED" ] || break
+			[ -z "$waitDetachedTask" ] || break
 			## Unbounded, a first round that could read no source at all returns at once rather
 			## than wait forever on sources nothing is known about: TIMEOUT with WAIT-NEVER-READ.
 			[ -n "$waitDeadline" ] || [ -n "$waitReadSources" ] || break
@@ -3396,6 +3602,7 @@ case "$1" in
 		fi
 		echo "# waited: ${waitElapsed}s of ${waitBoundText}, ${waitRound} poll round(s) at $waitPollText, baseline: $waitBaselineMode"
 		[ -z "$waitProbeFailures" ] || echo "# probes that could not run this wait (their diagnostics are on stderr): ${waitProbeFailures% }"
+		[ -z "$waitDetachedTask" ] || echo "# detached at the bound: a probe for $waitDetachedTask is still running -- Wait sources=process:${waitDetachedTask%% *} returns on its output and its end, TaskOutput handle=${waitDetachedTask%% *} reads it, TaskStop handle=${waitDetachedTask%% *} cancels it"
 
 		[ -z "$waitCollect" ] || echo "# returned: $waitReturned"
 
@@ -3484,9 +3691,10 @@ case "$1" in
 		esac
 
 		## Stored again at the end, whatever the commit before the return said: the same state.
-		AgentsWaitStateStore || { rm -rf "$waitDir" 2>/dev/null || true ; return 0 ; }
-
-		rm -rf "$waitDir" 2>/dev/null || true
+		AgentsWaitStateStore || { AgentsWaitFolderEnd ; return 0 ; }
+		## The kept folder stays for the next Wait of the member, its keys saved where they changed and its hold let go.
+		[ -z "$waitDirKept" ] || [ "${agentsWaitConvSeen:-}" = "$waitSeenBefore" ] || printf '%s\n' "${agentsWaitConvSeen:-}" > "$waitStateDir/work.$memberName/seen.txt" 2> /dev/null || :
+		AgentsWaitFolderEnd
 		return 0
 	;;
 

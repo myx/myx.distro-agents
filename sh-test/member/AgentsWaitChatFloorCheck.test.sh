@@ -153,7 +153,7 @@ echo "-- 1. the floor is in --"
 rigScene floor
 rigSeed
 rigPlain floor-in 2 --wait-source "file:$rigDir/none"
-rigAssert "a session that has a folder: replies, then the chat file, then the sources named, then the rest of the floor" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession chat:$rigSession file:$rigDir/none dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "a session that has a folder: no replies source, the chat file, then the sources named, then the rest of the floor" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "chat:$rigSession file:$rigDir/none dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigAssert "no TTL is said in the return: an agent never needs them"  "$( LC_ALL=C grep -c '^# ttl:' "$rigOut" )" 0
 rigKey="rig-sess-nofolder"
 rigWait floor-none --wait-default --wait-session-id "rig-sess-nofolder" --wait-timeout 2 --wait-source "file:$rigDir/none"
@@ -211,9 +211,9 @@ rigHistory CRIGDM001 "$( rigMsg "$rigPost" URIGSELF1 RIG-QUESTION '' "$rigOwnMet
 rigHistory CRIGXXX01 "$( rigMsg "$(( rigNow - 90 )).000001" URIGOTHER RIG-X-FIRST )" "$( rigMsg "$(( rigNow - 70 )).000001" URIGOTHER RIG-X-THIRD )"
 rigHistory CRIGYYY01 "$( rigMsg "$(( rigNow - 80 )).000001" URIGOTHER RIG-Y-SECOND )"
 rigPlain order-1 25 --wait-source slack:CRIGYYY01 --wait-source slack:CRIGXXX01 --wait-since-utime "$(( rigNow - 120 ))"
-rigAssert "the floor first: the replies, then the session thread; then the rest by time, a source under one line while its messages run" "$( rigArrived )" "replies:$rigSession slack:$rigThread slack:CRIGXXX01 slack:CRIGYYY01 slack:CRIGXXX01 "
+rigAssert "the floor first: no replies source, the session thread; then the rest by time, a source under one line while its messages run" "$( rigArrived )" "slack:$rigThread slack:CRIGXXX01 slack:CRIGYYY01 slack:CRIGXXX01 "
 rigAssert "each message once, oldest first among the rest"              "$( LC_ALL=C grep -o -E 'RIG-(X-FIRST|Y-SECOND|X-THIRD)' "$rigOut" | LC_ALL=C tr '\n' ' ' )" "RIG-X-FIRST RIG-Y-SECOND RIG-X-THIRD "
-rigAssert "and every block closed"                                     "$( LC_ALL=C grep -c '^# --- end ---$' "$rigOut" )" 5
+rigAssert "and every block closed"                                     "$( LC_ALL=C grep -c '^# --- end ---$' "$rigOut" )" 4
 
 echo "-- 6. the shape of the wait is the caller's --"
 rigScene shape

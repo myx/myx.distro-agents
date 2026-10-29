@@ -322,9 +322,9 @@ rigDue(){ ## looked line (may be empty), then `wait` for a marker touched now, `
 rigAssert "a session never looked at is due"                           "$( rigDue "" )" due
 rigAssert "a quiet one looked at 6 seconds ago, a gap of 30, is not"   "$( rigDue "$(( $( date +%s ) - 6 )) 30" )" wait
 rigAssert "one looked at 31 seconds ago is"                            "$( rigDue "$(( $( date +%s ) - 31 )) 30" )" due
-rigAssert "a wait is blocked on it: due after 5 seconds"               "$( rigDue "$(( $( date +%s ) - 6 )) 30" wait )" due
-rigAssert "not before"                                                 "$( rigDue "$(( $( date +%s ) - 3 )) 30" wait )" wait
-rigAssert "it spoke in the last minute: due after 5 seconds"           "$( rigDue "$(( $( date +%s ) - 6 )) 120" chat )" due
+rigAssert "a wait is blocked on it: due after 3 seconds"               "$( rigDue "$(( $( date +%s ) - 6 )) 30" wait )" due
+rigAssert "not before"                                                 "$( rigDue "$(( $( date +%s ) - 1 )) 30" wait )" wait
+rigAssert "it spoke in the last minute: due after 3 seconds"           "$( rigDue "$(( $( date +%s ) - 6 )) 120" chat )" due
 rigAssert "the last look is what the wait stands down for"             "$( printf '%s\n' "$(( rigNowNow - 7 )) 30" > "$rigDir/ws/.local/agents/comms/looked/$rigSession" ; MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/session/AgentsTools.SessionChat.include' ; AgentsToolsSessionChatReaderLooked '$rigSession'" )" "$(( rigNowNow - 7 ))"
 rigScene order
 mkdir -p "$rigDir/ws/.local/agents/comms/looked"
@@ -337,17 +337,22 @@ rigGap(){ ## the gap kept for the scene's session
 	LC_ALL=C awk '{ print $2 }' "$rigDir/ws/.local/agents/comms/looked/$rigSession" 2> /dev/null
 }
 rigPass gaps-0
-rigAssert "a pass that brought something in: back to 5"                "$( rigGap )" 5
+rigAssert "a pass that brought something in: back to 3"                "$( rigGap )" 3
 touch -t "$( rigStamp $(( rigNow - 3000 )) )" "$rigChat"
 rigPass gaps-1
-rigAssert "a quiet pass: the next look is 30 seconds on"               "$( rigGap )" 30
+rigAssert "a quiet pass just after: still 3, the quiet only begun"     "$( rigGap )" 3
+rigQuiet(){ ## seconds quiet -- the looked line with its quiet-since that long ago
+	printf '%s 3 %s\n' "$(( $( date +%s ) - 4 ))" "$(( $( date +%s ) - $1 ))" > "$rigDir/ws/.local/agents/comms/looked/$rigSession"
+}
+rigQuiet 200
 rigPass gaps-2
-rigAssert "and 60 after the next"                                      "$( rigGap )" 60
-for rigAtOne in 1 2 3 4 5 6 ; do rigPass gaps-n ; done
-rigAssert "up to 300 and no more"                                      "$( rigGap )" 300
+rigAssert "quiet 200 seconds: backed off linearly, to about 22"        "$( rigGapNow="$( rigGap )" ; [ "${rigGapNow:-0}" -ge 21 ] && [ "${rigGapNow:-0}" -le 24 ] && printf ok || printf '%s' "$rigGapNow" )" ok
+rigQuiet 1000
+rigPass gaps-n
+rigAssert "quiet past ten minutes: 60, and no more"                    "$( rigGap )" 60
 : > "$rigSessDir/session.chat.waiting"
 rigPass gaps-3
-rigAssert "a wait blocked on it brings it back to 5"                   "$( rigGap )" 5
+rigAssert "a wait blocked on it brings it back to 3"                   "$( rigGap )" 3
 
 echo "-- 5. the process --"
 rigScene proc

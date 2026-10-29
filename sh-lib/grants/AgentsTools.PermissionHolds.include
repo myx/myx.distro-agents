@@ -697,6 +697,8 @@ AgentsToolsPermissionSetCovers(){ ## member, tool, natural target, session id
 AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id, record (optional)
 	local denyLayer denyName denyTool="${2:-}" denyWhy denyId="" denyTools
 	case "$denyTool" in ''|*[!A-Za-z0-9_]*) denyTool="this call" ;; esac
+	## CheckList has no gate (sketch 3.4): no permission row decides it. It refuses only at execution, where it has no place to write.
+	[ "$denyTool" != "CheckList" ] || return 1
 	if denyLayer="$( AgentsToolsPermissionRoutineDenies "${1:-}" "${2:-}" "${3:-}" "${4:-}" 2> /dev/null )" ; then
 		denyName="${denyLayer#routine-deny }"
 		denyWhy="the access-control rows of its routine $denyName"

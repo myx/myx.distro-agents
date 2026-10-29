@@ -35,7 +35,9 @@
 ##      the same member, kind, session and target with no fields have their lines joined into the one before; any other travels beside the lead in `also/`,
 ##      and the sender renders it as itself and packs the parts of all of them into messages up to Slack's block limit;
 ##   2. the window is waited out BEFORE the group is chosen, so what queued during the wait
-##      is collected too, not left for the next window;
+##      is collected too, not left for the next window. The window opens at the later of the
+##      last message into the channel and the lead record's own arrival, so a post that
+##      finds the channel quiet waits its own 7 s and collects the burst it leads;
 ##   3. the sender renders and posts the record, cutting it at Slack's own limits when it is
 ##      too long, and pacing every one of those posts the same way.
 ## The outcome is left in <outbox>/done/<seq>/ (rc, out, err, group), for the caller that
@@ -192,15 +194,41 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 		printf '%s' "$sendLastAt"
 	}
 
-	## Waits out the window since the last message into that channel: the collection window,
-	## which also is where everything that arrives meanwhile becomes part of the same group.
-	AgentsToolsEventTrackSendPace(){ ## outbox
-		local sendPaceNow sendPaceLast sendPaceWait
+	## When a record arrived: the moment its directory was made, which is when it was queued. Its
+	## own directory is never written before the group is chosen, so the moment still holds when
+	## the window is worked out. Nothing where it cannot be read.
+	AgentsToolsEventTrackSendArrivedAt(){ ## record
+		local sendArrived=""
+		[ -n "${1:-}" ] && [ -d "$1" ] || return 0
+		sendArrived="$( stat -f %m "$1" 2> /dev/null || stat -c %Y "$1" 2> /dev/null )" || sendArrived=""
+		case "$sendArrived" in ''|*[!0-9]*) sendArrived="" ;; esac
+		printf '%s' "$sendArrived"
+	}
+
+	## Waits out the window since the last message into that channel, or since the lead record's
+	## own arrival where that is later: the collection window, which also is where everything that
+	## arrives meanwhile becomes part of the same group. A post that finds the channel quiet -- the
+	## first of a burst -- waits its own 7 s, so its burst is collected, not only paced.
+	## A FEED POST IS EXEMPT: its own poster already collected its lines over their 7 s window
+	## (AgentsTools.EventTrackFeed.include), and two participants' feed lines never share a post,
+	## so a feed record keeps the plain pacing and pulls nothing in behind it.
+	AgentsToolsEventTrackSendPace(){ ## outbox, the record that leads the group (optional)
+		local sendPaceNow sendPaceLast sendPaceStart sendPaceWait sendPaceArrived="" sendPaceKind=""
 		[ -n "${1:-}" ] || return 0
 		sendPaceNow="$( date +%s )"
 		sendPaceLast="$( AgentsToolsEventTrackSendLastAt "$1" )"
-		if [ -n "$sendPaceLast" ] ; then
-			sendPaceWait=$(( sendPaceLast + agentsEventTrackSendPaceSeconds - sendPaceNow ))
+		sendPaceStart="$sendPaceLast"
+		if [ -n "${2:-}" ] && [ -f "$2/meta" ] ; then
+			sendPaceKind="$( LC_ALL=C awk -F'\t' 'NR == 1 { print $2 ; exit }' "$2/meta" 2> /dev/null )"
+		fi
+		case "$sendPaceKind" in feed) ;; *)
+			sendPaceArrived="$( AgentsToolsEventTrackSendArrivedAt "${2:-}" )"
+			if [ -n "$sendPaceArrived" ] && { [ -z "$sendPaceStart" ] || [ "$sendPaceArrived" -gt "$sendPaceStart" ] ; } ; then
+				sendPaceStart="$sendPaceArrived"
+			fi
+		;; esac
+		if [ -n "$sendPaceStart" ] ; then
+			sendPaceWait=$(( sendPaceStart + agentsEventTrackSendPaceSeconds - sendPaceNow ))
 			[ "$sendPaceWait" -le "$agentsEventTrackSendPaceSeconds" ] || sendPaceWait="$agentsEventTrackSendPaceSeconds"
 			[ "$sendPaceWait" -le 0 ] || sleep "$sendPaceWait"
 		fi
@@ -271,8 +299,9 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 			[ -d "$drainOut" ] || break
 			drainLead="$( AgentsToolsEventTrackSendOldest "$drainOut" )"
 			[ -n "$drainLead" ] || break
-			## The window first: what arrives in it is collected into this very post.
-			AgentsToolsEventTrackSendPace "$drainOut"
+			## The window first: what arrives in it is collected into this very post. It opens at the
+			## lead's own arrival, so the first post of a burst collects the burst.
+			AgentsToolsEventTrackSendPace "$drainOut" "$drainLead"
 			[ -d "$drainOut" ] && [ -d "$drainLead" ] || break
 			drainMerged="" ; drainGroup="${drainLead##*/}" ; drainTail="$drainLead" ; drainCount=1
 			while : ; do

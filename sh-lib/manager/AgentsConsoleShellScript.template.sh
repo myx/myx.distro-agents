@@ -787,17 +787,23 @@ if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
 	## MDAT_SPAWN_RESUME: set by the spawn proxy's own one-shot handback-enforcement
 	## retry (AgentsToolsSpawnProxyHandbackWarn) to continue the SAME transcript
 	## rather than open a new one, so the model gets a real second turn instead
-	## of a session it has no memory of. Only claude/claude-native carry a real
-	## --resume; every other CLI refuses rather than silently starting a plain
-	## new session that would be reported as a resume and is not one.
+	## of a session it has no memory of. claude/claude-native carry a real
+	## --resume; a harness CLI resumes from its session's kept context, and
+	## refuses where none is kept rather than start a plain new session.
 	if [ "${MDAT_SPAWN_RESUME:-false}" = "true" ] ; then
 		case "$DAGC_CLI" in
 			claude|claude-native)
 				DAGC_SESSION_ID_ARGS=( --resume "$MDAT_SPAWN_SESSION_ID" )
 			;;
 			*)
-				echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_RESUME is true but '$DAGC_CLI' has no --resume flag -- refusing rather than starting a session that would look resumed and is not one" >&2
-				exit 1
+				## A harness CLI resumes from the context its session kept (context.jsonl in its sandbox), the same transcript, not a new one.
+				DAGC_RESUME_CONTEXT="${MMDAPP:-}/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID/context.jsonl"
+				if [ -n "${MMDAPP:-}" ] && [ -s "$DAGC_RESUME_CONTEXT" ] ; then
+					export MDAT_HARNESS_RESUME_CONTEXT="$DAGC_RESUME_CONTEXT"
+				else
+					echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_RESUME is true but '$DAGC_CLI' has no --resume flag and no kept context at $DAGC_RESUME_CONTEXT -- refusing rather than starting a session that would look resumed and is not one" >&2
+					exit 1
+				fi
 			;;
 		esac
 	## MDAT_SPAWN_RESUME_FROM: a review return's restart (AgentsReviewRestart, through the

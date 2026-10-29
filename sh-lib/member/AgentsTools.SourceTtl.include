@@ -13,7 +13,7 @@
 ## to five minutes. The one table holds both the cache TTLs and the live polling TTLs, which differ by source:
 ##   - the session thread, read into the session chat file (`chat:<session>`): 15, short -- the Wait times its own top-up reads by
 ##     the file's quietness (AgentsWaitChatTopUp), the table's value is the source's;
-##   - the mailbox of a member (`mail:<member>`): 300, five minutes -- email has no source of its own in Wait, so its TTL is the
+##   - the mailbox of a member (`mail:<member>`): 300, five minutes (owner 2026-10-29) -- email has no source of its own in Wait, so its TTL is the
 ##     cache's alone; the collection stretches it to 600, ten minutes, in worktime (AgentsToolsCollectTtlOf, T2);
 ##   - the tags and mentions (`tagged:<member>`): 15, the live Wait floor -- a mention ends a collect at once; the schedule re-reads
 ##     the team channel that feeds the tags at its own cadence of one minute (AgentsToolsScheduleTeamTags, the 1-5 minute band);

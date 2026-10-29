@@ -184,10 +184,11 @@ def tiersSummary(state, path, row, form):
 ## The three forms are three wizards, alike in shape and separate in what they ask: the service
 ## form, the universal form and the extension form. A new preset is made by choosing one of them,
 ## and nothing here offers a service beside an extension.
-CLI_FORM_WIZARDS = {"service": "cli-service", "universal": "cli-service-universal", "extend": "cli-service-extend"}
+CLI_FORM_WIZARDS = {"service": "cli-service", "universal": "cli-service-universal", "extend": "cli-service-extend", "local": "cli-service-local"}
 CLI_FORMS = (("service", "a service preset: one of the services, with its key"),
              ("universal", "a universal preset: any server that speaks the same wire, by URL"),
-             ("extend", "an extending preset: takes the service and the key of a preset that is there"))
+             ("extend", "an extending preset: takes the service and the key of a preset that is there"),
+             ("local", "a local preset: its model is one of the local models installed on this machine"))
 
 
 ## The form a preset belongs to, from what its row holds: one that extends, the universal one (the `standard-v1`
@@ -200,6 +201,8 @@ def presetForm(row):
         return "extend"
     if preset.get("service") == "standard-v1":
         return "universal"
+    if preset.get("service") == "local":
+        return "local"
     return "service"
 
 

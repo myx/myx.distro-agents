@@ -1069,13 +1069,59 @@ AgentsToolsWaitDefaultSources(){
 			return 0
 		fi
 	fi
-	for defaultThread in $( AgentsToolsSessionThreadFind 2>/dev/null ) $( AgentsToolsConversationThreadsFind 2>/dev/null ) ; do
+	for defaultThread in $( AgentsToolsSessionThreadFind 2>/dev/null ) $( AgentsToolsConversationThreadsFind 2>/dev/null ) $( AgentsToolsWaitChildThreadSources 2>/dev/null ) ; do
 		case "$defaultSeen" in *" $defaultThread "*) continue ;; esac
 		defaultSeen="$defaultSeen$defaultThread "
 		defaultList="$defaultList${defaultList:+ }slack:$defaultThread:conversation"
 	done
 	[ -n "$defaultList" ] || return 1
 	printf '%s\n' "$defaultList"
+	return 0
+}
+
+## The session thread of every child this session started (S21.6), live ones only: one still
+## running or waiting, by AgentsToolsSessionOthersRunning's own test, deduped by session id --
+## a respawned child lists more than once in .local/agents/children/<this spawn-id> (the children
+## index, AgentsTools.ChildrenIndex.include), and the file itself says a reader de-duplicates.
+## Printed bare, each `<channel>:<ts>`, space-separated, for the caller above to prefix as a
+## slack: conversation source same as any other thread. Prints nothing and returns 1 for none.
+AgentsToolsWaitChildThreadSources(){
+	## The same key a spawn is filed under as a child, by the parent's own run at the moment
+	## it spawned (AgentsTools.InternOpAgentSpawnProxy.include): this run's own spawn id, or
+	## the native CLI's session id where this run was never itself spawned, the coordinator's
+	## own root console included.
+	local childKey="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" childIndexed childRecords childLine childRecord
+	local childSeen=" " childSession childThread childList=""
+	[ -n "$childKey" ] || return 1
+	case "$childKey" in */*|.|..) return 1 ;; esac
+	childIndexed="$MMDAPP/.local/agents/children/.indexed"
+	if [ -f "$childIndexed" ] ; then
+		childRecords=""
+		if [ -f "$MMDAPP/.local/agents/children/$childKey" ] ; then
+			while IFS= read -r childLine ; do
+				[ -n "$childLine" ] || continue
+				childRecords="$childRecords$MMDAPP/.local/agents/spawned/$childLine"$'\n'
+			done < "$MMDAPP/.local/agents/children/$childKey"
+		fi
+	else
+		childRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $childKey" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )"$'\n' || childRecords=""
+	fi
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" 2> /dev/null || :
+	while IFS= read -r childRecord ; do
+		[ -n "$childRecord" ] && [ -f "$childRecord" ] || continue
+		childSession="$( AgentsToolsSpawnSandboxRecordHeader "$childRecord" session-id )"
+		AgentsToolsAssertBareName "$childSession" "the child session" AgentsToolsWaitChildThreadSources 2> /dev/null || continue
+		case "$childSeen" in *" $childSession "*) continue ;; esac
+		AgentsToolsSessionRecordLive "$childRecord" || continue
+		! AgentsToolsSessionRunSeatless "$childRecord" || continue
+		childSeen="$childSeen$childSession "
+		childThread="$( AgentsToolsSpawnSandboxRecordHeader "$childRecord" session-thread )"
+		[ -n "$childThread" ] || continue
+		AgentsToolsSpawnConversationThreadValid "$childThread" || continue
+		childList="$childList${childList:+ }$childThread"
+	done <<< "$childRecords"
+	[ -n "$childList" ] || return 1
+	printf '%s\n' "$childList"
 	return 0
 }
 
@@ -1368,7 +1414,7 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 ## does whoever comes after a closer that was ended half way; never a record cut short.
 ## rc 0 closed; rc 1 where this try could not close it, the record as it was.
 AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
-	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts=""
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts="" sandboxRefused=""
 	[ -f "$sandboxFile" ] || return 1
 	mkdir -p "$MMDAPP/.local/temp" || return 1
 	## A temp file of this close's own, by mktemp and never by $$: the members one call
@@ -1414,6 +1460,14 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 		if [ -s "${sandboxFile%.spawn.md}.restarts" ] ; then
 			sandboxRestarts="$( LC_ALL=C awk 'NF { counted++ } END { print counted + 0 }' "${sandboxFile%.spawn.md}.restarts" 2> /dev/null )"
 			case "$sandboxRestarts" in ''|0|*[!0123456789]*) ;; *) printf 'upsert\trestarts\t%s\n' "$sandboxRestarts" ;; esac
+		fi
+		## Every refusal this run hit, not only the one that ended it (sketch 3.6): the count
+		## of the marker the harness appends beside this file, one line per refusal
+		## (AgentsHarnessRefusalKeep). A run the harness never flagged, or one no harness ran,
+		## carries no such header, the same shape `restarts` already has.
+		if [ -s "${sandboxFile%.spawn.md}.refused-log" ] ; then
+			sandboxRefused="$( LC_ALL=C awk 'NF { counted++ } END { print counted + 0 }' "${sandboxFile%.spawn.md}.refused-log" 2> /dev/null )"
+			case "$sandboxRefused" in ''|0|*[!0123456789]*) ;; *) printf 'upsert\trefused\t%s\n' "$sandboxRefused" ;; esac
 		fi
 	} > "$sandboxOps" || { rm -f "$sandboxOps" ; return 1 ; }
 	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""

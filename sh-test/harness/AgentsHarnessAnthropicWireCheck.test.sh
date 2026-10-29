@@ -38,6 +38,8 @@ export HARNESS_CREDENTIAL_NAMES="none -- this check never reads one"
 export HARNESS_MODEL_LIGHT="rig-light"
 export HARNESS_MODEL_MAIN="rig-main"
 export HARNESS_TOKEN_LIGHT="rig-not-a-credential"
+## The rig pins its own retry count and wait: its scenarios hold three canned responses, and it needs no real backoff.
+export HARNESS_STREAM_ATTEMPTS=3 HARNESS_RETRY_DELAY=0
 export HARNESS_TOKEN_MAIN="rig-not-a-credential"
 export HARNESS_OUTPUT_TOKENS_LIGHT="4101"
 export HARNESS_OUTPUT_TOKENS_MAIN="4202"

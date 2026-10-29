@@ -46,7 +46,9 @@ if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 	}
 	## The session this call comes from, by the rule the spawn proxy names a parent with.
 	AgentsToolsActingSession(){
-		printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+		## A root session, never minted through a spawn, names its own coworking session here
+		## too (S21.21): no tooling file read MDAT_SESSION_ID before.
+		printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${MDAT_SESSION_ID:-}}}}"
 	}
 	## A call naming another member than the spawned session it runs in is
 	## refused: rc 1 with the reason. A call from no such session keeps the name it gives.

@@ -950,6 +950,17 @@ rigOpRc=0
 rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdDev" --task-ref "the rig" --reason "rig" --entry "Write:$rigWs/DEV/setask.txt" --escalate || rigOpRc=$?
 rigAssert "with the explicit escalate option it is asked as it stands: no correction for it" \
 	"$( [ "$rigOpRc" = 6 ] && printf corrected || printf asked ):$( rigHas "$rigTmp/op.err" 'held by magic-developer' )" "asked:no"
+## A session or task set honours the explicit parameter the same way: an entry a running
+## participant holds is held and not asked, until `--escalate` says the asker needs it itself.
+rigSetEscPosts="$( rigCalls chat.postMessage )"
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --request-permission-set magic-coordinator task-rig \
+	--entry "Write:$rigWs/DEV/setask.txt" --scope session --session-id rig-cow --participant magic-developer
+rigAssert "a session set does not ask for what a running participant holds: held, nothing posted" \
+	"$( LC_ALL=C grep -c '^HELD: ' "$rigTmp/op.out" ):$( LC_ALL=C grep -c '^PERMISSION-SET: held' "$rigTmp/op.out" ):$(( $( rigCalls chat.postMessage ) - rigSetEscPosts ))" "1:1:0"
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --request-permission-set magic-coordinator task-rig \
+	--entry "Write:$rigWs/DEV/setask.txt" --scope session --session-id rig-cow --participant magic-developer --escalate
+rigAssert "with escalate the same entry is asked as it stands, and named as escalated" \
+	"$( LC_ALL=C grep -c '^ESCALATED: ' "$rigTmp/op.out" ):$( LC_ALL=C grep -c '^PERMISSION-SET: asked ' "$rigTmp/op.out" ):$( LC_ALL=C grep -c '^EXTRA: ' "$rigTmp/op.out" )" "1:1:1"
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 
 echo "-- an agent-less parent is no live run of its owner --"
