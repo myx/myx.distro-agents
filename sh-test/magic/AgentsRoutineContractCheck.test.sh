@@ -47,7 +47,9 @@ rigAssert(){ ## what is asserted, got, want
 rigFront(){ ## file -- its first frontmatter block
 	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 { print }' "$1"
 }
-rigFrontLine="$( LC_ALL=C grep -m 1 -E '^- Frontmatter[^:]*:' "$rigContract" )"
+## The Frontmatter entry as the contract writes it: its own line and the indented sub-bullets under it, since the keys stand
+## across them (mandatory on one, optional on the next), and a reader of the contract reads the entry, not one line of it.
+rigFrontLine="$( LC_ALL=C awk '/^- Frontmatter[^:]*:/ { grab = 1 ; print ; next } grab && /^[ \t]+/ { print ; next } { grab = 0 }' "$rigContract" )"
 rigHas(){ ## text, fixed string -- yes or no
 	if printf '%s\n' "$1" | LC_ALL=C grep -q -F -- "$2" ; then printf 'yes' ; else printf 'no' ; fi
 }

@@ -168,10 +168,11 @@ rigAssert "the review prompt about the run is still open, with the same asking i
 	"$( rigAsked "$rigReview" status ):$( rigAsked "$rigReview" kind ):$( rigAsked "$rigReview" session-id )" "reply-pending:review:$rigRunId"
 
 echo "-- 3. the state follows the store: an open ask waits, and nothing is hidden --"
-rigAssert "the session reads waiting on the question that still waits, though its only run has finished: a question left by a finished run is not ignored" \
-	"$( rigState "$rigRunId" ) $( rigState "$rigRunId" --active ) $( rigHeader "$rigRecord" status )" "waiting waiting spawn-succeeded"
+rigAssert "the session reads finished once its only run has ended, and the open ask is counted where nothing is hidden (S21.4: an open question does not hold a session whose runs have all ended)" \
+	"$( rigState "$rigRunId" ) $( rigState "$rigRunId" --active ) $( rigHeader "$rigRecord" status )" "finished not-listed spawn-succeeded"
 rigAssert "and the counters count that one open ask, from the store" "$( rigRows counters | LC_ALL=C awk '{ print $6 }' ) $( LC_ALL=C grep -l -x -F 'status: reply-pending' "$rigPend"/*.md 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "1 1"
-( rigRun --settle-pending-reply rig-member "$rigReview" --reason "the review prompt no longer needs an answer in this check" --withdraw ) > /dev/null 2>&1 || :
+( rigRun --settle-pending-reply rig-member "$rigReview" --reason "the review prompt no longer needs an answer in this check" --withdraw ) > /dev/null || \
+	echo "   (the withdraw of the review prompt reported: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/err" 2> /dev/null ))" >&2
 rigAssert "the review prompt is withdrawn by the one withdraw, and the store holds no open ask at all" \
 	"$( rigAsked "$rigReview" status ) $( LC_ALL=C grep -l -x -F 'status: reply-pending' "$rigPend"/*.md 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "withdrawn 0"
 rigAssert "the same session now reads finished, and has left the active ones, because nothing waits -- not because a reader ignores an open ask" \

@@ -368,6 +368,28 @@ AgentsWaitStateStore(){
 	fi
 	return 0
 }
+## Advances a STORED wait's own floor for one slack:<channel>:<ts>:conversation source, to the ts the session's own
+## floor (AgentsToolsSessionChatFloor, a tool return) just delivered on that same thread -- never backward
+## (AgentsWaitTsNewer), and never where wait/state has no floor line for that exact source already: a source this
+## wait never watched, or a session with no stored wait yet (no --wait-for-input of it ever ran), is left alone, so
+## --wait-continue's "no stored wait" error is never changed by the floor's own side of this fix. Every other line of
+## the file -- sources, addressee, include-own, mode, ttl, and every other source's own floor -- is kept untouched.
+AgentsWaitFloorAdvance(){ ## session, source (slack:<channel>:<ts>:conversation), ts
+	local advanceFile advanceTmp advanceCurrent=""
+	[ -n "${MMDAPP:-}" ] || return 0
+	case "$1" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	case "$2" in slack:*:conversation) ;; *) return 0 ;; esac
+	case "$3" in ''|*[!0-9.]*) return 0 ;; esac
+	advanceFile="$MMDAPP/.local/agents/sessions/$1/wait/state"
+	[ -f "$advanceFile" ] || return 0
+	advanceCurrent="$( LC_ALL=C awk -v want="$2" '$1 == "floor" && $2 == want { print $3 ; exit ; }' "$advanceFile" 2> /dev/null )" || advanceCurrent=""
+	[ -n "$advanceCurrent" ] || return 0
+	AgentsWaitTsNewer "$3" "$advanceCurrent" || return 0
+	advanceTmp="$( mktemp "$advanceFile.XXXXXX" 2> /dev/null )" || return 0
+	LC_ALL=C awk -v want="$2" -v ts="$3" '$1 == "floor" && $2 == want { $3 = ts } { print }' "$advanceFile" >| "$advanceTmp" 2> /dev/null \
+		&& mv -f "$advanceTmp" "$advanceFile" 2> /dev/null || rm -f "$advanceTmp"
+	return 0
+}
 
 ## The ids (`<conversation>:<ts>`) of the messages a person wrote in the rendering of one source that a wait returned: the conversation is the one the source names, or the
 ## one the rendering names before its messages (`# in <conversation>`, `# replies to your post <conversation>:<ts>`); a source that names a team channel or the owner by

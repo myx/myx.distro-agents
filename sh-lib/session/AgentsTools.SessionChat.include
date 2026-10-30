@@ -291,7 +291,7 @@ agentsSessionChatNewest=""
 agentsSessionChatFilter=""
 agentsSessionChatSeen=""
 AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver` (optional: the pointer moves as the blocks are printed)
-	local floorDir floorCount floorPointer floorSide floorThread floorRemove="" floorNow=""
+	local floorDir floorCount floorPointer floorSide floorThread floorThreadTs floorRemove="" floorNow=""
 	agentsSessionChatNewest="" agentsSessionChatSeen=""
 	floorDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
 	[ -n "$2" ] && [ -d "$floorDir" ] || return 0
@@ -340,8 +340,21 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatRead.awk" "$floorDir/$agentsSessionChatName.index" "$floorDir/$agentsSessionChatName" 2> /dev/null || :
 	agentsSessionChatNewest="$( LC_ALL=C sed -n 's/^newest //p' "$floorSide" 2> /dev/null | head -1 )"
 	agentsSessionChatSeen="$( LC_ALL=C sed -n 's/^seen //p' "$floorSide" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	floorThreadTs="$( LC_ALL=C sed -n 's/^threadts //p' "$floorSide" 2> /dev/null | head -1 )"
 	rm -f "$floorSide"
 	[ "${4:-}" != "deliver" ] || AgentsToolsSessionChatDelivered "$1" "$2"
+	## A LIVE WAIT KEEPS A FLOOR OF ITS OWN FOR THE SAME THREAD (F3.3/F9.2, wait/state's `floor slack:<channel>:<ts>:conversation
+	## <ts>`, AgentsWaitStateStore): what this call just delivered through the chat file's own pointer is moved past there too,
+	## so the next Wait does not read it again from its own, older floor. Only on an actual delivery (`deliver`), only when this
+	## session has a thread, and only when the floor's own awk pass (above) found something of that thread to deliver.
+	if [ "${4:-}" = "deliver" ] && [ -n "$floorThreadTs" ] ; then
+		case "$floorThread" in
+			*:*)
+				type AgentsWaitFloorAdvance > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include" 2> /dev/null || :
+				type AgentsWaitFloorAdvance > /dev/null 2>&1 && AgentsWaitFloorAdvance "$1" "slack:$floorThread:conversation" "$floorThreadTs"
+			;;
+		esac
+	fi
 	return 0
 }
 

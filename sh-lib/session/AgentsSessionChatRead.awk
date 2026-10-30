@@ -37,6 +37,10 @@
 # recorded for the session (F3.3, AgentsTools.CommsPrintback.include), and the next foreground call's digest alone surfaces it,
 # one line, so the reader passes it and moves on. Every closing brace is preceded by a `;`.
 
+function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+function tsNewer(a, b) { return ( secOf(a) > secOf(b) || ( secOf(a) == secOf(b) && fracOf(a) > fracOf(b) ) ) ; }
+
 BEGIN {
 	delivered = 0 ;
 	mentionRe = "(^|[^A-Za-z0-9_-])@" member "([^A-Za-z0-9_-]|$)" ;
@@ -49,6 +53,7 @@ BEGIN {
 	}
 	filtered = ( filterCount > 0 ) ;
 	holdAt = 0 ;
+	threadTs = "" ;
 }
 
 FILENAME == ARGV[1] {
@@ -162,6 +167,12 @@ END {
 		}
 		if ( ! take ) { continue ; }
 		if ( isCovered(idxWhere[at]) ) { continue ; }
+		## THE SESSION'S OWN THREAD'S NEWEST TS, among what this call actually delivers: a live Wait's own
+		## slack:<channel>:<ts>:conversation source keeps its floor on this same unit (AgentsWaitStateStore), never
+		## on this block's own idxNo, which is local to this chat file alone and means nothing to that source.
+		if ( thread != "" && idxWhere[at] == thread && idxTs[at] ~ /^[0-9]+\.[0-9]+$/ ) {
+			if ( threadTs == "" || tsNewer(idxTs[at], threadTs) ) { threadTs = idxTs[at] ; }
+		}
 		stop = endLine ;
 		while ( stop > idxLine[at] && text[stop] ~ /^[ \t\r]*$/ ) { stop-- ; }
 		if ( source != lastSource ) { print "# via " source ; lastSource = source ; }
@@ -175,6 +186,7 @@ END {
 		if ( stopAt > 0 && idxNo[stopAt] - 1 < pointerTo ) { pointerTo = idxNo[stopAt] - 1 ; }
 		print "newest " pointerTo > side ;
 		print "delivered " delivered > side ;
+		if ( threadTs != "" ) { print "threadts " threadTs > side ; }
 		for ( deliveredAt = 1 ; filtered && deliveredAt <= delivered ; deliveredAt++ ) {
 			if ( deliveredNo[deliveredAt] > pointerTo ) { print "seen " deliveredNo[deliveredAt] > side ; }
 		}
