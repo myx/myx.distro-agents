@@ -28,6 +28,8 @@
 			Puts the tests into the one retest queue as one request, with why and
 			with the files that changed. The first line printed is the request's id;
 			`--wait` stays until the batch has run it and says how it came out.
+			A request that names tests runs those. One that names only files no
+			test is known to cover runs every test not yet passed.
 
 		--retest-drain [--rest [--about <scratch-folder>]]
 			Runs the batch, one test after another, and ends when the queue is

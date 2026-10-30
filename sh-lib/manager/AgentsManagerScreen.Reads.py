@@ -252,10 +252,16 @@ def restOf(state, now, focused):
 
 
 ## How long the screen waits for a key before its next turn: its turn time, or less where
-## the selection rests and the reads of its item are due sooner than that.
+## the selection rests and the reads of its item are due sooner than that. A screen that has
+## heard nothing for a second and has nothing reading turns once a second: a key ends this
+## wait at once, so nothing a person does waits on it, and an idle screen costs a fifth.
 def keyWait(state, now):
     left = restLeft(state, now)
-    return min(TURN_SECONDS, left + 0.005) if left > 0 else TURN_SECONDS
+    if left > 0:
+        return min(TURN_SECONDS, left + 0.005)
+    if not state.reading and not state.calls and now - state.movedAt >= IDLE_QUIET_SECONDS:
+        return IDLE_TURN_SECONDS
+    return TURN_SECONDS
 
 
 ## Starts each read that is due and whose kind is free: one never made, one asked for now,

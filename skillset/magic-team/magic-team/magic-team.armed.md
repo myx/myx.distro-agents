@@ -594,7 +594,7 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 - Two place names are built in, needing no registration: `.skillset-shared` (the machine's HOME skills folder) and `.skillset-.local` (the workspace's own local skillset). Use either in place of a path. A custom place name may not start with a dot.
 - Read `reference/workspace-and-execution.md` for the registries, the three workspace roles, invited members and the source of settings.
 - The team edits inside the workspace holding its own source tree. A workspace or directory outside it is read, and edited only under a write grant on it. A member's own skillset files are the exception, at the path its folder resolves to.
-- A member never edits tooling source or `$MMDAPP/.local/` outside `.local/temp/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
+- A member never edits `$MMDAPP/.local/` outside `.local/temp/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
 
 # Human-owner's standing rules
 
@@ -775,13 +775,9 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 **Rule**: a date inside any name — document, file, item — is `YYYYMMDD'T'HHmm'Z'`, or `YYYYMMDD'T'HHmmSS'Z'` where seconds are needed.
 
-**Who may run what**:
-- the operations of the tool files: any member, except those the tool index marks as the coordinator's own, which are `magic-coordinator`'s only.
-- `--librarian-*`: `magic-librarian`.
-- `--client-*`: the named `client-*` member it names, in its own session, nobody else.
-- `--owner-*`: only where a member's own list names it.
+**Who may run what**: `--owner-*` runs only where a member's own list names it. Any other operation a member does not hold is refused, and the refusal names its owner and the way to ask.
 
-`--manager-*` is no member's: it is the console's own, and is refused from inside any member's session, the coordinator's included. A member needing an operation of the coordinator's own asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--client-operation-run --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
+An operation of the coordinator's own is asked of the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--client-operation-run --client-<operation> [<argument>...]`.
 
 ## Tooling operations
 

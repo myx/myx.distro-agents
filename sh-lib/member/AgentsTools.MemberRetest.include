@@ -161,7 +161,7 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 		echo "⛔ ERROR: $MDSC_CMD $queueOp: the request could not be written into $retestStore/waiting -- nothing was queued" >&2 ; return 1
 	}
 	printf '%s\n' "$queueId"
-	if [ "$queueFileCount" -gt 0 ] ; then
+	if [ "$queueFileCount" -gt 0 ] && [ "$queueTestCount" = 0 ] ; then
 		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s) by name, and $queueFileCount changed file(s) no test is known to cover, so every test not yet passed on the state that copy is in when the batch runs. The tester's next batch takes it; read the outcome with --retest-result $queueId" >&2
 	else
 		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s). The tester's next batch takes it; read the outcome with --retest-result $queueId" >&2
@@ -189,9 +189,9 @@ AgentsToolsRetestFinish(){ ## batch folder, request file, batch id -- that reque
 	local finishPassed=0 finishBefore=0 finishFailed="" finishNot="" finishVerdict=PASS
 	finishId="$( AgentsToolsRetestField "$finishRequest" id | LC_ALL=C sed -n 1p )"
 	finishCopy="$( LC_ALL=C grep -n -x -F -- "$( AgentsToolsRetestField "$finishRequest" origin | LC_ALL=C sed -n 1p )" "$finishWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
-	## what it asked for: its tests by name, and for a file no test is known to cover every test of the copy
+	## what it asked for: its tests by name; a request that names none, only a file no test is known to cover, every test of the copy
 	finishAll="$( AgentsToolsRetestField "$finishRequest" test )"
-	[ -z "$( AgentsToolsRetestField "$finishRequest" file )" ] || finishAll="$( { printf '%s\n' "$finishAll" ; cat "$finishWork/$finishCopy.every" 2> /dev/null ; } | LC_ALL=C grep . | LC_ALL=C sort -u )"
+	[ -n "$finishAll" ] || [ -z "$( AgentsToolsRetestField "$finishRequest" file )" ] || finishAll="$( { printf '%s\n' "$finishAll" ; cat "$finishWork/$finishCopy.every" 2> /dev/null ; } | LC_ALL=C grep . | LC_ALL=C sort -u )"
 	{
 		cat "$finishRequest"
 		printf 'batch: %s\nfinished: %s\nrun: %s\n' "$finishBatch" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$( cat "$finishWork/$finishCopy.folder" 2> /dev/null )"
@@ -336,7 +336,8 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 		LC_ALL=C grep -q -x -F -- "$drainRoot" "$drainWork/copies" || printf '%s\n' "$drainRoot" >> "$drainWork/copies"
 		drainNo="$( LC_ALL=C grep -n -x -F -- "$drainRoot" "$drainWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
 		AgentsToolsRetestField "$drainRequest" test >> "$drainWork/$drainNo.tests"
-		[ -z "$( AgentsToolsRetestField "$drainRequest" file )" ] || : > "$drainWork/$drainNo.rest"
+		## a request that names its tests is run by them; only one that names none widens to every test not yet passed
+		[ -n "$( AgentsToolsRetestField "$drainRequest" test )" ] || [ -z "$( AgentsToolsRetestField "$drainRequest" file )" ] || : > "$drainWork/$drainNo.rest"
 	done
 	if [ "$drainCount" = 0 ] ; then
 		echo "# retest: nothing waits" >&2
@@ -347,6 +348,12 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 			drainNo=$(( drainNo + 1 ))
 			[ -f "$drainWork/$drainNo.tests" ] || : > "$drainWork/$drainNo.tests"
 			AgentsToolsRetestCopy "$drainWork" "$drainNo" "$drainRoot" "$( [ ! -e "$drainWork/$drainNo.rest" ] || printf 1 )"
+			## each request is answered as soon as its own copy has run, never held for the rest of the batch
+			for drainRequest in "$retestStore/running"/*.request ; do
+				[ -f "$drainRequest" ] || continue
+				[ "$( AgentsToolsRetestField "$drainRequest" origin | LC_ALL=C sed -n 1p )" = "$drainRoot" ] || continue
+				AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
+			done
 		done < "$drainWork/copies"
 		for drainRequest in "$retestStore/running"/*.request ; do
 			[ -f "$drainRequest" ] || continue

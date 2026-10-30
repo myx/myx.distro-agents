@@ -20,7 +20,7 @@ The one copy of this policy. Each `client-*` and `magic-coordinator` cite it.
 - It is private: never publicly shared, never visible to the organisation as anything but that persona.
 - It is the channel; a `partner-*` is the subject (`magic-team/contracts/magic-team.authority.partner.contract.md`).
 - It reaches its own team through the ordinary operations every member uses, and the organisation's own systems only through its own marked operations. Which side a call touches is always explicit; neither is reached by accident.
-- **Who may run what**: the operations every member uses, and the `--client-*` operations. A `--client-` operation naming this member runs only in this member's own session; nobody else, no exception. `magic-coordinator` reaches it only through its own `--client-operation-run --client-<operation> [<argument>...]`.
+- **Who may run what**: the operations every member uses, and the `--client-*` operations. `magic-coordinator` reaches this member's own operation through its own `--client-operation-run --client-<operation> [<argument>...]`.
 
 ## The policy
 

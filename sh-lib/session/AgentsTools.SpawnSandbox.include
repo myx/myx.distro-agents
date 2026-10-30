@@ -10,14 +10,22 @@
 ## by the start milestone of the session (AgentsToolsStartStepsSay). Begin starts the clock; Mark closes the step that ran since
 ## the last mark under its name. Plain variables of the one process that runs the start, so a mark inside `$( )` is lost: a mark
 ## stands in the start's own body. A step that does not run is not marked, and is not in the line.
+## Each step is also appended to `launch.steps` beside the launcher's `launch` (and its bare `launch.noticed`), one `<step>=<n>s`
+## a line. That record needs no data root, so a start is timed in a Just Agents workspace too, where the transcript milestone
+## that carries the line is never written. `launch`'s own mtime is left alone: the Wait takes the session start from it.
 AgentsToolsStartStepBegin(){
 	agentsStartStepFirst="$( date +%s )" ; agentsStartStepAt="$agentsStartStepFirst" ; agentsStartSteps=""
 }
 AgentsToolsStartStepMark(){ ## step name
-	local markNow
+	local markNow markSteps
 	markNow="$( date +%s )"
 	[ -n "${agentsStartStepAt:-}" ] || return 0
-	agentsStartSteps="${agentsStartSteps:+$agentsStartSteps }$1=$(( markNow - agentsStartStepAt ))s"
+	markSteps="$(( markNow - agentsStartStepAt ))s"
+	agentsStartSteps="${agentsStartSteps:+$agentsStartSteps }$1=$markSteps"
+	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
+		mkdir -p "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID" 2> /dev/null || :
+		printf '%s=%s\n' "$1" "$markSteps" >> "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/launch.steps" 2> /dev/null || :
+	fi
 	agentsStartStepAt="$markNow"
 }
 ## The words of the start milestone: `start steps: <step>=<n>s ... total=<n>s`, or plain `start` where the clock never began.

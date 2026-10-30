@@ -206,7 +206,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]...
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>
-📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member [--team-member <team-member>] [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-agent [--cli-service <cli-name>] [--goal <text>] [--from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>
@@ -216,7 +216,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-run <command>
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
-📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files [--team-member <team-member>] [<file>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read [--full] <team-member>
 📘 syntax: DistroAgentsItems.fn.sh --grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -583,9 +583,9 @@
 			check, relay skips measurement; refused if the value is
 			unknown or the post is under the shared bot account.
 
-			A member's own message that carries the retired marker
-			of a question, NEEDS REPLY in capitals, is NOT sent
-			either, and comes back the same way: a CORRECTION, rc 6,
+			A member's own message that carries the marker of a
+			question, NEEDS REPLY in capitals, is not sent either, and
+			comes back the same way: a CORRECTION, rc 6,
 			one line for each line that carries the marker, then a
 			NEXT line. A question to a person is asked with a tool
 			that asks, alone in its own message, and the message
@@ -1772,9 +1772,10 @@
 			rejected. Designed refusals: 6 no Jira credential, 7 account
 			refused, 8 not found or not visible (also covers content this
 			account cannot see), 9 site answered and refused (no retry
-			helps) -- 9 also covers every other 4xx including 410 (an
-			Atlassian endpoint retired; fix needed in this package, not
-			the request). An empty answer at 0 is real; a failed call is
+			helps) -- 9 also covers every other 4xx, a 410 among them,
+			which means the endpoint no longer exists at the site and needs
+			a fix in this package rather than in the request. An empty
+			answer at 0 is real; a failed call is
 			never empty.
 
 			As a `client-*` member, this family is our own
@@ -2235,8 +2236,8 @@
 			fails loud before anything is written.
 
 			`--upsert-from-slots`: the member gives only the slot values, and
-			the writer renders the document's body from the type's template
-			(`sh-lib/templates/inbox-item.<type>.document.format.md`); the front
+			the writer renders the document's body from the type's own
+			template; the front
 			matter is completed as above. The slot values come on stdin, one
 			`key: value` line a single-line slot, a `key:` line alone opening a
 			multi-line slot whose value is the indented lines that follow. The
@@ -2925,9 +2926,9 @@
 			beside it and read the same way: `disable` leaves the mouse
 			to the terminal, whose own selection then copies text; the
 			mouse is on where nothing is saved. These three interface
-			settings are the local tools' own, declared in
-			`sh-lib/manager/LocalTools.ManagerInterface.include` of
-			`myx.distro-.local`, with their labels and their other names.
+			settings are the local tools' own, declared in their interface
+			file in `myx.distro-.local`, with their labels and their other
+			names.
 			Needs python3 and a terminal: where the screen cannot start,
 			it says why in one line. Exit: the screen's own status. Exit
 			1, nothing started, for any other word.
@@ -3022,8 +3023,8 @@
 			computer, and no team data: the operations that write a board
 			item, an inbox item, an audit item or a contact are refused,
 			no team-data store is cloned, and a session it starts keeps
-			no tracking item; the list is `agentsTeamDataGateOps` in
-			`AgentsTools.TeamDataGate.include`), `rig-client` (it will
+			no tracking item; the list of them is the tooling's own),
+			`rig-client` (it will
 			dispatch to a remote rig; not built yet, it acts as
 			`just-agents`) or
 			`team-rig` (a rig itself: the team data is used and maintained
@@ -3126,9 +3127,9 @@
 			setting counts as not given, wherever it stands. <choices>
 			are the values that may be chosen, in the order they are
 			offered, joined by commas, each `<value>=<label>`. The
-			interface settings are the local tools' own, declared in
-			`sh-lib/manager/LocalTools.ManagerInterface.include` of
-			`myx.distro-.local`, with their labels and their other names.
+			interface settings are the local tools' own, declared in their
+			interface file in `myx.distro-.local`, with their labels and their
+			other names.
 			The style of the manager screen:
 			group `style`, key `MDLT_MANAGER_STYLE`, value
 			`<style>-<colours>`: `nu-system`, `nu-blue`, `nu-gray`
@@ -3181,9 +3182,8 @@
 			`<style>-<colours>`; another name of one is saved as the one
 			it means, `tv-dark` as `tv-blue`, `magic` as `nu-gray`.
 			The interface settings, that style with the mouse and the
-			spacers of the screen, are declared by the local tools in
-			`sh-lib/manager/LocalTools.ManagerInterface.include` of
-			`myx.distro-.local`.
+			spacers of the screen, are declared by the local tools in their
+			interface file in `myx.distro-.local`.
 			`MDLT_CONSOLE_HISTORY`, a `choice`, the user's own: where a
 			console keeps the shell history of the user, read at its next
 			start. `MDLT_CONSOLE_ORIGIN`, a `choice`, the workspace's:
@@ -3330,8 +3330,8 @@
 		--manager-dashboard-read [--group <group>] [<block>...]
 			One of the console's own operations (see Notes). Prints the
 			dashboard, which is the local tools' own (.local): the panels
-			this console registers in its plain list file
-			(sh-lib/config/dashboard-panels.list), the most vital figures
+			this console registers in its own plain list file, the most
+			vital figures
 			of this workspace and of the machine it runs on, grouped in
 			blocks that a screen draws as titled boxes, with no knowledge
 			of what is in one. It only reads, for viewing: no registry is
@@ -3628,16 +3628,12 @@
 			`foot` for one after the options, the line as it is written.
 			With `<Name>.fn.sh`, one of the tooling commands
 			`--manager-command-list` lists, it prints instead the help
-			that command's own `--help` prints, from where it prints it,
-			and runs nothing: the syntax lines its help include,
-			`Help.<Name>.include`, echoes that its help file does not
-			hold, each once in their order, then its help file,
-			`Help.<Name>.help.md`, as it is written, both from the help
-			folder `sh-lib/help` of the package whose sh-scripts folder
-			holds the file the name resolves to. A command with no such
-			file, or that resolves to none, prints nothing. A name the
-			list does not hold, and a second argument, are refused in
-			one line, rc 1, nothing on stdout.
+			that command's own `--help` prints, and runs nothing: first
+			the syntax lines its help file does not hold, each once in
+			their order, then the help file itself. A command with no
+			help file, or one that resolves to none, prints nothing. A
+			name the list does not hold, and a second argument, are
+			refused in one line, rc 1, nothing on stdout.
 
 		--manager-keys-list
 			One of the console's own operations (see Notes). Lists the
@@ -3920,12 +3916,10 @@
 			counted), then the commands, the same its editor's palette gets, then a
 			`member` row for each member that belongs to it, as
 			`--manager-place-read` prints them. Each package of this console declares
-			its workspace commands once, in its
-			`sh-lib/config/workspace-commands.list`, a command a line: its name,
-			its emoji part of it, how it runs, and the command, a TAB
+			its workspace commands once, in its own command list, a command a line:
+			its name, its emoji part of it, how it runs, and the command, a TAB
 			between them, `$MMDAPP` in it the root of the workspace. The
-			tasks of the palette are made of the same lines, by
-			`SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include`.
+			tasks of the palette are made of the same lines.
 			A workspace has the commands of the packages it has, picked
 			as the tasks of its palette are: `myx.distro-source` always,
 			another where its console at the root of the workspace is
@@ -4357,8 +4351,8 @@
 			One of the console's own operations (see Notes). Makes one scope,
 			empty: the id is the subsystem and a name a scope may have
 			(`agents:routine-x`), the subsystem one whose console registered how
-			a scope of it is made (sh-lib/config/scope-settings.list, the line
-			`create`), and no scope of that id there already. Prints
+			a scope of it is made (its scope list's `create` line), and no scope
+			of that id there already. Prints
 			`created <id>`. The variables are added by `--manager-scope-set`.
 			Exit 1, nothing made, for an id of another form, a name no scope may
 			have, a scope that is there, and a subsystem that makes none here.
@@ -4882,7 +4876,7 @@
 			`join <session-id> <member> <dispatch-item>`
 			<member> is `magic-coordinator`, <dispatch-item> the item the start made.
 
-		--manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+		--manager-spawn-member [--team-member <team-member>] [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 			One of the console's own operations (see Notes). Starts one
 			member with a prompt, in a new coworking session of its own,
 			and does not wait for it. The prompt is stdin (default) or
@@ -5016,8 +5010,7 @@
 			console runs in, as the console's `Workspace (System)` shows it. The
 			operation is `.local`'s own, in its sh-lib, which the dispatcher of every
 			subsystem's console offers; a console adds its own blocks by registering
-			them in a list file (for this one, sh-lib/config/workspace-blocks.list).
-			Prints rows on stdout, TAB-separated, a blank written `_` and an empty
+			them in a list file of its own. Prints rows on stdout, TAB-separated, a blank written `_` and an empty
 			value `-`:
 			`fact <block> <name> <value>`
 			`block <id> <label> <count>`
@@ -5135,7 +5128,7 @@
 			says so. Exit 1, nothing printed, where a registry cannot be
 			rebuilt.
 
-		--manager-team-member-files <team-member> [<file>]
+		--manager-team-member-files [--team-member <team-member>] [<file>]
 			One of the console's own operations (see Notes). Lists the
 			files of one member's skillset folder, where the member is set
 			up, here or in another workspace of this machine, or prints one
@@ -5999,8 +5992,7 @@
 			A call asked alone of the human-owner, a RequestPermission
 			with no entries, is not posted once he has answered as
 			many such requests of that session for that task as the
-			one number allows (agentsPermissionSingleAsks,
-			AgentsTools.PermissionHolds.include): it comes back as a
+			one number allows: it comes back as a
 			CORRECTION that says to ask with entries. A request he
 			answered counts, an allow or a deny; one a member or the
 			coordinator answered does not, nor does a set asked as
@@ -6477,9 +6469,8 @@
 			  gives them. `started-at` is stamped as before.
 
 			`--upsert-from-slots`: the member gives only the slot values, and the
-			writer renders the document's body from the type's template
-			(`sh-lib/templates/board-item.<type>.document.format.md`); the front
-			matter is stamped as above. The slot values come on stdin, one
+			writer renders the document's body from the type's own template;
+			the front matter is stamped as above. The slot values come on stdin, one
 			`key: value` line a single-line slot, a `key:` line alone opening a
 			multi-line slot whose value is the indented lines that follow. The
 			slots: `matter` (the one-line title, every type) and, by type --
@@ -7622,19 +7613,17 @@
 
 ##  Notes:
 
-		Attended and unattended sessions. A tool call served through the
-		myx.distro MCP counts as attended only from an interactive Claude
-		Code client, whose CLAUDE_CODE_ENTRYPOINT is `cli` or
-		`claude-vscode`, and only with neither MDAT_SESSION_UNATTENDED=true
-		nor a spawn id. Everything else is unattended, and an unattended
-		session never writes the team data store or its session store with
-		Write or Edit. Its permission requests are decided by the team
-		tooling rather than prompted.
+		Attended and unattended sessions. A call counts as attended only
+		from a client a person drives interactively, in a session of its
+		own. Everything else is unattended, and an unattended session
+		never writes the team data store or its session store with Write
+		or Edit. Its permission requests are decided by the team tooling
+		rather than prompted.
 
-		Channel dirs are session plumbing ONLY (fifo/log/pid/meta) --
-		never a place to stage secrets. A credential that needs to reach
-		a console session must be sourced directly into the console's own
-		environment, never dropped as a file inside a channel dir.
+		A channel directory is session plumbing only, never a place to
+		stage secrets. A credential that must reach a console session is
+		sourced directly into that console's own environment, never
+		dropped as a file inside a channel directory.
 
 		`--console-start` always creates a new console session -- it
 		can't assume one is already open. Bare invocation (`bash
@@ -7657,12 +7646,9 @@
 		plain text for a program to read, in the form its entry gives.
 
 		The syntax list `--help-syntax` prints is the family's, not this
-		tool's alone. It carries the call forms of DistroAgentsSession.fn.sh,
-		DistroAgentsDispatcher.fn.sh, DistroAgentsContacts.fn.sh,
-		DistroAgentsTesting.fn.sh, AgentDispatcherTools.fn.sh and
-		DistroAgentsKnowledge.fn.sh too, so an operator reads one list. Those
-		forms are described in the manual of the tool that serves them, which
-		`--help` prints for that tool.
+		tool's alone: it carries the call forms of the tools that serve
+		these operations too, so an operator reads one list. Each form's
+		own manual is the `--help` of the tool that serves it.
 
 ##  Examples:
 
@@ -7677,8 +7663,7 @@
 
 		# Send multiple lines via stdin -- absolute path leading, heredoc for content,
 		# never a separate piping command in front (that breaks the permission
-		# allowlist match; see magic-team/CONSOLE-SESSIONS.md's "Heredoc for stdin"
-		# section)
+		# allowlist match)
 		```
 		DistroAgentsTools.fn.sh --console-send myx.distro-agent-console.<slug>.source <<'EOF'
 		echo one

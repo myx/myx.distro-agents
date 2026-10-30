@@ -92,6 +92,38 @@ AgentsToolsInputScanDefWait(){ ## definition line
 	return 0
 }
 
+## A 5-MINUTE CACHE OF A SCAN CALL, PER SESSION OR SPAWN (sketch 7.1, option A). The spawner calls one scan twice
+## for one start: the real run (AgentsToolsInputScanDefRun) and, right after, its own bare-named seed read
+## (AgentsToolsInputScanDefSeed), to find what a later Wait on the same scan would see. Two calls of the one
+## words, for the one session or spawn, within the window, are the one call: the second is served from what the
+## first wrote, never run again. Two different sets of words are two different reports, kept apart by the key.
+## Scoped to these two call sites alone: a live poll of an empty scan (AgentsToolsInputScanDefAwait) never goes
+## through this, since a wait for new input must read the source again, not a stale copy of the last empty one.
+AgentsToolsInputScanCacheFile(){ ## scan words (one a line), session or spawn id
+	local cacheScope="${2:-}" cacheDir
+	[ -n "$cacheScope" ] || return 1
+	cacheDir="${MMDAPP%/}/.local/.agents/cache/input-scan/$cacheScope"
+	mkdir -p "$cacheDir" 2> /dev/null || return 1
+	printf '%s/%s\n' "$cacheDir" "$( printf '%s\n' "$1" "${MDAT_SCAN_SEED_QUIET:-}" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
+}
+## The call the words make, from its cache where one is there and under 300 seconds old, else run for real and
+## kept there. $4 is the stdout file, $5 the stderr file (emptied on a cache hit, nothing having run to fail).
+AgentsToolsInputScanCachedCall(){ ## scan words (one a line), session or spawn id, (unused), stdout file, stderr file
+	local cachedFile cachedAge callArgs=() callWord callRc=0
+	cachedFile="$( AgentsToolsInputScanCacheFile "$1" "$2" 2> /dev/null )" || cachedFile=""
+	: > "$5" 2> /dev/null || :
+	if [ -n "$cachedFile" ] && [ -f "$cachedFile" ] ; then
+		cachedAge=$(( $( date +%s ) - $( date -r "$cachedFile" +%s 2> /dev/null || printf '%s' 0 ) ))
+		if [ "$cachedAge" -ge 0 ] && [ "$cachedAge" -lt 300 ] && cp "$cachedFile" "$4" 2> /dev/null ; then
+			return 0
+		fi
+	fi
+	while IFS= read -r callWord ; do callArgs+=( "$callWord" ) ; done <<< "$1"
+	DistroAgentsTools "${callArgs[@]}" > "$4" 2> "$5" || callRc=$?
+	[ "$callRc" != 0 ] || [ -z "$cachedFile" ] || cp "$4" "$cachedFile" 2> /dev/null || :
+	return "$callRc"
+}
+
 ## Whether a scan's report holds nothing to work: rc 0 where every line of it is blank, a heading (`#`), a section's `scope:` or `cap:` line, `(none)`, a
 ## `**NOTE:** no new ...` line or `Nothing new ...`. An FYI row is no work either: a row whose head line carries the `[fyi: ...]` mark right after its sender
 ## (AgentsWaitTaggedPart, sh-lib/member/AgentsTools.MemberWait.include) is a message of a session chat thread where the member's own instance is present,
@@ -157,7 +189,7 @@ AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, s
 			done
 			[ -n "$awaitSources" ] || awaitSources="--wait-source inbox:$2"
 			## The Wait of the start has no session of its own: not the caller's floor, and not a pointer of the new session.
-			awaitOut="$( unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID ; DistroAgentsTools --wait-for-input "$2" $awaitSources --wait-since-utime "$awaitFrom" --wait-timeout "$awaitLeft" 2> /dev/null < /dev/null )" || :
+			awaitOut="$( unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID ; DistroAgentsTools --wait-for-input --team-member "$2" $awaitSources --wait-since-utime "$awaitFrom" --wait-timeout "$awaitLeft" 2> /dev/null < /dev/null )" || :
 			awaitHead="$( printf '%s\n' "$awaitOut" | head -n 1 )"
 			case "$awaitHead" in
 				"WAIT-RESULT: RECEIVED"*|"WAIT-RESULT: TIMEOUT"*) ;;
@@ -185,7 +217,9 @@ AgentsToolsInputScanDefSeed(){ ## definition line, scan, team member, session id
 	if [ "$1" != "$2" ] ; then
 		seedFile="$5.seed"
 		## The baseline is the view a Wait reads when nothing is new, so the scan runs without its collect window (MDAT_SCAN_SEED_QUIET): the start does not wait it out a second time.
-		MDAT_SCAN_SEED_QUIET=1 DistroAgentsTools "--intern-op-$2-input-scan" "$3" > "$seedFile" 2> /dev/null || { rm -f "$seedFile" ; return 0 ; }
+		## Cached 5 minutes, per session (sketch 7.1, option A): a start whose routine declares the same bare scan more than once in the window is served the one report.
+		MDAT_SCAN_SEED_QUIET=1 AgentsToolsInputScanCachedCall "$( printf '%s\n' "--intern-op-$2-input-scan" "$3" )" "$4" "" "$seedFile" "$seedFile.err" || { rm -f "$seedFile" "$seedFile.err" ; return 0 ; }
+		rm -f "$seedFile.err"
 	fi
 	## A scan called in a team session prints the reference to its kept report, and the report is that file (AgentsWaitProbeScan reads it so).
 	seedKept="$( LC_ALL=C sed -n 's/^\.\.\. KEPT: .* is in \(.*\) -- .*\.\.\.$/\1/p' "$seedFile" | head -1 )"
@@ -229,7 +263,9 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 		if [ -n "${agentsInputScanGiven:-}" ] && [ -f "$agentsInputScanGiven/line.$runAt" ] ; then
 			cp "$agentsInputScanGiven/line.$runAt" "$runOut" && : > "$runErr" || runRc=1
 		else
-			DistroAgentsTools "${runArgs[@]}" > "$runOut" 2> "$runErr" || runRc=$?
+			## Cached 5 minutes, per session or spawn (sketch 7.1, option A): the same words run again for the one start
+			## are served the one report, never run twice.
+			AgentsToolsInputScanCachedCall "$runWords" "${3:-$4}" "" "$runOut" "$runErr" || runRc=$?
 		fi
 		[ "$runCount" -le 1 ] || printf '## input scan: %s\n\n' "$runScan" >> "$5"
 		if [ "$runRc" -ne 0 ] ; then

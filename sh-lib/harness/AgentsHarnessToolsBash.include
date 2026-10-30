@@ -2,6 +2,8 @@
 # ^^^ for syntax checking in the editor only
 
 ## AgentsHarnessToolsBash.include: the Bash tool and its detached processes. Sourced by AgentsUniversalHarness.sh, definitions only.
+## A call's two streams are joined as they are written unless the caller asks for `output_mode=prefixed`; then stdout and stderr are kept apart and each
+## line is marked `>` for stdout and `!` for stderr, the rendering a detached read already gives (sketch 3.3).
 
 ## A detached process's handle must be unique for the whole SESSION, not for one harness
 ## process: the counter this used to be kept in a shell variable reset in every served call, so
@@ -66,7 +68,7 @@ AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, senten
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this run has no team identity to post under, so the report was NOT posted: %s\n' "$5" >> "$postDir/$postHandle.report" ; return 1
 	fi
-	postArgs=( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message "$harnessAgent" "$3" )
+	postArgs=( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message --team-member "$harnessAgent" "$3" )
 	[ -z "$4" ] || postArgs+=( --address-to "$4" )
 	printf '%s' "$5" > "$postDir/$postHandle.report.prose"
 	{ printf '%s\n' "$5" ; [ -z "$6" ] || printf '\n%s\n' "$6" ; } | MDAT_SEND_PROSE_FILE="$postDir/$postHandle.report.prose" "${postArgs[@]}" --from-stdin >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
@@ -129,11 +131,22 @@ $repLines}"
 	return 0
 }
 
+## The call's own streams, set once so the command inherits them: `prefixed` (a mode, so non-empty) keeps stdout and stderr in two files, and
+## anything else joins them in the order they were written, as this tool has always delivered them.
+AgentsHarnessToolStreams(){ ## stdin file, stdout file, stderr file, output mode
+	if [ -n "$4" ] ; then exec < "$1" > "$2" 2> "$3" ; else exec < "$1" > "$2" 2>&1 ; fi
+}
+
 ## No sandboxing beyond the cwd bound, matching copilot's own --allow-all-tools trust
 ## model. Output goes to a scratch file rather than $( ): a model-supplied command may
 ## background a child that holds a capture pipe open forever.
-AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin
-	local toolCwd="$1" toolCommand="$2" toolTimeout="$3" toolDetach="$4" toolHandle="$5" toolStop="$6" toolOffset="$7" toolLimit="$8" toolStdin="$9" toolStatus=0 toolBytes
+AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
+	local toolCwd="$1" toolCommand="$2" toolTimeout="$3" toolDetach="$4" toolHandle="$5" toolStop="$6" toolOffset="$7" toolLimit="$8" toolStdin="$9" toolOutputMode="${10}" toolStatus=0 toolBytes
+	case "$toolOutputMode" in
+		''|merged) toolOutputMode="" ;;
+		prefixed) ;;
+		*) printf 'ERROR: output_mode must be merged or prefixed, got: %s. Nothing was run.\n' "$toolOutputMode" ; return 0 ;;
+	esac
 	local processSession processDir processPid processTotal processCaps processWaited processOutBytes processErrBytes processCloseTmp processReportThread processReportNote processBegan processMine
 	## A handle alone names a process this session started detached: read it, or stop it.
 	if [ -n "$toolHandle" ] ; then
@@ -339,16 +352,18 @@ AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset,
 	## decides it, so a command is never left reading the harness's own stdin.
 	rm -f "$harnessScratch/run.timedout"
 	: > "$harnessScratch/run.stdin"
+	: > "$harnessScratch/run.err"
 	[ -z "$toolStdin" ] || printf '%s' "$toolStdin" > "$harnessScratch/run.stdin"
 	if [ "$toolTimeout" = 0 ] ; then
-		( cd "$toolCwd" && set -e && eval "$toolCommand" ) < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+		( AgentsHarnessToolStreams "$harnessScratch/run.stdin" "$harnessScratch/run.out" "$harnessScratch/run.err" "$toolOutputMode" ; cd "$toolCwd" && set -e && eval "$toolCommand" ) || toolStatus=$?
 	elif [ -n "$harnessTimeoutCmd" ] ; then
-		"$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+		( AgentsHarnessToolStreams "$harnessScratch/run.stdin" "$harnessScratch/run.out" "$harnessScratch/run.err" "$toolOutputMode" ; exec "$harnessTimeoutCmd" "$toolTimeout" bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" ) || toolStatus=$?
 		[ "$toolStatus" != 124 ] || : > "$harnessScratch/run.timedout"
 	else
 		## Watchdog where no `timeout` exists; a group, not a subshell, so $toolStatus survives.
 		{
-			bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" < "$harnessScratch/run.stdin" > "$harnessScratch/run.out" 2>&1 &
+			## The subshell execs the command, so the pid kept below is the command's own and a stop reaches it.
+			( AgentsHarnessToolStreams "$harnessScratch/run.stdin" "$harnessScratch/run.out" "$harnessScratch/run.err" "$toolOutputMode" ; exec bash -c 'cd "$1" && set -e && eval "$2"' _ "$toolCwd" "$toolCommand" ) &
 			harnessRunPid=$!
 			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
 			## The >/dev/null is load-bearing: without it the orphaned `sleep` holds this
@@ -377,8 +392,13 @@ AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset,
 	fi
 	## The whole output is returned, however long: the reply layer keeps a long result in
 	## the session's results/ folder (F2.4), so nothing a long-running command wrote is
-	## lost to a byte cap here.
-	cat "$harnessScratch/run.out"
+	## lost to a byte cap here. A prefixed call renders its two streams apart, exactly as a
+	## detached read does: stdout's lines first, then stderr's, each marked.
+	if [ -n "$toolOutputMode" ] ; then
+		AgentsHarnessProcessRender "$harnessScratch" run "" ""
+	else
+		cat "$harnessScratch/run.out"
+	fi
 	## Expiry is read from the flag the enforcing path wrote, never inferred from the status.
 	[ ! -f "$harnessScratch/run.timedout" ] || printf '... TIMED OUT after %s seconds ...\n' "$toolTimeout"
 	printf '(exit status %s)\n' "$toolStatus"

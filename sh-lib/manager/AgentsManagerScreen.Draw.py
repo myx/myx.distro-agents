@@ -924,12 +924,29 @@ def sizeTaken(surface, state):
 ## with the whole terminal, which is waited for here; the calls that have ended; the
 ## actions that were asked for; the reads that are due now; the drawing. `now` is a clock
 ## that only goes forward.
-def screenTurn(surface, state, reader, now, key):
+## THE STATUS LINE ALONE, when the clock was all that changed: the frame stands as it was drawn,
+## so only the status line is put again and only its cells that changed are sent. What the
+## status line put last is dropped first, so nothing of it grows in the record of what is drawn.
+def drawStatusOnly(surface, state, layout):
+    line = layout["bottomLine"]
+    surface.puts.pop(line, None)
+    surface.apart.pop(line, None)
+    surface.wide.pop(line, None)
+    state.spots = [one for one in state.spots if one[4][0] != "key"]
+    drawStatusLine(surface, state, line, surface.size()[0])
+    surface.show()
+
+
+def screenTurn(surface, state, reader, now, key, idle=False):
     ## a setting of the mouse was saved: the terminal is told at once, as the start of the screen tells it (CursesSurface.mouse)
     if state.mouseAsk:
         state.mouseAsk = False
         if getattr(surface, "mouse", None) is not None:
             surface.mouse(True)
+    clockWas = state.clock
+    readingWas = state.reading
+    ranChild = state.child is not None
+    results = ()
     layout = sizeTaken(surface, state)
     state.clock = time.strftime("%H:%M:%S", time.localtime(nowEpoch()))
     state.now = now
@@ -947,7 +964,8 @@ def screenTurn(surface, state, reader, now, key):
         runChild(surface, state)
         sizeTaken(surface, state)
     if reader is not None:
-        for result in reader.collect():
+        results = reader.collect()
+        for result in results:
             ## when its read ended: the period of a read is counted from there (startDueReads)
             if result.get("key") in state.started:
                 state.started[result["key"]]["ended"] = now
@@ -958,5 +976,21 @@ def screenTurn(surface, state, reader, now, key):
     if state.dialog is not None and state.dialog["name"] in DIALOG_FILLS:
         DIALOG_FILLS[state.dialog["name"]](state, state.dialog)
     followSelection(state)
-    drawScreen(surface, state)
+    ## THE FRAME IS DRAWN WHEN SOMETHING OF IT CHANGED, and an idle screen draws nothing: a key,
+    ## a read that ended, an operation that ran, another second on the clock, another size or
+    ## style, or a frame that was never drawn. The screen turned five times a second and drew
+    ## every one of them while nothing moved, which is most of the console's own cost.
+    ## `idle` is the running screen's own ask for that (runScreen): a caller that drives turns
+    ## itself, as the checks do, gets every frame drawn, so what it reads back is what it made.
+    columns, lines = surface.size()
+    shape = (columns, lines, STYLE["value"], layout["listLeft"] if layout else None)
+    if key is not None or results or ranChild:
+        state.movedAt = now
+    if (not idle or key is not None or results or ranChild or state.clock != clockWas or state.reading != readingWas
+            or state.drawnAs is None or state.drawnAs[0] != shape or getattr(surface, "whole", False)):
+        drawScreen(surface, state)
+    elif layout is not None:
+        ## nothing but another second: the status line is drawn again alone, which is what an
+        ## idle screen does once a second instead of drawing every cell of the frame
+        drawStatusOnly(surface, state, layout)
 

@@ -484,7 +484,7 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 	if [ "$askThreadTs" = "$askTs" ] ; then
 		if [ -n "$revPrev" ] ; then
 			## One live update under the root: the one before it goes, under the identity that posted it.
-			"$BASH" "$revTools" --slack-delete-message "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
+			"$BASH" "$revTools" --slack-delete-message --team-member "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
 				|| printf 'WARNING: %s: the update before this one, %s:%s, could not be removed, so the thread holds two.\n' "$harnessAskName" "$askChannel" "$revPrev" >&2
 		elif AgentsToolsAskKindRow "$toolKind" ; then
 			AgentsHarnessAskReact "$askChannel:$askTs" "$revAsBot" add $( ASKP_BLOCK="Marks/superseded" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> /dev/null )
@@ -544,7 +544,7 @@ AgentsHarnessAskProposalReply(){ ## -- reads the caller's ask* and tool* fields
 			return 0
 		fi
 		## No root stands without its proposal.
-		if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-delete-message "$harnessAgent" "$askChannel:$askTs" $replyBot > /dev/null 2>&1 ; then
+		if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-delete-message --team-member "$harnessAgent" "$askChannel:$askTs" $replyBot > /dev/null 2>&1 ; then
 			replyRoot="its root was removed"
 		else
 			replyRoot="its root $askChannel:$askTs could not be removed, and stands with no proposal under it"

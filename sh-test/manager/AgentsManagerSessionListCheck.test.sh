@@ -381,13 +381,17 @@ mkdir -p "$rigHome/.agents/magic-team"
 } > "$rigHome/.agents/magic-team/members.registry"
 rigRun "$rigOp" keeper-far
 rigAssert "a second word the machine's index knows as another workspace's member is no member to this family: refused in the operation's own line" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: syntax is [--active], got: keeper-far" ) $( LC_ALL=C grep -c -F -- "is in the team members index" "$rigTmp/err" || : )" "1 1 0"
-rigRun --member-help keeper-far
-rigAssert "control: the same index does make the dispatcher take that word for a member, in an operation that names one" "$rigRc $( LC_ALL=C grep -c -F -- "member 'keeper-far' is in the team members index but is present in no tracked workspace" "$rigTmp/err" || : )" "1 1"
+## The member the call acts as is the implied one, and the leading positional was retired (S21.3): so this
+## names keeper-far by the environment, and asks whether the dispatcher resolves that word through the index.
+rigPre=( "MDAT_SPAWN_AGENT=keeper-far" )
+rigRun --member-help keeper-rig
+rigPre=()
+rigAssert "control: the same index does make the dispatcher resolve that word as a member, in an operation that acts as one, and refuse it as a member of no tracked workspace" "$rigRc $( LC_ALL=C grep -c -F -- "member 'keeper-far' is in the team members index but is present in no tracked workspace" "$rigTmp/err" || : )" "1 1"
 rm -rf "$rigHome/.agents"
 rigAssert "the dispatcher has one arm for the family, which sources the family's include, and that one sources the include of the sessions" \
 	"$( LC_ALL=C grep -c -x -e '		--manager-\*)' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.Manager.include"' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1 1"
 rigAssert "the list reads its rows from the one place a row's live and state are derived, and lists no run a second way" \
-	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionRows\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" | LC_ALL=C grep -v -e '^[[:space:]]*#' -e 'checklist' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -e 'rowLive="other-host"' || : )" "1 0 1"
+	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionRows\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" | LC_ALL=C grep -v -e '^[[:space:]]*#' -e 'checklist' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E -e 'rowLive[[:space:]]*=[[:space:]]*"other-host"' || : )" "1 0 1"
 
 echo "-- 8. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

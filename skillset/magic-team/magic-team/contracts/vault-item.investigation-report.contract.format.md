@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # vault-item.investigation-report — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. No document template and no writer exist yet. Read by the document validator, `--intern-doc-validate vault-item.investigation-report <file>`.
+Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.investigation-report.document.format.md`, and no writer fills it yet. Read by the document validator, `--intern-doc-validate vault-item.investigation-report <file>`.
 
 ## Contents
 

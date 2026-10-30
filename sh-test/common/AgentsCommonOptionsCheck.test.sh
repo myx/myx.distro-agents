@@ -105,7 +105,7 @@ rigRun "$rigTmp/d9" -- --intern-context-show --team-member 'bad/name'
 rigAssert "a missing value, a repeated option, a bad id, a stray argument, a missing and an unknown workspace, an origin without the tooling and one that is no spec, a bad member: each refused, rc 1, nothing printed" "$( for rigN in d1 d2 d3 d4 d5 d6 d7 d8 d9 ; do printf '%s' "$( [ ! -s "$rigTmp/$rigN.out" ] && [ -s "$rigTmp/$rigN.err" ] && printf y || printf n )" ; done ) $( rigHas 'takes a value' "$rigTmp/d1.err" ) $( rigHas 'is given twice' "$rigTmp/d2.err" ) $( rigHas 'takes only the common options' "$rigTmp/d4.err" ) $( rigHas 'is no place this machine knows' "$rigTmp/d6.err" ) $( rigHas 'holds no myx.distro-agents tooling' "$rigTmp/d7.err" )" "yyyyyyyyy 1 1 1 1 1"
 rigRun "$rigTmp/d11" -- --intern-context-show --tooling-origin .local
 rigRun "$rigTmp/d12" -- --member-help ''
-rigAssert "the spec .local of a workspace that holds no tooling is refused; an empty first argument is a positional somebody gave and is not replaced by the implied member" "$( rigHas 'holds no myx.distro-agents tooling' "$rigTmp/d11.err" ) $( rigHas 'syntax is <team-member>' "$rigTmp/d12.err" )" "1 1"
+rigAssert "the spec .local of a workspace that holds no tooling is refused; the old positional is retired (S21.3), so an empty first argument also gets the implied member ahead of it, one argument too many" "$( rigHas 'holds no myx.distro-agents tooling' "$rigTmp/d11.err" ) $( rigHas 'takes exactly one argument' "$rigTmp/d12.err" )" "1 1"
 rigRun "$rigTmp/d10" -- --intern-context-show --team-member user-rigacct --session-id s-1 stray --spawn-id late
 rigAssert "an option after the operation's own argument is not an option: the stray argument is what is refused" "$( rigHas 'takes only the common options, got: stray' "$rigTmp/d10.err" )" "1"
 
@@ -133,14 +133,14 @@ echo "-- 7. the member positional --"
 rigRun "$rigTmp/g1" -- --member-help magic-rig
 rigRun "$rigTmp/g2" -- --member-help --team-member magic-rig
 rigRun "$rigTmp/g3" MDAT_SPAWN_AGENT=magic-rig -- --member-help
-rigAssert "the old positional, the option and the implied member give the same help (it is written on stderr)" "$( rigSame "$rigTmp/g1.err" "$rigTmp/g2.err" ) $( rigSame "$rigTmp/g1.err" "$rigTmp/g3.err" ) $( rigHas '# Duty instructions' "$rigTmp/g1.err" )" "same same 1"
+rigAssert "the option and the implied member give the same help (it is written on stderr); the old positional is retired (S21.3), so a real first argument there is one argument too many" "$( rigSame "$rigTmp/g2.err" "$rigTmp/g3.err" ) $( rigHas '# Duty instructions' "$rigTmp/g2.err" ) $( rigHas 'takes exactly one argument' "$rigTmp/g1.err" )" "same 1 1"
 rigRun "$rigTmp/g5" -- --member-help --team-member keeper-third magic-rig
 rigAssert "the option fills the place of the positional: a second member after it is the operation's own argument, which this one refuses" "$( [ ! -s "$rigTmp/g5.out" ] && printf none ) $( rigHas 'takes exactly one argument' "$rigTmp/g5.err" )" "none 1"
 rigRun "$rigTmp/g6" -- --member-help
 rigAssert "at the console the implied member is user-<account>, the operation then says that member is none" "$( rigHas 'user-rigacct' "$rigTmp/g6.err" )" "1"
 rigRun "$rigTmp/h1" MDAT_SPAWN_AGENT=magic-rig -- --upsert-inbox-note keeper-third note-x.md
 rigRun "$rigTmp/h2" MDAT_SPAWN_AGENT=magic-rig -- --upsert-inbox-note --team-member keeper-third note-x.md
-rigAssert "a member session naming another member is refused as it is by position: the same line" "$( rigHas 'this session acts as magic-rig, so it cannot act as keeper-third' "$rigTmp/h1.err" ) $( rigHas 'this session acts as magic-rig, so it cannot act as keeper-third' "$rigTmp/h2.err" ) $( rigSame "$rigTmp/h1.err" "$rigTmp/h2.err" )" "1 1 same"
+rigAssert "the option still refuses a member session naming another member; the old positional is retired (S21.3), so its first word is the implied member's own operation argument, and the real one after it is unrecognized" "$( rigHas 'this session acts as magic-rig, so it cannot act as keeper-third' "$rigTmp/h2.err" ) $( rigHas 'unrecognized argument' "$rigTmp/h1.err" )" "1 1"
 rigRun "$rigTmp/h3" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --team-member keeper-third
 rigRun "$rigTmp/h4" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --team-member magic-rig
 rigAssert "an operation without a member positional: another member is refused, itself is restated" "$( rigHas 'this session acts as magic-rig, so it cannot act as keeper-third' "$rigTmp/h3.err" ) $( [ ! -s "$rigTmp/h3.out" ] && printf none ) $( rigLine team-member "$rigTmp/h4.out" )" "1 none magic-rig"

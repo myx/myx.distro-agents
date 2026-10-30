@@ -316,8 +316,12 @@ AgentsToolsSessionControlJudge(){
 			finished) ;;
 			## A settled death closes this way too (S21.4, spawn-ended-without-close): the state
 			## word reads failed, same as a run that died on its start, but a settled one is done
-			## with, not open. A genuine spawn-failed keeps the existing open behaviour below.
-			failed) [ "$rowStatus" = "spawn-ended-without-close" ] || controlOpen=$(( controlOpen + 1 )) ;;
+			## with, not open. A run that never started, spawn-failed, is done with the same way
+			## (load incident 2026-10-29: three control threads outlived their one spawn-failed
+			## run by 8 to 17 hours, never read as finished): the rest of the tooling already
+			## reads spawn-succeeded, spawn-failed and spawn-ended-without-close as the one settled
+			## group (AgentsTools.Registries.include:616,1033), and this is the one place that did not.
+			failed) case "$rowStatus" in spawn-ended-without-close|spawn-failed) ;; *) controlOpen=$(( controlOpen + 1 )) ;; esac ;;
 			unknown-foreign)
 				controlForeign=$(( controlForeign + 1 ))
 				case " $controlForeignHosts " in *" $rowHost "*) ;; *) controlForeignHosts="${controlForeignHosts:+$controlForeignHosts }$rowHost" ;; esac

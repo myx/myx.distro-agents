@@ -13,10 +13,11 @@
 ##   --tooling-origin <spec|absolute-path>            implied by MDLT_ORIGIN, resolved to an absolute path on input; the spec is `source` or `.local` of the workspace
 ## Each entry point of the tooling takes them at the head of its main function (AgentsToolsCommonRun); the operation never sees them.
 ##
-## THE MEMBER POSITIONAL IS RETIRED, NOT BROKEN. An operation whose help syntax says `<team-member>` (or `<member>`) first (the one list, the 📘 syntax index of
-## Help.DistroAgentsTools.help.md) gets the resolved team member in that place, so no operation body changes and its own checks (AgentsToolsActingMemberCheck,
-## AgentsToolsClientCallerCheck, the caller-check layer) see the very value they saw. The old positional stays a working shim: left out of the help, kept here.
-## The option takes the place of the positional.
+## THE MEMBER POSITIONAL IS RETIRED, FOR GOOD (S21.3, the owner's ruling). An operation whose help syntax says `<team-member>`
+## (or `<member>`) first (the one list, the 📘 syntax index of Help.DistroAgentsTools.help.md) gets the resolved team member
+## placed in that place always, from --team-member or the environment, so no operation body changes and its own checks
+## (AgentsToolsActingMemberCheck, AgentsToolsClientCallerCheck, the caller-check layer) see the very value they saw. A caller
+## still naming the member positionally gives the operation one argument too many, which that operation's own check refuses.
 ##
 ## WHAT A MEMBER SESSION MAY NOT DO. A spawned session acts as one member (AgentsToolsActingMember): for an operation that takes no member positional, a
 ## --team-member naming another is refused as AgentsToolsActingMemberCheck refuses it, and the console may name only its own default, user-<account>, never
@@ -234,19 +235,16 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 		fi
 	fi
 
-	## The member goes where the positional was; for an operation without one, a member session may only restate itself, and the console acts as the member named.
+	## THE OLD POSITIONAL IS RETIRED, FOR EVERY SERVED FRONT TOOL (S21.3, the owner's ruling): the member is always
+	## resolved here, from --team-member or the environment, and placed ahead of whatever real arguments remain.
+	## A caller still naming it positionally now gives the operation one argument too many, which that operation's
+	## own check refuses. `--print-required-scopes` is the operation's own declaration of the Slack scopes it
+	## needs, which no member is the subject of: no member is placed before it.
 	if AgentsToolsCommonMemberFirst "$runScript" "$runOp" ; then
 		runIsFirst=yes
 		runFirst="${runRest[0]:-}"
-		## The option fills the place of the positional; without it, a first argument that is no option is the old positional (the shim), and the implied member goes
-		## where there is none.
-		if [ -n "$runGivenMember" ] ; then
-			runRest=( "$runGivenMember" ${runRest[@]+"${runRest[@]}"} )
-			runInserted=yes
-		## Absent: no argument at all, or an option. An empty first argument is a positional somebody gave, and stays.
-		## `--print-required-scopes` is the operation's own declaration of the Slack scopes it needs, which no member is the subject of: no member is placed before it.
-		elif [ ${#runRest[@]} -eq 0 ] || { case "$runFirst" in --print-required-scopes) false ;; --*) true ;; *) false ;; esac ; } ; then
-			runMember="$( AgentsToolsTeamMember )"
+		if [ "$runFirst" != "--print-required-scopes" ] ; then
+			runMember="${runGivenMember:-$( AgentsToolsTeamMember )}"
 			if [ -z "$runMember" ] ; then
 				echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2
 				return 1

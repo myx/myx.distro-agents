@@ -165,6 +165,9 @@ case "$1" in
 		## emptiness is each spawn's own --intern-op-agent-spawn-proxy call to judge.
 		local spawnTaskText
 		spawnTaskText="$( cat )"
+		## No task on the standard input and a description given: the description is the task, whole. The records keep it as one
+		## bounded line (AgentsToolsTaskTextKept), so a spawn whose only words were a long description never loses their tail.
+		[ -n "${spawnTaskText//[[:space:]]/}" ] || [ -z "$sessionDescription" ] || spawnTaskText="$sessionDescription"
 
 		## Resolved once, so every member spawned from this one call carries the same
 		## routine file even if the tree changes mid-call -- a selector re-resolved

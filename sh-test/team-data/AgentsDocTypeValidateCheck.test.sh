@@ -215,7 +215,7 @@ done
 for rigShape in "$rigPackage/sh-lib/templates"/board-item.*.document.format.md ; do
 	LC_ALL=C grep -q -E '^owner: <[^>]*optional' "$rigShape" || rigShapes=$(( rigShapes + 1 ))
 done
-rigAssert "the owner is required in all 10 board contracts, and no board shape (9 exist) shows it optional" "$rigOwners:$rigShapes" "10:9"
+rigAssert "the owner is required in all 10 board contracts, and no board shape (10 exist) shows it optional" "$rigOwners:$rigShapes" "10:10"
 rigAssert "a contract is no longer 'not built yet'" "$( LC_ALL=C grep -l 'not built yet' "$rigTemplates"/*-item.*.contract.format.md | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0"
 
 echo "-- 9. a pure rule set --"

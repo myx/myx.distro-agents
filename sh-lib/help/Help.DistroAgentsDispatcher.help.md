@@ -44,6 +44,8 @@
 			for the caller where none is: the work-session dispatch every routine
 			runs under. The participants the executor is to invite, and what the
 			work likely needs, are checked and recorded, never started here.
+			The task is read from standard input. With no task there, the whole
+			`--description` is the task.
 
 		--shutdown-runs [--team-member <team-member>]
 			Ends the runs that are to end now, a line each for what was ended, and

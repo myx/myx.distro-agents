@@ -48,15 +48,21 @@ function wireField(fieldText,   fieldCopy) {
 }
 
 ## Overwrite, as `printf '%s' ... > file` did; closed so the next one truncates.
+## A file this round already put exactly these bytes in is left alone: the write
+## would change nothing any reader of it sees.
 function wireWrite(fileName, fileText) {
+	if ((fileName in wireHeld) && wireHeld[fileName] == fileText) return
+	wireHeld[fileName] = fileText
 	printf("%s", fileText) > (wireScratch "/" fileName)
 	close(wireScratch "/" fileName)
 }
 
 ## Append, as `printf '%s' ... >> file` did -- the file exists afterwards either way.
+## The handle stays open, so a fragment costs its own write and not an open and a
+## close around it; awk closes the file when this stream ends.
 function wireAppend(fileName, fileText) {
+	delete wireHeld[fileName]
 	printf("%s", fileText) >> (wireScratch "/" fileName)
-	close(wireScratch "/" fileName)
 }
 
 ## What `$( reader )` held: the value, every trailing newline gone.

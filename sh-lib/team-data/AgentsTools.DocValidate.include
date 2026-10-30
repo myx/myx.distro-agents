@@ -111,6 +111,18 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
 	local gateAfter gateKind gateContract gateAfterRows gateBeforeIds gateNew gateRule gateText gateDetail gateShown gateRefused=0 gateFault
 	gateAfter="$( cat )"
 	gateKind="$gateStore-item.$( AgentsToolsItemNameType "$gateName" )"
+	## AN AUDIT SESSION LOG IS NAMED BY ITS SESSION, NOT BY THE CONTRACT (sketch 9.1, S8): `session-<ts>-<member>-<sid8>.log`
+	## and its `-part<N>` rolls are checked against `audit-item.transcript`, and the two rules the log cannot carry -- the type
+	## word, which is `session` here, and the frontmatter block, which a roll has none of -- are not asked of it. Every other
+	## rule of the contract still is.
+	local gateLogSkip=""
+	case "$gateStore" in
+		audit)
+			case "$gateName" in
+				session-*.log) gateKind="audit-item.transcript" ; gateLogSkip="contract-type contract-frontmatter" ;;
+			esac
+		;;
+	esac
 	gateContract="$( AgentsToolsDocValidateContractFile "$gateKind" )" || gateContract=""
 	## The faults of the item as it would be: `<rule> TAB <text> TAB <value>`.
 	gateAfterRows=""
@@ -125,6 +137,9 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
 		fi
 	fi
 	[ -z "$gateContract" ] || gateAfterRows="$gateAfterRows$( printf '%s\n' "$gateAfter" | AgentsToolsDocValidateTypeRows "$gateContract" "$gateName" | LC_ALL=C cut -f 2- )"
+	if [ -n "$gateLogSkip" ] && [ -n "$gateAfterRows" ] ; then
+		gateAfterRows="$( printf '%s' "$gateAfterRows" | LC_ALL=C awk -v skip="$gateLogSkip" 'BEGIN { n = split( skip, s, " " ) ; for ( i = 1 ; i <= n ; i++ ) drop[s[i]]++ } !( $1 in drop )' )"
+	fi
 	## The faults the item has now, by rule and text.
 	gateBeforeIds=""
 	if [ -n "$gateContract" ] && [ -n "$gateBefore" ] && [ -f "$gateBefore" ] ; then

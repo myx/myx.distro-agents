@@ -394,6 +394,16 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   workspace's source tree a link reaches (see "Places", below).
 - **The harness `Skill` tool still serves a real folder** a user or vendor put in `~/.claude/skills`. A
   link there is ours and is skipped.
+- **The comms cache** is the machine's own copy of every channel a member reads, one folder a channel:
+  `$MMDAPP/.local/cache/comms/<service>/<channel id>/` (`AgentsTools.CommsCache.include`). The service is
+  the partition, then the whole id as one filename-safe name, the service first: `slack/slack-<channel>`,
+  `slack/slack-<channel>-<thread ts>`, and a direct conversation `slack-<user id>-<dm id>`, the user id
+  the reading account's. A read through a `client-*` account carries that account first.
+  `.state.txt` is the head line of the read and how it is pulled, rewritten whole by the puller;
+  `.pulling.txt` is the one-pull lock, made only where absent. The messages of a UTC month stand
+  in its `YYYYMM` folder, one a line in `messages.txt`; a long body is its own file, and a file a
+  message carried is fetched once, on demand. `.local/cache/comms/.interest/<service>-<id>` is the
+  channel's last read, and one older than a week is deleted. Each reader keeps its own floor.
 - **Primary sources and our indices** (in `.local/agents`):
   - hooks: `AgentsToolsClientToolPolicyHookRecords` (`AgentsTools.ClientToolPolicy.include`) →
     `harness.hooks.index`, valid while its version and the `cksum` of the policy and
@@ -3381,6 +3391,16 @@ Each instrument states what it proves and its red recipe in its own header. What
   given. The line is said once per wait, naming who it waits behind. The hand rule this replaces is `mkdir $MMDAPP/.local/temp/suite-run.lock`
   around a run, and it is kept on both sides. So a session still on the hand
   rule and a queued run never run at once.
+- **The retest queue is machine-wide too**, beside the suite queue at
+  `$HOME/.agents/magic-team/retest-queue` (`AgentsTools.MemberRetest.include`), shared by the live tree
+  and every scratch copy. A session that changed something asks for what to retest and goes on:
+  `--retest-queue` waits for no test. The tester takes everything that waits as one batch
+  (`--retest-drain`), each test once however many requests named it, and who asked reads the outcome by
+  its id (`--retest-result`). A request is `<field>: <value>` lines, put in place whole by one rename,
+  and it stands in `waiting/`, then `running/`, then `done/` for seven days. The rename into `running/`
+  is what makes it part of that batch and of no other. A changed test is covered by itself; of any other
+  file the tooling keeps the file, and the batch runs every test of the copy that has not passed in the
+  state it is in then. Nothing of the queue posts anywhere: the tester's session reports.
 - **A test is a session of its own.** `AgentsRunTests.sh` hands a test nothing of the session it was started in.
   Every `MDAT_SPAWN_*` and `MDAT_SESSION_*` variable and
   `MDAT_CONVERSATION_THREADS` are taken out, and its session id is

@@ -176,6 +176,26 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 "
 		done
 	done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
+	## THE TITLE AND THE TWO AUTORUN KEYS OF EVERY FILE IN ONE PASS: one call of awk and of the
+	## frontmatter reader for each file cost 38 ms a file, which is a second and a half on forty
+	## (sketch 14.5, the list's load time). Each file is still read whole, here and once.
+	local rowsFacts="" rowsFactsFile rowsFactsTitle rowsFactsAt rowsFactsAfter
+	rowsFacts="$( printf '%s' "$rowsFiles" | LC_ALL=C awk '
+		{
+			file = $0 ; title = "" ; at = "" ; after = "" ; inFront = 0
+			while (( getline line < file ) > 0) {
+				if (line == "---") { inFront = ( inFront ? 0 : 1 ) ; continue }
+				if (inFront) {
+					if (at == "" && index(line, "runs-at: ") == 1) at = substr(line, 10)
+					else if (after == "" && index(line, "runs-after: ") == 1) after = substr(line, 13)
+					continue
+				}
+				if (title == "" && index(line, "# ") == 1 && line != "# Summary") title = substr(line, 3)
+			}
+			close(file)
+			sub(/[ \t]+$/, "", title) ; sub(/[ \t]+$/, "", at) ; sub(/[ \t]+$/, "", after)
+			printf "%s\t%s\t%s\t%s\n", file, title, at, after
+		}' 2> /dev/null )" || rowsFacts=""
 	while IFS=$'\t' read -r rowsMember rowsDir ; do
 		[ -n "$rowsDir" ] || continue
 		for rowsFile in "$rowsDir"/*.routine.md ; do
@@ -183,12 +203,14 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 			rowsName="${rowsFile##*/}"
 			rowsStart="startable" ; rowsReason="" ; rowsExecutors="" ; rowsSession="" ; rowsNeeds=""
 			## The file's own title line, as the routine contract places it: the first `# `
-			## heading below the frontmatter block, where that is not `# Summary` already.
-			rowsTitle="$( LC_ALL=C awk '
-				NR == 1 && $0 == "---" { inFrontmatter = 1 ; next ; }
-				inFrontmatter { if ( $0 == "---" ) inFrontmatter = 0 ; next ; }
-				index( $0, "# " ) == 1 { if ( $0 != "# Summary" ) print substr( $0, 3 ) ; exit ; }
-			' "$rowsFile" 2> /dev/null )" || rowsTitle=""
+			## heading below the frontmatter block, where that is not `# Summary` already. Read
+			## above, with every other file's, in one pass.
+			rowsTitle="" ; rowsRunsAt="" ; rowsRunsAfter=""
+			while IFS=$'\t' read -r rowsFactsFile rowsFactsTitle rowsFactsAt rowsFactsAfter ; do
+				[ "$rowsFactsFile" = "$rowsFile" ] || continue
+				rowsTitle="$rowsFactsTitle" ; rowsRunsAt="$rowsFactsAt" ; rowsRunsAfter="$rowsFactsAfter"
+				break
+			done <<< "$rowsFacts"
 			## Asked in the spawner's own order, each of its own function: the contract the file
 			## must satisfy, the one file its name selects, the roster its executors name.
 			if ! rowsContract="$( AgentsToolsSpawnRoutineContractCheck "$rowsFile" 2>&1 )" ; then
@@ -261,8 +283,8 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 					rowsNeeds=""
 				;;
 			esac
-			## Stage two. The autorun it declares, as the schedule reads the two keys.
-			rowsRunsAt="$( AgentsToolsRoutineKeyOwn "$rowsFile" runs-at )" ; rowsRunsAfter="$( AgentsToolsRoutineKeyOwn "$rowsFile" runs-after )"
+			## Stage two. The autorun it declares, as the schedule reads the two keys, read
+			## above with its title.
 			rowsAuto="no"
 			case "$rowsRunsAt" in ''|none) ;; *) rowsAuto="yes" ;; esac
 			## Valid: the words of the first row of the validator that refuses (a row of a report- rule refuses nothing; its rule and its place stand ahead of them).

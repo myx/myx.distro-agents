@@ -47,7 +47,7 @@ rigAssert(){ ## what is asserted, got, want
 rigFront(){ ## file -- its first frontmatter block
 	LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 { print }' "$1"
 }
-rigFrontLine="$( LC_ALL=C grep -m 1 -E '^- Frontmatter:' "$rigContract" )"
+rigFrontLine="$( LC_ALL=C grep -m 1 -E '^- Frontmatter[^:]*:' "$rigContract" )"
 rigHas(){ ## text, fixed string -- yes or no
 	if printf '%s\n' "$1" | LC_ALL=C grep -q -F -- "$2" ; then printf 'yes' ; else printf 'no' ; fi
 }

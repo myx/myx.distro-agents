@@ -6,6 +6,7 @@
 ## Held:
 ##   1. a start with a dispatch item saves a scan to input/input-scan.md that names that dispatch item
 ##   2. the scan declared no tracking document: the definition names the scan alone
+##   3. a scan with no tracking document at all does not fail the call, and its result says what it could not read
 ## Offline: a fake curl first on PATH; every tree is this rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -85,6 +86,12 @@ rigAssert "control: the start made its dispatch item" "$( [ -n "$rigItemName" ] 
 rigAssert "input/input-scan.md is saved, and names the dispatch item the start made" "$( [ -f "$rigTmp/input-scan.seen" ] && echo saved || echo none ):$( LC_ALL=C grep -c -F -- "${rigItemName:-no-such-item}" "$rigTmp/input-scan.seen" 2> /dev/null | LC_ALL=C sed -e 's/^[1-9][0-9]*$/named/' )" "saved:named"
 echo "-- 2. the definition names the scan only --"
 rigAssert "no tracking document in it" "$( LC_ALL=C grep -c '^input-scan-def: routine-coworking-session$' "$rigSkills/magic-team/magic-team.rigscanned.routine.md" )" "1"
+echo "-- 3. no tracking document at all: the start still gets a scan --"
+rigNoDocOut="$( env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_FN="$rigTool" bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-routine-coworking-session-input-scan keeper-rig' 2>&1 )"
+rigNoDocRc=$?
+rigAssert "a scan with no document does not fail the call" "$rigNoDocRc" "0"
+rigAssert "and says what it could not read" "$( printf '%s\n' "$rigNoDocOut" | LC_ALL=C grep -c '^## no tracking document was named' )" "1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE COWORKING SCAN CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

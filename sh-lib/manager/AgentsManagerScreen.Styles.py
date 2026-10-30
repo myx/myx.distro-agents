@@ -162,10 +162,12 @@ def boxMarks(name):
 ## after its left. A mark that is empty is not drawn: what lies there stays. Without its
 ## `corner` its corner at the top right is not drawn either, and what lies there stays: its
 ## side starts on the line under, as Turbo Vision's shadow does. Nothing of it below the line
-## `last`, or past the column `columns`.
+## `last`, or past the column `columns`. A line under the box is drawn through the surface's
+## putShadow where it has one, so its blocks keep the ground of the cells they fall on.
 def drawSlimShadow(surface, box, last, columns, look, corner=True):
     left, top, width, height = box
     marks = styleMark("shadow")
+    shade = getattr(surface, "putShadow", surface.put)
     if left + width < columns:
         if corner:
             surface.put(top, left + width, marks[0], look)
@@ -174,9 +176,9 @@ def drawSlimShadow(surface, box, last, columns, look, corner=True):
     if top + height <= last:
         if marks[2]:
             surface.put(top + height, left, marks[2], look)
-        surface.put(top + height, left + 1, marks[3] * (width - 1), look)
+        shade(top + height, left + 1, marks[3] * (width - 1), look)
         if left + width < columns:
-            surface.put(top + height, left + width, marks[4], look)
+            shade(top + height, left + width, marks[4], look)
 
 
 ## A slim shadow of a box as Turbo Vision draws that of a raised button, with the style's

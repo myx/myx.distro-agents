@@ -74,6 +74,7 @@ AgentsToolsManagerFeatureRows(){ ## feature
 			if ( ++lines == 1 ) { first = value ; next }
 			values[key] = value
 			if ( key ~ /^part\..*\.part$/ ) { id = substr( key, 6, length( key ) - 10 ) ; ids[++count] = id }
+			if ( key ~ /^engine\.[a-z]+\.state$/ ) { detail = detail ( detail == "" ? "" : "; " ) substr( key, 1, length( key ) - 6 ) "=" value ; next }
 			if ( key ~ /^detail/ || key == "profile" || key == "platform" || key == "home" || key == "versions" || key == "model" || key == "why" || key == "query" || key == "host.profile" || key == "host.os" ) { detail = detail ( detail == "" ? "" : "; " ) key "=" value }
 		}
 		END {
@@ -89,7 +90,7 @@ AgentsToolsManagerFeatureRows(){ ## feature
 				printf "feature\t%s\t-\t%s\t%s\t%s\t%s\t-\t-\t-\t%s\n", feature, state, disk, memory, running, field( detail )
 				for ( n = 1 ; n <= count ; n++ ) {
 					id = ids[n] ; pstate = norm( values["part." id ".state"] )
-					pdetail = "part=" values["part." id ".part"] ( ( "part." id ".why" ) in values ? "; why=" values["part." id ".why"] : "" )
+					pdetail = "part=" values["part." id ".part"] ( ( "part." id ".why" ) in values ? "; why=" values["part." id ".why"] : "" ) ( values["engine." values["part." id ".part"] ".state"] == "" ? "" : "; engine=" values["engine." values["part." id ".part"] ".state"] )
 					printf "part\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", feature, id, pstate, values["part." id ".disk_bytes"], values["part." id ".memory_bytes"], values["part." id ".running"], commands( pstate, id ), field( pdetail )
 				}
 			} else {

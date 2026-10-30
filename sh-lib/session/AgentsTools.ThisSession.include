@@ -92,7 +92,7 @@ AgentsToolsThisSessionPost(){ ## the send's arguments after its target
 		echo "$MDSC_CMD: ⛔ ERROR: --post-session-channel: syntax is [--address-to <team-member>]... (<text...>|--from-stdin), and the post is to the session thread alone" >&2
 		return 1
 	fi
-	DistroAgentsTools --slack-send-message "$thisSessionMember" session-current "$@"
+	DistroAgentsTools --slack-send-message --team-member "$thisSessionMember" session-current "$@"
 }
 
 ## --get-session-thread [--own]: the messages of the session thread, read from the session chat file, in the order of the file. --own: the
@@ -150,7 +150,7 @@ AgentsToolsThisSessionWait(){ ## the operation's arguments
 	AgentsToolsThisSessionNeedMember --wait-session-channel || return 1
 	AgentsToolsThisSessionNeedSession --wait-session-channel || return 1
 	AgentsToolsThisSessionNeedThread --wait-session-channel || return 1
-	local waitArgs=( "$thisSessionMember" --wait-source "chat:$thisSessionKey" )
+	local waitArgs=( --team-member "$thisSessionMember" --wait-source "chat:$thisSessionKey" )
 	[ -z "$waitBound" ] || waitArgs+=( --wait-timeout "$waitBound" )
 	MDAT_WAIT_CHAT_FILTER="${waitFilter# }" DistroAgentsTools --wait-for-input "${waitArgs[@]}"
 }
@@ -726,7 +726,7 @@ AgentsToolsThisSessionChapterSet(){ ## --session-id <id> <text>
 	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 	chapterBy="$( AgentsToolsRunRouteMember "$chapterSession" )" || chapterBy=""
 	if [ -n "$chapterThread" ] && [ -n "$chapterBy" ] ; then
-		DistroAgentsTools --slack-send-message "$chapterBy" "$chapterThread" "📖 Session chapter: $chapterText" > /dev/null 2>&1 || :
+		DistroAgentsTools --slack-send-message --team-member "$chapterBy" "$chapterThread" "📖 Session chapter: $chapterText" > /dev/null 2>&1 || :
 	fi
 	printf 'OK: --set-session-chapter: session %s does now: %s\n' "$chapterSession" "$chapterText"
 }

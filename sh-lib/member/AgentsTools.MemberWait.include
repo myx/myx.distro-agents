@@ -198,6 +198,10 @@ agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1 ask:1 replies:1 chat:1 scan:
 ## caller names an interval (--wait-poll-interval, else MDAT_WAIT_POLL_SECONDS) keeps that one interval for
 ## every source, as it always did: that is how a check drives it.
 agentsWaitKindLocal="file inbox board process chat replies wake"
+## The same local kinds, minus chat and replies (S21.15): those two still make a real Slack network call on their own
+## TTL, so a probe past the caller's deadline needs the bound wrapper exactly as a true network kind does. Used only
+## by the bound-wrapper exemption below; the backoff-skip exemption above keeps agentsWaitKindLocal unchanged.
+agentsWaitKindUnbounded="file inbox board process wake"
 ## The seconds of the tick, when no interval was named: an arrival in a local source is woken on within it.
 agentsWaitTickSeconds=3
 ## Kinds whose rendering holds arrivals only, never a standing state, so a source of one with no
@@ -612,8 +616,11 @@ AgentsWaitProbeFile(){
 		*)  return 2 ;;
 	esac
 	if [ -d "$probeTarget" ] ; then
-		( cd "$probeTarget" && ls -1 ) > "$probeOut" 2>/dev/null || probeRc=$?
+		local probeListing=""
+		probeListing="$( cd "$probeTarget" && ls -1 )" 2>/dev/null || probeRc=$?
 		[ "$probeRc" = "0" ] || return 2
+		## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+		AgentsWaitPut "$probeOut" "${probeListing:+$probeListing$'\n'}" || return 2
 		return 0
 	fi
 	if [ -f "$probeTarget" ] ; then
@@ -621,11 +628,10 @@ AgentsWaitProbeFile(){
 		## tick per source is the load the tick must not be.
 		local probeBody=""
 		IFS= read -r -d '' probeBody < "$probeTarget" || :
-		printf '%s' "$probeBody" > "$probeOut" 2>/dev/null || probeRc=$?
-		[ "$probeRc" = "0" ] || return 2
+		AgentsWaitPut "$probeOut" "$probeBody" || return 2
 		return 0
 	fi
-	: > "$probeOut" || return 2
+	AgentsWaitClear "$probeOut" || return 2
 	return 0
 }
 
@@ -659,13 +665,16 @@ AgentsWaitProbeProcess(){
 			case "$probeErrCap" in ''|*[!0-9]*) probeErrCap=0 ;; esac
 		fi
 	fi
-	{
+	local probeRendered=""
+	probeRendered="$( {
 		if [ -f "$probeDir/$probeTarget.closed" ] ; then
 			printf 'State: CLOSED\n'
-		elif [ -n "$probePid" ] && kill -0 "$probePid" 2>/dev/null ; then
-			printf 'State: RUNNING\n'
+		## A finished process is read from its own status before its pid is asked: the number may since have been given to another
+		## process, and a handle that ended would then be reported RUNNING for as long as that one lived.
 		elif [ -f "$probeDir/$probeTarget.status" ] ; then
 			printf 'State: FINISHED, exit status %s\n' "$( cat "$probeDir/$probeTarget.status" 2>/dev/null )"
+		elif [ -n "$probePid" ] && kill -0 "$probePid" 2>/dev/null ; then
+			printf 'State: RUNNING\n'
 		else
 			printf 'State: UNKNOWN\n'
 		fi
@@ -676,7 +685,9 @@ AgentsWaitProbeProcess(){
 			LC_ALL=C awk '{ print ">" $0 }' "$probeDir/$probeTarget.out" 2>/dev/null
 			LC_ALL=C awk '{ print "!" $0 }' "$probeDir/$probeTarget.err" 2>/dev/null
 		fi
-	} > "$probeOut" 2>/dev/null || return 2
+	} 2> /dev/null )" || return 2
+	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+	AgentsWaitPut "$probeOut" "${probeRendered:+$probeRendered$'\n'}" || return 2
 	return 0
 }
 
@@ -1022,7 +1033,7 @@ AgentsWaitRepliesLook(){ ## member, now (epoch), the post's line, the rendering 
 AgentsWaitRepliesLookRead(){ ## the same arguments
 	local lookMember="$1" lookNow="$2" lookOut="$4" lookFile="$4.post.$5" lookRc=0
 	local lookWhere lookTs lookAddr lookThreadFloor lookChanFloor lookSibs lookReact lookChecked lookRest
-	local lookChannel lookThread lookActivity lookQuiet lookFrom lookDeliver=1 lookChannelCovered="" lookFound="" lookSide lookNew
+	local lookChannel lookThread lookActivity lookQuiet lookTtlQuiet lookFrom lookDeliver=1 lookChannelCovered="" lookFound="" lookSide lookNew
 	local lookNewThreadFloor lookNewChanFloor lookNewSibs lookNewReact lookReactions lookSignature lookMentionsOnly
 	read -r lookWhere lookTs lookAddr lookThreadFloor lookChanFloor lookSibs lookReact lookChecked lookRest <<< "$3"
 	lookAddr="${lookAddr:--}" ; lookThreadFloor="${lookThreadFloor:--}" ; lookChanFloor="${lookChanFloor:--}"
@@ -1045,7 +1056,10 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 	[ "$lookQuiet" -ge 0 ] || lookQuiet=0
 	## A post quiet for an hour is no longer read: each read is a Slack request, and one round must stay short.
 	[ "$lookQuiet" -lt "${agentsWaitRepliesQuietMax:-3600}" ] || return 1
-	[ $(( lookNow - lookChecked )) -ge $(( 5 + lookQuiet / 20 )) ] || return 1
+	## Backing off linearly to a ceiling of 100 (20 times the base) once quiet reaches 1000 (200 times the base), never past it
+	## (S21.2): a run quiet for a long time still watches its own posts, rather than drifting toward an unbounded wait.
+	lookTtlQuiet="$lookQuiet" ; [ "$lookTtlQuiet" -le 1000 ] || lookTtlQuiet=1000
+	[ $(( lookNow - lookChecked )) -ge $(( 5 + ( 95 * lookTtlQuiet ) / 1000 )) ] || return 1
 	## What the other sources of this wait read, found once for the call and the first post that needs it.
 	[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$lookMember" $agentsWaitCoverSources )"
 	## A post in a thread another source reads is not read from Slack again.
@@ -1274,7 +1288,8 @@ AgentsWaitSourceModeApply(){ ## member, source, form, in, out
 ##   - the session thread, read into the chat file (AgentsWaitChatTopUp) when no other source of the wait reads it: after 5, and 1
 ##     more for every 20 it has been quiet, from its newest message in the file, to 300 at most, so it is looked at ever more
 ##     rarely and stays watched;
-##   - the replies to the run's own posts, a post at a time (AgentsWaitRepliesLookRead): 5, and 1 more for every 20 quiet, no cap;
+##   - the replies to the run's own posts, a post at a time (AgentsWaitRepliesLookRead): 5, backing off linearly to a ceiling of
+##     100 (20 times the base) once quiet reaches 1000 (200 times the base), never past it (S21.2);
 ##   - the tags and mentions, and with them the team channel and the DMs they read (AgentsWaitProbeTagged): 15;
 ##   - a scan (AgentsWaitProbeScan): 300, how long an unchanged scan is left to stand. It is no floor on noticing a
 ##     message: a wake marker runs the scan at once (THE SCAN IS WOKEN AND NOT ON ITS TTL).
@@ -1462,7 +1477,7 @@ AgentsWaitScanCommit(){ ## member, scan, the file holding the report's sum
 agentsWaitDmsRosterSeconds=300
 AgentsWaitProbeDms(){
 	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probePointer="" probeRoster="" probeRosterFile="" probeLine probeConv probeKind probeIdentity probeParty probeIdentArg
-	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0
+	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0 probeText=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
 	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
@@ -1477,13 +1492,13 @@ AgentsWaitProbeDms(){
 	probeNow="$( date +%s )"
 	case "$probeMember" in
 		client-*)
-			: > "$probeOut" || return 2
+			probeText=""
 			rm -f "$probeOut.newest"
 			probeClientConvs="$( DistroAgentsTools --agents-config-option "$probeMember" --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || probeClientConvs=""
 			for probeClientConv in ${probeClientConvs//,/ } ; do
 				probeParts=$(( probeParts + 1 ))
 				if AgentsWaitReadRendered "$probeMember" "client:$probeClientConv" conversation "$probePointer" "$probeOut.client" ; then
-					AgentsWaitTaggedPart "$probeMember" "client:$probeClientConv" "" "$probePointer" "$probeOut.client" "$probeOut" || probeFailed=$(( probeFailed + 1 ))
+					probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "client:$probeClientConv" "" "$probePointer" "$probeOut.client" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
 				else
 					probeFailed=$(( probeFailed + 1 ))
 				fi
@@ -1524,9 +1539,9 @@ AgentsWaitProbeDms(){
 					probeQuickOut="${#probeQuickOut}:${probeQuickOut: -120}"
 					probeQuickKey="$probeQuickKey/$probeConv=${probeQuickOut//[[:space:]]/_}"
 				done <<< "$probeRoster"
-				[ -z "$probeQuickKey" ] || case " ${agentsWaitConvSeen:-} " in *" $probeQuickKey "*) return 0 ;; esac
+				[ -z "$probeQuickKey" ] || case " ${agentsWaitConvSeen:-} " in *" $probeQuickKey "*) AgentsWaitPut "$probeOut" "$probeText" || return 2 ; return 0 ;; esac
 			fi
-			: > "$probeOut" || return 2
+			probeText=""
 			rm -f "$probeOut.newest"
 			probeParts=$(( probeParts + 1 ))
 			if [ -n "$probeRoster" ] || [ "$probeRosterRc" = 0 ] ; then
@@ -1547,7 +1562,7 @@ AgentsWaitProbeDms(){
 					case " $probeSeenConvs " in *" $probeConv "*) continue ;; esac
 					probeSeenConvs="$probeSeenConvs $probeConv"
 					if MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probePointer" "$probeOut.dm" ; then
-						AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeParty" "$probePointer" "$probeOut.dm" "$probeOut" || probeFailed=$(( probeFailed + 1 ))
+						probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeParty" "$probePointer" "$probeOut.dm" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
 					else
 						probeFailed=$(( probeFailed + 1 ))
 					fi
@@ -1557,9 +1572,14 @@ AgentsWaitProbeDms(){
 			fi
 		;;
 	esac
+	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+	AgentsWaitPut "$probeOut" "$probeText" || return 2
 	AgentsWaitOwnFile "$probeOut" || return 2
 	[ "$probeParts" -eq 0 ] || [ "$probeFailed" -lt "$probeParts" ] || return 2
-	LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" > "$probeOut.newest" 2> /dev/null || :
+	local probeNewestText=""
+	probeNewestText="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" 2> /dev/null )" || probeNewestText=""
+	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+	AgentsWaitPut "$probeOut.newest" "${probeNewestText:+$probeNewestText$'\n'}" || :
 	[ -z "${probeQuickKey:-}" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeQuickKey"
 	return 0
 }
@@ -1587,7 +1607,7 @@ AgentsWaitDmsCommit(){ ## member, the file holding the newest ts
 ## that is an error said on stderr and in the Wait header (WAIT-SOURCE-ERROR, rc 4), never an empty result, and no source never read. Each mention stands
 ## behind a `# in <conversation>` line, so the seen reaction finds its conversation (AgentsWaitSeenIds).
 AgentsWaitProbeMentions(){
-	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probeNow probeChecked="" probeTtl probePointer="" probeId probeQuery probeAfter probeJson probeRc=1 probeAs probeErr="" probeStored="" probeKept="" probeNewest=""
+	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probeNow probeChecked="" probeTtl probePointer="" probeId probeQuery probeAfter probeJson probeRc=1 probeAs probeErr="" probeStored="" probeKept="" probeNewest="" probeFound=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
 	## A quiet round writes no file: the result and its newest are put only where their content changed (AgentsWaitPut).
 	AgentsWaitEmpty "$probeOut" || return 2
@@ -1643,8 +1663,10 @@ AgentsWaitProbeMentions(){
 			--form "query=$probeQuery${probeAfter:+ after:$probeAfter}" --form sort=timestamp --form sort_dir=desc --form count=100 \
 			--context "wait: the mentions of $probeMember" 2> "$probeOut.err" )" || probeRc=$?
 		if [ "$probeRc" = 0 ] ; then
-			printf '%s\n' "$probeJson" | LC_ALL=C awk -v cutoff="$probePointer" -v channelMark=1 \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" > "$probeOut.found" 2>> "$probeOut.err" || probeRc=$?
+			probeFound="$( printf '%s\n' "$probeJson" | LC_ALL=C awk -v cutoff="$probePointer" -v channelMark=1 \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" 2>> "$probeOut.err" )" || probeRc=$?
+			## Kept only where it differs (AgentsWaitPut): a search that found the same messages again leaves the file alone.
+			[ "$probeRc" != 0 ] || AgentsWaitPut "$probeOut.found" "$probeFound"
 			case "$probeRc" in 0|3) break ;; esac
 		fi
 		probeErr="$probeErr${probeErr:+; }$probeAs: $( LC_ALL=C grep -m 1 -o -E 'missing_scope|not_allowed_token_type|invalid_auth|not_authed|no (SLACK_USER_TOKEN|user token)[^.]*' "$probeOut.err" 2> /dev/null || printf 'the search was refused' )"
@@ -1712,9 +1734,8 @@ AgentsWaitMentionsCommit(){ ## member, the file holding the newest ts
 ## returned for knowledge only, its rows marked FYI, which no duty takes as an item (AgentsWaitTaggedPart,
 ## AgentsToolsInputScanReportEmpty in AgentsTools.InputScanDef.include).
 AgentsWaitProbeTagged(){
-	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeParts=0 probeFailed=0 probeThread probeSession probeRoster probeLine probeConv probeKind probeIdentity probeParty probeIdentArg probeSeenConvs="" probeFyi=""
+	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeParts=0 probeFailed=0 probeThread probeSession probeRoster probeLine probeConv probeKind probeIdentity probeParty probeIdentArg probeSeenConvs="" probeFyi="" probeText=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
-	: > "$probeOut" || return 2
 	type AgentsToolsSessionChatThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
 	## The team channel: a message that mentions the member. Where another source of this wait reads the team channel, it shows the
 	## message among the rest, once: this source then says only that it is tagged there, which is what ends a collect.
@@ -1725,7 +1746,7 @@ AgentsWaitProbeTagged(){
 	case " $agentsWaitCovered " in *" $probeTeamChannel "*) [ -z "$probeTeamChannel" ] || probeShown=1 ;; esac
 	probeParts=$(( probeParts + 1 ))
 	if AgentsWaitReadRendered "$probeMember" magic-team conversation "$probeFloor" "$probeOut.team" ; then
-		AgentsWaitTaggedPart "$probeMember" "magic-team" mentions "$probeFloor" "$probeOut.team" "$probeOut" "$probeShown" || probeFailed=$(( probeFailed + 1 ))
+		probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "magic-team" mentions "$probeFloor" "$probeOut.team" "$probeOut" "$probeShown" )" || probeFailed=$(( probeFailed + 1 ))
 	else
 		probeFailed=$(( probeFailed + 1 ))
 	fi
@@ -1741,7 +1762,7 @@ AgentsWaitProbeTagged(){
 			probeFyi=""
 			type AgentsToolsSessionMemberPresent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 			AgentsToolsSessionMemberPresent "$probeSession" "$probeMember" 2> /dev/null && probeFyi="the session chat thread of $probeMember's instance"
-			AgentsWaitTaggedPart "$probeMember" "$probeThread" mentions "$probeFloor" "$probeOut.session" "$probeOut" "" "$probeFyi" || probeFailed=$(( probeFailed + 1 ))
+			probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeThread" mentions "$probeFloor" "$probeOut.session" "$probeOut" "" "$probeFyi" )" || probeFailed=$(( probeFailed + 1 ))
 		else
 			probeFailed=$(( probeFailed + 1 ))
 		fi
@@ -1769,7 +1790,7 @@ AgentsWaitProbeTagged(){
 			case " $probeSeenConvs " in *" $probeConv "*) continue ;; esac
 			probeSeenConvs="$probeSeenConvs $probeConv"
 			if MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probeFloor" "$probeOut.dm" ; then
-				AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeParty" "$probeFloor" "$probeOut.dm" "$probeOut" || probeFailed=$(( probeFailed + 1 ))
+				probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeParty" "$probeFloor" "$probeOut.dm" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
 			else
 				probeFailed=$(( probeFailed + 1 ))
 			fi
@@ -1783,27 +1804,32 @@ AgentsWaitProbeTagged(){
 	for probeClientConv in ${probeClientConvs//,/ } ; do
 		probeParts=$(( probeParts + 1 ))
 		if AgentsWaitReadRendered "$probeMember" "client:$probeClientConv" conversation "$probeFloor" "$probeOut.client" ; then
-			AgentsWaitTaggedPart "$probeMember" "client:$probeClientConv" "" "$probeFloor" "$probeOut.client" "$probeOut" || probeFailed=$(( probeFailed + 1 ))
+			probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "client:$probeClientConv" "" "$probeFloor" "$probeOut.client" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
 		else
 			probeFailed=$(( probeFailed + 1 ))
 		fi
 	done
+	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+	AgentsWaitPut "$probeOut" "$probeText" || return 2
 	AgentsWaitOwnFile "$probeOut" || return 2
 	[ "$probeFailed" -lt "$probeParts" ] || return 2
 	return 0
 }
-## One part of the tags: the lines of a rendering that are for the member, after the floor, appended to the rendering behind a
-## `# in <where>` line. <what> is `mentions` (the messages that mention the member) or the Slack account of the other party of a DM.
+## One part of the tags: the lines of a rendering that are for the member, after the floor, PRINTED for the caller to
+## gather into its rendering behind a `# in <where>` line. <what> is `mentions` (the messages that mention the member) or the Slack account of the other party of a DM.
 ## With a seventh word of 1 the messages are shown elsewhere, and only the fact is said here. An eighth word is the FYI note of a
 ## part that is for the member's knowledge only -- a session thread where its own instance is present: each row of it carries
 ## `[fyi: <note>]` in its head line, right after the sender, and a `# fyi: <note> -- for your knowledge, not yours to answer` line
 ## stands before the part. That mark is what a reader of the rows (AgentsToolsInputScanReportEmpty) tells a message of no work by.
 AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags rendering, [shown elsewhere], [the FYI note]
-	local partOut="$6.part"
-	LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsToolsSessionChatMemberId "$1" )" -v addressees="$( [ "$3" = mentions ] || printf '%s' "$3" )" \
-		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( [ "$3" = mentions ] && printf 1 || printf 0 )" -v side="$partOut.side" \
+	local partOut="$6.part" partText=""
+	partText="$( LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsToolsSessionChatMemberId "$1" )" -v addressees="$( [ "$3" = mentions ] || printf '%s' "$3" )" \
+		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( [ "$3" = mentions ] && printf 1 || printf 0 )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
-		< "$5" > "$partOut" 2> /dev/null || return 1
+		< "$5" 2> /dev/null )" || return 1
+	## The part is written only where it differs (AgentsWaitPut): a probe that found the same messages again leaves the file, and the watch on
+	## it, alone.
+	AgentsWaitPut "$partOut" "$partText"
 	AgentsWaitOwnFile "$partOut" || return 1
 	if [ -s "$partOut" ] && [ -n "${8:-}" ] ; then
 		LC_ALL=C awk -v mark="[fyi: ${8}]" '
@@ -1812,14 +1838,14 @@ AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags r
 	fi
 	if [ -s "$partOut" ] ; then
 		if [ -n "${8:-}" ] ; then
-			printf '# fyi: %s -- for your knowledge, not yours to answer\n' "${8}" >> "$6" || return 1
+			printf '# fyi: %s -- for your knowledge, not yours to answer\n' "${8}" || return 1
 		fi
 		if [ "${7:-0}" = "1" ] ; then
 			## Shown by the source that reads the conversation. The ts of the newest is kept, for the pointer, as a head line would be.
-			printf '# in %s: tagged there, and shown among its messages under the source that reads it\n' "$2" >> "$6" || return 1
-			LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { if ( ts != "" ) { print ts " | tagged | (see the source that reads this conversation)" ; } }' "$partOut" >> "$6" || return 1
+			printf '# in %s: tagged there, and shown among its messages under the source that reads it\n' "$2" || return 1
+			LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { if ( ts != "" ) { print ts " | tagged | (see the source that reads this conversation)" ; } }' "$partOut" || return 1
 		else
-			{ printf '# in %s\n' "$2" ; cat "$partOut" ; } >> "$6" || return 1
+			{ printf '# in %s\n' "$2" ; cat "$partOut" ; } || return 1
 		fi
 	fi
 	return 0
@@ -3272,7 +3298,9 @@ case "$1" in
 				## this wait ending on it, never silently past the bound it was given. A local probe never stalls on the
 				## network, so it keeps running here, unwrapped, as it always did.
 				roundProbeTimeout=""
-				case " $agentsWaitKindLocal " in
+				## chat and replies are excluded here (S21.15, agentsWaitKindUnbounded above): each makes a real Slack
+				## call on its own TTL and must not be exempt from the bound wrapper the way a genuinely local kind is.
+				case " $agentsWaitKindUnbounded " in
 					*" $roundKind "*) ;;
 					*) [ -z "$waitDeadline" ] || roundProbeTimeout=$(( waitDeadline - roundNow )) ;;
 				esac

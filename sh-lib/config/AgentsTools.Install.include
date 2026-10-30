@@ -292,6 +292,26 @@ AgentsToolsInstallRigOwnSkillset(){ ## resolved link target, the member or rules
 	[ "$rigOwnMode" = "team-rig" ]
 }
 
+## Whether a path lies inside one of the machine's registered workspace places (S14.2). A rig holds its main workspace
+## and extra ones (sketch 15.3), and the places registry is the list of them: on a rig a link into any registered
+## workspace place is the rig's own, so it is neither foreign nor warned about. A rig that registers no extra
+## workspace behaves as it did; off a rig this is always false.
+AgentsToolsInstallRigWorkspacePlace(){ ## path
+	local placePath="${1%/}" placeMode="" placeFile placeName placeKind placeCeiling placeRoot placeDeclared
+	[ -n "$placePath" ] || return 1
+	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	read -r placeMode _ <<< "$( AgentsToolsWorkspaceMode )" || return 1
+	[ "$placeMode" = "team-rig" ] || return 1
+	placeFile="${MMDAPP%/}/.local/agents/directories.registry"
+	[ -f "$placeFile" ] || return 1
+	while IFS=$'\t' read -r placeName placeKind placeCeiling placeRoot placeDeclared ; do
+		[ "$placeKind" = "workspace" ] || continue
+		[ -n "$placeRoot" ] || continue
+		case "$placePath/" in "${placeRoot%/}/"*) return 0 ;; esac
+	done < "$placeFile"
+	return 1
+}
+
 ## The DeepSeek Harness home patch (F4.2): one `- insert:` row in $HOME/.dsh/cordis.patch.yml,
 ## the file DSH applies over every profile, so every chat of this workspace reaches the
 ## myx-distro server with no preset chosen and no default. A machine with no DSH home is not
@@ -1131,6 +1151,9 @@ case "$1" in
 												"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regBundled#$workspace/source/}" ;;
 												"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regBundled#$originRoot/}" ;;
 												*)
+													if AgentsToolsInstallRigWorkspacePlace "$regBundled" ; then
+														continue
+													fi
 													echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: $regName is bundled here and identical at $regResolved, but $regBundled resolves outside this workspace and its origin -- not registered" >&2
 													continue
 												;;
@@ -1172,6 +1195,9 @@ case "$1" in
 											continue
 										;;
 									esac
+									if AgentsToolsInstallRigWorkspacePlace "$regResolved" ; then
+										continue
+									fi
 									echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
 									continue
 								;;

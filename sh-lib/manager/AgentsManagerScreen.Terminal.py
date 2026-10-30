@@ -202,6 +202,11 @@ class CursesSurface:
     ## A look of LINED_LOOKS is underlined besides, in each, where the terminal has underline.
     def looksOf(self):
         flags = {"B": curses.A_BOLD, "R": curses.A_REVERSE, "D": curses.A_DIM}
+        ## The pair of colours each look is made of, by set, and the composer that makes one: kept
+        ## so that a shadow's block can stand over the ground of the cell it falls on (shadowOver).
+        self.pairOf = None
+        self.lookColours = {}
+        self.shaded = {}
         try:
             underline = curses.A_UNDERLINE if curses.termattrs() & curses.A_UNDERLINE else 0
         except (curses.error, AttributeError):
@@ -229,18 +234,24 @@ class CursesSurface:
             def named(name):
                 return getattr(curses, "COLOR_" + name.upper())
             coloured = {None: [pairOf(named(text), named(ground), bright) | lined(number) for number, (letter, mono, text, ground, bright) in enumerate(LOOKS)]}
+            colours = {None: [(named(text), named(ground)) for (letter, mono, text, ground, bright) in LOOKS]}
         except (curses.error, AttributeError):
             return plain, None
         fine = curses.COLORS >= 256
         for name, own in STYLE_LOOKS.items():
             try:
                 looks = []
+                setColours = []
                 for number, (letter, mono, text, ground, bright) in enumerate(LOOKS):
                     text, ground, bright, fineText, fineGround, bold = own.get(number, (text, ground, bright, None, None, False))
                     looks.append((pairOf(fineText, fineGround, bold) if fine and fineText is not None else pairOf(named(text), named(ground), bright)) | lined(number))
+                    setColours.append((fineText, fineGround) if fine and fineText is not None else (named(text), named(ground)))
                 coloured[name] = looks
+                colours[name] = setColours
             except (curses.error, AttributeError):
                 pass
+        self.lookColours = colours
+        self.pairOf = pairOf
         return plain, coloured
 
     def size(self):
@@ -253,6 +264,55 @@ class CursesSurface:
         named = STYLE.get("looks")
         coloured = self.coloured.get(named) if (STYLE["colours"] or named) and self.coloured is not None else None
         return coloured if coloured is not None else self.plain
+
+    ## What look the cell holds now: the one of the last thing put over it in this frame, as the
+    ## frame drew it, or None where nothing was put there. Read from this frame's own puts.
+    def cellLook(self, line, column):
+        held = None
+        for at, text, look in self.puts.get(line, ()):
+            if at <= column < at + self.handedOf(text)[3]:
+                held = look
+        return held
+
+    ## The look of a shadow's block over the cell it falls on: the shadow's own colour in the
+    ## block, and the ground of that cell kept under it (sketch 14.3, "consider background colour
+    ## of underlying cell when do blocks shadows"). One pair is made for each pair of looks and
+    ## kept while this frame's colours stand. The shadow's own look where the terminal has no
+    ## colours, where the cell holds none, or where the pair cannot be made.
+    def shadowOver(self, shadowLook, line, column):
+        under = self.cellLook(line, column)
+        shown = self.looks()
+        if under is None or self.pairOf is None or shown is self.plain:
+            return shadowLook
+        key = (STYLE.get("value"), shadowLook, under)
+        placed = self.shaded.get(key)
+        if placed is not None:
+            return placed
+        self.shaded[key] = shadowLook
+        try:
+            colours = self.lookColours[STYLE.get("looks")]
+            attribute = self.pairOf(colours[shadowLook][0], colours[under][1], False) | self.plain[shadowLook]
+        except (KeyError, IndexError, TypeError, curses.error, AttributeError):
+            return shadowLook
+        shown.append(attribute)
+        self.shaded[key] = len(shown) - 1
+        return self.shaded[key]
+
+    ## A shadow's mark over the cells it falls on, one run of puts for each look it lands on:
+    ## a block keeps the ground of the cell under it, and a space takes the shadow's own ground.
+    def putShadow(self, line, column, text, look):
+        start, run, runLook = 0, "", None
+        for cluster, cells in textCells(text):
+            cellLook = self.shadowOver(look, line, column + start)
+            if run and cellLook == runLook:
+                run += cluster
+            else:
+                if run:
+                    self.put(line, column + start - textWidth(run), run, runLook)
+                run, runLook = cluster, cellLook
+            start += cells
+        if run:
+            self.put(line, column + start - textWidth(run), run, runLook)
 
     def clear(self):
         self.apart, self.puts, self.wide = {}, {}, {}

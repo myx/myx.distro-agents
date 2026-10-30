@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # board-item.investigation — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. No document template exists yet. Read by the document validator, `--intern-doc-validate board-item.investigation <file>`.
+Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/board-item.investigation.document.format.md`, filled by the board writer from the member's slots. Read by the document validator, `--intern-doc-validate board-item.investigation <file>`.
 
 ## Contents
 

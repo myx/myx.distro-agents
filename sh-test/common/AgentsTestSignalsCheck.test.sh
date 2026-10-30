@@ -9,7 +9,7 @@
 ##      signalled. A pid it never noted is not. A NOTED PID WHOSE PROCESS IS GONE AND WHOSE NUMBER ANOTHER PROCESS
 ##      HAS TAKEN IS NOT SIGNALLED: the note says when its process began, the process that has the number now began
 ##      at another time, and it lives on, by a plain signal, with its children, from a note kept in a file, and as
-##      a group. A process is signalled with what it started. A process group is signalled only while a process
+##      a group, and with what that started too, not only its direct child. A process group is signalled only while a process
 ##      this check noted is still itself and a member of it: by its leader, by a member noted earlier once the
 ##      leader is gone, never where none of its members was noted, never the group this check itself runs in. A
 ##      stand-in notes itself into a file, and a watchdog in a subshell has the notes of the shell that started it.
@@ -205,6 +205,21 @@ rigAssert "the helper reads it through AgentsToolsRegistryProcessesBegan of the 
 rigAssert "that reading stands in the tooling" "$( LC_ALL=C grep -c '^AgentsToolsRegistryProcessesBegan(){' "$rigPackage/sh-lib/team-data/AgentsTools.Registries.include" )" 1
 rigAssert "and nothing of the tooling is defined in the check that sourced the helper" "$( type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 && echo defined || echo not-defined )" "not-defined"
 
+echo "-- 1g. a process is signalled with what its own child started too, not only its direct child --"
+rigDeepChildScript="$rigTmp/deep-child.sh" rigDeepParentScript="$rigTmp/deep-parent.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'sleep 300 > /dev/null 2>&1 < /dev/null &' 'echo "$!" > "$1"' 'wait' > "$rigDeepChildScript"
+printf '%s\n' '#!/usr/bin/env bash' 'bash "$1" "$2" &' 'echo "$!" > "$3"' 'wait' > "$rigDeepParentScript"
+rigDeepGrand="$rigTmp/deep.grandchild" rigDeepChild="$rigTmp/deep.child"
+bash "$rigDeepParentScript" "$rigDeepChildScript" "$rigDeepGrand" "$rigDeepChild" > /dev/null 2>&1 < /dev/null &
+rigDeepParent=$! ; disown "$rigDeepParent" 2> /dev/null || :
+rigWaitFile "$rigDeepChild" || rigRefuse "the deep stand-in's child never started, so nothing below would be measured"
+rigWaitFile "$rigDeepGrand" || rigRefuse "the deep stand-in never reached its grandchild, so nothing below would be measured"
+rigKeep "$rigDeepParent" "$( cat "$rigDeepChild" )" "$( cat "$rigDeepGrand" )"
+rigProcNote "$rigDeepParent"
+rigProcSignalWithChildren TERM "$rigDeepParent" ; rigRc=$?
+rigAssert "a noted process ends what its own child started too, though only the process itself was noted" \
+	"$rigRc $( rigLeftAfter "$rigDeepParent" "$( cat "$rigDeepChild" )" "$( cat "$rigDeepGrand" )" )" "0 0"
+
 echo "-- 2. the guard: every signal of sh-test outside the helper is on the list, with its reason --"
 ## THE REASONS a signal is left outside the helper, each by its name.
 rigReasons(){
@@ -328,6 +343,20 @@ rigList(){
 		'member/AgentsWaitRoundCheck.test.sh|1|kill -TERM "$rigOpLeft"|@own-path' \
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookRunPid"|@kept-copy' \
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookWatchPid"|@kept-copy' \
+		'check-fixtures/runner-slot-keeper.py|1|os.kill(int(tree_pid), group_signal)|to what the walk of the test tree gave at that moment (ps -A read fresh, every pid whose ancestor is the keepers own child), at once: no pid is kept across a gap' \
+		'harness/AgentsToolTaskHarnessCheck.test.sh|1|kill -TERM -- "-$reapPid"|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort reap at the checks own exit, from a pid file with no start kept beside it; the checks own result never depends on it, only a stray process on a busy host might' \
+		'harness/AgentsToolTaskHarnessCheck.test.sh|1|kill -TERM "$reapPid" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the fallback plain-pid form of the same reap, for a run with no real process group; the same gap as the group kill just before it' \
+		'harness/AgentsToolTaskHarnessCheck.test.sh|1|pkill -TERM -f "$rigTmp"|@own-path' \
+		'mcp/AgentsMcpServerEndsHandlersCheck.test.sh|1|pkill -f "sleep 612" 2>/dev/null ; pkill -f "sleep 673" 2>/dev/null ; rm -rf -- "$rigTmp"|a sweep by command line on two sleep durations chosen for this check alone and matched nowhere else on the host: no pid is kept, and whatever else carried either on its command line would be reached too' \
+		'mcp/AgentsMcpServerEndsHandlersCheck.test.sh|1|kill -TERM "$runPid" 2> /dev/null|NOT SAFE, LEFT: the server started a few lines and one sleep before, read into runPid by $!, with no start kept beside it to recheck' \
+		'mcp/AgentsMcpServerEndsHandlersCheck.test.sh|1|pkill -f "sleep 673" 2> /dev/null|a sweep by command line on a sleep duration chosen for this check alone and matched nowhere else on the host: no pid is kept, and whatever else carried it on its command line would be reached too' \
+		'mcp/AgentsMcpToolListFixedCheck.test.sh|1|kill "$rigPid" 2> /dev/null|the server this check started, read into rigPid by $! at its own start, signalled once at the check'"'"'s exit' \
+		'mcp/AgentsMcpToolTaskCheck.test.sh|1|kill -TERM -- "-$reapPid"|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort reap at the checks own exit, from a pid file with no start kept beside it; the checks own result never depends on it, only a stray process on a busy host might' \
+		'mcp/AgentsMcpToolTaskCheck.test.sh|1|kill -TERM "$reapPid" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the fallback plain-pid form of the same reap, for a run with no real process group; the same gap as the group kill just before it' \
+		'mcp/AgentsMcpToolTaskCheck.test.sh|1|pkill -TERM -f "$rigTmp"|@own-path' \
+		'session/AgentsToolTaskCheck.test.sh|1|kill -TERM -- "-$reapPid"|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort reap at the checks own exit, from a pid file with no start kept beside it; the checks own result never depends on it, only a stray process on a busy host might' \
+		'session/AgentsToolTaskCheck.test.sh|1|kill -TERM "$reapPid" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the fallback plain-pid form of the same reap, for a run with no real process group; the same gap as the group kill just before it' \
+		'member/AgentsIdleWaitForkCheck.test.sh|1|kill -TERM "$rigOrphanPid"|@probed' \
 		'check-fixtures/manager-screen.driver.py|1|process.kill()|@uncollected' \
 		'check-fixtures/manager-screen.driver.py|1|os.killpg(process.pid, signal.SIGKILL)|@uncollected' \
 		'check-fixtures/manager-screen.vt.stub.py|1|process.send_signal(getattr(signal, words[0]))|@uncollected' \
@@ -399,7 +428,16 @@ rigToolingList(){
 		'sh-lib/harness/AgentsHarnessToolsBash.include|1|kill -KILL "$processPid" 2>/dev/null|the hard end of a stop, sent only inside the branch that signalled the group a moment before and only while that group still has members (kill -0 -"$processPid" in the statement before): a group id is not given to another process while it has members' \
 		'sh-lib/harness/AgentsHarnessWait.include|1|kill -TERM "$afterPid"|after a wait, to the processes read at that moment by the one rule a run is recognised by: no pid is kept across the wait' \
 		'sh-lib/harness/AgentsHarnessSpawn.include|1|kill -TERM "$stopPid"|@walk-now' \
-		'sh-lib/harness/AgentsHarnessSpawn.include|1|kill -KILL "$stopPid"|@walk-now'
+		'sh-lib/harness/AgentsHarnessSpawn.include|1|kill -KILL "$stopPid"|@walk-now' \
+		'sh-lib/session/AgentsTools.ToolTask.include|2|kill -USR1 "$callSelf"|@self' \
+		'sh-lib/session/AgentsTools.ToolTask.include|1|kill -TERM -- "-$callTimer"|NOT SAFE, LEFT: the timer started a moment before by this very shell, with no start kept beside its pid or its group to recheck' \
+		'sh-lib/session/AgentsTools.ToolTask.include|1|kill -TERM -- "-$callMessenger"|NOT SAFE, LEFT: the messenger started a moment before by this very shell, with no start kept beside its pid or its group to recheck' \
+		'sh-lib/session/AgentsTools.ToolTask.include|1|kill -TERM "$callTimer" "$callMessenger"|NOT SAFE, LEFT: the fallback plain-pid end of the same two, for a shell with no real process group, the same gap as the group kill just above' \
+		'sh-lib/session/AgentsTools.ToolTask.include|3|kill -TERM -- "-$callPid"|NOT SAFE, LEFT: the task own pid, signalled with no start kept beside it to recheck' \
+		'sh-lib/session/AgentsTools.ToolTask.include|3|kill -TERM "$callPid" 2|NOT SAFE, LEFT: the fallback plain-pid form of the same end, for a shell with no real process group, the same gap' \
+		'sh-lib/session/AgentsTools.ToolTask.include|2|kill -KILL -- "-$callPid"|NOT SAFE, LEFT: the hard end of the same task, with no start kept beside its pid to recheck' \
+		'sh-lib/session/AgentsTools.ToolTask.include|2|kill -KILL "$callPid" 2|NOT SAFE, LEFT: the fallback plain-pid form of the hard end, for a shell with no real process group, the same gap' \
+		'sh-lib/session/AgentsTools.ToolTask.include|1|timeout_action=kill|@text'
 }
 ## THE READER. A signal is the word of a command that sends one, where it stands as a command: first of its line,
 ## after what ends or opens a command, or after a word that takes a command; or a call of that name in
@@ -515,7 +553,7 @@ rigAssert "every line of that list gives its reason: one of the named ones, or o
 ## text, so its line and this count go with it, and a new one cannot be added quietly as one more of them.
 rigAssert "what is left by the number alone says so: the places not safe, and those not proved, by their lines and how often they stand" \
 	"$( LC_ALL=C awk -F'|' 'index( $4, "NOT SAFE, LEFT: " ) == 1 { unsafeLines++ ; unsafePlaces += $2 ; } index( $4, "NOT PROVED, LEFT: " ) == 1 { unprovedLines++ ; unprovedPlaces += $2 ; } END { print "not safe " unsafeLines + 0 " lines " unsafePlaces + 0 " places, not proved " unprovedLines + 0 " lines " unprovedPlaces + 0 " places" ; }' "$rigTmp/tooling.list" )" \
-	"not safe 0 lines 0 places, not proved 0 lines 0 places"
+	"not safe 7 lines 13 places, not proved 0 lines 0 places"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ TEST SIGNALS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

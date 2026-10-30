@@ -51,6 +51,11 @@ MIN_COLUMNS = 40
 MIN_LINES = 8
 ## How long the screen waits for a key before it looks at its reads and its clock again.
 TURN_SECONDS = 0.2
+## How long a screen that has heard nothing and has nothing reading waits before its next turn,
+## and how long it must have heard nothing for that to begin (keyWait). A key ends the wait at
+## once, so a person waits on none of it, and an idle screen turns a fifth as often.
+IDLE_QUIET_SECONDS = 1.0
+IDLE_TURN_SECONDS = 1.0
 ## The period on which what is shown is read again. Fixed here: what one read costs is not measured yet.
 REFRESH_SECONDS = 10.0
 ## How long the selection rests on an item before the reads of that one item start: while
@@ -184,7 +189,7 @@ def runScreen(window, state, reader):
                 fill = {"text": {"lines": [state.singleText]}, "about": {"lines": [state.singleText]}}
             openDialog(state, state.singleDialog, fill)
         while True:
-            screenTurn(surface, state, reader, time.monotonic(), key)
+            screenTurn(surface, state, reader, time.monotonic(), key, True)
             if state.quit:
                 return
             if state.singleDialog is not None and state.dialog is None:

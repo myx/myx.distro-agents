@@ -414,13 +414,23 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 ## the stores of that one session are read, never another's.
 ## THE CHECKLISTS OF A SESSION'S MEMBERS, for its summary (owner 2026-10-29): `checklist <session> <member> <line>`, a row a line of each
 ## member's list, read where its run keeps it (the folder of a record of the session), else in the session's store. A member once.
+## The runs of the session are its rows in the spawned-sessions registry, and a run's record is found
+## by its spawn id, the one reading of that (AgentsToolsRegistrySpawnRecord). The sandbox root is
+## never walked here a second way: a list of sessions that greps every record costs a session list
+## the whole tree, every ten seconds.
 AgentsToolsManagerSessionChecklistRows(){ ## session id
+	local listSpawn listRecord
 	{
 		printf '%s\n' "$MMDAPP/.local/agents/spawned/$1/-"
-		printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null
+		while IFS= read -r listSpawn ; do
+			[ -n "$listSpawn" ] && [ "$listSpawn" != "-" ] || continue
+			listRecord="$( AgentsToolsRegistrySpawnRecord "$listSpawn" )"
+			[ -n "$listRecord" ] || continue
+			printf '%s\n' "$listRecord"
+		done <<< "$( MDAT_LIST_SESSION="$1" LC_ALL=C awk '$2 == ENVIRON["MDAT_LIST_SESSION"] && $8 != "" && $8 != "-" { print $8 }' "$( AgentsToolsRegistryFile spawned-sessions )" 2> /dev/null )"
 		printf '%s\n' "$MMDAPP/.local/agents/sessions/$1/-"
 	} | {
-		local listRecord listFile listMember listLine listSeen=" "
+		local listFile listMember listLine listSeen=" "
 		while IFS= read -r listRecord ; do
 			for listFile in "${listRecord%/*}"/*.checklist.md ; do
 				[ -f "$listFile" ] || continue
@@ -437,8 +447,51 @@ AgentsToolsManagerSessionChecklistRows(){ ## session id
 	return 0
 }
 
+## A READ OF ONE SESSION, KEPT WHILE NOTHING THAT MAKES IT HAS CHANGED (sketch 14.5, its cost):
+## the console makes this read every ten seconds, and on a loaded machine it takes three. The key
+## is what the answer is made of: every record, store and checklist of the workspace, the two
+## registries, and the process list by a digest of its text, so a run that dies changes it. A kept
+## answer is never used where anything of them is newer, never older than its own seconds, and
+## never where anything of it could not be read.
+SESSION_READ_KEPT_SECONDS=30
+AgentsToolsManagerSessionReadDigest(){ ## text
+	printf '%s' "$1" | LC_ALL=C cksum 2> /dev/null | LC_ALL=C awk '{ print $1 "-" $2 }'
+}
+AgentsToolsManagerSessionReadKept(){ ## session id, the operation, "run" or empty
+	local keptBase keptDigest keptAt keptAge
+	keptBase="${MMDAPP%/}/.local/temp/mdat-manager-session-read.$1.${3:-session}"
+	[ -f "$keptBase.answer" ] && [ -f "$keptBase.key" ] || return 1
+	keptDigest="$( AgentsToolsManagerSessionReadDigest "${agentsProcessArgs:-}" )"
+	[ -n "$keptDigest" ] && [ "$( cat "$keptBase.key" 2> /dev/null )" = "$keptDigest" ] || return 1
+	keptAt="$( cat "$keptBase.at" 2> /dev/null )" || return 1
+	case "$keptAt" in ''|*[!0-9]*) return 1 ;; esac
+	keptAge=$(( $( date +%s ) - keptAt ))
+	[ "$keptAge" -ge 0 ] && [ "$keptAge" -lt "$SESSION_READ_KEPT_SECONDS" ] || return 1
+	## nothing of what it reads is newer than the answer: the records and stores of the session,
+	## every other record of the workspace it searches, and the two registries
+	[ -z "$( find "${MMDAPP%/}/.local/agents/spawned" "${MMDAPP%/}/.local/agents/sessions/$1" -newer "$keptBase.answer" -print -quit 2> /dev/null )" ] || return 1
+	[ ! "$( AgentsToolsRegistryFile spawned-sessions )" -nt "$keptBase.answer" ] || return 1
+	[ ! "$( AgentsToolsRegistryFile pending-replies )" -nt "$keptBase.answer" ] || return 1
+	cat "$keptBase.answer" 2> /dev/null || return 1
+	return 0
+}
+AgentsToolsManagerSessionReadKeep(){ ## session id, the operation, "run" or empty, the answer
+	local keepBase keepAside
+	keepBase="${MMDAPP%/}/.local/temp/mdat-manager-session-read.$1.${3:-session}"
+	[ -d "${keepBase%/*}" ] || return 1
+	keepAside="$( mktemp "$keepBase.answer.XXXXXX" 2> /dev/null )" || return 1
+	{ printf '%s\n' "$4" > "$keepAside" && mv -f "$keepAside" "$keepBase.answer" ; } 2> /dev/null || { rm -f "$keepAside" ; return 1 ; }
+	printf '%s\n' "$( AgentsToolsManagerSessionReadDigest "${agentsProcessArgs:-}" )" > "$keepBase.key" 2> /dev/null || :
+	date +%s > "$keepBase.at" 2> /dev/null || :
+	return 0
+}
+
 AgentsToolsManagerSessionReadRows(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
-	local readOp="$1" readId="$2" readOwn="${3:-}" readStores="" readSkip readSpawn readRest
+	local readOp="$1" readId="$2" readOwn="${3:-}" readStores="" readSkip readSpawn readRest readAnswer=""
+	## the process list, kept for its ten seconds, is what says whether a run still lives: it is
+	## part of the key of a kept answer, so a run that dies is read again at once
+	AgentsToolsRegistryProcessArgs
+	if AgentsToolsManagerSessionReadKept "$readId" "$readOp" "$readOwn" ; then return 0 ; fi
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
 	AgentsToolsManagerSessionScope "$readOp" "$readId" "$readOwn" || return 1
 	## Which runs have a store of their own: a folder is asked of the shell, not of awk.
@@ -447,9 +500,12 @@ AgentsToolsManagerSessionReadRows(){ ## the operation as it was called, the id, 
 		[ ! -d "$MMDAPP/.local/agents/sessions/$readSpawn" ] || readStores="$readStores$readSpawn"$'\n'
 	done <<< "$scopeMeasured"
 	[ "$scopeRun" != "-" ] || scopeRun=""
-	printf '%s\n' "$scopeListed" \
+	readAnswer="$( printf '%s\n' "$scopeListed" \
 		| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" \
-			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" -
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" - )" || return 1
+	printf '%s\n' "$readAnswer"
+	[ -n "$readAnswer" ] || return 0
+	AgentsToolsManagerSessionReadKeep "$readId" "$readOp" "$readOwn" "$readAnswer" || :
 	return 0
 }
 

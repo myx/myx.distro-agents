@@ -3,7 +3,7 @@
 The `magic-team` AI agent team, the tooling it runs on, and the installation that
 wires both into a workspace.
 
-- **The team** — `skillset/magic-team/` holds the members themselves.
+- **The team** — `skillset/magic-team/` holds the members themselves, and the owner's own identity record beside them.
 	- `magic-coordinator` — dispatch and prioritisation across the team.
 	- `magic-architect` — system design and architecture review.
 	- `magic-developer` — language mechanics, idiom and portability.
@@ -13,10 +13,14 @@ wires both into a workspace.
 	- `magic-tester` — test design, coverage and verification.
 	- `magic-team` — the team avatar, plus team-level shared artifacts.
 	- Any workspace can add its own members on top. See [Extension](docs/extension.md).
-- **The tooling** — `DistroAgentsTools.fn.sh`, the single interface the team uses
-  for every stateful action: Slack, email and Trello messaging; board and inbox
-  items; per-member credentials; keep-alive console sessions; and the state
-  machinery the team's routines run on.
+- **The tooling** — the `DistroAgents*.fn.sh` family, one file a subject: `DistroAgentsTools` for
+  setup, settings and console sessions, `DistroAgentsSlack`, `DistroAgentsMail`, `DistroAgentsTrello`,
+  `DistroAgentsGoogle` and `DistroAgentsAtlassian` for comms, `DistroAgentsItems` for board, inbox,
+  audit and vault items, `DistroAgentsQuestions` for asks, `DistroAgentsSession` for the session's own
+  thread and transcript, `DistroAgentsGrants` for permissions, `DistroAgentsTesting` for tests and the
+  retest queue, `DistroAgentsDispatcher` for the team's runs, and `DistroAgentsKnowledge` for places,
+  the roster and knowledge. `AgentDispatcherTools`, `AgentLibrarianTools` and `AgentTestingTools` are
+  the member-facing ones. Together they are the interface the team uses for every stateful action.
 - **The console** — `DistroAgentsConsole.sh`. On a terminal it opens the manager
   screen: sessions, questions, members and settings. With `--non-interactive` it
   runs one prompt through an agent CLI, so every line goes through a model; run

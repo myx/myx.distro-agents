@@ -26,13 +26,15 @@ def unescaped(value):
     return "".join(out)
 
 
-## A count for the eye: 414, 308K, 42.8M.
+## A count for the eye: 414, 308K, 42.8M, and 123M where the point would make the figure wider
+## than the column it stands in: three digits before the point drop the point (sketch 14.5).
 def shortCount(value):
     if not value.isdigit():
         return value
     number = int(value)
-    if number >= 1000000:
-        return "%.1fM" % (number / 1000000.0)
+    if number >= 999500:
+        millions = number / 1000000.0
+        return "%dM" % int(millions + 0.5) if millions >= 99.95 else "%.1fM" % millions
     if number >= 1000:
         return "%dK" % int(number / 1000.0 + 0.5)
     return str(number)

@@ -120,9 +120,11 @@ END {
 			stopAt = at ;
 			break ;
 		}
+		# a post of the same member from another session (read in from its thread, addressed to it) is no own post
+		selfPost = ( from == member && ! ( origin == "slack" && listHas(to, member) ) ) ;
 		if ( origin == "history" || origin == "notice" || idxWhere[at] == "-" ) {
 			take = 0 ;
-		} else if ( listHas(idxSeen[at], member) || from == member ) {
+		} else if ( listHas(idxSeen[at], member) || selfPost ) {
 			take = 0 ;
 		} else if ( origin ~ /^reply:/ ) {
 			take = ( origin == "reply:" member ) ;
@@ -142,7 +144,7 @@ END {
 		if ( filtered ) {
 			floorOwed = ( take && ! isCovered(idxWhere[at]) ) ;
 			sel = 0 ;
-			if ( ! ( origin == "history" || idxWhere[at] == "-" || listHas(idxSeen[at], member) || from == member || origin ~ /^reply:/ ) && ownThread(idxWhere[at]) && ! isCovered(idxWhere[at]) ) {
+			if ( ! ( origin == "history" || idxWhere[at] == "-" || listHas(idxSeen[at], member) || selfPost || origin ~ /^reply:/ ) && ownThread(idxWhere[at]) && ! isCovered(idxWhere[at]) ) {
 				source = sourceOf(idxWhere[at]) ;
 				if ( wantAny ) { sel = 1 ; }
 				if ( wantHere && listHas(to, "all") ) { sel = 1 ; }

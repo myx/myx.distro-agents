@@ -138,6 +138,17 @@ rigRun(){ ## further harness arguments
 	rigRunStatus=$?
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
+rigRunRoot(){ ## further harness arguments -- a root run, with no spawner of its own: MDAT_SESSION_ID in place of MDAT_SPAWN_SESSION_ID
+	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SESSION_ID="$rigSpawn" MDAT_SPAWN_AGENT=rig-a MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_HARNESS_PREFETCH="$rigPrefetch" RIG_SCENARIO="$rigDir" \
+		HARNESS_PROVIDER_NAME="idle-wait rig" HARNESS_SELF_NAME="AgentsHarnessDutyNoQuitCheck.test.sh" HARNESS_WIRE="AnthropicMessages" HARNESS_CREDENTIAL_NAMES="none" \
+		HARNESS_ENDPOINT="https://harness-idle-wait.invalid/v1/messages" HARNESS_HOST="harness-idle-wait.invalid" HARNESS_EXTRA_HEADERS="anthropic-version: 2023-06-01" \
+		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
+		HARNESS_OUTPUT_TOKENS_LIGHT="4101" HARNESS_OUTPUT_TOKENS_MAIN="4202" MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 MDAT_HARNESS_WAIT_TIMEOUT="${rigWaitTimeout:-}" \
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 240 -- bash "$rigHarness" --agent rig-a --access-root "$rigDir" "$@" RIG-TASK-MARKER ) > "$rigDir/out" 2> "$rigDir/err"
+	rigRunStatus=$?
+	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
+}
 rigRoutine work-duty ''
 rigHeld(){ ## the names of the snapshots the run's store holds, in order, space-joined
 	ls "$rigStore" 2> /dev/null | tr '\n' ' '
@@ -186,6 +197,21 @@ rigTextStream "$rigDir/res.2" RIG-EXEC-DONE-AGAIN
 rigRun
 wait "$rigLater" 2> /dev/null
 rigAssert "while the other run was going the executor did not end; once it had ended, the next plain reply did" "$rigRunStatus:$( cat "$rigDir/round" ):$( rigCount "$rigDir/err" 'idle-wait -- waiting on' )" "0:2:1"
+
+echo "-- a root run, founder of a coworking session with no spawner of its own, is not dismissed unless it is the last one running (sketch 5.3) --"
+## Same scene as above, but the founding run carries MDAT_SESSION_ID with no MDAT_SPAWN_SESSION_ID at all, as a run started with no spawner is.
+rigScene execroot rigquiet
+printf 'WAIT_ROUND_SECONDS=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+sed -i.bak 's/^status: spawn-started$/status: spawn-started\nstart-context: spawned/' "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md" && rm -f "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md.bak"
+printf -- '---\nspawn-id: rig-other\nsession-id: %s\nowner: rig-b\nhost: another-host\nstart-context: joined\nroutine: magic-team.rigquiet.routine.md\nstatus: spawn-started\n---\n\n# Spawn session: rig-other\n' "$rigSpawn" > "$rigWs/.local/agents/spawned/rig/rig-other.spawn.md"
+( rigWaited=0 ; while [ "$( LC_ALL=C grep -c -F 'idle-wait -- waiting on' "$rigDir/err" 2> /dev/null )" -lt 1 ] && [ "$rigWaited" -lt 240 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
+  sed -i.bak 's/^status: spawn-started$/status: spawn-succeeded/' "$rigWs/.local/agents/spawned/rig/rig-other.spawn.md" ) &
+rigLater=$!
+rigTextStream "$rigDir/res.1" RIG-ROOT-DONE
+rigTextStream "$rigDir/res.2" RIG-ROOT-DONE-AGAIN
+rigRunRoot
+wait "$rigLater" 2> /dev/null
+rigAssert "while the other participant was going the root run did not end; once it had ended, the next plain reply did" "$rigRunStatus:$( cat "$rigDir/round" ):$( rigCount "$rigDir/err" 'idle-wait -- waiting on' )" "0:2:1"
 
 echo "-- a run that is not a work-duty ends on its plain-text reply --"
 rigScene plain rigquiet

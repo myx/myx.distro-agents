@@ -752,6 +752,18 @@ AgentsTranscriptReplyFloor(){
 	## A workspace that is selected -- the tooling stands in its .local -- and a run with a session id: the session's folder is made
 	## here, where it can be, before the run is served from it (F9.2). Without it those sessions lose their reads.
 	[ ! -d "$MMDAPP/.local/agents" ] || [ -d "$MMDAPP/.local/agents/sessions/$floorKey" ] || { AgentsToolsSessionChatDir "$floorKey" > /dev/null && mkdir -p "$MMDAPP/.local/agents/sessions/$floorKey" 2> /dev/null ; } || :
+	## KEEPS THE SESSION THREAD OF INTEREST (S21.23), every tool return, so the rig's own pull (AgentsToolsCommsCachePullWatched)
+	## keeps it fresh without this call ever reaching Slack itself: the floor stays local-cache-only, never a network call here.
+	## Where no pull runs on this host, the next Wait still pulls it, by its own TTL, as it always did.
+	( local floorThread="" floorChannel="" floorTs=""
+	  floorThread="$( AgentsToolsSessionChatThread "$floorKey" 2> /dev/null )" || floorThread=""
+	  case "$floorThread" in *:*)
+		floorChannel="${floorThread%%:*}" ; floorTs="${floorThread#*:}"
+		type AgentsToolsCommsCacheInterest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || exit 0
+		AgentsToolsCommsCacheSlackDir "$floorMember" false "$floorChannel" "$floorTs" 2> /dev/null || exit 0
+		AgentsToolsCommsCacheInterest "$agentsCommsCacheDir" "$( date +%s )"
+	  ;; esac
+	) 2> /dev/null || :
 	floorText="$( AgentsToolsSessionChatFloor "$floorKey" "$floorMember" "" deliver 2> /dev/null )" || floorText=""
 	[ -z "$floorText" ] || printf '# new for you in your session (its floor), from its chat file:\n%s' "$floorText"
 }

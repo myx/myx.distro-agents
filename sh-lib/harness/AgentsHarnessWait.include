@@ -207,7 +207,7 @@ AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn 
 ## A call naming a mode (arguments 7 to 11: mode, seen, note, done, wait) is a stateful wait kept per
 ## session; an internal caller passing six arguments or fewer gets today's stateless wait.
 AgentsHarnessToolWait(){
-	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitSource waitStateful="false" waitSession waitName waitThread
+	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread
 	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
 	## unwait names one source to drop from the stored wait on demand -- the same
 	## kind:target (or slack:session-current/slack:session-parent alias) `sources`
@@ -357,21 +357,21 @@ AgentsHarnessToolWait(){
 	## this function's wait/mode handling below.
 	if [ "$waitUnwaitMode" = "true" ] ; then
 		waitSession="$( AgentsHarnessSessionKey )"
-		set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input "$harnessAgent" --unwait "$toolSources"
+		set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input --team-member "$harnessAgent" --unwait "$toolSources"
 		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
-		"$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
+		waitDiag="$( "$@" 2>&1 1>"$harnessScratch/wait.out" )" || waitRc=$?
 		if [ "$waitRc" != "0" ] ; then
 			printf 'ERROR: the unwait could not be performed (rc=%s). What the operation reported follows:\n' "$waitRc"
-			cat "$harnessScratch/wait.err"
+			[ -z "$waitDiag" ] || printf '%s\n' "$waitDiag"
 			return 0
 		fi
-		[ ! -s "$harnessScratch/wait.err" ] || cat "$harnessScratch/wait.err" >&2
+		[ -z "$waitDiag" ] || printf '%s\n' "$waitDiag" >&2
 		cat "$harnessScratch/wait.out"
 		return 0
 	fi
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
-	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input "$harnessAgent"
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input --team-member "$harnessAgent"
 	for waitSource in $toolSources ; do
 		set -- "$@" --wait-source "$waitSource"
 	done
@@ -392,14 +392,16 @@ AgentsHarnessToolWait(){
 		true|1|yes) set -- "$@" --wait-include-own ;;
 	esac
 	## An asking call (the twelfth argument) reacts to the reply it takes itself: the wait leaves the seen reaction to it.
-	MDAT_WAIT_SEEN_OWN="${toolAsking:+1}${MDAT_WAIT_SEEN_OWN:-}" "$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
+	## Only the result goes to a file: the operation's own stderr is held here and printed
+	## where it is read, so a wait leaves one file and not two.
+	waitDiag="$( MDAT_WAIT_SEEN_OWN="${toolAsking:+1}${MDAT_WAIT_SEEN_OWN:-}" "$@" 2>&1 1>"$harnessScratch/wait.out" )" || waitRc=$?
 	if [ "$waitRc" != "0" ] ; then
 		printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources -- this is not a wait that found nothing, and their silence must not be read as quiet. What the operation reported follows:\n' "$waitRc"
-		cat "$harnessScratch/wait.err"
+		[ -z "$waitDiag" ] || printf '%s\n' "$waitDiag"
 		return 0
 	fi
 	## What a wait that worked said on its stderr goes to this run's own log, never left in scratch.
-	[ ! -s "$harnessScratch/wait.err" ] || cat "$harnessScratch/wait.err" >&2
+	[ -z "$waitDiag" ] || printf '%s\n' "$waitDiag" >&2
 	## A dismissal is a Wait outcome of its own: a message whose body is DISMISSED,
 	## addressed to this member (AgentsHarnessWaitDismissed.awk). The spawner sends it when
 	## it is satisfied; the waiting session ends with its handback on it. Everything the

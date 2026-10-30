@@ -93,7 +93,7 @@ Steps:
    - `access:` names the places and tools this work needs, worked out before
      launch. That way the spawned member asks once with `entries`, rather than
      call by call.
-   Make the dispatch the best guess you can. Work out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. That tells whom to invite.
+   Make the dispatch the best guess you can: the session type, the task, the members and the permissions. Work out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. That tells whom to invite.
    Re-read the drafted brief for the block before sending.
 3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`. Name the likely members, permissions and tools on it with `--participants`, `--likely-permission` and `--likely-tool`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
@@ -211,6 +211,8 @@ The fast gate at task creation: may this task exist, and may the asking member a
   - One bounded exception: this member explicitly directs a member to seek his approval for something outside that member's mandate.
   - A member with no coordinator present asks its parent session first with `AskQuestion`; only with no parent present does it ask him.
 - An `owner-guaranteed` rule (this channel, no-agent-consent, the credential-store boundary) is crossed only inside `magic-coordinator.root-harness.routine`'s **run-team-fix-session**, through its per-conflict confirmation.
+- Naming the likely permissions and tools is what lets the tooling hint, help and identify mechanically. It is a method, not a guess: members own domains, permissions and tools, so the needed ones point to the members.
+- A code change points to the project's owning `keeper-*` for its conventions, `magic-developer` for the language idiom, and `magic-tester` for its checks.
 
 How to hand off:
 - Spawn the member through `spawn-one-dispatch`. Never invoke a member's `Skill` in place of dispatching: that collapses this context into theirs.

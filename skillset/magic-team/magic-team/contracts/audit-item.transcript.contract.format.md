@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-A verbatim record of an exchange, with UTC stamps. Append-only, through `--append-transcript --transcript-name`. Never on the board.
+A verbatim record of an exchange, with UTC stamps. Append-only, through `--append-transcript --transcript-name`. Never on the board. A session's own log is `audit/YYYY-MM/session-<startUTC>-<member>-<sid8>.log`, written by the tooling from its stream.
 
 # Contract
 
@@ -57,4 +57,4 @@ A verbatim record of an exchange, with UTC stamps. Append-only, through `--appen
 - `type` equals the type word in the filename (`transcript`).
 - [store] Append-only: nothing already written is rewritten.
 - `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-`, `warning-` or `investigation-`.
-- [judged] A session's own log, `session-*.log`, is not a document of this kind: it has no frontmatter and no contract here.
+- [judged] A session's own log is not a document of this kind: `audit/YYYY-MM/session-<startUTC>-<member>-<sid8>.log`, rolled as `-part<N>.log` at 8 MB, with no frontmatter and no contract here.

@@ -169,6 +169,18 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 	fi
 	[ "$closeExit" != "5" ] || closeSetup="cli-not-configured"
 	[ "$closeExit" != "6" ] || closeSetup="cli-not-authenticated"
+	## A START THAT NEVER GOT GOING SAYS WHY (sketch 3.6): a CLI the preset names but this machine has not configured or signed
+	## in ends the run at once, and its row would otherwise read a bare exit code. The one keeper writes the marker that a failed
+	## row already prints as its reason (AgentsHarnessMessages.include:233-260), so there is one mechanism and no second copy.
+	if [ -n "$closeSetup" ] && [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] \
+		&& [ ! -s "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.refused" ] ; then
+		type AgentsHarnessRefusalKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" 2> /dev/null || :
+		if [ "$closeSetup" = "cli-not-authenticated" ] ; then
+			AgentsHarnessRefusalKeep "the start never got going: the CLI this preset names is not signed in on this machine (exit $closeExit)" || :
+		else
+			AgentsHarnessRefusalKeep "the start never got going: the CLI this preset names is not configured on this machine (exit $closeExit)" || :
+		fi
+	fi
 	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTranscript.include).
 	! type AgentsSessionTokensLine > /dev/null 2>&1 || closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
 	closeTokens="${closeTokens#tokens: }"
@@ -281,6 +293,38 @@ AgentsToolsSpawnProxyHelperEnd(){ ## what AgentsToolsSpawnProxyHelperBegan print
 ##   spawn runs in
 ## Called before any close step, while the record still says spawn-started: the retry resumes
 ## this very spawn id, so it must never run on a session already closed (AgentsToolsSpawnProxyRetryClosed).
+## A WORK-DUTY THAT ENDS ON ITS FINAL ANSWER IS NOT DISMISSED (S4.6): the harness's own runs catch this live,
+## inside their one model-call loop (AgentsUniversalHarness.sh:1878-1897), and idle-wait there. A claude-native
+## run has no such loop here to catch it in: the vendor CLI's own process has already ended by the time this is
+## called. The duty is resumed instead, in its own kept session, the one mechanical shape
+## AgentsToolsSpawnProxyHandbackWarn's own retry already uses (MDAT_SPAWN_RESUME=true). A handback given, or
+## not, is not read here: a work-duty's plain final answer is never its end, whichever it was. Only a
+## dismissal, a run that is no longer a work-duty, or a round that did not exit clean (a crash, a kill -- not
+## "its final answer") stop this. Leaves the last round's exit code in spawnProxyContinueExitCode, so what runs
+## after it sees that round, never the first.
+AgentsToolsSpawnProxyWorkDutyContinue(){ ## session thread, session id, the sandbox tracking record, the output file (may be empty), the exit code so far, cli args...
+	local contThread="$1" contSessionId="$2" contTracking="$3" contLog="$4" contRounds=0 contPid
+	spawnProxyContinueExitCode="${5:-0}"
+	shift 5 2>/dev/null || shift $#
+	local contCliArgs=( "$@" )
+	[ ${#contCliArgs[@]} -gt 0 ] || contCliArgs=( --cli-configured )
+	[ -n "$contLog" ] && [ -f "$contLog" ] || return 0
+	while [ "$spawnProxyContinueExitCode" = 0 ] && [ "$contRounds" -lt 1000 ] ; do
+		case "$( AgentsToolsSpawnSandboxRecordHeader "$contTracking" routine 2>/dev/null )" in *.work-duty.routine.md) ;; *) return 0 ;; esac
+		[ ! -e "$MMDAPP/.local/agents/sessions/$contSessionId/dismissed" ] || return 0
+		contRounds=$(( contRounds + 1 ))
+		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$contSessionId" MDAT_SESSION_THREAD="$contThread" MDAT_SPAWN_RESUME=true -- "${contCliArgs[@]}" \
+			<<< "$( printf '%s\n%s\n' \
+				"This is a work-duty: your plain final answer is not its end." \
+				"Continue the duty now in this same session." )" >> "$contLog" 2>&1 ) &
+		contPid=$!
+		AgentsToolsSpawnProxyRunRecord "$contPid"
+		spawnProxyContinueExitCode=0
+		wait "$contPid" 2>/dev/null || spawnProxyContinueExitCode=$?
+	done
+	return 0
+}
+
 AgentsToolsSpawnProxyHandbackWarn(){
 	local warnThread="$1" warnMember="$2" warnLog="$3" warnSessionId="$4" warnTrack="${5:-}" warnTell="${6:-}" warnClosed=""
 	## Whether a handback is still missing when this returns: what AgentsToolsSpawnProxyHandbackNotice says.
@@ -2498,6 +2542,11 @@ case "$1" in
 			trap 'AgentsToolsSpawnProxyHeld TERM' TERM
 			trap 'AgentsToolsSpawnProxyHeld INT' INT
 			trap '' PIPE
+			## A work-duty that ended on its final answer is resumed here, in its own kept session,
+			## before anything else reads this round's exit code (S4.6): see AgentsToolsSpawnProxyWorkDutyContinue.
+			local spawnProxyContinueExitCode="$exitCode"
+			AgentsToolsSpawnProxyWorkDutyContinue "$sessionThread" "$sessionId" "$sandboxTracking" "$outputFile" "$exitCode" "${spawnCliArgs[@]}" || :
+			exitCode="$spawnProxyContinueExitCode"
 			local spawnOutcome spawnHandback="seen"
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )" || spawnOutcome="failed"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER" || :
@@ -2684,6 +2733,10 @@ case "$1" in
 			## From here each step is called so that its own failure never ends this shell before
 			## the record is closed.
 			set -e
+			## A work-duty that ended on its final answer is resumed here too, as in the waiting branch (S4.6).
+			local spawnProxyContinueExitCode="$bgExitCode"
+			AgentsToolsSpawnProxyWorkDutyContinue "$sessionThread" "$sessionId" "$sandboxTracking" "$outputFile" "$bgExitCode" "${spawnCliArgs[@]}" || :
+			bgExitCode="$spawnProxyContinueExitCode"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER" || :
 			## Measured once, so the event-track close, the sandbox record and the board item
 			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.

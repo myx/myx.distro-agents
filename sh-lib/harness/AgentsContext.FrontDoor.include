@@ -48,6 +48,11 @@ fi
 ## holds none of, and it is stopped only when its skillset cannot be brought.
 type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 type AgentsToolsCommonMemberFirst > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+## A real first argument reaching here, past gate 39, was never resolved by it: gate 39 only runs where none was
+## given. On the direct re-call AgentsToolsCommonRun makes once it has resolved the member itself, agentsCommonFronted
+## is still set the whole way down this same call, so this block is skipped there: "$2" is already its answer, not a
+## fresh one to find.
+if [ -z "${agentsCommonFronted:-}" ] ; then
 case "$1" in
 	--spawn-prompt|--spawn-session|--list-places|--get-place-path|--list-namespaces) ;;
 	*)
@@ -55,12 +60,23 @@ case "$1" in
 			''|-*) ;;
 			*)
 				if AgentsToolsCommonMemberFirst "$MDSC_CMD.fn.sh" "$1" ; then
-					local memberBrought memberBroughtFrom
-					memberBrought="$( AgentsToolsMemberSkillsetBring "$2" "$1" )" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }
+					## THE OLD POSITIONAL IS RETIRED (S21.3): a real first argument here is never the member any more,
+					## it is the operation's own. The member this call acts as is always the implied one.
+					local memberBrought memberBroughtFrom memberName frontOpName="$1"
+					memberName="$( AgentsToolsTeamMember )"
+					if [ -z "$memberName" ] ; then
+						echo "$MDSC_CMD: ${frontOpName#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2
+						set +e ; frontDone=yes ; frontRc=1 ; return 0
+					fi
+					memberBrought="$( AgentsToolsMemberSkillsetBring "$memberName" "$frontOpName" )" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }
 					memberBroughtFrom="${memberBrought#*$'\t'}"
 					memberBrought="${memberBrought%%$'\t'*}"
+					shift
+					## A caller still naming this same member first (the harness's Wait) is not read as the operation's own argument.
+					[ "${1:-}" != "$memberName" ] || shift
+					set -- "$frontOpName" "$memberName" "$@"
 					if [ -n "$memberBrought" ] && [ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
-						AgentsToolsMemberSettingsBorrowedSay "$2" "$1" "$memberBroughtFrom"
+						AgentsToolsMemberSettingsBorrowedSay "$memberName" "$frontOpName" "$memberBroughtFrom"
 						( export MDAT_SKILLSET_ROOT="$memberBrought" ; "$MDSC_CMD" "$@" )
 						frontRc=$? ; frontDone=yes ; return 0
 					fi
@@ -69,6 +85,7 @@ case "$1" in
 		esac
 	;;
 esac
+fi
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 
 ## A name that was a --magic-* operation is magic-coordinator's, or the console's (AgentsToolsMagicCallerCheck).

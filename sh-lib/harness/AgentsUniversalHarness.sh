@@ -375,7 +375,9 @@ done
 ## and only when that member is in the skillset -- otherwise it stays empty, the four
 ## tools that send refuse, and every other tool is still served.
 if [ -n "$harnessToolOnly" ] && [ -z "$harnessAgent" ] ; then
-	harnessAgent="${MDAT_SPAWN_AGENT:-magic-coordinator}"
+	## A root session (no MDAT_SPAWN_AGENT) resolves its own served member first, falling to
+	## magic-coordinator only where neither is set (S21.21): TaskStop reads this same value.
+	harnessAgent="${MDAT_SPAWN_AGENT:-${MDAT_TEAM_MEMBER:-magic-coordinator}}"
 	## The same bare-name gate --agent applies, by explicit enumeration: a bracket range
 	## is collation-dependent.
 	case "$harnessAgent" in
@@ -1120,11 +1122,12 @@ harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
 harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetchRoutineSum="" harnessPrefetchRoutineFiles="" harnessSkillWhole=""
 ## The prefix layers are the team layer (the team's basic and armed files in the system text), the tool floor, the member
-## layer, and the session layer. A work-duty has two more (sketch 8: "Team+ layer ... -extended (for work-duty sessions) - more preloaded team
-## static skill/knowledge", the same for the member): the Team+ layer, the optional skillset file magic-team/magic-team.armed-extended.md, after
-## the team layer, and the Member+ layer, <member>/<member>.armed-extended.md, after the member's armed content. A skillset without those files
-## has no such layer, and a run that is no work-duty never has one. A work-duty's routine and member static guidance are carried by its
-## dispatch (the session layer). The routine's own `cache-prefix: routine` remains the one policy that preloads a routine.
+## layer, and the session layer. A routine whose `cache-prefix: extended` (a work-duty's) has two more (sketch 8, epic
+## S18.8): the Team+ layer below, the optional skillset file magic-team/magic-team.armed-extended.md, after the team
+## layer, and the Member+ layer, <member>/reference/*.md merged (AgentsHarnessMemberPlusText), after the member's armed
+## content. A skillset with no Team+ file, or no reference/ folder, has no such layer there, and a routine whose policy
+## is not `extended` never has either. A work-duty's routine and member static guidance are carried by its dispatch (the
+## session layer). The routine's own `cache-prefix: routine` remains the one policy that preloads a routine.
 harnessPrefetchOneLine="$( AgentsToolsPrefetchOneLine )"
 ## One read as the Skill tool answers it: the file of a skill, or the sections of it, whole whatever the cap of a result.
 agentsPrefetchReadName="" agentsPrefetchReadFile="" agentsPrefetchReadSections=""
@@ -1684,8 +1687,9 @@ while : ; do
 	harnessStreamOk=0
 	while [ "$harnessStreamAttempt" -lt "$harnessStreamMaxAttempts" ] ; do
 		harnessStreamAttempt=$(( harnessStreamAttempt + 1 ))
+		## The wire's own consumer truncates stream.content before it appends to it, so
+		## emptying it here as well is a second write of the same nothing.
 		rm -f "$harnessScratch"/stream.* 2>/dev/null
-		: > "$harnessScratch/stream.content"
 
 		## Token on curl's stdin, never argv, and any declared extra header rides that same
 		## channel, so argv is the same length whatever a leaf declares. Built per attempt
@@ -1773,13 +1777,13 @@ while : ; do
 	## Give stderr a clean line break after any accumulated live text.
 	[ ! -s "$harnessScratch/stream.content" ] || printf '\n' >&2
 
-	## The round's own file goes with the other stream.* accumulators; the running one stays.
+	## The round's own file goes with the other stream.* accumulators; the running totals
+	## live in these variables, which the round header shows, and in no file at all.
 	if [ -s "$harnessScratch/stream.usage" ] ; then
 		read -r harnessRoundPrompt harnessRoundCompletion harnessRoundTotal < "$harnessScratch/stream.usage" || :
 		harnessUsagePrompt=$(( harnessUsagePrompt + harnessRoundPrompt ))
 		harnessUsageCompletion=$(( harnessUsageCompletion + harnessRoundCompletion ))
 		harnessUsageTotal=$(( harnessUsageTotal + harnessRoundTotal ))
-		printf '%s %s %s\n' "$harnessUsagePrompt" "$harnessUsageCompletion" "$harnessUsageTotal" > "$harnessScratch/usage.running"
 	## Enabled and never fed: the threshold can never fire, and a run that then walks
 	## into the model's own limit reads exactly like one this managed. Said once.
 	elif [ "$harnessRound" = 1 ] && [ "$harnessContextTokens" != 0 ] ; then
@@ -1882,7 +1886,12 @@ while : ; do
 		## The idle-wait is made here as the model would have made it, the conversation is returned to its checkpoint where one is held, and the
 		## model is asked again. A dismissed run, a run that is no work-duty and a run that answers plain ten times in a row without a tool call
 		## in between (a wait that cannot be made) end as before.
-		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] && { AgentsHarnessWorkDuty || AgentsHarnessOthersRunning ; } \
+		## THE ROOT EXECUTOR HAS NO SPAWN RECORD OF ITS OWN TO CARRY THE RULE (AgentsHarnessOthersRunning needs this run itself spawned or joined):
+		## a coordinator that started the session natively, with another participant still running, is checked live here too, against the same
+		## executor record the task-block note above was built from (harnessExecutorRecord).
+		type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] \
+			&& { AgentsHarnessWorkDuty || AgentsHarnessOthersRunning || { [ -n "$harnessExecutorRecord" ] && type AgentsToolsSessionOthersRunning > /dev/null 2>&1 && AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; } ; } \
 			&& [ ! -e "$MMDAPP/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-/}/dismissed" ] ; then
 			harnessDutyPlainRuns=$(( ${harnessDutyPlainRuns:-0} + 1 ))
 			harnessIdleForce=1

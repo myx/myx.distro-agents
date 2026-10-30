@@ -202,6 +202,28 @@ def end_group(group_signal):
         pass
 
 
+## Every process whose ancestor is the test's leader: a stand-in the test gave a group of its own (`set -m`) is in no other net.
+def test_tree(root):
+    rows = [line.split() for line in os.popen("ps -A -o pid= -o ppid=").read().splitlines() if len(line.split()) == 2]
+    parent = {pid: ppid for pid, ppid in rows}
+    found = []
+    for pid in parent:
+        walk, hops = pid, 0
+        while walk in parent and hops < 64:
+            if parent[walk] == str(root):
+                found.append(pid)
+                break
+            walk = parent[walk]
+            hops += 1
+    return [pid for pid in found if pid != str(root)]
+
+def end_tree(group_signal, pids=None):
+    for tree_pid in (test_tree(child) if pids is None else pids):
+        try:
+            os.kill(int(tree_pid), group_signal)
+        except OSError:
+            pass
+
 stop_reason = []
 for stop_signal in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
     signal.signal(stop_signal, lambda signum, frame: stop_reason.append(signum))
@@ -213,23 +235,32 @@ while True:
     if stop_reason or (deadline is not None and time.time() >= deadline) or os.getppid() != runner_pid:
         if not stop_reason and deadline is not None and time.time() >= deadline:
             stop_reason.append(signal.SIGALRM)
+        ## Read the tree BEFORE any signal: the first signal ends the processes it was aimed at, and a stand-in under `set -m` is then no
+        ## descendant of the leader any more, so a later read would miss it and it would live its whole sleep out under launchd.
+        tree_before = test_tree(child)
         end_group(signal.SIGTERM)
+        end_tree(signal.SIGTERM, tree_before)
         for leader_wait in range(50):
             if os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT | os.WNOHANG) is not None:
                 break
             time.sleep(0.1)
         else:
             end_group(signal.SIGKILL)
+            end_tree(signal.SIGKILL, tree_before)
         os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT)
         break
     time.sleep(0.2)
-## The leader has ended and is not yet reaped: what is left in its group is this test's, and ends now.
+## The leader has ended and is not yet reaped: what is left of this test ends now -- its process group and every process whose ancestor is the
+## leader, so a stand-in the test gave a group of its own (`set -m`) is ended too, never left to outlive it.
 left_over = [line.split()[0] for line in os.popen("ps -A -o pid= -o pgid=").read().splitlines() if line.split()[1:2] == [str(child)] and line.split()[0] != str(child)]
-if left_over:
+left_tree = test_tree(child)
+if left_over or left_tree:
     end_group(signal.SIGTERM)
+    end_tree(signal.SIGTERM, left_tree)
     time.sleep(1)
     end_group(signal.SIGKILL)
-    sys.stdout.write("# AgentsRunTests.sh: the test left %d process(es) in its process group, ended at its end\n" % len(left_over))
+    end_tree(signal.SIGKILL, left_tree)
+    sys.stdout.write("# AgentsRunTests.sh: the test left %d process(es) in its process group and %d beside it, ended at its end\n" % (len(left_over), len(left_tree)))
     sys.stdout.flush()
 status = os.waitpid(child, 0)[1]
 if stop_reason and stop_reason[0] == signal.SIGALRM:

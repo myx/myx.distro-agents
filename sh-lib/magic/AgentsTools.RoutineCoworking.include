@@ -50,28 +50,40 @@ case "$1" in
 				break
 			done
 		fi
-		if [ ${#names[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- at least one tracking-document required, the dispatch or interview document this session is for -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE Skill magic-team/magic-team.coworking.routine.md" >&2
-			set +e ; return 1
+		## No document named, and the spawn record names none either: the start still gets a scan, of the member's own inbox, and its
+		## result says what it could not read. A dispatch that names no tracking document is the dispatch's gap, never a failed start.
+		local scanNote="" scanHasDocument="false"
+		if [ ${#names[@]} -gt 0 ] ; then
+			scanHasDocument="true"
+		else
+			scanNote="## no tracking document was named: this scan covers the session's own inbox only"
 		fi
 
 		local allStates=( backlog pending running review blocked parked processed archived retained )
 		local phaseAArgs=() s n
 
+		if [ "$scanHasDocument" = "true" ] ; then
+			phaseAArgs+=( --no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other )
+		else
+			phaseAArgs+=( --do-inbox-inquiry-active --do-inbox-reflections --do-inbox-notes --do-inbox-other )
+		fi
 		for s in "${allStates[@]}" ; do phaseAArgs+=( --state "$s" ) ; done
-		for n in "${names[@]}" ; do phaseAArgs+=( --item "$n" ) ; done
+		if [ ${#names[@]} -gt 0 ] ; then
+			for n in "${names[@]}" ; do phaseAArgs+=( --item "$n" ) ; done
+		fi
 
 		local phaseAOutput
+		[ -z "$scanNote" ] || printf '%s\n' "$scanNote"
 		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseAArgs[@]}" \
 			--header blocks --header blocked-by --all-types \
 			--no-slack --no-email --no-trello \
-			--no-inbox-inquiry --no-inbox-reflections \
-			--no-inbox-notes --no-inbox-other \
 			--no-board-related \
 			--context --intern-op-routine-coworking-session-input-scan )" || return 1
 
 		local unionNames=()
-		for n in "${names[@]}" ; do unionNames+=( "$n" ) ; done
+		if [ ${#names[@]} -gt 0 ] ; then
+			for n in "${names[@]}" ; do unionNames+=( "$n" ) ; done
+		fi
 
 		## blocks:/blocked-by: carry bare names while --item compares against
 		## the filename -- without this every reached item is dropped.

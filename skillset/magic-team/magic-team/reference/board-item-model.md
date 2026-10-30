@@ -25,11 +25,17 @@ Read this when creating, moving or reading board, audit and vault items. The inb
 Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*` (use `project-*`), `assignment-*` and `session-*` (use `dispatch-*`), `pending-slack-reaction`/`pending-trello-update` (these are `note-*` records in `magic-coordinator`'s own inbox). A new type is added here first, then to every routine that creates or reads it.
 
 **Audit and vault types:**
-- `transcript-*` — audit; append-only through `--append-transcript --transcript-name`; verbatim messages, UTC stamps; never on the board.
+- `transcript-*` — audit; append-only through `--append-transcript --transcript-name`; verbatim messages, UTC stamps; never on the board. A session's own log is `session-<startUTC>-<member>-<sid8>.log` in the same store.
 - `incident-*` — audit.
+- `artifact-*` — audit; the record of one published document, rewritten at each of its states.
+- `declaration-*` — audit; one host's output-style declarations for one day.
+- `refusal-*` — audit; the output-style check's record of text it stopped or reported, one row per fault.
+- `snapshot-*` — audit; a resource's content saved byte for byte before a write that could lose it.
 - `verbatim-*` — vault.
 - `ivr-*` — vault; an investigation report, the result of an `investigation-*`.
 - `adr-*` — vault; a decision record, one per technical question, kept by `magic-architect`.
+
+**Every type has one contract:** `contracts/<store>-item.<type>.contract.format.md`. Its keys, value forms, body and rules are the type's template. A document names its own in `document-contract`, and `--intern-doc-validate <kind>` reads it against that file. The board and inbox writers run it on every save.
 
 **Every board item is a tracking document.** It records who worked on it (`participants`) and the state they left it in; a restart spawns that group at that state.
 

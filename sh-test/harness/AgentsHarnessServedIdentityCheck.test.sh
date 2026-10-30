@@ -2,7 +2,8 @@
 ## Behavioural check on WHO a call served by the myx.distro MCP server acts as. SendMessage,
 ## Wait, Agent and AskQuestion refuse without a team identity. The harness resolves it
 ## itself, on every served call, from the session it runs in: a spawned session's
-## MDAT_SPAWN_AGENT, else the root session's magic-coordinator -- so nothing about it is
+## MDAT_SPAWN_AGENT, else a root session's own MDAT_TEAM_MEMBER (S21.21, read the same way
+## TaskStop's harnessAgent reads it), else magic-coordinator -- so nothing about it is
 ## decided when the server starts. Without it every ask from a native client failed, while
 ## the deny hook sent that client to exactly this server to ask.
 ##
@@ -46,15 +47,16 @@ printf 'rig-readable\n' > "$rigTmp/ws/source/probe.txt"
 ## One server life per scenario. The spawn variable and the skillset are the only things
 ## that differ, and the recursion marker is cleared because this rig IS the directly
 ## registered server.
-rigServe(){ ## scenario name, MDAT_SPAWN_AGENT value or empty for unset, skillset directory
+rigServe(){ ## scenario name, MDAT_SPAWN_AGENT value or empty for unset, skillset directory, MDAT_TEAM_MEMBER value or empty for unset
 	{
 		printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
 		printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"SendMessage","arguments":{"to":"human-owner","message":""}}}'
 		printf '%s\n' "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"Read\",\"arguments\":{\"path\":\"$rigTmp/ws/source/probe.txt\"}}}"
 		printf '%s\n' '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"AskQuestion","arguments":{"to":"human-owner","question":"rig","options":"one\n- two","wait":false}}}'
 	} | (
-		unset MDAT_MCP_SERVED_MARKER MDAT_SPAWN_AGENT
+		unset MDAT_MCP_SERVED_MARKER MDAT_SPAWN_AGENT MDAT_TEAM_MEMBER
 		[ -z "$2" ] || export MDAT_SPAWN_AGENT="$2"
+		[ -z "$4" ] || export MDAT_TEAM_MEMBER="$4"
 		HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$3" \
 			bash "$rigTool" --intern-mcp-server --run > "$rigTmp/$1.wire" 2> "$rigTmp/$1.err"
 	) || :
@@ -102,6 +104,7 @@ rigAssert(){ ## what is asserted, got, want
 
 rigServe root "" "$rigTmp/skills-coordinator"
 rigServe rootbare "" "$rigTmp/skills-keeper"
+rigServe rootteam "" "$rigTmp/skills-keeper" keeper-myx
 rigServe spawned keeper-myx "$rigTmp/skills-keeper"
 rigServe absent rig-absent-member "$rigTmp/skills-coordinator"
 
@@ -109,6 +112,9 @@ echo "-- the root session: no MDAT_SPAWN_AGENT --"
 rigAssert "a served SendMessage gets past the identity gate as magic-coordinator" "$( rigSend root )" "past-identity"
 rigAssert "a served AskQuestion with options builds its body" "$( rigAskBody root )" "body-built"
 rigAssert "without magic-coordinator in the skillset it is refused, so that was the member taken" "$( rigSend rootbare )" "refused-no-identity"
+
+echo "-- a root session with MDAT_TEAM_MEMBER set: resolved ahead of the magic-coordinator default (S21.21) --"
+rigAssert "a served SendMessage gets past the identity gate with only MDAT_TEAM_MEMBER's member present" "$( rigSend rootteam )" "past-identity"
 
 echo "-- a spawned session: MDAT_SPAWN_AGENT names its member --"
 rigAssert "a served SendMessage gets past the identity gate with only that member present" "$( rigSend spawned )" "past-identity"

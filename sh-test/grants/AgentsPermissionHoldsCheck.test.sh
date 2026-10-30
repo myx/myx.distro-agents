@@ -452,7 +452,15 @@ rigAssert "a standing deny-tool row beats the routine's allow of the same tool, 
 rigAssert "the control: without the deny row the routine's allow holds it" "$( rigHolds magic-tester RigControlTool "" rig-ycow )" "HOLDS routine magic-tester.rig-ycow.routine"
 export MDAT_SKILLSET_ROOT="$rigSkillsReal"
 echo "-- an orchestrator: deny rows over the whole workspace and over the shell tools, and the session's own sandbox stays (epic S18.2) --"
-mkdir -p "$rigSkillsReal/keeper-orch" ; printf "x\n" > "$rigSkillsReal/keeper-orch/keeper-orch.basic.md"
+## The orchestrator is a member of the rig only: a skillset of the rig's own holds it beside links to the real members, so
+## nothing is ever written into the real skillset.
+rigSkillsOrch="$rigTmp/skills-orch"
+mkdir -p "$rigSkillsOrch/keeper-orch" ; printf "x\n" > "$rigSkillsOrch/keeper-orch/keeper-orch.basic.md"
+for rigMemberDir in "$rigSkillsReal"/*/ ; do
+	rigMemberName="${rigMemberDir%/}" ; rigMemberName="${rigMemberName##*/}"
+	[ -e "$rigSkillsOrch/$rigMemberName" ] || ln -s "${rigMemberDir%/}" "$rigSkillsOrch/$rigMemberName"
+done
+export MDAT_SKILLSET_ROOT="$rigSkillsOrch"
 mkdir -p "$rigWs/.local/agents/spawned/rig-orch/input" "$rigWs/.local/agents/spawned/rig-orch/output" "$rigWs/ORCH"
 printf 'x\n' > "$rigWs/ORCH/f.txt"
 printf -- '---\nsession-id: rig-orch\nspawn-id: rig-orch\nowner: keeper-orch\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-orch/rig-orch.spawn.md"
@@ -469,6 +477,7 @@ rigHarnessReadOut(){ ## acting member, path -- what the harness's Read answers, 
 }
 rigAssert "the harness's Read refuses the orchestrator a file of the workspace, ahead of its roots, with the hint" "$( rigHarnessReadOut keeper-orch "$rigWs/ORCH/f.txt" | LC_ALL=C grep -c 'deny row declared for keeper-orch in project.inf' )" "1"
 rigAssert "and the same file is read by a member with no deny row" "$( rigHarnessReadOut magic-developer "$rigWs/ORCH/f.txt" | LC_ALL=C grep -c 'denied to this session' )" "0"
+export MDAT_SKILLSET_ROOT="$rigSkillsReal"
 echo "-- the access block of a dispatch: the same layers, said short --"
 rigBlock(){ ## member, routine file -- the block, lines joined by |
 	( cd "$rigWs" && env MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; AgentsToolsPermissionAccessBlock "$@"' rig-block "$@" ) | LC_ALL=C tr '\n' '|'
@@ -494,6 +503,10 @@ rigAssert "the harness reads there"                        "$( rigHarnessRead ma
 rigAssert "and refuses to write there, as its member"      "$( rigHarnessWrite magic-tester "$rigWs/RONLY/h.txt" )" "ERROR:"
 rigAssert "or as a served call with no member"             "$( rigHarnessWrite "" "$rigWs/RONLY/h.txt" )" "ERROR:"
 rigAssert "and nothing was written"                        "$( [ -e "$rigWs/RONLY/h.txt" ] && printf written || printf none )" none
+## The orchestrator section above is the last one that needs rigSkillsOrch, its overlay of the real members:
+## left in place, every call below resolves its floor against the real, full skillset through its symlinks
+## instead of the rig's small fixture (seen live, S17: a plain read stalled for 901s). Back to the fixture.
+export MDAT_SKILLSET_ROOT="$rigSkills"
 
 echo "-- harness read roots are per member: the floor, its own Read and Edit rows, nobody else's --"
 mkdir -p "$rigWs/source" "$rigWs/.local/temp/member/magic-tester"

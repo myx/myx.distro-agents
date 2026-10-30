@@ -129,11 +129,21 @@ AgentsToolsRoutineOverrideAsk(){ ## the requirement, the routine file name
 ## THE HELP VERB's ask of the one party who can supply what a start lacks: an inquiry in magic-coordinator's inbox, by the
 ## existing hand-off (--upsert-inbox-inquiry), naming the routine and the requirement. Never fails its caller.
 AgentsToolsRoutineStartAsk(){ ## the member the run is, the routine file, the requirement, what is missing (words), the session id, the run id
-	local askFile askName askRc=0
+	local askFile askName askRc=0 warnFile warnKey warnCount
 	mkdir -p "$MMDAPP/.local/temp" || return 0
+	## COUNTED (sketch 6.1, S17.12): one line a count, in the cache the agents' other counters live in, so a start that keeps
+	## warning about the same requirement is seen. `<requirement>:<routine> <count>`, rewritten whole, one writer.
+	warnFile="$MMDAPP/.local/cache/agents/routine-start-warnings.txt"
+	warnKey="$3:${2%.routine.md}"
+	mkdir -p "${warnFile%/*}" 2> /dev/null || :
+	warnCount="$( LC_ALL=C awk -v k="$warnKey" '$1 == k { print $2 + 0 ; exit }' "$warnFile" 2> /dev/null )" || warnCount=""
+	warnCount=$(( ${warnCount:-0} + 1 ))
+	if { LC_ALL=C awk -v k="$warnKey" '$1 != k' "$warnFile" 2> /dev/null ; printf '%s %s\n' "$warnKey" "$warnCount" ; } > "$warnFile.new" 2> /dev/null \
+		&& mv "$warnFile.new" "$warnFile" 2> /dev/null ; then : ; else rm -f "$warnFile.new" ; warnCount=1 ; fi
+	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the start of $2 lacks $3 ($4) and goes on -- warning $warnCount for $warnKey" >&2
 	askFile="$( mktemp "$MMDAPP/.local/temp/mdat-start-ask.XXXXXX" )" || return 0
 	askName="inquiry-$( date -u +%Y%m%dT%H%MZ )-start-$3-${2%.routine.md}.md"
-	printf '# Inquiry: %s needs a %s for its start\n\nThe start of `%s` as %s (session %s, run %s) lacks something only you can supply, and went on with a warning:\n\n%s\n\nPlease supply it for that session.\n' "$2" "$3" "$2" "$1" "$5" "$6" "$4" > "$askFile"
+	printf '# Inquiry: %s needs a %s for its start\n\nThe start of `%s` as %s (session %s, run %s) lacks something only you can supply, and went on with a warning (%s so far):\n\n%s\n\nPlease supply it for that session.\n' "$2" "$3" "$2" "$1" "$5" "$6" "$warnCount" "$4" > "$askFile"
 	DistroAgentsTools --upsert-inbox-inquiry magic-coordinator "$askName" --from-file "$askFile" > /dev/null 2>&1 || askRc=$?
 	rm -f "$askFile"
 	[ "$askRc" -eq 0 ] || echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the inquiry to magic-coordinator for $2 could not be filed" >&2 || :

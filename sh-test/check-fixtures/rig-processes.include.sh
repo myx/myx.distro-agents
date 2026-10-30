@@ -133,8 +133,22 @@ rigProcSignalWithChildren(){ ## signal, pid...
 	shift
 	withPids="$( rigProcStill "$@" )" || withPids=""
 	[ -n "$withPids" ] || return 1
-	## read while the processes are still themselves: what stands under them now is theirs
-	withKids="$( PATH="$rigProcPath" ps -A -o pid=,ppid= 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk -v withParents=" $( printf '%s ' $withPids )" 'index( withParents, " " $2 " " ) { print $1 ; }' )" || withKids=""
+	## read while the processes are still themselves: one ps of the whole table, then every descendant
+	## of a still pid in it -- a child, a child's child, and on -- not only a direct child.
+	withKids="$( PATH="$rigProcPath" ps -A -o pid=,ppid= 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk -v withRoots=" $( printf '%s ' $withPids )" '
+		{ ppidOf[$1] = $2 ; seen[$1] = 1 }
+		END {
+			rootCount = split( withRoots, rootList, " " )
+			for ( r = 1 ; r <= rootCount ; r++ ) { inSet[ rootList[r] ] = 1 ; isRoot[ rootList[r] ] = 1 }
+			grew = 1
+			while ( grew ) {
+				grew = 0
+				for ( p in seen ) {
+					if ( ! ( p in inSet ) && ( ppidOf[p] in inSet ) ) { inSet[p] = 1 ; grew = 1 }
+				}
+			}
+			for ( p in inSet ) if ( ! ( p in isRoot ) ) print p
+		}' )" || withKids=""
 	builtin kill "-$withName" $withPids $withKids 2> /dev/null
 	return 0
 }

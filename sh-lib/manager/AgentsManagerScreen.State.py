@@ -390,6 +390,9 @@ class ManagerState:
         ## the item the selection rests on, and since when (restLeft)
         self.restKey = None
         self.restSince = 0.0
+        ## when the screen last heard anything: a key, a read that ended, an operation that ran
+        ## (screenTurn). An idle screen turns slower than a busy one (keyWait).
+        self.movedAt = 0.0
         ## when each read that is made on demand alone last answered, by its key: the clock
         ## of the screen then (applyResult)
         self.ran = {}
