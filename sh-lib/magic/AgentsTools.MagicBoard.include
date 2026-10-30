@@ -84,6 +84,21 @@ AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<st
 	return $processedRc
 }
 
+## magic-coordinator is the board's only writer (ban #2): an agent-facing stub refuses any other resolved
+## member here; the internal operations the tooling calls decide no grant.
+case "$1" in
+	--move-to-*|--create-running)
+		type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include" 2> /dev/null || :
+		case "$( AgentsToolsTeamMember 2> /dev/null )" in
+			''|magic-coordinator|user-*) ;;
+			*)
+				echo "$MDSC_CMD: $1: ⛔ ERROR: magic-coordinator is the board's only writer, and this call is made as $( AgentsToolsTeamMember 2> /dev/null ). Ask magic-coordinator for the change, with post-inquiry." >&2
+				set +e ; return 1
+			;;
+		esac
+	;;
+esac
+
 case "$1" in
 
 	--move-to-pending)

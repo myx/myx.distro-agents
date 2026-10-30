@@ -173,6 +173,7 @@ AgentsToolsArtifactClaim(){
 			echo "⛔ ERROR: $artCmd: the claim of $artNumber could not be pushed, and origin was not seen to move, so the number is not secured. Nothing was published: $claimOut" >&2
 			break
 		fi
+		type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
 			echo "⛔ ERROR: $artCmd: another writer took $artNumber first, and myx.common git/cloneSync is unreachable to resync, so no number is secured. Nothing was published" >&2
 			break

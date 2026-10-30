@@ -578,20 +578,6 @@ case "$0" in
 		DistroAgentsContext --run-from-detect
 		DistroAgentsContext --distro-path-auto
 
-		## Copied from DistroAgentsTools.fn.sh: the test runner keys a pass by the myx.common it runs under, so the testbed
-		## reads the pass record under the same one the retest queue's batch runs under, called from here or through the tool.
-		if   [ -d "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/lib/catMarkdown.Common" ]; then
-			export MYXROOT
-		elif   [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/catMarkdown.Common" ]; then
-			export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-		elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ]; then
-			export MYXROOT="/usr/local/share/myx.common"
-		elif command -v myx.common 2>/dev/null && myx.common which lib/catMarkdown 2>/dev/null ; then
-			export MYXROOT="$( myx.common which lib/catMarkdown )"
-			export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
-		else
-			export MYXROOT=''
-		fi
 
 		DistroAgentsTesting "$@"
 	;;

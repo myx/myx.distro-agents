@@ -319,6 +319,7 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and the store holds uncommitted paths, so it was not integrated; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
 			return 0
 		fi
+		type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
 			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and myx.common git/cloneSync is unreachable to integrate; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
 			return 0
@@ -426,6 +427,7 @@ AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote
 		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set but $MDAT_DATA_ROOT holds local content and is not a clone, so nothing is committed or pushed from it; the main loop adopts such a store, a writer never does" >&2
 		return 0
 	fi
+	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] ; then
 		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set and no local board exists, but myx.common git/clonePull is unreachable, so it was not cloned" >&2
 		return 0
@@ -470,6 +472,7 @@ AgentsToolsTeamDataPrepareStore(){
 	fi
 	if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
 		if [ -n "$prepareRemote" ] ; then
+			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 			if [ -n "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/git/cloneSync.Common" ] && [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
 				local prepareBranch=""
 				prepareBranch="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || prepareBranch=""

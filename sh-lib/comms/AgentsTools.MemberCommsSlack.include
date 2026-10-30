@@ -409,6 +409,10 @@ AgentsToolsCommsSlackFileInfo(){ ## <team-member> <file-id> [--identity-bot] | -
 	return 0
 }
 
+## This file's one case, as a function of its own: an operation dispatched here, and the intern arm behind it,
+## run in the process that already sourced this file. Calling the dispatcher again would parse the kernel, the
+## front door and this file a second time for one operation (MAGIC.md, section 1).
+AgentsToolsMemberCommsSlackRun(){ ## arguments as the case below takes them
 case "$1" in
 
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
@@ -430,10 +434,16 @@ case "$1" in
 			## held back, for its sender to correct and send again (MDAT_SEND_FLOOR, read where
 			## the send measures). Tooling's own sends call the implementation below directly,
 			## and stay measured and reported only: nobody can rewrite those.
+			## The arm's own messages name the dispatcher here, as they did while it ran in its own process.
 			case "$1" in
-				--slack-send-message) MDAT_SEND_FLOOR=hold DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}" ; return $? ;;
+				--slack-send-message)
+					local MDSC_CMD='DistroAgentsTools'
+					MDAT_SEND_FLOOR=hold AgentsToolsMemberCommsSlackRun "--intern-op-comms-${1#--}" "${@:2}"
+					return $?
+				;;
 			esac
-			DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}"
+			local MDSC_CMD='DistroAgentsTools'
+			AgentsToolsMemberCommsSlackRun "--intern-op-comms-${1#--}" "${@:2}"
 			return $?
 		;;
 
@@ -456,9 +466,14 @@ case "$1" in
 			esac
 			## Held at the plain-language floor as a member's own message is: a person reads it.
 			case "$1" in
-				--client-comms-slack-send-message) MDAT_SEND_FLOOR=hold DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}" ; return $? ;;
+				--client-comms-slack-send-message)
+					local MDSC_CMD='DistroAgentsTools'
+					MDAT_SEND_FLOOR=hold AgentsToolsMemberCommsSlackRun "--intern-op-${1#--client-}" "${@:2}"
+					return $?
+				;;
 			esac
-			DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}"
+			local MDSC_CMD='DistroAgentsTools'
+			AgentsToolsMemberCommsSlackRun "--intern-op-${1#--client-}" "${@:2}"
 			return $?
 		;;
 
@@ -1973,6 +1988,7 @@ case "$1" in
 			local shareTitleForJson="$shareFilename"
 			[ -z "$shareTitle" ] || shareTitleForJson="$shareTitle"
 			local shareEscapedTitle=""
+			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 			shareEscapedTitle="$( printf '%s' "$shareTitleForJson" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
 			local shareStep3Args=( "$memberName" --api files.completeUploadExternal --form "files=[{\"id\":\"$shareFileId\",\"title\":\"$shareEscapedTitle\"}]" --form "channel_id=$shareConversation" )
 			[ -z "$shareParentTs" ] || shareStep3Args+=( --form "thread_ts=$shareParentTs" )
@@ -2819,6 +2835,7 @@ blocks|verbatim|caller|stdin file"
 		fi
 
 		local escapedText
+		type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 		escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
 
 		local payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
@@ -3303,3 +3320,6 @@ blocks|verbatim|caller|stdin file"
 			set +e ; return 1
 		;;
 esac
+}
+
+AgentsToolsMemberCommsSlackRun "$@"

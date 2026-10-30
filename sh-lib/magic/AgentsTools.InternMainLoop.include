@@ -189,6 +189,7 @@ case "$1" in
 		## file rather than logged and forgotten.
 		AgentsToolsMainLoopSyncTeamData() {
 			[ -n "$mainLoopDataRemote" ] || { mainLoopTeamData="skipped" ; return 0 ; }
+			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 			if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
 				mainLoopTeamData="skipped"
 				echo "# $MDSC_CMD --intern-main-loop: team-data sync skipped -- myx.common git/clonePull or git/cloneSync unreachable" >&2
@@ -209,6 +210,7 @@ case "$1" in
 				syncCommand="cloneSync"
 			fi
 			if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$mainLoopDataBranch" \
+				type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 				"$MYXROOT/bin/git/$syncCommand.Common" "$MDAT_DATA_ROOT" "$mainLoopDataRemote" "$mainLoopDataBranch" >&2 ) ; then
 				mainLoopTeamData="ok" ; mainLoopTeamDataFailures=0
 			else

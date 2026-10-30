@@ -238,6 +238,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: uncommitted paths under $MDAT_DATA_ROOT, nothing repaired" >&2
 			set +e ; return 1
 		fi
+		type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 		[ -n "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/git/cloneSync.Common" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: myx.common git/cloneSync is unreachable, so the checkout cannot be merged or pushed" >&2
 			set +e ; return 1

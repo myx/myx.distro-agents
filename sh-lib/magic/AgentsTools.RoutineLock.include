@@ -21,12 +21,14 @@
 AgentsToolsAdvanceCloneSync(){
 	local repoRoot="$1" originUrl="$2" lockBranch="$3"
 	advanceSyncOut=""
+	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
 		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
 		return 1
 	fi
 	local syncRc=0
 	set +e
+	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
 	set -e

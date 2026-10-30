@@ -202,6 +202,7 @@ case "$1" in
 				printf '%s\n' "$accountStatus" > "$clientSweepDir/$2.status"
 				return 0
 			}
+			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 			( type Parallel > /dev/null 2>&1 || . "$MYXROOT/bin/lib/parallel.Common" || exit 1
 				Parallel AgentsToolsMagicSweepAccountOne ) < <( printf 'team\n' ; for clientMember in $clientMembers ; do printf 'client %s\n' "$clientMember" ; done ) \
 				|| echo "# $MDSC_CMD --intern-op-sweep-input-scan: the concurrent sweeps did not all report; each one missing is stated below" >&2

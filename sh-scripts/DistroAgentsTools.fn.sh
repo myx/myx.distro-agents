@@ -27,15 +27,14 @@ esac
 
 ## The operations that implement a harness or an MCP tool (F7.8): the ones the harness's tools run, and the one behind
 ## execute. --mdat-output-format json, before the operation word, prints one of them as one JSON object,
-## {"operation":<word>,"status":<rc>,"result":<its output>}; every other operation runs as without it.
-## The ones of the tool files are in agentsFrontJsonOps (sh-lib/harness/AgentsContext.FrontTable.include).
-## sh-test/harness/AgentsBatchToolsCheck.test.sh holds both lists to the words the harness runs.
-agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read --intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume --intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks --intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index"
+## {"operation":<word>,"status":<rc>,"result":<its output>}; every other operation runs as without it. The list is in
+## that branch of the dispatcher, not at file scope. The ones of the tool files are in agentsFrontJsonOps
+## (sh-lib/harness/AgentsContext.FrontTable.include). sh-test/harness/AgentsBatchToolsCheck.test.sh holds both lists to the
+## words the harness runs, and reads this one out of its branch.
 
 ## The tester family of sketch 10.6: every operation DistroAgentsTesting.fn.sh serves, by its own name, so `--tester-<operation>` is
-## that operation and nothing else. One list, held to the testing tool's help by sh-test/member/AgentsTesterFamilyCheck.test.sh.
-agentsTesterOperations="apply-tool retest-drain retest-queue retest-result run-all-nightly-regressions run-oldest-untested send-report
-	skillset-validate-routine test-invalidate test-list test-register test-unregister test-update"
+## that operation and nothing else. One list, in the family's own arm, held to the testing tool's help by
+## sh-test/member/AgentsTesterFamilyCheck.test.sh, which reads it out of that arm.
 
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
@@ -53,6 +52,7 @@ DistroAgentsTools(){
 		;;
 	esac
 	if [ "${1:-}" = "--mdat-output-format" ] ; then
+		local agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read --intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume --intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks --intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index"
 		case "${2:-}" in
 			json) shift 2 ;;
 			*) echo "⛔ ERROR: $MDSC_CMD: --mdat-output-format takes json, got: ${2:-<none>}" >&2 ; set +e ; return 1 ;;
@@ -324,6 +324,7 @@ DistroAgentsTools(){
 		## Sketch 10.6's tester family: `--tester-<operation>` is DistroAgentsTesting.fn.sh `--<operation>`, one thin stub an operation,
 		## as the librarian family fronts its own. A name outside the list is refused with the list, so no stub is invented here.
 		--tester-*)
+			local agentsTesterOperations="apply-tool retest-drain retest-queue retest-result run-all-nightly-regressions run-oldest-untested send-report skillset-validate-routine test-invalidate test-list test-register test-unregister test-update"
 			testerOperation="${1#--tester-}"
 			case " $agentsTesterOperations " in
 				*" $testerOperation "*) ;;
@@ -846,18 +847,6 @@ case "$0" in
 		DistroAgentsContext --distro-path-auto
 
 		## Copied from DistroLocalTools.fn.sh: needed for catMarkdown and the JSON escaper.
-		if   [ -d "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/catMarkdown.Common" ]; then
-			export MYXROOT
-		elif   [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/catMarkdown.Common" ]; then
-			export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-		elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ]; then
-			export MYXROOT="/usr/local/share/myx.common"
-		elif command -v myx.common 2>/dev/null && myx.common which lib/catMarkdown 2>/dev/null ; then
-			export MYXROOT="$( myx.common which lib/catMarkdown )"
-			export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
-		else
-			export MYXROOT=''
-		fi
 
 		## A bare call takes the default syntax, not --help-syntax: the whole
 		## operation list is what --help-syntax is asked for by name. A bare call

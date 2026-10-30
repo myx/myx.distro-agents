@@ -17,21 +17,6 @@ case "$1" in
 
 	--intern-op-board-upsert-move-edit)
 		shift
-		## magic-coordinator is the board's only writer (ban #2 of the librarian's sweep, sketch 3.1): the
-		## acting member the tooling already resolves for every call (AgentsToolsTeamMember) is refused here,
-		## before any board read or write, where it is set and is not magic-coordinator.
-		type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include" 2> /dev/null || :
-		local boardWriteActing="$( AgentsToolsTeamMember 2> /dev/null )"
-		## No identity (a bare call, today's existing convention) and a human console account
-		## (user-<account>, a live session the human-owner confirms) are not refused: only a
-		## resolved OTHER team member is.
-		case "$boardWriteActing" in
-			''|magic-coordinator|user-*) ;;
-			*)
-				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: magic-coordinator is the board's only writer, and this call is made as $boardWriteActing. Ask magic-coordinator for the change, with post-inquiry." >&2
-				set +e ; return 1
-			;;
-		esac
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do

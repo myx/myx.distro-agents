@@ -47,34 +47,29 @@ rigRefused(){ ## output -- yes when the gate's own refusal is in it
 	case "$1" in *"magic-coordinator is the board"*"only writer"*) printf yes ;; *) printf no ;; esac
 }
 
-echo "-- 1. a resolved other team member is refused by each op, named, how to ask, nothing written --"
-rigScene rename
-rigAssert "board-rename: refused" "$( rigRefused "$( rigGate magic-librarian --intern-op-board-rename task-20261020T0100Z-rig-old.md task-20261020T0100Z-rig-new.md )" )" yes
-rigAssert "and nothing renamed" "$( [ -f "$rigData/board/backlog/task-20261020T0100Z-rig-old.md" ] && [ ! -f "$rigData/board/backlog/task-20261020T0100Z-rig-new.md" ] && printf unchanged )" unchanged
-rigScene trash
-rigAssert "board-trash: refused" "$( rigRefused "$( rigGate magic-architect --intern-op-board-trash rig-member backlog task-20261020T0100Z-rig-old.md )" )" yes
-rigAssert "and nothing trashed" "$( [ -f "$rigData/board/backlog/task-20261020T0100Z-rig-old.md" ] && printf unchanged )" unchanged
-rigScene upsert
-rigAssert "board-upsert-move-edit: refused" "$( rigRefused "$( printf x | rigGate magic-librarian --intern-op-board-upsert-move-edit backlog task-20261020T0100Z-rig-old.md --create --upsert-from-stdin )" )" yes
-rigAssert "and names how to ask" "$( rigGate magic-librarian --intern-op-board-rename task-20261020T0100Z-rig-old.md task-20261020T0100Z-rig-new.md | LC_ALL=C grep -c -F 'post-inquiry' )" 1
+echo "-- 1. an agent-facing stub refuses a resolved other team member, names how to ask, writes nothing --"
+rigScene stubs
+rigAssert "move-to-processed: refused" "$( rigRefused "$( rigGate magic-librarian --move-to-processed task-20261020T0100Z-rig-old.md --from-state:backlog )" )" yes
+rigAssert "grooming-to-pending: refused" "$( rigRefused "$( rigGate magic-architect --grooming-to-pending task-20261020T0100Z-rig-old.md --from-state:backlog )" )" yes
+rigAssert "grooming-create-backlog: refused" "$( rigRefused "$( printf x | rigGate magic-librarian --grooming-create-backlog task-20261020T0100Z-rig-new.md )" )" yes
+rigAssert "and nothing moved or made" "$( [ -f "$rigData/board/backlog/task-20261020T0100Z-rig-old.md" ] && [ ! -f "$rigData/board/processed/task-20261020T0100Z-rig-old.md" ] && [ ! -f "$rigData/board/backlog/task-20261020T0100Z-rig-new.md" ] && printf unchanged )" unchanged
+rigAssert "and names how to ask" "$( rigGate magic-librarian --move-to-processed task-20261020T0100Z-rig-old.md --from-state:backlog | LC_ALL=C grep -c -F 'post-inquiry' )" 1
 
-echo "-- 2. magic-coordinator itself is not refused --"
-rigScene coordinator
-rigAssert "board-rename: not refused by the gate" "$( rigRefused "$( rigGate magic-coordinator --intern-op-board-rename task-20261020T0100Z-rig-old.md task-20261020T0100Z-rig-new.md )" )" no
+echo "-- 2. the internal operation decides no grant: the tooling's own write under a member's identity goes through --"
+rigScene internal
+rigAssert "intern-op-board-rename as a member: not refused" "$( rigRefused "$( rigGate magic-librarian --intern-op-board-rename task-20261020T0100Z-rig-old.md task-20261020T0100Z-rig-new.md )" )" no
 rigAssert "and the rename went through" "$( [ -f "$rigData/board/backlog/task-20261020T0100Z-rig-new.md" ] && printf renamed )" renamed
 
-echo "-- 3. no identity at all, and a human console account, are not refused either --"
-rigScene bare
-rigAssert "board-rename: no identity at all, not refused" "$( rigRefused "$( rigGate '' --intern-op-board-rename task-20261020T0100Z-rig-old.md task-20261020T0100Z-rig-new.md )" )" no
-rigAssert "and the rename went through" "$( [ -f "$rigData/board/backlog/task-20261020T0100Z-rig-new.md" ] && printf renamed )" renamed
-rigScene console
-rigAssert "board-rename: a human console account, not refused" "$( rigRefused "$( rigGate user-myx --intern-op-board-rename task-20261020T0100Z-rig-old.md task-20261020T0100Z-rig-new.md )" )" no
-rigAssert "and the rename went through" "$( [ -f "$rigData/board/backlog/task-20261020T0100Z-rig-new.md" ] && printf renamed )" renamed
+echo "-- 3. magic-coordinator, no identity at all, and a human console account are not refused by a stub --"
+for rigWho in magic-coordinator '' user-myx ; do
+	rigScene "who-$rigWho"
+	rigAssert "move-to-processed as '$rigWho': not refused" "$( rigRefused "$( rigGate "$rigWho" --move-to-processed task-20261020T0100Z-rig-old.md --from-state:backlog )" )" no
+done
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BOARD WRITE IDENTITY GATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
 	echo "  warn: a member other than magic-coordinator can still write the board, or a legitimate bare or console call is now refused" >&2
-	echo "  fix:  repair the gate in sh-lib/board/AgentsTools.InternOpBoard{Rename,Trash,UpsertMoveEdit}.include -- never the assertion" >&2
+	echo "  fix:  repair the gate in the stubs, sh-lib/magic/AgentsTools.Magic{Board,Grooming}.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'BOARD_WRITE_IDENTITY_GATE: OK (%d assertions, offline)\n' "$rigPassCount"

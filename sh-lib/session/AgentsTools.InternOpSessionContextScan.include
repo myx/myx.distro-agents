@@ -983,6 +983,7 @@ case "$1" in
 					;;
 				esac
 				if [ ${#slackSourceSpecs[@]} -gt 0 ] ; then
+					type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 					( type Parallel > /dev/null 2>&1 || . "$MYXROOT/bin/lib/parallel.Common" || exit 1
 						Parallel --workers "$sourceFetchWorkers" AgentsSessionContextSourceFetchOne ) < <( seq 0 $(( ${#slackSourceSpecs[@]} - 1 )) ) \
 						|| echo "$MDSC_CMD: session-context-scan: ⚠️ WARNING: the concurrent source reads did not all report; each one missing is stated below" >&2

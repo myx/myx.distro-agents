@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MyRoot.include -- where myx.common is on this machine: the tree the markdown render, the git helpers and the
+## owner setup reach by $MYXROOT. Sourced where it is first read, never at the top of an entry script.
+##
+## Sourcing it sets and exports MYXROOT: a value already good stays, else the tree's own copy, then the installed one, then
+## what `myx.common` answers, else empty. AgentsToolsMyRoot is also what the guard of a second site tests, so the probe runs
+## once in a process, not at each site.
+##
+
+AgentsToolsMyRoot(){ ## sets MYXROOT
+	if   [ -n "${MYXROOT:-}" ] && [ -d "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/catMarkdown.Common" ] ; then
+		export MYXROOT
+	elif [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/catMarkdown.Common" ] ; then
+		export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
+	elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ] ; then
+		export MYXROOT="/usr/local/share/myx.common"
+	elif command -v myx.common > /dev/null 2>&1 && [ -n "$( myx.common which lib/catMarkdown 2> /dev/null )" ] ; then
+		export MYXROOT="$( myx.common which lib/catMarkdown )"
+		export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
+	else
+		export MYXROOT=''
+	fi
+}
+
+AgentsToolsMyRoot

@@ -645,6 +645,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	set -e
 	localSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" )"
 	set +e
+	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 	syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
 	set -e
