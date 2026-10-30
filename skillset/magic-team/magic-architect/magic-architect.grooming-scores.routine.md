@@ -99,7 +99,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-tests (benchmarks)
 
 - No open item in this skill's domain needs a score change: a valid, reportable "scores current" outcome.
-- A score change is ready. It reaches the item through `magic-coordinator`; `magic-architect` never writes the board.
+- A score change is ready. It reaches the item through `magic-coordinator`.
 
 ## Librarian Comments
 

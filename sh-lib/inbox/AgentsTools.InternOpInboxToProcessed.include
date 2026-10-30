@@ -15,7 +15,6 @@
 ## is older than the type retention. Contract: MAGIC.md.
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 ## One header of an inbox item, nothing for a key it lacks.
@@ -253,6 +252,7 @@ case "$1" in
 			## Measured, never refused. Only this branch carries the caller's own
 			## new text: script and patch derive a body from content somebody else
 			## wrote, and a plain mark only adds the stamp.
+			type AgentsToolsOutputStyleRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 			printf '%s' "$body" | AgentsToolsOutputStyleRefusal "$inboxMember" "" "$itemName" "" none || :
 		elif [ "$bodyMode" = "patch" ] ; then
 			local patchJson existingContent

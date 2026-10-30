@@ -86,6 +86,13 @@ case "$1" in
 					"--owner-*"
 				)
 			;;
+			## A root console with no team member resolved falls to this (S21.20): the implied-member
+			## default that fills every front tool's own first argument is this call's OWN identity,
+			## never the member whose help is wanted, so filling it in here just hides the real gap.
+			user-*)
+				echo "⛔ ERROR: $MDSC_CMD --member-help: no team member was named, so this call's own identity ($targetMember) was used by default and has no help of its own. Name the member whose help you want: $MDSC_CMD --member-help <team-member>." >&2
+				set +e ; return 1
+			;;
 			*)
 				echo "⛔ ERROR: $MDSC_CMD --member-help: not a recognized team-member naming pattern: $targetMember" >&2
 				set +e ; return 1

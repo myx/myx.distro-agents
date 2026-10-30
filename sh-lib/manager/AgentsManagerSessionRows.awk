@@ -122,8 +122,9 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 		if (index(waitingSet, " " $8 " ") > 0) { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
 		else { runActivity[runTotal] = "working" ; agentsWorking++ ; }
 	}
-	## A RUN THAT DIED ON ITS START READS `failed` (sketch 3.6), whatever the registry derives of it: its status says so.
-	runStateWord = ( $6 == "spawn-failed" ? "failed" : $13 ) ;
+	## A RUN THAT IS STILL HERE IS RUNNING, whatever its record says (S21.4): a `spawn-failed` mark written before the run started
+	## cannot end it. Otherwise a settled status stands, and a run that died on its start reads `failed` (sketch 3.6).
+	runStateWord = ( $6 == "spawn-failed" && $12 != "running" ? "failed" : $13 ) ;
 	if (runStateWord == "failed") sessionFailed[sessionKey] = 1 ;
 	## A settled death and a clean advance-pass close share one status word (spawn-ended-without-close):
 	## $13 already tells them apart (S21.4), so this reads the derived word, never the raw status again.

@@ -84,6 +84,8 @@
 
 		--slack-react <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--remove]
 			Puts that emoji on one message as a reaction, and `--remove` takes it off.
+			A conversation the acting user identity cannot reach is reacted to once
+			under the team bot, and a note says so. `--identity-bot` forces the bot.
 
 		--slack-read (<channel>:<ts> [--thread]|<channel>|<conversation-id>|<alias> [--oldest <ts>])
 			Prints a conversation, the thread of one message with `--thread`, or the messages

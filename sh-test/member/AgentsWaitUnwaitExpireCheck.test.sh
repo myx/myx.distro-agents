@@ -88,22 +88,22 @@ RIGRECORD
 echo "-- --unwait drops a held source by name, and does not block naming it again --"
 rigSession1="rig-wait-unwait"
 rigRecord rig-unwait-001 1700000000.000000
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 rigAssert "it is in the stored wait" "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/$rigSession1/wait/state" "ask:rig-unwait-001" )" "yes"
-rigOp --wait-for-input "$rigMember" --unwait "ask:rig-unwait-001" --wait-session-id "$rigSession1"
+rigOp --wait-for-input --team-member "$rigMember" --unwait "ask:rig-unwait-001" --wait-session-id "$rigSession1"
 rigAssert "--unwait reports DROPPED" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: DROPPED"
 rigAssert "it leaves the stored sources line, the floor staying: the replies, the DMs, the mentions and the wake marker, and no ask" "$( rigSourcesLine "$rigScenarioDir/out" )" "replies:$rigSession1 dms:$rigMember mentions:$rigMember wake:$rigMember"
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming it again explicitly still works: dropping is not blocking" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 
 echo "-- an answered question quiet for far more than five minutes stays in the wait --"
 rigSession2="rig-wait-expire"
 rigRecord rig-expired-001 1600000000.000000
 : > "$rigScenarioDir/ws/quiet.txt"
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "ask:rig-expired-001" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "ask:rig-expired-001" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 3 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 3 --wait-poll-interval 1
 rigAssert "it is not dropped by age" "$( rigHolds "$rigScenarioDir/out" "WAIT-DROPPED-EXPIRED" )" "no"
 rigAssert "it is still in the stored sources, carried forward" "$( rigHolds "$rigScenarioDir/out" "ask:rig-expired-001" )" "yes"
 
@@ -112,9 +112,9 @@ rigSession3="rig-wait-clarified"
 rigRecord rig-clarified-001 1600000000.000000
 printf -- '- %s.000000 URIGOWNER: a recent clarification\n' "$( date +%s )" >> "$rigScenarioDir/ws/.local/agents/pending/rig-clarified-001.md"
 : > "$rigScenarioDir/ws/quiet3.txt"
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "ask:rig-clarified-001" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "ask:rig-clarified-001" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 3 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 3 --wait-poll-interval 1
 rigAssert "it is not dropped" \
 	"$( rigHolds "$rigScenarioDir/out" "WAIT-DROPPED-EXPIRED" )" "no"
 rigAssert "it is still in the stored sources, carried forward" "$( rigHolds "$rigScenarioDir/out" "ask:rig-clarified-001" )" "yes"

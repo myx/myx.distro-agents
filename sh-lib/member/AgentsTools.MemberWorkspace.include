@@ -337,14 +337,26 @@ AgentsToolsMemberSettingsBorrowedSay(){ ## member, operation, the workspace the 
 	return 0
 }
 
-## The workspace named to pay for one spawn of a member, by the spawn itself or by the
-## member's own setting, as a path: what a spawn operation exports as
-## MDAT_SPAWN_SETTINGS_WORKSPACE for that spawn. Nothing printed where neither names one:
-## the workspace's own naming, if it has one, then decides. One function for the spawn
-## and for the brief built ahead of it, so both read the same CLI. rc 1, with one message
-## under the caller's label, where the name names none.
+## The workspace named to pay for one spawn of a member, as a path: the name given for
+## this one spawn, else the payer the calling session inherited, else the member's own
+## setting. Nothing printed where none of them names one: the workspace's own naming, if
+## it has one, then decides. One function for the spawn and for the brief built ahead of
+## it, so both settle the same payer. rc 1, with one message under the caller's label,
+## where a name names no workspace this machine knows.
 AgentsToolsSpawnSettingsSettle(){ ## member, the workspace named for this one spawn (may be empty), the caller's label in a message
 	local settleName="$2" settleBy="--spawn-settings-workspace" settlePath
+	if [ -z "$settleName" ] && [ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] ; then
+		## An inherited payer is a path already, settled by the spawn this one is made from:
+		## it holds for every spawn below that one until one of them names its own. Checked as
+		## a name is, because every other rung refuses a payer it cannot resolve: a path that
+		## is no directory would otherwise pay this spawn from the caller's own default.
+		settleName="${MDAT_SPAWN_SETTINGS_WORKSPACE%/}"
+		[ -d "$settleName" ] || {
+			echo "$MDSC_CMD: $3: ⛔ ERROR: '$settleName' is the payer this spawn of $1 inherited (MDAT_SPAWN_SETTINGS_WORKSPACE), and it is no directory on this machine -- nothing was started. Name one with --spawn-settings-workspace, or clear it so this workspace pays." >&2
+			return 1
+		}
+		printf '%s\n' "$settleName" ; return 0
+	fi
 	if [ -z "$settleName" ] ; then
 		settleBy="SPAWN_SETTINGS_WORKSPACE in the $1 scope"
 		settleName="$( DistroAgentsTools --agents-config-option "$1" --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || settleName=""

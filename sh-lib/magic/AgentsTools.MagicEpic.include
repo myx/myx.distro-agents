@@ -68,7 +68,8 @@ case "$1" in
 							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }
 							print ; next
 						}
-						if ( $0 ~ /^## / || $0 ~ /^# / ) { inFeature = 0 ; print ; next }
+						## A feature with no Status: line gets it before the next heading, not only at the end of the file.
+						if ( $0 ~ /^## / || $0 ~ /^# / ) { if ( ! placed ) { print new ; print "" ; placed = 1 } ; inFeature = 0 ; print ; next }
 						if ( ! placed && $0 ~ /^Status: / ) { print new ; placed = 1 ; next }
 						print
 					}
@@ -112,13 +113,15 @@ case "$1" in
 							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }
 							print ; next
 						}
-						if ( $0 ~ /^## / || $0 ~ /^# / ) { inFeature = 0 ; print ; next }
+						## A feature with no Status: line gets the settlement before the next heading, not only at the end of the file.
+						if ( $0 ~ /^## / || $0 ~ /^# / ) { if ( ! placed ) { print line ; print "" ; placed = 1 } ; inFeature = 0 ; print ; next }
 						if ( ! placed && $0 ~ /^Status: / ) { print $0 ; print "" ; print line ; placed = 1 ; next }
 						print
 					}
 					END { if ( ! placed && inFeature ) { print "" ; print line } }
 				' "$epicFile" > "$settledTemp" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
 				mv -f -- "$settledTemp" "$epicFile" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
+				LC_ALL=C grep -q -F -x -- "$settledLine" "$epicFile" || { echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the line is not in $epicFile after the write -- nothing was settled" >&2 ; set +e ; return 1 ; }
 				printf 'EPIC: %s: %s settled: %s\n' "${epicFile##*/}" "$featureId" "$settledText"
 			;;
 

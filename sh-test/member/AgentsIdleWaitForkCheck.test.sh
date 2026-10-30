@@ -69,10 +69,10 @@ rigCtl="$( wc -l < "$rigTmp/ctl.forks" | tr -d ' ' )"
 ## one: what the longer run costs beyond the shorter is the tick, with the processes a call
 ## pays for once at its start left out of it.
 : > "$rigTmp/forks1"
-FORKLOG="$rigTmp/forks1" PATH="$rigTmp/shim:$PATH" "$rigTools" --wait-for-input magic-developer \
+FORKLOG="$rigTmp/forks1" PATH="$rigTmp/shim:$PATH" "$rigTools" --wait-for-input --team-member magic-developer \
 	--wait-source "file:$rigTmp/quiet.txt" --wait-timeout 6 --wait-poll-interval 1 > "$rigTmp/wait1.out" 2> /dev/null
 : > "$rigTmp/forks2"
-FORKLOG="$rigTmp/forks2" PATH="$rigTmp/shim:$PATH" "$rigTools" --wait-for-input magic-developer \
+FORKLOG="$rigTmp/forks2" PATH="$rigTmp/shim:$PATH" "$rigTools" --wait-for-input --team-member magic-developer \
 	--wait-source "file:$rigTmp/quiet.txt" --wait-timeout 18 --wait-poll-interval 1 > "$rigTmp/wait2.out" 2> /dev/null
 rigRounds1="$( sed -n 's/.*, \([0-9][0-9]*\) poll round(s).*/\1/p' "$rigTmp/wait1.out" | tail -1 )"
 rigRounds2="$( sed -n 's/.*, \([0-9][0-9]*\) poll round(s).*/\1/p' "$rigTmp/wait2.out" | tail -1 )"
@@ -85,7 +85,7 @@ rigForks="$(( $( wc -l < "$rigTmp/forks2" ) - $( wc -l < "$rigTmp/forks1" ) ))"
 
 ## SECTION 3: a wait whose caller is gone ends, and says so.
 : > "$rigTmp/orphan.out"
-( "$rigTools" --wait-for-input magic-developer --wait-source "file:$rigTmp/quiet.txt" --wait-timeout 120 \
+( "$rigTools" --wait-for-input --team-member magic-developer --wait-source "file:$rigTmp/quiet.txt" --wait-timeout 120 \
 	> "$rigTmp/orphan.out" 2>&1 & echo $! > "$rigTmp/orphan.pid" )
 rigOrphanPid="$( cat "$rigTmp/orphan.pid" 2> /dev/null || : )"
 case "${rigOrphanPid:-x}" in ''|*[!0-9]*) rigFail "the wait of section 3 was not started, so its ending says nothing" ;; esac

@@ -24,7 +24,7 @@ The body of `# Maintainer Notes` in `magic-team.armed.md`. Read it when that fil
 
 - A spawned member asks its coordinator and gets `TIMEOUT`. It waits again or re-asks; it does not end its turn.
 - A member finishes its part in a coworking session while the session is open. It reports, then waits on the session thread.
-- A member needs a board item created. It files an inquiry to `magic-coordinator`; it never writes the board.
+- A member needs a board item created. It files an inquiry to `magic-coordinator`.
 - A member has a factual question a participant can answer. It asks in the session thread; the human-owner never receives it.
 - A rule change is agreed by every maintainer other than the human-owner, in one session. It lands only once he, as a maintainer, approves it too.
 - A member needs to know which account a message goes out under. It does not: the tooling chooses.

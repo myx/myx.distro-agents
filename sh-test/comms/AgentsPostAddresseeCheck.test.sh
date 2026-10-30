@@ -147,16 +147,25 @@ while IFS= read -r rigPair ; do
 	rigAssert "${rigPair%%=*} declares it" \
 		"$( LC_ALL=C grep -F "{\"type\":\"function\",\"function\":{\"name\":\"${rigPair%%=*}\"," "$rigWire" | LC_ALL=C grep -c -F '"address_to":{"type":"string","description":"Optional. ' )" 1
 done <<< "$rigTools"
-rigAssert "the mirror serves it for each of the five, and for the five that ask" "$( printf '%s\n' "$rigMirror" | LC_ALL=C grep -o -F '"address_to":{"type":"string"' | wc -l | tr -d ' ' )" 10
+## The count to want is read from the wire adapter itself, never a fixed number: a tool gains or loses
+## address_to there first, and the mirror is only ever asked to match it (S18.1 drift: ThisSession's own
+## post gained address_to, and a literal 10 here went stale against it).
+rigWireAddressToCount="$( LC_ALL=C grep -o -F '"address_to":{"type":"string"' "$rigWire" | wc -l | tr -d ' ' )"
+rigAssert "the mirror serves address_to for exactly the tools the wire adapter declares it for" "$( printf '%s\n' "$rigMirror" | LC_ALL=C grep -o -F '"address_to":{"type":"string"' | wc -l | tr -d ' ' )" "$rigWireAddressToCount"
 rigAssert "SendMessage says how a dismissal is sent" \
 	"$( LC_ALL=C grep -F '"name":"SendMessage",' "$rigWire" | LC_ALL=C grep -c -F 'send the one word DISMISSED to its session thread, with address_to naming that member. Sent with no address_to, DISMISSED dismisses no one.' )" 1
 rigAssert "and so does its address_to" \
 	"$( LC_ALL=C grep -F '"name":"SendMessage",' "$rigWire" | LC_ALL=C grep -c -F 'A message DISMISSED dismisses the member named here.' )" 1
 
 echo "-- address_to names the addressee in the header, for each of the five --"
+rigWoke(){ ## member -- yes when a post of this scenario touched its wake marker
+	[ -f "$rigScenarioDir/ws/.local/agents/wake/$1" ] && printf yes || printf no
+}
 while IFS= read -r rigPair ; do
 	rigRow "named${rigPair%%=*}" "${rigPair%%=*}" "{\"to\":\"session-current\",\"address_to\":\"$rigOther\",${rigPair#*=}}"
 	rigAssert "${rigPair%%=*}: one post, in the thread named, headed to the member named" "$( rigPosts )$( rigPostedTo "$rigCurrent" ):$( rigHeader )" "1yes:$rigToOther"
+	rigAssert "${rigPair%%=*}: a post into a thread, addressed to a member there, wakes it within a tick, as its own DM does" "$( rigWoke "$rigOther" )" yes
+	rigAssert "${rigPair%%=*}: and never wakes the sender for its own post" "$( rigWoke "$rigMember" )" no
 done <<< "$rigTools"
 
 echo "-- with no address_to the post is as it always was, and is not refused --"
@@ -176,6 +185,7 @@ rigAssert "the human-owner, in one shape: a message has the header of a question
 rigAssert "and that shape names him and his account"                 "$( rigHeader )" "${rigFrom}👤 *_human-owner_* <@URIGOWNER>."
 rigRow sendSeveral SendMessage "{\"to\":\"session-current\",\"address_to\":\"$rigOther $rigLead\",\"message\":\"m\"}"
 rigAssert "several, separated by spaces: each named, in the order given" "$( rigHeader )" "${rigFrom}🤖 *_${rigOther}_*; 🤖 *_${rigLead}_*."
+rigAssert "several: each named is woken" "$( rigWoke "$rigOther" ) $( rigWoke "$rigLead" )" "yes yes"
 rigRow sendAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1","message":"m"}'
 rigAssert "a Slack account, by its id"                               "$( rigHeader )" "${rigFrom}<@URIGSOME1>."
 rigRow sendUnknown SendMessage '{"to":"session-current","address_to":"rig-nobody","message":"m"}'

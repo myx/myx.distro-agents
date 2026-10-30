@@ -752,18 +752,48 @@ AgentsTranscriptReplyFloor(){
 	## A workspace that is selected -- the tooling stands in its .local -- and a run with a session id: the session's folder is made
 	## here, where it can be, before the run is served from it (F9.2). Without it those sessions lose their reads.
 	[ ! -d "$MMDAPP/.local/agents" ] || [ -d "$MMDAPP/.local/agents/sessions/$floorKey" ] || { AgentsToolsSessionChatDir "$floorKey" > /dev/null && mkdir -p "$MMDAPP/.local/agents/sessions/$floorKey" 2> /dev/null ; } || :
-	## KEEPS THE SESSION THREAD OF INTEREST (S21.23), every tool return, so the rig's own pull (AgentsToolsCommsCachePullWatched)
-	## keeps it fresh without this call ever reaching Slack itself: the floor stays local-cache-only, never a network call here.
-	## Where no pull runs on this host, the next Wait still pulls it, by its own TTL, as it always did.
-	( local floorThread="" floorChannel="" floorTs=""
+	## THE THREAD IS KEPT OF INTEREST, AND FILLS THE FLOOR BETWEEN WAITS (S21.23). The session's own thread is marked of interest, so
+	## the rig's own pull (AgentsToolsCommsCachePullWatched) keeps it fresh. A session the communications reader is not serving has
+	## the messages the thread's cache holds, past what its chat file imported, brought into the file here (AgentsToolsSessionChatImport),
+	## with one pull of its own left detached for the next return: this return itself reaches no network.
+	( local floorThread="" floorNow="" floorLooked="" floorSeen="" floorRender=""
+	  ## The communications reader's own rule: where it is off, no read of a thread is made and none is started.
+	  [ "${MDAT_COMMS_READER:-}" != "off" ] || exit 0
 	  floorThread="$( AgentsToolsSessionChatThread "$floorKey" 2> /dev/null )" || floorThread=""
-	  case "$floorThread" in *:*)
-		floorChannel="${floorThread%%:*}" ; floorTs="${floorThread#*:}"
-		type AgentsToolsCommsCacheInterest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || exit 0
-		AgentsToolsCommsCacheSlackDir "$floorMember" false "$floorChannel" "$floorTs" 2> /dev/null || exit 0
-		AgentsToolsCommsCacheInterest "$agentsCommsCacheDir" "$( date +%s )"
-	  ;; esac
-	) 2> /dev/null || :
+	  case "$floorThread" in *:*:*|'') exit 0 ;; esac
+	  floorNow="$( date +%s )"
+	  ## The member's pointer first, as the Wait's own chat source does: what the file holds before this fill is not new to it.
+	  AgentsToolsSessionChatReaderInit "$floorKey" "$floorMember"
+	  type AgentsToolsCommsCacheInterest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || exit 0
+	  AgentsToolsCommsCacheSlackDir "$floorMember" false "${floorThread%%:*}" "${floorThread#*:}" 2> /dev/null || exit 0
+	  AgentsToolsCommsCacheInterest "$agentsCommsCacheDir" "$floorNow"
+	  ## A reader that looked at this session lately fills its chat file itself: nothing is done here then.
+	  floorLooked="$( AgentsToolsSessionChatReaderLooked "$floorKey" )"
+	  case "$floorLooked" in ''|*[!0-9]*) floorLooked=0 ;; esac
+	  [ $(( floorNow - floorLooked )) -ge 15 ] || exit 0
+	  if AgentsToolsCommsCacheState "$agentsCommsCacheDir" ; then
+		floorSeen="$( LC_ALL=C awk -F'\t' -v where="$floorThread" '
+			function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) }
+			function fracOf(v) { if ( v !~ /\./ ) { return "000000" } ; sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) }
+			$3 == where && ( secOf($2) > secOf(best) || ( secOf($2) == secOf(best) && fracOf($2) > fracOf(best) ) ) { best = $2 }
+			END { print best }' "$MMDAPP/.local/agents/sessions/$floorKey/session.chat.index" 2> /dev/null )" || floorSeen=""
+		## What the session holds is where its cache is served from: its newest block, else the moment of its first import, which is
+		## the line the importer draws between history and what is new to it. Nothing older is brought in.
+		if [ -z "$floorSeen" ] ; then floorSeen="$( AgentsToolsSessionChatPointer "$floorKey" "import:$floorThread" )" || floorSeen=0 ; fi
+		if [ "$floorSeen" != "$agentsCommsCacheNewest" ] ; then
+			floorRender="$( mktemp "$MMDAPP/.local/agents/sessions/$floorKey/fill.XXXXXX" 2> /dev/null )" || exit 0
+			AgentsToolsCommsCacheServe "$agentsCommsCacheDir" "$floorSeen" nohead > "$floorRender" || { rm -f "$floorRender" ; exit 0 ; }
+			AgentsToolsSessionChatImport "$floorKey" "$floorThread" "$floorRender" slack -
+			rm -f "$floorRender"
+			exit 0
+		fi
+	  fi
+	  ## The cache holds nothing this session has not got, or there is none yet: it is brought up to date here, detached, and this
+	  ## return carries nothing new of it. A pull another holds is waited out by that one, so one pull runs at a time.
+	  [ ! -d "$agentsCommsCacheDir" ] || [ $(( floorNow - agentsCommsCacheAt )) -ge 15 ] || exit 0
+	  ( MDAT_COMMS_CACHE_STALE_OK="" AgentsToolsCommsCacheSlackThread "$floorMember" "$floorThread" "$agentsCommsCacheDir/.fill.rendered" false "$floorNow" ) > /dev/null 2>&1 < /dev/null &
+	  exit 0
+	) > /dev/null 2>&1 || :
 	floorText="$( AgentsToolsSessionChatFloor "$floorKey" "$floorMember" "" deliver 2> /dev/null )" || floorText=""
 	[ -z "$floorText" ] || printf '# new for you in your session (its floor), from its chat file:\n%s' "$floorText"
 }

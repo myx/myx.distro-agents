@@ -999,11 +999,24 @@ rigSpawnIn ws-here keeper-multi --spawn-settings-workspace ws-there
 rigAssert "accepted sibling: a task that names a known workspace is paid from it, the workspace's own naming not looked at" "$rigRc $( rigPaid )" "0 there/there/there/here"
 rigPayTeamOff ws-here
 ## A spawn made from inside a session that is itself paid from elsewhere: what that session's spawn settled is in its
-## environment, and is never taken over.
+## environment, and every spawn below it inherits it until one names its own.
 rigRc=0
 ( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-third" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
-rigAssert "a spawn made from a session paid from elsewhere settles its own: nothing named for it, so this workspace pays" "$rigRc $( rigPaid )" "0 here/here/here/here"
+rigAssert "a spawn made from a session paid from elsewhere inherits that payer: nothing named for it, so the workspace that paid its session pays" "$rigRc $( rigPaid )" "0 third/third/third/here"
+rigAssert "and the child carries that payer, because it is another workspace than the one spawning" "$( rigRoots HERE | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) if ( $i ~ /^MDAT_SPAWN_SETTINGS_WORKSPACE=/ ) n++ } END { print n + 0 }' )" 1
+rigRc=0
+( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-third" \
+	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --spawn-settings-workspace ws-there --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
+rigAssert "the flag wins over the payer the session inherited" "$rigRc $( rigPaid )" "0 there/there/there/here"
+rigRc=0
+( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-here" \
+	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
+rigAssert "inheriting this workspace's own path pays here and writes nothing into the child, so a spawn of it into another workspace pays there" "$rigRc $( rigPaid ) $( rigRoots HERE | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) if ( $i ~ /^MDAT_SPAWN_SETTINGS_WORKSPACE=/ ) n++ } END { print n + 0 }' )" "0 here/here/here/here 0"
+rigRc=0
+( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/gone/ws-gone" \
+	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
+rigAssert "a payer inherited that is no directory refuses the spawn, as every other rung refuses a payer it cannot resolve" "$rigRc [$( rigLaunched )] $( rigN "$rigTmp/err" "$rigWork/gone/ws-gone' is the payer this spawn of keeper-multi inherited (MDAT_SPAWN_SETTINGS_WORKSPACE), and it is no directory on this machine -- nothing was started." )" "1 [] 1"
 ## The handback retry: resumed with what the launch was started with, the workspace that pays included.
 rigPayWorld
 rm -f "$rigTmp"/paid.*
@@ -1181,7 +1194,7 @@ rigRunIn ws-here --intern-op-spawn-prepare-brief keeper-here --routine-default -
 rigAssert "control: with none named, for this workspace's own" "$rigRc $( rigBriefReader "$rigTmp/out" )" "0 own"
 rigPre=( "MDAT_SPAWN_SETTINGS_WORKSPACE=$rigWork/ws-third" )
 rigRunIn ws-here --intern-op-spawn-prepare-brief keeper-here --routine-default --context rig-ws-invited
-rigAssert "and never for what the calling session's own spawn settled: a brief asked for from a session paid from elsewhere is built for the spawn it is for" "$rigRc $( rigBriefReader "$rigTmp/out" )" "0 own"
+rigAssert "and from the payer the calling session inherited, as its spawn is: a brief asked for from a session paid from elsewhere is built for the workspace that paid it" "$rigRc $( rigBriefReader "$rigTmp/out" )" "0 native"
 rigPre=()
 rigScopeOf ws-here keeper-multi 'WHERE=ws-here' 'SPAWN_SETTINGS_WORKSPACE=ws-third'
 rigRunIn ws-here --intern-op-spawn-prepare-brief keeper-multi --routine-default --context rig-ws-invited

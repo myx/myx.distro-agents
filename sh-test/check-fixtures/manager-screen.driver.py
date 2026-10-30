@@ -504,6 +504,16 @@ def scriptRun(module):
                 print("style.refused=%s" % rest)
         elif command == "mode":
             state.viewMode = rest
+        elif command == "select":
+            ## the row of that id at the level the list is at now, among the rows it holds, the row that goes up with them
+            held = module.levelRowsAt(state, state.path)
+            shown = [row["id"] for row in held]
+            if rest not in shown:
+                sys.stderr.write("manager-screen.driver.py: the row of that id is not in the list now: %s (%s)\n" % (rest, " ".join(shown)))
+                if reader[0] is not None:
+                    reader[0].stop()
+                return 2
+            state.cursors[module.levelKey(state.path)] = {"key": module.rowKey(held[shown.index(rest)]), "index": shown.index(rest), "top": 0}
         elif command == "plaintext":
             print("%s=%s" % (words[0], module.plainText(rest.partition(" ")[2])))
         elif command == "cells":

@@ -338,7 +338,7 @@ rigOpDefaultSend(){ ## workspace, scenario, session, marker, label -- the send o
 	local rigOpWs="$1" rigOpScn="$2" rigOpSession="$3" rigOpMarker="$4" rigOpLabel="$5"
 	( cd "$rigOpWs" && env -i PATH="$rigBin:/usr/bin:/bin" HOME="$rigHome" MMDAPP="$rigOpWs" MDLT_ORIGIN="$rigOrigin" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigOpScn" MDAT_SPAWN_SESSION_ID="$rigOpSession" \
-		bash "$rigRigTool" --slack-send-message "$rigRootMember" "" --address-to "$rigHelperMember" --from-stdin ) \
+		bash "$rigRigTool" --slack-send-message --team-member "$rigRootMember" "" --address-to "$rigHelperMember" --from-stdin ) \
 		> "$rigTmp/op-default-$rigOpLabel.out" 2> "$rigTmp/op-default-$rigOpLabel.err" <<< "$rigOpMarker"
 	rigOpRc=$?
 	## The operation's own copy and its named fields are on its two streams: the Slack fields go to stderr

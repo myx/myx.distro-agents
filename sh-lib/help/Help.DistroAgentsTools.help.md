@@ -445,7 +445,9 @@
 			SPAWN_SETTINGS_WORKSPACE=<workspace-name> in the `magic-team`
 			scope names it for every spawn of this workspace, the same key
 			in a member's scope for that member's spawns, and one spawn may
-			name its own. The name is the last path segment of a workspace
+			name its own with --spawn-settings-workspace. A spawn that names
+			none inherits the payer its own session was spawned with, ahead
+			of both of those. The name is the last path segment of a workspace
 			this machine knows; a name that fits none fails the read.
 			A member's own setting of a system (a key that begins with
 			SLACK_, EMAIL_, JIRA_, CONFLUENCE_, TRELLO_ or GOOGLE_) is read
@@ -690,19 +692,23 @@
 			one is refused.
 
 			`--format markdown|text` picks how the body renders
-			in the HTML part (default markdown); any other value
+			in both parts (default markdown); any other value
 			is refused.
 
-			**Sends multipart/alternative.** text/plain carries
-			the body verbatim; text/html is built from it, UTF-8
-			both. In either mode a bare URL becomes a real link
-			(same URL-before-email precedence as
-			--slack-send-message); a bare email
-			becomes bold text, never a link. `markdown` mode also
-			honours `[text](url)`, code spans/fences, and
-			`*x*`/`_x_` emphasis (nested, real HTML tags); a link
-			is inert inside a code span or fence. `text` mode only
-			escapes and linkifies.
+			**Sends multipart/alternative**, UTF-8 both parts.
+			`markdown` mode renders each part through the renderer
+			that owns it. text/plain goes through myx.common
+			lib/catMarkdown, the one renderer the console's
+			Markdown view and every --help are read through, so a
+			plain-text reader never meets raw Markdown. text/html
+			goes through LocalMarkdownHtmlDocument.awk, which
+			carries headings, lists, tables, fences, quotes, links
+			and emphasis. `text` mode says the body holds no
+			Markdown: text/plain carries the body itself, and
+			text/html only escapes and linkifies it, with a bare
+			URL becoming a real link (same URL-before-email
+			precedence as --slack-send-message) and a bare email
+			becoming bold text, never a link.
 
 			Also refused before anything sends: a <team-member>
 			that isn't a real member (routine-* exempt), no
@@ -1051,6 +1057,9 @@
 			channels are unaffected. --remove takes the acting
 			identity's own reaction off again instead of adding it;
 			one that is not there is a success.
+
+			A conversation the acting user identity cannot reach is
+			reacted to once under the team bot, and a note says so.
 
 			session-current or session-parent in place of
 			`<channel>:<ts>` names the opening message of that
@@ -7649,6 +7658,15 @@
 		tool's alone: it carries the call forms of the tools that serve
 		these operations too, so an operator reads one list. Each form's
 		own manual is the `--help` of the tool that serves it.
+
+		`--tester-<operation>` is one thin stub per operation of
+		`DistroAgentsTesting.fn.sh`, so `--tester-test-list` is that tool's
+		`--test-list`. The operations are `apply-tool`, `retest-drain`,
+		`retest-queue`, `retest-result`, `run-all-nightly-regressions`,
+		`run-oldest-untested`, `send-report`, `skillset-validate-routine`,
+		`test-invalidate`, `test-list`, `test-register`, `test-unregister`
+		and `test-update`. Any other name is refused, and the refusal
+		prints that list.
 
 ##  Examples:
 

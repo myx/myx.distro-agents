@@ -147,7 +147,7 @@ rigMsg="$( printf '%s\n' '```' 'https://example.com' '```' | rigSend 'test@examp
 rigAssert "a url inside a fence is never linkified" \
 	"$( rigHas "$rigMsg" '<a href=' )" no
 rigAssert "and posts as a preformatted block" \
-	"$( rigHas "$rigMsg" '<pre>https://example.com</pre>' )" yes
+	"$( rigHas "$rigMsg" '<pre><code>https://example.com</code></pre>' )" yes
 
 rigMsg="$( printf '%s\n' 'See [Click here](https://example.com/page) now.' | rigSend 'test@example.com' 'Existing link case' )"
 rigAssert "an existing [text](url) link keeps its own label" \

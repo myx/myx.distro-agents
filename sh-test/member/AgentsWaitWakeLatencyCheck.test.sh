@@ -140,7 +140,7 @@ rigMeasure(){
 	out="$rigScenarioDir/$name.out"
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID \
 		MMDAPP="$rigScenarioDir/ws" MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_WAIT_SETTLE_SECONDS=0 MDAT_WAIT_REMIND=off MDAT_COMMS_READER=off \
-		bash "$rigTool" --wait-for-input "$rigMember" "$@" --wait-timeout "$bound" ) > "$out" 2> "$out.err" &
+		bash "$rigTool" --wait-for-input --team-member "$rigMember" "$@" --wait-timeout "$bound" ) > "$out" 2> "$out.err" &
 	local waitPid=$!
 	started="$( rigNow )"
 	[ "$after" -le 0 ] || sleep "$after"
@@ -197,7 +197,7 @@ rigSendArrives(){
 	rigMessageLands
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID \
 		MMDAPP="$rigScenarioDir/ws" MDAT_DATA_ROOT="$rigScenarioDir/data" \
-		bash "$rigTool" --slack-send-message "$rigSender" "$rigMember" "RIG sent while the wait was idle" ) \
+		bash "$rigTool" --slack-send-message --team-member "$rigSender" "$rigMember" "RIG sent while the wait was idle" ) \
 		> "$rigScenarioDir/send.out" 2> "$rigScenarioDir/send.err"
 	rigArrivedAt="$( rigNow )"
 }
@@ -250,7 +250,7 @@ rigScanWait(){ ## output name -- one call of the duty's wait, bounded by the ses
 		MMDAPP="$rigScenarioDir/ws" MDAT_DATA_ROOT="$rigScenarioDir/data" \
 		MDAT_SESSION_ID="$rigScanSession" MDAT_SPAWN_SESSION_ID="$rigScanSession" MDAT_SPAWN_AGENT="$rigMember" \
 		MDAT_WAIT_SETTLE_SECONDS=0 MDAT_WAIT_REMIND=off MDAT_COMMS_READER=off \
-		bash "$rigTool" --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigScanSession" \
+		bash "$rigTool" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigScanSession" \
 			--wait-source scan:work-duty --wait-source "wake:$rigMember" ) > "$rigScenarioDir/$1.out" 2> "$rigScenarioDir/$1.err"
 }
 ## The arrival: the inbox item the work-duty report carries, and the marker the send operation writes.

@@ -66,7 +66,7 @@ rigDefault(){ ## session -- one Wait with no sources
 	: > "$rigScenario/calls"
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-		bash "$rigTools" --wait-for-input "$rigMember" --wait-default --wait-session-id "$1" --wait-timeout 16 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$1" --wait-timeout 16 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 }
 rigHas(){ LC_ALL=C grep -c -F -- "$1" "$rigTmp/out" || : ; }
 
@@ -92,7 +92,7 @@ rm -f "$rigScenario/react-fail"
 printf '{"ok":true,"messages":[{"ts":"%s.000101","user":"URIGOWNER","text":"RIG-COMMITTED"}],"has_more":false}\n' "$(( $( date +%s ) + 9 ))" > "$rigScenario/history.DOWNERUSER1.json"
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 	RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-	bash "$rigTools" --wait-for-input "$rigMember" --wait-default --wait-session-id rig-owner-dms --wait-timeout 20 --wait-poll-interval 1 2> /dev/null | head -1 > "$rigTmp/out.first" )
+	bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id rig-owner-dms --wait-timeout 20 --wait-poll-interval 1 2> /dev/null | head -1 > "$rigTmp/out.first" )
 rigAssert "the caller took the first line of the result and was gone (a client that moved the call away, or interrupted it)" "$( cat "$rigTmp/out.first" )" "WAIT-RESULT: RECEIVED"
 rigDefault rig-owner-dms
 rigAssert "the next Wait of the session does not return that message again: its floor was committed before the result was said" "$( rigHas RIG-COMMITTED )" "0"
@@ -103,7 +103,7 @@ rigCollect(){ ## session -- one collect over the member's own DM with the owner
 	: > "$rigScenario/calls"
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" MDAT_SESSION_ID="$1" \
-		bash "$rigTools" --wait-for-input "$rigMember" --wait-collect 3 --wait-source slack:DOWNERUSER1 ) > "$rigTmp/out" 2> "$rigTmp/err"
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-collect 3 --wait-source slack:DOWNERUSER1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 }
 rigEyesCount(){ ## ts -- the eyes the fake curl logged on that message
 	LC_ALL=C awk -v ts="$1" '$3 == ts && $4 == "eyes" { n++ } END { print n + 0 }' "$rigScenario/reactions" 2> /dev/null || printf 0

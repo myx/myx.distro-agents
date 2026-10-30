@@ -70,7 +70,7 @@ rigSend(){ ## member, target, body, send options...
 	shift 3
 	printf '%s' "$sendBody" | ( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID \
 		"PATH=$rigTmp/bin:$PATH" "RIG_SCENARIO=$rigScene" "RIG_CHAT=$rigChat" "MMDAPP=$rigWs" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" ${rigSession:+MDAT_SESSION_ID=$rigSession} \
-		bash "$rigTool" --slack-send-message "$sendMember" "$sendTarget" "$@" --from-stdin ) > "$rigScene/send.out" 2> "$rigScene/send.err"
+		bash "$rigTool" --slack-send-message --team-member "$sendMember" "$sendTarget" "$@" --from-stdin ) > "$rigScene/send.out" 2> "$rigScene/send.err"
 	printf '%s' "$?" > "$rigScene/send.rc"
 }
 rigHeaders(){ ## how many header lines the chat file holds

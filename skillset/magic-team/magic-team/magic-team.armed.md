@@ -405,7 +405,7 @@ Rules:
 - A chapter keeps the session's routine, so it keeps the routine's access. Anything beyond it is asked for with `RequestPermission`.
 - One conversation, one document, one transcript, through every chapter.
 - The main mode's exit ends the conversation. A chapter ends by handing back, never by ending the conversation.
-- Every exchange is kept as a `transcript-*` with `--append-transcript --transcript-name`.
+- Every exchange is kept as a `transcript-*` with `--append-transcript --transcript-name`. A note line goes to the session transcript with `SessionTranscriptAppend`.
 
 # Interview-alike checkpoint mode
 
@@ -526,6 +526,7 @@ Tools and channels:
 
 # Duties: three kinds, plus reflection
 
+- **A member's work queue is its `CheckList`.** A task of several steps is listed there, one item per step, one in progress at a time. An item is completed as its step lands. A one-step task needs no list.
 - **Assigned work** — board items and direct dispatches. The default.
 - **Idle-task work** — only with no active, unblocked todos. Pick one idle-run routine from this member's `## Idle-Tasks` (weighted, honouring `min-interval` and `scope`), or the universal research-own-duties activity. Work in small steps: find, investigate, propose. Never self-approve into action. An empty menu is a normal result.
 - **Activity-scoped duties** — obligations during one activity, such as a review or a testing round. A concern opens an investigation subtask that ends as **escalate** or **solve**.

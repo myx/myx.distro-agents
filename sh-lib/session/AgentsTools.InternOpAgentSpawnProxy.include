@@ -1044,14 +1044,19 @@ case "$1" in
 		## PAYS. The CLI this spawn starts on and the credentials it is started with are spawn
 		## settings, read from the workspace its console runs in unless another workspace known
 		## on this machine is named to pay (AgentsTools.MemberWorkspace.include, SPAWN SETTINGS):
-		## for this one spawn by --spawn-settings-workspace, else for this member by
-		## SPAWN_SETTINGS_WORKSPACE in its own scope, else for every spawn by the same key in the
-		## magic-team scope, which the option reader follows by itself. Settled here, before
-		## anything is created, and exported for the rest of this spawn, so its brief, its start
-		## post, its console and its handback retry all read one workspace's. Never taken over
-		## from the session this spawn is made from: that session's own spawn settled its own.
+		## for this one spawn by --spawn-settings-workspace, else by the payer the session this
+		## spawn is made from inherited, else for this member by SPAWN_SETTINGS_WORKSPACE in its
+		## own scope, else for every spawn by the same key in the magic-team scope, which the
+		## option reader follows by itself. Settled here, before anything is created, and
+		## exported for the rest of this spawn, so its brief, its start post, its console and its
+		## handback retry all read one workspace's.
+		local payerSettled=""
+		payerSettled="$( AgentsToolsSpawnSettingsSettle "$callerName" "$spawnSettingsWorkspace" agent-spawn-proxy )" || { set +e ; return 1 ; }
+		## Only a payer that is another workspace is written into the child. This workspace's own
+		## path never is: a child carrying it would keep paying from here after it spawns into
+		## another workspace. Left unset, the read settles against the workspace it runs in.
 		local -x MDAT_SPAWN_SETTINGS_WORKSPACE=""
-		MDAT_SPAWN_SETTINGS_WORKSPACE="$( AgentsToolsSpawnSettingsSettle "$callerName" "$spawnSettingsWorkspace" agent-spawn-proxy )" || { set +e ; return 1 ; }
+		[ -z "$payerSettled" ] || [ "${payerSettled%/}" = "${MMDAPP%/}" ] || MDAT_SPAWN_SETTINGS_WORKSPACE="${payerSettled%/}"
 		spawnPayingWorkspace="$(
 			AgentsToolsSpawnSettingsWorkspace
 		)" || {
@@ -1402,9 +1407,15 @@ case "$1" in
 		local inheritedSessionThread="${MDAT_SESSION_THREAD:-}"
 		## The member the calling session acts as, read before the export below names the
 		## spawned one: who starts a session that is the caller's own. Empty for a caller that
-		## is no member's session.
+		## is no member's session. A root session, never minted through a spawn, names itself
+		## through its own MDAT_TEAM_MEMBER, the same as every other caller (S21.21): read with
+		## AgentsToolsTeamMember, never the narrower AgentsToolsActingMember alone, so a handback
+		## of the child it spawns still finds a parent-member to address (load incident: a root
+		## console session's spawn carried no parent-member at all, so its handback fell through
+		## to the human-owner instead of the session's own thread).
 		local spawnerMember=""
-		spawnerMember="$( AgentsToolsActingMember 2> /dev/null )" || spawnerMember=""
+		type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include" 2> /dev/null || :
+		spawnerMember="$( AgentsToolsTeamMember 2> /dev/null )" || spawnerMember=""
 		## The member that makes this spawn call: the calling session's own, else the one its
 		## caller said the call is made as (--calling-member). Kept on the spawn's record
 		## (`parent-member:`), and who the lines this spawn posts for its caller are addressed to.

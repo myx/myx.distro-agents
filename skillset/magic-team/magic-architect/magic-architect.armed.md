@@ -208,7 +208,7 @@ The idle-run scoring routine sets or refines RICE scores on open board items in 
 - A fact outside this member's knowledge is a consult to the domain-owning member, never a guess.
 - The pass never reassigns, splits or drops an item. That is grooming's job.
 - "Scores current" is a valid outcome.
-- The scores reach the item through `magic-coordinator`. This member never writes the board.
+- The scores reach the item through `magic-coordinator`.
 
 ## What a review does not do
 

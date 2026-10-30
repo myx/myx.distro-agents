@@ -59,16 +59,16 @@ rigOp(){ ## operation and its arguments
 }
 
 echo "-- a bare default wait, nothing stored yet, watches the session's own thread --"
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-since-utime 1700000000 --wait-timeout 2 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-since-utime 1700000000 --wait-timeout 2 --wait-poll-interval 1
 rigAssert "it times out (nothing posted there)" "$( rigFirstLine "$rigWs/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 rigAssert "the session thread is the source, behind the floor" "$( rigSourcesLine "$rigWs/out" )" "replies:$rigSession slack:$rigSessionThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 
 echo "-- --wait-close ends the stored wait --"
-rigOp --wait-for-input "$rigMember" --wait-close --wait-session-id "$rigSession"
+rigOp --wait-for-input --team-member "$rigMember" --wait-close --wait-session-id "$rigSession"
 rigAssert "it reports CLOSED" "$( rigFirstLine "$rigWs/out" )" "WAIT-RESULT: CLOSED"
 
 echo "-- a later bare default wait recomputes the session thread as its source again --"
-rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-since-utime 1700000000 --wait-timeout 2 --wait-poll-interval 1
+rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-since-utime 1700000000 --wait-timeout 2 --wait-poll-interval 1
 rigAssert "it times out, same as before" "$( rigFirstLine "$rigWs/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 rigAssert "the session thread is the source again, after the close" "$( rigSourcesLine "$rigWs/out" )" "replies:$rigSession slack:$rigSessionThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
 

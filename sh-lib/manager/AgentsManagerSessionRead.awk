@@ -186,7 +186,7 @@ FILENAME == ARGV[1] {
 	}
 	if (listedWords[1] != "run") next ;
 	runTotal++ ;
-	runRow[runTotal] = $0 ; runSpawn[runTotal] = listedWords[3] ; runMember[runTotal] = listedWords[4] ; runLive[runTotal] = listedWords[6] ;
+	runRow[runTotal] = $0 ; runSpawn[runTotal] = listedWords[3] ; runMember[runTotal] = listedWords[4] ; runLive[runTotal] = listedWords[6] ; runState[runTotal] = listedWords[7] ;
 }
 
 END {
@@ -220,9 +220,25 @@ END {
 	}
 	for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenSaid[tokenAt] = ( tokenRuns > 0 ? tokensFigure(tokenSum[tokenAt]) : "-" ) ;
 	print "tokens", sessionId, tokenSaid[1], tokenSaid[2], tokenSaid[3], tokenSaid[4], tokenRuns, tokenRunning, ( sessionState == "finished" || sessionState == "failed" ? "final" : "so-far" ), tokenUnknown ;
+	## THE REASON A RUN FAILED: the words the session's control/dead keeps beside its id, read once
+	## for the whole read. A run the file names reads failed, and this says why (S21.4).
+	deadCount = 0 ;
+	deadFile = ENVIRON["MDAT_MANAGER_AGENTS"] "/sessions/" sessionId "/control/dead" ;
+	while ((getline deadLine < deadFile) > 0) {
+		deadId = deadLine ; sub(/[ \t].*$/, "", deadId) ;
+		deadRest = deadLine ; sub(/^[^ \t]+[ \t]*/, "", deadRest) ;
+		if (deadId != "" && deadRest != "") deadReason[++deadCount] = deadId "\t" deadRest ;
+	}
+	close(deadFile) ;
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		if (onlyRun != "" && runSpawn[runAt] != onlyRun) continue ;
 		print runRow[runAt] ;
+		if (runState[runAt] == "failed") {
+			for (deadAt = 1 ; deadAt <= deadCount ; deadAt++) {
+				split(deadReason[deadAt], deadWords, "\t") ;
+				if (deadWords[1] == runSpawn[runAt]) { print "death", runSpawn[runAt], deadWords[2] ; break ; }
+			}
+		}
 		if (!plainName(runSpawn[runAt])) continue ;
 		for (headerAt = 1 ; headerAt <= headerTotal[runAt] ; headerAt++) print "header", runSpawn[runAt], columnText(headerName[runAt, headerAt]), exactText(headerValue[runAt, headerAt]) ;
 		print storeRow(runSpawn[runAt]) ;

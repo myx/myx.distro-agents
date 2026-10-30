@@ -54,6 +54,9 @@
 #                            Consumed in ONE step; in a code span or a fence
 #                            it stays text.
 #   "@name"                -> a real rich_text mention where the name resolves.
+#   "<@Uxxxx>", "<@Wxxxx>" -> a real rich_text mention from Slack's own raw id
+#                            syntax, carried through verbatim -- no name lookup,
+#                            so it works for a person who is not a team member.
 #   "[text](url)"          -> a real rich_text `link` element, the label in
 #                            "text" and the target in "url". Both consumed in
 #                            ONE step, so the url's own "_" and "*" never
@@ -377,6 +380,15 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 		## that only starts like one stays literal.
 		if (c == "<" && substr(line, i, 7) == "<!date^" && match(substr(line, i), /^<!date\^[0-9]+\^[^|>]+\|[^>]+>/)) {
 			addTok("date", substr(line, i + 7, RLENGTH - 8), "", 0)
+			i += RLENGTH
+			continue
+		}
+		## Slack's OWN raw mention syntax, "<@Uxxxx>" or "<@Wxxxx>", already carrying a
+		## real id -- a caller quoting a user id it read elsewhere (never resolvable by
+		## name, since the "@name" branch below only ever matches a team member's own
+		## name). Consumed in ONE step, needing no lookup: the id is already given.
+		if (c == "<" && match(substr(line, i), /^<@[UW][A-Z0-9]+>/)) {
+			addTok("mention", substr(line, i + 2, RLENGTH - 3), "", 0)
 			i += RLENGTH
 			continue
 		}

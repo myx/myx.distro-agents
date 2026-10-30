@@ -399,7 +399,10 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 		declLocal="$( LC_ALL=C awk -v pkg="$declWs/.local/myx/" '{ t = $2 ; if ( sub( /^--magic-team:permissions:workspace:/, "", t ) ) { n = split( $1, id, "/" ) ; print pkg id[n] " " t ; } }' "$declInf" )" \
 			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: cannot read $declInf" >&2 ; return 2 ; }
 		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
-	elif [ -n "$( ls -A "$declWs/.local/myx" 2> /dev/null )" ] ; then
+	elif [ -n "$( find "$declWs/.local/myx" -mindepth 1 -maxdepth 1 -type d 2> /dev/null | head -1 )" ] ; then
+		## A PACKAGE IS A DIRECTORY: `.local/myx` holding only a `MAGIC.md`, a note or a temporary file has no package whose
+		## declares a missing index could hide, so it is not the fault the row below reports (owner 2026-10-30: a test scratch
+		## carrying that one file stopped `--make-harness-indices`).
 		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: packages are installed under $declWs/.local/myx but $declInf is not there to read" >&2
 		return 2
 	fi

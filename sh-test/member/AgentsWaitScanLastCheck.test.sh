@@ -64,7 +64,7 @@ rigWait(){ ## result name, session id, then the options of the wait
 	shift 2
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigW/source" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
 		MDAT_SESSION_ID="$waitSession" MDAT_SPAWN_SESSION_ID="$waitSession" MDAT_SPAWN_AGENT="$rigMember" MDAT_WAIT_REMIND=off \
-		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input "$rigMember" --wait-default --wait-session-id "$waitSession" --wait-timeout 0 "$@" ) > "$rigTmp/$waitName.out" 2> "$rigTmp/$waitName.err" < /dev/null 4> /dev/null || waitRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$waitSession" --wait-timeout 0 "$@" ) > "$rigTmp/$waitName.out" 2> "$rigTmp/$waitName.err" < /dev/null 4> /dev/null || waitRc=$?
 	printf '%s' "$waitRc" > "$rigTmp/$waitName.rc"
 }
 rigResult(){ ## result name -- the outcome word of its WAIT-RESULT line, or none

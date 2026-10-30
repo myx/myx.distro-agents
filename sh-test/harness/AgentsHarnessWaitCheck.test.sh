@@ -757,7 +757,7 @@ rigNew(){ ## output basename, then the operation's own arguments
 		"PATH=$rigSlackPath" "RIG_CURL_LOG=$rigNewDir/curl.log" "RIG_SCENARIO=$rigNewDir" "MMDAPP=$rigNewDir/ws" "MDAT_DATA_ROOT=$rigNewDir/data" \
 		${rigNewOrigin:+MDLT_ORIGIN=$rigNewOrigin} \
 		${rigNewPoll:+MDAT_WAIT_POLL_SECONDS=$rigNewPoll} \
-		"$opTool" --wait-for-input "$rigMember" "$@" > "$rigNewOut" 2> "$rigNewErr" &
+		"$opTool" --wait-for-input --team-member "$rigMember" "$@" > "$rigNewOut" 2> "$rigNewErr" &
 	opPid=$!
 	(
 		opLeft="$rigNewGuard"

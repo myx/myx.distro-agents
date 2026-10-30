@@ -424,11 +424,17 @@ case "$1" in
 		{ printf '%s\n' "$pendingBody" > "$pendingFile.$$" && mv -f "$pendingFile.$$" "$pendingFile" ; } \
 			|| { rm -f "$pendingFile.$$" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		AgentsToolsLocalLockGive "$pendingLock"
-		## The outcome goes to the ask's item, where a reopened or continued task reads it.
-		if [ -z "$pendingNoDecision" ] ; then
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-			AgentsToolsDecisionsFromPending "$pendingId" "$pendingFile" "$pendingStatus" "$pendingAmend" "$pendingAnswerTs"
+		## A QUESTION CLOSED WITH NO VERDICT LEAVES THE ASK'S WAIT SOURCE (S21.6, owner 2026-10-30): a withdrawn one, or one settled elsewhere,
+		## can never answer the wait that watches it. An answered one keeps its thread watched, so a later message there arrives as CLARIFIED.
+		if [ -z "$pendingVerdict" ] ; then
+			local dropOwner="" dropSession=""
+			dropOwner="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "owner: ") == 1 { print substr($0, 8) ; exit }' "$pendingFile" 2> /dev/null )" || dropOwner=""
+			dropSession="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "session-id: ") == 1 { print substr($0, 13) ; exit }' "$pendingFile" 2> /dev/null )" || dropSession=""
+			if [ -n "$dropOwner" ] && [ -n "$dropSession" ] ; then
+				DistroAgentsTools --intern-op-wait-for-input "$dropOwner" --wait-drop --wait-session-id "$dropSession" --wait-source "ask:$pendingId" > /dev/null 2>&1 || :
+			fi
 		fi
+		## The outcome goes to the ask's item, where a reopened or continued task reads it.
 		## A resolved question shows it where people look: :eyes: on the reply taken as its
 		## answer, a mark on the question in its thread (:white_check_mark: answered,
 		## :ballot_box_with_check: settled), the answer emoji the tooling placed there taken off

@@ -327,7 +327,7 @@ rigWait(){ ## output name, TZ (empty: the rig's), wait arguments...
 	shift 2
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_WAIT_REMIND \
 		TZ="$waitTz" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_DATA_ROOT="$rigScenarioDir/data" ${rigEnv[@]+"${rigEnv[@]}"} bash "$rigTool" --wait-for-input "$rigMember" "$@" ) \
+		MDAT_DATA_ROOT="$rigScenarioDir/data" ${rigEnv[@]+"${rigEnv[@]}"} bash "$rigTool" --wait-for-input --team-member "$rigMember" "$@" ) \
 		> "$rigScenarioDir/$waitOut" 2> "$rigScenarioDir/$waitOut.err"
 	rigRc=$?
 }
@@ -674,7 +674,7 @@ rigLoopWait(){ ## -- a wait on the loop scenario's ask, in the loop's own enviro
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" RIG_FN="$rigTool" RIG_MEMBER="$rigMember" \
-		bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --wait-for-input "$RIG_MEMBER" --wait-source ask:ask-loop --wait-timeout 1' > "$rigDir/wait.out" 2> "$rigDir/wait.err"
+		bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --wait-for-input --team-member "$RIG_MEMBER" --wait-source ask:ask-loop --wait-timeout 1' > "$rigDir/wait.out" 2> "$rigDir/wait.err"
 }
 rigLoopReminders(){ LC_ALL=C grep -c -F 'Still waiting for your answer' "$rigDir/posted" 2>/dev/null || : ; }
 rigLoopScenario both-loop-last

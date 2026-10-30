@@ -243,7 +243,7 @@ agentsWaitFloorAhead=300
 ## line, so a reply goes back to the conversation it was read from. From the bot's DM only what the person wrote is kept. rc 0 read, 1 the target names no person (the
 ## caller reads it as a conversation), 2 neither DM could be read.
 AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
-	local personMember="$1" personTarget="$2" personSince="$3" personOut="$4" personId personIdentity personInfo personDm personSeen=" " personFailed=0 personParts=0
+	local personMember="$1" personTarget="$2" personSince="$3" personOut="$4" personId personIdentity personInfo personDm personSeen=" " personFailed=0 personParts=0 personRendered="" personLine
 	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
 	personId="$( DistroAgentsToolsResolveTarget "$personTarget" "$personMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1 )" || personId=""
 	case "$personId" in U*|W*) ;; *) return 1 ;; esac
@@ -267,7 +267,7 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 		[ "$personKeyN" -gt 0 ] || personKey=""
 		[ -z "$personKey" ] || case " ${agentsWaitConvSeen:-} " in *" $personKey "*) return 3 ;; esac
 	fi
-	: > "$personOut.rendered" || return 2
+	personRendered=""
 	## The id of a direct conversation never changes: kept a week, per member, in .local/cache/comms/slack/.dm-<member>.txt
 	## (`<identity> <person> <dm id> <at>`), so a probe asks conversations.info only for one it does not know.
 	local personDmFile="$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt" personNow personKnownIdentity personKnownPerson personKnownDm personKnownAt
@@ -303,8 +303,10 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 			/^[0-9]+\.[0-9]+ \| / { split($0, f, " \\| ") ; keep = ( onlyPerson == 0 || f[2] == person ) ; }
 			keep { print ; }' "$personOut.part" > "$personOut.part.kept" 2>> "$personOut.err" || return 2
 		AgentsWaitTrackingDropFile "$personMember" "$personOut.part.kept"
-		{ printf '# in %s\n' "$personDm" ; cat "$personOut.part.kept" ; } >> "$personOut.rendered"
+		personRendered="$personRendered# in $personDm"$'\n'
+		while IFS= read -r personLine ; do personRendered="$personRendered$personLine"$'\n' ; done < "$personOut.part.kept"
 	done
+	AgentsWaitPut "$personOut.rendered" "$personRendered" || return 2
 	[ "$personFailed" -lt "$personParts" ] || return 2
 	[ -z "$personKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $personKey"
 	return 0
@@ -1015,7 +1017,11 @@ AgentsWaitReadRendered(){ ## member, read target, thread|conversation, oldest (a
 	else
 		## A conversation is read formatted already (AgentsToolsSlackCheck), its lines the rendering, less the
 		## `## target=` mark: the JSON formatter would print nothing of them.
-		LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' < "$readOut.read" > "$readOut" 2>> "$readOut.err" || readRc=$?
+		LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' < "$readOut.read" > "$readOut.new" 2>> "$readOut.err" || readRc=$?
+		## A conversation read again with nothing new is the same rendering: the file stands as it is, unwritten.
+		if [ "$readRc" = "0" ] ; then
+			if cmp -s "$readOut.new" "$readOut" ; then rm -f "$readOut.new" ; else mv -f "$readOut.new" "$readOut" ; fi
+		fi
 	fi
 	AgentsWaitOwnFile "$readOut" || return 2
 	if [ "$readRc" != "0" ] ; then
@@ -1030,7 +1036,9 @@ AgentsWaitReadRendered(){ ## member, read target, thread|conversation, oldest (a
 AgentsWaitTrackingDropFile(){ ## member, a rendering file
 	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include" 2> /dev/null || return 0
 	[ -f "$2" ] || return 0
-	AgentsToolsTrackingDrop "$1" < "$2" > "$2.nt" 2> /dev/null && mv -f "$2.nt" "$2" || rm -f "$2.nt"
+	AgentsToolsTrackingDrop "$1" < "$2" > "$2.nt" 2> /dev/null || { rm -f "$2.nt" ; return 0 ; }
+	## The drop read as much as it took away: the file stands as it is, unwritten.
+	if cmp -s "$2.nt" "$2" ; then rm -f "$2.nt" ; else mv -f "$2.nt" "$2" ; fi
 	return 0
 }
 
@@ -1620,6 +1628,52 @@ AgentsWaitDmsCommit(){ ## member, the file holding the newest ts
 	return 0
 }
 
+## EVERY OTHER LIVE SESSION OF ONE MEMBER (sketch 7.4), its own thread, one a line: the `session-thread` of
+## each spawn record whose owner is the member, whose run is alive (the one rule a run is alive by,
+## AgentsToolsRegistryMeasureRows), and whose session is not the one given to exclude -- the pattern
+## AgentsHarnessMessageLiveSessionThread already reads one such record by, generalised here to every match,
+## since a member commonly runs more than one session at once. A mention sitting in a sibling's own thread
+## is that sibling's own chat floor to deliver; this wait's own mentions probe must leave it there, not
+## return it again on top.
+AgentsWaitOtherLiveThreads(){ ## member, session to exclude
+	local otherMember="${1:-}" otherExclude="${2:-}" otherStore="${MMDAPP:-}/.local/agents/spawned" otherNames otherFile otherOut otherHost otherTracking otherOwnThread=""
+	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest
+	local measuredRows="" measuredDated="" measuredAny=""
+	[ -n "$otherMember" ] && [ -d "$otherStore" ] || return 0
+	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || return 0
+	## THE EXCLUDED SESSION'S OWN THREAD, whatever session-id names it: a session the exclusion's own id does not
+	## match (a child spawned into the same thread, a resumed run under a second record) still carries the SAME
+	## thread as the one excluded, and must be kept too -- excluding by session-id alone once missed this, and a
+	## session was found to lose mentions in its own thread (owner 2026-10-30).
+	[ -z "$otherExclude" ] || { type AgentsToolsSessionChatThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || : ; }
+	[ -z "$otherExclude" ] || otherOwnThread="$( AgentsToolsSessionChatThread "$otherExclude" 2> /dev/null )" || otherOwnThread=""
+	otherNames="$( printf '%s\0' "$otherStore"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "owner: $otherMember" 2> /dev/null )" || :
+	[ -n "$otherNames" ] || return 0
+	otherOut="$( mktemp "${MMDAPP:-}/.local/temp/mdat-mentions-other-live.XXXXXX" 2> /dev/null )" || return 0
+	{
+		while IFS= read -r otherFile ; do
+			[ -f "$otherFile" ] || continue
+			otherTracking="${otherFile%/*}"
+			AgentsToolsRegistryRowsEntry D "${otherTracking##*/}"
+			AgentsToolsRegistryRowsEntry S "$otherFile"
+		done <<< "$otherNames" \
+			| LC_ALL=C awk -v registryRows=spawned -v registryColumns=14 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" > "$otherOut"
+	} 2> /dev/null || { rm -f "$otherOut" ; return 0 ; }
+	otherHost="$( hostname -s 2> /dev/null )" || otherHost=""
+	AgentsToolsRegistryMeasureRows "$otherOut" "$otherHost" "" || { rm -f "$otherOut" ; return 0 ; }
+	rm -f "$otherOut"
+	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest ; do
+		[ "$rowLive" = "running" ] || continue
+		[ "$rowOwner" = "$otherMember" ] || continue
+		[ "$rowSession" != "$otherExclude" ] || continue
+		case "$rowThread" in ''|-) continue ;; esac
+		[ -z "$otherOwnThread" ] || [ "$rowThread" != "$otherOwnThread" ] || continue
+		printf '%s\n' "$rowThread"
+	done <<< "$measuredDated"
+	return 0
+}
+
 ## THE MENTIONS (sketch 3.2): `mentions:<member>`, a mention of the member in any conversation, thread replies included, by ONE
 ## search.messages call from the session's pointer of the source (`mentions:<member>`, the newest mention returned). Its TTL holds
 ## across Wait calls: the session keeps when it was last checked (`mentions-checked:<member>`), and a check inside the TTL reads
@@ -1707,12 +1761,15 @@ AgentsWaitProbeMentions(){
 	## A mention in a conversation or thread another source of this wait reads is left to that source, so it is returned once (AgentsWaitCoveredSet).
 	## And a mention in the session thread is the chat source's to return, where this wait reads the chat file.
 	## Both are worked out only when the search found a mention: an empty search costs nothing more.
-	local probeChatThread=""
+	local probeChatThread="" probeOtherThreads=""
 	if LC_ALL=C grep -q '^[0-9][0-9]*\.[0-9][0-9]* | ' "$probeOut.found" 2> /dev/null ; then
 		[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$probeMember" $agentsWaitCoverSources )"
 		case " $agentsWaitCoverSources " in *" chat:"?*) [ -z "$probeKey" ] || probeChatThread="$( AgentsToolsSessionChatThread "$probeKey" 2> /dev/null )" || probeChatThread="" ;; esac
+		## A mention sitting in a LIVE SIBLING SESSION's own thread (sketch 7.4) is that sibling's own chat
+		## floor to deliver, the same as probeChatThread is this session's: left out here too, never delivered twice.
+		probeOtherThreads="$( AgentsWaitOtherLiveThreads "$probeMember" "$probeKey" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" || probeOtherThreads=""
 	fi
-	probeKept="$( LC_ALL=C awk -v after="$probePointer" -v covered=" $agentsWaitCovered $probeChatThread " '
+	probeKept="$( LC_ALL=C awk -v after="$probePointer" -v covered=" $agentsWaitCovered $probeChatThread $probeOtherThreads " '
 		match( $0, /^[0-9]+\.[0-9]+ \| / ) {
 			split( $0, head, " " ) ; keep = ( head[1] + 0 > after + 0 )
 			if ( keep && match( $0, / \[in [A-Z0-9]+\]/ ) ) {
@@ -3329,7 +3386,14 @@ case "$1" in
 				case "$roundProbeTimeout" in ''|*[!0-9]*) roundProbeTimeout="" ;; *) [ "$roundProbeTimeout" -ge 1 ] || roundProbeTimeout=1 ;; esac
 				if [ -n "$roundProbeTimeout" ] ; then
 					type AgentsToolsTaskCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include" 2> /dev/null || :
+					## AgentsToolsTaskCall keeps its own processes under a SESSION it reads from
+					## harnessSessionId/MDAT_SPAWN_SESSION_ID/CLAUDE_CODE_SESSION_ID (a harness's own run) --
+					## none of which a plain --wait-for-input call sets. With none of them, it runs the probe
+					## in-line with no bound at all (S21.11, load incident: Waits measured overshooting by
+					## 158-483s). This wait's own session id, already known here, fills that gap: a harness's
+					## own id, where this runs inside one, is never overridden.
 					MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$roundCacheTtl" \
+						MDAT_SPAWN_SESSION_ID="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-$waitSessionId}}}" \
 						AgentsToolsTaskCall "wait probe $roundSource" "" "$roundProbeTimeout" return "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" \
 						|| roundRc=$?
 					if [ "$agentsTaskDetached" = yes ] ; then

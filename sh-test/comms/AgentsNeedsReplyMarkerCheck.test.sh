@@ -151,7 +151,7 @@ NEEDS REPLY: should the rig go on with the next band?'
 
 echo "-- the member send: a message that carries the marker is not sent, and comes back as a correction --"
 rigStart op-marked
-rigOp "$rigMarked" --slack-send-message "$rigMember" magic-team --from-stdin
+rigOp "$rigMarked" --slack-send-message --team-member "$rigMember" magic-team --from-stdin
 rigAssert "rc 6, nothing posted, and on stderr one CORRECTION line, one line for the line that carries the marker, one NEXT line" \
 	"$( rigOpHeld )" "6:0:CORRECTION::1:1"
 rigAssert "the correction says the marker is retired and how a question is asked, and names the line" \
@@ -160,25 +160,25 @@ rigAssert "the correction says the marker is retired and how a question is asked
 rigAssert "it is worded as a correction, never as a refusal or a denial, and the send itself reports no error" \
 	"$( rigHolds "$rigScenarioDir/op.err" 'This is a correction for the sender to make, never a refusal or a denial' ):$( rigCount "$rigScenarioDir/op.err" '⛔ ERROR: DistroAgentsTools' )" "yes:0"
 rigStart op-marked-again
-rigOp "$rigMarked" --slack-send-message "$rigMember" magic-team --from-stdin
-rigOp "$rigMarked" --slack-send-message "$rigMember" magic-team --from-stdin
+rigOp "$rigMarked" --slack-send-message --team-member "$rigMember" magic-team --from-stdin
+rigOp "$rigMarked" --slack-send-message --team-member "$rigMember" magic-team --from-stdin
 rigAssert "a second attempt with the same text is held back the same way: there is no way through on a later one" "$( rigOpHeld )" "6:0:CORRECTION::1:1"
 rigStart op-clean
-rigOp 'The rig finished its run. Every check passed.' --slack-send-message "$rigMember" magic-team --from-stdin
+rigOp 'The rig finished its run. Every check passed.' --slack-send-message --team-member "$rigMember" magic-team --from-stdin
 rigAssert "accepted sibling: the report without the marker and the question is sent" "$rigOpRc:$( rigCalls chat.postMessage )" "0:1"
 rigStart op-plain-question
-rigOp 'The rig finished its run. Should it go on with the next band?' --slack-send-message "$rigMember" magic-team --from-stdin
+rigOp 'The rig finished its run. Should it go on with the next band?' --slack-send-message --team-member "$rigMember" magic-team --from-stdin
 rigAssert "only the marker is looked for: a message that asks in plain words, with no marker, is sent" "$rigOpRc:$( rigCalls chat.postMessage )" "0:1"
 rigStart op-code-span
-rigOp 'The rule that asked for `NEEDS REPLY:` is retired.' --slack-send-message "$rigMember" magic-team --from-stdin
+rigOp 'The rule that asked for `NEEDS REPLY:` is retired.' --slack-send-message --team-member "$rigMember" magic-team --from-stdin
 rigAssert "the marker in code style is no marker: a message can still name it" "$rigOpRc:$( rigCalls chat.postMessage )" "0:1"
 rigStart op-quoted
 rigOp 'He wrote this.
 
-> NEEDS REPLY: should the rig go on?' --slack-send-message "$rigMember" magic-team --from-stdin
+> NEEDS REPLY: should the rig go on?' --slack-send-message --team-member "$rigMember" magic-team --from-stdin
 rigAssert "nor is the marker in a quoted line, which the sender did not write" "$rigOpRc:$( rigCalls chat.postMessage )" "0:1"
 rigStart op-small-letters
-rigOp 'This thread needs reply from nobody.' --slack-send-message "$rigMember" magic-team --from-stdin
+rigOp 'This thread needs reply from nobody.' --slack-send-message --team-member "$rigMember" magic-team --from-stdin
 rigAssert "nor the same words in small letters" "$rigOpRc:$( rigCalls chat.postMessage )" "0:1"
 rigStart op-tooling
 rigOp "$rigMarked" --intern-op-comms-slack-send-message "$rigMember" magic-team --from-stdin

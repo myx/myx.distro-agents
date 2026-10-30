@@ -149,7 +149,7 @@ rigWaitRc=()
 rigWait(){ ## the wait's number, a directory to put first on PATH (may be empty)
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		PATH="${2:+$2:}$PATH" MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off \
-		bash "$rigTools" --wait-for-input "$rigMember" --wait-default --wait-session-id "rig-waitfolder-$rigScenarioName-$1" \
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-waitfolder-$rigScenarioName-$1" \
 			--wait-source "slack:CRIG00001:1700000001.000${1}01:conversation" --wait-since-utime "1700000001.000${1}01" --wait-timeout "$rigBound" --wait-poll-interval 1 ) \
 		> "$rigScenarioDir/wait.$1.out" 2> "$rigScenarioDir/wait.$1.err" &
 	rigWaitPid[$1]=$!
@@ -160,7 +160,7 @@ rigQuickWait(){
 	printf 'RIG-PRESENT\n' > "$rigScenarioDir/drop.txt"
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_WAIT_REMIND=off \
-		bash "$rigTools" --wait-for-input "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 30 ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err"
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 30 ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err"
 }
 rigWaitEnd(){ ## the wait's number
 	rigWaitRc[$1]=0

@@ -350,8 +350,10 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 	## the test (the slot keeper, above); fd 8 is this runner's own output, for the one line
 	## it says while a test waits, and the test never sees it.
 	(
-		## nothing of the session this runner was started in reaches the test (the test-only identity, above)
-		unset ${!MDAT_SPAWN_@} ${!MDAT_SESSION_@} MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent
+		## nothing of the session this runner was started in reaches the test (the test-only identity, above).
+		## MDAT_TEAM_MEMBER is the one more name AgentsToolsTeamMember falls to, past MDAT_SPAWN_AGENT: a test
+		## that needs a member sets its own, as the rigs already do.
+		unset ${!MDAT_SPAWN_@} ${!MDAT_SESSION_@} MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent MDAT_TEAM_MEMBER
 		export CLAUDE_CODE_SESSION_ID="rig-run-$oneName-test-only"
 		export MDAT_WAIT_REMIND=off
 		export MDAT_COMMS_READER=off

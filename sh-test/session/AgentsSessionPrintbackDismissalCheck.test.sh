@@ -542,7 +542,7 @@ rigStarted "$rigConvWait1" "the conversation fixture's first wait server"
 rigAssert "the helper's first Wait of that session is a TIMEOUT, not an error" "$( rigFirstLine "$( rigText "$( rigReply "$rigConvWait1" 2 )" )" | LC_ALL=C cut -c1-20 )" "WAIT-RESULT: TIMEOUT"
 
 ## The dismissal, put on the chat by the root's own send.
-rigDirectIn "$rigConvWs" "$rigConvScn" "$rigConvSession" --slack-send-message "$rigRootMember" "printback:$rigConvSession" --address-to "$rigHelperMember" DISMISSED \
+rigDirectIn "$rigConvWs" "$rigConvScn" "$rigConvSession" --slack-send-message --team-member "$rigRootMember" "printback:$rigConvSession" --address-to "$rigHelperMember" DISMISSED \
 	> "$rigTmp/conv-dismiss.out" 2> "$rigTmp/conv-dismiss.err"
 rigConvDismissRc=$?
 rigAssert "the dismissal is recorded on the printback channel" "$rigConvDismissRc:$( rigHeaders "$rigConvChat" )" "0:1"

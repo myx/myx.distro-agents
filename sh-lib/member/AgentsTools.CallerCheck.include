@@ -62,7 +62,7 @@ if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 				*" $2 "*) return 0 ;;
 			esac
 		fi
-		echo "$MDSC_CMD: $2: ⛔ ERROR: this session acts as $checkActing, so it cannot act as $1 -- nothing was done" >&2
+		echo "$MDSC_CMD: $2: ⛔ ERROR: this session acts as $checkActing, so it cannot act as $1 -- nothing was done: ask $1 to run it, or the session's magic-coordinator to spawn one that acts as $1" >&2
 		return 1
 	}
 fi
@@ -122,7 +122,7 @@ if ! type AgentsToolsManagerCallerCheck >/dev/null 2>&1 ; then
 		local checkActing
 		checkActing="$( AgentsToolsActingMember )"
 		[ -n "$checkActing" ] || return 0
-		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" >&2
+		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session" >&2
 		return 1
 	}
 fi

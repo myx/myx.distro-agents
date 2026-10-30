@@ -414,15 +414,27 @@ AgentsToolsRegistryPendingSessionOpen(){ ## session-id
 	' ${spawnedFile:+"$spawnedFile"} "$pendingFile"
 }
 
+## rc 0 where the session's control/dead names this run: the one record of a death, whichever status the record later carries.
+AgentsToolsRegistryRunDead(){ ## session id, run id
+	[ -n "${1:-}" ] && [ -n "${2:-}" ] && [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/dead" ] || return 1
+	LC_ALL=C awk -v want="$2" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "$MMDAPP/.local/agents/sessions/$1/control/dead" 2> /dev/null
+}
+
 ## running/waiting/failed/finished, plus the two cases a guess would get wrong: unknown-foreign
 ## (another host, unmeasurable from here) and unclosed (the process is gone, and no open
 ## ask exists against its session -- ended without closing its own record). status is
-## authoritative once the spawn has closed itself, regardless of what live measured.
+## authoritative once the spawn has closed itself, regardless of what live measured -- but a
+## run still here is running (S21.4): a mark written before its own start cannot end it, and a
+## run the session's control/dead names is failed, whatever its record came to carry.
 AgentsToolsRegistryDeriveState(){ ## status, live, session-id, run id
 	local dsStatus="$1" dsLive="$2" dsSession="$3" dsSpawn="${4:-}"
 	case "$dsStatus" in
-		spawn-failed) printf 'failed\n' ; return 0 ;;
-		spawn-succeeded) printf 'finished\n' ; return 0 ;;
+		spawn-failed|spawn-succeeded)
+			[ "$dsLive" != "running" ] || { printf 'running\n' ; return 0 ; }
+			AgentsToolsRegistryRunDead "$dsSession" "$dsSpawn" && { printf 'failed\n' ; return 0 ; }
+			case "$dsStatus" in spawn-failed) printf 'failed\n' ;; *) printf 'finished\n' ;; esac
+			return 0
+		;;
 		spawn-ended-without-close)
 			## The advance pass closes a clean handback this way, and settles a death the same way
 			## (control/dead): the one tells the other apart (S21.4), never guessed from status alone.
@@ -825,11 +837,16 @@ AgentsToolsRegistryProcessArgs(){
 	agentsProcessArgs=""
 	argsNow="$( date +%s )"
 	if [ -n "${MMDAPP:-}" ] && [ -f "$argsFile" ] ; then
-		{ IFS= read -r -d '' agentsProcessArgs < "$argsFile" ; } 2> /dev/null || :
-		argsAt="${agentsProcessArgs%%$'\n'*}"
+		## The moment is its first line, read on its own: a whole-file `read -d ''` is a byte-at-a-time walk
+		## costing nearly the ps it spares, where `cat` reaches the same text in a quarter of the time.
+		{ IFS= read -r argsAt < "$argsFile" ; } 2> /dev/null || argsAt=""
 		case "$argsAt" in
 			''|*[!0-9]*) ;;
-			*) if [ $(( argsNow - argsAt )) -ge 0 ] && [ $(( argsNow - argsAt )) -lt 10 ] ; then agentsProcessArgs="${agentsProcessArgs#*$'\n'}" ; agentsProcessArgs="${agentsProcessArgs%$'\n'}" ; return 0 ; fi ;;
+			*) if [ $(( argsNow - argsAt )) -ge 0 ] && [ $(( argsNow - argsAt )) -lt 10 ] ; then
+				agentsProcessArgs="$( cat "$argsFile" 2> /dev/null )" || agentsProcessArgs=""
+				agentsProcessArgs="${agentsProcessArgs#*$'\n'}"
+				[ -n "$agentsProcessArgs" ] && return 0
+			fi ;;
 		esac
 	fi
 	agentsProcessArgs="$( ps -A -ww -o pid=,args= 2> /dev/null )" || agentsProcessArgs=""
@@ -964,8 +981,17 @@ AgentsToolsRegistryRunLeftKeep(){ ## spawn id, the process ids still there (a sp
 ## caller, the open asks read from AgentsToolsRegistryPendingOpenSessions's set.
 AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-session set, run id
 	case "$1" in
-		spawn-failed) derivedState="failed" ; return 0 ;;
-		spawn-succeeded) derivedState="finished" ; return 0 ;;
+		spawn-failed|spawn-succeeded)
+			## A run still here is running, and a run its session records as dead is failed (S21.4): the same two readings the
+			## forking form takes before it honours the status word.
+			[ "$2" != "running" ] || { derivedState="running" ; return 0 ; }
+			if [ -n "${5:-}" ] && [ -n "$3" ] \
+				&& LC_ALL=C awk -v want="$5" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "$MMDAPP/.local/agents/sessions/$3/control/dead" 2> /dev/null
+			then
+				derivedState="failed" ; return 0
+			fi
+			case "$1" in spawn-failed) derivedState="failed" ;; *) derivedState="finished" ;; esac ; return 0
+		;;
 		spawn-ended-without-close)
 			## Same death check as AgentsToolsRegistryDeriveState (S21.4): control/dead tells a settled
 			## death from the advance pass's own clean close, which share this one status word.
@@ -1213,8 +1239,11 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 			}
 			## The state a row comes to, exactly as AgentsToolsRegistryDeriveStateFromSet gives it.
 			function derivedOf( rowStatus, rowLive, rowSession, rowSpawn ) {
-				if ( rowStatus == "spawn-failed" ) return "failed" ;
-				if ( rowStatus == "spawn-succeeded" ) return "finished" ;
+				if ( rowStatus == "spawn-failed" || rowStatus == "spawn-succeeded" ) {
+					if ( rowLive == "running" ) return "running" ;
+					if ( deadNames( rowSession, rowSpawn ) ) return "failed" ;
+					return ( rowStatus == "spawn-failed" ) ? "failed" : "finished" ;
+				}
 				if ( rowStatus == "spawn-ended-without-close" ) {
 					return deadNames( rowSession, rowSpawn ) ? "failed" : "finished" ;
 				}

@@ -8,8 +8,8 @@
 ##
 ## ONE SOURCE, OUR OWN: the servers our installer registers for a workspace, composed
 ## here by AgentsHarnessMcpServersPrimary exactly as --install-vscode-integrations
-## composes them -- myx.distro from the workspace's own installed DistroAgentsTools.fn.sh,
-## myx.common from the workspace's own installed myx.common, each with MMDAPP in its env.
+## composes them -- myx.distro and myx.common from $MDLT_ORIGIN, the tooling, each with
+## MMDAPP and MDLT_ORIGIN in its env.
 ## `.local/agents/mcp.servers.json`, `.mcp.json` and `.vscode/mcp.json` are outputs the
 ## installer writes from the same registration for external tools, and nothing here
 ## reads them back: a server added to one of them by hand is that tool's, not ours.
@@ -102,26 +102,14 @@ AgentsHarnessMcpSpecAdd(){ ## name, command, env pair count, key, value, ..., ar
 }
 
 ## THE PRIMARY COMPOSITION: the servers --install-vscode-integrations registers for this
-## workspace when run from it ($MMDAPP), with the same command, args and env it writes,
-## and under the same conditions -- each only where its server script is installed and
-## executable.
-## BOTH PACKAGES COME FROM THE SAME RESOLVED ROOT, which is what decides whether a server
-## is present. The two nest their payloads differently -- myx.common ships its tree under
-## os-myx.common/host/tarball/share/myx.common, myx.distro-agents keeps its own at the
-## package root -- so each path below names its package's own depth. The workspace they
-## hang off does not: it is $primaryWs, the one path this function resolved, never the
-## string it was handed. A relative or unnormalized $1 must not make one server's command
-## relative while the other's stays absolute -- a relative command is refused when the
-## server is launched, which read as myx.distro missing while myx.common was there.
-AgentsHarnessMcpServersPrimary(){ ## workspace
-	local primaryWs primaryCommon primaryDistro
+## workspace, with the same command, args and env it writes, each only where its server
+## script is executable. The tooling is $MDLT_ORIGIN and the data is $MMDAPP: both servers
+## run from $MDLT_ORIGIN and carry both variables, so a started server never falls back
+## to $MMDAPP/.local while the workspace runs from source.
+AgentsHarnessMcpServersPrimary(){
 	AgentsHarnessMcpSpecReset
-	[ -n "$1" ] && [ -d "$1" ] || return 0
-	primaryWs="$( cd "$1" && pwd )" || return 0
-	primaryDistro="$primaryWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	primaryCommon="$primaryWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common"
-	[ ! -x "$primaryDistro" ] || AgentsHarnessMcpSpecAdd "myx.distro" "$primaryDistro" 1 MMDAPP "$primaryWs" --intern-mcp-server --run
-	[ ! -x "$primaryCommon" ] || AgentsHarnessMcpSpecAdd "myx.common" "$primaryCommon" 1 MMDAPP "$primaryWs" --run
+	[ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || AgentsHarnessMcpSpecAdd "myx.distro" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --intern-mcp-server --run
+	[ ! -x "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common" ] || AgentsHarnessMcpSpecAdd "myx.common" "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --run
 	return 0
 }
 

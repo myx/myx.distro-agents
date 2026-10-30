@@ -46,8 +46,6 @@ fi
 ## WE RUN FROM HERE: a name that takes a team member first uses the workspace it is run from, for everything, and is carried to no other. A member set up only in
 ## another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace
 ## holds none of, and it is stopped only when its skillset cannot be brought.
-type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
-type AgentsToolsCommonMemberFirst > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
 ## A real first argument reaching here, past gate 39, was never resolved by it: gate 39 only runs where none was
 ## given. On the direct re-call AgentsToolsCommonRun makes once it has resolved the member itself, agentsCommonFronted
 ## is still set the whole way down this same call, so this block is skipped there: "$2" is already its answer, not a
@@ -59,6 +57,7 @@ case "$1" in
 		case "${2:-}" in
 			''|-*) ;;
 			*)
+				type AgentsToolsCommonMemberFirst > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
 				if AgentsToolsCommonMemberFirst "$MDSC_CMD.fn.sh" "$1" ; then
 					## THE OLD POSITIONAL IS RETIRED (S21.3): a real first argument here is never the member any more,
 					## it is the operation's own. The member this call acts as is always the implied one.
@@ -68,6 +67,7 @@ case "$1" in
 						echo "$MDSC_CMD: ${frontOpName#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2
 						set +e ; frontDone=yes ; frontRc=1 ; return 0
 					fi
+					type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 					memberBrought="$( AgentsToolsMemberSkillsetBring "$memberName" "$frontOpName" )" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }
 					memberBroughtFrom="${memberBrought#*$'\t'}"
 					memberBrought="${memberBrought%%$'\t'*}"

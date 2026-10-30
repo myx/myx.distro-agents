@@ -1465,12 +1465,15 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The paying workspace is a spawn setting, not a workspace switch.** The CLI service, the harness tier and the credentials a member is spawned with
   are `magic-team`-scope settings. They are read from the workspace the
   session runs from, unless another workspace known on this machine is named
-  to pay. That name can come by `SPAWN_SETTINGS_WORKSPACE=<name>` in that
-  scope for every spawn here, or by the same key in one member's own scope. It
-  can also come by `--spawn-settings-workspace` on one task's spawn. A review return's restart reads it
+  to pay. One spawn names it with `--spawn-settings-workspace`; failing that it
+  inherits the payer its own session was spawned with; failing that, the same
+  key in one member's own scope (`SPAWN_SETTINGS_WORKSPACE=<name>`), and last
+  `SPAWN_SETTINGS_WORKSPACE=<name>` in the `magic-team` scope for every spawn here. A review return's restart reads it
   from the record of the run it replaces, so it is paid from the same workspace. The spawn operation
   settles this once into `MDAT_SPAWN_SETTINGS_WORKSPACE` for that spawn
-  (`AgentsToolsSpawnSettingsSettle`). Only these settings move. The board, the team data, the records and the comms
+  (`AgentsToolsSpawnSettingsSettle`), and writes it there only when it names
+  another workspace than the one spawning, so a child that spawns into another
+  workspace stops paying from the one it left. Only these settings move. The board, the team data, the records and the comms
   stay those of the workspace the session runs from. The workspace named this
   way is read itself, never one it names in turn.
 - **Member ops run in the member's workspace.** `AgentsToolsMemberWorkspaceResolve` (in `AgentsTools.MemberWorkspace.include`,
@@ -2824,9 +2827,12 @@ op's own option arm.
 
 ## 19. Email, Trello, Atlassian
 
-- **Email send** is `multipart/alternative`, plain first, UTF-8. `AgentsEmailHtmlBuild.awk` escapes HTML
-  once, in `wrapStyle`. Bare URLs link; bare addresses are bold blue with no `mailto:`.
-  `AGENTS_EMAIL_SEND_BUILD_ONLY=true` builds without sending.
+- **Email send** is `multipart/alternative`, plain first, UTF-8. `markdown` mode renders both parts:
+  the plain one through `myx.common lib/catMarkdown` (the console's own renderer), the HTML one through
+  `myx.distro-.local`'s `LocalMarkdownHtmlDocument.awk`. `text` mode keeps the body in the plain part and
+  escapes-and-linkifies it with `AgentsEmailHtmlBuild.awk`, which escapes HTML once, in `wrapStyle`;
+  bare URLs link, bare addresses are bold blue with no `mailto:`. `AGENTS_EMAIL_SEND_BUILD_ONLY=true`
+  builds without sending.
 - **Email reads** fetch in a subshell redirected to a file (a `$( )` loses NULs and leaks `set +e`).
 - **`--get-path-history`** runs `git log` only, with `GIT_OPTIONAL_LOCKS=0`, no pager. Containment is on the resolved path against the workspace plus
   `AgentsToolsClientAccessRoots read`. Symlinks and `..` are refused. Empty
@@ -3401,6 +3407,10 @@ Each instrument states what it proves and its red recipe in its own header. What
   is what makes it part of that batch and of no other. A changed test is covered by itself; of any other
   file the tooling keeps the file, and the batch runs every test of the copy that has not passed in the
   state it is in then. Nothing of the queue posts anywhere: the tester's session reports.
+- **The tester family is one thin stub per testing operation.** `DistroAgentsTools --tester-<operation>` is
+  `DistroAgentsTesting.fn.sh --<operation>` and nothing else, for the 13 operations of the one list in
+  `DistroAgentsTools.fn.sh` (`agentsTesterOperations`). A name outside it is refused with the list.
+  `sh-test/member/AgentsTesterFamilyCheck.test.sh` holds the family to the testing tool's own help.
 - **A test is a session of its own.** `AgentsRunTests.sh` hands a test nothing of the session it was started in.
   Every `MDAT_SPAWN_*` and `MDAT_SESSION_*` variable and
   `MDAT_CONVERSATION_THREADS` are taken out, and its session id is

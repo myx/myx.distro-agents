@@ -9,7 +9,6 @@
 ##   type AgentsToolsCommsEmailMarkSeen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include"
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 ## A member's own mailbox is read by the side of the call (AgentsToolsCommsOwnSideCheck).
 type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
 
@@ -247,6 +246,7 @@ case "$1" in
 			esac
 			AgentsToolsCommsOwnSideCheck "$memberName" mail email-send || { set +e ; return 1 ; }
 			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo="" textGroup="" format="markdown"
+			local textPartBody="" htmlPartBody="" markdownAwk="" markdownRoot=""
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					## The floor applies with no argument at all. This names the shape
@@ -389,6 +389,7 @@ case "$1" in
 			## a name here refuses, a name absent reports beside it. sentence-cap
 			## is absent because it cannot tell a prose paragraph from a block
 			## written one fact per line -- see MAGIC.md.
+			type AgentsToolsOutputStyleRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 			printf '%s' "$subject" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients (subject)" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
 			printf '%s' "$bodyLines" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
 
@@ -431,14 +432,33 @@ case "$1" in
 				trap 'rm -f "$msgFile"' EXIT
 				chmod 600 "$msgFile" || exit 1
 
-				## HTML part beside the plain part, same body, through
-				## AgentsEmailHtmlBuild.awk -- the Slack path's bare-URL/
-				## bare-address and cheap-markdown rules, re-aimed at HTML.
-				## No credential, no network: safe to run before the
-				## build-only check below, and that is what makes this
-				## callable offline.
+				## Both parts, one body and one format. markdown mode renders each part
+				## through the renderer that owns it: the plain part through
+				## myx.common lib/catMarkdown, the one renderer the console's Markdown
+				## view and every --help are read through, so a mail reads as the
+				## console does; the HTML part through LocalMarkdownHtmlDocument.awk,
+				## the document mode that carries headings, lists, tables, fences,
+				## quotes, links and emphasis. --format text says the body holds no
+				## Markdown: its plain part is the body itself, and its HTML part only
+				## escapes and linkifies, through AgentsEmailHtmlBuild.awk.
+				## No credential, no network either way: both run before the build-only
+				## check below, and that is what makes this callable offline.
+				textPartBody="$bodyLines"
 				htmlPartBody=""
-				htmlPartBody="$( printf '%s' "$bodyLines" | LC_ALL=C awk -v format="$format" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsEmailHtmlBuild.awk" )" || exit 1
+				if [ "$format" = "markdown" ] ; then
+					## The renderer the family resolves the same way its every --help does.
+					for markdownRoot in "${MYXROOT:-}" "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common" /usr/local/share/myx.common ; do
+						[ -z "$markdownRoot" ] || [ ! -f "$markdownRoot/include/data/catMarkdown.awk" ] || { markdownAwk="$markdownRoot/include/data/catMarkdown.awk" ; break ; }
+					done
+					if [ -n "$markdownAwk" ] ; then
+						textPartBody="$( printf '%s' "$bodyLines" | LC_ALL=C awk -f "$markdownAwk" )" || textPartBody="$bodyLines"
+					else
+						echo "# $MDSC_CMD --email-send: myx.common lib/catMarkdown is not on this machine, so the plain part carries the body unrendered" >&2
+					fi
+					htmlPartBody="$( printf '%s' "$bodyLines" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMarkdownHtmlDocument.awk" )" || exit 1
+				else
+					htmlPartBody="$( printf '%s' "$bodyLines" | LC_ALL=C awk -v format="$format" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsEmailHtmlBuild.awk" )" || exit 1
+				fi
 				mimeBoundary="mdat-comms-email-boundary-$$-$RANDOM"
 				{
 					printf 'From: %s\n' "$emailUser"
@@ -457,7 +477,7 @@ case "$1" in
 					printf 'Content-Type: text/plain; charset=UTF-8\n'
 					printf 'Content-Transfer-Encoding: 8bit\n'
 					printf '\n'
-					printf '%s\n' "$bodyLines"
+					printf '%s\n' "$textPartBody"
 					printf '\n'
 					## HTML part second, same body, converted.
 					printf -- '--%s\n' "$mimeBoundary"

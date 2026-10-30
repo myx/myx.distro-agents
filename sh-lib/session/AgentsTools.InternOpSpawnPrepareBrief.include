@@ -160,11 +160,15 @@ case "$1" in
 
 		## The harness the spawn runs in: the service it names, else the configured one of the
 		## workspace that pays for it, settled here as the spawn itself settles it
-		## (AgentsToolsSpawnSettingsSettle), never as the calling session's own spawn did. A
-		## *-native client is native; everything else runs in the universal harness.
+		## (AgentsToolsSpawnSettingsSettle): the one named for this spawn, else the payer the
+		## calling session inherited, else this member's own. A *-native client is native;
+		## everything else runs in the universal harness.
 		if [ -z "$briefCliService" ] ; then
+			local briefPayerSettled=""
+			briefPayerSettled="$( AgentsToolsSpawnSettingsSettle "$targetMember" "$briefSettingsWorkspace" spawn-prepare-brief )" || { set +e ; return 1 ; }
+			## As the spawn does: another workspace is written in, this one's own path never is.
 			local -x MDAT_SPAWN_SETTINGS_WORKSPACE=""
-			MDAT_SPAWN_SETTINGS_WORKSPACE="$( AgentsToolsSpawnSettingsSettle "$targetMember" "$briefSettingsWorkspace" spawn-prepare-brief )" || { set +e ; return 1 ; }
+			[ -z "$briefPayerSettled" ] || [ "${briefPayerSettled%/}" = "${MMDAPP%/}" ] || MDAT_SPAWN_SETTINGS_WORKSPACE="${briefPayerSettled%/}"
 			## and the preset chosen for the member it is for, as the spawn chooses it (F10.2), so the brief and the spawn read one CLI
 			local -x MDAT_SPAWN_PRESET=""
 			type AgentsToolsPresetChosen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"

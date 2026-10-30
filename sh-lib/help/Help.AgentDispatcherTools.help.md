@@ -99,7 +99,9 @@
 
 		--epic-update <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>)
 			The epic file's own edit, so no routine edits an epic by hand: one
-			feature's status set, or one settlement added.
+			feature's status set, or one settlement added. A settlement stands
+			after the feature's `Status:` line, or before its next heading where
+			the feature has no `Status:` line.
 
 ##  Examples:
 

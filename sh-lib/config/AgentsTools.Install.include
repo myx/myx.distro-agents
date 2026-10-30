@@ -2535,8 +2535,8 @@ case "$1" in
 
 		echo "# workspace: $workspace" >&2
 
-		## The workspace's own installed myx.common, never $MYXROOT: that follows the console's origin.
-		local mcpRoot="$workspace/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common" serverScript=""
+		## The tooling's own myx.common, from $MDLT_ORIGIN, as AgentsHarnessMcpServersPrimary composes it.
+		local mcpRoot="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common" serverScript=""
 		[ ! -x "$mcpRoot/bin/lib/agentMcpServer.Common" ] || serverScript="$mcpRoot/bin/lib/agentMcpServer.Common"
 
 		local vscodeMcpDir="$workspace/.vscode"
@@ -2691,11 +2691,8 @@ case "$1" in
 				fi
 			done
 
-			## The workspace's own installed location, never $MDLT_ORIGIN: this path is
-			## written into client config files that outlive the session, so it must not
-			## carry whichever origin the console happened to run from. Same form as the
-			## myx.common registration above and as every sibling's workspace entry point.
-			local distroServerScript="$MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			## The tooling is $MDLT_ORIGIN, as AgentsHarnessMcpServersPrimary composes it.
+			local distroServerScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			local distroUpsert="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpServerJsonUpsert.awk"
 			if [ "$workspace" != "$MMDAPP" ] ; then
 				distroSkipped=" -- WITHOUT the myx.distro MCP server, which registers only when run from its own workspace, so $workspace has none"

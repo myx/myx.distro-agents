@@ -228,10 +228,15 @@ def askPresetNew(state, row):
 CLI_FORM_OPENERS = {}
 
 
-## A form a part adds to the choices of a new preset: its name, the words that offer it, and the function that opens it.
+## A form a part adds to the choices of a new preset: its name, the words that offer it, and the
+## function that opens it. A name the choices already hold is the same choice, its words and its
+## opener taken from the part: one form is offered once, where it stands in the order.
 def registerCliForm(name, label, opener):
     global CLI_FORMS
-    CLI_FORMS = CLI_FORMS + ((name, label),)
+    if any(held[0] == name for held in CLI_FORMS):
+        CLI_FORMS = tuple(((name, label) if held[0] == name else held) for held in CLI_FORMS)
+    else:
+        CLI_FORMS = CLI_FORMS + ((name, label),)
     CLI_FORM_OPENERS[name] = opener
 
 

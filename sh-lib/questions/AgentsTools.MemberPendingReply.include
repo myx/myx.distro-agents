@@ -11,6 +11,35 @@
 ## The records are workspace-local state, not team data: nothing here commits them.
 ##
 
+## PASSIVE DISCOVERY -- the owner's words: "I CANNOT ANSWER SAME QUESTION 10 TIMES". A plain ask
+## answered by a reaction or a reply records that only when something probes it, which a `wait:
+## false` ask never gets unless its own asker calls Wait. Every --read-pending-reply now checks
+## each of the caller's own open asks the same way a live Wait would (AgentsWaitProbeAsk), through
+## the same comms cache a thread read already uses there (AgentsWaitThreadCached): no reminder for
+## one already answered, and no extra network call once the cache covers it.
+AgentsToolsPendingReplyPollOwn(){ ## <team-member>
+	local pollMember="$1" pollFile pollId pollStatus pollOwner pollOut pollRc
+	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" 2> /dev/null || return 0
+	type AgentsWaitProbeAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include" 2> /dev/null || return 0
+	type AgentsHarnessAskResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" 2> /dev/null || return 0
+	for pollFile in "$MMDAPP/.local/agents/pending"/*.md ; do
+		[ -f "$pollFile" ] || continue
+		pollId="$( basename "$pollFile" .md )"
+		pollStatus="$( AgentsHarnessAskRecordField "$pollId" status )"
+		[ "$pollStatus" = "reply-pending" ] || continue
+		pollOwner="$( AgentsHarnessAskRecordField "$pollId" owner )"
+		[ "$pollOwner" = "$pollMember" ] || continue
+		pollOut="$( mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mktemp "$MMDAPP/.local/temp/mdat-pending-poll.XXXXXX" 2> /dev/null )" || continue
+		pollRc=0
+		AgentsWaitProbeAsk "$pollMember" "$pollId" "" "$pollOut" > /dev/null 2>&1 || pollRc=$?
+		if [ "$pollRc" = "0" ] && LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' "$pollOut" 2>/dev/null ; then
+			AgentsHarnessAskResolve "$pollId" "$( AgentsHarnessAskRecordField "$pollId" kind )" "$( AgentsHarnessAskRecordField "$pollId" question-tag )" \
+				"WAIT-RESULT: RECEIVED"$'\n'"# --- what that source holds now follows ---"$'\n'"$( cat "$pollOut" 2> /dev/null )"$'\n'"# --- end ---" "" "" wait "" > /dev/null 2>&1 || :
+		fi
+		rm -f "$pollOut" "$pollOut".* 2> /dev/null
+	done
+}
+
 ## One header field of a record, empty when absent. The header ends at its second `---`.
 AgentsToolsPendingReplyField(){ ## record file, field name
 	[ -f "$1" ] || return 0
@@ -126,6 +155,8 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$readMember" "<team-member>" pending-reply-read || { set +e ; return 1 ; }
+		## Every read checks the caller's own open asks for an answer already on Slack (AgentsToolsPendingReplyPollOwn), not only the console's periodic count.
+		AgentsToolsPendingReplyPollOwn "$readMember"
 		## The count is what the console reads on its period, whatever it shows: it also looks at the requests the console itself made (AgentsToolsAuthorityRequestsPollOwn).
 		if [ -n "$readCount" ] && [ -z "$readId" ] ; then
 			type AgentsToolsAuthorityRequestsPollOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" 2> /dev/null

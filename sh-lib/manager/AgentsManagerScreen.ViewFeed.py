@@ -103,6 +103,9 @@ def parseSessionRead(text):
                    "host": fields[9], "workspace": fields[10], "activity": fields[11], "headers": {}, "store": None}
             info["runs"].append(run)
             info["bySpawn"][fields[2]] = run
+        elif fields[0] == "death" and len(fields) >= 3 and fields[1] in info["bySpawn"]:
+            ## why a run failed, in the session's own words (S21.4): the words its control/dead keeps beside its id
+            info["bySpawn"][fields[1]]["reason"] = unescaped(fields[2])
         elif fields[0] == "checklist" and len(fields) >= 4:
             info.setdefault("checklists", {}).setdefault(fields[2], []).append(fields[3])
         elif fields[0] == "header" and len(fields) >= 4 and fields[1] in info["bySpawn"]:

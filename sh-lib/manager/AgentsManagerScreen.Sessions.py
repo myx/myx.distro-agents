@@ -281,6 +281,7 @@ def runLines(run, width, info=None, limit=0):
         waits += " for " + milestoneAge
     lines = factLines([
         ("state", runStateText(run), stateLook(runStateText(run))),
+        ("death", run.get("reason", "")),
         ("status", unspaced(run["status"])),
         ("process", unspaced(run["live"])),
         ("started", registryDate(run["started"])),

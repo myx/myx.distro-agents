@@ -69,7 +69,7 @@ rigWait(){ ## pending id -- one Wait on the question, in a session of its own; t
 	: > "$rigScenario/calls"
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-		bash "$rigTools" --wait-for-input "$rigMember" --wait-default --wait-session-id "rig-miss-$1" --wait-source "ask:$1" --wait-timeout 6 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-miss-$1" --wait-source "ask:$1" --wait-timeout 6 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 }
 rigHas(){ ## text -- how many lines of the last result hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/out" || :
@@ -133,7 +133,7 @@ printf '{"ok":true,"messages":[{"ts":"1700000010.000101","user":"URIGSELF1","tex
 printf '{"ok":true,"messages":[{"ts":"1700000035.000101","user":"URIGOWNER","text":"RIG-M3"},{"ts":"1700000025.000101","user":"URIGOWNER","text":"RIG-M2"},{"ts":"1700000015.000101","user":"URIGOWNER","text":"RIG-M1"},{"ts":"1700000030.000101","user":"URIGSELF1","text":"post three"},{"ts":"1700000020.000101","user":"URIGSELF1","text":"post two"},{"ts":"1700000010.000101","user":"URIGSELF1","text":"post one"}],"has_more":false}\n' > "$rigScenario/history.json"
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 	RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-	bash "$rigTools" --wait-for-input "$rigMember" --wait-default --wait-session-id "rig-miss-posts" --wait-timeout 6 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
+	bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-miss-posts" --wait-timeout 6 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 rigUnder(){ ## message marker -- the posts whose heading the marker stands under, comma-separated
 	LC_ALL=C awk -v mark="$1" '/^# replies to your post / { post = $NF ; sub(/^.*:/, "", post) } index( $0, mark ) { printf "%s%s", sep, post ; sep = "," }' "$rigTmp/out"
 }
@@ -148,7 +148,7 @@ printf '{"ok":true,"messages":[{"ts":"%s.000101","user":"URIGOWNER","text":"RIG-
 rigDefault(){ ## session -- one Wait with no sources and a short bound
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-		bash "$rigTools" --wait-for-input "$rigMember" --wait-default --wait-session-id "$1" --wait-timeout 8 --wait-poll-interval 1 "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err"
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$1" --wait-timeout 8 --wait-poll-interval 1 "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err"
 }
 rigDefault rig-miss-resume
 rigAssert "the first Wait delivers the arrival" "$( rigHas RIG-FIRST-ARRIVAL )" "1"
@@ -165,7 +165,7 @@ rigDefault rig-miss-named --wait-source "file:$rigWs/named-b.txt"
 rigAssert "and the next call, naming another, keeps the first in the stored set: both files" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "2"
 rigDefault rig-miss-named
 rigAssert "a call naming nothing keeps them all" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "4"
-( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" bash "$rigTools" --wait-for-input "$rigMember" --unwait "file:$rigWs/named-a.txt" --wait-session-id rig-miss-named ) > "$rigTmp/out" 2> "$rigTmp/err"
+( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" bash "$rigTools" --wait-for-input --team-member "$rigMember" --unwait "file:$rigWs/named-a.txt" --wait-session-id rig-miss-named ) > "$rigTmp/out" 2> "$rigTmp/err"
 rigDefault rig-miss-named
 rigAssert "only --unwait takes a source out of the stored set" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" ) $( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-b.txt" )" "0 1"
 rigAssert "the header says which session thread is on record for the session, or that none is" "$( LC_ALL=C grep -c '^# session thread: ' "$rigTmp/out" )" "1"

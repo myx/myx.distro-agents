@@ -267,6 +267,15 @@ rigAssert "the fields of the record are printed, each header as it stands" "$rig
 rigAssert "and - for the milestone, the sources of the wait and the marks, as for everything a store holds" "$( rigRows store )" "store sess-n no-store - - - - - - - - - - - - -"
 rigAssert "its session is itself, failed with the date it closed, and it has no founder but itself" "$( rigRows session ) / $( rigRows dispatch )" "session sess-n - failed 2026-10-12_08:00_+0300 2026-10-12_08:30_+0300 1 failed=1 - - none - - - / dispatch sess-n record magic-librarian - - - - -"
 
+echo "-- 4b. the reason a run failed: the words its session's control/dead keeps beside its id --"
+mkdir -p "$rigStores/sess-n/control"
+printf '%s\n' "sess-n member=magic-librarian role=executor found=2026-10-12T08:31:00Z how=telling" > "$rigStores/sess-n/control/dead"
+rigRun "$rigOp" --session-id sess-n
+rigAssert "a run the death record names reads failed, and the read gives the reason in the session's own words" "$( rigRows death )" "death sess-n member=magic-librarian role=executor found=2026-10-12T08:31:00Z how=telling"
+rigRun "$rigOp" --session-id sess-a
+rigAssert "a run the death record does not name has no reason of its own" "$( rigRows death )" ""
+rm -f "$rigStores/sess-n/control/dead"
+
 echo "-- 5. an id that names nothing, and what the operation takes --"
 rigRun "$rigOp" --session-id no-such-id
 rigAssert "the read of a session refuses an id that names nothing: one error line, status 1, nothing on stdout" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: no record of this workspace carries 'no-such-id' as the id of a session or the own id of a run -- nothing is shown" ) $( rigTroubles )" "1 0 1 1"

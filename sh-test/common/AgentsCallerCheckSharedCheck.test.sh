@@ -13,6 +13,8 @@
 ##   3. --client-*: the console and the named client's own session pass; another member's session is refused
 ##   4. --manager-*: the console passes; a member's session, magic-coordinator's among them, is refused
 ##   5. each refusal is word for word the refusal the dispatcher gives for that call
+##   6. AgentsToolsActingMemberCheck's and AgentsToolsManagerCallerCheck's own refusals name who owns the operation
+##      and how to ask, or where to run it instead (S18.1).
 ## Red before F1.2: no such include, so no .fn.sh but the dispatcher can ask (every case fails).
 ## Offline: a rig workspace and member set of this check's own; no operation of the tooling acts.
 set -u
@@ -90,6 +92,13 @@ rigAssert "the shared include exists"                         "$( [ -f "$rigIncl
 rigAs probe console "$rigTmp/RigStandIn.fn.sh" type AgentsToolsMagicCallerCheck AgentsToolsClientCallerCheck AgentsToolsManagerCallerCheck
 rigAssert "the three checks are defined there, and nothing else is needed" "$( rigRc probe ):$( LC_ALL=C grep -c 'is a function' "$rigTmp/probe.out" )" "0:3"
 
+echo "-- 1b. AgentsToolsActingMemberCheck: its refusal names who owns it and how to ask (S18.1) --"
+rigAs a1 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsActingMemberCheck magic-coordinator advance-to-running
+rigActingWay(){ ## refusal text -> whether it names the member and the coordinator's own way to ask: yes|no
+	case "$1" in *"ask magic-coordinator to run it, or the session's magic-coordinator to spawn one that acts as magic-coordinator"*) printf yes ;; *) printf no ;; esac
+}
+rigAssert "it is refused, naming the member and the way to ask" "$( [ "$( rigRc a1 )" -ne 0 ] && printf refused || printf passed ):$( rigActingWay "$( rigRefusalOf a1 )" )" "refused:yes"
+
 echo "-- 2. --magic-* --"
 rigAs m1 console "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck advance-to-running
 rigAs m2 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck advance-to-running
@@ -116,6 +125,10 @@ rigClientWay(){ ## refusal text -> whether it names the coordinator that can run
 }
 rigAssert "the --client-* refusal names its own way (the coordinator that can run it as the client)" "$( rigClientWay "$( rigRefusalOf c3 )" )" "yes"
 rigAssert "the console passes; a member's session, the coordinator's among them, is refused" "$( rigRc g1 ):$( [ "$( rigRc g2 )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRc g3 )" -ne 0 ] && printf refused || printf passed )" "0:refused:refused"
+rigManagerWay(){ ## refusal text -> whether it says where the operation is run instead: yes|no
+	case "$1" in *"run it at the console directly, outside any member's session"*) printf yes ;; *) printf no ;; esac
+}
+rigAssert "the --manager-* refusal says where it is run instead (S18.1)" "$( rigManagerWay "$( rigRefusalOf g3 )" )" yes
 
 echo "-- 5. each refusal is the dispatcher's own, word for word --"
 rigAs dm keeper-myx "$rigFn" --advance-to-running magic-coordinator

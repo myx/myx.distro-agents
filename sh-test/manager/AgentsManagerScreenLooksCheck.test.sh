@@ -152,11 +152,32 @@ RIGSCRIPT
 rigAssert "its lines are being read"                                 "$( rigVal l.selected ) $( rigVal l.viewMode ) $( rigVal l.reading ) $( rigVal l.viewLines )" "transcript log feed:magic-team/activity/active-sessions/$rigS1/$rigS1|transcript:transcript 0"
 rigAssert "under the head line the window says what it waits for, pale" "[$( rigVal lHead )][$( rigVal lWaits )][$( rigLook lr 3 1 83 )]" "[lines     the feed, not read yet][Populating Transcript...][D]"
 rigAssert "and no more once they have come"                          "[$( rigVal lLine )] $( rigHolds ls 'Populating' )" "[2026-10-13] 0"
+
+echo "-- v cycles the views of the left window: summary, log, raw, and summary again --"
+rigCase views rows --manager-session-transcript-read 'sleep 1'
+rigScript <<RIGSCRIPT
+at @activity active-sessions $rigS1 $rigS1
+turn
+wait sessions 30
+select transcript
+turn
+get a
+keys v
+turn
+get b
+keys v
+turn
+get c
+keys v
+turn
+get d
+RIGSCRIPT
+rigAssert "v is the next view each time it is pressed: summary, log, raw, and summary again" "$( rigVal a.viewMode ) $( rigVal b.viewMode ) $( rigVal c.viewMode ) $( rigVal d.viewMode )" "summary log raw summary"
 rigBare <<'RIGSCRIPT'
 rows magic-team/launch a=alpha
 at @magic-team launch
 turn
-keys DOWN DOWN DOWN DOWN DOWN
+select a
 turn
 get b
 show bs

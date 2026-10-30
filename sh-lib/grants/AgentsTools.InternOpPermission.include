@@ -1001,6 +1001,14 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 		--text "permission set approved for the $applySetScope ($applySetParts): $applySetText" --source "$applySetId" \
 		--context "$MDSC_CMD" > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not recorded on $applySetItem's Decisions" >&2
+	## A session-id was given but nothing was written for it -- an empty or malformed one (the assert at
+	## the top of the session block failed quietly), or every participant's own assert failed: never
+	## reported as a success (S21.20, the tester's own incident: a GRANT line naming 0 entries closed
+	## the escalation as allowed with nothing stored).
+	if [ -n "$applySetSession" ] && [ "$applySetCount" -eq 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: a session-id was given ($applySetSession) but no entry could be written for it -- check it is a bare session id, with no path characters, and that every participant is a bare name" >&2
+		set +e ; return 1
+	fi
 	printf 'GRANT: set %s entries for %s\n' "$applySetCount" "${applySetParts:-nobody}"
 	return 0
 }

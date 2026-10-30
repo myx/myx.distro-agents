@@ -574,10 +574,10 @@ def pendingCount(state):
 PENDING_READS = {
     ## The asks that wait, every owner's. The member named filters nothing with --any-owner; it
     ## is the one the tooling's own read of every owner's asks names (the work-duty scan).
-    "list:pending": {"operation": ["--read-pending-reply", "magic-coordinator", "--any-owner"],
+    "list:pending": {"operation": ["--read-pending-reply", "--team-member", "magic-coordinator", "--any-owner"],
                      "rows": "pending"},
     ## One ask, whole: what the stores hold of it.
-    "view:pending:record": {"operation": ["--read-pending-reply", "magic-coordinator", "{id}"],
+    "view:pending:record": {"operation": ["--read-pending-reply", "--team-member", "magic-coordinator", "{id}"],
                             "rows": "ask", "needs": "ask"},
     ## What can be done with one ask from the console: the row of the question, with whether it
     ## takes words, a reject and a dismissal and with the link of its message, and a row for

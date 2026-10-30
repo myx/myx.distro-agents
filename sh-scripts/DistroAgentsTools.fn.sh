@@ -30,10 +30,12 @@ esac
 ## {"operation":<word>,"status":<rc>,"result":<its output>}; every other operation runs as without it.
 ## The ones of the tool files are in agentsFrontJsonOps (sh-lib/harness/AgentsContext.FrontTable.include).
 ## sh-test/harness/AgentsBatchToolsCheck.test.sh holds both lists to the words the harness runs.
-agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read
-	--intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume
-	--intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks
-	--intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index"
+agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read --intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume --intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks --intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index"
+
+## The tester family of sketch 10.6: every operation DistroAgentsTesting.fn.sh serves, by its own name, so `--tester-<operation>` is
+## that operation and nothing else. One list, held to the testing tool's help by sh-test/member/AgentsTesterFamilyCheck.test.sh.
+agentsTesterOperations="apply-tool retest-drain retest-queue retest-result run-all-nightly-regressions run-oldest-untested send-report
+	skillset-validate-routine test-invalidate test-list test-register test-unregister test-update"
 
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
@@ -52,7 +54,7 @@ DistroAgentsTools(){
 			json) shift 2 ;;
 			*) echo "⛔ ERROR: $MDSC_CMD: --mdat-output-format takes json, got: ${2:-<none>}" >&2 ; set +e ; return 1 ;;
 		esac
-		case " $( printf '%s' "$agentsToolOperations" | LC_ALL=C tr '\n\t' '  ' ) " in
+		case " $agentsToolOperations " in
 			*" ${1:-} "*)
 				local formatOut formatRc=0
 				formatOut="$( DistroAgentsTools "$@" )" || formatRc=$?
@@ -73,7 +75,7 @@ DistroAgentsTools(){
 		;;
 		## The internal operations are the tooling's own plumbing, with options of their own (--intern-op-permission-grant-consume --session-id): not commands of the set.
 		:--intern-*) ;;
-		:*:--team-member|:*:--session-id|:*:--spawn-id|:*:--select-workspace|:*:--tooling-origin|:--client-*:|:--client-*:--*|:--librarian-*:|:--librarian-*:--*)
+		:*:--team-member|:*:--session-id|:*:--spawn-id|:*:--select-workspace|:*:--tooling-origin|:--client-*:|:--client-*:--*|:--librarian-*:|:--librarian-*:--*|:--tester-*:|:--tester-*:--*)
 			local commonRc=0
 			type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
 			AgentsToolsCommonRun DistroAgentsTools DistroAgentsTools.fn.sh "$@" || commonRc=$?
@@ -314,6 +316,22 @@ DistroAgentsTools(){
 					set +e ; return 1
 				fi
 			fi
+		;;
+
+		## Sketch 10.6's tester family: `--tester-<operation>` is DistroAgentsTesting.fn.sh `--<operation>`, one thin stub an operation,
+		## as the librarian family fronts its own. A name outside the list is refused with the list, so no stub is invented here.
+		--tester-*)
+			testerOperation="${1#--tester-}"
+			case " $agentsTesterOperations " in
+				*" $testerOperation "*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD: --tester-$testerOperation is no testing operation; the family is: $agentsTesterOperations" >&2
+					set +e ; return 1
+				;;
+			esac
+			shift
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTesting.fn.sh" --"$testerOperation" "$@"
+			return $?
 		;;
 
 		## F7.7's stub of the librarian's skillset write, with no logic of its own: --librarian-skillset-upsert is AgentLibrarianTools.fn.sh --skillset-upsert.

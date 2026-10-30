@@ -15,7 +15,6 @@
 ## changes its folder.
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 case "$1" in
@@ -180,6 +179,7 @@ case "$1" in
 			## Only this branch carries the caller's own new text -- a patch merges
 			## into content somebody else wrote, and measuring that would report
 			## against the wrong author.
+			type AgentsToolsOutputStyleRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$memberName" "" "$itemName" "" none || :
 		fi
 		if [ -z "$content" ] ; then
