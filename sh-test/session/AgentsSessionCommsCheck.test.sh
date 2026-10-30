@@ -105,6 +105,8 @@ rigScene(){ ## scenario name -- a workspace with one session: its folder, thread
 	touch -t "$( rigStamp $(( rigNow - 300 )) )" "$rigSessDir/launch"
 	: > "$rigDir/api.log"
 	rigChat="$rigSessDir/session.chat"
+	## The cache outbox of the session thread's channel (S21.13): a failed post's retry waits there.
+	rigOutbox="$rigDir/ws/.local/cache/comms/slack/slack-CRIGSES01-$rigRoot/outbox.messages.txt"
 	rigThreadData "$( rigMsg "$rigRoot" URIGOWNER RIG-ROOT "$rigRoot" )"
 }
 rigLive(){ ## the control thread of the scene's session lives: a stand-in process, and the pid file that names it
@@ -123,6 +125,13 @@ rigOp(){ ## output basename, then the arguments of --intern-session-comms
 	( cd "$rigDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_COMMS_READER -u MDAT_COMMS_IDLE_SECONDS \
 		"PATH=$rigPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" $rigOpEnv \
 		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 90 -- bash "$rigTool" --intern-session-comms "$@" ) > "$rigDir/$opName.out" 2> "$rigDir/$opName.err"
+	rigRc=$?
+}
+## One push of every channel's cache outbox, as the comms reader makes it (AgentsToolsCommsCachePushAll).
+rigPush(){ ## output basename
+	( cd "$rigDir/ws" && env -u MDAT_DATA_ROOT -u MDAT_SESSION_THREAD -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID \
+		"PATH=$rigPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
+		bash -c ". \"$rigHere/session/AgentsTools.SessionComms.include\" || exit 9 ; . \"$rigHere/comms/AgentsTools.CommsCache.include\" || exit 9 ; AgentsToolsCommsCachePushAll \"\$( date +%s )\"" ) > "$rigDir/$1.out" 2> "$rigDir/$1.err"
 	rigRc=$?
 }
 rigPass(){ ## output basename -- one pass over the scene's session
@@ -222,15 +231,16 @@ printf 'curl:7\ncurl:7\ncurl:7\ncurl:7\ncurl:7\n' > "$rigDir/post-script"
 rigSend "RIG-RETRY-BODY"
 rigAssert "a send that Slack was not reached for fails as it did"      "$( [ "$rigRc" != 0 ] && printf failed )" failed
 rigAssert "and is in the file, with no ts yet"                         "$( rigBlocks ):$( rigIndex 1 )" "1:- - own"
-rigAssert "its post waits in the outbox, as a retry"                   "$( ls "$rigSessDir/chat.outbox" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "1.retry "
-rigAssert "naming the sender, the identity it posts under and the method" "$( LC_ALL=C head -1 "$rigSessDir/chat.outbox/1.retry" 2> /dev/null | LC_ALL=C tr '\t' ' ' )" "keeper-rig user chat.postMessage"
-rigAssert "with the payload Slack was to get"                          "$( LC_ALL=C tail -n +3 "$rigSessDir/chat.outbox/1.retry" 2> /dev/null | LC_ALL=C grep -c -F -e RIG-RETRY-BODY -e "thread_ts" )" 1
-rigAssert "and no token"                                               "$( LC_ALL=C grep -c -F -e rig-user-token -e rig-bot-token -e 'Bearer' "$rigSessDir/chat.outbox/1.retry" 2> /dev/null )" 0
+rigAssert "its post waits in the channel's cache outbox, as one record" "$( LC_ALL=C wc -l < "$rigOutbox" 2> /dev/null | LC_ALL=C tr -d ' ' )" 1
+rigAssert "naming the session, the block, the sender, the identity it posts under and the method" "$( LC_ALL=C cut -f1-5 "$rigOutbox" 2> /dev/null | LC_ALL=C tr '\t' ' ' )" "$rigSession 1 keeper-rig user chat.postMessage"
+rigAssert "with the payload Slack was to get"                          "$( LC_ALL=C grep -c -F -e RIG-RETRY-BODY -e 'thread_ts' "$rigOutbox" 2> /dev/null )" 1
+rigAssert "and no token"                                               "$( LC_ALL=C grep -c -F -e rig-user-token -e rig-bot-token -e 'Bearer' "$rigOutbox" 2> /dev/null )" 0
 rigAssert "the floor of another reader does not pass it by"            "$( rigPointerSet read:keeper-exec 0 ; rigFloor keeper-exec | LC_ALL=C tr '\n' ' ' )" "0 newest=0 "
 rigPass retry-1
 rigAssert "a pass posts it: as the sender, under its token, the same payload" "$( rigCalls chat.postMessage ):$( rigLastCall chat.postMessage 6 ):$( cmp -s "$rigDir/post.6" "$rigDir/post.1" && printf same )" "6:rig-user-token-RIG:same"
 rigAssert "the block has its ts and its conversation now"              "$( rigIndex 1 )" "1760000000.000106 CRIGSES01:$rigRoot own"
-rigAssert "and the outbox is empty"                                    "$( ls "$rigSessDir/chat.outbox" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
+rigAssert "and the outbox is cut back to nothing"                      "$( [ -e "$rigOutbox" ] && printf left || printf empty )" "empty"
+rigPass retry-2
 rigAssert "the floor of another reader has it now, and the thread's root the pass read after it is no floor" "$( rigFloor keeper-exec | LC_ALL=C tr '\n' ' ' )" "1 newest=2 "
 rigScene unknown
 rigLive
@@ -253,20 +263,18 @@ printf 'curl:7\ncurl:7\ncurl:7\ncurl:7\ncurl:7\n' > "$rigDir/post-script"
 rigSend "RIG-FIRST-BODY"
 printf 'curl:7\ncurl:7\ncurl:7\ncurl:7\ncurl:7\n' > "$rigDir/post-script"
 rigSend "RIG-SECOND-BODY"
-rigAssert "two posts wait, in the order they were sent"                "$( ls "$rigSessDir/chat.outbox" | LC_ALL=C tr '\n' ' ' )" "1.retry 2.retry "
+rigAssert "two posts wait, in the order they were sent"                "$( LC_ALL=C cut -f2 "$rigOutbox" | LC_ALL=C tr '\n' ' ' )" "1 2 "
 printf 'rate:2\n' > "$rigDir/post-script"
 rigPass rate-1
-rigAssert "Slack says wait: the first stays, the second is not tried"   "$( rigCalls chat.postMessage ):$( ls "$rigSessDir/chat.outbox" | LC_ALL=C tr '\n' ' ' )" "11:1.retry 2.retry "
-rigPause="$( LC_ALL=C cat "$rigDir/ws/.local/agents/comms/pause" 2> /dev/null )"
-case "$rigPause" in ''|*[!0123456789]*) rigPause=0 ;; esac
-rigAssert "the Retry-After is kept as a time to wait for, two seconds on" "$( [ "$rigPause" -ge $(( rigNow + 1 )) ] && [ "$rigPause" -le $(( $( date +%s ) + 3 )) ] && printf ok )" ok
-## Under load the two seconds can pass before the next pass starts: the pause is set ten minutes on, so that pass is inside it.
-printf '%s\n' "$(( $( date +%s ) + 600 ))" > "$rigDir/ws/.local/agents/comms/pause"
+## The push already took the outbox aside as outbox.pushing.txt, the first record kept for the retry the rate limit asked for.
+rigAssert "Slack says wait: the first is left for later, and the outbox keeps both" "$( rigCalls chat.postMessage ):$( LC_ALL=C wc -l < "${rigOutbox%/*}/outbox.pushing.txt" | LC_ALL=C tr -d ' ' ):$( LC_ALL=C awk '{ print $3 }' "${rigOutbox%/*}/.push.txt" 2> /dev/null )" "11:2:1"
+rigPushNow="$( date +%s )"
+rigAssert "the moment to try again is kept, two seconds on"             "$( LC_ALL=C awk -v now="$rigPushNow" '{ print ( $2 >= now + 1 && $2 <= now + 3 ? "ok" : "bad:" $2 ) }' "${rigOutbox%/*}/.push.txt" 2> /dev/null )" ok
 rigPass rate-2
-rigAssert "a pass inside it posts nothing"                             "$( rigCalls chat.postMessage )" 11
-printf '%s\n' "$(( rigNow - 5 ))" > "$rigDir/ws/.local/agents/comms/pause"
+rigAssert "a push inside it posts nothing"                             "$( rigCalls chat.postMessage )" 11
+printf '%s\n' "0 0 0" > "${rigOutbox%/*}/.push.txt"
 rigPass rate-3
-rigAssert "once it has passed, both go, the first first"               "$( rigCalls chat.postMessage ):$( ls "$rigSessDir/chat.outbox" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( LC_ALL=C grep -c RIG-FIRST-BODY "$rigDir/post.12" ):$( LC_ALL=C grep -c RIG-SECOND-BODY "$rigDir/post.13" )" "13:0:1:1"
+rigAssert "once it has passed, both go, the first first"               "$( rigCalls chat.postMessage ):$( [ -e "$rigOutbox" ] && printf left || printf empty ):$( LC_ALL=C grep -c RIG-FIRST-BODY "$rigDir/post.12" ):$( LC_ALL=C grep -c RIG-SECOND-BODY "$rigDir/post.13" )" "13:empty:1:1"
 
 echo "-- 3. the console --"
 rigScene inject

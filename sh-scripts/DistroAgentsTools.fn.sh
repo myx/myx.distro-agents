@@ -47,7 +47,10 @@ DistroAgentsTools(){
 	fi
 	## A name an operation had before it moved into a tool file is refused with its new place.
 	case "${1:-}" in
-		--member-*|--magic-*) if AgentsToolsFrontRetired "$1" >&2 ; then set +e ; return 1 ; fi ;;
+		--member-*|--magic-*)
+			type AgentsToolsFrontRetired > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Retired.include"
+			if AgentsToolsFrontRetired "$1" >&2 ; then set +e ; return 1 ; fi
+		;;
 	esac
 	if [ "${1:-}" = "--mdat-output-format" ] ; then
 		case "${2:-}" in

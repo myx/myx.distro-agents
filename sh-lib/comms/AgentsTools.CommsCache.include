@@ -192,7 +192,7 @@ AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, id
 ## keeps its place, sets `retry-at` and counts the attempt, and nothing after it overtakes it.
 AgentsToolsCommsCachePush(){ ## cache folder, now
 	local pushDir="$1" pushNow="$2" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0
-	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload
+	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload pushPauseDir pushPauseUntil
 	[ -f "$pushDir/outbox.pushing.txt" ] || [ -s "$pushDir/outbox.messages.txt" ] || return 0
 	if ! ( set -o noclobber ; printf '%s\n' "$pushNow" > "$pushDir/.pushlock.txt" ) 2> /dev/null ; then
 		{ read -r pushLock < "$pushDir/.pushlock.txt" ; } 2> /dev/null || pushLock=0
@@ -217,11 +217,22 @@ AgentsToolsCommsCachePush(){ ## cache folder, now
 			[ "$pushNo" -gt "$pushSent" ] || continue
 			case "$pushBlock" in ''|*[!0-9]*) pushSent="$pushNo" ; continue ;; esac
 			printf '%s\t%s\t%s\n-\n%s\n' "$pushMember" "$pushIdentity" "$pushMethod" "${pushPayload//$'\037'/$'\n'}" > "$pushWork/$pushBlock.retry"
-			AgentsToolsSessionCommsPost "$pushSession" "$pushWork/$pushBlock.retry" ; pushRc=$?
+			## Never bare: AgentsToolsSessionCommsPost returns 1 or 2 on an ordinary, expected outcome (rate-limited,
+			## refused, unreached), and a caller under set -e (DistroAgentsTools.fn.sh) is killed outright by that
+			## return unless it is the left side of ||, never just followed by `; pushRc=$?`.
+			pushRc=0
+			AgentsToolsSessionCommsPost "$pushSession" "$pushWork/$pushBlock.retry" || pushRc=$?
 			rm -f "$pushWork/$pushBlock".*
 			if [ "$pushRc" = 1 ] ; then
 				pushTries=$(( pushTries + 1 ))
 				pushRetry=$(( pushNow + ( pushTries < 6 ? 5 * pushTries : 30 ) ))
+				## Slack's own rate limit already set the writer's pause (AgentsToolsSessionCommsPauseSet): the real
+				## Retry-After is waited out there, never guessed at by the generic backoff above.
+				pushPauseDir="$( AgentsToolsSessionCommsDir 2> /dev/null )" || pushPauseDir=""
+				pushPauseUntil=""
+				[ -z "$pushPauseDir" ] || { IFS= read -r pushPauseUntil < "$pushPauseDir/pause" ; } 2> /dev/null
+				case "$pushPauseUntil" in ''|*[!0-9]*) pushPauseUntil="" ;; esac
+				[ -z "$pushPauseUntil" ] || [ "$pushPauseUntil" -le "$pushNow" ] || pushRetry="$pushPauseUntil"
 				printf '%s %s %s\n' "$pushSent" "$pushRetry" "$pushTries" > "$pushDir/.push.txt"
 				break
 			fi

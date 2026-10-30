@@ -2933,16 +2933,27 @@ blocks|verbatim|caller|stdin file"
 		AgentsToolsSlackSendErrorCode(){ ## Slack's error code from $response, alone
 			printf '%s' "$response" | LC_ALL=C sed -n 's/.*"error":"\([a-z_]*\)".*/\1/p' | head -n 1
 		}
-		## A message recorded before its post (F9.1) whose post failed stays in the chat file, and its post is left to the writer of the
-		## communications reader (F9.3, AgentsTools.SessionComms.include): `retry` where Slack was not reached or did not confirm,
-		## `unknown` where it may have been reached (never posted again), `refused` where Slack answered and said no (never posted
-		## again). Quiet, and the send fails as it did.
+		## A message recorded before its post (F9.1) whose post failed stays in the chat file. A `retry` goes into
+		## the cache outbox of its channel (S21.13, AgentsTools.CommsCache.include): one queue per channel, pushed
+		## by the communications reader, posting the very payload that failed. `unknown` where it may have been
+		## reached (never posted again), `refused` where Slack answered and said no (never posted again), stay
+		## verdict records of the session. Quiet, and the send fails as it did.
 		AgentsToolsSlackSendChatKeep(){ ## retry|unknown|refused, why
 			[ -n "$chatRecord" ] || return 0
 			## A send on the side of the other organisation presents the member under that side's names, with that side's own settings:
 			## the writer reads none of them, so it posts none of those again.
 			if [ "$1" = "retry" ] && AgentsToolsSlackClientSide "$memberName" ; then
 				set -- refused "a send on the side of the other organisation is not posted again by the writer, which does not read that side's settings"
+			fi
+			if [ "$1" = "retry" ] ; then
+				local keepOut=""
+				type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				AgentsToolsCommsCacheSlackDir "$memberName" "$( [ "$sendIdentity" != "bot" ] || printf true )" "$channel" "$threadTs" 2> /dev/null || :
+				keepOut="${agentsCommsCacheDir:-}"
+				if [ -n "$keepOut" ] && [ -n "${channel:-}" ] \
+					&& AgentsToolsCommsCacheOutboxAppend "$keepOut" "$chatKey" "$chatNo" "$memberName" "$sendIdentity" "$sendApi" "$payload" ; then
+					return 0
+				fi
 			fi
 			type AgentsToolsSessionCommsOutboxKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || return 0
 			AgentsToolsSessionCommsOutboxKeep "$chatKey" "$chatNo" "$1" "$memberName" "$sendIdentity" "$sendApi" "$payload" "$2" 2> /dev/null || :

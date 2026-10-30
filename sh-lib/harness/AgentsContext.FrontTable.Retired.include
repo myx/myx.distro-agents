@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsContext.FrontTable.Retired.include -- the names the operations had, before they moved into a tool file (F1.4 of the refactorings epic),
+## and the refusal a call of one gets, naming its new place. Sourced, never run. Declarations and functions only.
+##
+## Split from AgentsContext.FrontTable.include: every call routes through the table, and only a call of a name
+## this table does not hold, under a --member-* or --magic-* prefix, reads this one (DistroAgentsTools.fn.sh).
+##
+
+agentsFrontRetired='--magic-advance-batch-outcome	DistroAgentsItems.fn.sh --advance-batch-outcome
+--magic-advance-close-state-and-unlock	(the spawner gives the routine lock back itself)
+--magic-advance-lock-acquire	(the spawner takes the routine lock itself)
+--magic-advance-lock-refresh	(the spawner refreshes the lock itself)
+--magic-advance-lock-status	(read the lock note with DistroAgentsItems.fn.sh --get-inbox-item)
+--magic-advance-sleep-run	AgentDispatcherTools.fn.sh --advance-sleep-run
+--magic-advance-state-and-lock-upsert	(a participant updates the locked document of its routine with DistroAgentsSession.fn.sh --update-routine-state)
+--magic-advance-to-parked	DistroAgentsItems.fn.sh --advance-to-parked
+--magic-advance-to-running	DistroAgentsItems.fn.sh --advance-to-running
+--magic-append-session-transcript	DistroAgentsSession.fn.sh --append-transcript
+--magic-board-create-running	DistroAgentsItems.fn.sh --create-running
+--magic-board-to-backlog	DistroAgentsItems.fn.sh --move-to-backlog
+--magic-board-to-blocked	DistroAgentsItems.fn.sh --move-to-blocked
+--magic-board-to-parked	DistroAgentsItems.fn.sh --move-to-parked
+--magic-board-to-pending	DistroAgentsItems.fn.sh --move-to-pending
+--magic-board-to-processed	DistroAgentsItems.fn.sh --move-to-processed
+--magic-client-operation-run	AgentDispatcherTools.fn.sh --client-operation-run
+--magic-comms-confluence-comment-add	DistroAgentsAtlassian.fn.sh --confluence-comment-add
+--magic-comms-confluence-comment-read	DistroAgentsAtlassian.fn.sh --confluence-comment-read
+--magic-comms-confluence-page-create	DistroAgentsAtlassian.fn.sh --confluence-page-create
+--magic-comms-confluence-page-delete	DistroAgentsAtlassian.fn.sh --confluence-page-delete
+--magic-comms-confluence-page-read	DistroAgentsAtlassian.fn.sh --confluence-page-read
+--magic-comms-confluence-page-search	DistroAgentsAtlassian.fn.sh --confluence-page-search
+--magic-comms-confluence-page-update	DistroAgentsAtlassian.fn.sh --confluence-page-update
+--magic-comms-confluence-space-list	DistroAgentsAtlassian.fn.sh --confluence-space-list
+--magic-comms-email-mark-seen	DistroAgentsMail.fn.sh --email-mark-seen
+--magic-comms-email-send	DistroAgentsMail.fn.sh --email-send
+--magic-comms-jira-board-issue-search	DistroAgentsAtlassian.fn.sh --jira-board-issue-search
+--magic-comms-jira-board-list	DistroAgentsAtlassian.fn.sh --jira-board-list
+--magic-comms-jira-board-read	DistroAgentsAtlassian.fn.sh --jira-board-read
+--magic-comms-jira-comment-add	DistroAgentsAtlassian.fn.sh --jira-comment-add
+--magic-comms-jira-comment-read	DistroAgentsAtlassian.fn.sh --jira-comment-read
+--magic-comms-jira-issue-create	DistroAgentsAtlassian.fn.sh --jira-issue-create
+--magic-comms-jira-issue-delete	DistroAgentsAtlassian.fn.sh --jira-issue-delete
+--magic-comms-jira-issue-read	DistroAgentsAtlassian.fn.sh --jira-issue-read
+--magic-comms-jira-issue-search	DistroAgentsAtlassian.fn.sh --jira-issue-search
+--magic-comms-jira-issue-transition	DistroAgentsAtlassian.fn.sh --jira-issue-transition
+--magic-comms-jira-issue-update	DistroAgentsAtlassian.fn.sh --jira-issue-update
+--magic-comms-jira-sprint-issue-search	DistroAgentsAtlassian.fn.sh --jira-sprint-issue-search
+--magic-comms-jira-sprint-list	DistroAgentsAtlassian.fn.sh --jira-sprint-list
+--magic-comms-slack-conversations-roster	DistroAgentsSlack.fn.sh --slack-conversations-roster
+--magic-comms-slack-react	DistroAgentsSlack.fn.sh --slack-react
+--magic-comms-slack-read	DistroAgentsSlack.fn.sh --slack-read
+--magic-comms-slack-resolve-ids	DistroAgentsSlack.fn.sh --slack-resolve-ids
+--magic-comms-slack-send-message	DistroAgentsSlack.fn.sh --slack-send-message
+--magic-comms-trello-post-comment	DistroAgentsTrello.fn.sh --trello-post-comment
+--magic-config-check	AgentDispatcherTools.fn.sh --config-check
+--magic-contact-digest-send	DistroAgentsContacts.fn.sh --send-contact-digest
+--magic-daily-close-state-and-unlock	(the spawner gives the routine lock back itself)
+--magic-daily-lock-acquire	(the spawner takes the routine lock itself)
+--magic-daily-lock-refresh	AgentDispatcherTools.fn.sh --daily-lock-refresh
+--magic-daily-lock-status	(read the lock note with DistroAgentsItems.fn.sh --get-inbox-item)
+--magic-daily-state-and-lock-upsert	(a participant updates the locked document of its routine with DistroAgentsSession.fn.sh --update-routine-state)
+--magic-escalation-answer	DistroAgentsQuestions.fn.sh --answer-escalation
+--magic-escalation-forward	DistroAgentsQuestions.fn.sh --forward-escalation
+--magic-grooming-close-state-and-unlock	(the spawner gives the routine lock back itself)
+--magic-grooming-create-backlog	DistroAgentsItems.fn.sh --grooming-create-backlog
+--magic-grooming-create-blocked	DistroAgentsItems.fn.sh --grooming-create-blocked
+--magic-grooming-create-pending	DistroAgentsItems.fn.sh --grooming-create-pending
+--magic-grooming-create-processed	DistroAgentsItems.fn.sh --grooming-create-processed
+--magic-grooming-create-running	DistroAgentsItems.fn.sh --grooming-create-running
+--magic-grooming-lock-acquire	(the spawner takes the routine lock itself)
+--magic-grooming-lock-refresh	AgentDispatcherTools.fn.sh --grooming-lock-refresh
+--magic-grooming-lock-status	(read the lock note with DistroAgentsItems.fn.sh --get-inbox-item)
+--magic-grooming-state-and-lock-upsert	(a participant updates the locked document of its routine with DistroAgentsSession.fn.sh --update-routine-state)
+--magic-grooming-to-archived	DistroAgentsItems.fn.sh --grooming-to-archived
+--magic-grooming-to-backlog	DistroAgentsItems.fn.sh --grooming-to-backlog
+--magic-grooming-to-blocked	DistroAgentsItems.fn.sh --grooming-to-blocked
+--magic-grooming-to-parked	DistroAgentsItems.fn.sh --grooming-to-parked
+--magic-grooming-to-pending	DistroAgentsItems.fn.sh --grooming-to-pending
+--magic-grooming-to-processed	DistroAgentsItems.fn.sh --grooming-to-processed
+--magic-grooming-to-retained	DistroAgentsItems.fn.sh --grooming-to-retained
+--magic-grooming-to-running	DistroAgentsItems.fn.sh --grooming-to-running
+--magic-pending-reply-amend	DistroAgentsQuestions.fn.sh --amend-pending-reply
+--magic-pending-reply-settle	DistroAgentsSession.fn.sh --settle-pending-reply
+--magic-permission-list	DistroAgentsGrants.fn.sh --list-permissions
+--magic-permission-revoke	DistroAgentsGrants.fn.sh --revoke-permission
+--magic-permission-set-request	AgentDispatcherTools.fn.sh --request-permission-set
+--magic-retro-close-state-and-unlock	(the spawner gives the routine lock back itself)
+--magic-retro-lock-acquire	(the spawner takes the routine lock itself)
+--magic-retro-lock-refresh	AgentDispatcherTools.fn.sh --retro-lock-refresh
+--magic-retro-lock-status	(read the lock note with DistroAgentsItems.fn.sh --get-inbox-item)
+--magic-retro-state-and-lock-upsert	(a participant updates the locked document of its routine with DistroAgentsSession.fn.sh --update-routine-state)
+--magic-review-accept	DistroAgentsItems.fn.sh --accept-review
+--magic-review-follow-up	DistroAgentsItems.fn.sh --follow-up-review
+--magic-review-reject	DistroAgentsItems.fn.sh --reject-review
+--magic-review-return	DistroAgentsItems.fn.sh --return-review
+--magic-review-shutdown	DistroAgentsDispatcher.fn.sh --shutdown-runs
+--magic-spawn-proxy	DistroAgentsDispatcher.fn.sh --spawn-prompt
+--magic-spawn-session	DistroAgentsDispatcher.fn.sh --spawn-session
+--magic-state-note-lock-acquire	AgentDispatcherTools.fn.sh --state-note-lock-acquire
+--magic-state-note-lock-status	(read the lock of the state note with DistroAgentsItems.fn.sh --get-inbox-item)
+--magic-state-note-read	AgentDispatcherTools.fn.sh --state-note-read
+--magic-sweep-state-advance	AgentDispatcherTools.fn.sh --sweep-state-advance
+--magic-sweep-state-read	AgentDispatcherTools.fn.sh --sweep-state-read
+--magic-sweep-state-upsert	AgentDispatcherTools.fn.sh --sweep-state-upsert
+--magic-team-data-commit-pending	DistroAgentsItems.fn.sh --commit-pending
+--magic-team-roster-read	DistroAgentsKnowledge.fn.sh --get-roster
+--magic-team-roster-upsert	AgentDispatcherTools.fn.sh --roster-upsert
+--magic-test-report-send	DistroAgentsTesting.fn.sh --send-report
+--member-append-session-transcript	DistroAgentsSession.fn.sh --append-transcript
+--member-audit-item-read	DistroAgentsItems.fn.sh --get-audit-item
+--member-board-item-read	DistroAgentsItems.fn.sh --get-board-item
+--member-comms-confluence-page-read	DistroAgentsAtlassian.fn.sh --confluence-page-read
+--member-comms-confluence-space-list	DistroAgentsAtlassian.fn.sh --confluence-space-list
+--member-comms-email-check	DistroAgentsMail.fn.sh --email-check
+--member-comms-email-mark-seen	DistroAgentsMail.fn.sh --email-mark-seen
+--member-comms-email-read	DistroAgentsMail.fn.sh --email-read
+--member-comms-email-send	DistroAgentsMail.fn.sh --email-send
+--member-comms-google-comment-post	DistroAgentsGoogle.fn.sh --google-comment-post
+--member-comms-google-comment-read	DistroAgentsGoogle.fn.sh --google-comment-read
+--member-comms-google-doc-read	DistroAgentsGoogle.fn.sh --google-doc-read
+--member-comms-google-doc-write	DistroAgentsGoogle.fn.sh --google-doc-write
+--member-comms-google-file-find	DistroAgentsGoogle.fn.sh --google-file-find
+--member-comms-google-sheet-clear	DistroAgentsGoogle.fn.sh --google-sheet-clear
+--member-comms-google-sheet-info	DistroAgentsGoogle.fn.sh --google-sheet-info
+--member-comms-google-sheet-read	DistroAgentsGoogle.fn.sh --google-sheet-read
+--member-comms-google-sheet-write	DistroAgentsGoogle.fn.sh --google-sheet-write
+--member-comms-google-whoami	DistroAgentsGoogle.fn.sh --google-whoami
+--member-comms-jira-board-issue-search	DistroAgentsAtlassian.fn.sh --jira-board-issue-search
+--member-comms-jira-board-list	DistroAgentsAtlassian.fn.sh --jira-board-list
+--member-comms-jira-board-read	DistroAgentsAtlassian.fn.sh --jira-board-read
+--member-comms-jira-issue-read	DistroAgentsAtlassian.fn.sh --jira-issue-read
+--member-comms-jira-sprint-issue-search	DistroAgentsAtlassian.fn.sh --jira-sprint-issue-search
+--member-comms-jira-sprint-list	DistroAgentsAtlassian.fn.sh --jira-sprint-list
+--member-comms-slack-delete-message	DistroAgentsSlack.fn.sh --slack-delete-message
+--member-comms-slack-edit-message	DistroAgentsSlack.fn.sh --slack-edit-message
+--member-comms-slack-file-fetch	DistroAgentsSlack.fn.sh --slack-file-fetch
+--member-comms-slack-file-info	DistroAgentsSlack.fn.sh --slack-file-info
+--member-comms-slack-file-share	DistroAgentsSlack.fn.sh --slack-file-share
+--member-comms-slack-presence-keep	DistroAgentsSlack.fn.sh --slack-presence-keep
+--member-comms-slack-presence-status	DistroAgentsSlack.fn.sh --slack-presence-status
+--member-comms-slack-presence-stop	DistroAgentsSlack.fn.sh --slack-presence-stop
+--member-comms-slack-profile-get	DistroAgentsSlack.fn.sh --slack-profile-get
+--member-comms-slack-profile-set	DistroAgentsSlack.fn.sh --slack-profile-set
+--member-comms-slack-react	DistroAgentsSlack.fn.sh --slack-react
+--member-comms-slack-read	DistroAgentsSlack.fn.sh --slack-read
+--member-comms-slack-search-messages	DistroAgentsSlack.fn.sh --slack-search-messages
+--member-comms-slack-send-message	DistroAgentsSlack.fn.sh --slack-send-message
+--member-comms-slack-socket-start	DistroAgentsSlack.fn.sh --slack-socket-start
+--member-comms-slack-socket-status	DistroAgentsSlack.fn.sh --slack-socket-status
+--member-comms-slack-socket-stop	DistroAgentsSlack.fn.sh --slack-socket-stop
+--member-comms-trello-check	DistroAgentsTrello.fn.sh --trello-check
+--member-comms-trello-read	DistroAgentsTrello.fn.sh --trello-read
+--member-comms-trello-whoami	DistroAgentsTrello.fn.sh --trello-whoami
+--member-contact-digest-send	DistroAgentsContacts.fn.sh --send-contact-digest
+--member-decision-record	DistroAgentsQuestions.fn.sh --record-decision
+--member-directory-list	DistroAgentsKnowledge.fn.sh --list-places
+--member-directory-path	DistroAgentsKnowledge.fn.sh --get-place-path
+--member-escalation-answer	DistroAgentsQuestions.fn.sh --answer-escalation
+--member-escalation-read	DistroAgentsQuestions.fn.sh --read-escalation
+--member-escalation-readback	DistroAgentsQuestions.fn.sh --readback-escalation
+--member-git-repo-history	DistroAgentsKnowledge.fn.sh --get-path-history
+--member-inbox-item-read	DistroAgentsItems.fn.sh --get-inbox-item
+--member-inbox-item-trash	DistroAgentsItems.fn.sh --trash-inbox-item
+--member-inbox-note-upsert	DistroAgentsItems.fn.sh --upsert-inbox-note
+--member-inbox-reflection-upsert	DistroAgentsItems.fn.sh --upsert-inbox-reflection
+--member-inbox-to-processed	DistroAgentsItems.fn.sh --mark-inbox-processed
+--member-namespace-list	DistroAgentsKnowledge.fn.sh --list-namespaces
+--member-pending-reply-read	DistroAgentsQuestions.fn.sh --read-pending-reply
+--member-pending-reply-settle	DistroAgentsSession.fn.sh --settle-pending-reply
+--member-permission-list	DistroAgentsGrants.fn.sh --list-permissions
+--member-permission-pass	DistroAgentsGrants.fn.sh --pass-permission
+--member-retest-drain	DistroAgentsTesting.fn.sh --retest-drain
+--member-retest-queue	DistroAgentsTesting.fn.sh --retest-queue
+--member-retest-result	DistroAgentsTesting.fn.sh --retest-result
+--member-review-accept	DistroAgentsItems.fn.sh --accept-review
+--member-review-follow-up	DistroAgentsItems.fn.sh --follow-up-review
+--member-review-reject	DistroAgentsItems.fn.sh --reject-review
+--member-review-request	DistroAgentsItems.fn.sh --request-review
+--member-review-return	DistroAgentsItems.fn.sh --return-review
+--member-upsert-inbox-reflection	DistroAgentsItems.fn.sh --upsert-inbox-reflection
+--member-upsert-member-inquiry	DistroAgentsItems.fn.sh --upsert-inbox-inquiry
+--member-vault-item-read	DistroAgentsItems.fn.sh --get-vault-item
+--member-wait-for-input	DistroAgentsSession.fn.sh --wait-for-input'
+
+## The operations the harness and MCP tools run, whose result `--mdat-output-format json` before the name wraps in one JSON object (DistroAgentsTools.fn.sh has the
+## internal ones). sh-test/harness/AgentsBatchToolsCheck.test.sh holds the list to the words the harness runs.
+
+## What an old name was replaced by: its refusal line, or nothing for a name that was never one.
+AgentsToolsFrontRetired(){ ## name
+	local retiredNow
+	retiredNow="$( printf '%s\n' "$agentsFrontRetired" | LC_ALL=C awk -F'\t' -v op="$1" '$1 == op { print $2 ; exit }' )"
+	[ -n "$retiredNow" ] || return 1
+	case "$retiredNow" in
+		\(*) printf '%s: ⛔ ERROR: %s is retired: %s\n' "${MDSC_CMD:-DistroAgentsTools}" "$1" "${retiredNow#(}" | LC_ALL=C sed 's/)$//' ;;
+		*) printf '%s: ⛔ ERROR: %s was renamed: use %s -- nothing was done\n' "${MDSC_CMD:-DistroAgentsTools}" "$1" "$retiredNow" ;;
+	esac
+}

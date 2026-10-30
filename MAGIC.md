@@ -46,6 +46,11 @@ that the code and docs do not readily tell you.
   `AgentsToolsAssertBareName` (in `AgentsTools.BareName.include`) is the bar for "general";
   it is not licence to add more file-scope helpers. The harness's `AgentsHarnessBareName` asks the
   same gate.
+- **A source stays at the top only if every hot path of that file uses it.** Every entry script and
+  shared include loads, before its `case`, only what each of its operations reaches: the context, the
+  front door, the one family include. Anything else is sourced in the branch or function that needs it,
+  in the form `type <Fn> > /dev/null 2>&1 || . "<path>"`, and repeated where two branches need it. A
+  static list, or a value one branch reads, is written in that branch, never at file scope.
 - **One arm per group of operations.** A family arm sources one include, or several when one gets too
   big. Size is the only reason to split. A family arm works only because every stub of that family
   lives in the include it sources. A stub placed in another file is not routed, and nothing reports it.
