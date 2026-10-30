@@ -20,7 +20,7 @@ echo "📘 syntax: DistroAgentsKnowledge.fn.sh [--help]" >&2
 case "$1" in
 
 	--help-syntax)
-		type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+		type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 		AgentsToolsFrontSyntax "${MDSC_CMD:-DistroAgentsKnowledge}" "${2:-}"
 		return $?
 	;;

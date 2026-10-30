@@ -83,6 +83,7 @@ AgentsToolsToolIndexData(){ ## workspace
 		## The manual is one: the syntax lines of a tool file are the ones that name it (the table of the tool files says what each is).
 		[ -f "$dataHelp" ] || { [ -z "$( AgentsToolsFrontOps "$dataStem" )" ] || dataHelp="$agentsToolIndexHere/help/Help.DistroAgentsTools.help.md" ; }
 		[ -f "$dataHelp" ] || dataHelp=""
+		type AgentsToolsFrontSummary > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 		printf 'shell\t%s\t%s\t%s\t%s\n' "${dataFile##*/}" "$dataStem" "$dataHelp" "$( AgentsToolsFrontSummary "$dataStem" )"
 	done | LC_ALL=C sort -u
 	AgentsToolsFrontNamesOf coordinator | LC_ALL=C sort -u | LC_ALL=C awk '{ print "coordop\t" $0 }'

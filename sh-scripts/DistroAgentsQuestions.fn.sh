@@ -33,6 +33,7 @@ DistroAgentsQuestions(){
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
+			type AgentsToolsFrontHelp > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 			AgentsToolsFrontHelp DistroAgentsQuestions "every ask of the team" >&2
 			set +e ; return 1
 		;;

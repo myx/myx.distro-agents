@@ -33,7 +33,7 @@ rigAssert(){ ## what is asserted, got, want
 LC_ALL=C grep -o '^📘 syntax: DistroAgentsTesting.fn.sh --[a-z-]*' "$rigHelp" \
 	| LC_ALL=C sed 's/.*--//' | LC_ALL=C sort -u > "$rigTmp/help.out"
 ## The family's own list, from the one line of the script, words sorted.
-LC_ALL=C sed -n '/^agentsTesterOperations=/,/"/{ s/^agentsTesterOperations="// ; s/"$// ; p ; }' "$rigTool" \
+LC_ALL=C sed -n '/^[[:space:]]*\(local \)\{0,1\}agentsTesterOperations=/,/"[[:space:]]*$/{ s/^[[:space:]]*\(local \)\{0,1\}agentsTesterOperations="// ; s/"[[:space:]]*$// ; p ; }' "$rigTool" \
 	| LC_ALL=C tr ' \t' '\n\n' | LC_ALL=C sed '/^$/d' | LC_ALL=C sort -u > "$rigTmp/family.out"
 
 echo "-- 1. the family is exactly the testing tool's operations --"

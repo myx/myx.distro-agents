@@ -52,7 +52,10 @@ DistroAgentsTools(){
 		;;
 	esac
 	if [ "${1:-}" = "--mdat-output-format" ] ; then
-		local agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read --intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume --intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks --intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index"
+		local agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read
+			--intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume
+			--intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks
+			--intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index"
 		case "${2:-}" in
 			json) shift 2 ;;
 			*) echo "⛔ ERROR: $MDSC_CMD: --mdat-output-format takes json, got: ${2:-<none>}" >&2 ; set +e ; return 1 ;;
@@ -324,7 +327,8 @@ DistroAgentsTools(){
 		## Sketch 10.6's tester family: `--tester-<operation>` is DistroAgentsTesting.fn.sh `--<operation>`, one thin stub an operation,
 		## as the librarian family fronts its own. A name outside the list is refused with the list, so no stub is invented here.
 		--tester-*)
-			local agentsTesterOperations="apply-tool retest-drain retest-queue retest-result run-all-nightly-regressions run-oldest-untested send-report skillset-validate-routine test-invalidate test-list test-register test-unregister test-update"
+			local agentsTesterOperations="apply-tool retest-drain retest-queue retest-result run-all-nightly-regressions run-oldest-untested send-report
+				skillset-validate-routine test-invalidate test-list test-register test-unregister test-update"
 			testerOperation="${1#--tester-}"
 			case " $agentsTesterOperations " in
 				*" $testerOperation "*) ;;

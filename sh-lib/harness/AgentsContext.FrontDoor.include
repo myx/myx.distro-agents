@@ -14,6 +14,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 
 ## `--help-syntax [<name>]`: the syntax lines of this tool file.
 if [ "${1:-}" = "--help-syntax" ] ; then
+	type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 	AgentsToolsFrontSyntax "$MDSC_CMD" "${2:-}" || frontRc=$?
 	frontDone=yes ; return 0
 fi

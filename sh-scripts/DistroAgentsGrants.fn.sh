@@ -32,6 +32,7 @@ DistroAgentsGrants(){
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
+			type AgentsToolsFrontHelp > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 			AgentsToolsFrontHelp DistroAgentsGrants "the permission registry, its management and its bookkeeping" >&2
 			set +e ; return 1
 		;;

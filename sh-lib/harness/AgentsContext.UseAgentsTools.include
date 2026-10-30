@@ -60,7 +60,9 @@ if [ "$1" != "--agents-config-option" ] ; then
 	fi
 	## One site for every op: a remote set and no local board yet clones before any writer touches it. The clear of a Just Agents workspace
 	## (--owner-clear-just-agents, F13.2) touches settings alone, never team data: it clones nothing, whatever it is about to clear.
-	if [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ "$1" != "--owner-clear-just-agents" ] ; then
+	## A store that already holds content is ensure-clone's own first early return: the include that carries it is not read for it.
+	if [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ "$1" != "--owner-clear-just-agents" ] \
+		&& { [ ! -d "$MDAT_DATA_ROOT" ] || [ -z "$( ls -A "$MDAT_DATA_ROOT" 2> /dev/null )" ] ; } ; then
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 		AgentsToolsTeamDataEnsureClone "${1:-DistroAgentsTools}"
 	fi

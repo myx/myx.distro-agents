@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsContext.FrontTable.Help.include -- what a tool file shows a reader: what it is, in a sentence, the tool files
+## one-line descriptions, and the syntax lines of the operations, read off the file own manual. Sourced, never run.
+##
+## Split from AgentsContext.FrontTable.include: every call routes through the table, and only a bare call, a --help or
+## a --help-syntax reads this one. AgentsToolsFrontOps stays in the table, because it reads it. A caller here has the
+## table already: the front door sources it before any of this.
+##
+
+## What each tool file is, in a sentence: the first line the tool index shows under it.
+agentsFrontSummary='DistroAgentsSession	ThisSession, your own session: post to its thread with --post-session-channel, and run its routine. Every wait already brings its thread replies.
+DistroAgentsKnowledge	What the team has written, searched; and the registries of projects, places, namespaces and members, read.
+DistroAgentsDispatcher	The runs of the team and everything about them: sessions, spawns, flags and the schedule.
+DistroAgentsTesting	The testing system: tests, retests and the report.
+DistroAgentsContacts	The people subsystem: contacts, organisations and what a contact may ask for.
+AgentDispatcherTools	The duties of the coordinator: routine state, the roster, the client operations.
+DistroAgentsItems	The items of the stores of the team: board, inbox, audit and vault.
+DistroAgentsQuestions	Every ask of the team: escalations, permission requests, decisions and the replies pending to them.
+DistroAgentsGrants	The permission registry: what a member holds, passes on and has revoked.
+DistroAgentsSlack	The Slack operations of the team.
+DistroAgentsAtlassian	The Jira and Confluence operations of the team.
+DistroAgentsGoogle	The Google operations of the team.
+DistroAgentsMail	The mail operations of the team.
+DistroAgentsTrello	The Trello operations of the team.'
+
+## The tool files the myx.distro MCP serves as one tool each, the operation as the argument: the external services, the contacts, AgentDispatcherTools (the coordinator's
+## role surface, whose spawn starts the sessions of a root-harness session) and DistroAgentsDispatcher, Questions, Items, Knowledge and Testing. An operation's audience is the
+## column of the table above, checked at call time. DistroAgentsGrants and DistroAgentsSession are not served: ThisSession is a floor tool of the harness. A tool is listed for everyone.
+agentsFrontSecondary='DistroAgentsSlack
+DistroAgentsAtlassian
+DistroAgentsGoogle
+DistroAgentsMail
+DistroAgentsTrello
+DistroAgentsContacts
+AgentDispatcherTools
+DistroAgentsDispatcher
+DistroAgentsQuestions
+DistroAgentsItems
+DistroAgentsKnowledge
+DistroAgentsTesting'
+
+AgentsToolsFrontSummary(){ ## entry function name
+	printf '%s\n' "$agentsFrontSummary" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'
+}
+
+AgentsToolsFrontHelp(){ ## entry function name, what the tool is
+	printf '%s: %s\n' "$1" "$2"
+	AgentsToolsFrontSyntaxLines "$1" "" first-form
+}
+
+## The syntax lines of a tool file's names, one name's, or those of every name a prefix ending in `-` begins: the lines of the
+## file's own manual, sh-lib/help/Help.<file>.help.md, which is where a tool's syntax is written, and of the shared include,
+## sh-lib/help/Help.DistroAgentsTools.include, only where no manual is there to read. Prints them, and nothing where the file
+## has none. With `first-form`, one line for each name, its first, which is the short list a bare call prints.
+AgentsToolsFrontSyntaxLines(){ ## entry function name, a name or a prefix (optional), first-form (optional)
+	local synManual="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.$1.help.md"
+	[ -f "$synManual" ] || synManual="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
+	LC_ALL=C awk -v tool="$1.fn.sh" -v want="${2:-}" -v form="${3:-}" '
+		{
+			line = $0 ; sub( /^echo "/, "", line ) ; sub( /" >&2$/, "", line )
+			if ( index( line, "📘 syntax: " ) != 1 ) next
+			split( substr( line, length( "📘 syntax: " ) + 1 ), words, " " ) ; op = words[2] ; gsub( /[][]/, "", op )
+			if ( words[1] != tool ) next
+			if ( want != "" && op != want && ! ( want ~ /-$/ && index( op, want ) == 1 ) ) next
+			if ( form == "first-form" ) { if ( op in listed ) next ; listed[op] = 1 }
+			print line
+		}' "$synManual"
+}
+
+## `--help-syntax [<name>]` of a tool file: those lines on stderr, or the refusal of a word that names none.
+AgentsToolsFrontSyntax(){ ## entry function name, a name or a prefix (optional)
+	local synOut
+	synOut="$( AgentsToolsFrontSyntaxLines "$1" "${2:-}" )"
+	if [ -z "$synOut" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-$1} --help-syntax ${2:-}: no operation of $1 is named so, or begins so -- $1 --help-syntax lists them all" >&2
+		return 1
+	fi
+	printf '%s\n' "$synOut" >&2
+}
+

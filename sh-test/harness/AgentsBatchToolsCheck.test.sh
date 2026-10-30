@@ -192,7 +192,7 @@ rigHarnessOps="$( LC_ALL=C awk '
 		}
 	}' <( rigHarnessCat ) | LC_ALL=C grep -v -x -e '--agents-config-option' ; printf '%s\n' --intern-mcp-execute )"
 ## The operations of the tool files carry the wrapper in their own door (their list is in the table of the tool files); the dispatcher's own, in its list.
-rigListedOps="$( { LC_ALL=C sed -n '/^agentsToolOperations="/,/"$/p' "$rigTool" ; LC_ALL=C sed -n '/^agentsFrontJsonOps="/,/"$/p' "$rigHere/harness/AgentsContext.FrontTable.include" ; } | LC_ALL=C tr -s ' \t"' '\n' | LC_ALL=C grep -E '^--[a-z]' )"
+rigListedOps="$( { LC_ALL=C sed -n '/^[[:space:]]*\(local \)\{0,1\}agentsToolOperations="/,/"[[:space:]]*$/p' "$rigTool" ; LC_ALL=C sed -n '/^agentsFrontJsonOps="/,/"[[:space:]]*$/p' "$rigHere/harness/AgentsContext.FrontTable.include" ; } | LC_ALL=C tr -s ' \t"' '\n' | LC_ALL=C grep -E '^--[a-z]' )"
 rigAssert "the list beside the option is exactly the operations behind the tools" \
 	"$( printf '%s\n' "$rigHarnessOps" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' "$rigListedOps" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
 

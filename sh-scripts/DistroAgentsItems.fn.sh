@@ -33,6 +33,7 @@ DistroAgentsItems(){
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
+			type AgentsToolsFrontHelp > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 			AgentsToolsFrontHelp DistroAgentsItems "the items of the team's stores: board, inbox, audit and vault" >&2
 			set +e ; return 1
 		;;
