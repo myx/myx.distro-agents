@@ -253,13 +253,19 @@ AgentsToolsOwnerRoleMembers(){
 ## The quorum rule of one kind of decision the owners role answers, from HUMAN_OWNER_QUORUM
 ## (`<kind>=<rule>` pairs): all, first, any-approves, any-rejects or majority. `first` where
 ## the setting names none for the kind, which is the single-owner rule and the old behaviour.
+## A rule outside that set is refused here, naming the kind and the word: a mistyped rule is
+## never carried, and is never passed over as though the kind were unset.
 AgentsToolsOwnerQuorumRule(){ ## kind
 	local quorumSetting="" quorumPair quorumKind quorumRule
 	quorumSetting="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_QUORUM 2> /dev/null )" || quorumSetting=""
 	for quorumPair in $quorumSetting ; do
 		quorumKind="${quorumPair%%=*}" ; quorumRule="${quorumPair#*=}"
 		[ "$quorumKind" = "$1" ] || continue
-		case "$quorumRule" in all|first|any-approves|any-rejects|majority) printf '%s\n' "$quorumRule" ; return 0 ;; esac
+		case "$quorumRule" in
+			all|first|any-approves|any-rejects|majority) printf '%s\n' "$quorumRule" ; return 0 ;;
+		esac
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: HUMAN_OWNER_QUORUM: the rule '$quorumRule' named for kind '$1' is not one of all, first, any-approves, any-rejects, majority" >&2
+		return 1
 	done
 	printf 'first\n'
 }
@@ -271,10 +277,19 @@ AgentsToolsOwnerQuorumRule(){ ## kind
 ## the access-control combines: first (the old path, not evaluated here), any-approves (permit
 ## overrides), any-rejects (deny overrides), all (unanimous, a reject vetoes) and majority (more
 ## than half). Prints `APPROVED <verdict> <member>`, `DENIED <verdict> <member>` or `OPEN`; the
-## verdict carried is the first approving or refusing member's, in member order.
+## verdict carried is the first approving or refusing member's, in member order. A rule the
+## mechanism cannot apply is refused with rc 1, never answered `OPEN`: `OPEN` says the members
+## have not answered, and an unapplicable rule is not that.
 AgentsToolsOwnerQuorumDecide(){ ## rule, members (one a line), votes (one a line)
 	local decRule="$1" decMembers="$2" decVotes="$3" decVote decMember decVerdict decWord
 	local decFirstApprove="" decFirstReject="" decApproves=0 decRejects=0 decTotal=0
+	case "$decRule" in
+		all|first|any-approves|any-rejects|majority) ;;
+		*)
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the quorum rule '$decRule' is not one of all, first, any-approves, any-rejects, majority, so the answers of the owners role cannot be decided" >&2
+			return 1
+		;;
+	esac
 	decTotal="$( printf '%s\n' "$decMembers" | LC_ALL=C grep -c . )"
 	while IFS= read -r decVote ; do
 		[ -n "$decVote" ] || continue
@@ -316,20 +331,21 @@ AgentsToolsOwnerQuorumDecide(){ ## rule, members (one a line), votes (one a line
 ## The role-aware read of one request: where it asks the owners role with more than one member and
 ## a rule that is not `first`, each member's answer is read on its own and the rule decides them.
 ## rc 0, nothing printed, when this is no role case -- the caller then uses the single-answer path.
+## A rule the setting refuses is no role case either, and the refusal is already on stderr.
 AgentsToolsAuthorityQuorumCase(){ ## request record, out: agentsAuthorityQuorumMembers, _Rule
 	agentsAuthorityQuorumMembers="" agentsAuthorityQuorumRule=""
 	[ "$( AgentsToolsAuthorityField "$1" address-to )" = human-owner ] || return 1
 	agentsAuthorityQuorumMembers="$( AgentsToolsOwnerRoleMembers )" || agentsAuthorityQuorumMembers=""
 	[ "$( printf '%s\n' "$agentsAuthorityQuorumMembers" | LC_ALL=C grep -c . )" -gt 1 ] || return 1
-	agentsAuthorityQuorumRule="$( AgentsToolsOwnerQuorumRule "$( AgentsToolsAuthorityField "$1" kind )" )"
+	agentsAuthorityQuorumRule="$( AgentsToolsOwnerQuorumRule "$( AgentsToolsAuthorityField "$1" kind )" )" || return 1
 	[ "$agentsAuthorityQuorumRule" != first ] || return 1
 	return 0
 }
 
 ## Reads the answers of the owners role's members to one request, applies the kind's quorum rule,
 ## and settles the request where it is met. Prints one line for what it did; rc 2 where this is no
-## role case, so the caller falls through to the single-answer path; rc 0 where it read and acted
-## (settled it, or found it still open).
+## role case, or one its rule cannot be applied to, so the caller falls through to the single-answer
+## path; rc 0 where it read and acted (settled it, or found it still open).
 AgentsToolsAuthorityQuorumRead(){ ## request record
 	local qFile="$1" qMember qOut qVerdict qVotes="" qDecide qWin qWinVerdict qWinAuthor
 	AgentsToolsAuthorityQuorumCase "$qFile" || return 2
@@ -344,7 +360,10 @@ AgentsToolsAuthorityQuorumRead(){ ## request record
 		case $'\n'"$qVotes"$'\n' in *$'\n'"$qMember="*) continue ;; esac
 		qVotes="$qVotes$qMember=$qVerdict"$'\n'
 	done
-	qDecide="$( AgentsToolsOwnerQuorumDecide "$agentsAuthorityQuorumRule" "$agentsAuthorityQuorumMembers" "$qVotes" )" || qDecide=""
+	## A rule the decider cannot apply settles nothing here: rc 2 sends the caller to the
+	## single-answer path, with the decider's own reason already said. Never read as `still open`,
+	## which a waiter with no timeout takes to be no answer at all.
+	qDecide="$( AgentsToolsOwnerQuorumDecide "$agentsAuthorityQuorumRule" "$agentsAuthorityQuorumMembers" "$qVotes" )" || return 2
 	qWin="${qDecide#* }"
 	case "${qDecide%% *}" in
 		APPROVED|DENIED)

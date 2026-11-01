@@ -113,8 +113,11 @@ def focus(state, row):
 
 screen.rigFocus = focus
 screen.ACTION_HANDLERS["rigzed"] = lambda state, row: "zed on %s" % (row["id"] if row else "nothing")
+## The app that keeps this plugin: the agents console app, which is the one this check starts. A plugin names its own
+## apps now and one that names none is refused (AgentsManagerScreen.Plugins.registerPlugin), so a stand-in names it too.
 RIG = {
     "name": "rigkinds",
+    "apps": ("agents",),
     "root": {"id": "rigkinds", "label": "Rig Kinds", "go": "Rig ~K~inds", "group": "team"},
     "rows": {"rigkinds": (("t", "The table", "rigtable", False), ("p", "The panels", "rigpanels", False), ("m", "The markdown", "rigmarkdown", False),
                           ("v", "The parameter", "rigparam", False), ("s", "The sequence", "rigseq", False), ("x", "Nothing known", "rigother", False))},

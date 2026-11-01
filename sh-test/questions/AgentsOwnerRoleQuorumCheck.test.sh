@@ -3,7 +3,8 @@
 ## with members, each an authenticated account (HUMAN_OWNER_MEMBERS); a question to the role goes to
 ## a conversation of its members, so the members are the accounts a request is addressed to; each
 ## kind of decision carries a quorum rule (HUMAN_OWNER_QUORUM: all, first, any-approves, any-rejects,
-## majority); and console users are never members -- a console mapping only routes confirmations,
+## majority), and a rule word outside that set refused where the setting is read rather than taken
+## as `first`; and console users are never members -- a console mapping only routes confirmations,
 ## which AgentsOwnerConsoleAccountCheck already asserts. Offline; reads the package only.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -30,6 +31,25 @@ rigRule(){ ## kind -- the quorum rule of that kind
 }
 rigDecide(){ ## rule, members (one a line), votes (one a line) -- APPROVED/DENIED/OPEN
 	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/questions/AgentsTools.Authority.include" ; AgentsToolsOwnerQuorumDecide "$2" "$3" "$4"' _ "$rigHere" "$1" "$2" "$3" 2> /dev/null
+}
+## The same two calls again, keeping the status each returned and what each said on stderr, so a
+## refusal is told from a quiet fallback to `first`.
+rigRuleRc(){ ## kind -- the status the rule reader returned
+	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/questions/AgentsTools.Authority.include" ; AgentsToolsOwnerQuorumRule "$2"' _ "$rigHere" "$1" > /dev/null 2>&1
+	printf '%s' "$?"
+}
+rigRuleErr(){ ## kind -- what the rule reader said on stderr
+	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/questions/AgentsTools.Authority.include" ; AgentsToolsOwnerQuorumRule "$2"' _ "$rigHere" "$1" 2>&1 > /dev/null
+}
+rigDecideRc(){ ## rule, members, votes -- the status the decider returned
+	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/questions/AgentsTools.Authority.include" ; AgentsToolsOwnerQuorumDecide "$2" "$3" "$4"' _ "$rigHere" "$1" "$2" "$3" > /dev/null 2>&1
+	printf '%s' "$?"
+}
+rigDecideErr(){ ## rule, members, votes -- what the decider said on stderr
+	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/questions/AgentsTools.Authority.include" ; AgentsToolsOwnerQuorumDecide "$2" "$3" "$4"' _ "$rigHere" "$1" "$2" "$3" 2>&1 > /dev/null
+}
+rigSpec(){ ## config key -- the owner setup's own text for it
+	MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$BASH" -c '. "$1/config/AgentsTools.OwnerSetupOptionSpec.include" ; AgentsToolsOwnerSetupOptionSpec "$2"' _ "$rigHere" "$1" 2> /dev/null
 }
 rigSet(){ ## key=value lines -- rewritten whole into the magic-team scope
 	printf '%s\n' "$@" > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -61,6 +81,26 @@ check "question -> first, unset for the kind" "$( rigRule question )" "first"
 echo "-- 5. unset, every kind is first (the single-owner rule) --"
 rigSet ''
 check "no quorum setting: first for every kind" "$( rigRule permission )" "first"
+
+echo "-- 5b. a rule word the mechanism cannot apply is refused, and never becomes first --"
+rigSet 'HUMAN_OWNER_QUORUM=permission=majorityy' 'SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER'
+check "a mistyped rule prints no rule at all" "$( rigRule permission )" ""
+check "and the reader fails" "$( rigRuleRc permission )" "1"
+check "naming the word it cannot apply" "$( rigRuleErr permission | LC_ALL=C grep -c 'majorityy' )" "1"
+check "and the kind it was set for" "$( rigRuleErr permission | LC_ALL=C grep -c 'permission' )" "1"
+rigSet 'HUMAN_OWNER_QUORUM=permission=majorityy decision=all' 'SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER'
+check "a typo on one kind leaves another kind's own rule standing" "$( rigRule decision )" "all"
+
+echo "-- 5c. an unapplied rule reaching the decider is refused, never reported as still open --"
+check "an unapplicable rule prints no verdict" "$( rigDecide majorityy "$rigThree" $'M1=allow-once\nM2=allow-once\nM3=allow-once' )" ""
+check "and the decider fails rather than answering OPEN" "$( rigDecideRc majorityy "$rigThree" $'M1=allow-once\nM2=allow-once\nM3=allow-once' )" "1"
+check "naming the rule it cannot apply" "$( rigDecideErr majorityy "$rigThree" $'M1=allow-once' | LC_ALL=C grep -c 'majorityy' )" "1"
+
+echo "-- 5d. an unnamed kind takes the documented default, and its own text names that default --"
+rigSet 'SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER'
+check "no pair for the kind: the default rule is first" "$( rigRule readback )" "first"
+check "the owner setup's text for the key names that default" "$( rigSpec HUMAN_OWNER_QUORUM | LC_ALL=C grep -c 'first' )" "1"
+check "and a key whose text names no default reads none" "$( rigSpec HUMAN_OWNER_MEMBERS | LC_ALL=C grep -c 'first' )" "0"
 
 echo "-- 6. any-approves (permit overrides): an approve decides, and a reject falls back --"
 check "one approve of three: approved" "$( rigDecide any-approves "$rigThree" $'M1=deny\nM2=allow-once' )" "APPROVED allow-once M2"

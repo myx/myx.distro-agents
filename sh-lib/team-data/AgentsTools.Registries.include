@@ -832,11 +832,12 @@ AgentsToolsRegistryProcessesBegan(){ ## -- stdin: process ids, a line each
 ## THE PROCESS LIST WITH ARGUMENTS, shared: `ps -A -ww` reads the arguments of every process, the costliest read of the host, and
 ## every control thread, list of sessions and ask asks it. One read serves them all for 10 s, kept in .local/temp/ps-args.txt
 ## (its first line the epoch of the read). Into agentsProcessArgs. Only for telling what runs: a caller that signals reads ps itself.
+## `fresh` is that caller's: the list is read now, ignoring the one kept, and this read takes its place.
 AgentsToolsRegistryProcessArgs(){
-	local argsFile="${MMDAPP:-}/.local/temp/ps-args.txt" argsNow argsAt="" argsTmp=""
+	local argsFresh="${1:-}" argsFile="${MMDAPP:-}/.local/temp/ps-args.txt" argsNow argsAt="" argsTmp=""
 	agentsProcessArgs=""
 	argsNow="$( date +%s )"
-	if [ -n "${MMDAPP:-}" ] && [ -f "$argsFile" ] ; then
+	if [ "$argsFresh" != "fresh" ] && [ -n "${MMDAPP:-}" ] && [ -f "$argsFile" ] ; then
 		## The moment is its first line, read on its own: a whole-file `read -d ''` is a byte-at-a-time walk
 		## costing nearly the ps it spares, where `cat` reaches the same text in a quarter of the time.
 		{ IFS= read -r argsAt < "$argsFile" ; } 2> /dev/null || argsAt=""
@@ -1183,14 +1184,14 @@ AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text, state 
 ## these are alive here", a different question from the harness own "what are this session
 ## pids". The caller has rebuilt both registries in the same call: the pending-replies one is
 ## what the "waiting" state is derived from, never once per row, and never stale for it either.
-AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (asked of the host where not given), session-id filter, the stored columns the caller counts (14 where not given, 16 for the state of the session too, 17 for the refused count as well)
-	local measuredFile="$1" thisHost="${2:-}" filterSession="${3:-}" measuredColumns="${4:-14}" psText openSet="" runningSet="" backslashOpen=""
+AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (asked of the host where not given), session-id filter, the stored columns the caller counts (14 where not given, 16 for the state of the session too, 17 for the refused count as well), "fresh" where the caller signals and so must read the process list now
+	local measuredFile="$1" thisHost="${2:-}" filterSession="${3:-}" measuredColumns="${4:-14}" measuredFresh="${5:-}" psText openSet="" runningSet="" backslashOpen=""
 	local startingKeys=" " startingRecords="" startingMark backslashId measuredAll
 	measuredRows="" ; measuredDated="" ; measuredAny="false"
 	[ -f "$measuredFile" ] || return 0
 	[ -n "$thisHost" ] || thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
 	[ -n "$thisHost" ] || thisHost="unknown"
-	AgentsToolsRegistryProcessArgs ; psText="$agentsProcessArgs"
+	AgentsToolsRegistryProcessArgs "$measuredFresh" ; psText="$agentsProcessArgs"
 	## The open asks are read once for every row too, never by an awk per row.
 	openSet="$( AgentsToolsRegistryPendingOpenSessions "$measuredFile" )
 "

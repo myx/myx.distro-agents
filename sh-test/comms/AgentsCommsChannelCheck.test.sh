@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the communication-channel-id abstraction (epic T7): the driver registry
 ## (slack, email, telegram, printback) in preference order, the Slack driver's name-to-setting map, the
-## channel-id split, and the declared-channel ordering -- the "several plugged at once, their
+## channel-id split, the message pointer that id names, and the declared-channel ordering -- the "several plugged at once, their
 ## order the preference" seam. The ordering is checked over rows fed to the pure core
 ## (AgentsToolsCommsChannelOrderDeclares), so no distro index and no network are needed.
 set -u
@@ -53,6 +53,13 @@ rigAssert "a printback session, the root-native kind" "$( AgentsToolsCommsChanne
 rigAssert "a client marker is read as an address, no ts" "$( AgentsToolsCommsChannelParse 'slack:client:UNDMPERSON' | tr '\n' '|' )" "SERVICE=slack|ADDRESS=client:UNDMPERSON|"
 rigAssert "no service is refused" "$( AgentsToolsCommsChannelParse 'chat:C123' | tr '\n' '|' )" ""
 rigAssert "no address is refused" "$( AgentsToolsCommsChannelParse 'slack:' | tr '\n' '|' )" ""
+
+echo "-- a message id is the full pointer of its channel, never the container alone --"
+rigAssert "the one builder is there" "$( type -t AgentsToolsCommsChannelMessageId )" function
+rigAssert "slack: the conversation and the ts" "$( AgentsToolsCommsChannelMessageId slack C123 1700000000.000100 )" "slack:C123:1700000000.000100"
+rigAssert "email: the account and the message id" "$( AgentsToolsCommsChannelMessageId email rig@rig.invalid 201 )" "email:rig@rig.invalid:201"
+rigAssert "a part missing builds nothing, and says so with rc 1" "$( AgentsToolsCommsChannelMessageId slack '' 1700000000.000100 ; printf '|%s' $? )" "|1"
+rigAssert "the pointer splits back into its three parts" "$( AgentsToolsCommsChannelParse "$( AgentsToolsCommsChannelMessageId slack C123 1700000000.000100 )" | tr '\n' '|' )" "SERVICE=slack|ADDRESS=C123|THREAD_TS=1700000000.000100|"
 
 echo "-- declared channels resolve in the driver preference order --"
 rigAssert "a name declared on telegram, email and slack resolves slack first" "$( printf '%s\t%s\t%s\n%s\t%s\t%s\n%s\t%s\t%s\n' \

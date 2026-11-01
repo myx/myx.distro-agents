@@ -137,8 +137,11 @@ chmod 770 "$rigWs/.local/.agents" ; chmod 660 "$rigWs/.local/.agents"/*.agent.en
 for rigOne in curl ssh scp git ; do
 	printf '#!/bin/sh\nprintf "%%s %%s\\n" "%s" "$*" >> "%s/forbidden.calls"\nexit 7\n' "$rigOne" "$rigTmp" > "$rigTmp/bin/$rigOne"
 done
-## The clock: the two forms the tooling asks the time in read the rig's; any other is the system's own.
-printf '#!/bin/sh\ncase "$*" in\n\t"+%%s %%Y-%%m-%%d") printf "%%s 2026-10-13\\n" "$( cat "%s/now" )" ;;\n\t"+%%s") cat "%s/now" ;;\n\t*) exec "%s" "$@" ;;\nesac\n' "$rigTmp" "$rigTmp" "$rigRealDate" > "$rigTmp/bin/date"
+## The clock: the three forms the tooling asks the time in read the rig's, the month of the audit among them; any other is the system's own.
+## The month is the rig's own, not the host's: asked of the host it would answer 2026-11 for a rig whose items are of October, and no read could pass.
+rigNowMonth="$( "$rigRealDate" -u -r "$rigNow" '+%Y-%m' 2> /dev/null || "$rigRealDate" -u -d "@$rigNow" '+%Y-%m' 2> /dev/null )"
+[ -n "$rigNowMonth" ] || rigRefuse "the rig's clock gives no month"
+printf '#!/bin/sh\ncase "$*" in\n\t"-u +%%Y-%%m") printf "%%s\\n" "%s" ;;\n\t"+%%s %%Y-%%m-%%d") printf "%%s 2026-10-13\\n" "$( cat "%s/now" )" ;;\n\t"+%%s") cat "%s/now" ;;\n\t*) exec "%s" "$@" ;;\nesac\n' "$rigNowMonth" "$rigTmp" "$rigTmp" "$rigRealDate" > "$rigTmp/bin/date"
 ## The process list, and when the one control thread that lives began.
 printf '#!/bin/sh\ncase " $* " in\n\t*" -A "*) cat "%s/ps.list" ;;\n\t*" -p "*) case "$*" in *5151*) printf "5151 S    Tue Oct 13 10:00:00 2026\\n" ;; esac ;;\nesac\nexit 0\n' "$rigTmp" > "$rigTmp/bin/ps"
 ## The system: which it is and what it says of itself, from the files of the rig.
@@ -302,7 +305,10 @@ rigRun "$rigRead" team team-data
 rigAssert "after ten minutes both are read again: one more walk, and the new member is counted" "$rigRc $( wc -l < "$rigTmp/du.calls" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C awk -F'\t' '$3 == "size" || $3 == "members" || $3 == "startable" { printf "%s=%s ", $3, $5 }' "$rigTmp/out" )" "0 2 members=4 startable=3 size=125952 "
 rm -rf "$rigSkills/keeper-new"
 printf '%s\n' "$rigNow" > "$rigTmp/now"
-rigAssert "what is kept lies in the temp folder of the workspace, three files (the size of the team data, the counts of the members, that a CLI service is set up), and nothing else is left there" "$( cd "$rigWs/.local/temp" && ls | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "mdat-manager-dashboard.cli-service mdat-manager-dashboard.team-data-size mdat-manager-dashboard.team-members "
+## THE FAMILY'S OWN LIST OF PROCESSES LIES BESIDE THEM: `ps -A -ww` is the costliest read of the host, so the
+## registries keep it 10 s in `ps-args.txt` of the same temp folder, for every control thread, list of sessions and
+## ask that asks it (AgentsTools.Registries.include). It is no file of this read's, and the assertion is of this read's.
+rigAssert "what is kept lies in the temp folder of the workspace: three files (the size of the team data, the counts of the members, that a CLI service is set up), beside the family's own 10 s list of processes, and nothing else is left there" "$( cd "$rigWs/.local/temp" && ls | LC_ALL=C sort | LC_ALL=C grep -v -x -e 'ps-args.txt' | LC_ALL=C tr '\n' ' ' )" "mdat-manager-dashboard.cli-service mdat-manager-dashboard.team-data-size mdat-manager-dashboard.team-members "
 chmod 555 "$rigWs/.local/temp" ; rm -f "$rigTmp/du.calls"
 printf '%s\n' "$(( rigNow + 5000 ))" > "$rigTmp/now"
 rigRun "$rigRead" team-data

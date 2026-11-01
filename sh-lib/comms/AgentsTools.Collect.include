@@ -254,7 +254,8 @@ AgentsToolsCollectMail(){ ## member, since
 		case "$mailDate" in ????????T????Z) ;; *) mailDate="$( date -u +%Y%m%dT%H%MZ )" ;; esac
 		mailName="note-$mailDate-email-u$mailUid.md"
 		mailItemRc=0
-		AgentsToolsCollectItemWrite "$mailMember" "$mailName" "email:$mailUser:$mailUid" "$mailWork/$mailUid.block" || mailItemRc=$?
+		type AgentsToolsCommsChannelMessageId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
+		AgentsToolsCollectItemWrite "$mailMember" "$mailName" "$( AgentsToolsCommsChannelMessageId email "$mailUser" "$mailUid" )" "$mailWork/$mailUid.block" || mailItemRc=$?
 		if [ "$mailItemRc" -ne 0 ] ; then
 			mailGap=1 ; mailPending=$(( mailPending + 1 ))
 			continue

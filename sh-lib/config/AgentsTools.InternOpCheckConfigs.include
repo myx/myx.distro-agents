@@ -5,8 +5,9 @@
 ## AgentsTools.InternOpCheckConfigs.include -- --intern-op-check-configs.
 ## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD. Generic config-key status-check
-## primitive (name only, never the value); --required gates exit 1,
-## --optional is informational only. No --help entry: internal plumbing.
+## primitive (name only, never the value); --required gates exit 1, a value
+## of another declared id kind included; --optional is informational only.
+## No --help entry: internal plumbing.
 ## NOT A SLACK OP: --resolve-slack-workspace-into <KEY> goes through a helper in
 ## sh-lib/comms/AgentsTools.CommsSlack.include, sourced from inside that branch alone.
 ##
@@ -149,7 +150,7 @@ case "$1" in
 			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 			checkVal="$( AgentsToolsConfigOption "$callingMember" --select "$checkKey" )"
 			if [ -n "$checkVal" ] ; then
-				local warnDetail=()
+				local warnDetail=() idKindFault=""
 
 				## --- check 1: declared id kind ---
 				local expectedKind="" ekEntry
@@ -174,7 +175,12 @@ case "$1" in
 						*) gotLabel="an unrecognised id kind" ;;
 					esac
 					if [ "$idPrefix" != "$wantPrefix" ] ; then
-						warnDetail+=( "  warn: declared to hold $wantLabel, but holds $gotLabel" )
+						if [ "$checkMode" = "required" ] ; then
+							idKindFault="declared to hold $wantLabel, but holds $gotLabel"
+							warnDetail+=( "  fail: $idKindFault" )
+						else
+							warnDetail+=( "  warn: declared to hold $wantLabel, but holds $gotLabel" )
+						fi
 						if [ "$idPrefix" = "D" ] && [ "$expectedKind" = "user" ] ; then
 							warnDetail+=( "  why:  a DM id identifies ONE identity pair, so it cannot be a shared" )
 							warnDetail+=( "        config value at all. The id stored here resolves only for the" )
@@ -204,6 +210,11 @@ case "$1" in
 
 				if [ ${#warnDetail[@]} -eq 0 ] ; then
 					echo "$checkKey: OK"
+				elif [ -n "$idKindFault" ] ; then
+					echo "$checkKey: FAIL"
+					printf '%s\n' "${warnDetail[@]}"
+					echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey: $idKindFault" >&2
+					requiredMissing=1
 				else
 					echo "$checkKey: WARN"
 					printf '%s\n' "${warnDetail[@]}"

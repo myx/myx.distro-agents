@@ -111,8 +111,10 @@ def focus(state, row):
 
 
 screen.rigFocus = focus
+## The app that keeps this plugin: the agents console app, which is the one this check starts. A plugin names its own
+## apps now and one that names none is refused (AgentsManagerScreen.Plugins.registerPlugin), so a stand-in names it too.
 RIG = {
-    "name": "rigtable", "root": {"id": "rigtable", "label": "Rig Table", "go": "Rig ~T~able", "group": "team"},
+    "name": "rigtable", "apps": ("agents",), "root": {"id": "rigtable", "label": "Rig Table", "go": "Rig ~T~able", "group": "team"},
     "rows": {"rigtable": tuple((name, "Table " + name, "rigrow", False) for name in ("long", "wide", "plain", "pinless", "other", "words", "none"))},
     "focus": {"rigtable": "rigFocus"},
 }

@@ -453,3 +453,36 @@ AgentsToolsCommsCacheMerge(){ ## cache folder, fresh read, covered from (ts), no
 	mergeStateTmp="$( mktemp "$1/.state.txt.XXXXXX" )" || return 1
 	{ printf '%s %s %s\n%s\n%s\n' "$4" "$mergeFrom" "$mergeNewest" "$mergeHead" "${5:-$agentsCommsCacheRecipe}" ; } > "$mergeStateTmp" && mv -f "$mergeStateTmp" "$1/.state.txt"
 }
+
+## A SEARCH ANSWER KEPT BY ITS QUERY (owner 2026-11-01, option one): the one entry a query signature names, with its own TTL,
+## so a repeated search inside that TTL asks Slack nothing. The signature is the question itself -- target, query, cut-off,
+## page bound and shape -- so two callers asking the same thing share one answer, and any difference names another.
+AgentsToolsCommsCacheSearchSignature(){ ## target, query, cutoff, max pages, pretty
+	printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "$4" "$5" | LC_ALL=C cksum | LC_ALL=C awk '{ printf "%s-%s\n", $1, $2 }'
+}
+
+## The answer a signature holds, printed, where its state is younger than the TTL: the caller prints nothing of its own and
+## calls nought. rc 1 where it holds none, or holds one past its TTL. A TTL of nought always misses.
+AgentsToolsCommsCacheSearchServe(){ ## signature, ttl (optional; the state's own where none is given)
+	local serveDir="$MMDAPP/.local/cache/comms/search/search-$1" serveAt="" serveTtl="" serveNow
+	[ -f "$serveDir/answer.txt" ] || return 1
+	{ read -r serveAt serveTtl < "$serveDir/.state.txt" ; } 2> /dev/null || return 1
+	case "$serveAt" in ''|*[!0-9]*) return 1 ;; esac
+	[ -n "${2:-}" ] || [ -n "$serveTtl" ] || return 1
+	[ -z "${2:-}" ] || serveTtl="$2"
+	case "$serveTtl" in ''|*[!0-9]*) return 1 ;; esac
+	serveNow="$( date +%s )"
+	[ "$serveTtl" -gt 0 ] || return 1
+	[ $(( serveNow - serveAt )) -lt "$serveTtl" ] || return 1
+	cat "$serveDir/answer.txt"
+}
+
+## One search answer filed under its signature, its state rewritten whole: `<cached at> <ttl>`. rc 1 where it cannot be filed.
+AgentsToolsCommsCacheSearchFile(){ ## signature, the answer, ttl
+	local fileDir="$MMDAPP/.local/cache/comms/search/search-$1" fileTmp
+	mkdir -p "$fileDir" 2> /dev/null || return 1
+	fileTmp="$( mktemp "$fileDir/answer.txt.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$2" > "$fileTmp" || { rm -f "$fileTmp" ; return 1 ; }
+	mv -f "$fileTmp" "$fileDir/answer.txt" 2> /dev/null || return 1
+	printf '%s %s\n' "$( date +%s )" "${3:-0}" > "$fileDir/.state.txt" 2> /dev/null
+}

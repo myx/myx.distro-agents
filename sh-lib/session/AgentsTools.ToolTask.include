@@ -7,7 +7,7 @@
 ## Every call runs as a task underneath and the caller waits for it here. The call comes back with its own result when it ends in time.
 ## It comes back EARLY, with `TASK-ID=process-N` and a hint, when:
 ##   - the caller asked for `background`
-##   - the default time passes (300 s, MDAT_TOOL_TASK_SECONDS)
+##   - the window of this tool passes (10 to 300 s, AgentsHarnessToolWindow.include; MDAT_TOOL_TASK_SECONDS overrides it)
 ##   - the caller's own `timeout` passes and its `timeout_action` is `return` (the default action)
 ##   - a message addressed to the member arrives in the session chat (the one source the specs class as immediate, sketch 7.1)
 ## A `timeout_action` of `kill` ends the task at the caller's timeout instead, and returns what it wrote. A task that returned early and
@@ -16,7 +16,8 @@
 ## A returned task is a session process of the Bash tool's model (AgentsHarnessToolsBash.include): `process-N.{out,err,pid,began,status,cmd}`
 ## in sessions/<session>/processes/, so `Wait sources=process:process-N` (output and end), the Bash tool read by handle, TaskOutput and TaskStop
 ## work on it as they do on a detached Bash. Until it returns early a call has only a hidden folder `.run.*` there, so a call that ends in
-## time leaves nothing behind. The files of a returned task are links into that folder.
+## time leaves nothing behind. The files of a returned task are links into that folder, and the early return names the task's
+## output so far in the reply layer's own form (AgentsTranscriptReplyRef, epic F2.4): its file, its size, a preview, how to read the rest.
 ##
 ##   AgentsToolsTaskCall <label> <background true|empty> <timeout seconds|empty> <action kill|return|empty> <function> [args...]
 ##     sets  agentsTaskOut       the text for the caller: the function's stdout, or the early-return text
@@ -75,7 +76,13 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	local callLabel="$1" callBackground="$2" callTimeout="$3" callAction="$4" callFn="$5"
 	shift 5
 	local callSession callMember callDir="" callRun="" callPid callSelf callTimer="" callMessenger="" callGiven="" callEffective callReason="" callElapsed callStart
-	local callDefault="${MDAT_TOOL_TASK_SECONDS:-300}" callCeiling="${MDAT_TOOL_TASK_CEILING:-3600}" callPoll="${MDAT_TOOL_TASK_POLL:-2}" callRemaining callBegan callHandle callName
+	local callDefault="${MDAT_TOOL_TASK_SECONDS:-}" callCeiling="${MDAT_TOOL_TASK_CEILING:-3600}" callPoll="${MDAT_TOOL_TASK_POLL:-2}" callRemaining callBegan callHandle callName
+	## The window is the number this tool carries: a call reads it here, and MDAT_TOOL_TASK_SECONDS replaces every row with one value.
+	if [ -z "$callDefault" ] ; then
+		type AgentsHarnessToolWindowSeconds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolWindow.include" 2> /dev/null || :
+		callDefault="$( AgentsHarnessToolWindowSeconds "$callLabel" )"
+		[ -n "$callDefault" ] || callDefault=300
+	fi
 	agentsTaskOut="" agentsTaskRc=0 agentsTaskDetached="no" agentsTaskHandle=""
 	callSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	case "$callSession" in ''|*/*|.|..) callSession="" ;; esac
@@ -172,6 +179,7 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 		rm -rf "$callRun"
 		return 0
 	fi
+	ln -sf "$callName/out" "$callDir/$callHandle.out"
 	ln -sf "$callName/err" "$callDir/$callHandle.err"
 	ln -sf "$callName/status" "$callDir/$callHandle.status"
 	ln -sf "$callName/cmd" "$callDir/$callHandle.cmd"
@@ -196,13 +204,14 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	disown "$!" 2> /dev/null || :
 	set +m
 	case "$callReason" in
-		background) callReason="you asked for background" ;;
+		background) callReason="you asked for background or async" ;;
 		message) callReason="a message for you arrived in the session chat" ;;
-		*) if [ -n "$callGiven" ] ; then callReason="your timeout of ${callTimeout}s passed" ; else callReason="the default of ${callDefault}s passed" ; fi ;;
+		*) if [ -n "$callGiven" ] ; then callReason="your timeout of ${callTimeout}s passed" ; else callReason="the window of ${callDefault}s passed, the window this tool carries" ; fi ;;
 	esac
+	type AgentsTranscriptReplyRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2> /dev/null || :
 	agentsTaskHandle="$callHandle"
 	agentsTaskDetached="yes"
 	agentsTaskRc=0
-	agentsTaskOut="TASK-ID=$callHandle"$'\n'"$callLabel is still running as task $callHandle, and this call returned early because $callReason. Nothing has been lost: the task goes on."$'\n'"- Wait sources=process:$callHandle returns when its output grows and when it ends."$'\n'"- TaskOutput handle=$callHandle reads what it wrote so far, or takes the result once it ended."$'\n'"- TaskStop handle=$callHandle cancels it."$'\n'"- Call again with timeout=<seconds> and timeout_action=kill (ends it) or return (this answer) to bound a call."$'\n'"- A task that is still running after ${callCeiling}s is ended."
+	agentsTaskOut="TASK-ID=$callHandle"$'\n'"$callLabel is still running as task $callHandle, and this call returned early because $callReason. Nothing has been lost: the task goes on."$'\n'"$( AgentsTranscriptReplyRef "$callDir/$callHandle.out" )"$'\n'"- Wait sources=process:$callHandle returns when its output grows and when it ends."$'\n'"- TaskOutput handle=$callHandle reads what it wrote so far, or takes the result once it ended."$'\n'"- TaskStop handle=$callHandle cancels it."$'\n'"- Call again with timeout=<seconds> and timeout_action=kill (ends it) or return (this answer) to bound a call."$'\n'"- A task that is still running after ${callCeiling}s is ended."
 	return 0
 }

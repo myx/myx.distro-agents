@@ -873,92 +873,22 @@ case "$1" in
 				;;
 			esac
 			local searchQuery="$inTerm after:$afterDate"
-			echo "## target=$target channel=$channel query=$searchQuery cutoff=$cutoffEpoch"
-			echo "# $MDSC_CMD --slack-search-messages: GET search.messages query='$searchQuery' (asking from one day early on purpose; real cut-off $cutoffEpoch applied per match)" >&2
-			local pageNum=1 pagesTotal="" grandMatches=0 grandReplies=0 truncated="false"
-			local pageBodies=() pageLines=()
-			while : ; do
-				local opArgs=( "$memberName" --api search.messages --identity user
-					--form "query=$searchQuery" --form sort=timestamp --form sort_dir=desc
-					--form count=100 --form "page=$pageNum"
-					--context "--slack-search-messages" )
-				local response callRc=0
-				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" )" || callRc=$?
-				if [ "$callRc" != "0" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT SEARCH $channel -- search.messages failed on page $pageNum (see the op's own diagnostic above). This is NOT an empty result: nothing is known from this call about whether that conversation holds matching messages. A not_allowed_token_type error here means the acting identity has no user token, which this operation requires and cannot work around." >&2
-					set +e ; return 1
-				fi
-				local metaOut metaRc=0
-				metaOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" -v mode=meta \
-					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || metaRc=$?
-				if [ "$metaRc" = "1" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT READ the search.messages response for page $pageNum (see the reader's own error above). Nothing is known from this call about presence or absence of matches." >&2
-					set +e ; return 1
-				fi
-				local pageMatches pageExpected pageInRange pageReplies pageOldest
-				pagesTotal="$( printf '%s\n' "$metaOut" | sed -n 's/^SEARCH_PAGES=//p' )"
-				pageMatches="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_MATCH_COUNT=//p' )"
-				pageExpected="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_EXPECTED_COUNT=//p' )"
-				pageInRange="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_IN_RANGE_COUNT=//p' )"
-				pageReplies="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_THREAD_REPLIES=//p' )"
-				pageOldest="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_OLDEST_TS=//p' )"
-				if [ -n "$pagesTotal" ] && [ "$pageNum" -lt "$pagesTotal" ] && [ -n "$pageExpected" ] \
-					&& [ "$pageMatches" -lt "$pageExpected" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: page $pageNum of $pagesTotal carried $pageMatches matches where Slack's own paging says a full page holds $pageExpected. A non-final page is short, so the response body was truncated in transit and the missing matches are NOT known to be absent. Nothing is reported from this read." >&2
-					set +e ; return 1
-				fi
-				if [ "$pretty" = "true" ] ; then
-					local linesOut linesRc=0
-					linesOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" \
-						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || linesRc=$?
-					if [ "$linesRc" = "1" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT FORMAT the search.messages matches for page $pageNum (see the reader's own error above)." >&2
-						set +e ; return 1
-					fi
-					pageLines+=( "$linesOut" )
-				else
-					pageBodies+=( "$response" )
-				fi
-				grandMatches=$(( grandMatches + pageInRange ))
-				grandReplies=$(( grandReplies + pageReplies ))
-				if [ -n "$pageOldest" ] && [ "$( LC_ALL=C awk -v a="$pageOldest" -v b="$cutoffEpoch" 'BEGIN{print (a+0 < b+0) ? "below" : "above"}' )" = "below" ] ; then
-					break
-				fi
-				if [ -z "$pagesTotal" ] || [ "$pageNum" -ge "$pagesTotal" ] ; then
-					break
-				fi
-				if [ "$pageNum" -ge "$maxPages" ] ; then
-					truncated="true"
-					break
-				fi
-				pageNum=$(( pageNum + 1 ))
-			done
-			local idx
-			if [ "$pretty" = "true" ] ; then
-				for (( idx = ${#pageLines[@]} - 1 ; idx >= 0 ; idx-- )) ; do
-					if [ -n "${pageLines[$idx]}" ] ; then
-						printf '%s\n' "${pageLines[$idx]}"
-					fi
-				done
-			else
-				for (( idx = ${#pageBodies[@]} - 1 ; idx >= 0 ; idx-- )) ; do
-					printf '## page=%s\n' "$(( idx + 1 ))"
-					printf '%s\n' "${pageBodies[$idx]}"
-				done
+			## THE ANSWER ONCE, KEPT BY ITS QUERY (owner 2026-11-01, option one): a repeated search inside its TTL calls Slack not
+			## at all. The answer is filed only where the search finished, and its own ttl state says when it goes stale.
+			local searchSig="" searchAnswer="" searchRc=0
+			searchSig="$( AgentsToolsCommsCacheSearchSignature "$target" "$searchQuery" "$cutoffEpoch" "$maxPages" "$pretty" )" || searchSig=""
+			if [ -n "$searchSig" ] && AgentsToolsCommsCacheSearchServe "$searchSig" "${MDAT_COMMS_SEARCH_TTL:-}" ; then
+				echo "# $MDSC_CMD --slack-search-messages: served from the search cache, nothing asked of Slack"
+				return 0
 			fi
-			echo "## matches=$grandMatches thread-replies=$grandReplies pages-read=$pageNum pages-total=${pagesTotal:-?} cutoff=$cutoffEpoch after=$afterDate"
-			if [ "$truncated" = "true" ] ; then
-				echo "## result=truncated"
-				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: INCOMPLETE -- the --max-pages bound of $maxPages was reached on a query Slack reports as $pagesTotal pages, and the search had not yet reached back to the cut-off. What is printed above is the NEWEST $grandMatches matches, a prefix of the answer and not the answer: older matches inside the requested window exist and were not read, so nothing here supports concluding any particular message is absent. Raise --max-pages or move the cut-off forward, then read again. rc=4 means exactly this incomplete state, distinct from rc=3 (a complete read that found nothing)." >&2
-				set +e ; return 4
+			searchAnswer="$( AgentsToolsCommsSlackSearchAnswer )"
+			searchRc=$?
+			[ -z "$searchAnswer" ] || printf '%s\n' "$searchAnswer"
+			if [ "$searchRc" -eq 0 ] && [ -n "$searchSig" ] ; then
+				AgentsToolsCommsCacheSearchFile "$searchSig" "$searchAnswer" "${MDAT_COMMS_SEARCH_TTL:-}" || \
+					echo "🙋 WARNING: $MDSC_CMD --slack-search-messages: the search answered, but its answer was not filed in the cache" >&2
 			fi
-			if [ "$grandMatches" = "0" ] ; then
-				echo "## result=none"
-				echo "# $MDSC_CMD --slack-search-messages: NO MATCHES in $channel at or after $cutoffEpoch. The search itself completed normally across $pageNum page(s), so this is a real, complete answer -- that conversation holds no message in the requested window, as far as this identity can see it. rc=3 says exactly that, and is deliberately not rc 0, so absence cannot be read as presence by a caller that ignores status. It is also not rc 1, which would mean the search could not be performed at all." >&2
-				set +e ; return 3
-			fi
-			echo "## result=found"
-			return 0
+			return "$searchRc"
 		;;
 		--intern-op-comms-slack-react)
 			shift
@@ -3151,3 +3081,93 @@ blocks|verbatim|caller|stdin file"
 esac
 }
 AgentsToolsMemberCommsSlackRun "$@"
+
+## The answer one search prints, as one string: the arm above prints it, and its own cache files it.
+AgentsToolsCommsSlackSearchAnswer(){
+			echo "## target=$target channel=$channel query=$searchQuery cutoff=$cutoffEpoch"
+			echo "# $MDSC_CMD --slack-search-messages: GET search.messages query='$searchQuery' (asking from one day early on purpose; real cut-off $cutoffEpoch applied per match)" >&2
+			local pageNum=1 pagesTotal="" grandMatches=0 grandReplies=0 truncated="false"
+			local pageBodies=() pageLines=()
+			while : ; do
+				local opArgs=( "$memberName" --api search.messages --identity user
+					--form "query=$searchQuery" --form sort=timestamp --form sort_dir=desc
+					--form count=100 --form "page=$pageNum"
+					--context "--slack-search-messages" )
+				local response callRc=0
+				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" )" || callRc=$?
+				if [ "$callRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT SEARCH $channel -- search.messages failed on page $pageNum (see the op's own diagnostic above). This is NOT an empty result: nothing is known from this call about whether that conversation holds matching messages. A not_allowed_token_type error here means the acting identity has no user token, which this operation requires and cannot work around." >&2
+					set +e ; return 1
+				fi
+				local metaOut metaRc=0
+				metaOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" -v mode=meta \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || metaRc=$?
+				if [ "$metaRc" = "1" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT READ the search.messages response for page $pageNum (see the reader's own error above). Nothing is known from this call about presence or absence of matches." >&2
+					set +e ; return 1
+				fi
+				local pageMatches pageExpected pageInRange pageReplies pageOldest
+				pagesTotal="$( printf '%s\n' "$metaOut" | sed -n 's/^SEARCH_PAGES=//p' )"
+				pageMatches="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_MATCH_COUNT=//p' )"
+				pageExpected="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_EXPECTED_COUNT=//p' )"
+				pageInRange="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_IN_RANGE_COUNT=//p' )"
+				pageReplies="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_THREAD_REPLIES=//p' )"
+				pageOldest="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_OLDEST_TS=//p' )"
+				if [ -n "$pagesTotal" ] && [ "$pageNum" -lt "$pagesTotal" ] && [ -n "$pageExpected" ] \
+					&& [ "$pageMatches" -lt "$pageExpected" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: page $pageNum of $pagesTotal carried $pageMatches matches where Slack's own paging says a full page holds $pageExpected. A non-final page is short, so the response body was truncated in transit and the missing matches are NOT known to be absent. Nothing is reported from this read." >&2
+					set +e ; return 1
+				fi
+				if [ "$pretty" = "true" ] ; then
+					local linesOut linesRc=0
+					linesOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || linesRc=$?
+					if [ "$linesRc" = "1" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT FORMAT the search.messages matches for page $pageNum (see the reader's own error above)." >&2
+						set +e ; return 1
+					fi
+					pageLines+=( "$linesOut" )
+				else
+					pageBodies+=( "$response" )
+				fi
+				grandMatches=$(( grandMatches + pageInRange ))
+				grandReplies=$(( grandReplies + pageReplies ))
+				if [ -n "$pageOldest" ] && [ "$( LC_ALL=C awk -v a="$pageOldest" -v b="$cutoffEpoch" 'BEGIN{print (a+0 < b+0) ? "below" : "above"}' )" = "below" ] ; then
+					break
+				fi
+				if [ -z "$pagesTotal" ] || [ "$pageNum" -ge "$pagesTotal" ] ; then
+					break
+				fi
+				if [ "$pageNum" -ge "$maxPages" ] ; then
+					truncated="true"
+					break
+				fi
+				pageNum=$(( pageNum + 1 ))
+			done
+			local idx
+			if [ "$pretty" = "true" ] ; then
+				for (( idx = ${#pageLines[@]} - 1 ; idx >= 0 ; idx-- )) ; do
+					if [ -n "${pageLines[$idx]}" ] ; then
+						printf '%s\n' "${pageLines[$idx]}"
+					fi
+				done
+			else
+				for (( idx = ${#pageBodies[@]} - 1 ; idx >= 0 ; idx-- )) ; do
+					printf '## page=%s\n' "$(( idx + 1 ))"
+					printf '%s\n' "${pageBodies[$idx]}"
+				done
+			fi
+			echo "## matches=$grandMatches thread-replies=$grandReplies pages-read=$pageNum pages-total=${pagesTotal:-?} cutoff=$cutoffEpoch after=$afterDate"
+			if [ "$truncated" = "true" ] ; then
+				echo "## result=truncated"
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: INCOMPLETE -- the --max-pages bound of $maxPages was reached on a query Slack reports as $pagesTotal pages, and the search had not yet reached back to the cut-off. What is printed above is the NEWEST $grandMatches matches, a prefix of the answer and not the answer: older matches inside the requested window exist and were not read, so nothing here supports concluding any particular message is absent. Raise --max-pages or move the cut-off forward, then read again. rc=4 means exactly this incomplete state, distinct from rc=3 (a complete read that found nothing)." >&2
+				set +e ; return 4
+			fi
+			if [ "$grandMatches" = "0" ] ; then
+				echo "## result=none"
+				echo "# $MDSC_CMD --slack-search-messages: NO MATCHES in $channel at or after $cutoffEpoch. The search itself completed normally across $pageNum page(s), so this is a real, complete answer -- that conversation holds no message in the requested window, as far as this identity can see it. rc=3 says exactly that, and is deliberately not rc 0, so absence cannot be read as presence by a caller that ignores status. It is also not rc 1, which would mean the search could not be performed at all." >&2
+				set +e ; return 3
+			fi
+			echo "## result=found"
+			return 0
+}

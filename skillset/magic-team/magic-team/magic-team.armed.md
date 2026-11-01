@@ -35,6 +35,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - The modes
   - Chapters: switching modes
   - `run-the-conversation` — one conversation, round by round
+  - `investigation-round` — one round in investigation mode
 - Interview-alike checkpoint mode
 - Recovery paths
 - Engineering & operating discipline
@@ -359,8 +360,18 @@ The conversation's document is the `interview-*` item for an interview, and othe
 | interview | the other party holds the answer; the team collects and never decides for it | capture the party's intent in its own terms | nothing open: every settled piece is approved, dispatched and compacted out |
 | discuss | the group decides together; what binds climbs by "The ladder: one rung at a time" | one decision, reached by the end | converged and recorded, or the no-quorum document sent up |
 | brainstorm | every participant equal; nobody decides | ideas to investigate and rank | the topic is covered; promising ideas are handed on, and no winner is a valid end |
+| investigation | the sources hold the facts and the party holds the intent, and the team decides neither | a first draft answered from the sources, with its assumptions and gaps listed | every named source is read, and each gap is marked a fact for the sources or a question for the party |
 
 In every mode, participants may use `WebSearch` and `WebFetch`: each entry routine grants them. In brainstorm, use them: prior art and examples widen the ideas.
+
+A research, requirements or epic-preparation task opens the conversation in `investigation` mode. That choice is made at the open, before the first question, and it asks no confirmation. Four tests are judged from the task text:
+
+- research: the task asks for facts or sources the team does not hold.
+- requirements: the task asks what a thing must do, or how it must meet what it meets.
+- epic preparation: the task asks for a new epic, or for the work that prepares one.
+- an outside source: the task names a system, a repository or a site outside the team's own records.
+
+A task meeting the fourth test and one of the other three opens in `investigation`. The reader judges it from the task text, as `magic-coordinator.ingest-task.routine` judges its own trigger.
 
 ## Chapters: switching modes
 
@@ -374,6 +385,9 @@ A switch opens a chapter: a short conversation in another mode, inside the main 
 | interview | the party asks for ideas | brainstorm | the ideas are listed and lightly assessed | the ideas, for the party to pick from |
 | brainstorm | one idea steers toward a decision | discuss | the decision is made, or sent up | the decision and the ideas set aside |
 | brainstorm | an idea depends on what the party wants | interview | a readback of the intent is confirmed | the intent, as a constraint on the ideas |
+| investigation | the draft is written and its gaps are listed | interview | the party has answered every gap only it holds | the answered gaps, recorded as settled |
+| interview | the party names a source, or asks for a draft before more questions | investigation | the draft is written and its gaps are listed | the draft and the gaps, as the queue of questions |
+| discuss | a fact the decision needs is not in hand, and a source would settle it | investigation | the draft is written and its gaps are listed | the fact, with its source |
 
 - A switch the table does not name is proposed to the conversation and confirmed before it happens.
 - A chapter may open a chapter of its own. Each hands back to the one it came from.
@@ -388,6 +402,7 @@ Steps:
    - re-read the document and anything new in the thread.
    - re-sort the queue: quick-to-close and urgent topics first. Present a topic as a short, understandable gist, never a bare label.
    - ask one question, in the presentation mode the routine names. Next-question mode shows only the next question. Topics-to-choose mode shows the sorted queue for the party to pick by number.
+   - in `investigation` mode the round is `investigation-round`. No question is put until its step 4 is written.
    - **gap-surfacing**: any gap in understanding, of any size, becomes a question before any edit or dispatch. Investigate facts; ask about intent, which investigation cannot answer. A request to reformulate leaves the substance open until it is asked.
    - **topic-surfacing**: a topic outside the current scope is never silently absorbed or dropped. Ask the session's own parent: extend the scope, or file it as its own item, per "The ladder: one rung at a time".
    - work on what was negotiated happens at the next step, in the current context.
@@ -406,6 +421,27 @@ Rules:
 - One conversation, one document, one transcript, through every chapter.
 - The main mode's exit ends the conversation. A chapter ends by handing back, never by ending the conversation.
 - Every exchange is kept as a `transcript-*` with `--append-transcript --transcript-name`. A note line goes to the session transcript with `SessionTranscriptAppend`.
+
+## `investigation-round` — one round in investigation mode
+
+Steps:
+1. **name-the-sources**: list every source the task names, and what each one implies. That is its name variants, the repositories it links, and the site it serves. Steps:
+   - a source the task leaves unnamed is found by its other names, and by the systems that touch it. It is recorded as found, with what it gave, and it is never owed.
+   - the task's own words are never the only search term. The name the team uses may not be the name the source holds.
+2. **read-every-source**: read each named source, and record what it gave and what it did not, steps:
+   - a source that will not open is reported as unreachable, with its reason. It is never reported as empty.
+   - a search with no hits is repeated with the name variants. The site or repository itself is read before the result is called empty.
+   - an outside fact follows `magic-team.research.routine`'s steps, and a reading of the thing itself follows `magic-team.investigate.routine`'s.
+3. **write-the-draft**: write the first draft from what the sources show. Each claim carries its source, and an inference says it is one.
+4. **list-the-gaps**: list every assumption the draft rests on, and every gap it leaves. Mark each one a fact a source could settle, or an intent only the party holds.
+5. **close-the-round**: end with the draft and the gaps written. A gap a source could settle returns to step 2, and is never asked. Where the mode runs as a chapter, the chapters table hands back to `interview`. Its queue is the party's gaps.
+
+Rules:
+- An ask the task text already answers is never sent. Re-read the task and the draft before each question.
+- The first round asks nothing until step 4 is written.
+- The sources, the draft and the gaps are written in a document of their own. That is the conversation's document where there is one, else a `note-*` in the running member's own inbox.
+- A source that will not open is escalated for access, never turned into a question for the party.
+- The round obeys the bounds of "The round": the round limit or time box, and the walk-away point. A named source still unread at the walk-away point is listed as unread, with what it would settle.
 
 # Interview-alike checkpoint mode
 

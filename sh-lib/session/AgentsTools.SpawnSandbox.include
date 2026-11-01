@@ -498,11 +498,16 @@ AgentsToolsSpawnSessionParentChildDead(){ ## child record
 ## its watcher ends; rc 1: it goes on.
 AgentsToolsSpawnSessionParentTick(){ ## parent record
 	local tickRecord="$1" tickId tickChildren="" tickOpen="" tickFile tickChild tickStatus tickPending tickWorkers tickEntry tickRest
-	local tickStarted tickFailed tickRoute tickCount tickKnown
+	local tickStarted tickFailed tickRoute tickCount tickKnown tickStartChildren tickStartPending tickStartWorkers
 	[ -f "$tickRecord" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" status )" = spawn-started ] || return 0
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	tickId="${tickRecord##*/}" ; tickId="${tickId%.spawn.md}"
-	AgentsToolsSpawnSessionParentPost "$tickRecord" start --kind notice --field what="agent-less parent of $( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" routine ): children $( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" children ), queued ${tickPending:-$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" pending )}, at most $( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" workers ) at once"
+	## No field of the notice comes out empty: one holding nothing says `none`, so the line keeps one shape a reader can trust.
+	tickStartChildren="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" children )"
+	tickStartPending="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" pending )"
+	tickStartWorkers="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" workers )"
+	tickStartWorkers="${tickStartWorkers:-$agentsSpawnSessionParentWorkers}"
+	AgentsToolsSpawnSessionParentPost "$tickRecord" start --kind notice --field what="agent-less parent of $( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" routine ): children ${tickStartChildren:-none}, queued ${tickStartPending:-none}, at most $tickStartWorkers at once"
 	## The children it names keep their order; a record found that it does not name yet is added after them.
 	tickKnown="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" children )"
 	tickChildren="$tickKnown"

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the reply address a Wait puts on every message it shows (owner 2026-11-01: the communication id of
-## any message is its full pointer, `<conversation>:<ts>`, and a message shown without one is answered at the top of the
-## conversation instead of in the thread it belongs to). Held, run and not read:
+## any message is its full pointer, `<driver>:<container>:<message-id>` -- for Slack `slack:<conversation>:<ts>` -- and a
+## message shown without one is answered at the top of the conversation instead of in the thread it belongs to). Held, run and
+## not read:
 ##   1. A thread source: every message answers in that thread, so the address is the channel and the thread's own ts.
 ##   2. A person's direct conversations, rendered behind `# in <conversation>`: each message answers at its own ts there.
 ##   3. A reply to one of the session's own posts (`# replies to your post <conversation>:<ts>`): the address is that thread.
@@ -25,25 +26,25 @@ rigAddressed(){ ## kind, source -- the addressed rendering of stdin
 echo "-- 1. a thread source: the thread's own ts is the address of every message in it --"
 rigOut="$( printf '%s\n' '1793000003.000100 | U1 | [reactions: eyes x1 (U2)] a reply' '1793000009.000100 | U2 | another reply' \
 	| rigAddressed slack "slack:C0BJ49W7ZCM:1793000000.000100:conversation" )"
-rigAssert "each message answers in the thread, not at its own ts" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: C0BJ49W7ZCM:1793000000.000100' )" "2"
+rigAssert "each message answers in the thread, not at its own ts" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:C0BJ49W7ZCM:1793000000.000100' )" "2"
 rigAssert "and nothing of the source's own annotations is lost" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '\[reactions: eyes x1 (U2)\]' )" "1"
 
 echo "-- 2. a person's direct conversations: each message answers at its own ts there --"
 rigOut="$( printf '%s\n' '# in DC0BJ49XYZ' '1793000011.000100 | U3 | hello' '1793000012.000100 | U3 | again' \
 	| rigAddressed dms "dms:magic-developer" )"
-rigAssert "the conversation of the rendering is the address's, a line each" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: DC0BJ49XYZ:17930000' )" "2"
+rigAssert "the conversation of the rendering is the address's, a line each" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:DC0BJ49XYZ:17930000' )" "2"
 rigAssert "and the marker line stands as it was" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^# in DC0BJ49XYZ$' )" "1"
 
 echo "-- 3. a reply to one of the session's own posts: that thread is the address --"
 rigOut="$( printf '%s\n' '# replies to your post C0BJ49W7ZCM:1793000000.000100' '1793000021.000100 | U4 | a reply to my post' \
 	| rigAddressed replies "replies:9c75835b" )"
-rigAssert "the address is the post's thread" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: C0BJ49W7ZCM:1793000000.000100' )" "1"
+rigAssert "the address is the post's thread" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:C0BJ49W7ZCM:1793000000.000100' )" "1"
 
 echo "-- 4. a reply that names its thread answers in that thread, not at its own ts --"
 rigOut="$( printf '%s\n' '# in C0BJ49W7ZCM' '1793494250.398389 | U6 | [thread-reply of 1793394716.507419] a reply' '1793494251.398389 | U6 | a top-level one' \
 	| rigAddressed mentions "mentions:magic-developer" )"
-rigAssert "the thread reply answers where the thread is" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: C0BJ49W7ZCM:1793394716.507419' )" "1"
-rigAssert "and a top-level message answers at its own ts" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: C0BJ49W7ZCM:1793494251.398389' )" "1"
+rigAssert "the thread reply answers where the thread is" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:C0BJ49W7ZCM:1793394716.507419' )" "1"
+rigAssert "and a top-level message answers at its own ts" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:C0BJ49W7ZCM:1793494251.398389' )" "1"
 
 echo "-- 5. control: a source whose conversation is unknown invents no address --"
 rigOut="$( printf '%s\n' '1793000031.000100 | U5 | a line with no conversation' | rigAddressed file "file:/tmp/rig-drop" )"

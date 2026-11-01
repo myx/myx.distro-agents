@@ -54,3 +54,64 @@ AgentsToolsCommsEmailSend(){ ## member, channel-id or declared name, subject, th
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-comms-email-send "$emailMember" "$emailAddress" -- "$emailSubject" -- --from-stdin
 }
+
+## THE MESSAGE CACHE, the form every service keeps (epic S21.13, owner 2026-10-28): `<service>/<service>-<id>/YYYYMM/messages.txt`,
+## one line a message, the whole body in `YYYYMM/<uid>.body.txt` where a line would pass the cap, and `.state.txt` for the
+## pointers. Email keys on its account and mailbox, a message on its UID, and a message's month on its own date: a mailbox's
+## UIDs say nothing of when a mail came. Nothing of a body is ever cut away, a 25 MB mail included.
+AgentsToolsCommsEmailCacheDir(){ ## account, mailbox
+	type AgentsToolsCommsCacheDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+	AgentsToolsCommsCacheDir email "$1-${2:-INBOX}"
+}
+
+## One fetched mail into the cache: its line, its whole body beside it, its UID the pointer that widens. A UID the folder already
+## holds is left as it is, so a second pass rewrites no body. Sets nothing. rc 1 where the folder cannot hold it.
+AgentsToolsCommsEmailCacheFile(){ ## cache folder, uid, month (YYYYMM), from, subject, the body file
+	local mailFolder="$1" mailUid="$2" mailMonth="$3" mailFrom="$4" mailSubject="$5" mailBody="$6"
+	local mailLine mailBodyName mailStateAt mailStateFrom mailStateNewest mailStateTmp mailCap="${agentsCommsCacheLineCap:-2000}"
+	case "$mailUid$mailMonth" in ''|*[!0-9]*) return 1 ;; esac
+	mkdir -p "$mailFolder/$mailMonth" 2> /dev/null || return 1
+	mailLine="$mailUid | $mailFrom | $mailSubject"
+	mailBodyName="$mailMonth/$mailUid.body.txt"
+	if [ -s "$mailBody" ] ; then
+		cp -f "$mailBody" "$mailFolder/$mailBodyName" 2> /dev/null || return 1
+		[ "${#mailLine}" -le "$mailCap" ] || mailLine="${mailLine:0:$mailCap}"
+		mailLine="$mailLine [body: $mailUid.body.txt]"
+	fi
+	LC_ALL=C grep -q "^$mailUid | " "$mailFolder/$mailMonth/messages.txt" 2> /dev/null || printf '%s\n' "$mailLine" >> "$mailFolder/$mailMonth/messages.txt" || return 1
+	mailStateAt="$( date +%s )"
+	mailStateFrom="" mailStateNewest=""
+	[ ! -f "$mailFolder/.state.txt" ] || { read -r mailStateAt mailStateFrom mailStateNewest < "$mailFolder/.state.txt" ; } 2> /dev/null || :
+	mailStateTmp="$( mktemp "$mailFolder/.state.txt.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s %s %s\n' "$( date +%s )" "${mailStateFrom:-$mailUid}" "$mailUid" > "$mailStateTmp" && mv -f "$mailStateTmp" "$mailFolder/.state.txt" || return 1
+}
+
+## The mails of a folder strictly after a floor UID, as a read prints them: each line whole, a body the line names restored under
+## it. Nothing above the floor, nothing twice. rc 1 where the folder holds no state.
+AgentsToolsCommsEmailCacheServe(){ ## cache folder, floor uid
+	local serveFolder="$1" serveFloor="$2" serveDir
+	[ -f "$serveFolder/.state.txt" ] || return 1
+	for serveDir in "$serveFolder"/[0-9][0-9][0-9][0-9][0-9][0-9] ; do
+		[ -f "$serveDir/messages.txt" ] || continue
+		LC_ALL=C awk -v floorUid="${serveFloor:-0}" -v dir="$serveDir" '
+			$1 + 0 <= floorUid + 0 { next }
+			{
+				print
+				if ( index($0, " [body: " $1 ".body.txt]") ) { body = dir "/" $1 ".body.txt" ; while ( ( getline line < body ) > 0 ) { print line } ; close(body) }
+			}' "$serveDir/messages.txt"
+	done
+}
+
+## One mail the cache already holds, by its UID: the whole message this read would fetch, printed as the fetch prints it. rc 1
+## where the folder holds no such UID, which is the caller's cue to fetch it and file it.
+AgentsToolsCommsEmailCacheMessage(){ ## cache folder, uid
+	local heldFolder="$1" heldUid="$2" heldMonth heldFile
+	case "$heldUid" in ''|*[!0-9]*) return 1 ;; esac
+	for heldMonth in "$heldFolder"/[0-9][0-9][0-9][0-9][0-9][0-9] ; do
+		heldFile="$heldMonth/$heldUid.body.txt"
+		[ -f "$heldFile" ] || continue
+		cat "$heldFile"
+		return 0
+	done
+	return 1
+}

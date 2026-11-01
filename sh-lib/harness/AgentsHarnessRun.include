@@ -576,9 +576,10 @@ AgentsHarnessToolSecondary(){ ## tool file name, arguments JSON -- prints the re
 }
 
 ## EVERY CALL IS A TASK UNDERNEATH (epic S20, AgentsTools.ToolTask.include). The call runs in a subshell and this shell waits for it. It comes back with
-## its own result when it ends in time, and early, with `TASK-ID=process-N` and a hint, when the caller asked for `background`, the default time (300 s)
-## passes, the caller's `timeout` passes (with `timeout_action` return, the default, or kill), or a message addressed to the member arrives in the
-## session chat. Not wrapped: the tools that block by design on their own bound (Wait and the asking tools, ThisSession, TaskOutput and TaskStop), the
+## its own result when it ends in time, and early, with `TASK-ID=process-N` and a hint, when the caller asked for `background` or `async`, the window of
+## that tool passes (AgentsHarnessToolWindow.include, 10 to 300 s), the caller's `timeout` passes (with `timeout_action` return, the default, or kill), or
+## a message addressed to the member arrives in the session chat. `sync` is the other way: the call runs to its own end here, with no window at all.
+## Not wrapped: the tools that block by design on their own bound (Wait and the asking tools, ThisSession, TaskOutput and TaskStop), the
 ## handback (it may end the session) and BatchTools (its entries run apart from this dispatcher). Bash and WorkspaceContextExecute keep their own
 ## `timeout`, which kills: it is the task's timeout only where `timeout_action` is given too.
 harnessTaskStripTimeout="" harnessTaskScratch=""
@@ -619,6 +620,15 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 			[ "${harnessArgV_detach:-}" != "true" ] || taskBackground=""
 		;;
 	esac
+	case "${harnessArgV_sync:-}" in
+		true|1|yes)
+			## sync: the caller accepts the wait, so the call runs to its own end here, with no window and no early return.
+			AgentsHarnessRunToolNow "$taskName" "$taskArgs"
+			AgentsHarnessDismissedAfter "$taskName"
+			return 0
+		;;
+	esac
+	case "${harnessArgV_async:-}" in true|1|yes) taskBackground="true" ;; esac
 	## A background call returns its handle before the tool runs, so a cwd that tool would refuse is
 	## decided here: otherwise the member is told a task is running that never started.
 	if [ -n "$taskBackground" ] && [ "$taskName" = Bash ] ; then

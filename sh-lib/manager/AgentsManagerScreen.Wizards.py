@@ -243,7 +243,7 @@ def cliNameControl():
 ## such a service is only ever pointed at one by this field, and Configuration has no other input for it. Asked in its one place, so that
 ## the two forms cannot come to ask it differently.
 def cliEndpointControl():
-    return {"name": "endpoint", "kind": "input", "label": "The endpoint URL: https, ending /v1 or /anthropic"}
+    return {"name": "endpoint", "kind": "input", "label": "The endpoint URL: https, or http for a loopback host, ending /v1 or /anthropic"}
 
 
 def cliEndpointFill(held, preset):

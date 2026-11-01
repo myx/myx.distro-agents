@@ -321,8 +321,8 @@ AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept
 ## row is rebuilt by the next reader that rebuilds pending-replies, as the list does. Fails,
 ## rc 1 and one line, where no record carries the id, or a registry cannot be rebuilt: the
 ## line ends with what its caller then did not do, `nothing is shown` where it names none.
-AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), what is not done on a failure (may be empty)
-	local scopeOp="$1" scopeId="$2" scopeOwn="${3:-}" scopeNot="${4:-nothing is shown}" scopeFile scopePending scopeStore scopePicked="" scopeRows="" scopeAge="" scopeFresh=""
+AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), what is not done on a failure (may be empty), "fresh" where the caller signals and so must read the process list now
+	local scopeOp="$1" scopeId="$2" scopeOwn="${3:-}" scopeNot="${4:-nothing is shown}" scopeNow="${5:-}" scopeFile scopePending scopeStore scopePicked="" scopeRows="" scopeAge="" scopeFresh=""
 	local scopeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" scopeIds scopeReread
 	local scopeTracking scopeSkip scopeSpawn scopeLive scopeRest scopeTemp scopeStat="" scopeWaiting=" " scopeState="" scopeTab=$'\t' scopeNl=$'\n'
 	local measuredRows="" measuredDated="" measuredAny="false"
@@ -394,7 +394,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 		return 1
 	}
 	printf '%s\n' "$scopeRows" > "$scopeTemp"
-	AgentsToolsRegistryMeasureRows "$scopeTemp" "" "" 17
+	AgentsToolsRegistryMeasureRows "$scopeTemp" "" "" 17 "$scopeNow"
 	rm -f "$scopeTemp"
 	scopeMeasured="$measuredDated"
 	## The store of a live run is read, never of an ended one.
@@ -650,7 +650,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		echo "⛔ ERROR: $MDSC_CMD $killOp: the session registries could not be rebuilt in ${killFile%/*} -- nothing was signalled" >&2
 		return 1
 	fi
-	AgentsToolsManagerSessionScope "$killOp" "$killId" "$killOwn" "nothing was signalled" || return 1
+	AgentsToolsManagerSessionScope "$killOp" "$killId" "$killOwn" "nothing was signalled" fresh || return 1
 	killUser="${4:-}"
 	[ -n "$killUser" ] || killUser="$( AgentsToolsManagerConsoleUser )"
 	killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
@@ -782,7 +782,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 	local finishDismissed=0 finishClosed=0 finishState="-" finishWait=0 finishAt finishMarked finishUnclosed=0 finishOpen=0
 	local finishSpawns=() finishMembers=() finishRecords=() finishWaits=()
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
-	AgentsToolsManagerSessionScope "$finishOp" "$finishId" "$finishOwn" "nothing more was done" || return 1
+	AgentsToolsManagerSessionScope "$finishOp" "$finishId" "$finishOwn" "nothing more was done" fresh || return 1
 	[ "$scopeRun" != "-" ] || finishWhole="yes"
 	finishSession="$scopeSession"
 	finishWho="$( AgentsToolsManagerConsoleUser )"
@@ -927,7 +927,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 	## questions as they stand after this.
 	if [ -z "$finishPlan" ] ; then
 		scopeSession="" ; scopeRun="" ; scopeMeasured="" ; scopeListed="" ; scopeControl=""
-		AgentsToolsManagerSessionScope "$finishOp" "$finishSession" "" "its state could not be read again" 2> /dev/null || :
+		AgentsToolsManagerSessionScope "$finishOp" "$finishSession" "" "its state could not be read again" fresh 2> /dev/null || :
 	fi
 	while IFS="$finishTab" read -r finishKind finishRest finishRest finishStatus finishRest ; do
 		[ "$finishKind" != "session" ] || { finishState="$finishStatus" ; break ; }

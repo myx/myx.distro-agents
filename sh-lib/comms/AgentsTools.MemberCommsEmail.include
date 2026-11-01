@@ -201,14 +201,34 @@ case "$1" in
 				set +e ; return 1
 			fi
 
+			## THE CACHE FIRST (epic S21.13): a UID this mailbox already filed is served without the network, its UID on the
+			## server never changing. A miss fetches, and what it fetched is filed for the next read.
+			type AgentsToolsCommsEmailCacheDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsEmail.include"
+			AgentsToolsCommsEmailCacheDir "$imapUser" INBOX || :
+			local readRc=0 readWork="" readFrom="" readSubject="" readDate="" readMonth=""
+			if [ -n "${agentsCommsCacheDir:-}" ] && AgentsToolsCommsEmailCacheMessage "$agentsCommsCacheDir" "$uid" ; then
+				echo "# $MDSC_CMD --email-read: UID=$uid served from the comms cache, nothing fetched" >&2
+			else
 			echo "# $MDSC_CMD --email-read: fetching full message UID=$uid (EXAMINE + BODY.PEEK -- \\Seen not set by this read)" >&2
-			local readRc=0
+			readWork="$( mktemp "$MMDAPP/.local/temp/mdat-email-read.XXXXXX" )" || { echo "⛔ ERROR: $MDSC_CMD --email-read: no work file" >&2 ; set +e ; return 1 ; }
 			AGENTS_IMAP_HOST="$imapHost" \
 			AGENTS_IMAP_USER="$imapUser" \
 			AGENTS_IMAP_PASS="$imapPass" \
 			AGENTS_IMAP_MAILBOX="INBOX" \
 			AGENTS_IMAP_UID="$uid" \
-				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsImapFetchMessage.py" || readRc=$?
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsImapFetchMessage.py" > "$readWork" || readRc=$?
+			if [ "$readRc" -ne 0 ] ; then rm -f "$readWork" ; fi
+			[ "$readRc" -ne 0 ] || cat "$readWork"
+			if [ "$readRc" -eq 0 ] && [ -n "${agentsCommsCacheDir:-}" ] ; then
+				readFrom="$( LC_ALL=C sed -n 's/^From: //p' "$readWork" 2> /dev/null | LC_ALL=C head -1 )"
+				readSubject="$( LC_ALL=C sed -n 's/^Subject: //p' "$readWork" 2> /dev/null | LC_ALL=C head -1 )"
+				readDate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCollectMailDate.py" < "$readWork" 2> /dev/null )" || readDate=""
+				case "$readDate" in ????????T????Z) readMonth="${readDate:0:6}" ;; *) readMonth="$( date -u +%Y%m )" ;; esac
+				AgentsToolsCommsEmailCacheFile "$agentsCommsCacheDir" "$uid" "$readMonth" "${readFrom:-unknown}" "${readSubject:-no subject}" "$readWork" || \
+					echo "🙋 WARNING: $MDSC_CMD --email-read: the message was read, but UID=$uid was not filed in the comms cache -- the read output above is still valid" >&2
+				rm -f "$readWork"
+			fi
+			fi
 			if [ "$readRc" -eq 4 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --email-read: UID=$uid does not exist in INBOX on imaps://${imapHost} -- nothing was read and nothing was changed; the reason is on the line above" >&2
 				set +e ; return "$readRc"

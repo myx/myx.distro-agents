@@ -171,6 +171,7 @@ Authorisation:
 - Items needing his physical action (an app setting, an OAuth grant) are collected and proposed as one session, gathered at grooming.
 
 Routing:
+- A task whose nature is research, requirements or epic preparation opens in `investigation` mode (`magic-team.armed.md`'s "Conversations").
 - All task intake goes through the inbox or board queue and is picked up by the routine running. The one exception is his live, explicit override in answer to an active blocker.
 - An ask is resolved inline only when it needs no subtasks and no hand-off. Otherwise it is tracked as an `inquiry-*` (`post-inquiry`).
 - A small doc-fix finding goes to `magic-librarian`'s inbox by `post-inquiry`, unless it is live-risk.

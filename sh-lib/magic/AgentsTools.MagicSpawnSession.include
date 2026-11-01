@@ -30,6 +30,12 @@ case "$1" in
 		type AgentsToolsSpawnSessionRecordNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" || { set +e ; return 1 ; }
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				## The operation word repeated: a served tool passes the operation as its own argument
+				## and the caller's words in args, so the word can arrive twice. It is read once, as a
+				## repeated member is (AgentsContext.FrontDoor.include).
+				--spawn-session)
+					shift
+				;;
 				## The session this call brings its members into instead of starting one: a work-duty that starts again is the
 				## same session and the same thread, never a new team-channel header (AgentsToolsScheduleSpawn).
 				--join-session)

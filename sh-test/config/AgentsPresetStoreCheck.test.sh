@@ -11,7 +11,7 @@
 ##   C. a preset's name is lower-case
 ##   D. extend: a preset that is there, not itself, no loop; and where a preset extends, its CLI service is not editable
 ##   E. what an extending preset inherits: the parent's CLI service, the parent's other keys unless its own stands ahead
-##   F. the model or macro, the effort, the input cache time (5m or 1h, F10.7), the context size that is the restart threshold, the extra spawn line (the owner's)
+##   F. the model or macro, the effort, the input cache time (5m or 1h, F10.7), the context size that is the restart threshold, the endpoint the service is reached at, the extra spawn line (the owner's)
 ##   G. the credentials of the selected CLI service, and no other; never printed
 ##   H. a preset key stands in a preset and in no other scope; every other key and scope is written as it was
 ##   I. a value taken from stdin is checked as one in argv, and is written whole
@@ -142,7 +142,7 @@ printf 'PRESET_EXTEND=mel-loop-b\n' > "$rigAgents/preset-mel-loop-a.agent.env" ;
 rigAssert "a loop planted by hand ends, with the reason, and not at the end of time" "$( rigEffective mel-loop-a PRESET_MODEL_OR_MACRO | LC_ALL=C sed -e 's/.*longer than [0-9]*: .*loops/LOOP/' )" "LOOP rc=1"
 rigAssert "a parent that is not there is said"                                    "$( printf 'PRESET_EXTEND=mel-gone\n' > "$rigAgents/preset-mel-lost.agent.env" ; rigEffective mel-lost PRESET_EFFORT | LC_ALL=C grep -c -e 'preset mel-gone is not there' )" 1
 
-echo "-- F. the model or macro, the effort, the two numbers, the extra spawn line --"
+echo "-- F. the model or macro, the effort, the two numbers, the endpoint, the extra spawn line --"
 rigOk=0
 for rigMacro in low easy normal default high hard claude-sonnet-5-5 ; do [ "$( rigSet mel-model PRESET_MODEL_OR_MACRO "$rigMacro" )" = 0 ] && rigOk=$(( rigOk + 1 )) ; done
 rigAssert "the six macros and a model name are accepted"                          "$rigOk" 7
@@ -160,6 +160,13 @@ rigAssert "the stored value is still the last good one"                         
 rigAssert "the context size takes a whole number of tokens"                       "$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 200000 )" 0
 rigAssert "a number written otherwise is refused (word, zero, sign, fraction)"     "$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE abc )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 0 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE -5 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 1.5 )" 1111
 rigAssert "the two keys are named in the preset code, the catalogue, the console, the console's scope reader and its wizard, and by the harness reader and the legs that point at it (the context size is the restart threshold, no longer stored only)" "$( cd "$rigPackage" && LC_ALL=C grep -rl -e PRESET_INPUT_CACHE_TIME -e PRESET_CONTEXT_MAX_SIZE sh-lib sh-scripts | LC_ALL=C sort | tr '\n' ' ' )" "sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include sh-lib/config/AgentsTools.Preset.include sh-lib/harness/AgentsCopilotHarness.sh sh-lib/harness/AgentsHarnessLimits.include sh-lib/harness/AgentsStandardV1Harness.sh sh-lib/harness/AgentsUniversalHarness.sh sh-lib/manager/AgentsConsoleShellScript.template.sh sh-lib/manager/AgentsManagerScreen.Wizards.py sh-lib/manager/AgentsTools.ManagerScopeAgents.include sh-lib/manager/AgentsTools.ManagerWizard.include sh-lib/member/AgentsTools.MemberWorkspace.include "
+rigAssert "the endpoint: https is taken"                                          "$( rigSet mel-model PRESET_ENDPOINT_URL https://api.example.com/v1 )" 0
+rigOk=0
+for rigUrl in http://127.0.0.1 http://127.0.0.1:8181/v1 http://localhost:8181/v1 'http://[::1]:8181/v1' ; do [ "$( rigSet mel-model PRESET_ENDPOINT_URL "$rigUrl" )" = 0 ] && rigOk=$(( rigOk + 1 )) ; done
+rigAssert "and http for the loopback server alone, in its four forms (S15.5)"      "$rigOk" 4
+rigAssert "http to another host, another scheme and a space are refused"           "$( rigSet mel-model PRESET_ENDPOINT_URL http://example.com/v1 )$( rigSet mel-model PRESET_ENDPOINT_URL ftp://example.com/v1 )$( rigSet mel-model PRESET_ENDPOINT_URL 'https://example.com/a b' )" 111
+rigAssert "an empty endpoint is refused (taking it off is a delete)"               "$( rigSet mel-model PRESET_ENDPOINT_URL '' )" 1
+rigAssert "the stored endpoint is still the last one taken"                        "$( rigGet mel-model PRESET_ENDPOINT_URL )" 'http://[::1]:8181/v1'
 rigAssert "the extra spawn line, one line with spaces and an = in it, is accepted"  "$( rigSet mel-model PRESET_EXTRA_SPAWN_LINE 'Think step by step; prefer a=b over c.' )" 0
 rigAssert "and is stored whole"                                                   "$( rigGet mel-model PRESET_EXTRA_SPAWN_LINE )" "Think step by step; prefer a=b over c."
 rigAssert "two lines are refused"                                                 "$( rigSet mel-model PRESET_EXTRA_SPAWN_LINE "$( printf 'one\ntwo' )" )" 1

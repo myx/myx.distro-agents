@@ -112,7 +112,7 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 			elif [ -n "$knownList" ] ; then
 				printf 'PRESET_ENDPOINT_URL\tlocked\t%s_states_its_own_endpoint,_so_the_form_does_not_offer_one._Edited_by_hand_where_it_must_differ.\tThe_endpoint_of_the_service.\n' "$knownService"
 			else
-				printf 'PRESET_ENDPOINT_URL\ttext\t-\tThe_endpoint_this_service_is_reached_at,_https_only._Unset_leaves_it_to_the_service.\n'
+				printf 'PRESET_ENDPOINT_URL\ttext\t-\tThe_endpoint_this_service_is_reached_at:_https,_or_http_for_a_loopback_host._Unset_leaves_it_to_the_service.\n'
 			fi
 			printf 'PRESET_MODEL_OR_MACRO\ttext\t-\tThe_model,_or_a_macro:_%s.\n' "$( printf '%s' "$agentsPresetMacros" | LC_ALL=C tr ' ' ',' )"
 			## The effort a person is offered is the one list agentsPresetEfforts, in its order: unset is the service's

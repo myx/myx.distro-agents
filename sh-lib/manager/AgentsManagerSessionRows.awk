@@ -49,7 +49,8 @@
 ##
 
 ## Whether --active keeps a session of that state: one that is not finished, and with which
-## something can still be done from this host. `running`. `waiting`: every live run of it in a
+## something can still be done from this host. `running`. `waiting`: no live process and a run
+## of it waiting on an answer, which can be answered or dismissed, or every live run of it in a
 ## wait on a person, which is what it is doing. `unclosed`, no live process
 ## and a record still open: the record can be closed, the run started again. `failed`, every run of it
 ## died on its start: a joined coordinator takes it up. Not `finished`;
@@ -166,15 +167,16 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 END {
 	for (sessionAt = 1 ; sessionAt <= sessionTotal ; sessionAt++) {
 		sessionKey = sessionOf[sessionAt] ;
-		## THE STATE OF THE SESSION IS THE STATE OF ITS RUNNING AGENTS (sketch 5.4): live runs make it running, or
-		## waiting where every one of them sits in a wait on a person; with none live, an open record of another
-		## host's, else one still open, else every run of it failed on its start, else finished. ALL AGENTS FINISHED
-		## MAKE THE SESSION FINISHED, NEVER WAITING: a question still open is counted in the counters row, and a run
-		## with no live process is not one that waits.
+		## THE STATE OF THE SESSION IS THE STATE OF ITS AGENTS AND OF ITS QUESTIONS: live runs make it running, or
+		## waiting where every one of them sits in a wait on a person; with none live, waiting where a run of it waits
+		## on an answer, then an open record of another host's, else one still open, else every run of it failed on its
+		## start, else finished. ALL AGENTS FINISHED MAKE THE SESSION FINISHED, NEVER WAITING (sketch 5.4): a question
+		## still open does not hold a session whose runs have all ended -- it is counted in the counters row.
 		if (sessionKey in sessionLive) {
 			sessionState[sessionKey] = ( sessionLiveWaiting[sessionKey] == sessionLiveCount[sessionKey] ) ? "waiting" : "running" ;
 		}
 		else if (sessionKey in sessionStarting) sessionState[sessionKey] = "starting" ;
+		else if ((sessionKey, "waiting") in sessionStates) sessionState[sessionKey] = "waiting" ;
 		else if (sessionKey in sessionForeign) sessionState[sessionKey] = "unknown-foreign" ;
 		else if (sessionKey in sessionOpen) sessionState[sessionKey] = "unclosed" ;
 		else if ((sessionKey in sessionFailed) && !( sessionKey in sessionEnded )) sessionState[sessionKey] = "failed" ;

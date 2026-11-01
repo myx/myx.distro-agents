@@ -7,7 +7,7 @@
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-share [--team-member <team-member>] <target> (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-get [--team-member <team-member>] [--raw]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-status [--team-member <team-member>] [--ttl <seconds>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-stop [--team-member <team-member>] [--ttl <seconds>]
@@ -60,7 +60,7 @@
 		--slack-profile-get [--raw]
 			Prints the member's own Slack profile.
 
-		--slack-profile-set {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+		--slack-profile-set {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 			Sets only the fields of that profile that are named.
 
 		--slack-presence-keep [--ttl <seconds>]

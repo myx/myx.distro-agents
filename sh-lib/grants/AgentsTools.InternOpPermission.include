@@ -2128,10 +2128,11 @@ case "$1" in
 		while IFS= read -r setOne ; do
 			[ -n "$setOne" ] || continue
 			AgentsToolsPermissionEntryPlace "$setOne" "$setSession" || { set +e ; return 1 ; }
-			case "$setOne" in
-				*:@*) setResolved="${setResolved}${permEntryTool}:${permEntryTarget}"$'\n' ;;
-				*) setResolved="${setResolved}${setOne}"$'\n' ;;
-			esac
+			## The entry as it is asked and stored: its tool with its place resolved to a path, in
+			## whichever form the member wrote it. `<place>:<relative>` is the same entry as
+			## `@<place>:<relative>` (AgentsToolsPermissionEntryPlace), so a text left unresolved
+			## could never cover the refused call, whatever the member wrote.
+			setResolved="${setResolved}${permEntryTool}${permEntryTarget:+:$permEntryTarget}"$'\n'
 			## A purpose is its place's: kept with the exact target, one for a place.
 			setPurposeText="$( AgentsToolsPermissionSetLookup "$setPurposeOf" "$setOne" )"
 			if [ -n "$setPurposeText" ] ; then
@@ -2151,12 +2152,16 @@ case "$1" in
 		## must speak for its tool (AgentsToolsGrantsToolCovers) and cover its exact target. Else
 		## an allow would leave the very call that was refused refused, so nothing is asked.
 		if [ -n "$setOwn" ] ; then
-			local setCovers=""
+			local setCovers="" setCoversEntry setCoversWant
 			while IFS= read -r setOne ; do
 				[ -n "$setOne" ] || continue
 				AgentsToolsPermissionEntrySplit "$setOne" permission-set-request 2> /dev/null || continue
 				AgentsToolsGrantsToolCovers "$permEntryTool" "$setRefusedTool" || continue
-				[ "$permEntryTarget" = "$setRefusedTarget" ] || AgentsToolsPermissionCovers "$permEntryTarget" "$setRefusedTarget" || continue
+				## Both sides resolved first, so a call named through a link meets the place asked for as one target.
+				setCoversEntry="$( AgentsToolsPermissionResolvePath "$permEntryTarget" )"
+				setCoversWant="$( AgentsToolsPermissionResolvePath "$setRefusedTarget" )"
+				{ [ -n "$setCoversEntry" ] && [ -n "$setCoversWant" ] ; } || { setCoversEntry="$permEntryTarget" ; setCoversWant="$setRefusedTarget" ; }
+				[ "$setCoversEntry" = "$setCoversWant" ] || AgentsToolsPermissionCovers "$setCoversEntry" "$setCoversWant" || continue
 				setCovers=1
 				break
 			done <<< "$setEntries"

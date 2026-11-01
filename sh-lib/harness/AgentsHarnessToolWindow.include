@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsHarnessToolWindow.include -- the window one tool call waits in before it goes to the background (epic S22.7).
+## One row a tool: its name, its window in seconds, and why that number. Sourced by AgentsTools.ToolTask.include at the
+## wrapper's own default, and never run. MDAT_TOOL_TASK_SECONDS, where it is set, is the window of every tool instead.
+## A tool the table does not name takes 300, the floor no call may pass (AgentsTools.ToolTask.include).
+##
+
+agentsHarnessToolWindow='Read	30	one file, or one page of it, off a local disk
+Write	30	one file written where it lives
+Edit	30	one file read, replaced, written
+Glob	30	one tree walked for names
+Grep	30	one tree searched for a pattern
+Bash	120	a command the caller chose: a build or a suite is a minute of normal work
+WorkspaceContextExecute	120	such a command, under the workspace tooling context around it
+WebSearch	60	one search, answered by a provider
+WebFetch	60	one page fetched from a host
+SendMessage	30	one post to one conversation
+ReportFindings	30	one report posted
+PushNotification	30	one notification posted
+Artifact	120	a document converted, published, and its link posted after it
+ListAgents	30	the spawn registry read on this host
+Skill	30	one skillset file read off disk
+ToolSearch	30	the tool catalogue matched in this process
+SessionTranscriptAppend	20	one line appended to a transcript on disk
+CheckList	20	the task list of this session, written locally
+ListMcpResourcesTool	60	a round trip to another MCP server
+ReadMcpResourceTool	60	one resource read from another MCP server
+ReadMcpResourceDirTool	60	several resources read from another MCP server
+DistroAgentsSlack	60	Slack API calls, several round trips in one operation
+DistroAgentsAtlassian	120	Jira and Confluence API calls, paged
+DistroAgentsGoogle	120	a Drive upload, or a Docs or Sheets conversion
+DistroAgentsMail	120	a mail delivery the server retries
+DistroAgentsTrello	60	Trello API calls, several round trips in one operation
+DistroAgentsContacts	30	the contact store, with one Slack lookup
+AgentDispatcherTools	300	a session of the team started, and its first report waited for
+DistroAgentsDispatcher	300	runs spawned and scheduled, and waited on
+DistroAgentsQuestions	120	an ask posted, and its answer collected where the operation waits
+DistroAgentsItems	60	board, inbox, vault and audit reads and writes
+DistroAgentsKnowledge	60	registries and searches over the store this team owns
+DistroAgentsTesting	120	a test round that runs a suite'
+
+## The window of one tool in seconds, or nothing where the table does not name it.
+AgentsHarnessToolWindowSeconds(){ ## tool name
+	printf '%s\n' "$agentsHarnessToolWindow" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'
+}

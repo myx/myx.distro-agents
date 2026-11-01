@@ -3,12 +3,13 @@
 ## Every call runs as a task underneath. Held:
 ##   1. a call that ends in time returns its own stdout and exit code, replays its stderr, and leaves nothing in the session's processes folder
 ##   2. `background` returns at once with TASK-ID=process-N and the hint; the task goes on, writes through the handle's files, and records its status
-##   3. the default time (MDAT_TOOL_TASK_SECONDS) returns the task early, naming the default
+##   3. the window (MDAT_TOOL_TASK_SECONDS, which replaces every row of the table) returns the task early, naming the window
 ##   4. the caller's own timeout returns it early (the default action), naming the timeout
 ##   5. timeout_action kill ends the task at the timeout and returns what it wrote, the process gone
 ##   6. a message addressed to the member in the session chat returns it early, and the message is still there afterwards (nothing consumed)
 ##   7. a returned task is ended after the ceiling (MDAT_TOOL_TASK_CEILING)
 ##   8. a call from inside a task, or from no session, runs plain
+##   9. the early return names the task's output so far in F2.4's form: its file, its size in bytes and lines, a preview, and how to read the rest
 ## Offline: a rig workspace and a rig session, every call through `env -i`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -69,9 +70,9 @@ rigAssert "the task is running and has no status yet" "$( kill -0 "$rigPid" 2> /
 for rigWait in $(seq 1 60) ; do [ -f "$rigProc/process-1.status" ] && break ; sleep 0.25 ; done
 rigAssert "it goes on, ends, and records its status and output through the handle" "$( cat "$rigProc/process-1.status" 2> /dev/null ):$( tr '\n' ' ' < "$rigProc/process-1.out" )" "0:first second "
 
-echo "-- 3. the default time --"
+echo "-- 3. the window --"
 rigOut="$( rigCall MDAT_TOOL_TASK_SECONDS=1 "rig slow" "" "" "" 'sleep 20' )"
-rigAssert "the default returns it early, and says so" "$( rigHead "$rigOut" ):$( rigText "$rigOut" | LC_ALL=C grep -c 'the default of 1s passed' )" "yes|0|process-2:1"
+rigAssert "the window returns it early, and says so" "$( rigHead "$rigOut" ):$( rigText "$rigOut" | LC_ALL=C grep -c 'the window of 1s passed' )" "yes|0|process-2:1"
 
 echo "-- 4. the caller's timeout --"
 rigOut="$( rigCall "rig slow" "" 1 return 'sleep 20' )"
@@ -113,6 +114,14 @@ rigOut="$( rigCall MDAT_TOOL_TASK_INNER=1 "rig inner" true "" "" 'echo plain' )"
 rigAssert "inside a task the function runs as a capture" "$( rigHead "$rigOut" ):$( rigText "$rigOut" )" "no|0|:plain"
 rigOut="$( env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include" ; rigBody(){ echo plain; } ; AgentsToolsTaskCall x true "" "" rigBody ; printf "%s|%s\n" "$agentsTaskDetached" "$agentsTaskOut"' )"
 rigAssert "with no session the function runs as a capture" "$rigOut" "no|plain"
+
+echo "-- 9. the output so far, in a file, in F2.4's form --"
+rigOut="$( rigCall MDAT_TOOL_TASK_SECONDS=1 "rig slow" "" "" "" 'echo alpha; echo beta; echo gamma; sleep 25' )"
+rigHandle="$( rigHead "$rigOut" | cut -d'|' -f3 )"
+rigAssert "the early return names the file its output so far is in" "$( rigText "$rigOut" | LC_ALL=C grep -c -F -- "$rigProc/$rigHandle.out" )" "1"
+rigAssert "and its size, in bytes and in lines" "$( rigText "$rigOut" | LC_ALL=C grep -c -E "KEPT: the whole result, 17 bytes in 3 lines, is in " )" "1"
+rigAssert "and shows what the task had written, as the preview" "$( rigText "$rigOut" | LC_ALL=C grep -c -E '^alpha$|^gamma$' )" "2"
+rigAssert "and the file itself holds that output, whole" "$( tr '\n' ' ' < "$rigProc/$rigHandle.out" )" "alpha beta gamma "
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TOOL TASK CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

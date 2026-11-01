@@ -407,7 +407,9 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   `$MMDAPP/.local/cache/comms/<service>/<channel id>/` (`AgentsTools.CommsCache.include`). The service is
   the partition, then the whole id as one filename-safe name, the service first: `slack/slack-<channel>`,
   `slack/slack-<channel>-<thread ts>`, and a direct conversation `slack-<user id>-<dm id>`, the user id
-  the reading account's. A read through a `client-*` account carries that account first.
+  the reading account's. A read through a `client-*` account carries that account first. Email keeps
+  the same form, `email/email-<account>-<mailbox>`, a message keyed on its UID and its month the mail's
+  own date (`AgentsTools.CommsEmail.include`).
   `.state.txt` is the head line of the read and how it is pulled, rewritten whole by the puller;
   `.pulling.txt` is the one-pull lock, made only where absent. The messages of a UTC month stand
   in its `YYYYMM` folder, one a line in `messages.txt`; a long body is its own file, and a file a

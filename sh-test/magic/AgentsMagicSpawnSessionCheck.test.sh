@@ -491,6 +491,13 @@ sleep 3
 rigAssert "and none of the refusals left anything behind" "$( rigLeft )" "$rigLeftBefore"
 rigAssert "the syntax line names the participants and the likely needs" "$( rigRun "" --no-such-option 2>&1 | grep -c -F -- '[--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]...' )" 1
 
+echo "-- the operation word given twice, as a served tool passes it: read once --"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rigOut="$( rigRun "RIG-TASK-TEXT" --spawn-session --routine-default rig-member-a )"
+rigAssert "is read once, and the session lands"          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
+sleep 3
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MAGIC SPAWN SESSION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

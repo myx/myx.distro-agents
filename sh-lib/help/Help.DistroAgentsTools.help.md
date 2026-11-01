@@ -11,7 +11,7 @@
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-get [--team-member <team-member>] [--raw]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-status [--team-member <team-member>] [--ttl <seconds>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-stop [--team-member <team-member>] [--ttl <seconds>]
@@ -82,7 +82,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-get [--team-member <team-member>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-status [--team-member <team-member>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-stop [--team-member <team-member>]
@@ -909,7 +909,7 @@
 		--client-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
 		--client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 		--client-comms-slack-profile-get [--team-member <team-member>] [--raw]
-		--client-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+		--client-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 			Runs only as a `client-*` member, on the side of the
 			other organisation that member represents: under the
 			Slack settings the member itself holds for it (its own
@@ -1266,10 +1266,11 @@
 			refused or unparsable, so the lines already printed are
 			not a full report. A failed facet is unknown, never unset.
 
-		--slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+		--slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--email <address>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 			`<team-member>` is both the acting identity and the
 			account written: sets that member's own display name,
-			title, custom status, presence and do-not-disturb state.
+			title, email address, custom status, presence and
+			do-not-disturb state.
 			Persona identity only -- always that member's own user
 			token; --identity-bot and a routine-* name are refused. No
 			token: fails loud, never silently under the shared bot.
@@ -1277,8 +1278,9 @@
 			At least one field is required. Empty --display-name,
 			--title, --status-text, --status-emoji each count as a
 			value, not an absence; --status-expiry (epoch seconds, 0
-			= no expiry), --avatar (a path), --presence (auto/away)
-			and --snooze (whole minutes) do not accept empty.
+			= no expiry), --email (an address), --avatar (a path),
+			--presence (auto/away) and --snooze (whole minutes) do not
+			accept empty.
 			--snooze/--snooze-end are mutually exclusive; no field
 			flag is repeatable.
 
@@ -1287,6 +1289,23 @@
 			the field empty -- read the result back with
 			--slack-profile-get rather than trusting the
 			applied facet.
+
+			--email sets the account's own address. It travels in
+			the same `users.profile.set` request as the profile fields
+			named with it, so a refusal Slack raises for the address
+			fails that facet whole, and the other profile fields named
+			beside it go unwritten with it. An address is required:
+			empty, malformed and a repeated --email are each refused
+			at parse time, before any request leaves the host.
+
+			**--email needs a workspace admin.** Measured 2026-11-01
+			on our own workspace: a valid address sent from the
+			account's own user token answers
+			`{"ok":false,"error":"not_admin"}`, the profile facet
+			reports `failed`, and the stored address does not change.
+			Only a workspace admin can change a member's address, and
+			this operation always writes the acting member's own
+			profile. Read the address back with --slack-profile-get.
 
 			**A custom status is cleared by both status flags
 			together.** Slack refuses an empty --status-text alone

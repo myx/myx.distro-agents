@@ -92,6 +92,7 @@ case "$1" in
 		local profileStatusTextGiven="false" profileStatusText=""
 		local profileStatusEmojiGiven="false" profileStatusEmoji=""
 		local profileStatusExpiryGiven="false" profileStatusExpiry=""
+		local profileEmail=""
 		local profileAvatarGiven="false" profileAvatarPath=""
 		local profilePresence=""
 		local profileSnoozeMode="" profileSnoozeMinutes=""
@@ -151,6 +152,19 @@ case "$1" in
 						set +e ; return 1
 					fi
 					profileStatusExpiryGiven="true" ; profileStatusExpiry="$2"
+					profileFieldCount=$(( profileFieldCount + 1 ))
+					shift 2
+				;;
+				--email)
+					if [ -n "$profileEmail" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: --email is not repeatable -- one address, one account" >&2
+						set +e ; return 1
+					fi
+					if ! printf '%s\n' "${2:-}" | LC_ALL=C grep -qE '^[^[:space:]@]+@[^[:space:]@]+$' ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: --email is not an address: '${2:-}'. Slack requires a name before an @ and a domain after it, with no spaces, and an empty value is not one either -- this operation sets an address, it cannot clear one. Checked at parse time and not left to the API call: a malformed one would read as applied while the account kept its old one. Nothing was changed." >&2
+						set +e ; return 1
+					fi
+					profileEmail="${2:-}"
 					profileFieldCount=$(( profileFieldCount + 1 ))
 					shift 2
 				;;
@@ -231,7 +245,7 @@ case "$1" in
 			esac
 		done
 		if [ "$profileFieldCount" -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: at least one field is required -- pass one or more of --display-name, --title, --status-text, --status-emoji, --status-expiry, --avatar, --presence, --snooze or --snooze-end. Nothing was changed. An empty string IS a value here: --status-text '' clears the status and counts as a field." >&2
+			echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: at least one field is required -- pass one or more of --display-name, --title, --status-text, --status-emoji, --status-expiry, --email, --avatar, --presence, --snooze or --snooze-end. Nothing was changed. An empty string IS a value here: --status-text '' clears the status and counts as a field." >&2
 			set +e ; return 1
 		fi
 		## Slack refuses an emptied status field unless its partner travels with it; hoisted to parse time like --avatar above.
@@ -261,6 +275,10 @@ case "$1" in
 		fi
 		if [ "$profileStatusExpiryGiven" = "true" ] ; then
 			profileFieldsJson="$profileFieldsJson,\"status_expiration\":$profileStatusExpiry"
+		fi
+		if [ -n "$profileEmail" ] ; then
+			profileEscaped="$( printf '%s' "$profileEmail" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+			profileFieldsJson="$profileFieldsJson,\"email\":\"$profileEscaped\""
 		fi
 		if [ -n "$profileFieldsJson" ] ; then
 			profileFieldsJson="{\"profile\":{${profileFieldsJson#,}}}"

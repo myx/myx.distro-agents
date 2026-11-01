@@ -74,6 +74,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- A task whose nature is research, requirements or epic preparation starts in `investigation` mode (`magic-team.armed.md`'s "Conversations").
 - Which **output** branch applies is checked fresh each time against the mandate or a live authorisation, never taken from precedent.
 - Real ambiguity keeps the questions going. A task written from a guess looks settled when it is not.
 - Urgency is not an instruction to execute inline. Inline execution in the root chat happens only under `magic-coordinator.root-harness.routine`'s **enforce-root-never-inline** exception: the human-owner's explicit instruction, for this one request.

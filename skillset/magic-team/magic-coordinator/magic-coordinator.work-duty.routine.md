@@ -75,6 +75,7 @@ None.
 # Routine's local rules
 
 - Work the input before you wait; never wait with input unworked.
+- A task whose nature is research, requirements or epic preparation is worked in `investigation` mode from its first round (`magic-team.armed.md`'s "Conversations").
 - A round is one run through steps 1 to 9. Where a rule below says "pass" or "round", it means that.
 - The tooling does the housekeeping in the main loop, before the scan. It closes dead spawns, moves their items to review and starts missing control threads. It records the dependency edges too. The sections `## board dependencies` and `## recheck dates due` are its findings. The lock of this session is refreshed by its wait and its state writes.
 - Apply only moves already decided: an approval recorded, a review accepted, a completion recorded, a condition met. This is what makes the round safe to run unattended. Two bounded judgements are allowed:

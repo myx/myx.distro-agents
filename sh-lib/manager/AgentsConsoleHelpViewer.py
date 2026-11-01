@@ -66,6 +66,11 @@ def run(stdscr, lines, findAt):
             pass
         stdscr.refresh()
         key = stdscr.getch()
+        ## THE TERMINAL CAN BE GONE, and the view must not spin on it: a key is read by blocking here, so `-1` is the
+        ## screen's error or its end of file, never an idle moment. Read against no key for ever, this loop burns a
+        ## core and never gives the screen back. A view with no terminal left has nobody to press `q`.
+        if key == -1:
+            return
         if key in (ord("q"), ord("Q"), 27):
             return
         if key in (curses.KEY_UP, ord("k")):
@@ -109,9 +114,19 @@ def main():
 
     oldIn, oldOut = sys.stdin, sys.stdout
     sys.stdin, sys.stdout = ttyIn, ttyOut
+    ## THE SCREEN TAKES ITS KEYS ON THE TERMINAL, NOT ON WHAT THE SHELL CALLED STANDARD INPUT: curses reads its keys
+    ## on file descriptor 0 and draws on 1, whatever `sys.stdin` and `sys.stdout` name. The help arrives on standard
+    ## input as a pipe, so the view would take that pipe's end of file for every key and could never be left.
+    keptIn, keptOut = os.dup(0), os.dup(1)
     try:
+        os.dup2(ttyIn.fileno(), 0)
+        os.dup2(ttyOut.fileno(), 1)
         curses.wrapper(run, lines, findAt)
     finally:
+        os.dup2(keptIn, 0)
+        os.dup2(keptOut, 1)
+        os.close(keptIn)
+        os.close(keptOut)
         sys.stdin, sys.stdout = oldIn, oldOut
         try:
             ttyIn.close()

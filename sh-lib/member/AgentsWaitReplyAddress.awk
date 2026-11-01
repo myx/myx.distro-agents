@@ -1,6 +1,6 @@
 #!/usr/bin/env awk
 
-# Every message a Wait shows carries the address a reply to it belongs at, `[reply-to: <conversation>:<ts>]`, on the message's own
+# Every message a Wait shows carries the address a reply to it belongs at, `[reply-to: <driver>:<conversation>:<ts>]`, on the message's own
 # head line, right after the two fields every reader already parses (<ts> | <user> |). ONE mechanism for every source kind: the
 # conversation is read from the rendering where the rendering names it (`# in <conversation>` of a person's direct conversations,
 # `# replies to your post <conversation>:<ts>`, `# via <source>` of the session thread), and from the source itself otherwise
@@ -11,13 +11,27 @@
 # and the person it was for never sees it where he was reading. The rendering carries a `thread_ts` for a reply but the conversation
 # of the read, never the two together, so the address is decided here, once, by the one reader that knows both.
 #
+# The address is the message's communication id, the full pointer of the owner's 2026-11-01 ruling, so a reply pasted from it is a
+# Wait source as it stands. Its form is built once, by AgentsToolsCommsChannelMessageId (AgentsTools.CommsChannel.include).
+#
 # Read on stdin, printed on stdout, every line kept in its place. A head whose conversation is unknown is printed as it stands:
 # an address is never invented.
 
-function address(ts,   target) {
+function address(ts,   target, service) {
 	target = (thread != "") ? thread : ts ;
 	if (conv == "") { return "" ; }
-	return " [reply-to: " conv ":" target "]" ;
+	service = serviceOf(kind) ;
+	if (service == "") { return "" ; }
+	return " [reply-to: " service ":" conv ":" target "]" ;
+}
+
+# The driver of the source's own read: every source kind that is a Slack read answers it, whatever the Wait calls that source.
+# A kind of no comms driver (file, process, board, inbox, wake) carries no address.
+function serviceOf(kind,   word) {
+	word = kind ;
+	sub(/:.*$/, "", word) ;
+	if (word == "slack" || word == "channel" || word == "thread" || word == "dms" || word == "mentions" || word == "replies" || word == "ask" || word == "chat") { return "slack" ; }
+	return "" ;
 }
 
 # A source named as a target, `<channel>:<ts>`, with the `:conversation` form and a `client:` marker taken off first.

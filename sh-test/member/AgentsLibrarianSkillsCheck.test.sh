@@ -112,6 +112,9 @@ printf 'rig-seed word\n' > "$rigMain/source/rig/rig-proj/not-a-skillset/keeper-h
 
 rigRunHome="$rigHome"
 ## One served call as one member's run, as the MCP server makes it; its output in call.out.
+## Every call here asks for its own answer with `sync`: past the tool's window (epic S22.7,
+## AgentsHarnessToolWindow.include) the harness returns a handle instead, and a held or refused call's
+## decision is in the answer the tool itself gives.
 rigCall(){ ## member, session, tool, argument object
 	( cd "$rigMain" && printf '%s' "$4" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigRunHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SPAWN_AGENT="$1" MDAT_SPAWN_SESSION_ID="$2" \
@@ -128,13 +131,13 @@ rigCame(){ ## word, text
 	esac
 }
 rigEdit(){ ## member, file -- one more word after its seed
-	rigCall "$1" "s-$1" Edit "{\"file_path\":\"$2\",\"old_string\":\"rig-seed\",\"new_string\":\"rig-seed edited\"}" ; rigCame edited 'OK: replaced'
+	rigCall "$1" "s-$1" Edit "{\"file_path\":\"$2\",\"old_string\":\"rig-seed\",\"new_string\":\"rig-seed edited\",\"sync\":true}" ; rigCame edited 'OK: replaced'
 }
 rigWrite(){ ## member, file
-	rigCall "$1" "s-$1" Write "{\"file_path\":\"$2\",\"content\":\"rig-seed written\\n\"}" ; rigCame wrote 'OK: wrote'
+	rigCall "$1" "s-$1" Write "{\"file_path\":\"$2\",\"content\":\"rig-seed written\\n\",\"sync\":true}" ; rigCame wrote 'OK: wrote'
 }
 rigRead(){ ## member, file
-	rigCall "$1" "s-$1" Read "{\"file_path\":\"$2\"}" ; rigCame read rig-seed
+	rigCall "$1" "s-$1" Read "{\"file_path\":\"$2\",\"sync\":true}" ; rigCame read rig-seed
 }
 ## One operation of the tooling in ws-main, clean env; stdout in out.
 rigOp(){ ## op and arguments...

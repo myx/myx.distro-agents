@@ -1823,6 +1823,8 @@ AgentsWaitProbeMentions(){
 			return 4
 		;;
 	esac
+	## A search that found nothing leaves no .found file: an empty one stands for it, so a quiet search is a read (S21.2).
+	[ -e "$probeOut.found" ] || : > "$probeOut.found"
 	## Strictly newer than the pointer: the one returned last is not returned again. The conversation of each goes on a `# in` line before it.
 	## A mention in a conversation or thread another source of this wait reads is left to that source, so it is returned once (AgentsWaitCoveredSet).
 	## And a mention in the session thread is the chat source's to return, where this wait reads the chat file.

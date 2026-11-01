@@ -69,6 +69,14 @@ AgentsToolsCommsChannelParse(){ ## channel-id
 	[ -z "$parseTs" ] || printf 'THREAD_TS=%s\n' "$parseTs"
 }
 
+## The communication id of one message: its full pointer `<driver>:<container>:<message-id>`, the one form a feed, a record, a
+## reply target and the comms cache carry it by, and the inverse of AgentsToolsCommsChannelParse. Never the container alone.
+## rc 1, nothing printed, where a part is missing.
+AgentsToolsCommsChannelMessageId(){ ## service, container, message id
+	[ -n "$1" ] && [ -n "$2" ] && [ -n "$3" ] || return 1
+	printf '%s:%s:%s\n' "$1" "$2" "$3"
+}
+
 ## The Declares: reader for `magic-team:comms-channel:<name>:<service>:<address>` lines of the selected projects
 ## (the same `Distro ListDistroDeclares` read the permissions and testing directives use). Prints one row a line,
 ## `<name>:<service>:<address>`. rc 1 where the declares read failed.

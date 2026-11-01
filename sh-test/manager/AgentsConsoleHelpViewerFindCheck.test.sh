@@ -7,6 +7,8 @@
 ## line that begins with the prefix: that line is on the screen, and the lines above it, out of the view, are not. The
 ## viewer's own status line is on the screen, so it is the viewer that drew it, and no error of python's option parser
 ## is said anywhere. Offline; only the rig's own tree is read or written.
+## The viewer is also asked to leave: it is waited for, and one that never takes `q` is stopped and failed, so the
+## check reports it instead of hanging on it.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsole.HelpViewer.fn.include"
@@ -73,9 +75,25 @@ try:
     os.close(fd)
 except OSError:
     pass
-os.waitpid(pid, 0)
+## THE VIEWER MUST GIVE THE TERMINAL BACK: the check waits for it a while, then stops it and says it never
+## left. Waiting on a viewer that never takes `q` is a check that hangs and says nothing, not a check that fails.
+left = "no"
+deadline = time.time() + 10
+while time.time() < deadline:
+    if os.waitpid(pid, os.WNOHANG)[0]:
+        left = "yes"
+        break
+    time.sleep(0.1)
+if left == "no":
+    try:
+        os.kill(pid, 9)
+    except OSError:
+        pass
+    os.waitpid(pid, 0)
 with open(capture, "wb") as handle:
     handle.write(output)
+with open(os.path.join(rigTmp, "left"), "w") as handle:
+    handle.write(left)
 PY
 
 ## What the terminal was given, with the escapes of the screen taken out, so the words the view drew are read.
@@ -91,6 +109,8 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
+rigAssert "the viewer left the screen when q was sent, so the terminal was given back" \
+	"$( cat "$rigTmp/left" )" "yes"
 rigAssert "the viewer opened the help it was given, with its own status line on the screen" \
 	"$( printf '%s' "$rigScreen" | LC_ALL=C grep -c -F -- 'Help: Up/Down by a line' || : )" "1"
 rigAssert "the help text is the viewer's input, not its program: python is given the viewer script, and says no error of its own" \

@@ -6,10 +6,11 @@
 ##   2. `background: true` returns at once with TASK-ID=process-N and the hint; the task goes on
 ##   3. TaskOutput reads the task by its handle: running while it runs, finished with its output after
 ##   4. Wait on `process:<handle>` brings the task's end
-##   5. the default time (MDAT_TOOL_TASK_SECONDS) returns a long call early; TaskStop on its handle closes it
+##   5. the window (MDAT_TOOL_TASK_SECONDS, which replaces every row of the table) returns a long call early; TaskStop on its handle closes it
 ##   6. `timeout` with `timeout_action: kill` ends the call at the timeout and returns what it wrote
 ##   7. Bash's own `timeout` still kills as it did, with no `timeout_action` given
 ##   8. a tool that blocks by design (Wait) is not wrapped: its result is its own
+##   9. the early return names the task's output so far in F2.4's form, and a read at the offset past its first line is the tail that followed
 ## The rig is a workspace of its own, under the scratch of this one, with its own MMDAPP and a member the served identity resolves. Every call is bounded
 ## by its own alarm, and the check needs no endpoint, no credential and no network.
 set -u
@@ -95,7 +96,7 @@ echo "-- 5. the default time, and TaskStop --"
 rigExtraEnv="MDAT_TOOL_TASK_SECONDS=1"
 rigCall Bash "{\"cwd\":\"$rigTmp/work\",\"command\":\"sleep 20\"}" def1
 rigExtraEnv=""
-rigAssert "a long call returns early at the default, naming it" "$( rigHead def1 ):$( rigSaidRe 'the default of 1s passed' def1 )" "TASK-ID=process-3:1"
+rigAssert "a long call returns early at the window, naming it" "$( rigHead def1 ):$( rigSaidRe 'the window of 1s passed' def1 )" "TASK-ID=process-3:1"
 rigCall TaskStop '{"handle":"process-3"}' stop1
 rigAssert "TaskStop closes it" "$( rigHead stop1 )" "PROCESS-RESULT: CLOSED"
 
@@ -113,6 +114,18 @@ rigExtraEnv="MDAT_TOOL_TASK_SECONDS=1"
 rigCall Wait '{"sources":"file:/nonexistent-rig-path","timeout":3}' wait2
 rigExtraEnv=""
 rigAssert "Wait is not wrapped: it returns its own result, never a task" "$( rigSaidRe '^TASK-ID=' wait2 )" "0"
+
+echo "-- 9. the output so far, and the tail after it --"
+rigTailAt="$( printf 'started\n' | LC_ALL=C wc -c | tr -d ' ' )"
+rigExtraEnv="MDAT_TOOL_TASK_SECONDS=1"
+rigCall Bash "{\"cwd\":\"$rigTmp/work\",\"command\":\"echo started; sleep 6; echo late\"}" early1
+rigExtraEnv=""
+rigHandle="$( rigHead early1 | sed -n 's/^TASK-ID=//p' )"
+rigAssert "the early return names the file its output so far is in" "$( rigSaidRe "$rigProc/$rigHandle.out" early1 )" "1"
+rigAssert "with its size in bytes and in lines, as the reply layer gives it" "$( rigSaidRe 'KEPT: the whole result, [0-9]+ bytes in [0-9]+ lines' early1 )" "1"
+for rigWait in $(seq 1 60) ; do [ -f "$rigProc/$rigHandle.status" ] && break ; sleep 0.25 ; done
+rigCall TaskOutput "{\"handle\":\"$rigHandle\",\"offset\":$rigTailAt}" tail1
+rigAssert "a read at the offset past the first line is the tail that followed, only" "$( rigSaidRe '^>late$' tail1 ):$( rigSaidRe '^>started$' tail1 )" "1:0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TOOL TASK HARNESS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
