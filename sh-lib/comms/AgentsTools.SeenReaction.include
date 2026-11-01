@@ -19,6 +19,7 @@ AgentsToolsSeenReact(){ ## member, <conversation>:<ts> of the message
 	seenDir="${MMDAPP:-/nonexistent}/.local/agents/schedule/seen/$seenMember"
 	mkdir -p "$seenDir" 2> /dev/null || return 1
 	( set -C ; : > "$seenDir/$seenTs" ) 2> /dev/null || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes > /dev/null 2>&1 \
 		|| DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes --identity-bot > /dev/null 2>&1 ; then
 		return 0

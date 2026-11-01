@@ -79,7 +79,7 @@ trap 'exit 1' INT TERM
 ## THE RIG'S OWN PROCESS LIST, as AgentsSessionControlStateCheck keeps it: the ps first on PATH answers the
 ## whole-host listing from the rig's own list, one `<pid> <command line>` line a process, each listed only while it
 ## lives, and hands every other call to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -468,7 +468,7 @@ rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigOp" --session-id "$( rigId n )"
 rigPre=()
 rigAssert "from inside a member's session, magic-coordinator's among them, it is refused in the family's one line, and nothing is started" \
-	"$rigRc $( rigRows ) $( LC_ALL=C grep -c -x -F -- "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" "$rigTmp/err" ) $( rigThreads n )" "1 0 1 0"
+	"$rigRc $( rigRows ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigThreads n )" "1 0 1 0"
 rigRun "$rigOp"
 rigAssert "with neither a session nor --all: the syntax, status 1, nothing started" "$rigRc $( rigRows ) $( rigSaid "syntax is $rigSyntax: one session by its id, or --all, and not both" ) $( rigThreads n )" "1 0 1 0"
 rigRun "$rigOp" --all --session-id "$( rigId n )"

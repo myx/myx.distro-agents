@@ -135,9 +135,9 @@ grep -q 'RIG-TASK-TEXT' "$rigTmp/brief" || rigRefuse "the fake console never rec
 rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
 rigAssert "the brief block opens the context"            "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: keeper-myx"
 rigAssert "the read-and-obey line names the default routine" \
-	"$( grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
+	"$( grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigTmp/brief" )" 1
 rigAssert "names the armed.md sections" \
-	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' "$rigTmp/brief" )$( grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 11
 rigAssert "one blank line separates the block from the task text" "$( rigBlankGapThenContent "$rigTmp/brief" )" ok
 rigAssert "the task text itself follows"                 "$( grep -c -x -F 'RIG-TASK-TEXT' "$rigTmp/brief" )" 1
 rigAssert "the session record names the resolved routine" "$( cat "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c -x -F 'routine: magic-team.coworking.routine.md' )" 1
@@ -182,9 +182,9 @@ grep -q 'INTERACTION-MODE:' "$rigTmp/brief" || rigRefuse "the fake console never
 rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
 rigAssert "the routine brief block opens the context"    "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: magic-coordinator"
 rigAssert "the read-and-obey line names the given routine" \
-	"$( grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
+	"$( grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigTmp/brief" )" 1
 rigAssert "names the armed.md sections" \
-	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' "$rigTmp/brief" )$( grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 11
 rigAssert "interactive by default"                        "$( grep -c -x -F 'INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction.' "$rigTmp/brief" )" 1
 
 ## The payload routine goes into the packet by its resolved filename, worded as the packet words it.
@@ -271,8 +271,8 @@ rigAssert "and no routine brief block opens it, the mode line does" "$( head -1 
 echo "-- --intern-root-harness: the fail-first, a copy of the include without the routine line --"
 rigOld="$rigTmp/oldorigin"
 mkdir -p "$rigOld/myx"
-for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigOld/${rigEntry##*/}" ; done
-for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigOld/myx/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigOld/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigOld/myx/${rigEntry##*/}" ; done
 mkdir "$rigOld/myx/myx.distro-agents"
 ( cd "$MDLT_ORIGIN/myx/myx.distro-agents" && tar cf - --exclude=.git . ) | ( cd "$rigOld/myx/myx.distro-agents" && tar xf - )
 rigOldInc="$rigOld/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternRootHarness.include"

@@ -32,6 +32,7 @@ mkdir -p "$MMDAPP/.local/temp" || exit 1
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsToolingTextTemplatesCheck-XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -159,12 +160,12 @@ rigAssert "control: the same search does find a text that is written in code" "$
 ## template's.
 rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx/myx.distro-agents"
-for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigOrigin/${rigEntry##*/}" ; done
-for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigOrigin/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; done
 for rigEntry in "$rigPackage"/* ; do
 	case "${rigEntry##*/}" in
 		sh-lib|sh-scripts) ( cd "$rigPackage" && tar cf - "${rigEntry##*/}" ) | ( cd "$rigOrigin/myx/myx.distro-agents" && tar xf - ) || rigRefuse "the package could not be copied for the marked run" ;;
-		*) ln -s "$rigEntry" "$rigOrigin/myx/myx.distro-agents/${rigEntry##*/}" ;;
+		*) rigCopyTree "$rigEntry" "$rigOrigin/myx/myx.distro-agents/${rigEntry##*/}" ;;
 	esac
 done
 for rigMarked in "$rigNote" "$rigReport" ; do

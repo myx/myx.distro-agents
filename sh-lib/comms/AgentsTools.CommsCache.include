@@ -50,6 +50,7 @@ AgentsToolsCommsCacheSlackAccount(){ ## member, as bot (true|false)
 	case "$accountId" in
 		U[A-Z0-9]*) ;;
 		*)
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			accountId="$( DistroAgentsTools --intern-op-slack-call "$1" --api auth.test --context "--comms-cache" 2> /dev/null | LC_ALL=C sed -n 's/.*"user_id":"\(U[A-Z0-9]*\)".*/\1/p' | head -1 )"
 			case "$accountId" in U[A-Z0-9]*) ;; *) return 1 ;; esac
 			accountNow="$( date +%s )"
@@ -165,10 +166,14 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 	tcArgs=( "$1" "$2" --thread )
 	[ -z "$tcFetch" ] || tcArgs=( "${tcArgs[@]}" --oldest "$tcFetch" )
 	[ "$4" != "true" ] || tcArgs=( "${tcArgs[@]}" --identity-bot )
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if ! DistroAgentsTools --intern-op-comms-slack-read "${tcArgs[@]}" > "$3.read" 2> "$3.err" ; then
 		AgentsToolsCommsCachePullGive "$tcDir" ; return 2
 	fi
-	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$3.read" > "$3.fresh" 2>> "$3.err" || tcRc=2
+	## THE ONE RENDERING (epic S11): the read operation, this cache and the Wait render through AgentsToolsSlackFormatPagedConversation,
+	## so what a rendering carries -- a voice message's words among it -- is decided in one place and not three.
+	type AgentsToolsSlackFormatPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+	AgentsToolsSlackFormatPagedConversation "$1" "$( cat "$3.read" )" > "$3.fresh" 2>> "$3.err" || tcRc=2
 	[ "$tcRc" != 0 ] || AgentsToolsCommsCacheMerge "$tcDir" "$3.fresh" "$tcTs" "$tcNow" "slack-thread $2 $1 ${4:-false}" || tcRc=1
 	rm -f "$3.fresh"
 	AgentsToolsCommsCachePullGive "$tcDir"
@@ -272,6 +277,7 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 	filePath="$2/$fileMonth/$4.$fileName"
 	if [ ! -s "$filePath" ] ; then
 		mkdir -p "$2/$fileMonth" 2> /dev/null || return 1
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --slack-file-fetch "$1" "$4" "$filePath" --overwrite $( [ "$6" != "true" ] || printf '%s' --identity-bot ) > /dev/null || { rm -f "$filePath" ; return 1 ; }
 	fi
 	printf '%s\n' "$filePath"
@@ -326,6 +332,7 @@ AgentsToolsCommsCachePullWatched(){ ## now
 			;;
 			slack-conversation)
 				## From what the cache covers, so the read finds it stale and pulls only after its newest.
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				MDAT_COMMS_CACHE_PULLER=true DistroAgentsTools --intern-op-comms-slack-read "$watchMember" "$watchTarget" --oldest "$agentsCommsCacheFrom" \
 					$( [ "$watchBot" != "true" ] || printf '%s' --identity-bot ) > /dev/null 2>&1 < /dev/null || :
 			;;

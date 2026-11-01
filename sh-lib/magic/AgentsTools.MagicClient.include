@@ -53,6 +53,7 @@ case "$1" in
 		## The member exists where its directory is in the member set view this call reads,
 		## or where it is invited: set up in another workspace of this machine, from which
 		## its own dispatch below brings it (AgentsToolsMemberSkillsetBring).
+		type AgentsToolsMemberInvited > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 		if [ ! -d "$MDAT_SKILLSET_ROOT/$clientMember" ] && ! AgentsToolsMemberInvited "$clientMember" ; then
 			echo "⛔ ERROR: $MDSC_CMD --client-operation-run: no such member: $clientMember is set up neither in ${MMDAPP%/} nor in another workspace of this machine -- nothing was done" >&2
 			set +e ; return 1

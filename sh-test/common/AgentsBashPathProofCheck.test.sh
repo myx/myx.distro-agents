@@ -139,7 +139,7 @@ rigLib="$rigTmp/lib"
 mkdir -p "$rigLib/client-hooks" || rigRefuse "could not create the rig's copy of sh-lib"
 for rigEntry in "$rigHere"/* ; do
 	[ "${rigEntry##*/}" != client-hooks ] || continue
-	ln -s "$rigEntry" "$rigLib/${rigEntry##*/}" || rigRefuse "could not link ${rigEntry##*/} into the rig's copy of sh-lib"
+	rigCopyTree "$rigEntry" "$rigLib/${rigEntry##*/}" || rigRefuse "could not copy ${rigEntry##*/} into the rig's sh-lib"
 done
 for rigHook in "$rigHere/client-hooks"/* ; do
 	{ printf '%s\n' "$rigNoSuch" ; tail -n +2 "$rigHook" ; } > "$rigLib/client-hooks/${rigHook##*/}" && chmod 0755 "$rigLib/client-hooks/${rigHook##*/}" || rigRefuse "could not make the rig's copy of ${rigHook##*/}"
@@ -202,14 +202,14 @@ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigGen/home" PATH="/usr/bin:/bin:${ri
 	> /dev/null 2> "$rigGen/make.err"
 [ -f "$rigGen/ws/DistroAgentsConsole.sh" ] || rigRefuse "no console was generated: $( tail -2 "$rigGen/make.err" 2> /dev/null )"
 rigAssert "the generator makes the console executable, and its first line names bash by no path" "$( [ -x "$rigGen/ws/DistroAgentsConsole.sh" ] && echo executable ) $( head -1 "$rigGen/ws/DistroAgentsConsole.sh" )" "executable #!/usr/bin/env bash"
-## The origin the console resolves: the real tree by symlink, and a tool script of the rig whose first line cannot work.
+## The origin the console resolves: the real tree by copy, and a tool script of the rig whose first line cannot work.
 for rigEntry in "$MDLT_ORIGIN"/myx/* ; do
 	[ "${rigEntry##*/}" != "myx.distro-agents" ] || continue
-	ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}"
+	rigCopyTree "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}"
 done
 for rigEntry in "$rigPackage"/* ; do
 	[ "${rigEntry##*/}" != "sh-scripts" ] || continue
-	ln -s "$rigEntry" "$rigOrigin/myx/myx.distro-agents/${rigEntry##*/}"
+	rigCopyTree "$rigEntry" "$rigOrigin/myx/myx.distro-agents/${rigEntry##*/}"
 done
 printf '%s\n' "$rigNoSuch" 'printf "RIG-TOOL %s\n" "$*"' > "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 chmod +x "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -230,7 +230,7 @@ rigNoBash="$rigTmp/no-bash"
 mkdir -p "$rigNoBash/own" "$rigNoBash/usr-bin" "$rigNoBash/bin" "$rigTmp/data" "$rigTmp/skills" "$rigTmp/exec-ws/.local" || rigRefuse "could not create the rig of section 5"
 ln -s /usr/bin/* "$rigNoBash/usr-bin/" 2> /dev/null ; ln -s /bin/* "$rigNoBash/bin/" 2> /dev/null
 rm -f "$rigNoBash/usr-bin/bash" "$rigNoBash/bin/bash"
-ln -s "$rigPython" "$rigNoBash/own/python3" || rigRefuse "could not place python3 on the rig's PATH"
+rigRealTool python3 "$rigNoBash/own/python3" || rigRefuse "could not place python3 on the rig's PATH"
 rigNoBashPath="$rigNoBash/own:$rigNoBash/usr-bin:$rigNoBash/bin"
 rigExecWs="$rigTmp/exec-ws"
 rigAssert "control: that PATH holds no bash, and it holds the tools, python3 among them" \

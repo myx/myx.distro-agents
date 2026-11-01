@@ -32,7 +32,9 @@ type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 ## Whether a live run sits inside a Wait call, by its own store, .local/agents/sessions/<spawn
 ## id>: `waiting` when the last line of its milestones is `wait going idle`, which a Wait
 ## writes as it starts, and its wait/state, which a wait writes as it ends, is older than
-## that line or was never written; `working` otherwise, a run with no milestones among them.
+## that line or was never written; or when the last line is `ask going idle`, an ask that
+## writes that as it starts and ends the block with a line of its own; `working` otherwise, a
+## run with no milestones among them.
 ## Working is one thing here: no file of a run's store says a tool call from thinking. Asked
 ## of a live run only. stat(1) differs by platform: its flavour is the caller's, probed once.
 AgentsToolsManagerRunActivity(){ ## spawn id, stat flavour (bsd, gnu)
@@ -45,6 +47,7 @@ AgentsToolsManagerRunActivity(){ ## spawn id, stat flavour (bsd, gnu)
 	done < "$activityDir/milestones"
 	case "$activityLast" in
 		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' wait going idle') ;;
+		[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z' ask going idle') printf 'waiting\n' ; return 0 ;;
 		*) printf 'working\n' ; return 0 ;;
 	esac
 	[ -f "$activityDir/wait/state" ] || { printf 'waiting\n' ; return 0 ; }
@@ -72,6 +75,7 @@ AgentsToolsManagerRunIdleSince(){ ## spawn id, stat flavour (bsd, gnu)
 		case "$sinceLine" in
 			'') ;;
 			*' wait going idle') [ -n "$sinceFirst" ] || sinceFirst="$sinceLine" ;;
+			*' ask going idle') [ -n "$sinceFirst" ] || sinceFirst="$sinceLine" ;;
 			*) sinceFirst="" ;;
 		esac
 	done < "$MMDAPP/.local/agents/sessions/$1/milestones"
@@ -414,6 +418,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 ## the stores of that one session are read, never another's.
 ## THE CHECKLISTS OF A SESSION'S MEMBERS, for its summary (owner 2026-10-29): `checklist <session> <member> <line>`, a row a line of each
 ## member's list, read where its run keeps it (the folder of a record of the session), else in the session's store. A member once.
+## The id given is a session's or a run's: a run read gives the list of its own member, and that is what its Summary shows.
 ## The runs of the session are its rows in the spawned-sessions registry, and a run's record is found
 ## by its spawn id, the one reading of that (AgentsToolsRegistrySpawnRecord). The sandbox root is
 ## never walked here a second way: a list of sessions that greps every record costs a session list
@@ -843,6 +848,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 			continue
 		fi
 		finishRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		( DistroAgentsTools --manager-pending-reply-dismiss --id "$finishAsk" --reason "$finishReason" ) > /dev/null < /dev/null || finishRc=$?
 		if [ "$finishRc" = 0 ] ; then
 			printf 'dismiss\t%s\t%s\t%s\tdismissed\n' "$finishSession" "$finishAsk" "$finishAsker"
@@ -978,7 +984,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsManagerSessionReadRows "$readOp" "$readId" "$readOwn" || { set +e ; return 1 ; }
-		[ -n "$readOwn" ] || AgentsToolsManagerSessionChecklistRows "$readId"
+		AgentsToolsManagerSessionChecklistRows "$readId"
 		return 0
 	;;
 
@@ -1120,15 +1126,12 @@ case "$1" in
 		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 		AgentsToolsAssertBareName "$checklistId" "the session id" "$checklistOp" || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$checklistMember" "the member" "$checklistOp" || { set +e ; return 1 ; }
-		## The record of a spawn is the file <id>.spawn.md, in the folder of spawned/ that holds it: that folder is the sandbox root of the spawn, and it
-		## is named by the id only where the spawn founded it there. So the folder of the id is asked first, and, holding no record of that name, every
-		## folder of spawned/, in their order. Only where no folder holds the record is the session store the place: a session that founded none keeps
-		## its checklist under sessions/<id>.
-		checklistFolder=""
-		for checklistRecord in "$MMDAPP/.local/agents/spawned/$checklistId/$checklistId.spawn.md" "$MMDAPP/.local/agents/spawned"/*/"$checklistId.spawn.md" ; do
-			[ -f "$checklistRecord" ] || continue
-			checklistFolder="${checklistRecord%/*}" ; break
-		done
+		## The record of a spawn is found the one way (AgentsToolsRegistrySpawnRecord): the file <id>.spawn.md
+		## of whatever folder of spawned/ holds it, naming that id as its own spawn-id. Only where no folder
+		## holds it is the session store the place: a session that founded none keeps its checklist in it.
+		type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+		checklistRecord="$( AgentsToolsRegistrySpawnRecord "$checklistId" )"
+		checklistFolder="${checklistRecord%/*}"
 		[ -n "$checklistFolder" ] || checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId"
 		## A session whose checklist was kept in its store, a root session among them, is read there where its record's folder holds none.
 		[ -f "$checklistFolder/$checklistMember.checklist.md" ] || checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId"

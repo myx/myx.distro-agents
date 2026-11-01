@@ -71,6 +71,12 @@ driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
 screen = driver.loadScreen(screenFile)
 
+## A stand-in plugin: the apps it keeps are the ones this run is, so the mechanism's refusal of a plugin that
+## names none is left to the one call that asks for it (noapps).
+def registerPlugin(plugin):
+    plugin.setdefault("apps", ("agents",))
+    screen.registerPlugin(plugin)
+
 
 def say(name, value):
     print("%s=%s" % (name, value))
@@ -154,12 +160,12 @@ RIG = {
 }
 
 
-def register():
-    screen.registerPlugin(RIG)
+def registerRig():
+    registerPlugin(RIG)
     say("registered", "yes")
 
 
-attempt("register", register)
+attempt("register", registerRig)
 
 
 ## ---- 1, 2, 3. the root, its sub-items, its summary
@@ -214,10 +220,10 @@ def registries():
     modeRaw = screen.commandNamed("mode-raw")
     say("rawKeyThere", "yes" if screen.commandInView(state, modeRaw) else "no")
     state.path = ["manuals"]
-    screen.registerPlugin({"name": "rigguest", "integrates": {"rigabsent": {"things": ("a", "b")}}})
+    registerPlugin({"name": "rigguest", "integrates": {"rigabsent": {"things": ("a", "b")}}})
     say("absentHeld", screen.pluginRegistry("rigabsent", "things"))
     say("absentSaid", "yes" if any("rigabsent.things" in note for note in screen.pluginNotes()) else "no")
-    screen.registerPlugin({"name": "rigabsent", "registries": {"things": "plain"}})
+    registerPlugin({"name": "rigabsent", "registries": {"things": "plain"}})
     say("absentLater", screen.pluginRegistry("rigabsent", "things"))
     say("absentSaidAfter", "yes" if any("rigabsent.things" in note for note in screen.pluginNotes()) else "no")
 
@@ -270,14 +276,14 @@ def registered(kind):
 
 def mounting():
     ## a mount that names no plugin: left out
-    screen.registerPlugin(kid("rigkid", "rigparent"))
+    registerPlugin(kid("rigkid", "rigparent"))
     say("unmounted", " ".join(screen.PLUGIN_UNMOUNTED))
     say("unmountedBuilt", any(key.startswith("rigparent") or key.endswith("/kid") for key in screen.FIXED_ROWS))
-    screen.registerPlugin({"name": "rigparent", "mount": "rigfeature", "root": {"id": "parent", "label": "Parent", "group": "team"}})
+    registerPlugin({"name": "rigparent", "mount": "rigfeature", "root": {"id": "parent", "label": "Parent", "group": "team"}})
     say("mountedAfter", " ".join(screen.PLUGIN_UNMOUNTED) or "none")
     say("parentRow", " ".join(row[0] for row in screen.FIXED_ROWS.get("rigroot", ())))
     mounted = registered("mounted")
-    screen.registerPlugin(kid("rigkid2", None))
+    registerPlugin(kid("rigkid2", None))
     plain = registered("plain")
     for name in mounted:
         say("mount." + name, "same" if mounted[name] == plain[name] and mounted[name] else "differs: %s / %s" % (mounted[name], plain[name]))
@@ -314,7 +320,7 @@ attempt("buttons", buttons)
 
 ## ---- 7. every button of a view works whichever window has the keys; the keys of navigation stay with the window that has them
 def anyButton():
-    screen.registerPlugin({
+    registerPlugin({
         "name": "rigbutton", "root": {"id": "rigbutton", "label": "Rig Button", "group": "team"},
         "rows": {"rigbutton": (("r1", "Row One", "rigrow", False),)},
         "commands": (
@@ -355,22 +361,27 @@ def clashes():
                 "commands": ({"name": "rigclashed", "keys": ("a",), "menu": ("view", 1), "label": "Cl~a~sh", "status": "Clash",
                               "views": ("rigclash",), "does": ("action", "rigzed")},)}
     try:
-        screen.registerPlugin(clashing)
+        registerPlugin(clashing)
         say("refused", "no")
     except Exception as failure:
         say("refused", "%s" % type(failure).__name__)
         say("refusedNames", "yes" if "rigclashed" in str(failure) and "filter" in str(failure) else "no: %s" % str(failure)[:200])
     say("kept", "yes" if commandNames() == names and len(screen.PLUGIN_RECORDS) == records and "rigclash" not in screen.PLUGIN_BASES else "no")
     ## the layered form is no clash: its rows' own key, ahead of the generic one
-    screen.registerPlugin({"name": "rigenter", "root": {"id": "rigenter", "label": "Rig Enter", "group": "team"},
+    registerPlugin({"name": "rigenter", "root": {"id": "rigenter", "label": "Rig Enter", "group": "team"},
                            "commands": ({"name": "rigentered", "keys": ("ENTER",), "label": "E~n~ter", "status": "Enter", "views": ("rigenter",),
                                          "on": ("rigenter:rigrow",), "only": True, "does": ("action", "rigzed")},)})
     say("layered", "yes" if "rigentered" in commandNames() else "no")
     try:
-        screen.registerPlugin({"name": "rigfeature"})
+        registerPlugin({"name": "rigfeature"})
         say("twice", "no")
     except Exception as failure:
         say("twice", type(failure).__name__)
+    try:
+        screen.registerPlugin({"name": "rigrig"})
+        say("noapps", "none")
+    except Exception as failure:
+        say("noapps", "%s: %s" % (type(failure).__name__, failure))
 
 
 attempt("clashes", clashes)
@@ -429,6 +440,7 @@ rigAssert "a plugin whose command takes the key of another in its view is refuse
 rigAssert "and the registries stay as they were" "$( rigVal kept )" "yes"
 rigAssert "a command that is only on rows of its own, with a key the generic command of the view has, is no clash" "$( rigVal layered )" "yes"
 rigAssert "a name registered twice is refused" "$( rigVal twice )" "PluginError"
+rigAssert "a plugin that names no app of the console is refused, and the refusal names it" "$( rigVal noapps | LC_ALL=C grep -c -e PluginError -e 'plugin rigrig declares no' )" "1"
 
 echo "-- 9. every app feature is a plugin --"
 rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents), Launchpad among them" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity launch team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles workspace machine settings configuration manuals"

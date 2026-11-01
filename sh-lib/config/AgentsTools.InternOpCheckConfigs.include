@@ -146,7 +146,8 @@ case "$1" in
 			checkKey="${checkSpec%%:*}"
 			checkHint="${checkSpec#*:}"
 			if [ "$checkHint" = "$checkSpec" ] ; then checkHint="<value>" ; fi
-			checkVal="$( DistroAgentsTools --agents-config-option "$callingMember" --select "$checkKey" )"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			checkVal="$( AgentsToolsConfigOption "$callingMember" --select "$checkKey" )"
 			if [ -n "$checkVal" ] ; then
 				local warnDetail=()
 
@@ -252,7 +253,8 @@ case "$1" in
 					if [ -n "$agentsConfigOptionElsewhere" ] ; then
 						echo "$resolveWorkspaceKey: OK (resolved $wsUrl, not persisted here: this scope's settings of that system are read from $agentsConfigOptionElsewhere, the workspace $callingMember is set up in)"
 					else
-						DistroAgentsTools --agents-config-option "$callingMember" --upsert "$resolveWorkspaceKey" "$wsUrl" >/dev/null
+						type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+						AgentsToolsConfigOption "$callingMember" --upsert "$resolveWorkspaceKey" "$wsUrl" >/dev/null
 						echo "$resolveWorkspaceKey: OK (resolved $wsUrl)"
 					fi
 				;;

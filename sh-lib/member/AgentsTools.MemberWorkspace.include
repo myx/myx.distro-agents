@@ -359,7 +359,8 @@ AgentsToolsSpawnSettingsSettle(){ ## member, the workspace named for this one sp
 	fi
 	if [ -z "$settleName" ] ; then
 		settleBy="SPAWN_SETTINGS_WORKSPACE in the $1 scope"
-		settleName="$( DistroAgentsTools --agents-config-option "$1" --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || settleName=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		settleName="$( AgentsToolsConfigOption "$1" --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || settleName=""
 	fi
 	[ -n "$settleName" ] || return 0
 	settlePath="$( AgentsToolsWorkspaceByName "$settleName" )" || {

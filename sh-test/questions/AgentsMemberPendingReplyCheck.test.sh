@@ -30,6 +30,7 @@ rigRefuse(){
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsMemberPendingReplyCheck.XXXXXX" )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigStore="$rigTmp/ws/.local/agents/pending"
@@ -49,7 +50,7 @@ export PATH RIG_SCENARIO RIG_CURL_LOG
 ## to the real ps. When one process started (-o lstart= -p <pid>) is answered from the rig's
 ## own table for a pid it holds, `<pid> <start as ps prints it>` a line, and by the real ps for
 ## any other.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 : > "$rigTmp/ps.started"
 cat > "$rigTmp/bin/ps" <<'RIGPS'

@@ -117,7 +117,7 @@ rigOut="$( rigAgent '{"agent":"keeper-myx","prompt":"RIG-AGENT-TASK"}' )"
 grep -q 'RIG-AGENT-TASK' "$rigTmp/brief" || rigRefuse "the Agent tool's spawn never reached the console: $( printf '%s\n' "$rigOut" | grep -m1 ERROR )"
 rigAssert "the block opens the context"                   "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: keeper-myx"
 rigAssert "with its tool-routing line"                    "$( LC_ALL=C grep -c '^tool-routing: ' "$rigTmp/brief" )" 1
-rigAssert "and its read-and-obey line"                    "$( rigCount 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
+rigAssert "and its read-and-obey line"                    "$( rigCount 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' )" 1
 rigAssert "the prompt follows"                            "$( rigCount 'RIG-AGENT-TASK' )" 1
 rigAssert "a spawn nobody blocks on waits for DISMISSED"  "$( LC_ALL=C grep -c -F 'End your run only when a Wait returns DISMISSED: whoever started you dismisses you by a message addressed to you whose body is DISMISSED.' "$rigTmp/brief" )" 1
 rigAssert "after reporting done and waiting"              "$( LC_ALL=C grep -c -F 'report that to whoever started you, with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting.' "$rigTmp/brief" )" 1

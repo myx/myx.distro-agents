@@ -194,7 +194,8 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 			}
 			close(file)
 			sub(/[ \t]+$/, "", title) ; sub(/[ \t]+$/, "", at) ; sub(/[ \t]+$/, "", after)
-			printf "%s\t%s\t%s\t%s\n", file, title, at, after
+			## \034, not a tab: a routine with no runs-at leaves that field empty, and a tab read collapses it into the next.
+			printf "%s\034%s\034%s\034%s\n", file, title, at, after
 		}' 2> /dev/null )" || rowsFacts=""
 	while IFS=$'\t' read -r rowsMember rowsDir ; do
 		[ -n "$rowsDir" ] || continue
@@ -206,7 +207,7 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 			## heading below the frontmatter block, where that is not `# Summary` already. Read
 			## above, with every other file's, in one pass.
 			rowsTitle="" ; rowsRunsAt="" ; rowsRunsAfter=""
-			while IFS=$'\t' read -r rowsFactsFile rowsFactsTitle rowsFactsAt rowsFactsAfter ; do
+			while IFS=$'\034' read -r rowsFactsFile rowsFactsTitle rowsFactsAt rowsFactsAfter ; do
 				[ "$rowsFactsFile" = "$rowsFile" ] || continue
 				rowsTitle="$rowsFactsTitle" ; rowsRunsAt="$rowsFactsAt" ; rowsRunsAfter="$rowsFactsAfter"
 				break

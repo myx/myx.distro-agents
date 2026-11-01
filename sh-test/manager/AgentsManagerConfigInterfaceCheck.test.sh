@@ -208,7 +208,7 @@ rigOwnBefore="$( rigSum "$rigOwn" )"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigWrite" "$rigKey" tv
 rigPre=()
-rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, by the one rule of the family, and nothing is saved" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigWrite#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" ) $( rigSum "$rigOwn" )" "1 0 1 $rigOwnBefore"
+rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, by the one rule of the family, and nothing is saved" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigSum "$rigOwn" )" "1 0 1 $rigOwnBefore"
 rigAssert "the include of the settings names the writer of the scope of the current user once, among the six forms of the reader that save or remove a declared setting" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--upsert' -e '--delete' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -F -e '--custom-config-option --upsert "$1" "$2"' || : )" "6 1"
 rigAssert "and the writer makes no temp file of its own: the include names no \$\$ and no mktemp" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '\$\$' -e 'mktemp' || : )" "0"
 

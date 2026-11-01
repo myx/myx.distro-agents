@@ -112,6 +112,7 @@ case "$1" in
 		messageDir="$( AgentsToolsSessionChatDir "$scopeSession" )" || messageDir=""
 		if [ -n "$messageThread" ] && [ -d "$messageDir" ] ; then
 			## Left for the writer, which sends it into the thread as the account, through the one send operation.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			messageKept="$( printf '%s\n' "$messageBody" | DistroAgentsTools --intern-session-comms --inject --session-id "$scopeSession" --from "$messageFrom" ${messageArgs[@]+"${messageArgs[@]}"} )" || { set +e ; return 1 ; }
 			printf 'message\t%s\t%s\t%s\tthread\t%s\n' "$scopeSession" "$messageFrom" "$messageAll" "${messageKept:--}"
 			return 0
@@ -186,6 +187,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $joinOp: the task could not be filled from its template (tooling-note.post.format.md, Tasks) -- nothing was started" >&2
 			set +e ; return 1
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		joinOut="$( printf '%s\n' "$joinTask" | DistroAgentsTools --intern-op-agent-spawn-proxy magic-coordinator --from-stdin --dispatch-doc:create --session-id "$scopeSession" --routine-default \
 			--description "$joinWhy" --context "$joinOp" )" || { set +e ; return 1 ; }
 		joinItem="$( printf '%s\n' "$joinOut" | LC_ALL=C awk -F= '$1 == "DISPATCH_ITEM" { print $2 ; exit ; }' )"

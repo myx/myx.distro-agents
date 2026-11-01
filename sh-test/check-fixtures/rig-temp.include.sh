@@ -14,6 +14,9 @@
 ##                       made by mktemp -d. With no MMDAPP, or one that is no folder, it makes nothing, says so
 ##                       on stderr, and returns 1, for the check to end on before it reports a result.
 ##
+## It also sources rig-copy.include.sh, which holds `rigCopyTree`: the one way a check puts a tree in that folder, as a
+## real copy rather than a link into the origin.
+##
 
 rigTempDir(){
 	if [ -z "${MMDAPP:-}" ] || [ ! -d "$MMDAPP" ] ; then
@@ -23,3 +26,5 @@ rigTempDir(){
 	mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || return 1
 	mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/$1.XXXXXXXX"
 }
+
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || return 1

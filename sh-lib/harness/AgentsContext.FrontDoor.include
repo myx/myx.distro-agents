@@ -9,8 +9,8 @@
 ##
 
 type AgentsToolsFrontAudience > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
-## The includes of the operations call the other operations by DistroAgentsTools, as they did in the dispatcher: a tool file run by itself has it too.
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+## A caller of DistroAgentsTools sources it at its own site, guarded, as the siblings source the one file they call:
+## the dispatcher is not on this door's path, so an operation that never calls it never parses it.
 
 ## `--help-syntax [<name>]`: the syntax lines of this tool file.
 if [ "${1:-}" = "--help-syntax" ] ; then

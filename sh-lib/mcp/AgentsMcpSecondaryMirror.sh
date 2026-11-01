@@ -3,7 +3,7 @@ set -e
 
 ## AgentsMcpSecondaryMirror.sh -- renders the secondary tools of the myx.distro MCP as one
 ## tools/list array: one tool per tool file the front table declares as secondary
-## (agentsFrontSecondary, sh-lib/harness/AgentsContext.FrontTable.include), the operation passed
+## (agentsFrontSecondary, sh-lib/harness/AgentsContext.FrontTable.Help.include), the operation passed
 ## as the argument, so the served catalogue stays short. Derived from the same table that routes
 ## the operations, so the mirror cannot drift from the files it serves.
 ##
@@ -17,10 +17,17 @@ set -e
 ## floor that declares no tools.
 
 mirrorFront="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+mirrorHelp="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
 mirrorEscape="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk"
 
 if [ ! -f "$mirrorFront" ] ; then
 	printf '%s\n' "AgentsMcpSecondaryMirror: ⛔ ERROR: the front table is missing from this package: $mirrorFront" >&2
+	exit 1
+fi
+## The list and the one-line summaries are the Help include's, which the front table does not itself source: without it
+## this mirror renders nothing, and a list that is empty for want of a source reads exactly like a list somebody emptied.
+if [ ! -f "$mirrorHelp" ] ; then
+	printf '%s\n' "AgentsMcpSecondaryMirror: ⛔ ERROR: the front table's help include is missing from this package: $mirrorHelp" >&2
 	exit 1
 fi
 if [ ! -f "$mirrorEscape" ] ; then
@@ -28,6 +35,7 @@ if [ ! -f "$mirrorEscape" ] ; then
 	exit 1
 fi
 . "$mirrorFront"
+. "$mirrorHelp"
 
 mirrorOut=""
 for mirrorFile in $agentsFrontSecondary ; do

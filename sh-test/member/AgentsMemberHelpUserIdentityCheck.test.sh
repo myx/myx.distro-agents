@@ -39,7 +39,7 @@ echo "-- 1. no team member resolved: refused, clearly, not the old confusing mes
 rigOut="$( rigCall '' --member-help )"
 rigAssert "the old confusing message is gone" "$( printf '%s' "$rigOut" | LC_ALL=C grep -c -F 'not a recognized team-member naming pattern' )" 0
 rigAssert "says whose help was tried and names no help of its own" "$( printf '%s' "$rigOut" | LC_ALL=C grep -c -F 'has no help of its own' )" 1
-rigAssert "names the way out" "$( printf '%s' "$rigOut" | LC_ALL=C grep -c -F '--member-help <team-member>' )" 1
+rigAssert "names the way out" "$( printf '%s' "$rigOut" | LC_ALL=C grep -c -F -e '--member-help <team-member>' )" 1
 
 echo "-- 2. --team-member, given explicitly, still works --"
 rigAssert "the real member's help is printed, not refused" "$( rigCall '' --member-help --team-member magic-team | LC_ALL=C grep -c -F 'has no help of its own' )" 0

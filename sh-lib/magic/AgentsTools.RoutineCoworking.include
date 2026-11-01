@@ -74,6 +74,7 @@ case "$1" in
 
 		local phaseAOutput
 		[ -z "$scanNote" ] || printf '%s\n' "$scanNote"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseAArgs[@]}" \
 			--header blocks --header blocked-by --all-types \
 			--no-slack --no-email --no-trello \
@@ -106,6 +107,7 @@ case "$1" in
 		for s in "${allStates[@]}" ; do phaseBArgs+=( --state "$s" ) ; done
 		for n in "${unionNames[@]}" ; do phaseBArgs+=( --item "$n" ) ; done
 
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" \
 			--all-types --item-include-inbox \
 			--do-inbox-inquiry-active --do-inbox-reflections \

@@ -1122,12 +1122,12 @@ harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
 harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetchRoutineSum="" harnessPrefetchRoutineFiles="" harnessSkillWhole=""
 ## The prefix layers are the team layer (the team's basic and armed files in the system text), the tool floor, the member
-## layer, and the session layer. A routine whose `cache-prefix: extended` (a work-duty's) has two more (sketch 8, epic
-## S18.8): the Team+ layer below, the optional skillset file magic-team/magic-team.armed-extended.md, after the team
-## layer, and the Member+ layer, <member>/reference/*.md merged (AgentsHarnessMemberPlusText), after the member's armed
-## content. A skillset with no Team+ file, or no reference/ folder, has no such layer there, and a routine whose policy
-## is not `extended` never has either. A work-duty's routine and member static guidance are carried by its dispatch (the
-## session layer). The routine's own `cache-prefix: routine` remains the one policy that preloads a routine.
+## layer, and the session layer. A work-duty session has two more (sketch 8, epic S18.8): the Team+ layer, the optional
+## skillset file magic-team/magic-team.armed-extended.md, and the Member+ layer, <member>/reference/*.md merged
+## (AgentsHarnessMemberPlusText). Both are carried in the member text of the first message, never in the system text, so the
+## tool floor stays shared by every session. A skillset with no Team+ file, or no reference/ folder, has no such layer. A
+## work-duty's routine and member static guidance are carried by its dispatch (the session layer). The routine's own
+## `cache-prefix: routine` remains the one policy that preloads a routine.
 harnessPrefetchOneLine="$( AgentsToolsPrefetchOneLine )"
 ## One read as the Skill tool answers it: the file of a skill, or the sections of it, whole whatever the cap of a result.
 agentsPrefetchReadName="" agentsPrefetchReadFile="" agentsPrefetchReadSections=""
@@ -1898,6 +1898,39 @@ while : ; do
 			AgentsHarnessIdleWait -
 			harnessIdleForce=""
 			continue
+		fi
+		## A QUIT WITH ITEMS STILL OPEN (S22 item 5): a plain reply ends a run, so a list still holding pending items spends one of five
+		## attempts instead. The counter sits beside the list as `<hash of the pending set> <left>`: a changed set writes a fresh hash and
+		## shows 1 of 5 without spending one, a matching set spends one before it shows, and at 0 the run ends as it always has.
+		quitOpenRc=0
+		quitPending="$( AgentsHarnessCheckListOpenItems )" || quitOpenRc=$?
+		quitFolder=""
+		if [ "$quitOpenRc" -eq 0 ] && [ -n "$quitPending" ] ; then
+			quitFolder="$( AgentsHarnessCheckListPlace && printf '%s' "$checkListFolder" )" || quitFolder=""
+		fi
+		if [ -n "$quitFolder" ] ; then
+			quitHash="$( printf '%s' "$quitPending" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
+			quitStored="" quitLeft=5 quitAttempt=1
+			[ ! -f "$quitFolder/checklist.quit-attempt" ] || IFS= read -r quitStored < "$quitFolder/checklist.quit-attempt" || :
+			case "$quitStored" in
+				"$quitHash "*)
+					quitLeft="${quitStored##* }"
+					case "$quitLeft" in
+						''|*[!0-9]*) quitLeft=5 ; quitAttempt=1 ;;
+						*) quitLeft=$(( quitLeft - 1 )) ; quitAttempt=$(( 6 - quitLeft )) ;;
+					esac
+				;;
+			esac
+			## A counter that cannot be kept bounds nothing, so a run that cannot write it ends as one out of attempts.
+			quitContinue=""
+			if [ "$quitLeft" -gt 0 ] && printf '%s %s\n' "$quitHash" "$quitLeft" > "$quitFolder/checklist.quit-attempt" 2> /dev/null ; then
+				quitContinue=1
+			fi
+			if [ -n "$quitContinue" ] ; then
+				quitPendingCount="$( LC_ALL=C awk 'END { print NR }' <<< "$quitPending" )"
+				harnessMessages+=( "$( AgentsWireUserRecord "$( printf "This session's CheckList still holds %s pending item(s), and a plain reply ends the run with them open. Do one of three things, then carry on: close each item you have finished with CheckList, mark the one you are working on in progress, or hand back with checklist_pending_count=%s listing them as unfinished. This is attempt %s of 5 on this same list, and at 0 the run ends with the items still open for the reviewer." "$quitPendingCount" "$quitPendingCount" "$quitAttempt" )" )" )
+				continue
+			fi
 		fi
 		AgentsTranscriptHarnessFinal "$harnessFinal" || :
 		harnessExitClean=1 ; exit 0

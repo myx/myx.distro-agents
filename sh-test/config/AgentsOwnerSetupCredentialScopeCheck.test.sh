@@ -71,9 +71,9 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 ## integrations step end 0 with no project instead of depending on the origin's shape.
 rigToolOrigin="$rigTmp/origin"
 mkdir -p "$rigToolOrigin/myx"
-ln -s "$rigPackage" "$rigToolOrigin/myx/myx.distro-agents"
-ln -s "$rigOrigin/myx/myx.distro-system" "$rigToolOrigin/myx/myx.distro-system"
-ln -s "$rigOrigin/myx/myx.distro-.local" "$rigToolOrigin/myx/myx.distro-.local"
+rigCopyTree "$rigPackage" "$rigToolOrigin/myx/myx.distro-agents"
+rigCopyTree "$rigOrigin/myx/myx.distro-system" "$rigToolOrigin/myx/myx.distro-system"
+rigCopyTree "$rigOrigin/myx/myx.distro-.local" "$rigToolOrigin/myx/myx.distro-.local"
 rigSourceStub="$rigToolOrigin/myx/myx.distro-source"
 mkdir -p "$rigSourceStub/sh-scripts" "$rigSourceStub/sh-lib/source-prepare"
 cat > "$rigSourceStub/sh-scripts/DistroSourceTools.fn.sh" <<'SH'
@@ -84,6 +84,25 @@ ListDistroNamespaces(){ return 0 ; }
 DistroSourceTools(){ return 0 ; }
 SH
 printf '# a rig source scan: no project\nreturn 0\n' > "$rigSourceStub/sh-lib/source-prepare/ScanSourceProjects.include"
+
+## myx.common's own stub: the workspace-integrations step resolves its MCP server, its home
+## setup and its JSON escaper under this exact tarball shape (AgentsTools.Install.include),
+## and refuses the whole step with any of the three missing -- documented as stubbed above,
+## but built where MDLT_ORIGIN (rigToolOrigin here, never a per-workspace .local/myx) actually
+## resolves it, not where a workspace's own symlinked myx.common would have to sit instead.
+rigMcpRoot="$rigToolOrigin/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
+mkdir -p "$rigMcpRoot/bin/lib" "$rigMcpRoot/bin/setup" "$rigMcpRoot/include/data"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$rigMcpRoot/bin/lib/agentMcpServer.Common"
+printf '#!/usr/bin/env bash\nprintf "{}\\n" > "${HOME:?}/.claude.json"\nexit 0\n' > "$rigMcpRoot/bin/setup/agentMcp.Common"
+chmod +x "$rigMcpRoot/bin/lib/agentMcpServer.Common" "$rigMcpRoot/bin/setup/agentMcp.Common"
+cat > "$rigMcpRoot/include/data/agentMcpJsonEscape.awk" <<'AWK'
+BEGIN { ORS = "" }
+{
+	gsub(/\\/, "\\\\")
+	gsub(/"/, "\\\"")
+	printf "%s", $0
+}
+AWK
 
 rigPassCount=0
 rigFailCount=0
@@ -122,19 +141,8 @@ rigMakeWs(){ ## -- sets rigWs and rigHome
 	for linkName in myx.distro-agents myx.distro-system myx.distro-.local myx.distro-source ; do
 		ln -s "$rigToolOrigin/myx/$linkName" "$rigWs/.local/myx/$linkName" || rigRefuse "cannot link $linkName into the rig workspace"
 	done
-	rigMcpRoot="$rigWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-	mkdir -p "$rigMcpRoot/bin/lib" "$rigMcpRoot/bin/setup" "$rigMcpRoot/include/data"
-	printf '#!/usr/bin/env bash\nexit 0\n' > "$rigMcpRoot/bin/lib/agentMcpServer.Common"
-	printf '#!/usr/bin/env bash\nprintf "{}\\n" > "${HOME:?}/.claude.json"\nexit 0\n' > "$rigMcpRoot/bin/setup/agentMcp.Common"
-	chmod +x "$rigMcpRoot/bin/lib/agentMcpServer.Common" "$rigMcpRoot/bin/setup/agentMcp.Common"
-	cat > "$rigMcpRoot/include/data/agentMcpJsonEscape.awk" <<'AWK'
-BEGIN { ORS = "" }
-{
-	gsub(/\\/, "\\\\")
-	gsub(/"/, "\\\"")
-	printf "%s", $0
-}
-AWK
+	## myx.common itself is never linked or built per workspace: MDLT_ORIGIN is rigToolOrigin,
+	## not this workspace's own .local, and its one shared stub is built there already, above.
 	rigAgents="$rigWs/.local/.agents"
 }
 

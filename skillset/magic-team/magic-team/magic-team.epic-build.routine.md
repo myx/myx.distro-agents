@@ -55,7 +55,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **readback-and-gaps**: Read the feature, its Settled lines, the constraints naming it, and the code it touches. Where the epic is silent, send each gap with its proposed reading, before
 building that part. Build only the parts the gap does not touch until it is
 answered.
-2. **sandbox**: Build and test in your own scratch under `.local/temp/`. Write a test for each statement of the spec, red against live first for the stated reason, then green.
+2. **sandbox**: Build and test in your own scratch, in the session sandbox. Write a test for each statement of the spec, red against live first for the stated reason, then green.
 3. **gate**: Send the coordinator the conformance gate, in the compact form (the
 gate's form, filled by the tooling). The gate carries the diff path, and each
 statement mapped to `file:line`. It carries the tests, red on live then green.
@@ -85,7 +85,7 @@ All statements apply at the same time, always. These rules override a participan
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - The epic is the full spec: no gap is invented, and a gap is sent at once, one line, with the proposed reading.
-- Scratch lives under the workspace; never `/tmp`, `TMPDIR`, or a template-less `mktemp`.
+- Scratch lives in the session sandbox, inside the workspace; never `/tmp`, `TMPDIR`, `.local/temp`, or a template-less `mktemp`.
 - No git outside a throwaway rig, no production host, no secret printed, no `CLAUDE.md` edited, no post as the human-owner.
 - After sending the gate, end the turn; never idle in a long `Wait` for the coordinator.
 - A mechanical step is one plain run of the tooling; a tool unsafe to use is fixed itself, never wrapped.

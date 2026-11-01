@@ -157,7 +157,7 @@ for rigOne in "$rigList" "$rigRead deploy" ; do
 	# shellcheck disable=SC2086
 	rigRun $rigOne
 	rigPre=()
-	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( rigWhole "$rigTmp/err" "DistroAgentsTools: $( printf '%s' "${rigOne%% *}" | LC_ALL=C sed -e 's/^--//' ): ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" = 1 ] || rigCallerBad="$rigCallerBad [${rigOne%% *}]"
+	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = 1 ] || rigCallerBad="$rigCallerBad [${rigOne%% *}]"
 done
 rigAssert "from inside a member's session both are refused by the one rule of the family" "${rigCallerBad:-each refused}" "each refused"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"

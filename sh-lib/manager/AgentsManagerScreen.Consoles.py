@@ -118,6 +118,7 @@ def consolesFocus(state, row):
 
 registerPlugin({
     "name": "consoles",
+    "apps": ("agents",),
     "root": {"id": "consoles", "label": "Consoles", "go": "Co~n~soles", "group": "places"},
     "focus": {"consoles": "consolesFocus"},
     "summaries": {

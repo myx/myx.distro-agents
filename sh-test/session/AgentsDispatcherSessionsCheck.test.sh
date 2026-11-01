@@ -39,7 +39,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills"
 mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/agents/pending" "$rigTmp/home" "$rigSkills/rig-member"
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 printf '#!/bin/sh\ncase " $* " in *" -A "*) exit 0 ;; esac\nexec "${0%%/*}/ps.real" "$@"\n' > "$rigTmp/bin/ps"
 printf '#!/bin/sh\nprintf " 2:54  up 4 days,  6:19, 12 users, load averages: 3.25 2.00 1.00\\n"\n' > "$rigTmp/bin/uptime"
 printf '#!/bin/sh\nexit 7\n' > "$rigTmp/bin/curl"

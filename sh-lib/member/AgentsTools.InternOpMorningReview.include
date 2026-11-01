@@ -153,6 +153,7 @@ case "$1" in
 				mrPartial="$mrPartial**NOTE:** partial -- the cut-off could not be turned into a local time, so the changed files are not listed"$'\n'
 			elif [ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! -d "$MDAT_SKILLSET_ROOT" ] ; then
 				mrPartial="$mrPartial**NOTE:** partial -- no skillset root, so the changed files are not listed"$'\n'
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			elif mrListed="$( DistroAgentsTools --librarian-list-team-files-dates 2>/dev/null )" ; then
 				mrChanged="$( printf '%s\n' "$mrListed" | LC_ALL=C awk -v since="$mrSinceLocal" 'length($0) > 21 && substr($0, 1, 19) > since { print substr($0, 22) }' )"
 				[ -z "$mrChanged" ] || mrChangedN="$( printf '%s\n' "$mrChanged" | LC_ALL=C awk 'END { print NR }' )"

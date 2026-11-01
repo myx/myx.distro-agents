@@ -16,15 +16,12 @@
 
 if [ -z "$MMDAPP" ] ; then
 	set -e
-	export MMDAPP="$( ( cd "$( dirname "$0" )/../../../.." && pwd ) )"
+	export MMDAPP="$( cd $(dirname "$0")/../../../.. ; pwd )"
 	## Derived from the place of this file, not given: --spawn-run then needs a workspace by --select-workspace (AgentsTools.CoordinatorSpawn.include).
 	export MDAT_MMDAPP_IMPLIED=1
-	echo "$0: Working in: $MMDAPP"  >&2
+	echo "$0: Working in: $MMDAPP" >&2
 	[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '.local' directory." >&2 && exit 1 )
 fi
-
-: "${MDLT_ORIGIN:=$MMDAPP/.local}"
-export MDLT_ORIGIN
 
 ## Every child finds the bash this runs in, as DistroAgentsTools.fn.sh does.
 case "$BASH" in

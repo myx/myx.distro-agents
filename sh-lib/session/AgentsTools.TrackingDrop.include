@@ -3,7 +3,7 @@
 
 ##
 ## AgentsTools.TrackingDrop.include -- what the tooling posted itself is no input to the member it concerns. The reads that decide whether something is
-## input (the tags and the DMs the main loop looks at, the sources a Wait reads, AgentsTools.MemberWait.include, AgentsTools.DispatcherLoop.include)
+## input (the tags and the DMs the main loop looks at, the sources a Wait reads, AgentsTools.MemberWait.include, AgentsTools.DispatcherSchedule.include)
 ## pass a rendering of Slack through AgentsToolsTrackingDrop, which takes out the tracking posts by their own mark (`[tracking: <kind>]` and
 ## `[session: <spawn id>]`, from the metadata the tooling gives what it posts, AgentsSlackMessagesFormat.awk), and the hand-back of a run the member
 ## launched that reports to nobody else's duty. The tooling's own sends are marked `tracking: tooling` (AgentsTools.MemberCommsSlack.include) and

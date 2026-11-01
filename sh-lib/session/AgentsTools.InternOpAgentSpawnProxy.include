@@ -95,11 +95,13 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 	rootPayload="{\"channel\":\"$rootChannel\",\"text\":\"$( printf '%s' "$rootText" | LC_ALL=C awk -f "$rootLib/mcp/AgentsMcpJsonEscape.awk" )\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-team\",\"tracking\":\"session-root\"${MDAT_SPAWN_SESSION_ID:+,\"session\":\"$MDAT_SPAWN_SESSION_ID\"}}}}"
 	while : ; do
 		rootRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api chat.postMessage --identity bot --json-body "$rootPayload" \
 			--context --intern-op-agent-spawn-proxy 2> "$rootErrFile" )" || rootRc=$?
 		[ "$rootRc" != "0" ] || break
 		if [ "$rootJoined" = "false" ] && LC_ALL=C grep -q '"error":"not_in_channel"' "$rootErrFile" ; then
 			rootJoined="true"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			if DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.join --identity bot --form "channel=$rootChannel" \
 				--context --intern-op-agent-spawn-proxy > /dev/null 2>&1 ; then
 				continue
@@ -140,7 +142,8 @@ AgentsToolsSpawnProxyPostLink(){ ## member whose bot token posted it, <channel>:
 		member-bot-token) linkScope="$1" ;;
 		*) linkScope="magic-team" ;;
 	esac
-	linkDomain="$( DistroAgentsTools --agents-config-option "$linkScope" --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || linkDomain=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	linkDomain="$( AgentsToolsConfigOption "$linkScope" --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || linkDomain=""
 	case "$linkDomain" in ''|*[!A-Za-z0-9.-]*) return 0 ;; esac
 	printf 'https://%s/archives/%s/p%s\n' "$linkDomain" "$linkChannel" "${linkTs/./}"
 }
@@ -184,6 +187,7 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTranscript.include).
 	! type AgentsSessionTokensLine > /dev/null 2>&1 || closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
 	closeTokens="${closeTokens#tokens: }"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-event-track-post "$closeMember" "$closeThread" --kind end --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field outcome="$closeOutcome" --field exit-code="$closeExit" \
 		--field launched="$( AgentsToolsSpawnProxySawSentinel "$closeMarker" && echo true || echo false )" \
@@ -193,6 +197,7 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	[ -n "$closeStart" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-comms-slack-react "$closeMember" "$closeStart" checkered_flag --identity-bot 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track finish flag not added " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
@@ -414,6 +419,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 AgentsToolsSpawnProxyHandbackNotice(){ ## session thread, member, the session's tracking thread, the member that brought this one in (the last two may be empty)
 	[ "${agentsSpawnProxyHandbackMissing:-}" = "yes" ] || return 0
 	agentsSpawnProxyHandbackMissing=""
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -z "${3:-}" ] || DistroAgentsTools --intern-op-event-track-post "$2" "$3" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field handback="none posted -- no SubagentHandback call seen in its output" 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: handback-missing notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
@@ -555,6 +561,7 @@ AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
 		' "$batchLog" )"
 		lastLineCount="$totalLineCount"
 		[ -n "$newLines" ] || continue
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		printf '%s\n' "$newLines" | DistroAgentsTools --intern-op-event-track-post "$batchMember" "$batchThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" --from-stdin > /dev/null 2>&1 || :
 	done
 }
@@ -592,6 +599,7 @@ AgentsToolsSpawnProxyEventTrackLaunchedPost(){ ## thread, member, marker file, t
 	: > "$launchedMarker.noticed" 2>/dev/null || return 0
 	launchedCli="$( AgentsToolsSpawnProxyExecutedCli "$launchedMarker" )"
 	[ -n "$launchedCli" ] && [ "$launchedCli" != "$launchedResolved" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-event-track-post "$launchedMember" "$launchedThread" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field what="launched on $launchedCli, not on $launchedResolved as resolved for the start post" < /dev/null 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track launched-cli reply not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
@@ -1740,6 +1748,7 @@ case "$1" in
 			## review-by only where the caller said one (--review-by): an item that names none is
 			## reviewed by whoever its run reports to (AgentsToolsItemReviewer), and by nobody
 			## where that is `none`.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" \
 				--create \
 				--acting-member:"$callerName" \
@@ -1765,6 +1774,7 @@ case "$1" in
 			## Where a permission overrode a refusal, the item says so on its own Decisions (F6.1).
 			if [ -n "$routineOverrides" ] ; then
 				while IFS= read -r requirementHeld ; do
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					[ -z "$requirementHeld" ] || DistroAgentsTools --intern-op-decisions-append "$callerName" "$dispatchItemName" --kind resolved --text "override: $requirementHeld" > /dev/null 2>&1 || :
 				done <<< "$routineOverrides"
 			fi
@@ -1788,6 +1798,7 @@ case "$1" in
 						echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: --dispatch-doc:reuse: $trackedItemName is in no board state folder, so this spawn records nothing on it" >&2
 						echo "TRACKING_RECORD=absent"
 					else
+						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 						DistroAgentsTools --intern-op-board-upsert-move-edit "$trackedItemState" "$trackedItemName" \
 							--from-state:"$trackedItemState" \
 							--context "$opContext" \
@@ -2015,7 +2026,8 @@ case "$1" in
 		spawnCliKind="$( AgentsToolsSpawnProxyCliKind "$spawnCliResolved" )"
 		if [ "$spawnCliKind" = "harness" ] ; then
 			spawnCliTier="$(
-				DistroAgentsTools --agents-config-option magic-team --select SPAWN_HARNESS_TIER 2>/dev/null
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				AgentsToolsConfigOption magic-team --select SPAWN_HARNESS_TIER 2>/dev/null
 			)" || spawnCliTier=""
 			## Unset passes no --tier, and the harness keeps its own default.
 			spawnCliTier="${spawnCliTier:-default}"
@@ -2436,7 +2448,8 @@ case "$1" in
 			set +e
 			## 0, the default, is no bound: the wait lasts as long as the spawn does. A hung
 			## one stays visible to ListAgents and TaskOutput, and Ctrl-C still reaches it.
-			waitTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 0 )"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			waitTimeoutSeconds="$( AgentsToolsConfigOption magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 0 )"
 			case "$waitTimeoutSeconds" in *[!0123456789]*|'') waitTimeoutSeconds=0 ;; esac
 			## A spawn made from inside a session is detached (backlog :229): its own process
 			## group, HUP ignored, so the bound that ends its caller's pass does not end it.
@@ -2611,6 +2624,7 @@ case "$1" in
 			## The spawn's questions nobody waited on: answers collected now, and the ones
 			## still open marked for the main loop, since this session is over. Tooling only.
 			local spawnCollected=""
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
 			echo "PENDING_ANSWERED=$( printf '%s\n' "$spawnCollected" | LC_ALL=C grep -c '^ANSWERED ' )"
@@ -2775,6 +2789,7 @@ case "$1" in
 			AgentsToolsSpawnProxyEndNotice "$sandboxTracking" "$bgHandback" "" "" || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0 "$eventTrackStart" || :
 			local spawnCollected=""
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
 			AgentsToolsSpawnProxyOpenQuestionWarn "${sessionThread:-$sessionPrintback}" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember" || :

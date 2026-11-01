@@ -47,7 +47,7 @@ AgentsToolsKnowledgeStorePathOf(){ ## path -- <path>\n<store-dir>\n<ref>; rc 1 w
 }
 
 AgentsToolsKnowledgeStoreSpread(){ ## the arguments after the operation word
-	local spreadPath="" spreadKeep=() spreadScratch spreadKept spreadManifest spreadBackup spreadStore spreadRef spreadPython
+	local spreadPath="" spreadKeep=() spreadScratch spreadKept spreadManifest spreadBackup spreadStore spreadRef spreadPython spreadBase
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--keep)
@@ -67,8 +67,10 @@ AgentsToolsKnowledgeStoreSpread(){ ## the arguments after the operation word
 	{ IFS= read -r spreadPath && IFS= read -r spreadStore && IFS= read -r spreadRef ; } <<< "$( AgentsToolsKnowledgeStorePathOf "$spreadPath" )" || return 1
 	spreadPython="$( AgentsToolsKnowledgeStorePython )" || return 1
 	( ## the split, the record write and the rewrite, in a subshell whose trap takes the scratch with it
-		mkdir -p "$MMDAPP/.local/temp" || exit 1
-		spreadScratch="$( mktemp -d "$MMDAPP/.local/temp/knowledge-store-spread.XXXXXX" )" || exit 1
+		spreadBase="$MMDAPP/.local/temp"
+		[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || spreadBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
+		mkdir -p "$spreadBase" || exit 1
+		spreadScratch="$( mktemp -d "$spreadBase/knowledge-store-spread.XXXXXX" )" || exit 1
 		trap "rm -rf -- $( printf '%q' "$spreadScratch" )" EXIT
 		spreadKept="$spreadScratch/kept.md"
 		spreadManifest="$spreadScratch/manifest"
@@ -97,7 +99,7 @@ AgentsToolsKnowledgeStoreSpread(){ ## the arguments after the operation word
 }
 
 AgentsToolsKnowledgeStoreRetire(){ ## the arguments after the operation word
-	local retirePath="" retireSections=() retireScratch retireSectionsFile retireStore retirePython retireRemoved
+	local retirePath="" retireSections=() retireScratch retireSectionsFile retireStore retirePython retireRemoved retireBase
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--section)
@@ -118,8 +120,10 @@ AgentsToolsKnowledgeStoreRetire(){ ## the arguments after the operation word
 	[ -d "$retireStore" ] || { AgentsToolsKnowledgeStoreRefuse "no store stands beside $retirePath: nothing to retire" ; return 1 ; }
 	retirePython="$( AgentsToolsKnowledgeStorePython )" || return 1
 	( ## the delete, in a subshell whose trap takes the scratch with it
-		mkdir -p "$MMDAPP/.local/temp" || exit 1
-		retireScratch="$( mktemp -d "$MMDAPP/.local/temp/knowledge-store-retire.XXXXXX" )" || exit 1
+		retireBase="$MMDAPP/.local/temp"
+		[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || retireBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
+		mkdir -p "$retireBase" || exit 1
+		retireScratch="$( mktemp -d "$retireBase/knowledge-store-retire.XXXXXX" )" || exit 1
 		trap "rm -rf -- $( printf '%q' "$retireScratch" )" EXIT
 		retireSectionsFile="$retireScratch/sections"
 		printf '%s\n' "${retireSections[@]}" > "$retireSectionsFile"

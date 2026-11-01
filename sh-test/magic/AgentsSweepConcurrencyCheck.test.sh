@@ -34,10 +34,10 @@ rigAssert(){ ## what is asserted, got, want
 rigSerial="$rigTmp/serial-origin"
 mkdir -p "$rigSerial/myx"
 for rigEntry in "$MDLT_ORIGIN"/* ; do
-	[ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigSerial/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigSerial/${rigEntry##*/}"
 done
 for rigEntry in "$MDLT_ORIGIN"/myx/* ; do
-	[ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigSerial/myx/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigSerial/myx/${rigEntry##*/}"
 done
 cp -R "$rigPackage" "$rigSerial/myx/myx.distro-agents"
 sed -i.rig -E 's/Parallel( --workers [0-9]+)? AgentsToolsMagicSweepAccountOne/Parallel --workers 1 AgentsToolsMagicSweepAccountOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
@@ -51,10 +51,10 @@ rigHeld="$( cat "$rigSerial/myx/myx.distro-agents/sh-lib/magic/AgentsTools.Magic
 rigMisordered="$rigTmp/misordered-origin"
 mkdir -p "$rigMisordered/myx"
 for rigEntry in "$MDLT_ORIGIN"/* ; do
-	[ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigMisordered/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigMisordered/${rigEntry##*/}"
 done
 for rigEntry in "$MDLT_ORIGIN"/myx/* ; do
-	[ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigMisordered/myx/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigMisordered/myx/${rigEntry##*/}"
 done
 cp -R "$rigPackage" "$rigMisordered/myx/myx.distro-agents"
 sed -i.rig -e 's/^\([[:space:]]*\)printf .read\\n. > "\$sourcePrefetchDir\/state\.\$1"$/&\

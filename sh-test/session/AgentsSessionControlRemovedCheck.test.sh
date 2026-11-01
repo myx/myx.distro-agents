@@ -50,7 +50,7 @@ printf 'SESSION_CONTROL_TICK_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.ag
 
 ## THE RIG'S OWN PROCESS LIST, as AgentsSessionControlThreadCheck keeps it: the ps first on PATH answers the
 ## whole-host listing from the rig's own list, which is empty here, and hands every other call to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

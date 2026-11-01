@@ -49,9 +49,9 @@ rigHost="$( hostname -s 2>/dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 
 ## The rig's own curl (it answers Slack and logs each call), `id` (the account at the console) and `ps` (the rig's runs only).
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
-ln -s "$( command -v id )" "$rigTmp/bin/id.real" || rigRefuse "no id on PATH"
+rigRealTool id "$rigTmp/bin/id.real" || rigRefuse "no id on PATH"
 printf '#!/bin/sh\ncase "$*" in\n\t-un) echo Rig.Acct_7 ;;\n\t*) exec "${0%%/*}/id.real" "$@" ;;\nesac\n' > "$rigTmp/bin/id"
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

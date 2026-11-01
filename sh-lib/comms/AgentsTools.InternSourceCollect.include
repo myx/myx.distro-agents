@@ -179,7 +179,7 @@ case "$1" in
 				colThreadLeave="nobody has wanted it for ${colThreadIdleLimit}s"
 				break
 			fi
-			if [ ! -d "$colThreadDir" ] || [ "$( readlink "$colThreadLock" 2> /dev/null )" != "$colThreadMe" ] ; then
+			if [ ! -d "$colThreadDir" ] || [ "$( AgentsToolsCollectThreadLockHolder "$colThreadLock" )" != "$colThreadMe" ] ; then
 				colThreadLeave="its folder or its lock is gone"
 				colThreadLock=""
 				break

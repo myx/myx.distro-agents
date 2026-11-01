@@ -62,7 +62,7 @@ rigTickSet 1
 ## listing from the rig's own list, one `<pid> <command line>` line a process, each listed only while it lives, and
 ## hands every other call to the real ps. A thread over a running session asks once at every tick whether the
 ## processes of its runs are still themselves (`-o pid=,stat=,lstart=`): each such call is counted, one a tick.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list" ; : > "$rigTmp/ps.calls" ; : > "$rigTmp/ps.lists"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

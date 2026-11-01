@@ -126,6 +126,10 @@ rigAssert "7. a start that ran no scan keeps no scan pointer"                   
 echo "-- 4. several lines run in order, each result under its scan --"
 rigSpawn rigtwo
 rigAssert "two headings, in order, and both scans' own text (read by the live run)" "$( LC_ALL=C grep '^## input scan: ' "$rigTmp/input-scan.seen" 2> /dev/null | LC_ALL=C tr '\n' '|' )" "## input scan: permission-escalation|## input scan: member-work-session|"
+## Each report keeps its own headings, one level down: the two sections above are the only `##` lines
+## left, so a report's own `##` came out as `###`. Left as they came, the reports' headings would stand
+## beside the sections instead of under them, and two reports' third-level headings would be impossible to tell apart.
+rigAssert "each report is nested under its own section, its headings reworked" "$( LC_ALL=C grep -c '^## ' "$rigTmp/input-scan.seen" 2> /dev/null ):$( LC_ALL=C grep -c '^### ' "$rigTmp/input-scan.seen" 2> /dev/null | LC_ALL=C sed -e 's/^0$/none/' -e 's/^[1-9][0-9]*$/some/' )" "2:some"
 rigAssert "the brief names the scans, joined" "$( LC_ALL=C grep -c -F '(permission-escalation, member-work-session)' "$rigTmp/brief.keeper-rig" 2> /dev/null )" "1"
 rigAssert "7. each scan of two has its pointer, and the first wait on one has nothing new"  "$( rigPointerOf permission-escalation | LC_ALL=C grep -c -E '^[0-9]+-[0-9]+$' ):$( rigPointerOf member-work-session | LC_ALL=C grep -c -E '^[0-9]+-[0-9]+$' ):$( rigFirst "$rigTmp/wait.seen" )" "1:1:WAIT-RESULT: TIMEOUT"
 

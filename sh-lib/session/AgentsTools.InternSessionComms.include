@@ -230,7 +230,7 @@ case "$1" in
 				commsLeave="no live session had anything for it to do for ${commsIdleLimit}s"
 				break
 			fi
-			if [ ! -d "$commsDir" ] || [ "$( readlink "$commsLock" 2> /dev/null )" != "$commsMe" ] ; then
+			if [ ! -d "$commsDir" ] || [ "$( AgentsToolsSessionCommsLockHolder "$commsLock" )" != "$commsMe" ] ; then
 				commsLeave="its folder or its lock is gone"
 				commsLock=""
 				break

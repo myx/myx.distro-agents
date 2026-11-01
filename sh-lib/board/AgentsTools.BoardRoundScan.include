@@ -48,6 +48,7 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 	## pending-trello-update records check-pending-comms-actions reads) in its first section, and a second print of the notes was 56 KB of the
 	## scan's 190. Inquiries, reflections and the client-* inboxes are read by --intern-op-grooming-input-scan.
 	printf '\n%s\n\n' "## board digest"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-session-context-scan "$1" \
 		--state pending --state running --state review --state blocked --state parked \
 		--all-types \

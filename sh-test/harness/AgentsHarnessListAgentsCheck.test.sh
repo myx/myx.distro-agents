@@ -24,7 +24,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 ## first on PATH answers the whole-host listing from the rig's own list, beside it, one
 ## `<pid> <command line>` line a process, and hands every other call to the real ps.
 mkdir -p "$rigTmp/bin"
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

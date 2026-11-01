@@ -30,7 +30,7 @@
 📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>
 📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
 📘 syntax: DistroAgentsItems.fn.sh --return-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
@@ -117,7 +117,7 @@
 		--upsert-inbox-reflection <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
 			The same for a reflection: what was learned, and why it is worth keeping.
 
-		--upsert-inbox-inquiry <item-filename> [--from-member <member>] [--from-file <path>|--upsert-from-slots] [--reply]
+		--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>|--upsert-from-slots] [--reply]
 			Files an inquiry into another member's inbox: a question that needs an answer, or
 			a piece of work handed over. `--reply` asks for a note with the outcome.
 

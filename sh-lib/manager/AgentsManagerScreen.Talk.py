@@ -166,6 +166,7 @@ ACTION_ANSWERS["join"] = joinAnswer
 ## Mounted where `Activity` is, with no root of its own: the levels of its commands are those of Activity, below Magic-Team (Agents).
 registerPlugin({
     "name": "talk",
+    "apps": ("agents",),
     "mount": "magic-team",
     "commands": (
         activityActs(name="talk", keys=("M",), menu=("session", 4), label="~M~essage", status="Message", after="colours",

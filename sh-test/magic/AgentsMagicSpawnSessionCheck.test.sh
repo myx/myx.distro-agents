@@ -91,6 +91,20 @@ rigRun(){ ## stdin content, then --spawn-session args... -- a last word RIG_CALL
 		' rig-run-wrapper "$@" <<< "$rigStdin" 2>&1
 }
 
+## The same call, from a caller that has a session thread of its own: the agent-less parent takes that thread as its own.
+rigCallerThread="CALLER01:1700000099.000099"
+rigRunThread(){ ## stdin content, then --spawn-session args...
+	local rigStdin="$1" ; shift
+	env -i MDAT_SPAWN_AGENT=magic-coordinator MDAT_SESSION_ID=rig-caller-session MDAT_SESSION_THREAD="$rigCallerThread" \
+		MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+			cd "$MMDAPP" && exec bash "$RIG_FN" --spawn-session "$@"
+		' rig-run-wrapper "$@" <<< "$rigStdin" 2>&1
+}
+
+
 ## Polls for a condition up to 10 seconds -- only the async spawned console's own write
 ## needs this; everything else --spawn-session itself prints is synchronous.
 rigWaitFor(){ ## file
@@ -120,10 +134,10 @@ rigAssert "the routine is named"                         "$( printf '%s\n' "$rig
 rigAssert "both members are named, in order"             "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a rig-member-b' )" 1
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
 rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
-rigAssert "member a's own brief names its own duty file"  "$( grep -c -x -F 'read-and-obey: read rig-member-a.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief.rig-member-a" )" 1
-rigAssert "member b's own brief names its own duty file"  "$( grep -c -x -F 'read-and-obey: read rig-member-b.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief.rig-member-b" )" 1
-rigAssert "member a's own brief names the armed.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief.rig-member-a" )" 1
-rigAssert "member b's own brief names the armed.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief.rig-member-b" )" 1
+rigAssert "member a's own brief names its own duty file"  "$( grep -c -x -F 'read-and-obey: read rig-member-a.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigTmp/brief.rig-member-a" )" 1
+rigAssert "member b's own brief names its own duty file"  "$( grep -c -x -F 'read-and-obey: read rig-member-b.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigTmp/brief.rig-member-b" )" 1
+rigAssert "member a's own brief names the armed.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' "$rigTmp/brief.rig-member-a" )$( grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief.rig-member-a" )" 11
+rigAssert "member b's own brief names the armed.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' "$rigTmp/brief.rig-member-b" )$( grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief.rig-member-b" )" 11
 rigAssert "member a's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-a" )" 1
 rigAssert "member b's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-b" )" 1
 rigAssert "both spawns name the agent-less parent as their parent session" \
@@ -207,11 +221,22 @@ rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" 
 rigParentRecord="$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md"
 rigAssert "one child is started, the other is queued on the record and named so" \
 	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^CHILDREN=//p' | LC_ALL=C awk '{ print NF }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^PENDING=//p' ) $( LC_ALL=C sed -n 's/^workers: //p' "$rigParentRecord" )" "1 rig-member-b 1"
-rigLeft=40 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+## The close's own post follows the status by a moment, so the record is read once both are there.
+rigLeft=40 ; while { LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigParentRecord" 2>/dev/null || ! LC_ALL=C sed -n 's/^posted: //p' "$rigParentRecord" | LC_ALL=C grep -q -w -F end ; } && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 rigAssert "the watcher starts the queued one once the first closes, then closes the parent over both, each post marked once" \
 	"$( LC_ALL=C sed -n 's/^status: //p' "$rigParentRecord" ) $( LC_ALL=C grep -l -x -F "parent-session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -c . ) $( LC_ALL=C grep -c -x 'pending: *' "$rigParentRecord" ) $( LC_ALL=C sed -n 's/^posted: //p' "$rigParentRecord" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed 's/:.*//' | LC_ALL=C sort | LC_ALL=C uniq -c | LC_ALL=C awk '{ printf "%s=%s ", $2, $1 }' )" \
 	"spawn-succeeded 2 1 closed=2 end=1 start=1 started=1 "
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+## The caller's own thread is the parent's, recorded before the first child starts (S5 item 1).
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
+rigOut="$( rigRunThread "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-b )"
+rigSessionId="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; }' )"
+rigAssert "the parent's session.thread holds the caller's thread, and its record names it too" \
+	"$( cat "$rigWs/.local/agents/sessions/$rigSessionId/session.thread" 2> /dev/null ):$( LC_ALL=C sed -n 's/^session-thread: //p' "$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md" )" \
+	"$rigCallerThread:$rigCallerThread"
+rigLeft=40 ; while LC_ALL=C grep -q -x -F 'status: spawn-started' "$rigWs/.local/agents/spawned/$rigSessionId/$rigSessionId.spawn.md" 2>/dev/null && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --workers 0 rig-member-a rig-member-b )" ; rigRc=$?
 rigAssert "--workers 0 is refused, and nothing is started" "$rigRc $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'requires a positive whole number' ) $( ls "$rigWs/.local/agents/spawned" 2>/dev/null | LC_ALL=C grep -c . )" "1 1 0"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --workers 2 rig-member-a )" ; rigRc=$?

@@ -7,21 +7,13 @@
 #
 # THE FOUR SITES SPAN TWO FILES: the tools JSON literal is in the wire adapter,
 # AgentsOpenAiChatWire.sh; the announce arm, the dispatch arm and the tool
-# function are in AgentsUniversalHarness.sh. PASS BOTH -- passing one names the
-# other in its failure. Function names derive from the declared name
-# (Read -> AgentsHarnessToolRead), and every defined AgentsHarnessTool*
-# is matched back to a live tool so an orphan is a FAIL.
+# function are in AgentsUniversalHarness.sh and the includes it sources. PASS BOTH -- passing one names the
+# other in its failure. Functions are read off the core and are matched back to the
+# arm that calls them, so a family of tools served by one shared handler is held to
+# the same rule as a tool with a handler of its own, and an orphan handler is a FAIL.
 #
 # It proves coherence and nothing about behaviour. MAGIC.md's own "The harness
 # instruments, and what each one proves" states what each of the four does not cover.
-
-function pascal(snakeName,   nameParts, partCount, partIndex, outName) {
-	partCount = split(snakeName, nameParts, "_")
-	outName = ""
-	for (partIndex = 1; partIndex <= partCount; partIndex++)
-		outName = outName toupper(substr(nameParts[partIndex], 1, 1)) substr(nameParts[partIndex], 2)
-	return outName
-}
 
 BEGIN { inAnnounce = 0 ; }
 
@@ -46,10 +38,14 @@ inAnnounce && /^[ \t]+[A-Za-z_]+\)[ \t]*$/ {
 	siteSeen["announce", armName] = 1 ; toolNames[armName] = 1
 }
 
-## Dispatch site: the case arms assigning harnessResult from a tool call.
+## Dispatch site: the case arms assigning harnessResult from a tool call. The handler a given arm calls
+## is recorded too, so a tool served by a shared handler is held to the same thing as one with a
+## handler of its own: the function its arm names must exist.
 /^[ \t]+[A-Za-z_]+\)[ \t]+harnessResult="\$\( AgentsHarnessTool/ {
 	armName = $0 ; sub(/^[ \t]+/, "", armName) ; sub(/\).*$/, "", armName)
+	calledName = $0 ; sub(/.*harnessResult="\$\( /, "", calledName) ; sub(/[ \t].*$/, "", calledName)
 	siteSeen["dispatch", armName] = 1 ; toolNames[armName] = 1
+	dispatchCalls[armName] = calledName ; calledFns[calledName] = 1
 }
 
 ## Function site.
@@ -62,21 +58,18 @@ END {
 	failedAny = 0
 	missingDetail = ""
 	for (toolName in toolNames) {
-		wantName = pascal(toolName)
-		expectFn = "AgentsHarnessTool" wantName
-		expectedFns[expectFn] = toolName
 		if (!((("declared" SUBSEP toolName) in siteSeen)))  { failedAny = 1 ; missingDetail = missingDetail sprintf("\n    %s: declared site missing", toolName) ; }
 		if (!((("announce" SUBSEP toolName) in siteSeen)))  { failedAny = 1 ; missingDetail = missingDetail sprintf("\n    %s: announce arm missing", toolName) ; }
 		if (!((("dispatch" SUBSEP toolName) in siteSeen)))  { failedAny = 1 ; missingDetail = missingDetail sprintf("\n    %s: dispatch arm missing", toolName) ; }
-		if (!(expectFn in fnDefined))                       { failedAny = 1 ; missingDetail = missingDetail sprintf("\n    %s: function %s missing", toolName, expectFn) ; }
+		else if (!((dispatchCalls[toolName]) in fnDefined)) { failedAny = 1 ; missingDetail = missingDetail sprintf("\n    %s: its dispatch arm calls %s, which no function defines", toolName, dispatchCalls[toolName]) ; }
 	}
 
-	## Read from the function side: the loop above fills toolNames from the other
-	## three sites only, so a surviving orphan function is invisible to it.
+	## Read from the function side: the loop above fills toolNames from the other three sites only, so a
+	## handler no arm of any tool calls is invisible to it.
 	for (fnName in fnDefined) {
-		if (!(fnName in expectedFns)) {
+		if (!(fnName in calledFns)) {
 			failedAny = 1
-			missingDetail = missingDetail sprintf("\n    %s: defined, but no tool declares, announces or dispatches it", fnName)
+			missingDetail = missingDetail sprintf("\n    %s: defined, but no dispatch arm calls it", fnName)
 		}
 	}
 

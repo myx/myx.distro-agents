@@ -81,6 +81,7 @@ def glanceFullTable(state):
 
 registerPlugin({
     "name": "glance",
+    "apps": ("agents", "local", "source", "deploy", "remote"),
     "commands": (
         {"name": "list-filter", "keys": ("/",), "menu": ("view", 6), "label": "Filter the list", "status": "Filter", "window": "list",
          "after": "filter", "does": ("listfilter",)},

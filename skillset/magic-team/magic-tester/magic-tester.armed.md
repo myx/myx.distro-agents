@@ -155,7 +155,7 @@ The live-side-effect module carries the detail. The rules to carry into the run:
 - Assertions read the produced output, not reachability.
 - Each case is named and carries a written reason it exists.
 - Fixtures are added beside the real assets; the originals are never edited.
-- Each run is isolated: loopback only, an unprivileged port, fresh working directories, a read-only overlay over the real tree.
+- Each run is isolated: loopback only, an unprivileged port, fresh working directories, a real copy of the tree in the run's own `output/` folder.
 - A finding is recorded with its date and marked stale when its premise stops holding.
 - For a transformation with no suite: build a corpus over the input grammar. Run the pre-change implementation, run the post-change implementation, and diff byte for byte.
 - For an addition to a shared index: snapshot with the new thing held out, put it back, snapshot again, and diff the two snapshots.

@@ -13,6 +13,7 @@
 ## Each step is also appended to `launch.steps` beside the launcher's `launch` (and its bare `launch.noticed`), one `<step>=<n>s`
 ## a line. That record needs no data root, so a start is timed in a Just Agents workspace too, where the transcript milestone
 ## that carries the line is never written. `launch`'s own mtime is left alone: the Wait takes the session start from it.
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2> /dev/null
 AgentsToolsStartStepBegin(){
 	agentsStartStepFirst="$( date +%s )" ; agentsStartStepAt="$agentsStartStepFirst" ; agentsStartSteps=""
 }
@@ -311,6 +312,10 @@ AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has wh
 		routeHop="${routeHop%%:*}"
 		if AgentsToolsAssertBareName "$routeHop" "the agent-less parent" AgentsToolsRunRoute 2> /dev/null \
 			&& [ "$( AgentsToolsSpawnSandboxRecordHeader "${MMDAPP:-/nonexistent}/.local/agents/spawned/$routeHop/$routeHop.spawn.md" agent-less )" = true ] ; then
+			## The parent stands for its caller: the address its own record names, the one its `owner:` is (S5 item 1).
+			routeOne="$( AgentsToolsSpawnSandboxRecordHeader "${MMDAPP:-/nonexistent}/.local/agents/spawned/$routeHop/$routeHop.spawn.md" "$agentsRunRouteField" )"
+			## A parent naming itself is no hop: that is the one run which takes no matter at all (S5 item 1, the cycle guard).
+			if AgentsToolsRunRouteValid "$routeOne" && [ "${routeOne%%:*}" != "$routeHop" ] ; then printf '%s\n' "$routeOne" ; return 0 ; fi
 			routeOne="$( agentsRunRouteHopped=1 AgentsToolsRunRoute "${MMDAPP:-/nonexistent}/.local/agents/spawned/$routeHop/$routeHop.spawn.md" )"
 			if [ "$( AgentsToolsSpawnSandboxRecordHeader "${MMDAPP:-/nonexistent}/.local/agents/spawned/${routeOne%%:*}/${routeOne%%:*}.spawn.md" agent-less )" != true ] ; then
 				printf '%s\n' "$routeOne" ; return 0
@@ -382,6 +387,7 @@ AgentsToolsSpawnSessionParentClose(){ ## parent record
 	## Its handback, in the caller's thread, where the parent has one. Best-effort, never the parent's outcome.
 	closeThread="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" session-thread )"
 	[ -n "$closeThread" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-event-track-post "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" owner )" "$closeThread" --kind handback \
 		--session-id "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" session-id )" \
 		--field handback="agent-less parent: all spawned sessions are done ($closeOutcome): $closeList" < /dev/null 2>&1 > /dev/null || :
@@ -434,6 +440,7 @@ agentsSpawnSessionParentWorkers=4
 ## partition.scopes (--partition-scope), named first in its brief and as `scope:` on its record. Prints the child's
 ## session id; rc 1 where it failed.
 AgentsToolsSpawnSessionParentStart(){ ## parent session id, queue entry
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2> /dev/null
 	local startDir="$MMDAPP/.local/agents/spawned/$1" startArgs=() startArg startOut startChild startMember="${2%@*}" startScope="" startNotes=""
 	while IFS= read -r -d '' startArg ; do startArgs+=( "$startArg" ) ; done < "$startDir/partition.args"
 	case "$2" in
@@ -510,11 +517,6 @@ AgentsToolsSpawnSessionParentTick(){ ## parent record
 		fi
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$tickFile" status )" != spawn-started ] || case " $tickOpen " in *" $tickChild "*) ;; *) tickOpen="$tickOpen $tickChild" ;; esac
 	done
-	for tickChild in $tickChildren ; do
-		case " $tickOpen " in *" $tickChild "*) continue ;; esac
-		tickStatus="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$tickChild/$tickChild.spawn.md" status )"
-		AgentsToolsSpawnSessionParentPost "$tickRecord" "closed:$tickChild" --kind notice --field what="agent-less parent: child $tickChild closed: ${tickStatus#spawn-}"
-	done
 	[ "$tickChildren" = "$tickKnown" ] \
 		|| printf 'children\t%s\n' "$tickChildren" | AgentsToolsSpawnSessionRecordNote "$tickRecord" || :
 	## The queue: started while there is room and the caller is there.
@@ -546,6 +548,13 @@ AgentsToolsSpawnSessionParentTick(){ ## parent record
 			done
 		fi
 	fi
+	## A child's close is posted here, after the queue: a child started in this same pass may already be done, and the
+	## parent closes right after, which ends the watcher. Its own record settles it, never this pass's snapshot (S5 item 1).
+	for tickChild in $tickChildren ; do
+		tickStatus="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$tickChild/$tickChild.spawn.md" status )"
+		case "$tickStatus" in ''|spawn-started) continue ;; esac
+		AgentsToolsSpawnSessionParentPost "$tickRecord" "closed:$tickChild" --kind notice --field what="agent-less parent: child $tickChild closed: ${tickStatus#spawn-}"
+	done
 	AgentsToolsSpawnSessionParentClose "$tickRecord" || return 1
 	AgentsToolsSpawnSessionParentPost "$tickRecord" end --kind notice --field what="agent-less parent: done, $( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" status )"
 	return 0
@@ -1002,6 +1011,7 @@ AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-se
 		printf '%s\n' "The conversation this session continues: read it before acting. Newest $historyMax messages per thread, oldest first, one \`<ts> | <user> | <text>\` head per message. (own) marks a post by $historyMember, (team: <name>) one by another team member."
 		for historyThread in $historyThreads ; do
 			printf '\n## Thread %s\n\n' "$historyThread"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			if DistroAgentsTools --intern-op-comms-slack-read "$historyMember" "$historyThread" --thread > "$historyRead" 2>/dev/null \
 				&& LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$historyRead" > "$historyRead.fmt" 2>/dev/null ; then
 				LC_ALL=C awk -v max="$historyMax" -v member="$historyMember" '
@@ -1243,6 +1253,13 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	[ "$itemState" != running ] || [ "$itemTargetState" != review ] \
 		|| reviewHeaders=( --header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"$reviewReason" )
 	type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+	## The body is read and written under the same per-item lock the Decisions appenders take, so a
+	## decision recorded while this close runs is neither overwritten by its snapshot nor refused
+	## while the item is between board states.
+	local closeItemLock=""
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake "decisions-${itemName%.md}" 30 "the Decisions of $itemName" && closeItemLock="$agentsLocalLockPath" \
+		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the Decisions lock on $itemName could not be taken; closing without it" >&2
 	currentBody="$( AgentsToolsDataRead "$itemName" \
 		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
 		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
@@ -1260,6 +1277,7 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: can't create board state directory $MDAT_DATA_ROOT/board/$itemTargetState, so dispatch item $itemName was not closed" >&2
 		return 0
 	}
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit "$itemTargetState" "$itemName" \
 		--from-state:"$itemState" \
 		--header:upsert:status:dispatch-"$outcome" \
@@ -1268,7 +1286,8 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		--upsert-from-stdin \
 		--context --intern-op-agent-spawn-proxy \
 		--log-verb:updated \
-		|| { echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not close dispatch item $itemName" >&2 ; return 0 ; }
+		|| { [ -z "$closeItemLock" ] || AgentsToolsLocalLockGive "$closeItemLock" ; echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not close dispatch item $itemName" >&2 ; return 0 ; }
+	[ -z "$closeItemLock" ] || AgentsToolsLocalLockGive "$closeItemLock"
 	## The entry into review recorded, in Decisions and the transcript; and an item with no review, as that.
 	if [ -n "$reviewNone" ] ; then
 		type AgentsReviewRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
@@ -1333,6 +1352,7 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 		[ ! -f "${recordPath%/*}/session.thread" ] || IFS= read -r childThread < "${recordPath%/*}/session.thread" || :
 	fi
 	AgentsToolsSpawnConversationThreadValid "$childThread" || { printf 'ACCEPT-DISMISS: not sent: spawn %s has no session thread to post in\n' "$itemSpawn" ; return 0 ; }
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if sendOut="$( printf 'DISMISSED' | DistroAgentsTools --intern-op-comms-slack-send-message "$sendBy" "$childThread" --identity-bot --address-to "$childMember" --from-stdin 2>&1 )" ; then
 		printf 'ACCEPT-DISMISS: sent DISMISSED to %s in %s (spawn %s)\n' "$childMember" "$childThread" "$itemSpawn"
 	else
@@ -1421,8 +1441,8 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 ## it (AgentsToolsSpawnProxyRunRecord): a reader finds the record as it was or as it is, and so
 ## does whoever comes after a closer that was ended half way; never a record cut short.
 ## rc 0 closed; rc 1 where this try could not close it, the record as it was.
-AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
-	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts="" sandboxRefused=""
+AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, end reason (optional)
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxEndReason="${4:-}" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts="" sandboxRefused=""
 	[ -f "$sandboxFile" ] || return 1
 	mkdir -p "$MMDAPP/.local/temp" || return 1
 	## A temp file of this close's own, by mktemp and never by $$: the members one call
@@ -1458,6 +1478,11 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 		## reason, or one the harness could not name.
 		if [ -s "${sandboxFile%.spawn.md}.refused" ] ; then
 			sandboxReason="$( head -1 "${sandboxFile%.spawn.md}.refused" | LC_ALL=C tr '\t' ' ' )"
+			printf 'upsert\tend-reason\t%s\n' "$sandboxReason"
+		elif [ -n "$sandboxEndReason" ] ; then
+			## A caller that saw why the run ended states it, where the run itself left no refusal
+			## to say it: the record is what a later reader opens, so the reason goes here.
+			sandboxReason="$( printf '%s' "$sandboxEndReason" | LC_ALL=C tr '\t' ' ' )"
 			printf 'upsert\tend-reason\t%s\n' "$sandboxReason"
 		fi
 		## How many summarise-and-restarts this run made, from the marker the harness appends
@@ -1548,6 +1573,7 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 		## The asker's own withdraw, done in the asker's name: the member that asked is what this
 		## call acts as, so the one gate every withdraw has sees the run that asked it and nobody else.
 		if type DistroAgentsTools > /dev/null 2>&1 ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			( export MDAT_SPAWN_AGENT="$askOwner" ; DistroAgentsTools --settle-pending-reply "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
 		else
 			( export MDAT_SPAWN_AGENT="$askOwner" ; "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --settle-pending-reply "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
@@ -1562,7 +1588,7 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 ## the run's group that took the header writer with it, a temp folder that was full. Where
 ## the second cannot either, that is said, on stderr: the record then still says what it
 ## said, and a later advance pass closes it. Never fails its caller.
-AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
+AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end reason (optional)
 	[ -f "$1" ] || return 0
 	## The run's own questions are settled first, while its record still says it was started: a question
 	## of a run that has ended is withdrawn by it, and never left waiting for an answer nobody hears.
@@ -1643,6 +1669,7 @@ AgentsToolsSpawnProxySessionNotice(){ ## thread or conversation, the member it i
 	## recorded but never held (MAGIC.md). A line of tooling-note.post.format.md cannot be rewritten
 	## to answer a CORRECTION, so a held notice would never be posted at all -- `## run-closed` is 30
 	## words against a cap of 25, and the run it is about would go untold.
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if printf '%s\n' "$noticeText" | DistroAgentsTools --intern-op-comms-slack-send-message "${noticeArgs[@]}" --from-stdin > "$noticeOut" 2>&1 ; then
 		agentsSpawnProxyNoticePosted="yes"
 	## The send refuses with rc 1 for every fault, so its words are all there is: the one exact line
@@ -1796,7 +1823,8 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 		;;
 		*)
 			endRouted="human-owner" ; endTo="$endOwn"
-			if [ "$endWaits" != "caller-waits" ] && [ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" ] ; then
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			if [ "$endWaits" != "caller-waits" ] && [ -n "$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" ] ; then
 				endTo="human-owner" ; endTell="human-owner"
 				endSession="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-comment )"
 				type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
@@ -1888,6 +1916,7 @@ AgentsToolsHousekeepingReport(){ ## member, lines
 	type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include" 2> /dev/null || return 0
 	reportThread="$( AgentsToolsEventTrackThreadRead "$( AgentsToolsEventTrackThreadOwnDir )" )"
 	[ -n "$reportThread" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$2" | DistroAgentsTools --intern-op-event-track-post "$1" "$reportThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field what="board housekeeping" --from-stdin > /dev/null 2>&1 || :
 	return 0

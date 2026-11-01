@@ -51,7 +51,7 @@ trap 'chmod -R u+rwx "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm
 ## process started (-o lstart= -p <pid>) is answered from the rig's own table for a pid it
 ## holds, `<pid> <start as ps prints it>` a line, and by the real ps for any other.
 mkdir -p "$rigTmp/bin"
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 : > "$rigTmp/ps.started"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
@@ -359,14 +359,14 @@ rigAssert "a closed record is finished, whatever process it names" "$( rigStateO
 rigAssert "a spawn id with a backslash is matched literally" "$( rigLiveOf r-run-backslash )" running
 rigAssert "a spawn id with pattern characters is matched literally" "$( rigLiveOf r-run-meta )" running
 rigAssert "a ? in a spawn id matches only itself" "$( rigLiveOf r-run-meta-miss )" no-process
-rigAssert "an open ask makes waiting" "$( rigStateOf r-open-ask )" waiting
+rigAssert "an open ask leaves the run unclosed: a run with no live process never reads waiting (sketch 5.4)" "$( rigStateOf r-open-ask )" unclosed
 rigAssert "a received ask is unclosed" "$( rigStateOf r-closed-ask )" unclosed
-rigAssert "a blocked board item makes waiting" "$( rigStateOf r-board )" waiting
-rigAssert "awk's numeric == holds: 100 against an ask for 1e2" "$( rigStateOf r-numeric )" waiting
+rigAssert "a blocked board item leaves it unclosed too" "$( rigStateOf r-board )" unclosed
+rigAssert "the open-ask set is still answered for a caller that asks it: awk's numeric == holds, the session 100 against an ask for session 1e2" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryPendingOpenSessions "$( AgentsToolsRegistryFile spawned-sessions )" ) | LC_ALL=C grep -c -x -F -e 100 )" 1
 rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryDeriveState started no-process 'bs\x' ) )"
 rigAssert "a prefix of an open id is not open" "$( rigStateOf r-prefix )" unclosed
-rigAssert "the ask of a run that joined a session is an ask of that session: the run that asked is waiting" "$( rigStateOf r-cow-joined )" waiting
-rigAssert "and so are that session's other unclosed runs, as they are by its founder's ask" "$( rigStateOf r-cow-founder ):$( rigStateOf r-cow-mate )" "waiting:waiting"
+rigAssert "the ask of a run that joined a session is an ask of that session, and that run is unclosed like any other with no live process" "$( rigStateOf r-cow-joined )" unclosed
+rigAssert "and the session's other runs are unclosed too" "$( rigStateOf r-cow-founder ):$( rigStateOf r-cow-mate )" "unclosed:unclosed"
 rigAssert "a session of which nobody asked is not" "$( rigStateOf r-cow-other )" unclosed
 rigAssert "a row with no spawn id is not matched by an ask with no session id" "$( rigStateOf r-nospawn-quiet ):$( LC_ALL=C awk '$3 == "-" && $5 == "reply-pending" { openDash++ ; } END { print openDash + 0 ; }' "$rigRWs/.local/agents/pending-replies.registry" )" "unclosed:1"
 rigAssert "asked of one session alone, the function answers the same" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryPendingSessionOpen "s-cow-$$" && printf open || printf none ; AgentsToolsRegistryPendingSessionOpen "s-cow-other-$$" && printf :open || printf :none ; AgentsToolsRegistryPendingSessionOpen s-quiet && printf :open || printf :none ) )" "open:none:none"

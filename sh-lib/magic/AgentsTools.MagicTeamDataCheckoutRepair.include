@@ -105,7 +105,8 @@ case "$1" in
 
 		local repoRoot="" originUrl="" gitOut="" gitRc=0
 		set +e
-		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
 		set -e
 		if [ -z "$repoRoot" ] ; then

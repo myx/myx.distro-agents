@@ -141,6 +141,7 @@ case "$1" in
 				[ -z "$( git -C "$MDAT_DATA_ROOT" ls-files -- "$oldFile" 2>/dev/null )" ] || oldTracked="true"
 				mv "$oldFile" "$boardRoot/$state/$newName"
 				## What it supersedes is a bare item name, as the contract of every board type has it: no .md, no note beside it.
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$state" "$newName" --from-state:"$state" --header:upsert:supersedes:"${oldName%.md}" --context --intern-op-board-rename ; then
 					echo "$MDSC_CMD: board-rename: ⛔ ERROR: renamed $oldFile -> $newName but failed to stamp supersedes" >&2
 					set +e ; return 1
@@ -167,6 +168,7 @@ case "$1" in
 			local huskType
 			huskType="$( AgentsToolsItemNameType "$oldName" )" || huskType=""
 			[ -n "$huskType" ] || huskType="note"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			if ! printf '%s\n' '---' "type: $huskType" "superseded-by: ${newName%.md}" '---' "Renamed to \`$newName\`." | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin --header:upsert:processed-at:"$huskProcessedAt" --context --intern-op-board-rename >/dev/null ; then
 				echo "$MDSC_CMD: board-rename: ⛔ ERROR: failed to leave husk at board/processed/$oldName" >&2
 				set +e ; return 1

@@ -86,6 +86,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/backlog" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -145,6 +146,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-pending: can't create board state directory: $MDAT_DATA_ROOT/board/pending" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -204,6 +206,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -263,6 +266,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -333,6 +337,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/blocked" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -391,6 +396,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -449,6 +455,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-archived: can't create board state directory: $MDAT_DATA_ROOT/board/archived" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit archived "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -515,6 +522,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-to-retained: can't create board state directory: $MDAT_DATA_ROOT/board/retained" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit retained "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -582,6 +590,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-create-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--acting-member:"$callingMember" \
@@ -649,6 +658,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-create-processed: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--acting-member:"$callingMember" \
@@ -716,6 +726,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-create-pending: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--acting-member:"$callingMember" \
@@ -782,6 +793,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-create-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--acting-member:"$callingMember" \
@@ -848,6 +860,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --grooming-create-running: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--acting-member:"$callingMember" \
@@ -888,6 +901,7 @@ case "$1" in
 		local lockNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154332Z-grooming-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## team-roster (cache)"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --get-roster "$callingMember"
 		## The board scope below is already all types / any owner, so an item a
 		## client-* member filed on the board has always been visible here. An
@@ -914,6 +928,7 @@ case "$1" in
 			fi
 		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 		printf '\n%s\n\n' "## board digest"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state review --state blocked --state parked \
 			--all-types \

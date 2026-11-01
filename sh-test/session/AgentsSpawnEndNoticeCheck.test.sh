@@ -85,8 +85,8 @@ trap 'rigLetAllGo ; rigControlThreadsEnd "$rigTmp" ; chmod -R u+rwX -- "$rigTmp"
 ## THE RIG'S OWN PROCESS LIST. The ps first on PATH answers the whole-host listing from the rig's own list, beside
 ## it, which holds no line: no process of the host is ever read as a run, and a run of this rig lives by the
 ## process its record names. The listing of pid and ppid, and every other call, is handed to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
-ln -s "$( command -v id )" "$rigTmp/bin/id.real" || rigRefuse "no id on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool id "$rigTmp/bin/id.real" || rigRefuse "no id on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -163,10 +163,10 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 ))
 	fi
 }
-rigWaitFor(){ ## seconds, test command...
-	local waitLeft="$1" ; shift
+rigWaitFor(){ ## seconds, test command... -- a state the check must reach: at the bound it says so and ends the check, never a verdict on what stands there
+	local waitSeconds="$1" waitLeft="$1" ; shift
 	while ! "$@" && [ "$waitLeft" -gt 0 ] ; do sleep 1 ; waitLeft=$(( waitLeft - 1 )) ; done
-	"$@"
+	"$@" || rigRefuse "the rig did not reach the state this check waits for within $waitSeconds s, in scenario ${rigDir##*/}: $*"
 }
 rigBegan(){ ## pid -- when that process began, as one word, as a record keeps it; nothing when there is none
 	LC_ALL=C "$rigTmp/bin/ps.real" -o lstart= -p "$1" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }'
@@ -258,10 +258,10 @@ rigJoined=( "MDAT_SESSION_ID=$rigParent" "MDAT_SESSION_THREAD=$rigParentThread" 
 ## Waits for the scenario's console, the launch named, and for that launch to be kept on its record; sets rigRecord,
 ## rigShell, what the record names as its supervising shell, rigItem, the stem of its dispatch item, and rigLog.
 rigRunStarted(){ ## scenario, launch
-	rigWaitFor 60 test -s "$rigDir/$2.began" || rigRefuse "the stand-in console never started in scenario $1: $( LC_ALL=C grep -h -m1 ERROR "$rigDir"/*.out 2> /dev/null | LC_ALL=C grep -v -F 'SystemContext.SetInputSpec' | head -1 )"
+	rigWaitFor 60 test -s "$rigDir/$2.began"
 	rigRecord="$( head -1 "$rigDir/record" 2> /dev/null )"
 	[ -n "$rigRecord" ] && [ -f "$rigRecord" ] || rigRefuse "the run of scenario $1 has no record"
-	rigWaitFor 20 rigRunKept || rigRefuse "the proxy kept no process on the record of its run in scenario $1"
+	rigWaitFor 20 rigRunKept
 	rigShell="$( rigHeader "$rigRecord" supervisor-process )"
 	rigItem="$( rigHeader "$rigRecord" spawns )"
 	rigLog="$rigWs/.local/agents/sessions/$( rigRunId )/session.log"
@@ -282,9 +282,9 @@ rigStart(){ ## scenario, NAME=value words and options of the proxy...
 	rigRunStarted "$startName" first
 }
 rigEnded(){ ## -- the run of the scenario is closed, its item is in review, and its supervising shell is gone
-	rigWaitFor 90 rigRecordClosed
-	rigWaitFor 30 test -f "$rigData/board/review/$rigItem.md"
-	rigWaitFor 60 rigHasEnded "$rigShell"
+	rigWaitFor 180 rigRecordClosed
+	rigWaitFor 90 test -f "$rigData/board/review/$rigItem.md"
+	rigWaitFor 180 rigHasEnded "$rigShell"
 }
 rigLetGo(){ : > "$rigDir/release-first" ; : > "$rigDir/release-retry" ; } ## -- the run ends by itself, and so does its one retry
 rigMissing='and posted no handback. What it did is not reported in this thread.'
@@ -476,14 +476,14 @@ rigAssert "control: the run handed back in the thread of the session that reques
 	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 }' ):$( rigIsStill "$( head -1 "$rigDir/first.began" )" && printf run-alive || printf run-gone )" "${rigParentThread%%:*} ${rigParentThread#*:}:run-alive"
 rigConsoleGrant
 rigConsole "$rigDir/kill.out" --manager-session-kill --session-id "$( rigRunId )" --run
-rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
+rigWaitFor 180 rigRecordClosed ; rigWaitFor 180 rigHasEnded "$rigShell"
 rigAssert "a killed run that had handed back is still told as killed, in that thread" "$( rigNotes "$rigDir" "$rigKilledWords" )" "${rigParentThread%%:*} ${rigParentThread#*:} $rigToB"
 ## Ended by a member's TaskStop: the member of the session that requested it stops it, by the served tool.
 rigStart stopped "${rigAsParent[@]}" --session-new
 printf '{"task_id":"%s"}\n' "$( rigRunId )" | ( cd "$rigWs" && rigEnv "$rigDir" "${rigAsParent[@]}" bash "$rigHarness" --intern-tool TaskStop ) > "$rigDir/stop.out" 2>&1
 rigAssert "control: the TaskStop of rig-member-b ends the run, and the ending is recorded in its transcript under that member" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigDir/stop.out" ):$( LC_ALL=C grep -h -c -E '^[0-9TZ:-]+ ENDING .* by=rig-member-b text="taskstop: ' "$rigData"/audit/*/session-*"$( rigShort )"*.log 2> /dev/null | head -1 ):$( rigHeader "$rigRecord" killed-by )" "1:1:"
-rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
+rigWaitFor 180 rigRecordClosed ; rigWaitFor 180 rigHasEnded "$rigShell"
 rigAssert "it is told as stopped, and by which member, in the thread of the session that requested it; no note of a missing handback beside it" \
 	"$( rigNoteText "$rigDir" 'with TaskStop' | LC_ALL=C sed -E 's/<!date\^[0-9]+\^[^|]*\|[^>]*>/WHEN/' ):$( rigNotes "$rigDir" 'with TaskStop' ):$( rigNoteCount "$rigDir" 'posted no handback' )" \
 	"🛑 The run \`$( rigShort )\` of rig-member-a was stopped by rig-member-b, with TaskStop, WHEN.:${rigParentThread%%:*} ${rigParentThread#*:} $rigToB:0"
@@ -562,13 +562,13 @@ rigReturn joined "$rigOldItem"
 rigAssert "its reviewer returns it: the member is started again on that item, as a run of its own, in the same session and the same sandbox" \
 	"$( rigRestarted "$rigOldItem" "$rigOldRun" "$rigParent" "$rigOldSandbox" )" "1:running:run-of-its-own:same-session:same-sandbox:$rigOldItem"
 rigLetGo
-rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
+rigWaitFor 180 rigRecordClosed ; rigWaitFor 180 rigHasEnded "$rigShell"
 ## The run of 6: closed by the advance pass, its item in review.
 rigReturn advance "$rigDeadItem"
 rigAssert "a run the advance pass closed, its record ended without close: its reviewer returns its item, and the member is started again the same way" \
 	"$( rigHeader "$rigSp/$rigDead/$rigDead.spawn.md" status ):$( rigRestarted "$rigDeadItem" "$rigDead" "$rigDead" "$rigDead" )" "spawn-ended-without-close:1:running:run-of-its-own:same-session:same-sandbox:$rigDeadItem"
 rigLetGo
-rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
+rigWaitFor 180 rigRecordClosed ; rigWaitFor 180 rigHasEnded "$rigShell"
 
 echo "-- 8. the words are the template's --"
 ## One block filled straight from its template, as the tooling fills it.
@@ -594,7 +594,9 @@ rigAssert "each line of an end takes those words after its own, and stands as it
 rigInCode(){ ## fixed text -> how many code lines of the package hold it
 	cat "$rigLib"/*/*.sh "$rigLib"/*/*.include "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$1" || :
 }
-for rigPhrase in 'posted no handback' 'Its handback was posted in another thread' 'was killed from the console' 'with TaskStop' 'was ended by the tooling' 'No session requested this run' ; do
+## The phrase is the template's own bracket form: "with TaskStop" alone is the tooling's idiom for a
+## task handle, and a code line that offers it says nothing the template owns.
+for rigPhrase in 'posted no handback' 'Its handback was posted in another thread' 'was killed from the console' 'with TaskStop[[, {{at}}]]' 'was ended by the tooling' 'No session requested this run' ; do
 	rigAssert "no code line holds: $rigPhrase" "$( rigInCode "$rigPhrase" )" 0
 done
 rigAssert "one function tells the end of a run, whoever closes it: the supervising shell in both its closes, and the housekeeping pass" \

@@ -4,8 +4,9 @@
 ##
 ## AgentsHarnessUnserved.include -- the tools one side does not serve, which that side still LISTS, so the harness and the MCP server list the same
 ## tools (S2.1): the harness floor is the MCP list less Bash and WorkspaceContextExecute, which only the harness serves, and the MCP list is the
-## harness floor plus execute, RootSession and the secondary tools, which only the MCP server serves. Each such tool carries a description that says
-## where it runs, and an input schema that takes the optional intent description only, as every listed tool does. Sourced; declarations and functions only.
+## harness floor plus execute and RootSession, which only the MCP server serves. The secondary tools are on neither list: both sides serve them,
+## the harness through its own wire and one handler (AgentsHarnessToolSecondary). Each unserved tool carries a description that says where it
+## runs, and an input schema that takes the optional intent description only, as every listed tool does. Sourced; declarations and functions only.
 ##
 
 agentsUnservedSchema='{"type":"object","properties":{"description":{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}},"required":[]}'
@@ -14,11 +15,10 @@ agentsUnservedSchema='{"type":"object","properties":{"description":{"type":"stri
 agentsUnservedOnMcp='Bash
 WorkspaceContextExecute'
 
-## The tools the harness does not serve and the MCP server does, one name a line: RootSession and the secondary tools (agentsFrontSecondary).
+## The tools the harness does not serve and the MCP server does, one name a line: RootSession, the tool the MCP server holds for the harness's own
+## root run. The secondary tools were here once; the harness now serves them itself, so they are on neither side's unserved list.
 AgentsToolsUnservedInHarness(){
 	printf '%s\n' RootSession
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include" || return 1
-	printf '%s\n' "$agentsFrontSecondary"
 }
 
 ## What a tool unserved on a side says: the one sentence of its description. $1 = the side that does not serve it, `mcp` or `harness`; $2 = the tool.

@@ -39,7 +39,8 @@ AgentsToolsArtifactType(){ ## kind
 
 ## One value of a scope, or empty.
 AgentsToolsArtifactOption(){ ## scope, key
-	DistroAgentsTools --agents-config-option "$1" --select "$2" 2>/dev/null || :
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	AgentsToolsConfigOption "$1" --select "$2" 2>/dev/null || :
 }
 
 ## Whether a member scope holds every key of a set, each with a value.
@@ -219,6 +220,7 @@ AgentsToolsArtifactConfluenceTitled(){ ## title
 AgentsToolsArtifactConfluenceCreate(){ ## title, body file, parent id (empty for the space top)
 	local createRc=0
 	artCreatedId=""
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-atlassian-confluence-page-create --member "$artMember" --space-id "$artSpaceId" \
 		--title "$1" --body-storage-from-file "$2" ${3:+--parent-id "$3"} --context intern-artifact-publish > "$artWork/created.json" || createRc=$?
 	[ "$createRc" = 0 ] || return "$createRc"
@@ -279,6 +281,7 @@ AgentsToolsArtifactConfluencePublish(){
 		listVersion="$( AgentsToolsArtifactJson version.number "$artWork/index.json" )"
 		AgentsToolsArtifactJson body.storage.value "$artWork/index.json" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsArtifactHtml.py" confluence-index "$artFullTitle" > "$artWork/index.xhtml" || { callRc=1 ; break ; }
 		callRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$artMember" --page-id "$indexId" --version "$listVersion" \
 			--title "$indexTitle" --status current --body-storage-from-file "$artWork/index.xhtml" --context intern-artifact-publish > /dev/null || callRc=$?
 		[ "$callRc" = 5 ] || break

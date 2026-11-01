@@ -87,7 +87,8 @@ AgentsToolsPermissionIsHumanOwner(){ ## who
 			AgentsToolsAuthorityOwnerNamed "$1" && return 0
 		;;
 	esac
-	ownerAccount="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" || ownerAccount=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	ownerAccount="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" || ownerAccount=""
 	[ -n "$ownerAccount" ] && [ "$ownerAccount" = "$1" ] && return 0
 	return 1
 }

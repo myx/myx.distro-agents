@@ -592,6 +592,7 @@ PENDING_READS = {
 ## (pendingCount). The list itself is read where it is shown, and not for this.
 registerPlugin({
     "name": "pending",
+    "apps": ("agents",),
     "root": {"id": "pending", "label": "Pending Questions", "go": "~P~ending Questions", "group": "watch"},
     "focus": {"pending": "pendingFocus"},
     "counted": {"pending": "pendingCount"},

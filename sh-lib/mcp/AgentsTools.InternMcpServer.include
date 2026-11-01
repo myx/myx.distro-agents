@@ -9,8 +9,9 @@
 ## reads everything else -- the tool floor, identity, access, workspace context --
 ## on that call. Nothing a request is answered from depends on when this started.
 ## stdout is the JSON-RPC wire, handed to each request as its fd 3; every
-## diagnostic goes to stderr. Every scratch file lives under
-## $MMDAPP/.local/temp/agent-mcp.$$/, written out in full at each use.
+## diagnostic goes to stderr. Every scratch file lives under the scratch root of this server,
+## `agent-mcp.<pid>` in the calling session's output folder where it has one, the workspace's
+## .local/temp otherwise, written out in full at each use.
 ## set -e rules, portability floor and design notes: see MAGIC.md.
 ##
 
@@ -49,24 +50,29 @@ case "$1" in
 			return 1
 		fi
 
-		rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"
-		if ! mkdir -p "$MMDAPP/.local/temp/agent-mcp.$$" ; then
-			printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: cannot create scratch directory $MMDAPP/.local/temp/agent-mcp.$$" >&2
+		## The scratch root of this server: the calling session's output folder where it has one, the workspace's
+		## .local/temp otherwise (MAGIC.md, "Scratch paths").
+		mcpScratchBase="$MMDAPP/.local/temp"
+		[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || mcpScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
+		mcpScratchRoot="$mcpScratchBase/agent-mcp.$$"
+		rm -rf "$mcpScratchRoot"
+		if ! mkdir -p "$mcpScratchRoot" ; then
+			printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: cannot create scratch directory $mcpScratchRoot" >&2
 			return 1
 		fi
 		AGENTS_MCP_REQ_SEQ=0
 		## A signal ends the server: removing the scratch root and reading on would leave
 		## every later request with nowhere to answer from, and the host waiting on it.
-		trap 'rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"' EXIT
+		trap 'rm -rf "$mcpScratchRoot"' EXIT
 		trap 'exit 130' INT
 		trap 'exit 143' TERM
 
 		## The tool list of this run, rendered once, now: every request reads this copy (AgentsTools.McpToolList.include), so it is the same for the whole run.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.McpToolList.include"
-		AgentsToolsMcpToolListRender "$MMDAPP/.local/temp/agent-mcp.$$/tools.d" || printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: the tool list of this run could not be rendered; each request will say so" >&2
+		AgentsToolsMcpToolListRender "$mcpScratchRoot/tools.d" || printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: the tool list of this run could not be rendered; each request will say so" >&2
 
 		## Check-init witness; stderr only.
-		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN root=$MMDAPP scratch=$MMDAPP/.local/temp/agent-mcp.$$ -- every request is served by a fresh --intern-mcp-request" >&2
+		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN root=$MMDAPP scratch=$mcpScratchRoot -- every request is served by a fresh --intern-mcp-request" >&2
 
 		## `|| [ -n ... ]` keeps a final line that has no trailing newline.
 		while IFS= read -r mcpLine || [ -n "$mcpLine" ] ; do
@@ -74,7 +80,19 @@ case "$1" in
 			AGENTS_MCP_REQ_SEQ=$(( AGENTS_MCP_REQ_SEQ + 1 ))
 			## A mint of the root-harness session is marked pending as its line is read, before any later request starts; a request that arrives meanwhile waits for it.
 			case "$mcpLine" in
-				*'"RootSession"'*) case "$mcpLine" in *'"mint"'*) : > "$MMDAPP/.local/temp/agent-mcp.$$/mint-pending.$AGENTS_MCP_REQ_SEQ" ;; esac ;;
+				*'"RootSession"'*) case "$mcpLine" in *'"mint"'*) : > "$mcpScratchRoot/mint-pending.$AGENTS_MCP_REQ_SEQ" ;; esac ;;
+			esac
+			## THE SESSION THE CLIENT NAMES AT ITS HANDSHAKE (owner 2026-10-31) is kept here, in the order the messages are
+			## read, so the next request of this server already carries it: every request is a process of its own, and one of
+			## them writing it would race the request that follows.
+			case "$mcpLine" in
+				*'"method":"initialize"'*'"sessionId":"'*)
+					mcpNamedSession="$( printf '%s\n' "$mcpLine" | LC_ALL=C sed -n 's/.*"sessionId":"\([A-Za-z0-9._-]*\)".*/\1/p' | head -1 )"
+					case "$mcpNamedSession" in
+						''|.|..) ;;
+						*) printf '%s\n' "$mcpNamedSession" > "$mcpScratchRoot/client-session" 2>/dev/null || : ;;
+					esac
+				;;
 			esac
 			## One process per message, so a slow request delays only its own response
 			## and the next message is read at once. What this shell derived at start
@@ -94,7 +112,7 @@ case "$1" in
 		done
 		wait
 
-		rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"
+		rm -rf "$mcpScratchRoot"
 		trap - EXIT INT TERM
 		return 0
 	;;

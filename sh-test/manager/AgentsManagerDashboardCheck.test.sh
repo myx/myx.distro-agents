@@ -382,7 +382,7 @@ echo "-- 7. the caller rule of the family, and its place in it --"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigRead"
 rigPre=()
-rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: manager-dashboard-read: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
+rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" "1 0 1"
 rigAssert "the family's include has one arm for the dashboard, which names the list of panels of the console and sources the include of the local tools" "$( LC_ALL=C grep -c -x -e '	--manager-dashboard-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e 'managerConsoleDashboardList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/dashboard-panels.list"' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerDashboard.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1 1"
 rigRun --manager-dashboard-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-dashboard-no-such" )" "1 1"

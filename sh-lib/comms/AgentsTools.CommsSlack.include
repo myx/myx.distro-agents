@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-
 ##
 ## AgentsTools.CommsSlack.include -- THE ONE PLACE. Every piece of non-member
 ## Slack code in this tool family lives in this file: the shared helpers, the
@@ -19,16 +18,13 @@
 ## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD. No --help entry: internal plumbing.
 ##
-
 ## The one alias -> channel-setting map (F7.1): every channel alias below resolves through it, so no
 ## channel-setting literal stands in this file.
 type AgentsToolsCommsChannelSlackKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
-
 ## ===========================================================================
 ## SHARED HELPERS -- definitions only. Nothing below this line until `case`
 ## dispatches on anything, tests $1, or runs an operation.
 ## ===========================================================================
-
 ## THE TWO ENDPOINTS BOTH PAGE BACKWARDS, but only one of them is paged here.
 ## Measured against the live API, walked page by page, not assumed:
 ##
@@ -78,7 +74,6 @@ AgentsToolsSlackReadPagedConversation(){
 	local pagedMember="$1" pagedApi="$2" pagedTarget="$3" pagedIdentity="$4"
 	local pagedThreadTs="$5" pagedOldest="$6" pagedContext="$7"
 	local pagedUntil="$8" pagedCounterparty="$9"
-
 	## Slack's default when `limit` is omitted is 100 (measured), and it documents
 	## 999 as the ceiling while recommending no more than 200. 200 is REQUESTED
 	## rather than defaulted, so the page size is a stated number. The floor of 100
@@ -95,7 +90,6 @@ AgentsToolsSlackReadPagedConversation(){
 	case "$pagedMax" in
 		''|*[!0123456789]*|0)	pagedMax=20 ;;
 	esac
-
 	## A thread is read in ONE call, at the ceiling -- see the endpoint note above.
 	local pagedSingleCall="false"
 	if [ "$pagedApi" = "conversations.replies" ] ; then
@@ -103,15 +97,12 @@ AgentsToolsSlackReadPagedConversation(){
 		pagedSize=999
 		pagedUntil=""
 	fi
-
 	pagedPages=()
-
 	local pagedCursor="" pagedIndex=0 pagedBody="" pagedRc=0 pagedFieldRc=0
 	local pagedHasMore="" pagedPageOldest=""
 	local pagedArgs=()
 	while : ; do
 		pagedIndex=$(( pagedIndex + 1 ))
-
 		pagedArgs=( "$pagedMember" --api "$pagedApi" --resolve-target "$pagedTarget" )
 		if [ "$pagedIdentity" = "bot" ] ; then
 			pagedArgs+=( --identity bot )
@@ -135,9 +126,8 @@ AgentsToolsSlackReadPagedConversation(){
 			pagedArgs+=( --form "cursor=$pagedCursor" )
 		fi
 		pagedArgs+=( --context "$pagedContext (page $pagedIndex)" )
-
 		pagedRc=0
-		pagedBody="$( DistroAgentsTools --intern-op-slack-call "${pagedArgs[@]}" )" || pagedRc=$?
+		pagedBody="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${pagedArgs[@]}" )" || pagedRc=$?
 		if [ "$pagedRc" != "0" ] ; then
 			if [ "$pagedIndex" -gt 1 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD: paged read of $pagedApi $pagedTarget failed on page $pagedIndex of an already-started conversation. Pages 1..$(( pagedIndex - 1 )) were read and are being DISCARDED rather than returned: a prefix returned without its remainder is exactly the silent truncation this read exists to remove." >&2
@@ -145,7 +135,6 @@ AgentsToolsSlackReadPagedConversation(){
 			return 1
 		fi
 		pagedPages+=( "$pagedBody" )
-
 		## A thread: one call, and `has_more` decides pass-or-fail, never a merge.
 		if [ "$pagedSingleCall" = "true" ] ; then
 			pagedFieldRc=0
@@ -171,7 +160,6 @@ AgentsToolsSlackReadPagedConversation(){
 			fi
 			return 0
 		fi
-
 		pagedFieldRc=0
 		pagedCursor="$( printf '%s\n' "$pagedBody" | LC_ALL=C awk -v path=response_metadata.next_cursor \
 			-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || pagedFieldRc=$?
@@ -188,11 +176,9 @@ AgentsToolsSlackReadPagedConversation(){
 				return 1
 			;;
 		esac
-
 		if [ -z "$pagedCursor" ] ; then
 			return 0
 		fi
-
 		## STOP ONCE THE WINDOW IS COVERED, when a bound is given -- otherwise
 		## paging to the true end means re-reading every watched channel from its
 		## first message on every pass, since the sweep deliberately sends no
@@ -214,14 +200,12 @@ AgentsToolsSlackReadPagedConversation(){
 				fi
 			fi
 		fi
-
 		if [ "$pagedIndex" -ge "$pagedMax" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD: paged read of $pagedApi $pagedTarget stopped at the page cap of $pagedMax pages ($pagedSize per page) with Slack still offering another page. This read FAILS rather than returning what it has: $(( pagedIndex * pagedSize )) messages returned as if they were the whole conversation is the exact silent truncation this paging removes. Raise ENV_MAGIC_SWEEP_SLACK_PAGE_MAX, or give the read a cut-off so it has less to walk." >&2
 			return 1
 		fi
 	done
 }
-
 ## True when $1 is strictly newer than $2. Both are Slack `ts` values -- ten
 ## digits of seconds, a dot, six of microseconds. Deliberately NOT `$1+0 > $2+0`:
 ## at a magnitude near 1.8e9 a double resolves to roughly 2e-7, so two timestamps
@@ -232,7 +216,6 @@ AgentsToolsSlackReadPagedConversation(){
 AgentsToolsSlackTsNewerThan(){
 	LC_ALL=C awk -v candidate="$1" -v floorTs="$2" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolsSlackTsNewerThan.awk"
 }
-
 ## Renders the pages AgentsToolsSlackReadPagedConversation read, passed as the
 ## arguments in arrival order, in the human-readable form.
 ##
@@ -252,12 +235,18 @@ AgentsToolsSlackTsNewerThan(){
 ##   (`conversations.replies` is never multi-page here -- see the reader above
 ##   -- so its single page is simply emitted as the unpaged read always emitted
 ##   it.)
-AgentsToolsSlackFormatPagedConversation(){
-	local formatIndex=$# formatRc=0
-
+AgentsToolsSlackFormatPagedConversation(){ ## member, the pages read, in arrival order -- each formatted, its voice messages in words
+	local formatMember="$1" formatIndex formatRc=0 formatPage
+	shift
+	formatIndex=$#
+	type AgentsToolsVoicePass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.VoiceTranscript.include"
 	while [ "$formatIndex" -ge 1 ] ; do
-		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" \
-			<<< "${!formatIndex}" || formatRc=$?
+		formatPage="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" \
+			<<< "${!formatIndex}" )" || formatRc=$?
+		if [ "$formatRc" != "0" ] ; then
+			return "$formatRc"
+		fi
+		AgentsToolsVoicePass "$formatMember" <<< "$formatPage" || formatRc=$?
 		if [ "$formatRc" != "0" ] ; then
 			return "$formatRc"
 		fi
@@ -265,29 +254,27 @@ AgentsToolsSlackFormatPagedConversation(){
 	done
 	return 0
 }
-
 ## WHICH ORGANISATION A SLACK CALL REACHES is the side of the call, as every outside system
 ## reads it (AgentsTools.CommsSide.include): ours, unless the call is a --client-* operation,
 ## or has a client: address, of a client-* member. The two questions below are that include's
 ## own, under the names the Slack code asks them by.
 type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
-
 ## The communication-channel-id abstraction (epic T7): the drivers (slack, email, telegram) in
 ## preference order, and the Slack driver's own name-to-setting map, single-sourced in
 ## AgentsToolsCommsChannelSlackKey below. Slack is this driver; email and telegram are
 ## AgentsTools.CommsEmail.include and AgentsTools.CommsTelegram.include.
 type AgentsToolsCommsChannelServices > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
-
 ## rc 0 when the named member's own Slack settings are the ones this call reads.
 AgentsToolsSlackOwnSettingsApply(){ ## member
 	AgentsToolsCommsOwnSettingsApply "$@"
 }
-
 ## rc 0 when this call of the named member is on the client side.
 AgentsToolsSlackClientSide(){ ## acting member
 	AgentsToolsCommsClientSide "$@"
 }
-
+AgentsToolsSlackSettingKey(){ ## acting member, key
+	AgentsToolsCommsClientKey "$@"
+}
 ## For an error about a Slack setting that is not there: what the side of the call has to do
 ## with it, for a client-* member. Prints nothing for any other member. Where the operation
 ## run is the coordinator's own (its audience in the table of the tool files, MDAT_COMMS_OP, or magic-coordinator's own session), the coordinator's way to a
@@ -308,7 +295,6 @@ AgentsToolsSlackSideNote(){ ## acting member
 		;;
 	esac
 }
-
 ## The one line that refuses an address on the side it does not work on, as the resolver below
 ## prints it with rc 3. The team's own named conversations, the two session addresses, a team
 ## member's name and the session thread are our own organisation's; a client: address is the
@@ -332,7 +318,6 @@ AgentsToolsSlackOneWayLine(){ ## address as given, acting member (optional)
 	esac
 	printf "'%s' is refused%s: for '%s', this addressee alias is only usable in %s and connects to our own organisation. A --client-* operation and a client: address reach the other organisation, where a conversation or a person is named by its id.\n" "$1" "$wayRan" "$wayAlias" "$wayOp"
 }
-
 ## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
 ## client:<addressee> names a conversation or a person on the other organisation's side of a
 ## client-* member, by id, with or without :<ts>: the marker stays on CHANNEL, so whatever
@@ -351,6 +336,9 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 	case "$1" in
 		''|session-*|*:session-*|"${harnessCurrentName:-session-current}"*|"${harnessParentName:-session-parent}"*) DistroAgentsToolsResolveTargetFresh "$@" ; return $? ;;
 	esac
+	## A kept answer is our own side's: the team's own names resolve there and name nothing on the other, so a
+	## --client- call reads no kept answer and keeps none (AgentsToolsSlackOneWayLine, below: the refusal is this side's).
+	AgentsToolsSlackClientSide "${2:-}" && { DistroAgentsToolsResolveTargetFresh "$@" ; return $? ; }
 	[ -n "${MMDAPP:-}" ] || { DistroAgentsToolsResolveTargetFresh "$@" ; return $? ; }
 	rvFile="$MMDAPP/.local/cache/comms/slack/.resolve-${2:-none}.txt"
 	rvNow="$( date +%s )"
@@ -394,19 +382,23 @@ DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 	fi
 	case "$target" in
 		event-track|event-track:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey event-track )" )"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			channel="$( AgentsToolsConfigOption magic-team --select "$( AgentsToolsCommsChannelSlackKey event-track )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		event-alert|event-alert:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey event-alert )" )"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			channel="$( AgentsToolsConfigOption magic-team --select "$( AgentsToolsCommsChannelSlackKey event-alert )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		magic-team|magic-team:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey magic-team )" )"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			channel="$( AgentsToolsConfigOption magic-team --select "$( AgentsToolsCommsChannelSlackKey magic-team )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		human-owner|human-owner:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey human-owner )" )"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			channel="$( AgentsToolsConfigOption magic-team --select "$( AgentsToolsCommsChannelSlackKey human-owner )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		## The two virtual session addresses, each one thread: session-current is the session thread of the
@@ -545,7 +537,6 @@ DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 	[ -z "$sessionParent" ] || printf 'PARENT_SESSION_ID=%s\n' "$sessionParent"
 	return 0
 }
-
 ## The member's own SLACK_BOT_TOKEN when it has one, magic-team's shared token
 ## when it does not. See MAGIC.md. By the side of the call (AgentsToolsSlackOwnSettingsApply):
 ## a client-* member's own token is the other organisation's, read on the client side only,
@@ -557,27 +548,34 @@ AgentsToolsResolveSlackBotToken(){
 	## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone, with
 	## its key in the environment, before it asks any scope. The same name the config
 	## store holds, so a caller that exports it needs no team data at all.
-	if [ -n "${SLACK_BOT_TOKEN:-}" ] ; then
-		printf 'environment-bot-token %s\n' "$SLACK_BOT_TOKEN"
+	local envBotToken=""
+	if AgentsToolsSlackClientSide "$memberName" ; then
+		envBotToken="${CLIENT_SLACK_BOT_TOKEN:-}"
+	else
+		envBotToken="${SLACK_BOT_TOKEN:-}"
+	fi
+	if [ -n "$envBotToken" ] ; then
+		printf 'environment-bot-token %s\n' "$envBotToken"
 		return 0
 	fi
 	## magic-team's own scope IS the shared scope -- labelling it `member` would lie.
 	if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] && AgentsToolsSlackOwnSettingsApply "$memberName" ; then
-		resolvedToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		resolvedToken="$( AgentsToolsConfigOption "$memberName" --select "$( AgentsToolsSlackSettingKey "$memberName" SLACK_BOT_TOKEN )" 2>/dev/null )" || resolvedToken=""
 		if [ -n "$resolvedToken" ] ; then
 			printf 'member-bot-token %s\n' "$resolvedToken"
 			return 0
 		fi
 	fi
 	! AgentsToolsSlackClientSide "$memberName" || return 1
-	resolvedToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	resolvedToken="$( AgentsToolsConfigOption magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
 	if [ -z "$resolvedToken" ] ; then
 		return 1
 	fi
 	printf 'shared-bot-token %s\n' "$resolvedToken"
 	return 0
 }
-
 ## The X-Request-Detail header's workspace value -- two-tier fallback, same shape
 ## as AgentsToolsResolveSlackBotToken above, by the side of the call as it is. See MAGIC.md.
 ## Prints the resolved domain, or nothing when neither scope has one; the caller
@@ -597,23 +595,26 @@ AgentsToolsResolveSlackWorkspaceDomain(){
 		return 0
 	fi
 	if [ -n "$memberName" ] && [ "$memberName" != "<none>" ] && [ "$memberName" != "magic-team" ] && AgentsToolsSlackOwnSettingsApply "$memberName" ; then
-		resolvedDomain="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		resolvedDomain="$( AgentsToolsConfigOption "$memberName" --select "$( AgentsToolsSlackSettingKey "$memberName" SLACK_WORKSPACE_DOMAIN )" 2>/dev/null )" || resolvedDomain=""
 		if [ -n "$resolvedDomain" ] ; then
 			printf '%s\n' "$resolvedDomain"
 			return 0
 		fi
 	fi
 	! AgentsToolsSlackClientSide "$memberName" || return 0
-	resolvedDomain="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	resolvedDomain="$( AgentsToolsConfigOption magic-team --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
 	[ -z "$resolvedDomain" ] || printf '%s\n' "$resolvedDomain"
 }
-
 ## Which Slack a call of this member used, and where that came from, in words for an error:
 ## the Slack of the workspace the operation runs in, which is the one it was run from. For a
 ## client-* member it says the side as well, ours or the other organisation's
 ## (AgentsToolsSlackSideNote). Said where a conversation is not found, so that is never read
 ## as a bot missing from a channel.
 AgentsToolsSlackWhere(){ ## acting member
+	## The invited member's own settings are read below; the include that answers where they are is taken here, not hoped for.
+	type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	local whereDomain="" whereOwn=""
 	whereDomain="$( AgentsToolsResolveSlackWorkspaceDomain "${1:-}" 2> /dev/null )" || whereDomain=""
 	## An invited member's own Slack settings, where this workspace holds none for it, are those of the workspace it is set up in (AgentsToolsConfigOptionElsewhere): said where the call reads its own at all.
@@ -622,7 +623,6 @@ AgentsToolsSlackWhere(){ ## acting member
 	fi
 	printf 'the Slack %s, by the settings of the workspace %s (the workspace this operation runs in)%s%s' "${whereDomain:-with no domain configured}" "${MMDAPP:-<unknown>}" "$whereOwn" "$( AgentsToolsSlackSideNote "${1:-}" )"
 }
-
 ## The one emitter for the X-Request-Detail header, for every Slack call site.
 ## Writes to stderr only, never touches rc. Text form only, never JSON.
 ##   $1  client-member -- the acting member, or <none>
@@ -635,7 +635,6 @@ AgentsToolsEmitRequestDetailHeader(){
 	printf 'X-Request-Detail: slack-workspace=%s; client-member=%s; channel-id=%s\n' \
 		"$detailWorkspace" "$detailMember" "$detailChannel" >&2
 }
-
 ## The one rate-limit rule for every --intern-op-slack-call branch. Slack answers a
 ## rate limit with HTTP 429, error `ratelimited`, and a Retry-After in seconds; it is
 ## waited out as asked, with a stated line, never failed at once. Works through its
@@ -663,7 +662,6 @@ AgentsToolsSlackRateLimitWait(){ ## response body (empty where it went to a file
 	sleep "$rateWait"
 	return 0
 }
-
 ## The diagnostic trailer every --intern-op-slack-call exit writes, on stderr.
 ## Reads `formArgs` and `callerMember` from its caller's own scope.
 AgentsToolsInternOpSlackCallEmitFields(){
@@ -678,7 +676,6 @@ AgentsToolsInternOpSlackCallEmitFields(){
 		printf 'RESPONSE_BODY=%s\n' "$3" >&2
 	fi
 }
-
 ## The workspace domain for ONE named config scope, from a token that scope holds
 ## itself and no other scope's -- the value is persisted INTO the scope, so there
 ## is no fallback to magic-team's token. EITHER TOKEN KIND ANSWERS: auth.test
@@ -690,21 +687,20 @@ AgentsToolsInternOpSlackCallEmitFields(){
 AgentsToolsSlackResolveWorkspaceForScope(){
 	local scopeMember="$1"
 	local scopeToken=""
-	scopeToken="$( DistroAgentsTools --agents-config-option "$scopeMember" --select SLACK_USER_TOKEN 2>/dev/null )" || scopeToken=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	scopeToken="$( AgentsToolsConfigOption "$scopeMember" --select "$( AgentsToolsSlackSettingKey "$scopeMember" SLACK_USER_TOKEN )" 2>/dev/null )" || scopeToken=""
 	if [ -z "$scopeToken" ] ; then
-		scopeToken="$( DistroAgentsTools --agents-config-option "$scopeMember" --select SLACK_BOT_TOKEN 2>/dev/null )" || scopeToken=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		scopeToken="$( AgentsToolsConfigOption "$scopeMember" --select "$( AgentsToolsSlackSettingKey "$scopeMember" SLACK_BOT_TOKEN )" 2>/dev/null )" || scopeToken=""
 	fi
 	if [ -z "$scopeToken" ] ; then
 		return 2
 	fi
-
 	## Token on curl's stdin, never argv -- keeps it out of ps.
 	local scopeHeader="Authorization: Bearer $scopeToken"
-
 	local scopeUrl="" scopeRc=0
 	scopeUrl="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$scopeHeader" 2>/dev/null \
 		| LC_ALL=C awk -v path=url -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || scopeRc=$?
-
 	if [ "$scopeRc" != "0" ] || [ -z "$scopeUrl" ] ; then
 		return 1
 	fi
@@ -713,7 +709,6 @@ AgentsToolsSlackResolveWorkspaceForScope(){
 	printf '%s\n' "$scopeUrl"
 	return 0
 }
-
 ## A value made safe inside a Slack message's fenced code block: a backtick
 ## ends the fence, and a newline or CR could open a spoofed extra label line.
 AgentsToolsSlackFenceSafeValue(){ ## value
@@ -722,7 +717,6 @@ AgentsToolsSlackFenceSafeValue(){ ## value
 	fenceValue="${fenceValue//$'\r'/%0D}"
 	printf '%s' "${fenceValue//\`/%60}"
 }
-
 ## One conversation, DM or thread read as the acting member: the in-context helper behind
 ## the member reads and the session scans. Pretty text, or with --raw the response bodies.
 ## rc 0 read; 1 failed early; a human-owner fan-out: 3 one of its two DMs read, 4 neither.
@@ -750,15 +744,12 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			fi
 		;;
 	esac
-
 	local target="$1"
 	shift || true
-
 	if [ -z "$target" ] ; then
 		echo "$MDSC_CMD: slack-check: ⛔ ERROR: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>)" >&2
 		set +e ; return 1
 	fi
-
 	local oldest pretty="true" identityAsBot="false" pageUntil=""
 	while [ $# -gt 0 ] ; do
 		case "$1" in
@@ -792,7 +783,6 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			;;
 		esac
 	done
-
 	local resolved rc channel threadTs
 	resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 	case "$rc" in
@@ -828,7 +818,6 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			set +e ; return 1
 		;;
 	esac
-
 	local fanOutParty=""
 	case "$target" in
 		human-owner)
@@ -837,10 +826,8 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			esac
 		;;
 	esac
-
 	if [ -n "$fanOutParty" ] ; then
 		echo "## target=$target channel=$fanOutParty (party id -- reads BOTH human-owner DMs, one per identity)"
-
 		local tabChar=$'\t'
 		local legIdentity legIndex=0
 		local legOkCount=0
@@ -850,10 +837,9 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			legIndex=$(( legIndex + 1 ))
 			local legDm="" legReason="" legInfo="" legRc=0
 			local legDmRc=0
-
 			while true ; do
 				legRc=0
-				legInfo="$( DistroAgentsTools --intern-op-slack-call "$memberName" \
+				legInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
 					--api conversations.info \
 					--resolve-dm "$fanOutParty" \
 					--identity "$legIdentity" \
@@ -878,7 +864,6 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 					legReason="the DM-discovery call reported channel.id as PRESENT but empty for party $fanOutParty under the $legIdentity identity -- refusing to carry an empty channel id into the conversation read"
 					break
 				fi
-
 				echo "# $MDSC_CMD: slack-check: GET conversations.history channel=$legDm (human-owner DM under $legIdentity identity, counterparty asserted against $fanOutParty)${oldest:+ oldest=$oldest} (paged to the end of the DM, not one page)" >&2
 				legRc=0
 				## Same paging as the single-conversation path below: this leg
@@ -896,10 +881,9 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 					legReason="the call failed (rc=$legRc); whatever diagnostic it wrote is on stderr above"
 					break
 				fi
-
 				if [ "$pretty" = "true" ] ; then
 					local legFmt="" legFmtRc=0
-					legFmt="$( AgentsToolsSlackFormatPagedConversation "${pagedPages[@]}" )" || legFmtRc=$?
+					legFmt="$( AgentsToolsSlackFormatPagedConversation "$memberName" "${pagedPages[@]}" )" || legFmtRc=$?
 					if [ "$legFmtRc" != "0" ] ; then
 						legReason="the response was read but could not be formatted (the formatter's own error is above)"
 						break
@@ -936,7 +920,6 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 				fi
 				break
 			done
-
 			if [ -n "$legReason" ] ; then
 				legProvenance="$legProvenance## dm=${legDm:-<not resolved>} identity=$legIdentity status=FAILED reason=$legReason"$'\n'
 				legFailReport="$legFailReport the $legIdentity identity's DM (${legDm:-not resolved}) with party $fanOutParty -- $legReason ;"
@@ -945,10 +928,8 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			legOkCount=$(( legOkCount + 1 ))
 			legProvenance="$legProvenance## dm=$legDm identity=$legIdentity status=ok"$'\n'
 		done
-
 		## Provenance header first, always both legs, then the payload.
 		printf '%s' "$legProvenance"
-
 		if [ "$pretty" = "true" ] ; then
 			if [ -n "$legMerged" ] ; then
 				## Each stage is tested on its own and decides the verdict: a failed sort or render is never reported as DMs read.
@@ -972,7 +953,6 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 		else
 			[ -z "$legRaw" ] || printf '%s' "$legRaw"
 		fi
-
 		if [ "$legOkCount" = "2" ] ; then
 			echo "# $MDSC_CMD: slack-check: BOTH human-owner DMs read (one per identity, each asserted individually against party $fanOutParty). The lines above are the two conversations merged chronologically, each carrying its own DM id." >&2
 			return 0
@@ -984,35 +964,29 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 		echo "$MDSC_CMD: slack-check: ⛔ ERROR: NEITHER of the human-owner's two DMs was read. Failed:$legFailReport Nothing was read at all, so nothing whatsoever is known from this call about what the human-owner has or has not written. rc=4 means exactly this, distinct from rc=3 (one DM read, one failed)." >&2
 		set +e ; return 4
 	fi
-
 	echo "## target=$target channel=$channel"
-
 	local apiMethod
 	if [ -n "$threadTs" ] ; then
 		apiMethod="conversations.replies"
 	else
 		apiMethod="conversations.history"
 	fi
-
 	echo "# $MDSC_CMD: slack-check: GET $apiMethod channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest} (read whole, not one page)" >&2
-
 	local checkIdentity="user"
 	if [ "$identityAsBot" = "true" ] ; then
 		checkIdentity="bot"
 	fi
-
 	local pagedPages=() pagedCallRc=0
 	AgentsToolsSlackReadPagedConversation "$memberName" "$apiMethod" "$channel" "$checkIdentity" \
 		"$threadTs" "$oldest" "slack-check" "$pageUntil" "" || pagedCallRc=$?
 	if [ "$pagedCallRc" != "0" ] ; then
 		set +e ; return 1
 	fi
-
 	local awkStatus=0 pageIndex=1 pageBody
 	if [ "$pretty" = "true" ] ; then
 		## Marker lines are deliberately not written on this path: they are
 		## not JSON, and this formatter parses every line it is given as a body.
-		AgentsToolsSlackFormatPagedConversation "${pagedPages[@]}" || awkStatus=$?
+		AgentsToolsSlackFormatPagedConversation "$memberName" "${pagedPages[@]}" || awkStatus=$?
 	else
 		for pageBody in "${pagedPages[@]}" ; do
 			## No `identity=` on this marker, deliberately -- see
@@ -1022,19 +996,18 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			pageIndex=$(( pageIndex + 1 ))
 		done
 	fi
-
 	if [ "$awkStatus" != "0" ] ; then
 		set +e ; return 1
 	fi
 	return 0
 }
-
 ## ===========================================================================
 ## OPERATIONS -- one arm each, in the order the dispatcher routes them.
 ## ===========================================================================
-
+## This file's case, as a function of its own: an operation dispatched here runs in the process that sourced it.
+## Calling the dispatcher again would parse the kernel, the front door and this file a second time.
+AgentsToolsCommsSlackRun(){ ## arguments as the case below takes them
 case "$1" in
-
 	--intern-op-slack-call)
 		shift
 		local opContext="<no --context given>"
@@ -1045,7 +1018,6 @@ case "$1" in
 			fi
 			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
 		done
-
 		local callerMember="$1"
 		shift || true
 		if [ -z "$callerMember" ] ; then
@@ -1053,7 +1025,6 @@ case "$1" in
 			AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 			set +e ; return 1
 		fi
-
 		local apiMethod="" identityOverride="" jsonBody="" uploadFile="" resolveDmUser="" targetKind=""
 		local resolveTarget="" expectCounterparty="" targetClass=""
 		## RAW AUTHENTICATED GET mode -- see this file's own FETCH MODE header
@@ -1190,7 +1161,6 @@ case "$1" in
 				;;
 			esac
 		done
-
 		## A client: marker on the conversation or the person this call names puts the call on the
 		## client side, for a client-* member only. It comes off here, before the id is classified
 		## or sent, so no caller has to take it off an address it only passes on.
@@ -1213,7 +1183,6 @@ case "$1" in
 				;;
 			esac
 		fi
-
 		if [ "$printActingIdentity" != "true" ] ; then
 			if [ -n "$apiMethod" ] && [ -n "$fetchUrl" ] ; then
 				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --api and --fetch-url cannot be combined -- they name two different things to call ('$apiMethod' and '$fetchUrl') and there is no rule for which one wins. An API method and a raw authenticated GET are separate modes; pass exactly one." >&2
@@ -1226,7 +1195,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 		fi
-
 		## FETCH-MODE PARAMETER GUARDS, at parse time, before any token is read
 		## and before anything leaves the host.
 		if [ -n "$fetchUrl" ] ; then
@@ -1237,13 +1205,11 @@ case "$1" in
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
-
 			if ! printf '%s\n' "$fetchUrl" | LC_ALL=C grep -qE '^https://([a-z0-9-]+\.)*slack\.com/' ; then
 				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url refused: '$fetchUrl' is not an https URL on a slack.com host. Nothing was called and NO CREDENTIAL WAS SENT ANYWHERE. This op attaches the acting identity's Slack token to the request, so it will only ever address a host it has positively confirmed is Slack's; the URL to pass is the one --slack-file-info reports as URL_PRIVATE_DOWNLOAD or URL_PRIVATE." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
-
 			local fetchConflict=""
 			if [ "${#formArgs[@]}" -gt 0 ] ; then fetchConflict="--form" ; fi
 			if [ -n "$jsonBody" ]           ; then fetchConflict="--json-body" ; fi
@@ -1258,7 +1224,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 		fi
-
 		if [ -n "$jsonBody" ] ; then
 			if [ -n "$resolveDmUser" ] ; then
 				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-dm cannot be combined with --json-body -- the resolved DM channel is delivered as a form field and would be silently ignored, sending to whatever channel the JSON body names. Put the channel in the body yourself, or use --form instead of --json-body." >&2
@@ -1281,7 +1246,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 		fi
-
 		if [ -n "$resolveTarget" ] ; then
 			if [ -n "$resolveDmUser" ] ; then
 				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target cannot be combined with --resolve-dm -- both name the target of this call, and there is no rule for which one wins. Pass exactly one." >&2
@@ -1309,7 +1273,6 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
-
 			local classifiedKind=""
 			case "$targetClass" in
 				party|conversation-dm) classifiedKind="dm" ;;
@@ -1320,7 +1283,6 @@ case "$1" in
 			fi
 			targetKind="$classifiedKind"
 		fi
-
 		if [ -n "$expectCounterparty" ] ; then
 			case "$resolveTarget" in
 				?*)
@@ -1339,19 +1301,23 @@ case "$1" in
 				;;
 			esac
 		fi
-
 		## Identity selection -- one rule, applied here for every Slack op. The member's own
 		## token is read by the side of the call (AgentsToolsSlackOwnSettingsApply).
 		local memberUserToken="" sendIdentity="bot"
-		memberUserToken="${SLACK_USER_TOKEN:-}"
-		[ -n "$memberUserToken" ] || memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$callerMember" && DistroAgentsTools --agents-config-option "$callerMember" --select SLACK_USER_TOKEN )" || memberUserToken=""
+		if AgentsToolsSlackClientSide "$callerMember" ; then
+			memberUserToken="${CLIENT_SLACK_USER_TOKEN:-}"
+		else
+			memberUserToken="${SLACK_USER_TOKEN:-}"
+		fi
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		[ -n "$memberUserToken" ] || memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$callerMember" && AgentsToolsConfigOption "$callerMember" --select "$( AgentsToolsSlackSettingKey "$callerMember" SLACK_USER_TOKEN )" )" || memberUserToken=""
 		local routineAuthored="false"
 		case "$callerMember" in
 			routine-*) routineAuthored="true" ;;
 		esac
 		if [ -n "$identityOverride" ] ; then
 			if [ "$identityOverride" = "user" ] && [ -z "$memberUserToken" ] ; then
-				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity user requested for $callerMember but no SLACK_USER_TOKEN is configured for it$( AgentsToolsSlackSideNote "$callerMember" )" >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity user requested for $callerMember but no $( AgentsToolsSlackSettingKey "$callerMember" SLACK_USER_TOKEN ) is configured for it$( AgentsToolsSlackSideNote "$callerMember" )" >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -1361,14 +1327,11 @@ case "$1" in
 		elif [ -n "$memberUserToken" ] ; then
 			sendIdentity="user"
 		fi
-
 		if [ "$printActingIdentity" = "true" ] ; then
 			printf '%s\n' "$sendIdentity"
 			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none
 			return 0
 		fi
-
-
 		local token="" botTokenSource=""
 		if [ "$sendIdentity" = "user" ] ; then
 			token="$memberUserToken"
@@ -1384,10 +1347,8 @@ case "$1" in
 			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none
 			set +e ; return 1
 		fi
-
 		## Token on curl's stdin, never argv -- keeps it out of ps.
 		local authHeader="Authorization: Bearer $token"
-
 		local failMsg="" response="" dmChannel="" responseBodyState="none" joinAttempted="false"
 		## A rate-limited call is waited out and retried, never failed at once: sweeps run
 		## unattended and fan out. The response headers land here, for Retry-After; they
@@ -1425,7 +1386,6 @@ case "$1" in
 				fi
 				formArgs+=( "channel=$dmChannel" )
 			fi
-
 			if [ -n "$expectCounterparty" ] ; then
 				local infoResp="" actualCounterparty=""
 				infoResp="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info \
@@ -1446,7 +1406,6 @@ case "$1" in
 					break
 				fi
 			fi
-
 			if [ -n "$fetchUrl" ] ; then
 				local fetchOut="" fetchLine=""
 				fetchOut="$( curl -sS --connect-timeout 10 --max-time 900 -L --max-redirs 5 -D "$rateHeaderFile" \
@@ -1457,15 +1416,12 @@ case "$1" in
 					failMsg="raw authenticated GET transport failure under $sendIdentity identity for $fetchUrl: $fetchOut"
 					break
 				}
-
 				fetchLine="$( printf '%s\n' "$fetchOut" | tail -1 )"
 				local fetchStatus="" fetchBytes="" fetchType=""
 				read -r fetchStatus fetchBytes fetchType <<< "$fetchLine"
-
 				printf 'FETCH_HTTP_STATUS=%s\n' "$fetchStatus" >&2
 				printf 'FETCH_BYTES=%s\n' "$fetchBytes" >&2
 				printf 'FETCH_CONTENT_TYPE=%s\n' "$fetchType" >&2
-
 				## The body went to the destination file, so the status alone decides.
 				rateVerdict=0
 				AgentsToolsSlackRateLimitWait "" "raw authenticated GET of $fetchUrl" "$sendIdentity" || rateVerdict=$?
@@ -1473,14 +1429,12 @@ case "$1" in
 					0) continue ;;
 					2) failMsg="$rateLimitReason -- the file was not fetched; whatever was sent is in $fetchTo and must not be treated as file content." ; break ;;
 				esac
-
 				if [ "$fetchStatus" != "200" ] ; then
 					failMsg="raw authenticated GET returned HTTP $fetchStatus (not 200) under $sendIdentity identity for $fetchUrl -- the server did not hand over the file. Whatever it did send has been written to $fetchTo and must not be treated as file content."
 					break
 				fi
 				break
 			fi
-
 			if [ -n "$uploadFile" ] ; then
 				local uploadArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" -X POST "https://slack.com/api/$apiMethod" -H @- ) uploadPair
 				## Body on stdout, the -w line last on its own -- no response file.
@@ -1489,12 +1443,10 @@ case "$1" in
 				for uploadPair in "${formArgs[@]}" ; do
 					uploadArgs+=( --form "$uploadPair" )
 				done
-
 				## `||`, not `;` -- under set -e the shell leaves before an
 				## assignment on the next line is ever reached.
 				local uploadOut="" uploadRc=0
 				uploadOut="$( curl "${uploadArgs[@]}" <<< "$authHeader" 2>&1 )" || uploadRc=$?
-
 				## `not-reported` is a real state: curl writes no -w line at all when
 				## it fails before the transfer, and empty could not be told from 0.
 				local uploadStatus="not-reported" uploadBytes="not-reported"
@@ -1506,16 +1458,13 @@ case "$1" in
 						read -r uploadStatus uploadBytes <<< "$uploadLine"
 					;;
 				esac
-
 				## Before the rc test, so they survive the failure path too.
 				printf 'UPLOAD_HTTP_STATUS=%s\n' "$uploadStatus" >&2
 				printf 'UPLOAD_BYTES=%s\n' "$uploadBytes" >&2
-
 				if [ "$uploadRc" -ne 0 ] ; then
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $uploadOut"
 					break
 				fi
-
 				## Everything but that last -w line is the response body.
 				response="$( printf '%s\n' "$uploadOut" | sed '$d' )"
 			elif [ -n "$jsonBody" ] ; then
@@ -1542,7 +1491,6 @@ case "$1" in
 					break
 				}
 			fi
-
 			## RATE LIMIT: waited out and retried, one rule for every branch.
 			rateVerdict=0
 			AgentsToolsSlackRateLimitWait "$response" "$apiMethod" "$sendIdentity" || rateVerdict=$?
@@ -1550,7 +1498,6 @@ case "$1" in
 				0) continue ;;
 				2) failMsg="$rateLimitReason -- nothing was read: $response" ; break ;;
 			esac
-
 			## Slack answers HTTP 200 with ok:false for most real failures, so the
 			## body decides the outcome, not curl's exit status.
 			if ! printf '%s' "$response" | grep -q '"ok":true' ; then
@@ -1594,7 +1541,6 @@ case "$1" in
 			break
 		done
 		rm -rf "$callDir"
-
 		## THE single exit path -- one failure branch, no degrade.
 		if [ -n "$failMsg" ] ; then
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: $failMsg" >&2
@@ -1609,7 +1555,6 @@ case "$1" in
 		printf '%s\n' "$response"
 		return 0
 	;;
-
 	--intern-op-slack-check-scopes)
 		shift
 		local opContext="<no --context given>"
@@ -1620,14 +1565,12 @@ case "$1" in
 			fi
 			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
 		done
-
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
 			echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: syntax is <team-member> [--scope-source <op-name>]..." >&2
 			set +e ; return 1
 		fi
-
 		local scopeSources=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -1652,12 +1595,10 @@ case "$1" in
 				;;
 			esac
 		done
-
 		if [ ${#scopeSources[@]} -eq 0 ] ; then
 			echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: at least one --scope-source <op-name> is required -- this op declares no scopes of its own" >&2
 			set +e ; return 1
 		fi
-
 		local srcOp srcScopes
 		local srcNames=() srcLists=()
 		for srcOp in "${scopeSources[@]}" ; do
@@ -1673,11 +1614,9 @@ case "$1" in
 			srcNames+=( "$srcOp" )
 			srcLists+=( ",$( printf '%s' "$srcScopes" | tr '\n' ',' | sed 's/,,*/,/g; s/^,//; s/,$//' )," )
 		done
-
 		local identity token grantedRaw grantedList scopeDump
 		local anyFinding=0
 		local identLabels=() identGrants=()
-
 		for identity in bot user ; do
 			token=""
 			if [ "$identity" = "bot" ] ; then
@@ -1686,9 +1625,9 @@ case "$1" in
 				scopeTokenLine="$( AgentsToolsResolveSlackBotToken "$callingMember" )" || scopeTokenLine=""
 				read -r scopeTokenSource token <<< "$scopeTokenLine"
 			else
-				token="$( AgentsToolsSlackOwnSettingsApply "$callingMember" && DistroAgentsTools --agents-config-option "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				token="$( AgentsToolsSlackOwnSettingsApply "$callingMember" && AgentsToolsConfigOption "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
 			fi
-
 			if [ -z "$token" ] ; then
 				echo "slack-scopes[$identity]: could-not-check"
 				echo "  note: no token configured for this identity -- NOT the same as 'no scopes granted'"
@@ -1696,12 +1635,10 @@ case "$1" in
 				identGrants+=( "" )
 				continue
 			fi
-
 			## Token on curl's stdin and headers on its stdout, never argv or a
 			## file -- keeps the token out of ps and the response off the disk.
 			local curlRc=0
 			scopeDump="$( curl -sS --connect-timeout 10 --max-time 120 -D - -o /dev/null https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $token" 2>&1 )" || curlRc=$?
-
 			if [ "$curlRc" -ne 0 ] ; then
 				echo "slack-scopes[$identity]: could-not-check"
 				echo "  note: auth.test transport failed (curl exit $curlRc) -- grants unknown, NOT empty"
@@ -1709,11 +1646,9 @@ case "$1" in
 				identGrants+=( "" )
 				continue
 			fi
-
 			## CRLF strip: HTTP headers end CR-LF, and a trailing CR would ride
 			## into the last scope name and silently never match.
 			grantedRaw="$( LC_ALL=C awk 'BEGIN{IGNORECASE=1} /^x-oauth-scopes:/ { sub(/^[^:]*:[ \t]*/, "") ; gsub(/\r/, "") ; print ; exit }' <<< "$scopeDump" )"
-
 			if [ -z "$grantedRaw" ] ; then
 				echo "slack-scopes[$identity]: could-not-check"
 				echo "  note: no x-oauth-scopes header in the auth.test response -- grants unknown, NOT empty"
@@ -1721,19 +1656,16 @@ case "$1" in
 				identGrants+=( "" )
 				continue
 			fi
-
 			grantedList=",$( printf '%s' "$grantedRaw" | tr -d ' \r' ),"
 			identLabels+=( "$identity" )
 			identGrants+=( "$grantedList" )
 		done
-
 		local actingIdentity=""
-		actingIdentity="$( DistroAgentsTools --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD: slack-check-scopes" 2>/dev/null )" || actingIdentity=""
+		actingIdentity="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD: slack-check-scopes" 2>/dev/null )" || actingIdentity=""
 		case "$actingIdentity" in
 			bot|user) ;;
 			*) actingIdentity="" ;;
 		esac
-
 		local k actingGrants="" actingGrantsKnown="false"
 		if [ -n "$actingIdentity" ] ; then
 			for k in "${!identLabels[@]}" ; do
@@ -1742,7 +1674,6 @@ case "$1" in
 				[ -z "$actingGrants" ] || actingGrantsKnown="true"
 			done
 		fi
-
 		if [ -z "$actingIdentity" ] ; then
 			echo "slack-scopes: acting-identity could-not-check"
 			echo "  note: --intern-op-slack-call did not report an acting identity for $callingMember --"
@@ -1751,7 +1682,6 @@ case "$1" in
 			echo "slack-scopes: acting identity is '$actingIdentity' -- the identity these operations"
 			echo "  actually run under for $callingMember, per --intern-op-slack-call's own selection"
 		fi
-
 		local i need rest alt altRest altOk opOk missing
 		local unknowns=0
 		for i in "${!srcNames[@]}" ; do
@@ -1787,12 +1717,10 @@ case "$1" in
 				anyFinding=$(( anyFinding + 1 ))
 			fi
 		done
-
 		echo "slack-scopes: $anyFinding operation(s) with a missing scope, $unknowns unverified"
 		echo "  note: granted-scope check only. This answers 'may this identity ever',"
 		echo "        never 'can this identity here' -- a call can still fail on"
 		echo "        conversation membership with every scope in place."
-
 		if [ "$anyFinding" -gt 0 ] ; then
 			set +e ; return 4
 		fi
@@ -1801,17 +1729,17 @@ case "$1" in
 		fi
 		return 0
 	;;
-
 	## A Slack operation name this file does not implement -- the retired --intern-op-slack-check
 	## among them. Reported, never swallowed.
 	--intern-op-slack-*|--intern-op-check-slack-*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
-
 	## DEFINITIONS-ONLY SOURCE -- see DUAL USE in this file's own header. Nothing to
 	## dispatch, and nothing is an error: the supported way to reach the helpers.
 	*)
 		:
 	;;
 esac
+}
+AgentsToolsCommsSlackRun "$@"

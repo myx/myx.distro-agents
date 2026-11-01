@@ -154,6 +154,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 	AgentsChangeDrop(){ ## record file, pending id, who drops it, why
 		local dropFile="$1" dropId="$2" dropWho="$3" dropWhy="$4" dropOwner dropChannel dropThread dropNote dropTo dropArgs
 		type AgentsToolsAskPostField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-pending-reply-close "$dropId" --if-open --status withdrawn --withdrawn-by "$dropWho" --withdraw-reason "$dropWhy" \
 			--no-decision --context "${MDSC_CMD:-change}" > /dev/null 2>&1 || return 0
 		## The close moved the now-withdrawn record to closed/ (retention, T9): its post fields, and
@@ -168,6 +169,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 		dropArgs=( "$dropOwner" "$dropChannel:$dropThread" --identity-bot --from-stdin )
 		dropTo="$( AgentsToolsAskPostField "$dropFile" address-to )"
 		[ -z "$dropTo" ] || dropArgs=( "${dropArgs[@]}" --address-to "$dropTo" )
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		[ -z "$dropNote" ] || printf '%s\n' "$dropNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${dropArgs[@]}" > /dev/null 2>&1 \
 			|| echo "⚠️ WARNING: ${MDSC_CMD:-change}: the held change $dropId is dropped, but its thread was not told" >&2
 		AgentsChangePostClose "$dropFile"
@@ -370,6 +372,7 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: the prompt for the change to $holdFile could not be filled from its template, so nothing was shown and the change is not held" >&2
 			set +e ; return 1
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		holdOut="$( printf '%s\n' "$holdBody" | DistroAgentsTools --intern-op-comms-slack-send-message "$holdMember" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
 			rm -rf "$holdDir"
 			echo "$MDSC_CMD: ⛔ ERROR: the change to $holdFile could not be shown to the human-owner, so it is not held: $( printf '%s\n' "$holdOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
@@ -384,6 +387,7 @@ case "$1" in
 			## The change itself, under the prompt at once: the first reply in its thread, by the
 			## identity that posted the prompt, to the same addressee. A reply of that identity is
 			## never read as an answer. Not posted, the prompt shows no change, so it takes none.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			holdDetailOut="$( printf '%s\n' "$holdDetail" | DistroAgentsTools --intern-op-comms-slack-send-message "$holdMember" "$holdChannel:$holdTs" --identity-bot --address-to human-owner --from-stdin 2>&1 )" \
 				&& holdDetailTs="$( printf '%s\n' "$holdDetailOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )" || holdDetailTs=""
 		fi
@@ -392,6 +396,7 @@ case "$1" in
 			## once it takes no answer. The reply under it is never filled again, and its diff is
 			## kept whole with the change. The record holds the text of both, as they were shown.
 			holdFields="$( AgentsToolsAskPostFieldsPack member "$holdMember" act "$holdAct" file "$holdFileShown" purpose "$holdPurpose" )"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			holdPending="$( printf '%s\n\n%s\n' "$holdBody" "$holdDetail" | DistroAgentsTools --intern-op-pending-reply-open "$holdMember" --to "$holdChannel" --session-id "$holdSession" \
 				--kind change --address-to human-owner --blocked-on "reply from human-owner" --channel "$holdChannel" --question-ts "$holdTs" --thread-ts "$holdTs" \
 				--addressees "$holdAddressees" ${holdAsking:+--asking-accounts " $holdAsking"} ${holdItem:+--item "$holdItem"} --ask-identity bot \
@@ -402,8 +407,10 @@ case "$1" in
 		if [ -z "$holdPending" ] ; then
 			## A prompt nobody can answer is taken away again, as the identity that posted it: the
 			## reply under it first, so the prompt leaves no thread behind.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			[ -z "$holdDetailTs" ] || DistroAgentsTools --slack-delete-message --team-member "$holdMember" "$holdChannel:$holdDetailTs" --identity-bot > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the reply $holdChannel:$holdDetailTs under the prompt $holdChannel:$holdTs could not be removed" >&2
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			[ -z "$holdChannel" ] || [ -z "$holdTs" ] || DistroAgentsTools --slack-delete-message --team-member "$holdMember" "$holdChannel:$holdTs" --identity-bot > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the prompt $holdChannel:$holdTs could not be removed, and stands with no change behind it" >&2
 			rm -rf "$holdDir"

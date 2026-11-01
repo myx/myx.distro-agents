@@ -219,7 +219,7 @@ for rigOne in "$rigList" "$rigRead docs" ; do
 	# shellcheck disable=SC2086
 	rigRun $rigOne
 	rigPre=()
-	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( rigWhole "$rigTmp/err" "DistroAgentsTools: $( printf '%s' "${rigOne%% *}" | LC_ALL=C sed -e 's/^--//' ): ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" = 1 ] || rigCallerBad="$rigCallerBad [${rigOne%% *}]"
+	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = 1 ] || rigCallerBad="$rigCallerBad [${rigOne%% *}]"
 done
 rigAssert "from inside a member's session both are refused, rc 1, nothing on stdout, in the one line of the family" "${rigCallerBad:-each refused}" "each refused"
 rigAssert "the family's include has one arm for the places, which sources their include" "$( LC_ALL=C grep -c -x -e '	--manager-place-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerPlace.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"

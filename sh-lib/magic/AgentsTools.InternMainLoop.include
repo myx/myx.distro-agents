@@ -11,6 +11,7 @@
 ## usage blurb on no flag, set +e/set -e discipline.
 ##
 
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 case "$1" in
 
 	--intern-main-loop)
@@ -110,7 +111,8 @@ case "$1" in
 					case "$(
 						for mainLoopAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
 							mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec "$mainLoopAuthKey" )"
-							mainLoopAuthValue="$( DistroAgentsTools --agents-config-option "${mainLoopOptionSpec%%|*}" --select "$mainLoopAuthKey" 2>/dev/null )"
+							type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+							mainLoopAuthValue="$( AgentsToolsConfigOption "${mainLoopOptionSpec%%|*}" --select "$mainLoopAuthKey" 2>/dev/null )"
 							[ -n "$mainLoopAuthValue" ] || continue
 							export "$mainLoopAuthKey=$mainLoopAuthValue"
 						done
@@ -129,9 +131,11 @@ case "$1" in
 		fi
 
 		local sleepSeconds mainLoopRc nextDelaySeconds maxDelaySeconds
-		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		sleepSeconds="$( AgentsToolsConfigOption magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 		case "$sleepSeconds" in *[!0123456789]*|'') sleepSeconds=29 ;; esac
-		maxDelaySeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 1200 )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		maxDelaySeconds="$( AgentsToolsConfigOption magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 1200 )"
 		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=1200 ;; esac
 		nextDelaySeconds="$sleepSeconds"
 
@@ -142,9 +146,11 @@ case "$1" in
 		## iteration. A configured value collapses both arms to one correct test.
 		local mainLoopDataRemote mainLoopDataBranch
 		mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec TEAM_DATA_GIT_REMOTE )"
-		mainLoopDataRemote="$( DistroAgentsTools --agents-config-option "${mainLoopOptionSpec%%|*}" --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		mainLoopDataRemote="$( AgentsToolsConfigOption "${mainLoopOptionSpec%%|*}" --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec TEAM_DATA_BRANCH )"
-		mainLoopDataBranch="$( DistroAgentsTools --agents-config-option "${mainLoopOptionSpec%%|*}" --select-default TEAM_DATA_BRANCH main )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		mainLoopDataBranch="$( AgentsToolsConfigOption "${mainLoopOptionSpec%%|*}" --select-default TEAM_DATA_BRANCH main )"
 		[ -n "$mainLoopDataBranch" ] || mainLoopDataBranch="main"
 		local mainLoopTeamData="skipped" mainLoopTeamDataFailures=0
 
@@ -341,7 +347,7 @@ case "$1" in
 				started*|failed*) echo "# $MDSC_CMD --intern-main-loop: the source collector: $mainLoopCollect" >&2 ;;
 			esac
 			## The schedule (F7.5): the autorun of the routines that declare one, the work-duty sessions the flags allow, and the learning
-			## inquiry for each session that ended (AgentsTools.DispatcherLoop.include). The decisions are Dispatcher's: the loop asks, and
+			## inquiry for each session that ended (AgentsTools.DispatcherSchedule.include). The decisions are Dispatcher's: the loop asks, and
 			## starts through the spawner. One line for each thing done; never fatal. They run only
 			## when the configuration check passed: a failed check is the iteration's failure (the backoff applies), and starts nothing.
 			local mainLoopSchedule="" mainLoopScheduleLine
@@ -349,7 +355,7 @@ case "$1" in
 			if [ -n "$mainLoopConfigOk" ] ; then
 				mainLoopSchedule="$(
 					set +e
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include" 2> /dev/null || exit 1
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || exit 1
 					AgentsToolsScheduleLoop 2> /dev/null
 				)" || mainLoopSchedule="schedule: the steps could not run"
 				while IFS= read -r mainLoopScheduleLine ; do

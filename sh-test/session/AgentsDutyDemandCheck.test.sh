@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on what starts the work duty of a member (F7.12; AgentsToolsScheduleDemand and its helpers in AgentsTools.DispatcherLoop.include), by script:
+## Behavioural check on what starts the work duty of a member (F7.12; AgentsToolsScheduleDemand and its helpers in AgentsTools.DispatcherSchedule.include), by script:
 ##   1. THE INBOX: an item in a member's incoming/ is work; the standing state-and-lock notes of the routines that lock, which stand in the coordinator's
 ##      incoming/, are not, so an idle coordinator is not started for them.
 ##   2. THE BOARD, for the coordinator alone: an item of an active state (pending, running, review, blocked, parked) written since its duty last ended is news;
@@ -14,7 +14,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-lib/session/AgentsTools.DispatcherLoop.include" ] || rigRefuse "the loop's include is not in the package"
+[ -f "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the loop's include is not in the package"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDutyDemandCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -41,7 +41,7 @@ rigFn(){ ## the function and its arguments... -- run in the loop's include; prin
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			set +e
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include" > /dev/null 2>&1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 			"$@"
 		' rig "$@" 2> /dev/null )"
 	fnRc=$?

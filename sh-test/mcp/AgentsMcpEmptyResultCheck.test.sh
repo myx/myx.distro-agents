@@ -15,10 +15,10 @@ rigTmp="$( cd "$rigTmp" && pwd -P )"
 ## The target sits in the server's default write set, since a served call takes no root flags.
 mkdir -p "$rigTmp/origin/myx" "$rigTmp/ws/.local/temp/team"
 for rigEntry in "$rigSource"/* ; do
-	[ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigTmp/origin/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigTmp/origin/${rigEntry##*/}"
 done
 for rigEntry in "$rigSource"/myx/* ; do
-	[ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigTmp/origin/myx/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigTmp/origin/myx/${rigEntry##*/}"
 done
 cp -R "$rigSource/myx/myx.distro-agents" "$rigTmp/origin/myx/myx.distro-agents"
 rigHarness="$rigTmp/origin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"

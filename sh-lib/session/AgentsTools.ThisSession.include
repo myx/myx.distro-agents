@@ -60,6 +60,7 @@ AgentsToolsThisSessionNeedThread(){ ## operation
 
 ## --get-uninvited-participants: the participants the session's record names that have no run in it yet, one a line -- the
 ## default list the executor invites from (AgentsToolsSessionParticipantsUninvited). Any member may be invited all the same.
+## Nothing printed with rc 0 is no one left to invite; a record naming no participants at all says so, and is no error.
 AgentsToolsThisSessionUninvited(){ ## the operation's arguments (none)
 	if [ $# -gt 0 ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: --get-uninvited-participants: syntax is --get-uninvited-participants, and takes no argument" >&2
@@ -92,6 +93,7 @@ AgentsToolsThisSessionPost(){ ## the send's arguments after its target
 		echo "$MDSC_CMD: ⛔ ERROR: --post-session-channel: syntax is [--address-to <team-member>]... (<text...>|--from-stdin), and the post is to the session thread alone" >&2
 		return 1
 	fi
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --slack-send-message --team-member "$thisSessionMember" session-current "$@"
 }
 
@@ -152,6 +154,7 @@ AgentsToolsThisSessionWait(){ ## the operation's arguments
 	AgentsToolsThisSessionNeedThread --wait-session-channel || return 1
 	local waitArgs=( --team-member "$thisSessionMember" --wait-source "chat:$thisSessionKey" )
 	[ -z "$waitBound" ] || waitArgs+=( --wait-timeout "$waitBound" )
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	MDAT_WAIT_CHAT_FILTER="${waitFilter# }" DistroAgentsTools --wait-for-input "${waitArgs[@]}"
 }
 
@@ -426,7 +429,7 @@ AgentsToolsThisSessionSingleParticipant(){ ## routine file path
 	singleExecutors="$( printf '%s\n' "$singleFm" | LC_ALL=C sed -n 's/^executors: //p' | head -1 )"
 	singleInvitees="$( printf '%s\n' "$singleFm" | LC_ALL=C sed -n 's/^invitees: //p' | head -1 )"
 	case "$singleExecutors" in
-		''|*[[:space:],*]*|magic-team) return 1 ;;
+		''|*[[:space:],*]*) return 1 ;;
 	esac
 	case "$singleInvitees" in
 		''|none) ;;
@@ -565,6 +568,7 @@ AgentsToolsThisSessionSetTopic(){ ## the operation's arguments: <text...>
 		if type AgentsToolsToolingTemplateFill > /dev/null 2>&1 ; then
 			setTopicRoot="$( STR_SESSION_NAME="$setTopicText" STR_STARTED_BY="$setTopicBy" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || setTopicRoot=""
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		[ -z "$setTopicRoot" ] || DistroAgentsTools --slack-edit-message "$thisSessionMember" "$thisSessionThread" "$setTopicRoot" > /dev/null 2>&1 || :
 	fi
 	printf 'OK: --set-session-topic: the session title is now "%s".\n' "$setTopicText"
@@ -586,6 +590,7 @@ AgentsToolsThisSessionSetChapter(){ ## the operation's arguments: <text...>
 	printf 'OK: --set-session-chapter: the session chapter is now "%s".\n' "$setChapterText"
 }
 
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 ## The intern-op dispatch: DistroAgentsTools --intern-op-set-session-topic|--intern-op-set-session-chapter.
 ## Sourced with $@ intact; matches only these names, so a source from DistroAgentsSession.fn.sh is a no-op here.
 case "$1" in
@@ -695,6 +700,7 @@ AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
 		type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 		topicRoot="$( STR_SESSION_NAME="$topicText" STR_STARTED_BY="$topicBy" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || topicRoot=""
 		if [ -n "$topicRoot" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --slack-edit-message "$topicBy" "$topicThread" --identity-bot "$topicRoot" > /dev/null 2>&1 || :
 		fi
 	fi
@@ -726,6 +732,7 @@ AgentsToolsThisSessionChapterSet(){ ## --session-id <id> <text>
 	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 	chapterBy="$( AgentsToolsRunRouteMember "$chapterSession" )" || chapterBy=""
 	if [ -n "$chapterThread" ] && [ -n "$chapterBy" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --slack-send-message --team-member "$chapterBy" "$chapterThread" "📖 Session chapter: $chapterText" > /dev/null 2>&1 || :
 	fi
 	printf 'OK: --set-session-chapter: session %s does now: %s\n' "$chapterSession" "$chapterText"

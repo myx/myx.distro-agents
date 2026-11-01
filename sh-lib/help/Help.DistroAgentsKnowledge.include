@@ -6,6 +6,7 @@
 ## --help-syntax the syntax line of every operation of the file, read from the one table of the family,
 ## sh-lib/help/Help.DistroAgentsTools.include; --help the manual, sh-lib/help/Help.DistroAgentsKnowledge.help.md.
 ## Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+## Its syntax lines are echoed here, so `--help` and the console's help reader find them in one file.
 
 ## The default syntax: the entry points a reader starts from. Every other operation's syntax sits behind
 ## --help-syntax, and the manual behind --help.

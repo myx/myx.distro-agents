@@ -253,6 +253,7 @@ case "$1" in
 				case "$MDAT_CONSOLE" in DistroSourceConsole.sh|DistroDeployConsole.sh) ;; *) echo "⛔ ERROR: $MDSC_CMD --console-send: invalid MDAT_CONSOLE in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
 				case "$MDAT_TTL" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --console-send: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
 				[ "$MDAT_TTL" -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --console-send: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ; }
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --console-start --override-workspace "$MDAT_WORKSPACE" --console "$MDAT_CONSOLE" --ttl "$MDAT_TTL" >/dev/null || {
 					echo "⛔ ERROR: $MDSC_CMD --console-send: auto-restart failed for $channelDir" >&2
 					set +e ; return 1

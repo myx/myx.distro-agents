@@ -68,7 +68,7 @@ rigSkill keeper-away "$rigOther/source/rig/skillset/keeper-away" source-symlink 
 ln -s "$rigSrc/keeper-here" "$rigHome/.claude/skills/keeper-here" ; ln -s "$rigWs/.local/myx/rig/skillset/keeper-install" "$rigHome/.claude/skills/keeper-install"
 mkdir -p "$rigHome/.claude/skills/keeper-plain/reference" ; printf 'rig\n' > "$rigHome/.claude/skills/keeper-plain/keeper-plain.basic.md" ; printf 'rig-seed armed\n' > "$rigHome/.claude/skills/keeper-plain/keeper-plain.armed.md"
 ## The rig's own process list: a session runs while a stand-in process is listed under its id (a grant of a session counts only for a session that runs).
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" ; : > "$rigTmp/ps.list"
+rigRealTool ps "$rigTmp/bin/ps.real" ; : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
 case " $* " in

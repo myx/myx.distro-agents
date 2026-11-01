@@ -217,7 +217,8 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 	fi
 	## With a remote: refuse a conflicted or uncommitted copy, resync, refuse again, then refuse a copy that is not the head's.
 	local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
-	originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2> /dev/null )" || originUrl=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2> /dev/null )" || originUrl=""
 	[ -z "$originUrl" ] || repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2> /dev/null )" || repoRoot=""
 	if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
 		lockRelPath="${lockPath#"$repoRoot"/}"
@@ -705,7 +706,8 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 		}
 		local lockTarget="$( AgentsToolsInboxNotePath "$takeMember" "$takeNote" )"
 		local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
-		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
 		if [ -n "$originUrl" ] ; then
 			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 		fi
@@ -803,6 +805,7 @@ AgentsToolsRoutineLockCloseOwn(){ ## routine word, member
 	case "$closeWord" in
 		advance)
 			local gcRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-team-data-final-gc-deletion "$closeMember" --context "$closeOp" || gcRc=$?
 			if [ "$gcRc" -ne 0 ] && [ "$gcRc" -ne 2 ] ; then
 				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $closeOp: team-data-final-gc-deletion failed (exit $gcRc) -- aborting unlock rather than degrading silently (PROVISIONAL policy, see MAGIC.md)" >&2
@@ -816,7 +819,8 @@ AgentsToolsRoutineLockCloseOwn(){ ## routine word, member
 				--commit-message "* advance.routine: update, unlock" \
 				--context "$closeOp" || return 1
 			local originUrl="" repoRoot="" lockBranch="" advanceSyncOut pushAttempt=1 pushOut="" pushRc=0
-			originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
 			if [ -n "$originUrl" ] ; then
 				repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 			fi

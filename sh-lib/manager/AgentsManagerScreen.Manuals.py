@@ -158,6 +158,7 @@ ACTION_HANDLERS["help"] = askHelp
 
 registerPlugin({
     "name": "manuals",
+    "apps": ("agents", "local", "source", "deploy", "remote"),
     "root": {"id": "manuals", "label": "Manuals (Help)", "go": "Manuals (~H~elp)", "group": "manuals"},
     "rows": {
         "manuals": (("user", "User Manuals", "manuals", True), ("commands", "Tooling Commands", "commands", True),

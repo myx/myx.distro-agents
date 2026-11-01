@@ -63,6 +63,7 @@ case "$1" in
 		## LocalTools.ManagerInterface.include, which the digest reads: the value here and what the
 		## settings screen shows are one. Where the digest cannot be read, nothing is handed on.
 		if [ -z "$managerStyle" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			managerStyle="$( DistroAgentsTools --manager-config-digest interface 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' '$1 == "line" && $4 == "MDLT_MANAGER_STYLE" && $7 == "user" { print $6 ; exit ; }' )" || managerStyle=""
 		fi
 

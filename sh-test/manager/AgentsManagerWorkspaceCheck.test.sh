@@ -75,7 +75,7 @@ rigAssert "a name that is none of the commands is refused, naming the list, and 
 
 echo "-- 2. where the tooling comes from --"
 mkdir -p "$rigTmp/ws-src" "$rigTmp/ws-dot"
-ln -s "$MDLT_ORIGIN" "$rigTmp/ws-src/source" ; ln -s "$MDLT_ORIGIN" "$rigTmp/ws-dot/.local"
+rigCopyTree "$MDLT_ORIGIN" "$rigTmp/ws-src/source" ; rigCopyTree "$MDLT_ORIGIN" "$rigTmp/ws-dot/.local"
 rigRoot="$rigTmp/ws-src" rigOrigin="$rigTmp/ws-src/source"
 rigRun --manager-workspace-read
 rigAssert "an origin that is the workspace's source tree reads source" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "fact" && $2 == "-" && ( $3 == "tooling" || $3 == "tooling-path" ) { printf "%s=%s ", $3, $4 }' "$rigTmp/out" )" "0 tooling=source tooling-path=$rigTmp/ws-src/source "

@@ -252,10 +252,16 @@ rigCall(){ ## guard seconds, tool, argument object, optional settle
 		callLeft=$(( callLeft - 1 ))
 	done
 	if kill -0 "$callPid" 2>/dev/null ; then
-		rigKilled="yes"
 		{ kill -TERM -- "-$callPid" ; sleep 1 ; kill -KILL -- "-$callPid" ; wait "$callPid" ; } 2>/dev/null
 	fi
 	wait "$callPid" 2>/dev/null || :
+	## Whether the call was still waiting, read from what it said and never from a clock: one that
+	## returned says so, with ASK-RESULT or CORRECTION, and one still waiting has said neither. A
+	## guard counted in seconds made the same run pass or fail with the machine's load.
+	case "$( cat "$rigScenarioDir/out" 2> /dev/null )" in
+		*'ASK-RESULT:'*|*'CORRECTION:'*) rigKilled="no" ;;
+		*) rigKilled="yes" ;;
+	esac
 }
 ## One team operation in the scenario's workspace, as no session of its own; out and err kept
 ## as op.out and op.err, its rc as rigOpRc.
@@ -312,34 +318,34 @@ rigFirst="$( rigRefused "$rigOut/reports/one.txt" )"
 rigThreadLater 1 unlock "$rigWs/.local/agents/pending/*.set"
 rigAskSet "$rigFirst" '["Read,Write:@rig-out:reports/**","purpose: write the report files there","Read,Grep,Glob:@rig-far:docs/**","Read:@.skillset-.local:magic-tester/**","WebSearch"]'
 rigAssert "the ask comes back answered: allow-set, with the grant of the whole set" \
-	"$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigVerdictLine ):$( rigLines "$rigScenarioDir/out" "GRANT: set 7 entries for $rigMember" )" \
-	"no:ASK-RESULT: RECEIVED:VERDICT: allow-set:1"
+	"$( rigFirstLine "$rigScenarioDir/out" ):$( rigVerdictLine ):$( rigLines "$rigScenarioDir/out" "GRANT: set 6 entries for $rigMember" )" \
+	"ASK-RESULT: RECEIVED:VERDICT: allow-set:1"
 rigSetId="$( rigRecordId )"
 rigAssert "and says it was asked as one set, for whom and for which task, and what one answer does" \
-	"$( rigLines "$rigScenarioDir/out" "NOTE: asked as one Permission set, pending reply $rigSetId: 7 entries for $rigMember, for the task $rigItem. One answer of the human-owner covers them all: allow-set grants every entry, deny grants none, and edit returns the set to you with the change to make." )" 1
+	"$( rigLines "$rigScenarioDir/out" "NOTE: asked as one Permission set, pending reply $rigSetId: 6 entries for $rigMember, for the task $rigItem. One answer of the human-owner covers them all: allow-set grants every entry, deny grants none, and edit returns the set to you with the change to make." )" 1
 rigAssert "one post to the human-owner, the team bot's, a message of its own, and one record: a permission set of the asking member" \
 	"$( cat "$rigScenarioDir/posted-as.1" 2>/dev/null ):$( rigHolds "$rigScenarioDir/post.1" '"thread_ts"' ):$( rigRecordCount ):$( rigRecordField kind ):$( rigRecordField owner ):$( rigRecordField address-to ):$( rigRecordField ask-identity ):$( rigRecordField item )" \
 	"$rigBotToken:no:1:permission-set:$rigMember:human-owner:bot:$rigItem"
 rigAssert "its set is for the task, this session and this member alone, and keeps every entry as one tool and its exact target" \
 	"$( rigLines "$( rigSetFile )" 'scope: task' ):$( rigLines "$( rigSetFile )" "item: $rigItem" ):$( rigLines "$( rigSetFile )" "session-id: $rigSession" ):$( rigLines "$( rigSetFile )" "participants: $rigMember" ):$( rigStarts "$( rigSetFile )" 'entry: ' ):$( rigLines "$( rigSetFile )" "entry: Write:$rigOut/reports/**" ):$( rigLines "$( rigSetFile )" "entry: Glob:$rigFar/docs/**" ):$( rigLines "$( rigSetFile )" 'entry: WebSearch' )" \
-	"1:1:1:1:7:1:1:1"
+	"1:1:1:1:6:1:1:1"
 rigAssert "the post says it is a permission set for this task, and how one answer covers it" \
 	"$( rigTextLine "$rigScenarioDir/post.1" '# 🔐 Permission set' ):$( rigTextLine "$rigScenarioDir/post.1" 'May the participants have these, for this task only?' ):$( rigHolds "$rigScenarioDir/post.1" 'allow-set' ):$( rigTextLine "$rigScenarioDir/post.1" "- $rigMember" )" \
 	"yes:yes:yes:yes"
 rigAssert "a place asked by its name is shown by that name, with every tool asked for it: two folders, each by the name of its place" \
 	"$( rigTextLine "$rigScenarioDir/post.1" '- `rig-out:reports/**` — Read, Write' ):$( rigTextLine "$rigScenarioDir/post.1" '- `rig-far:docs/**` — Read, Grep, Glob' )" "yes:yes"
-rigAssert "a built-in place is shown by its own name, as it was asked, never by where its files lie" \
-	"$( rigTextLine "$rigScenarioDir/post.1" '- `.skillset-.local:magic-tester/**` — Read' )" "yes"
+rigAssert "an entry the member's own floor already covers is not asked: the post carries no place for it, and no held group to show it" \
+	"$( rigTextCount "$rigScenarioDir/post.1" '.skillset-.local:magic-tester/**' ):$( rigTextCount "$rigScenarioDir/post.1" 'Already held' )" "0:0"
 rigAssert "a tool asked with no place is shown as a tool, for any target" "$( rigTextLine "$rigScenarioDir/post.1" '- WebSearch — any target' )" "yes"
 rigAssert "what a place is for stands under it, and what the whole access is for stands once, both in the member's words" \
 	"$( rigTextLine "$rigScenarioDir/post.1" '  - write the report files there' ):$( rigTextLine "$rigScenarioDir/post.1" '**💡 What it is for**' ):$( rigTextLine "$rigScenarioDir/post.1" "$rigReason" ):$( rigTextCount "$rigScenarioDir/post.1" "$rigReason" )" \
 	"yes:yes:yes:1"
 rigAssert "every place stands once, and no path of this machine is shown" \
 	"$( rigTextCount "$rigScenarioDir/post.1" 'rig-out:reports/**' ):$( rigTextCount "$rigScenarioDir/post.1" 'rig-far:docs/**' ):$( rigTextCount "$rigScenarioDir/post.1" '.skillset-.local:magic-tester/**' ):$( rigTextCount "$rigScenarioDir/post.1" 'WebSearch' ):$( rigTextCount "$rigScenarioDir/post.1" '/dev/null' ):$( rigTextCount "$rigScenarioDir/post.1" '`/' )" \
-	"1:1:1:1:0:0"
+	"1:1:0:1:0:0"
 rigAssert "the set's own answer emoji are placed under it by the bot; answered, it gets the answered mark, and the bot takes its own answer emoji off it" "$( rigEmoji 1 )" "x unlock white_check_mark|x unlock"
 rigAssert "the answer is confirmed once, in the thread of the post, by the bot: the one other post" \
-	"$( rigCalls chat.postMessage ):$( cat "$rigScenarioDir/posted-as.2" 2>/dev/null ):$( rigHolds "$rigScenarioDir/post.2" "\"thread_ts\":\"$( rigPostTs 1 )\"" ):$( rigHolds "$rigScenarioDir/post.2" "Read: \`allow-set\` by human-owner. Granted: 7 permission(s) to $rigMember, for this task only." )" \
+	"$( rigCalls chat.postMessage ):$( cat "$rigScenarioDir/posted-as.2" 2>/dev/null ):$( rigHolds "$rigScenarioDir/post.2" "\"thread_ts\":\"$( rigPostTs 1 )\"" ):$( rigHolds "$rigScenarioDir/post.2" "Read: \`allow-set\` by human-owner. Granted: 6 permission(s) to $rigMember, for this task only." )" \
 	"2:$rigBotToken:yes:yes"
 rigAssert "its record is closed with that verdict" "$( rigRecordField status ):$( rigRecordField verdict )" "reply-received:allow-set"
 rigAssert "every entry is granted for the task: the refused call, the rest of its folder, the other place by the tools asked there, and nothing that was not asked" \
@@ -351,8 +357,8 @@ rigOther="$( rigRefused "$rigFar/docs/new.md" )"
 rigThreadNow 3 ""
 rigAskOne "$rigOther" 8
 rigAssert "a call the set did not ask for, asked alone: a prompt of its own, a single permission, open" \
-	"$rigKilled:$( rigCalls chat.postMessage ):$( rigRecordCount ):$( rigRecordField kind 2 ):$( rigRecordField refusal-id 2 ):$( rigRecordField status 2 )" \
-	"yes:3:2:permission:$rigOther:reply-pending"
+	"$( rigCalls chat.postMessage ):$( rigRecordCount ):$( rigRecordField kind 2 ):$( rigRecordField refusal-id 2 ):$( rigRecordField status 2 )" \
+	"3:2:permission:$rigOther:reply-pending"
 
 echo "-- entries that do not cover the refused call: a correction, and nothing is posted --"
 rigStart not-covered task
@@ -402,8 +408,8 @@ rigFirst="$( rigRefused "$rigOut/reports/one.txt" )"
 ## The entries as one text, an entry a line, are taken as the list is.
 rigAskSet "$rigFirst" '"Read,Write:@rig-out:reports/**\nRead:@rig-far"' 8
 rigAssert "posted and open: a set of scope session that names no item, shown as for this session only" \
-	"$rigKilled:$( rigCalls chat.postMessage ):$( rigRecordCount ):$( rigRecordField kind ):$( rigRecordField status ):$( rigLines "$( rigSetFile )" 'scope: session' ):$( rigLines "$( rigSetFile )" 'item: ' ):$( rigStarts "$( rigSetFile )" 'entry: ' ):$( rigTextLine "$rigScenarioDir/post.1" 'May the participants have these, for this session only?' ):$( rigTextLine "$rigScenarioDir/post.1" '- `rig-far:**` — Read' )" \
-	"yes:1:1:permission-set:reply-pending:1:1:3:yes:yes"
+	"$( rigCalls chat.postMessage ):$( rigRecordCount ):$( rigRecordField kind ):$( rigRecordField status ):$( rigLines "$( rigSetFile )" 'scope: session' ):$( rigLines "$( rigSetFile )" 'item: ' ):$( rigStarts "$( rigSetFile )" 'entry: ' ):$( rigTextLine "$rigScenarioDir/post.1" 'May the participants have these, for this session only?' ):$( rigTextLine "$rigScenarioDir/post.1" '- `rig-far:**` — Read' )" \
+	"1:1:permission-set:reply-pending:1:1:3:yes:yes"
 rigAssert "nothing is granted while he has not answered" "$( rigGranted Write "$rigOut/reports/one.txt" )" "none"
 rigAskSet "$rigFirst" '["Read,Write:@rig-out:reports/**"]'
 rigAssert "asked again while it is open: already open, nothing posted, nothing recorded" \

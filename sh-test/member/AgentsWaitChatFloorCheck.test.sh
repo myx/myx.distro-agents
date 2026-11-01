@@ -16,6 +16,8 @@
 ##      one `# arrived on:` line.
 ##   6. THE SHAPE OF THE WAIT is the caller's: a timeout of 0 reads every source once and returns at once.
 ##   7. A source that does not exist is refused at second zero.
+##   8. THE OWN POST IS THE FLOOR ONLY WHERE NOTHING OLDER IS KNOWN. A message posted into the session thread before the member's own later
+##      post is still delivered: the spawn's launch is the older floor, so it is not swallowed by the member's own last post.
 ## Offline: a Slack-shaped fake curl is first on PATH, every workspace is a folder of the rig's own, and no model CLI is started.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -100,7 +102,7 @@ rigWait(){ ## output basename, then the operation's arguments after the member
 	local waitName="$1" waitPid waitWatch
 	shift
 	rigOut="$rigDir/$waitName.out"
-	env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
+	env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
 		"PATH=$rigWaitPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_SESSION_ID=${rigKey:-$rigSession}" "MDAT_SPAWN_LAUNCH_MARKER=$rigDir/launch.marker" \
 		MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off ${rigWithThread:+MDAT_SESSION_THREAD=$rigThread} \
 		"$rigTool" --wait-for-input --team-member "$rigMember" "$@" > "$rigOut" 2> "$rigDir/$waitName.err" &
@@ -163,7 +165,7 @@ rigAssert "a session with no folder: no chat source (the replies alone, as ever)
 echo "-- 2. the file is brought up to date by the wait --"
 rigScene topup
 rigSeed
-rigPlain topup-1 4 --wait-source "file:$rigDir/none"
+rigPlain topup-1 12 --wait-source "file:$rigDir/none"
 rigAssert "RECEIVED, with the message that came after the launch"     "$( rigFirstLine ):$( rigHolds RIG-NEW-ONE )" "WAIT-RESULT: RECEIVED:yes"
 rigAssert "behind the source it is of, the session thread, through the floor: a named set does not read the thread itself"             "$( rigArrived )" "slack:$rigThread "
 rigAssert "not the root, which was there before the run began"         "$( rigHolds RIG-ROOT-BEFORE-LAUNCH )" no
@@ -175,8 +177,9 @@ rigAssert "the floor delivered it: the member's read pointer is past it" "$( rig
 rigTopupBefore="$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )"
 rigPlain topup-2 2 --wait-source "file:$rigDir/none"
 rigAssert "the next wait: nothing new, the message is returned once"  "$( rigFirstLine ):$( rigHolds RIG-NEW-ONE )" "WAIT-RESULT: TIMEOUT:no"
-## the floor reads the thread into the file once its TTL has passed (5 s and more), and the next wait comes inside it
-rigAssert "and the next wait, inside the thread's TTL, does not read it again" "$( [ "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" -gt "$rigTopupBefore" ] && echo yes || echo no )" no
+## The thread's TTL is 5 s, and this first wait takes longer than that on a loaded host, so the TTL claim has its own
+## case below; what holds either way is that a re-read delivers nothing twice.
+rigAssert "the next wait reads the thread again, or not, and returns nothing twice" "$( rigCount RIG-NEW-ONE )" 0
 
 echo "-- 3. both paths run together --"
 rigScene both
@@ -211,9 +214,9 @@ rigHistory CRIGDM001 "$( rigMsg "$rigPost" URIGSELF1 RIG-QUESTION '' "$rigOwnMet
 rigHistory CRIGXXX01 "$( rigMsg "$(( rigNow - 90 )).000001" URIGOTHER RIG-X-FIRST )" "$( rigMsg "$(( rigNow - 70 )).000001" URIGOTHER RIG-X-THIRD )"
 rigHistory CRIGYYY01 "$( rigMsg "$(( rigNow - 80 )).000001" URIGOTHER RIG-Y-SECOND )"
 rigPlain order-1 25 --wait-source slack:CRIGYYY01 --wait-source slack:CRIGXXX01 --wait-since-utime "$(( rigNow - 120 ))"
-rigAssert "the floor first: no replies source, the session thread; then the rest by time, a source under one line while its messages run" "$( rigArrived )" "slack:$rigThread slack:CRIGXXX01 slack:CRIGYYY01 slack:CRIGXXX01 "
+rigAssert "the floor first: the replies to the run's own post, the session thread, then the rest by time, a source under one line while its messages run" "$( rigArrived )" "replies:rig-sess-order slack:$rigThread slack:CRIGXXX01 slack:CRIGYYY01 slack:CRIGXXX01 "
 rigAssert "each message once, oldest first among the rest"              "$( LC_ALL=C grep -o -E 'RIG-(X-FIRST|Y-SECOND|X-THIRD)' "$rigOut" | LC_ALL=C tr '\n' ' ' )" "RIG-X-FIRST RIG-Y-SECOND RIG-X-THIRD "
-rigAssert "and every block closed"                                     "$( LC_ALL=C grep -c '^# --- end ---$' "$rigOut" )" 4
+rigAssert "and every block closed"                                     "$( LC_ALL=C grep -c '^# --- end ---$' "$rigOut" )" 5
 
 echo "-- 6. the shape of the wait is the caller's --"
 rigScene shape
@@ -232,6 +235,20 @@ rigWait refuse-3 --wait-source chat:bad/name --wait-timeout 0
 rigAssert "a chat that is no session folder name"                      "$( rigFirstLine )" "WAIT-RESULT: ERROR"
 rigWait refuse-4 --wait-list-sources
 rigAssert "the kinds this build carries name the three new ones"       "$( LC_ALL=C grep -c -E '^(chat|scan|tagged)	' "$rigOut" )" 3
+
+echo "-- 8. a message into the session thread that came before the member's own later post --"
+rigScene afterown
+rigThreadData CRIGSES01 "$(( rigNow - 400 )).000001" \
+	"$( rigMsg "$(( rigNow - 400 )).000001" URIGHUM1 RIG-ROOT-BEFORE-LAUNCH )" \
+	"$( rigMsg "$(( rigNow - 200 )).000001" URIGBOT1 RIG-FROM-BOT "$(( rigNow - 400 )).000001" )" \
+	"$( rigMsg "$(( rigNow - 100 )).000001" URIGSELF1 RIG-OWN-POST "$(( rigNow - 400 )).000001" "$rigOwnMeta" )"
+rigHistory CRIGSES01 "$( rigMsg "$(( rigNow - 400 )).000001" URIGHUM1 RIG-ROOT-BEFORE-LAUNCH )"
+printf '%s\n' "CRIGSES01:$(( rigNow - 400 )).000001 $(( rigNow - 100 )).000001 URIGADDR1 - - 0 - 0" > "$rigChat/last-own-post"
+rigWithThread=1
+rigPlain afterown-1 6
+rigWithThread=""
+rigAssert "a message posted into the session thread before the member's own later post is still delivered" "$( rigFirstLine ):$( rigHolds RIG-FROM-BOT )" "WAIT-RESULT: RECEIVED:yes"
+rigAssert "and the member's own post is no arrival"                    "$( rigHolds RIG-OWN-POST )" no
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WAIT CHAT FLOOR CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

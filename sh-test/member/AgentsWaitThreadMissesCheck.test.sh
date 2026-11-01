@@ -50,6 +50,8 @@ cat > "$rigTmp/bin/curl" <<- 'EOF'
 			[ "$reachable" = 1 ] || { printf '{"ok":false,"error":"channel_not_found"}\n' ; exit 0 ; }
 			cat "$RIG_SCENARIO/history.json" 2> /dev/null || printf '{"ok":true,"messages":[],"has_more":false}\n'
 		;;
+		conversations.list) printf '{"ok":true,"channels":[],"response_metadata":{"next_cursor":""}}\n' ;;
+		reactions.add|reactions.remove) printf '{"ok":true}\n' ;;
 		*) printf '{"ok":false,"error":"rig_unhandled"}\n' ;;
 	esac
 EOF
@@ -68,8 +70,8 @@ rigWait(){ ## pending id -- one Wait on the question, in a session of its own; t
 	rigSession=$(( rigSession + 1 ))
 	: > "$rigScenario/calls"
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
-		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-miss-$1" --wait-source "ask:$1" --wait-timeout 6 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
+		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" \
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-miss-$1" --wait-source "ask:$1" --wait-timeout 12 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 }
 rigHas(){ ## text -- how many lines of the last result hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/out" || :
@@ -125,21 +127,26 @@ echo "-- 4. a top-level message of the owner is the reply of the latest post abo
 : > "$rigScenario/is-im"
 rigSessionDir="$rigWs/.local/agents/sessions/rig-miss-posts"
 mkdir -p "$rigSessionDir"
+## THE POSTS ARE RECENT ON PURPOSE: a post quiet for an hour is no longer read (agentsWaitRepliesQuietMax), so a
+## fixed ts from years back is never looked at and the case would prove nothing.
+nowPost="$( date +%s )"
+p1="$(( nowPost - 60 )).000101" p2="$(( nowPost - 40 )).000101" p3="$(( nowPost - 20 )).000101"
+m1="$(( nowPost - 55 )).000101" m2="$(( nowPost - 35 )).000101" m3="$(( nowPost - 15 )).000101"
 printf '%s\n' \
-	"DRIG00001:1700000030.000101 1700000030.000101 URIGOWNER - - 0 - 0" \
-	"DRIG00001:1700000020.000101 1700000020.000101 URIGOWNER - - 0 - 0" \
-	"DRIG00001:1700000010.000101 1700000010.000101 URIGOWNER - - 0 - 0" > "$rigSessionDir/last-own-post"
-printf '{"ok":true,"messages":[{"ts":"1700000010.000101","user":"URIGSELF1","text":"post one"}],"has_more":false}\n' > "$rigScenario/replies.json"
-printf '{"ok":true,"messages":[{"ts":"1700000035.000101","user":"URIGOWNER","text":"RIG-M3"},{"ts":"1700000025.000101","user":"URIGOWNER","text":"RIG-M2"},{"ts":"1700000015.000101","user":"URIGOWNER","text":"RIG-M1"},{"ts":"1700000030.000101","user":"URIGSELF1","text":"post three"},{"ts":"1700000020.000101","user":"URIGSELF1","text":"post two"},{"ts":"1700000010.000101","user":"URIGSELF1","text":"post one"}],"has_more":false}\n' > "$rigScenario/history.json"
+	"DRIG00001:$p3 $p3 URIGOWNER - - 0 - 0" \
+	"DRIG00001:$p2 $p2 URIGOWNER - - 0 - 0" \
+	"DRIG00001:$p1 $p1 URIGOWNER - - 0 - 0" > "$rigSessionDir/last-own-post"
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"post one"}],"has_more":false}\n' "$p1" > "$rigScenario/replies.json"
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGOWNER","text":"RIG-M3"},{"ts":"%s","user":"URIGOWNER","text":"RIG-M2"},{"ts":"%s","user":"URIGOWNER","text":"RIG-M1"},{"ts":"%s","user":"URIGSELF1","text":"post three"},{"ts":"%s","user":"URIGSELF1","text":"post two"},{"ts":"%s","user":"URIGSELF1","text":"post one"}],"has_more":false}\n' "$m3" "$m2" "$m1" "$p3" "$p2" "$p1" > "$rigScenario/history.json"
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
-	RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-	bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-miss-posts" --wait-timeout 6 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
+	RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" \
+	bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "rig-miss-posts" --wait-timeout 12 --wait-poll-interval 1 ) > "$rigTmp/out" 2> "$rigTmp/err"
 rigUnder(){ ## message marker -- the posts whose heading the marker stands under, comma-separated
 	LC_ALL=C awk -v mark="$1" '/^# replies to your post / { post = $NF ; sub(/^.*:/, "", post) } index( $0, mark ) { printf "%s%s", sep, post ; sep = "," }' "$rigTmp/out"
 }
-rigAssert "M1 stands once, under the first post, the latest one above it" "$( rigUnder RIG-M1 )" "1700000010.000101"
-rigAssert "M2 stands once, under the second post" "$( rigUnder RIG-M2 )" "1700000020.000101"
-rigAssert "M3 stands once, under the third post" "$( rigUnder RIG-M3 )" "1700000030.000101"
+rigAssert "M1 stands once, under the first post, the latest one above it" "$( rigUnder RIG-M1 )" "$p1"
+rigAssert "M2 stands once, under the second post" "$( rigUnder RIG-M2 )" "$p2"
+rigAssert "M3 stands once, under the third post" "$( rigUnder RIG-M3 )" "$p3"
 rm -f "$rigScenario/is-im"
 
 echo "-- 5. two default Waits in one session: the second resumes after what the first returned --"
@@ -147,8 +154,8 @@ now="$( date +%s )"
 printf '{"ok":true,"messages":[{"ts":"%s.000101","user":"URIGOWNER","text":"RIG-FIRST-ARRIVAL"}],"has_more":false}\n' "$(( now + 2 ))" > "$rigScenario/history.json"
 rigDefault(){ ## session -- one Wait with no sources and a short bound
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
-		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" \
-		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$1" --wait-timeout 8 --wait-poll-interval 1 "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err"
+		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" \
+		bash "$rigTools" --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$1" --wait-timeout 14 --wait-poll-interval 1 "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err"
 }
 rigDefault rig-miss-resume
 rigAssert "the first Wait delivers the arrival" "$( rigHas RIG-FIRST-ARRIVAL )" "1"
@@ -165,7 +172,7 @@ rigDefault rig-miss-named --wait-source "file:$rigWs/named-b.txt"
 rigAssert "and the next call, naming another, keeps the first in the stored set: both files" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "2"
 rigDefault rig-miss-named
 rigAssert "a call naming nothing keeps them all" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "4"
-( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" bash "$rigTools" --wait-for-input --team-member "$rigMember" --unwait "file:$rigWs/named-a.txt" --wait-session-id rig-miss-named ) > "$rigTmp/out" 2> "$rigTmp/err"
+( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" bash "$rigTools" --wait-for-input --team-member "$rigMember" --unwait "file:$rigWs/named-a.txt" --wait-session-id rig-miss-named ) > "$rigTmp/out" 2> "$rigTmp/err"
 rigDefault rig-miss-named
 rigAssert "only --unwait takes a source out of the stored set" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" ) $( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-b.txt" )" "0 1"
 rigAssert "the header says which session thread is on record for the session, or that none is" "$( LC_ALL=C grep -c '^# session thread: ' "$rigTmp/out" )" "1"

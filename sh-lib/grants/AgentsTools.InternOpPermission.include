@@ -112,12 +112,13 @@ AgentsToolsPermissionRefusalHint(){ ## refusal id
 ## One refusal's event-track post: the `refusal` tracking post, the same fields for every
 ## refusal, where it was made from the same source as its record.
 AgentsToolsPermissionRefusalPost(){ ## owner, session dir, refusal id, session id, tool, target, reason
-	local postWhere
+	local postWhere postWorkspace
 	postWhere="$( AgentsToolsPermissionRefusalWhere )"
+	postWorkspace="$( AgentsToolsPermissionMemberWorkspace "${1:-}" )" || postWorkspace=""
 	AgentsToolsPermissionEventTrack "$( AgentsToolsPermissionPoster "$1" )" "$2" --kind refusal --session-id "$4" --field what="Permission refused" --field refusal-id="$3" \
 		--field host="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
 		--field workspace="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" \
-		--field tool="$5" --field target="$( AgentsToolsPermissionShownTarget "$6" )" --field reason="${7:-none}" --field caller="$1"
+		--field tool="$5" --field target="$( AgentsToolsPermissionShownTarget "$6" "$postWorkspace" )" --field reason="${7:-none}" --field caller="$1"
 }
 
 ## Posts one event-track entry for a session, through the tooling's own tracking post, into
@@ -170,7 +171,8 @@ AgentsToolsPermissionPartyName(){ ## member name or Slack account id (may be emp
 	[ -n "$1" ] || return 0
 	[ ! -s "$MMDAPP/.local/.agents/slack-mention-ids.cache" ] \
 		|| partyName="$( LC_ALL=C awk -F= -v id="$1" 'NR > 1 && $2 == id { print $1 ; exit ; }' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2>/dev/null )" || partyName=""
-	[ -n "$partyName" ] || [ "$1" != "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" ] || partyName="human-owner"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	[ -n "$partyName" ] || [ "$1" != "$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" ] || partyName="human-owner"
 	printf '%s' "${partyName:-$1}"
 }
 
@@ -267,15 +269,35 @@ AgentsToolsPermissionNewRef(){ ## prefix
 	printf '%s%s' "$1" "$refUuid"
 }
 
+## The workspace a member is set up in, for naming a target by the place that member's own grant
+## came from. A folder two workspaces both name is then named by the member's own, never guessed
+## between them. Nothing when the machine does not know the member. Its home workspace first
+## (member-homes.registry), else the one its member row declares.
+AgentsToolsPermissionMemberWorkspace(){ ## member
+	local memberPlaceWs memberPlaceFile
+	[ -n "${1:-}" ] || return 0
+	memberPlaceFile="${HOME:-}/.agents/magic-team/member-homes.registry"
+	memberPlaceWs="$( LC_ALL=C awk -F'\t' -v who="$1" '$1 == who && $2 != "" { print $2 ; exit ; }' "$memberPlaceFile" 2> /dev/null )" || memberPlaceWs=""
+	if [ -z "$memberPlaceWs" ] ; then
+		memberPlaceFile="${HOME:-}/.agents/magic-team/members.registry"
+		memberPlaceWs="$( LC_ALL=C awk -F'\t' -v who="$1" '$1 == who && $2 != "" { print $2 ; exit ; }' "$memberPlaceFile" 2> /dev/null )" || memberPlaceWs=""
+	fi
+	[ -z "$memberPlaceWs" ] || printf '%s\n' "${memberPlaceWs%/}"
+}
+
 ## The registered place a natural target lies in, as name:relative (--intern-directory-of), a
 ## <path>/** pattern keeping its /**. Nothing for a target that is no absolute path, or lies in
-## no place. A hint only: a grant is matched by its path.
-AgentsToolsPermissionPlaceHint(){ ## natural target
-	local hintBase="$1" hintTail="" hintOf
+## no place. A hint only: a grant is matched by its path. The place is resolved in the workspace
+## given, and in this one where none is: a folder two workspaces name alike is named by the
+## asking member's own, never by a guess over both.
+AgentsToolsPermissionPlaceHint(){ ## natural target, [workspace]
+	local hintBase="$1" hintTail="" hintOf hintRoot="${2:-${MMDAPP:-}}"
 	case "$hintBase" in /*) ;; *) return 0 ;; esac
 	case "$hintBase" in *$'\n'*|*$'\t'*) return 0 ;; esac
 	case "$hintBase" in */'**') hintBase="${hintBase%/\*\*}" ; hintTail="/**" ;; esac
-	hintOf="$( DistroAgentsTools --intern-directory-of "$hintBase" 2> /dev/null )" || return 0
+	type LocalToolsPlacesOf > /dev/null 2>&1 \
+		|| . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" 2> /dev/null || return 0
+	hintOf="$( LocalToolsPlacesOf "${hintRoot%/}" "$hintBase" 2> /dev/null )" || return 0
 	[ -n "$hintOf" ] || return 0
 	case "$hintOf:$hintTail" in *':.:/**') hintOf="${hintOf%.}" ; hintTail="**" ;; esac
 	printf '%s%s' "$hintOf" "$hintTail"
@@ -285,10 +307,10 @@ AgentsToolsPermissionPlaceHint(){ ## natural target
 ## where it lies in a registered place, and then never its absolute path beside it; as given
 ## where it lies in none. One resolver, the place hint above. A record keeps the exact
 ## target: only what is posted is shown this way.
-AgentsToolsPermissionShownTarget(){ ## natural target
+AgentsToolsPermissionShownTarget(){ ## natural target, [workspace]
 	local shownPlace=""
 	[ -n "${1:-}" ] || return 0
-	shownPlace="$( AgentsToolsPermissionPlaceHint "$1" )" || shownPlace=""
+	shownPlace="$( AgentsToolsPermissionPlaceHint "$1" "${2:-}" )" || shownPlace=""
 	printf '%s' "${shownPlace:-$1}"
 }
 
@@ -405,6 +427,13 @@ AgentsToolsPermissionEntryPlace(){ ## entry, session id
 	local placeName placeGlob placePath
 	permEntryPlace=""
 	AgentsToolsPermissionEntrySplit "$1" permission-set-request || return 1
+	## `<place>:<relative>` is the form a member is asked to write, and the same entry as
+	## `@<place>:<relative>`: normalised here, so one arm reads both and a display keeps the
+	## name the member wrote. A path in no place is written as it is, absolute.
+	case "$permEntryTarget" in
+		/*|@*) ;;
+		*:*) permEntryTarget="@$permEntryTarget" ;;
+	esac
 	case "$permEntryTarget" in
 		@*)
 			placeName="${permEntryTarget#@}" ; placeGlob=""
@@ -419,6 +448,7 @@ AgentsToolsPermissionEntryPlace(){ ## entry, session id
 				'**'|'') ;;
 				*'*'*|*'?'*|*'['*) echo "$MDSC_CMD: ⛔ ERROR: an entry glob is a path, ** or <path>/** under its place, no other pattern: $1" >&2 ; return 1 ;;
 			esac
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			placePath="$( DistroAgentsTools --intern-directory-resolve "$placeName" )" || {
 				echo "$MDSC_CMD: ⛔ ERROR: the entry names no place this workspace can resolve, so nothing is asked: $1" >&2
 				return 1
@@ -888,6 +918,7 @@ AgentsToolsPermissionItemEntries(){ ## rows, kind (session|task)
 ## in the tracking-thread only by the run that wrote one of them.
 AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 	local MDSC_CMD='DistroAgentsTools permission-set-apply'
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	local applySetId="${1:-}" applySetBy="${2:-}" applySetFile applySetLine applySetScope="" applySetItem="" applySetSession="" applySetParts="" applySetEntries="" applySetPlaces="" applySetPurposes=""
 	if [ -z "$applySetId" ] || [ -z "$applySetBy" ] ; then
@@ -987,6 +1018,7 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 			case ",$applySetOld," in *",${applySetOne%:*}:"*) continue ;; esac
 			applySetAdd="${applySetAdd:+$applySetAdd,}$applySetOne"
 		done < <( printf '%s\n' "$applySetAllows" | LC_ALL=C tr ',' '\n' )
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		[ -z "$applySetAdd" ] || printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$applySetState" "${applySetPath##*/}" --from-state:"$applySetState" \
 			--edit-script-from-stdin:awk "--header:upsert:access-control:$( printf '%s' "${applySetOld:+$applySetOld,}$applySetAdd" | LC_ALL=C sed 's/,/, /g' )" \
 			--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 \
@@ -1052,6 +1084,7 @@ AgentsToolsPermissionSetTold(){ ## <pending-id> <allowed|denied> <answered by>
 		! AgentsToolsAssertBareName "$toldPart" "a participant" permission-set-told 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$toldPart" > /dev/null 2>&1 \
 			|| toldArgs=( "${toldArgs[@]}" --address-to "$toldPart" )
 	done
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$toldText" | DistroAgentsTools --intern-op-comms-slack-send-message "${toldArgs[@]}" --from-stdin > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the permission set $toldId is $toldWhat, but its participants were not told in the session thread $toldThread" >&2
 	return 0
@@ -1115,6 +1148,7 @@ case "$1" in
 		esac
 		## Kept where it found no grant too: it names an ask that is open and would allow this call.
 		local hookOpen=""
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		hookGrant="$( DistroAgentsTools --intern-op-permission-grant-read "$hookMember" --session-id "$hookSession" --tool "$hookTool" --target "$hookTarget" 2>/dev/null )" || :
 		hookOpen="$( printf '%s\n' "$hookGrant" | LC_ALL=C awk '$1 == "OPEN-ASK:" { printf "%s%s (a %s, waiting on %s)", sep, $2, $3, $4 ; sep = ", " ; }' )"
 		[ -z "$hookOpen" ] || hookOpen=" An ask that would allow this call is already open: $hookOpen. Do not ask again: wait for its answer with Wait sources=ask:<its id>, then retry the call."
@@ -1125,12 +1159,14 @@ case "$1" in
 				return 0
 			;;
 			'once '*)
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				if DistroAgentsTools --intern-op-permission-grant-consume --session-id "$hookSession" --refusal-id "${hookGrant#once }" > /dev/null 2>&1 ; then
 					AgentsToolsPermissionHookDecision allow
 					return 0
 				fi
 			;;
 		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		hookId="$( DistroAgentsTools --intern-op-permission-refusal-log "$hookMember" --session-id "$hookSession" --tool "$hookTool" \
 			--target "$hookTarget" --reason "a native $hookTool call this unattended session holds no grant for" 2>/dev/null \
 			| LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
@@ -1467,6 +1503,7 @@ case "$1" in
 				|| outerAsks="$( AgentsToolsPermissionOpenAsks "$outerMember" "$outerSession" "$outerTool" "$outerTarget" 2> /dev/null )" || outerAsks=""
 			if [ -n "$outerAsks" ] ; then
 				while IFS= read -r outerAsk ; do
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					[ -z "$outerAsk" ] || DistroAgentsTools --intern-op-escalation-read "$outerMember" "$outerAsk" > /dev/null 2>&1 || :
 				done <<< "$outerAsks"
 				outerRc=0
@@ -1706,7 +1743,9 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$1" "<member>" permission-place || { set +e ; return 1 ; }
-		AgentsToolsPermissionShownTarget "$2"
+		local placeWorkspace=""
+		placeWorkspace="$( AgentsToolsPermissionMemberWorkspace "$1" )" || placeWorkspace=""
+		AgentsToolsPermissionShownTarget "$2" "$placeWorkspace"
 		printf '\n'
 		return 0
 	;;
@@ -2128,18 +2167,18 @@ case "$1" in
 		fi
 		## A member's own set does not ask again for what the member holds. What a running participant holds is named, and the member is told to ask that participant;
 		## the explicit `--escalate` says the member needs it for itself, and the request is then asked as it stands.
+		## An entry it holds itself is left out of the entries the ask is built from, so the post never shows its own grant as a holder's pass.
 		if [ -n "$setOwn" ] ; then
-			local ownEntries=0 ownHeld=0 ownLine ownLayer ownPart ownRunning ownOther ownNamed=""
+			local ownLine ownLayer ownPart ownRunning ownOther ownNamed="" ownKept=""
 			ownRunning="$( AgentsToolsPermissionSessionRunning "$setSession" )"
 			while IFS= read -r ownLine ; do
 				[ -n "$ownLine" ] || continue
 				AgentsToolsPermissionEntrySplit "$ownLine" permission-set-request || { set +e ; return 1 ; }
-				ownEntries=$(( ownEntries + 1 ))
 				if ownLayer="$( AgentsToolsPermissionHolds "$setBy" "$permEntryTool" "$permEntryTarget" "$setSession" )" ; then
-					ownHeld=$(( ownHeld + 1 ))
 					printf 'HELD: %s by %s already (%s)\n' "$ownLine" "$setBy" "${ownLayer%% *}"
 					continue
 				fi
+				ownKept="${ownKept}${ownLine}"$'\n'
 				ownOther=""
 				while IFS= read -r ownPart ; do
 					[ -n "$ownPart" ] && [ "$ownPart" != "human-owner" ] && [ "$ownPart" != "$setBy" ] || continue
@@ -2149,8 +2188,9 @@ case "$1" in
 				done <<< "$( AgentsToolsPermissionParticipants "$setSession" "$setItem" )"
 				[ -z "$ownOther" ] || ownNamed="${ownNamed}${ownLine} -- held by ${ownOther}"$'\n'
 			done <<< "$setEntries"
-			if [ "$ownEntries" -gt 0 ] && [ "$ownHeld" -eq "$ownEntries" ] ; then
-				printf 'PERMISSION-SET: held -- %s holds every entry already, so nothing was asked and no permission was changed\n' "$setBy"
+			setEntries="$ownKept"
+			if [ -z "$setEntries" ] ; then
+				printf 'PERMISSION-SET: held -- %s holds every entry already, so nothing was asked and no permission was changed. Make the call again: the gate decides it from what you hold.\n' "$setBy"
 				return 0
 			fi
 			if [ -n "$ownNamed" ] && [ -z "$setEscalate" ] ; then
@@ -2221,6 +2261,7 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask could not be filled from its template, so nothing was asked or recorded" >&2
 			set +e ; return 1
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		setOut="$( printf '%s\n' "$setBody" | DistroAgentsTools --intern-op-comms-slack-send-message "$setBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
 			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask could not be posted, so nothing was asked or recorded: $( LC_ALL=C grep -m1 '⛔' <<< "$setOut" )" >&2
 			set +e ; return 1
@@ -2233,6 +2274,7 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask was posted but its thread or addressee could not be named, so its answer could not be recognised" >&2
 			set +e ; return 1
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		setId="$( printf '%s\n' "$setBody" | DistroAgentsTools --intern-op-pending-reply-open "$setBy" --to "$setChannel" \
 			${setSession:+--session-id "$setSession"} --kind permission-set --address-to human-owner --channel "$setChannel" \
 			--question-ts "$setTs" --thread-ts "$setTs" --addressees "$setAddressees" ${setAsking:+--asking-accounts " $setAsking"} \
@@ -2477,6 +2519,7 @@ case "$1" in
 					revokeNew="${revokeNew:+$revokeNew,}$revokeEntry"
 				done
 				if [ "$revokeNew" != "$( AgentsToolsDecisionsField "$revokePath" access-control | LC_ALL=C sed 's/, */,/g' )" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					if printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$revokeState" "${revokePath##*/}" --from-state:"$revokeState" \
 						--edit-script-from-stdin:awk "$( if [ -n "$revokeNew" ] ; then printf -- '--header:upsert:access-control:%s' "$( printf '%s' "$revokeNew" | LC_ALL=C sed 's/,/, /g' )" ; else printf -- '--header:remove:access-control' ; fi )" \
 						--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 ; then
@@ -2490,6 +2533,7 @@ case "$1" in
 					revokeEntry="${revokeEntry#task:}"
 					revokeText="${revokeText:+$revokeText, }${revokeEntry%%:*}:$( AgentsToolsPermissionUnescape "$( printf '%s' "${revokeEntry#*:}" | LC_ALL=C sed 's/:[^:]*:[^:]*$//' )" )"
 				done <<< "$revokeEntries"
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-decisions-append "${revokeBy:-human-owner}" "$revokeTask" --kind verdict \
 					--text "task grant $revokeRef revoked: $revokeText" --source "$revokeRef" --context "$MDSC_CMD" > /dev/null 2>&1 \
 					|| echo "⚠️ WARNING: $MDSC_CMD: $revokeRef is revoked, but not recorded on $revokeTask's Decisions" >&2

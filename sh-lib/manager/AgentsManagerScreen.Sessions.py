@@ -299,6 +299,13 @@ def runLines(run, width, info=None, limit=0):
         ("run", unspaced(run["spawn"])),
     ], width)
     lines.extend(dispatchLines(info.get("dispatch") if info else None, width))
+    ## THE PARTICIPANT'S OWN CHECKLIST (owner 2026-10-30, sketch 14.5): the list its CheckList item holds, at the
+    ## end of its Summary, as the session Summary shows the lists of its members.
+    listed = ((info or {}).get("checklists") or {}).get(run["member"]) or []
+    if listed:
+        lines.extend(headingLines("CheckList"))
+        for item in listed:
+            lines.extend(wrapToCells(item, max(10, width - 1)))
     return lines[:limit] if limit else lines
 
 
@@ -1375,6 +1382,7 @@ def activityMode(**more):
 
 registerPlugin({
     "name": "activity",
+    "apps": ("agents",),
     "mount": "magic-team",
     "root": {"id": "activity", "label": "Activity", "go": "Acti~v~ity", "group": "team"},
     ## The rows a level always holds, ahead of the rows its operation gives.

@@ -3,6 +3,7 @@
 
 ## The help of AgentLibrarianTools.fn.sh: the librarian's personal tool, and the queue of update requests any member
 ## files. Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+## Its syntax lines are echoed here, so `--help` and the console's help reader find them in one file.
 
 ## The default syntax: the entry points a reader starts from. The expanded forms sit behind --help-syntax, the
 ## manual behind --help.

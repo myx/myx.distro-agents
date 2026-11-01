@@ -67,7 +67,7 @@ trap 'exit 1' INT TERM
 ## `<pid> <command line>` line a process, each listed only while it lives, and hands every other call to the real
 ## ps. It counts the whole-host listings, and the questions whether processes are still themselves
 ## (`-o pid=,stat=,lstart=`), which is how a thread named by a pid file is told alive.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list" ; : > "$rigTmp/ps.lists" ; : > "$rigTmp/ps.asks"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

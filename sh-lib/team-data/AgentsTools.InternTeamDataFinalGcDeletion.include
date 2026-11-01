@@ -162,6 +162,7 @@ AgentsToolsFinalGcDivertBoardItem(){
 		gcScanFailedWhat="create the board/$toState directory the move needs for"
 		return 1
 	}
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$toState" "$itemName" \
 		--from-state:processed \
 		--context --intern-team-data-final-gc-deletion
@@ -538,7 +539,8 @@ case "$1" in
 		## only copy left and takes the ordinary retention.
 		local gcTrashMode="" gcTrashRemote=""
 		set +e
-		gcTrashRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		gcTrashRemote="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		set -e
 		if [ -n "$gcTrashRemote" ] ; then gcTrashMode="immediate" ; fi
 

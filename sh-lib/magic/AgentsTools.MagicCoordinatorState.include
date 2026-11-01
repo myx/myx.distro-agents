@@ -42,6 +42,7 @@ AgentsToolsBoardCounts(){
 ## The active and blocked items, one `<state>/<item-filename>` line each, at
 ## most 40, then one `(+<n> more)` line for the rest; `(none)` when empty.
 AgentsToolsBoardActiveItems(){
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local activeState activeFile activeN=0 activeCap=40 activeRows="" activeTokens
 	## Token totals, summed now over what sits under each item (AgentsTools.SessionTranscript.include).
 	if . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
@@ -135,7 +136,8 @@ case "$1" in
 			--context --config-check || configRc=1
 		## Unset, the team data is the workspace's own store, which the resolver
 		## already answered; a setting is an override and is checked as one.
-		if [ -n "$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		if [ -n "$( AgentsToolsConfigOption magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
 			DistroAgentsTools --intern-op-check-configs magic-coordinator \
 				--optional "TEAM_DATA_DIRECTORY:<path>" \
 				--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
@@ -164,9 +166,10 @@ case "$1" in
 		fi
 		## The team posts to Slack: with none of the tokens a coordinator send can
 		## resolve to, every send it makes fails, so having none is a FAIL.
-		if [ -z "$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null )" ] \
-			&& [ -z "$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN 2>/dev/null )" ] \
-			&& [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" ]
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		if [ -z "$( AgentsToolsConfigOption magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null )" ] \
+			&& [ -z "$( AgentsToolsConfigOption magic-coordinator --select SLACK_BOT_TOKEN 2>/dev/null )" ] \
+			&& [ -z "$( AgentsToolsConfigOption magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" ]
 		then
 			echo "SLACK_TOKEN: FAIL"
 			echo "  fail: no SLACK_USER_TOKEN or SLACK_BOT_TOKEN for magic-coordinator, and no SLACK_BOT_TOKEN for magic-team, so the team cannot post to Slack"
@@ -178,7 +181,8 @@ case "$1" in
 		## the one every user-token send is confirmed against (message.user) by
 		## --slack-send-message itself. Never gates: WARN only.
 		local identToken="" identResp="" identUserId=""
-		identToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null )" || identToken=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		identToken="$( AgentsToolsConfigOption magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null )" || identToken=""
 		if [ -z "$identToken" ] ; then
 			echo "SLACK_AUTH_IDENTITY: WARN"
 			echo "  warn: magic-coordinator has no SLACK_USER_TOKEN, so she posts under a bot identity, never her own"
@@ -522,7 +526,8 @@ case "$1" in
 			return 0
 		fi
 		local reportTo
-		reportTo="$( DistroAgentsTools --agents-config-option human-owner --select EMAIL_USER 2>/dev/null )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		reportTo="$( AgentsToolsConfigOption human-owner --select EMAIL_USER 2>/dev/null )"
 		if [ -z "$reportTo" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --send-report: EMAIL_USER is not set in human-owner's own scope in .local/.agents -- nowhere to send the report" >&2
 			set +e ; return 1

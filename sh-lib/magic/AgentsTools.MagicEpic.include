@@ -26,9 +26,11 @@ AgentsToolsMagicEpicCaller(){ ## the operation
 }
 
 ## The edit is made against a scratch copy and moved over the file, so a failed write never leaves a half file.
-AgentsToolsMagicEpicTemp(){ ## prints a fresh scratch path under .local/temp
-	mkdir -p "$MMDAPP/.local/temp" || return 1
-	mktemp "$MMDAPP/.local/temp/AgentsEpic.XXXXXX"
+AgentsToolsMagicEpicTemp(){ ## prints a fresh scratch path in the calling session's own folder
+	local epicBase="$MMDAPP/.local/temp"
+	[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || epicBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
+	mkdir -p "$epicBase" || return 1
+	mktemp "$epicBase/AgentsEpic.XXXXXX"
 }
 
 case "$1" in

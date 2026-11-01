@@ -43,7 +43,7 @@ printf 'EMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=client@rig.invalid\nEMAIL_A
 ## A clock of the rig's own: `date +%s` reads the fixed instant in now.epoch (a Sunday out of worktime by default, so the mail TTL of the
 ## collection is its five-minute floor), every other call goes to the real date. MDAT_SCHEDULE_TIMEZONE=UTC above makes the offset 0, so
 ## worktime is decided by now.epoch alone (AgentsToolsCollectTtlOf, the table's TTL).
-ln -s "$( command -v date )" "$rigTmp/bin/date.real" 2> /dev/null || rigRefuse "no real date on PATH"
+rigRealTool date "$rigTmp/bin/date.real" 2> /dev/null || rigRefuse "no real date on PATH"
 cat > "$rigTmp/bin/date" <<'RIGDATE'
 #!/bin/sh
 ## +%s reads the fixed instant in now.epoch; every other call goes to the real date (TZ is the caller's).

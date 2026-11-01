@@ -199,4 +199,4 @@ def markdownLines(text, width):
 
 ## What the Markdown view offers the others to put in (Plugins.py): `on`, the places of the texts that are Markdown, and `help`, the
 ## places of the help of the tooling, which is Markdown too (markdownShown, helpShown).
-registerPlugin({"name": "markdown", "registries": {"on": "place", "help": "place"}})
+registerPlugin({"name": "markdown", "apps": ("agents", "local", "source", "deploy", "remote"), "registries": {"on": "place", "help": "place"}})

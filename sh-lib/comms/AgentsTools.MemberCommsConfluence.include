@@ -25,6 +25,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-space-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-atlassian-confluence-space-list --member "$actingMember" --context confluence-space-list "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0

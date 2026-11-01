@@ -107,9 +107,40 @@ AgentsHarnessReportsNone(){
 ## Posting a handback does not end this run and releases nobody waiting on it -- the
 ## description says so, because a model reading otherwise stops working mid-task.
 AgentsHarnessToolSubagentHandback(){
-	local toolTo="${1:-$harnessParentName}" toolTask="$2" toolOutcome="$3" toolFindings="$4" toolUnfinished="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolBody
+	local toolTo="${1:-$harnessParentName}" toolTask="$2" toolOutcome="$3" toolFindings="$4" toolUnfinished="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolPendingCount="${8:-0}" toolBody
+	local toolOpen="" toolOpenRc=0 toolOther="" toolLine="" toolOthers=0
 	if [ -z "$toolOutcome" ] ; then
 		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
+	fi
+	## Enumerated, never defaulted: a word here compares as no number in a test neither the caller nor the list meant.
+	case "$toolPendingCount" in
+		*[!0-9]*)
+			printf 'ERROR: SubagentHandback: checklist_pending_count must be a whole number of pending items, got: %s. Nothing was sent.\n' "$toolPendingCount" ; return 0
+		;;
+	esac
+	## THE LIST BEFORE A HANDBACK (S22.1): an item whose own text names this handback is that step itself, closed by the send
+	## below and never counted. Every other pending item is counted, and the call is refused unless that is the number it
+	## declares, so one refusal reconciles the caller's count with the list's. An item in progress is never counted. A session
+	## that kept no list says so in the handback and declares 0. Local files only: the list, and the count this call declared.
+	toolOpen="$( AgentsHarnessCheckListOpenItems )" ; toolOpenRc=$?
+	case "$toolOpenRc" in
+		0)
+			while IFS= read -r toolLine ; do
+				case "$toolLine" in '') continue ;; esac
+				if AgentsHarnessCheckListNamesHandback "${toolLine#'- [ ] '}" ; then continue ; fi
+				toolOther="$toolOther$toolLine"$'\n'
+				toolOthers=$(( toolOthers + 1 ))
+			done <<< "$toolOpen"
+		;;
+		1) toolUnfinished="${toolUnfinished:+$toolUnfinished$'\n'}No CheckList was kept in this session." ;;
+	esac
+	if [ "$toolOthers" -ne "$toolPendingCount" ] ; then
+		printf 'REFUSED: the CheckList holds %s pending item(s), and this call declares %s. Close them with CheckList, or declare %s as checklist_pending_count to hand back with them listed as unfinished:\n%s' \
+			"$toolOthers" "$toolPendingCount" "$toolOthers" "$toolOther"
+		return 0
+	fi
+	if [ "$toolOthers" -gt 0 ] ; then
+		toolUnfinished="${toolUnfinished:+$toolUnfinished$'\n\n'}Still open in this session's CheckList, and listed here as unfinished:"$'\n'"${toolOther%$'\n'}"
 	fi
 	## A handback to the parent goes where this run reports to (AgentsToolsRunRoute): a session's
 	## thread, which session-parent resolves; a member's own conversation, addressed to it; for
@@ -149,6 +180,12 @@ AgentsHarnessToolSubagentHandback(){
 	## carried, and the answers collected are the tooling's.
 	harnessSendProse="$( AgentsHarnessSendProse "$toolOutcome" "$toolFindings" "$toolUnfinished" )" \
 	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody" handback "$toolAddressTo"
+	## A delivered handback is the step its own list named and the mark the idle Wait reads: the item is closed and `handback.given`
+	## written here, before the endings below, so every delivered handback leaves both whatever this run does after it.
+	if [ -f "$harnessScratch/send.delivered" ] ; then
+		AgentsHarnessCheckListCloseHandback || :
+		AgentsHarnessCheckListPlace && date +%s > "$checkListFolder/handback.given" 2> /dev/null || :
+	fi
 	## A run that reports to no one ends on its report, whatever it reports: marked as a dismissed
 	## run whose handback is given, so the harness ends it once this call is over
 	## (AgentsHarnessDismissedAfter). Its report moves nothing to review.

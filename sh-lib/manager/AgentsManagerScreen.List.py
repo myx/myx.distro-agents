@@ -309,4 +309,4 @@ def goUp(state):
 
 ## What the list offers the others to put in (Plugins.py): `alphabetical`, the levels whose listed rows the user may have by name
 ## instead of in the order the operation gave them, by the key of the command "alphabetical" (orderedRows).
-registerPlugin({"name": "list", "registries": {"alphabetical": "level", "unfiltered": "level"}})
+registerPlugin({"name": "list", "apps": ("agents", "local", "source", "deploy", "remote"), "registries": {"alphabetical": "level", "unfiltered": "level"}})

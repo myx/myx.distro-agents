@@ -18,6 +18,8 @@ rigRefuse(){
 [ -f "$rigHelp" ] || rigRefuse "the testing tool's help is not at the origin: $rigHelp"
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsTesterFamilyCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
+## A routine file the validator must find fault with: it opens with no front matter at all.
+printf '# a routine with no front matter\n\n## Steps\n\n1. do it\n' > "$rigTmp/no-front-matter.routine.md"
 
 rigPasses=0
 rigFails=0
@@ -32,8 +34,8 @@ rigAssert(){ ## what is asserted, got, want
 ## The operations the testing tool's help names, one a line, sorted.
 LC_ALL=C grep -o '^📘 syntax: DistroAgentsTesting.fn.sh --[a-z-]*' "$rigHelp" \
 	| LC_ALL=C sed 's/.*--//' | LC_ALL=C sort -u > "$rigTmp/help.out"
-## The family's own list, from the one line of the script, words sorted.
-LC_ALL=C sed -n '/^[[:space:]]*\(local \)\{0,1\}agentsTesterOperations=/,/"[[:space:]]*$/{ s/^[[:space:]]*\(local \)\{0,1\}agentsTesterOperations="// ; s/"[[:space:]]*$// ; p ; }' "$rigTool" \
+## The family's own list, read off its one line, words sorted.
+LC_ALL=C sed -n 's/^[[:space:]]*\(local \)\{0,1\}agentsTesterOperations="\(.*\)"[[:space:]]*$/\2/p' "$rigTool" \
 	| LC_ALL=C tr ' \t' '\n\n' | LC_ALL=C sed '/^$/d' | LC_ALL=C sort -u > "$rigTmp/family.out"
 
 echo "-- 1. the family is exactly the testing tool's operations --"
@@ -46,7 +48,14 @@ rigRan=0
 rigAssert "the testbed's list is printed through the stub, and the call does not fail" "$rigRan" "0"
 rigAssert "and it printed nothing that reads as a refusal" "$( LC_ALL=C grep -c 'invalid option' "$rigTmp/list.err" )" "0"
 
-echo "-- 3. a name outside the family is refused --"
+echo "-- 2b. the validator stub is reachable, the name a line break used to hide --"
+rigStub=0
+"$rigTool" --tester-skillset-validate-routine "$rigTmp/no-front-matter.routine.md" > "$rigTmp/stub.out" 2> "$rigTmp/stub.err" || rigStub=$?
+rigAssert "the stub is one of the family, never refused as no operation" "$( LC_ALL=C grep -c 'is no testing operation' "$rigTmp/stub.err" )" "0"
+rigAssert "and it reports the validator's own row for that file" \
+	"$( LC_ALL=C grep -c 'frontmatter:' "$rigTmp/stub.out" "$rigTmp/stub.err" 2> /dev/null | LC_ALL=C awk -F: '{ s += $2 } END { print s + 0 }' )" "1"
+
+ echo "-- 3. a name outside the family is refused --"
 rigOutside=0
 "$rigTool" --tester-nonsense > /dev/null 2> "$rigTmp/outside.err" || rigOutside=$?
 rigAssert "a name the family does not hold is refused" "$( [ "$rigOutside" != "0" ] && echo refused || echo ran )" "refused"

@@ -344,6 +344,7 @@ ACTION_HANDLERS["tokensstack"] = tokensStackMode
 
 registerPlugin({
     "name": "tokens",
+    "apps": ("agents",),
     "mount": "dashboard",
     ## the views stand in the group of the tokens alone (tokensGroupHere): a row of the level of every group, shown in that one
     "rows": {

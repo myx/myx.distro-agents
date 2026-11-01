@@ -66,6 +66,7 @@ AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<st
 		set +e ; return 1
 	}
 	local processedRc=0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 		"$fromStateArg" \
 		"${moveStamps[@]}" \
@@ -134,6 +135,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --move-to-pending: can't create board state directory: $MDAT_DATA_ROOT/board/pending" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-pending \
@@ -188,6 +190,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --move-to-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/blocked" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-blocked \
@@ -228,6 +231,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --move-to-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/backlog" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-backlog \
@@ -270,6 +274,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --move-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-parked \
@@ -324,6 +329,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --create-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			--create \
 			--acting-member:"$callingMember" \

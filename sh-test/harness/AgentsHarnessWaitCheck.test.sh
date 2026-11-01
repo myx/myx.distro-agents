@@ -1354,24 +1354,24 @@ rigMakeOrigin(){ ## directory, kind-every value
 	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib"
 	for originEntry in "$MDLT_ORIGIN"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "myx" ] || ln -s "$originEntry" "$originDir/$originName"
+		[ "$originName" = "myx" ] || rigCopyTree "$originEntry" "$originDir/$originName"
 	done
 	for originEntry in "$MDLT_ORIGIN/myx"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "myx.distro-agents" ] || ln -s "$originEntry" "$originDir/myx/$originName"
+		[ "$originName" = "myx.distro-agents" ] || rigCopyTree "$originEntry" "$originDir/myx/$originName"
 	done
 	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "sh-lib" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/$originName"
+		[ "$originName" = "sh-lib" ] || rigCopyTree "$originEntry" "$originDir/myx/myx.distro-agents/$originName"
 	done
 	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "member" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/$originName"
+		[ "$originName" = "member" ] || rigCopyTree "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/$originName"
 	done
 	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib/member"
 	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "AgentsTools.MemberWait.include" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/member/$originName"
+		[ "$originName" = "AgentsTools.MemberWait.include" ] || rigCopyTree "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/member/$originName"
 	done
 	LC_ALL=C sed "s/^agentsWaitKindEvery=\".*\"/agentsWaitKindEvery=\"$originEvery\"/" "$MDLT_ORIGIN/$originInclude" > "$originDir/$originInclude"
 	[ "$( rigHolds "$originDir/$originInclude" "agentsWaitKindEvery=\"$originEvery\"" )" = yes ] || rigRefuse "the scratch include does not carry the divider $originEvery, so the divider rows would test nothing"

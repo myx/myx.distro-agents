@@ -49,7 +49,7 @@ cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse 
 ## `<pid> <command line>` line a process, and hands every other call to the real ps. Each line
 ## is a stand-in process of this rig under its own pid, and is listed only while that process
 ## lives: one that is stopped is gone from the list, as it would be from the host's.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -391,7 +391,7 @@ echo "-- 9. a review settled another way: the prompt is closed, marked, and take
 rigStart settled
 rigWork human-owner
 rigHandback "rig work done"
-rigOp "$rigDir/typed" --accept-review magic-coordinator "$rigItem" --summary "last resort"
+rigOp "$rigDir/typed" --accept-review --team-member magic-coordinator "$rigItem" --summary "last resort"
 rigAssert "the coordinator's typed verdict is applied"     "$( cat "$rigDir/typed.rc" ):$( rigLoc )" "0:processed"
 rigAssert "the prompt's record is withdrawn, by whom and why" "$( rigField status ):$( rigField withdrawn-by ):$( rigField withdraw-reason )" "withdrawn:magic-coordinator:$rigItem was accepted by magic-coordinator"
 rigAssert "its click answers are taken off, and it is marked" "$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" "+1 leftwards_arrow_with_hook x:no_entry_sign"
@@ -405,12 +405,12 @@ rigAssert "a click under it afterwards changes nothing"    "$( rigReadLine 'ESCA
 rigStart settled-return
 rigWork human-owner
 rigHandback "rig work done"
-rigOp "$rigDir/typed" --return-review magic-coordinator "$rigItem" --message "one more pass"
+rigOp "$rigDir/typed" --return-review --team-member magic-coordinator "$rigItem" --message "one more pass"
 rigAssert "a typed return closes the prompt too"           "$( rigLoc ):$( rigField status ):$( rigField withdraw-reason )" "running:withdrawn:$rigItem was returned by magic-coordinator"
 rigStart settled-reject
 rigWork human-owner
 rigHandback "rig work done"
-rigOp "$rigDir/typed" --reject-review human-owner "$rigItem" --message "not this way"
+rigOp "$rigDir/typed" --reject-review --team-member human-owner "$rigItem" --message "not this way"
 rigAssert "and so does his own typed reject, at the console" "$( rigLoc ):$( rigField status ):$( rigField withdraw-reason )" "pending:withdrawn:$rigItem was rejected by human-owner"
 rigStart settled-archived
 rigWork human-owner

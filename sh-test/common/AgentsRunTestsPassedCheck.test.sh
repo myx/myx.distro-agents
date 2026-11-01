@@ -11,6 +11,8 @@
 ## the earlier content brings the earlier pass back; a failure is never kept; the same content in another folder shares
 ## the pass; a pass on a tree that moved while the test ran is kept for no state, and the receipt says so; a pass older
 ## than seven days is no pass, and every run removes those; and where the record cannot be written tests run as ever.
+## A run a session starts keeps its run folder in that session's own output folder, and a run with no session
+## keeps the workspace's .local/temp, as it always did.
 ## Nothing here is told by how long a run takes: a test that must still be running when the tree is changed runs until
 ## the rig lets it end.
 set -u
@@ -200,6 +202,16 @@ mkdir -p "$rigHome/.agents/magic-team" ; : > "$rigRecord"
 rigDo a RigOne
 rigAssert "a file where the record should be: the test is run and passes, and nothing is kept" "$rigRc $( LC_ALL=C grep -c '^PASS  RigOne ' "$rigTmp/a.out" || : ) $( rigPassed a RigOne )" "0 1 -"
 rm -f "$rigRecord"
+
+echo "-- 8. a run a session starts keeps its run folder in that session's own sandbox --"
+rigFresh
+rm -rf "$rigWs/.local/temp/mdat-tests"
+rigSandbox="$rigTmp/sandbox"
+mkdir -p "$rigSandbox"
+( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$( rigRoot a )" MYXROOT="$rigCommon" MDAT_SKILLSET_ROOT="$rigMembers" RIG_SHARED="$rigTmp" RIG_SUITE=a MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" \
+	bash "$( rigPkg a )/sh-test/AgentsRunTests.sh" RigOne ) > "$rigTmp/sandbox.out" 2>&1
+rigAssert "its logs, receipt and latest stand under the session's own sandbox, and nothing is made in the workspace's temp" \
+	"$( [ -e "$rigSandbox/output/mdat-tests/latest/RigOne.log" ] && printf session || printf none ) $( [ -e "$rigSandbox/output/mdat-tests/latest/RigOne.receipt" ] && printf receipt || printf none ) $( [ -e "$rigWs/.local/temp/mdat-tests" ] && printf workspace || printf none ) $( LC_ALL=C grep -c '^PASS  RigOne ' "$rigTmp/sandbox.out" || : )" "session receipt none 1"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RUN TESTS PASSED CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

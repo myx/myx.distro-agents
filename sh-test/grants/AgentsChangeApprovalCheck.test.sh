@@ -75,7 +75,7 @@ cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse 
 ## one of its ids for a run of its own. So the ps first on PATH answers the whole-host listing
 ## from the rig's own list, one `<pid> <command line>` line a process, each a stand-in process
 ## of this rig listed only while it lives, and hands every other call to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

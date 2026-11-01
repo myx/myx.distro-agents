@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the schedule's three steps of the main loop (F7.5 of the refactorings epic, second gate; sh-lib/session/
-## AgentsTools.DispatcherLoop.include, taken at each iteration of --intern-main-loop after its configuration check). The real loop (--one) and the
+## AgentsTools.DispatcherSchedule.include, taken at each iteration of --intern-main-loop after its configuration check). The real loop (--one) and the
 ## real spawner run, as in AgentsSessionControlMainLoopCheck; the console, curl, date and every setting are this rig's own. GUARD: every tooling
 ## call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this rig's tree and PATH holds no agent CLI.
 ## Held:

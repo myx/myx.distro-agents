@@ -255,6 +255,7 @@ AgentsEventTrackPostSend(){ ## record dir
 			AgentsToolsEventTrackSendPace "${agentsEventTrackSendQueue:-}"
 			while : ; do
 				postCallRc=0
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				postResponse="$( DistroAgentsTools --intern-op-slack-call "$postMember" --api chat.postMessage --identity bot --json-body "$postPayload" \
 					--context --intern-op-event-track-post 2> "$postDir/call.err" )" || postCallRc=$?
 				## The shared call's own warnings (a rate limit waited out) are said here too.
@@ -263,6 +264,7 @@ AgentsEventTrackPostSend(){ ## record dir
 				## The bot not yet in the conversation joins it once, as the member send does for a top-level post.
 				if [ "$postJoined" = "false" ] && [ -z "$postThread" ] && LC_ALL=C grep -q '"error":"not_in_channel"' "$postDir/call.err" ; then
 					postJoined="true"
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					if DistroAgentsTools --intern-op-slack-call "$postMember" --api conversations.join --identity bot --form "channel=$postChannel" \
 						--context --intern-op-event-track-post > /dev/null 2>&1 ; then
 						continue

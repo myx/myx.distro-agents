@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.VoiceTranscript.include -- a voice message's words, read out of its own clip by the speech-to-text part of
+## setup.feature-local-ai where that is installed, and left marked untranscribed where it is not.
+##
+## The formatter names a message's files `[file: <id> <name> (<size> bytes, <type>)]` (AgentsSlackMessagesFormat.awk); a file of an
+## audio type is a voice message. A rendering handed to a member carries `[voice transcript: <words>]` in that annotation's place, or
+## `[voice: untranscribed]` where the feature, the clip or the speech server gave no words.
+## One clip is transcribed once: its words live in $MMDAPP/.local/agents/schedule/voice/<member>/<file-id>, as the seen reactions live in
+## schedule/seen, so a poll that hands the same message over again costs no fetch and no speech call. Dot-sourced; functions only.
+##
+
+AgentsToolsVoiceWords(){ ## member, file id -- the annotation standing in the file's place, on stdout
+	local voiceMember="$1" voiceId="$2" voiceStore voiceStored voiceFirst voiceWhy voiceClip voiceTool voiceJson voiceText voiceFetchRc voiceFetchSay
+	case "$voiceId" in
+		''|*[!A-Za-z0-9]*) printf '[voice: untranscribed]' ; return 1 ;;
+	esac
+	voiceStore="${MMDAPP:-/nonexistent}/.local/agents/schedule/voice/$voiceMember"
+	voiceStored="$voiceStore/$voiceId"
+	if [ -f "$voiceStored" ] ; then
+		voiceFirst=""
+		IFS= read -r voiceFirst < "$voiceStored" || :
+		if [ "$voiceFirst" = "transcript" ] ; then
+			voiceText="$( LC_ALL=C sed -n '2p' "$voiceStored" )" || voiceText=""
+			printf '[voice transcript: %s]' "$voiceText"
+			return 0
+		fi
+		printf '[voice: untranscribed]'
+		return 1
+	fi
+	mkdir -p "$voiceStore" 2> /dev/null || { printf '[voice: untranscribed]' ; return 1 ; }
+	voiceWhy=""
+	voiceTool="$MDLT_ORIGIN/myx/mdci-packages-myx/setup.feature-local-ai/data/local-ai/mdci-local-ai"
+	[ -f "$voiceTool" ] || voiceWhy="setup.feature-local-ai is not installed on this machine, so the clip was not read into text"
+	voiceClip=""
+	if [ -z "$voiceWhy" ] ; then
+		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || :
+		voiceClip="$( mktemp "$MMDAPP/.local/temp/mdat-voice-clip.XXXXXX" 2> /dev/null )" || voiceClip=""
+		[ -n "$voiceClip" ] || voiceWhy="no temporary file could be made for the clip"
+	fi
+	if [ -z "$voiceWhy" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		voiceFetchRc=0
+		voiceFetchSay="$( DistroAgentsTools --intern-op-comms-slack-file-fetch "$voiceMember" "$voiceId" "$voiceClip" --overwrite 2>&1 > /dev/null )" || voiceFetchRc=$?
+		if [ "$voiceFetchRc" != "0" ] ; then
+			voiceWhy="$( printf '%s\n' "$voiceFetchSay" | LC_ALL=C sed -n '$p' )"
+			[ -n "$voiceWhy" ] || voiceWhy="the clip could not be fetched from Slack"
+		fi
+		if [ ! -s "$voiceClip" ] && [ -z "$voiceWhy" ] ; then voiceWhy="the clip came back empty" ; fi
+	fi
+	voiceText=""
+	if [ -z "$voiceWhy" ] ; then
+		voiceJson="$( sh "$voiceTool" transcribe "$voiceClip" 2>&1 )" || voiceWhy="$voiceJson"
+		voiceWhy="$( printf '%s' "$voiceWhy" | LC_ALL=C sed -n '1p' )"
+		if [ -n "$voiceWhy" ] ; then
+			:
+		elif [ -z "$voiceJson" ] ; then
+			voiceWhy="the speech server gave no answer for the clip"
+		else
+			voiceText="$( printf '%s' "$voiceJson" | LC_ALL=C awk -v path=text -v optional=1 \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || voiceText=""
+			[ -n "$voiceText" ] || voiceWhy="the speech server gave no words for the clip"
+		fi
+	fi
+	[ -z "$voiceClip" ] || rm -f "$voiceClip"
+	if [ -n "$voiceWhy" ] ; then
+		printf 'untranscribed\n%s\n' "$voiceWhy" > "$voiceStored" 2> /dev/null || :
+		printf '%s\n' "voice message $voiceId left untranscribed: $voiceWhy" >&2
+		printf '[voice: untranscribed]'
+		return 1
+	fi
+	voiceText="${voiceText//$'\n'/ }"
+	voiceText="${voiceText//$'\r'/ }"
+	voiceText="${voiceText//$'\t'/ }"
+	voiceText="${voiceText//\[/\(}"
+	voiceText="${voiceText//\]/\)}"
+	while [ "${voiceText#*  }" != "$voiceText" ] ; do voiceText="${voiceText//  / }" ; done
+	while [ "${voiceText# }" != "$voiceText" ] ; do voiceText="${voiceText# }" ; done
+	while [ "${voiceText% }" != "$voiceText" ] ; do voiceText="${voiceText% }" ; done
+	printf 'transcript\n%s\n' "$voiceText" > "$voiceStored" 2> /dev/null || :
+	printf '[voice transcript: %s]' "$voiceText"
+	return 0
+}
+
+AgentsToolsVoicePass(){ ## member -- a rendering on stdin, its voice messages in words, on stdout
+	local voicePassMember="$1" voicePassRender voicePassId voicePassWords voicePassMap=""
+	voicePassRender="$( cat )"
+	case "$voicePassRender" in
+		*'[file: '*', audio/'*) ;;
+		*) printf '%s' "$voicePassRender" ; return 0 ;;
+	esac
+	while IFS= read -r voicePassId ; do
+		[ -n "$voicePassId" ] || continue
+		voicePassWords="$( AgentsToolsVoiceWords "$voicePassMember" "$voicePassId" )" || :
+		voicePassMap="$voicePassMap$voicePassId	$voicePassWords
+"
+	done <<< "$( printf '%s\n' "$voicePassRender" | LC_ALL=C awk '
+		{
+			line = $0
+			while (( at = index(line, "[file: ") ) > 0) {
+				rest = substr(line, at + 7)
+				id = rest ; sub(/ .*/, "", id)
+				ann = rest ; sub(/\].*/, "", ann)
+				if (ann ~ /, audio\//) print id
+				line = substr(rest, length(ann) + 2)
+			}
+		}' | LC_ALL=C sort -u )"
+	printf '%s' "$voicePassRender" | VOICE_TRANSCRIPTS="$voicePassMap" LC_ALL=C awk '
+		BEGIN {
+			count = split(ENVIRON["VOICE_TRANSCRIPTS"], rows, "\n")
+			for (row = 1 ; row <= count ; row++) {
+				at = index(rows[row], "\t")
+				if (at > 0) words[substr(rows[row], 1, at - 1)] = substr(rows[row], at + 1)
+			}
+		}
+		{
+			out = "" ; line = $0
+			while (( at = index(line, "[file: ") ) > 0) {
+				out = out substr(line, 1, at - 1)
+				rest = substr(line, at + 7)
+				id = rest ; sub(/ .*/, "", id)
+				ann = rest ; sub(/\].*/, "", ann)
+				if ((ann ~ /, audio\//) && (id in words)) out = out words[id]
+				else out = out "[file: " ann "]"
+				line = substr(rest, length(ann) + 2)
+			}
+			print out line
+		}'
+}

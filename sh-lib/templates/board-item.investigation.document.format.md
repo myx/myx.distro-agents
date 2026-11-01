@@ -13,13 +13,6 @@ A running investigation: the process document `magic-team.investigate.routine` w
 
 ## document
 ```
----
-document-contract: board-item.investigation
-type: investigation
-from: {{from}}
-date: {{date}}
-owner: {{owner}}
----
 # Investigation: {{matter}}
 
 # Question
@@ -49,9 +42,6 @@ owner: {{owner}}
 
 # Slots
 
-- `from` — the author, one team member name, or `human-owner`.
-- `date` — the creation `date-time`.
-- `owner` — the current assignee; with none, the acting member.
 - `matter` — the matter, one line, the title after `# Investigation:`.
 - `question` — the question, the thing it is about, and what the answer is for.
 - `goal` — the exit conditions, each able to pass or fail; the round limit or time box; the walk-away point.

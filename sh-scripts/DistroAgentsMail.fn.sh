@@ -11,13 +11,10 @@
 
 if [ -z "$MMDAPP" ] ; then
 	set -e
-	export MMDAPP="$( ( cd "$( dirname "$0" )/../../../.." && pwd ) )"
-	echo "$0: Working in: $MMDAPP"  >&2
+	export MMDAPP="$( cd $(dirname "$0")/../../../.. ; pwd )"
+	echo "$0: Working in: $MMDAPP" >&2
 	[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '.local' directory." >&2 && exit 1 )
 fi
-
-: "${MDLT_ORIGIN:=$MMDAPP/.local}"
-export MDLT_ORIGIN
 
 ## Every child finds the bash this runs in, as DistroAgentsTools.fn.sh does.
 case "$BASH" in
@@ -37,7 +34,7 @@ DistroAgentsMail(){
 			set +e ; return 1
 		;;
 		--help)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsMail.include"
+			myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsMail.help.md" >&2
 			return 0
 		;;
 	esac

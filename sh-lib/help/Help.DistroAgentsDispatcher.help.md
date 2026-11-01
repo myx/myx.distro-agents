@@ -98,7 +98,8 @@
 		--routine-due [--read-only] <routine>
 			Whether a routine is due to start now by its own autorun declaration.
 			Ends 0 due, 1 not due, 2 refused naming the predecessor that has not
-			completed, 3 a call that could not be understood.
+			completed, 3 a call that could not be understood, or a routine that
+			declares no runs-at, which is an invalid file.
 
 		--rebuild-stats
 		--stats-check

@@ -90,6 +90,8 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
 	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
 	rigRow store "$rigA1" store claude 10 20 30 40 - - 2026-10-12T21:00:00Z wait-going-idle ask-7-of-keeper-myx - - -
+	rigRow checklist "$rigS1" magic-coordinator '- [x] the first thing is done'
+	rigRow checklist "$rigS1" magic-coordinator '- [ ] the second thing is not'
 } > "$rigF/rows.--manager-session-read"
 ## The transcript of that run, a log line, and the feed.
 {
@@ -164,7 +166,7 @@ wait list 30
 rowids pend
 RIGSCRIPT
 rigAssert "the roots, in order: the Dashboard, Pending Questions second, Magic-Team (Agents), and none of Sessions, Team Members, Team Data" \
-	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace machine settings configuration manuals"
+	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace machine settings configuration manuals features"
 rigAssert "Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and Team Data only where the team data is there" \
 	"$( rigVal team )" ".. activity launch team routines schedule"
 rigAssert "each shows by its name, and a spacer stands under Launchpad, setting it apart from the members (sketch 14.5)" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal gap | sed 's/ *$//' )][$( rigVal row3 )]" "[ Activity                        ►][ Launchpad                       ►][][ Team Members                    ►]"
@@ -260,6 +262,7 @@ show a1
 RIGSCRIPT
 rigAssert "Enter on a session lists its agents, and stays in the tree of Activity" "$( rigVal in.path ) | $( rigVal ids )" "magic-team/activity/active-sessions/$rigS1 | .. $rigA1 $rigA2 -2"
 rigAssert "the Summary of the one that waits says what it waits on and for how long" "$( rigPaneHolds a1 'waits on   ask-7-of-keeper-myx for 5h' )" "1"
+rigAssert "and it holds its own CheckList, as the session Summary holds the lists of its members (sketch 14.5, owner 2026-10-30)" "$( rigPaneHolds a1 'CheckList' ) $( rigPaneHolds a1 'the first thing is done' ) $( rigPaneHolds a1 'the second thing is not' )" "1 1 1"
 rigAssert "the read of that agent asks for that one run" "$( rigCalled "--manager-session-read --session-id $rigA1 --run" )" "1"
 rigAssert "the agent and the session have their Summary alone: the keys of the modes are not in the status line" "$( rigPaneHolds a1 ' l Log' ) $( rigPaneHolds a1 ' k Kill' )" "0 1"
 
@@ -287,6 +290,24 @@ rigAssert "which show by those names, the last a folder" "[$( rigVal i1 )][$( ri
 rigAssert "the same folder is under an agent of a list of agents, and under a session of a member" "$( rigVal items2 ) | $( rigVal items3 )" ".. checklist.md transcript permissions | .. checklist.md transcript permissions"
 rigAssert "CheckList asks for the check list of that member in that session" "$( rigCalled "--manager-session-checklist-read --session-id $rigS1 magic-coordinator" )" "1"
 rigAssert "and shows it as Markdown: the text of its heading and its items, without the marks that write them" "$( rigPaneHolds chk 'Check list' ) $( rigPaneHolds chk '[x] the first thing is done' ) $( rigPaneHolds chk '# Check list' )" "1 1 0"
+## One member of that session kept no check list: the pane says so in the member's own name, and not the
+## `no data` every other empty view gives.
+rigCase kept none
+: > "$MANAGER_SCREEN_RIG/rows.--manager-session-checklist-read --session-id $rigS1 magic-tester"
+rigScript <<RIGSCRIPT
+at @activity active-sessions $rigS1 $rigA2
+turn
+keys DOWN
+wait view 30
+show none
+at @activity active-sessions $rigS1 $rigA1
+turn
+keys DOWN
+wait view 30
+show kept
+RIGSCRIPT
+rigAssert "a participant who kept no check list says so in the member's own name, and not as `no data`" "$( rigPaneHolds none 'magic-tester has no checklist in this session.' ) $( rigPaneHolds none 'no data' )" "1 0"
+rigAssert "guard: a participant who kept one shows its items, and no such sentence" "$( rigPaneHolds kept 'the first thing is done' ) $( rigPaneHolds kept 'has no checklist' )" "1 0"
 
 echo "-- 7. Transcript is the log and the raw log, switchable from the Summary --"
 rigCase transcript

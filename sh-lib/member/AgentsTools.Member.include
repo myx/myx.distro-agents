@@ -16,6 +16,7 @@ case "$1" in
 	--upsert-inbox-note)
 		shift
 		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" upsert-inbox-note || return 1
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-note || return 1
 		return 0
 	;;
@@ -32,6 +33,10 @@ case "$1" in
 			[ -z "$inquiryNext" ] || { inquiryFrom="$inquiryArg" ; inquiryNext="" ; inquiryArgs+=( "$inquiryArg" ) ; continue ; }
 			[ -z "$inquiryReflectionNext" ] || { inquiryReflection="$inquiryArg" ; inquiryReflectionNext="" ; continue ; }
 			case "$inquiryArg" in
+				--edit-patch-from-stdin)
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --edit-patch-from-stdin is not taken -- an inquiry is filed whole, never patched -- nothing was written" >&2
+					set +e ; return 1
+				;;
 				--from-member) inquiryNext=1 ; inquiryArgs+=( "$inquiryArg" ) ;;
 				--from-reflection) inquiryReflectionNext=1 ;;
 				--reply) inquiryArgs+=( "--reply-requested" ) ;;
@@ -74,8 +79,10 @@ case "$1" in
 				fi
 			;;
 		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || return 1
 		if [ -n "$inquiryReflection" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-inbox-to-processed "$inquiryFrom" "$inquiryReflection" \
 				--context --upsert-inbox-inquiry \
 				"--header:upsert:disposition:filed-as-inquiry" "--header:upsert:filed-as:${2:-}" || {
@@ -89,6 +96,7 @@ case "$1" in
 	--upsert-inbox-reflection)
 		shift
 		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" upsert-inbox-reflection || return 1
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-reflection || return 1
 		return 0
 	;;
@@ -114,10 +122,12 @@ case "$1" in
 				set +e ; return 1
 			fi
 			AgentsToolsActingMemberCheck "$1" append-transcript || { set +e ; return 1 ; }
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-append-session-transcript "$1" "$ofSession" "${@:2}"
 			return $?
 		fi
 		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" append-transcript || { set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-append-session-transcript "${1:-}" - "${@:2}"
 		return $?
 	;;
@@ -323,6 +333,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --get-audit-item: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 			set +e ; return 1
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-audit-item-read "$documentName" "$@"
 		return $?
 	;;
@@ -344,6 +355,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --get-vault-item: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 			set +e ; return 1
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-vault-item-read "$itemName" "$@"
 		return $?
 	;;
@@ -572,6 +584,7 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-trash "$memberName" "--from-inbox:$memberName" "$itemName" \
 			${trashOnly[@]+"${trashOnly[@]}"} --context --trash-inbox-item
 		return $?
@@ -621,6 +634,7 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-inbox-to-processed "$memberName" "$itemName" \
 			--context --mark-inbox-processed \
 			"${passthrough[@]}"
@@ -655,6 +669,7 @@ case "$1" in
 		fi
 
 		## Every non-terminal state, owner-filtered, and the member's whole own inbox: the item's own terms.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
 			--state backlog --state pending --state running --state review --state blocked --state parked \
 			--all-types --filter-owner "$memberName" \

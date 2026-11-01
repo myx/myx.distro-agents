@@ -117,7 +117,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash [--team-member <team-member>] <item-filename> --from-inbox:<member> [--exclude-incoming]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
 📘 syntax: DistroAgentsSession.fn.sh --append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
 📘 syntax: DistroAgentsItems.fn.sh --get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
@@ -2277,7 +2277,7 @@
 			ordinary one. The rest of the content is as given; to change
 			the header alone give `--edit-patch-from-stdin` with `[]`.
 
-		--upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
+		--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
 			Passes an inquiry into a member's own inbox -- the standard
 			hand-off mechanism. `<member>` must exist as a real skill
 			directory; `<item-filename>` a bare filename. Inbox created
@@ -2341,8 +2341,11 @@
 			Returns the target path plus added line and byte counts.
 
 		--get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
-			Read-only read of one item in `<member>`'s own inbox, by bare
-			`<item-filename>`. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. It is read in
+			Read-only read of one item in the named member's inbox, by bare
+			`<item-filename>`. `<member>` names the inbox to read. It is
+			validated as a real member skill directory. It is not a caller
+			check: the operation reads any named member's inbox. An inbox
+			is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. It is read in
 			`incoming/`, and in `processed/` too with
 			`--include-processed`: without it a processed item is not
 			found.
@@ -4446,18 +4449,16 @@
 			no date last. The one `counters` row is the last line, always.
 			<name> is the first `session-comment` of the session's runs. A
 			row with no session id is a session under its tracking name.
-			A session's <state> is what its runs' own states add up to,
-			and the questions of it that still wait:
+			A session's <state> is what its runs' own states add up to:
 			`running` while a run of it has a live process and not every
-			live one sits in a `Wait`; `waiting` while every live one
-			does, or while a run of it waits on an answer, or while a
-			question it or a run of it asked is still open; else
-			`unknown-foreign` with an open record of another host, else
-			`unclosed` with any open record, else `failed` where every
-			run of it died on its start, else `finished`. An ask that
-			is still open is waited on, whoever asked it: a run withdraws
-			its own questions when its record closes, so a finished
-			session has none left behind. <state-at> is the date its last
+			live one waits on a person; `waiting` while every live one
+			does; else `unknown-foreign` with an open record of another
+			host, else `unclosed` with any open record, else `failed`
+			where every run of it died on its start, else `finished`. A
+			run with no live process is never `waiting` (sketch 5.4): an
+			ask still open, or an ask nobody answered, holds nothing open
+			and is counted in <pending-answers>. A finished session
+			reads `finished` however many of its questions are open. <state-at> is the date its last
 			run closed, for a `finished` or a `failed` session only. <state-tally> reads
 			`running=1,finished=2`. <session-state> and <session-state-at>
 			are the state the control thread of the session stored for it
@@ -4482,7 +4483,7 @@
 			<usage-limit> as one of an earlier form.
 			A run's <live> is what `ListAgents` shows, and <state> too,
 			but for a run that died on its start: that one reads `failed`. <activity> of a live run is `waiting`
-			inside a `Wait` call and `working` otherwise. `--active` keeps
+			inside a `Wait` call or an ask that waits on a person, and `working` otherwise. `--active` keeps
 			every session that is not finished and can be acted on from
 			this host: those whose <state> is `running`, `waiting`,
 			`unclosed` or `failed`, each with all its runs, as without it. It leaves
@@ -4536,6 +4537,7 @@
 			`tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`header <spawn-id> <name> <value>`
+			`checklist <session-id> <member> <line>`
 			`store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>`
 			The `session` row comes first, then `dispatch`, then
 			`control`, then `tokens`, then each
@@ -4580,9 +4582,12 @@
 			line break `\n`, a carriage return `\r` and a backslash
 			`\\`. Every other field is one word, a value's own
 			whitespace written `_`, as in a registry. <activity> of a
-			live run is `waiting` inside a `Wait` call and `working`
-			otherwise: a tool call is not told from thinking, since no
-			file of a run says which. Exit 1, nothing printed, with one
+			live run is `waiting` inside a `Wait` call or an ask that
+			waits on a person, and `working` otherwise: a tool call is not told
+			from thinking, since no file of a run says which. A
+			`checklist` row is one line of a member's whole check list:
+			one for each member of the session, and on a read of one run
+			alone the one of that run's member. Exit 1, nothing printed, with one
 			error line, where no record carries <id>, or a registry
 			cannot be rebuilt.
 
@@ -6488,7 +6493,8 @@
 			`why`, `needs`, `files-touched`; `proposal`: `goal`, `approaches`,
 			`recommendation`, `open-questions`; `interview`: `plan`,
 			`verbatim-intents`, `verbatim-benchmarks`, `corrections`,
-			`settled-facts`, `sub-parts`.
+			`settled-facts`, `sub-parts`; `investigation`: `question`, `goal`,
+			`current`, `settled`, `open`, `log`.
 
 		--grooming-lock-refresh [--team-member <team-member>]
 		--daily-lock-refresh [--team-member <team-member>]
@@ -7038,13 +7044,14 @@
 			once on each of its days, from its time on, which is the earliest start.
 			rc 0 and `DUE: <routine file>` when it is due, and after a predecessor
 			`AFTER: <predecessor file> <spawn id of its run>`; rc 1 and `NOT-DUE:
-			<routine file>: <why>` when it is not (no autorun, before its time, not one of
+			<routine file>: <why>` when it is not (`runs-at: none`, before its time, not one of
 			its days, the weekend not set and its days needing it, or already run today by
 			a run of any status); rc 2 and `REFUSED: <routine file>: <predecessor file> has
 			not completed today` when the predecessor it follows has not completed
 			(spawn-succeeded) today: where a predecessor is named it is the trigger, and the
 			chain needs no waiting state. rc 3, nothing on stdout, for a call that cannot be
-			understood. A chain that stopped is never silent: when the last day the routine
+			understood, and for a routine whose `runs-at:` is absent or not of its form: the
+			key is mandatory, since a routine that never auto-runs says `runs-at: none`. A chain that stopped is never silent: when the last day the routine
 			was to run has passed with the predecessor not completed on it and the routine
 			not run on it, the answer opens with `ESCALATE: <routine file>: <predecessor
 			file> did not run on <date>, so the chain is broken`, and one line goes to the

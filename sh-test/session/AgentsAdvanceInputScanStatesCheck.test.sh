@@ -38,7 +38,7 @@ trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 ## first on PATH answers the whole-host listing from the rig's own list, beside it, one
 ## `<pid> <command line>` line a process, and hands every other call to the real ps.
 mkdir -p "$rigTmp/ps-bin"
-ln -s "$( command -v ps )" "$rigTmp/ps-bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/ps-bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 : > "$rigTmp/ps.started"
 cat > "$rigTmp/ps-bin/ps" <<'RIGPS'
@@ -762,8 +762,8 @@ echo "   bash: $( bash --version | head -1 ) (the rig runs every script below un
 ## through the real entry point. Nothing outside this rig's own tree is touched.
 rigO2="$rigTmp/s2origin"
 mkdir -p "$rigO2/myx"
-for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigO2/${rigEntry##*/}" ; done
-for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigO2/myx/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigO2/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigO2/myx/${rigEntry##*/}" ; done
 mkdir "$rigO2/myx/myx.distro-agents"
 ( cd "$MDLT_ORIGIN/myx/myx.distro-agents" && tar cf - --exclude=.git . ) | ( cd "$rigO2/myx/myx.distro-agents" && tar xf - )
 rigTool2="$rigO2/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

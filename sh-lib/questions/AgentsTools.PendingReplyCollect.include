@@ -147,6 +147,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			[ -n "$oneOwner" ] || { collectOutcome="SKIPPED" ; return 0 ; }
 			local oneRead oneVerdict
 			## Its output is kept where the read failed too: an unreadable thread says why there.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			oneRead="$( MDAT_PENDING_CLOSE_QUIET="${collectQuiet:-}" DistroAgentsTools --intern-op-escalation-read "$oneOwner" "$oneId" 2>/dev/null )" || :
 			oneVerdict="$( printf '%s\n' "$oneRead" | LC_ALL=C sed -n 's/^VERDICT: //p' | head -1 )"
 			case "$oneRead" in
@@ -181,6 +182,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 	if [ -n "$oneDecision" ] ; then
 		collectAnswer="${oneDecision##* -> }" ; collectAnswer="${collectAnswer% (*} (from the Decisions of ${oneDecision%% | *})"
 		oneRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		oneClose="$( DistroAgentsTools --intern-op-pending-reply-close "$oneId" --if-open --status reply-received --no-decision ${collectQuiet:+--quiet} \
 			--verdict "$collectAnswer" --answered-by decisions --context collect 2>/dev/null )" || oneRc=$?
 		case "$oneRc" in
@@ -197,6 +199,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 	## Read with the identity the question was asked with: one the bot posted may stand where
 	## the member's own account is not (AgentsWaitProbeSlack, MDAT_WAIT_READ_AS_BOT).
 	MDAT_WAIT_READ_AS_BOT="$( [ "$oneIdentity" = "bot" ] && printf 'true' || printf 'false' )" \
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-wait-for-input "$oneOwner" --wait-source "slack:$oneChannel:$oneTts" \
 		--wait-timeout 0 --wait-since-utime "$oneQts" --wait-addressee "$oneAddr" > "$oneWork" 2> "$oneWork.err" || oneRc=$?
 	if [ "$oneRc" != "0" ] || LC_ALL=C grep -q '^WAIT-NEVER-READ: ' "$oneWork" || ! LC_ALL=C grep -q -E '^WAIT-RESULT: (RECEIVED|TIMEOUT)$' "$oneWork" ; then
@@ -240,6 +243,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		;;
 	esac
 	oneRc=0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	oneClose="$( DistroAgentsTools --intern-op-pending-reply-close "$oneId" --if-open --status reply-received ${collectQuiet:+--quiet} \
 		--verdict "$collectAnswer" --answered-by "$oneBy" ${oneAnswerTs:+--answer-ts "$oneAnswerTs"} --context collect 2>/dev/null )" || oneRc=$?
 	case "$oneRc" in
@@ -255,6 +259,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			## And they come with the answer, under its line, worded as the record keeps them.
 			printf '%s\n' "$oneClarify" | LC_ALL=C awk -F'\t' 'NF >= 3 { saidText = $0 ; sub( /^[^\t]*\t[^\t]*\t/, "", saidText ) ; printf "  CLARIFICATION: %s %s: %s\n", $1, $2, saidText ; }'
 			oneFloor="$( printf '%s\n' "$oneBody" | LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' )"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			printf '%s\n' "$oneClarify" | DistroAgentsTools --intern-op-pending-reply-clarify "$oneId" --from-stdin --follow-floor "${oneFloor:-$oneQts}" --context collect > /dev/null 2>&1 \
 				|| echo "$MDSC_CMD: ⚠️ WARNING: $oneId is closed, but its clarifications were not kept" >&2
 		;;

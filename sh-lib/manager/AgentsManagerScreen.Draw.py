@@ -53,6 +53,20 @@ def viewAnswered(state):
     return bool(state.reads) and bool(state.answered.get("view:" + (viewKeyOf(state) or "")))
 
 
+## The line an answered view shows where it has no text of its own, drawn dim: `no data`, the one line
+## every empty view gives, but for the check list of one participant, which says what it means. The
+## place kind and the member are in hand here, and nowhere the generic Markdown text is set out.
+def emptyViewLine(state):
+    row = selectedRow(state)
+    if row is None or row["kind"] != "checklist":
+        return "no data"
+    folder = participantFolderOf(state, state.path)
+    if folder is None:
+        return "no data"
+    member = participantValues(state, folder).get("member")
+    return CHECKLIST_NONE % member if member else CHECKLIST_NONE_UNNAMED
+
+
 ## What the left window says while it waits for its first rows (POPULATING), or "": it
 ## holds no line yet, a read that fills it has not answered, and none of them has failed.
 ## Its lines come from the read of the selected item, of its log in a mode that shows
@@ -707,7 +721,7 @@ def drawLinesBody(surface, state, layout, box):
 
 
     elif contentHeight > headHeight and not state.view["lines"] and viewAnswered(state):
-        surface.put(top + headHeight, column, cutToCells("no data", room), DIM)
+        surface.put(top + headHeight, column, cutToCells(emptyViewLine(state), room), DIM)
     if filterLineShown(state):
         ## the line of the filter, on the last line of the window; the cursor stands after what is typed while the line is open
         typed = filterLine(state)

@@ -50,10 +50,11 @@ cat > "$rigDir/bin/curl" <<-'CURLEOF'
 	for fixArg in "$@" ; do case "$fixArg" in https://*) fixUrl="$fixArg" ;; esac ; done
 	fixMethod="${fixUrl#https://slack.com/api/}" ; fixMethod="${fixMethod%%\?*}"
 	case "$fixMethod" in
+		auth.test) printf '{"ok":true,"url":"https://rig.invalid/","user_id":"UFIXSELF","user":"fix"}\n' ;;
 		conversations.list)
 			printf '{"ok":true,"channels":[{"id":"DFIX0000001","is_im":true,"user":"UFIX0000001"},{"id":"DFIX0000002","is_im":true,"user":"UFIX0000002"},{"id":"DFIX0000003","is_im":true,"user":"UFIX0000003"}],"response_metadata":{"next_cursor":""}}\n'
 		;;
-		conversations.history|conversations.replies) sleep 1 ; printf '{"ok":true,"messages":[],"has_more":false,"response_metadata":{"next_cursor":""}}\n' ;;
+		conversations.history|conversations.replies) sleep 2 ; printf '{"ok":true,"messages":[],"has_more":false,"response_metadata":{"next_cursor":""}}\n' ;;
 		conversations.info)
 			fixChannel=""
 			for fixArg in "$@" ; do case "$fixArg" in channel=*) fixChannel="${fixArg#channel=}" ;; esac ; done
@@ -72,7 +73,7 @@ rigWaitOp(){
 		bash "$rigTool" --wait-for-input --team-member rig-member --wait-default --wait-session-id "$rigSession" --wait-timeout 2 --wait-source "dms:rig-member" )
 }
 
-echo "-- a costly probe (3 DMs at 1s each) past a 2s bound detaches, instead of running straight through --"
+echo "-- a costly probe (3 DMs at 2s each) past a 2s bound detaches, instead of running straight through --"
 rigOut="$( rigWaitOp )"
 rigAssert "THE FIX: WAIT-RESULT names a detached task for the dms: probe" "$( rigTextHas "$rigOut" "detached at the bound" )" yes
 

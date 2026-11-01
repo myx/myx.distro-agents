@@ -40,7 +40,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/skills/rig-member"
 printf 'rig\n' > "$rigTmp/skills/rig-member/rig-member.basic.md"
-ln -s "$( command -v date )" "$rigTmp/bin/date.real" || rigRefuse "no date on PATH to hand the other calls to"
+rigRealTool date "$rigTmp/bin/date.real" || rigRefuse "no date on PATH to hand the other calls to"
 cat > "$rigTmp/bin/date" <<'RIGDATE'
 #!/bin/sh
 ## The rig's clock: the instant in now.epoch, formatted by the real date as it would at that instant (TZ is the caller's).

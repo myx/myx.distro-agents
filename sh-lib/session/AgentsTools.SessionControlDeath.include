@@ -296,6 +296,7 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 		## It was posted by an earlier try, which did not come to record it: what the send answered then.
 		askOut="$( cat "$askSent" 2> /dev/null )" || askOut=""
 	else
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		askOut="$( printf '%s\n' "$askBody" | DistroAgentsTools --intern-op-comms-slack-send-message "$askMember" "$askWhere" --identity-bot --address-to "$askWhom" --from-stdin 2>&1 )" || {
 			printf 'failed %s\n' "the question could not be posted to $askWhere: $( printf '%s\n' "$askOut" | LC_ALL=C grep -m1 'ERROR' | LC_ALL=C tr -s '\t ' ' ' | LC_ALL=C cut -c1-300 )"
 			return 1
@@ -317,6 +318,7 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 		return 1
 	fi
 	## What the post was filled with is kept beside its record, so it is filled again once it takes no answer.
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	askId="$( printf '%s\n' "$askBody" | DistroAgentsTools --intern-op-pending-reply-open "$askMember" --to "$askWhere" --session-id "$askSession" \
 		--kind decision --address-to "$askWhom" --blocked-on "reply from $askWhom" --channel "$askChannel" --question-ts "$askTs" --thread-ts "$askThread" \
 		--addressees "$askAddressees" ${askAsking:+--asking-accounts " $askAsking"} ${askItem:+--item "$askItem"} --options "$askOptions" --ask-identity bot --question-key "$askKey" \
@@ -522,6 +524,7 @@ AgentsToolsSessionControlDeathAgain(){ ## session id, record file, the line of t
 AgentsToolsSessionControlDeathRead(){ ## pending id, the file its result goes to
 	local readOwner
 	readOwner="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsToolsPendingRecordPath "$1" || printf '%s' "$MMDAPP/.local/agents/pending/$1.md" )" owner )"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -z "$readOwner" ] || ( DistroAgentsTools --intern-op-escalation-read "$readOwner" "$1" ) > /dev/null 2>&1 || :
 	printf 'read: done\n' >> "$2"
 	return 0
@@ -601,6 +604,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 					actOut="$(
 						[ "$actAnswer" != "fresh" ] || export MDAT_REVIEW_RESTART_FRESH=yes
 						ASKP_F_by="$actBy" ASKP_F_option="$actAnswer" AgentsToolsSessionControlDeathText again \
+							type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 							| DistroAgentsTools --intern-op-review-return "$actBy" "$actItem" --from-stdin --context "${MDSC_CMD:-session-control}" 2>&1
 					)" || actWhy="the return of its item did not start it again"
 					actOut="$( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 -e '^RETURN: ' -e 'ERROR' )"
@@ -615,6 +619,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 						*) actWhy="${actWhy:-the return of its item did not start it again}${actOut:+: ${actOut#RETURN: not restarted: }}" ;;
 					esac
 					if [ -n "$actWhy" ] && [ "$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )" = "running" ] ; then
+						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 						( DistroAgentsTools --intern-op-review-request "$actBy" "$actItem" --reason "its run died and the start that was to replace it failed" --context "${MDSC_CMD:-session-control}" ) > /dev/null 2>&1 || :
 						[ "$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )" != "review" ] || actBack="$actItem"
 					fi
@@ -627,6 +632,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 			[ -z "$actItem" ] || actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
 			case "$actWhy:$actItem:$actState" in
 				:?*:review|:?*:running)
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					actOut="$( DistroAgentsTools --intern-op-review-accept "$actBy" "$actItem" --context "${MDSC_CMD:-session-control}" 2>&1 )" \
 						|| actWhy="its item could not be accepted: $( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 'ERROR' | LC_ALL=C cut -c1-200 )"
 				;;
@@ -636,6 +642,7 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 			[ -n "$actWhy" ] || actSaid="death-closed"
 		;;
 		kill)
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			( DistroAgentsTools --manager-session-kill --session-id "$actSession" ) > /dev/null 2>&1 || :
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
 				|| actWhy="its record could not be closed as $agentsSessionControlDeathOutcome"

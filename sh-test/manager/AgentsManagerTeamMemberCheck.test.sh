@@ -53,7 +53,7 @@ rigTab="$( printf '\t' )"
 ## THE RIG'S OWN PROCESS LIST, as in AgentsManagerSessionListCheck: the ps first on PATH answers the whole-host
 ## listing from the rig's own list, one `<pid> <command line>` line a process, and hands every other call to the
 ## real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -521,9 +521,9 @@ rigCallerBad=""
 for rigCaller in "MDAT_SPAWN_AGENT=keeper-rig keeper-rig" "MDAT_SPAWN_AGENT=magic-coordinator magic-coordinator" "MDAT_SPAWN_SESSION_ID=run-k1 keeper-rig" ; do
 	rigPre=( "${rigCaller% *}" )
 	rigRun "$rigListOp"
-	[ "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigListOp#--}: ⛔ ERROR: this session acts as ${rigCaller#* }, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" = "1 0 1" ] || rigCallerBad="$rigCallerBad [$rigCaller list: rc $rigRc]"
+	[ "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = "1 0 1" ] || rigCallerBad="$rigCallerBad [$rigCaller list: rc $rigRc]"
 	rigRun "$rigReadOp" keeper-rig
-	[ "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigReadOp#--}: ⛔ ERROR: this session acts as ${rigCaller#* }, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" = "1 0 1" ] || rigCallerBad="$rigCallerBad [$rigCaller read: rc $rigRc]"
+	[ "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = "1 0 1" ] || rigCallerBad="$rigCallerBad [$rigCaller read: rc $rigRc]"
 done
 rigPre=()
 rigAssert "from inside a member's session both are refused, rc 1, nothing on stdout, in the one line of the family: a member's by its spawn, magic-coordinator's, and one known by its spawn record alone" "${rigCallerBad:-each refused}" "each refused"

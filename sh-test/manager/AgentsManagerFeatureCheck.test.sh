@@ -38,10 +38,10 @@ rigAi="$rigPk/setup.feature-local-ai" rigDb="$rigPk/setup.feature-lancedb"
 mkdir -p "$rigAi/host/install" "$rigAi/data/local-ai" "$rigDb/host/install" "$rigState"
 for rigEntry in "$MDLT_ORIGIN"/* "$MDLT_ORIGIN"/.[!.]* ; do
 	[ -e "$rigEntry" ] || continue
-	[ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigOrigin/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigOrigin/${rigEntry##*/}"
 done
 for rigEntry in "$MDLT_ORIGIN/myx"/* ; do
-	[ "${rigEntry##*/}" = mdci-packages-myx ] || ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = mdci-packages-myx ] || rigCopyTree "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}"
 done
 rigMake(){ ## file, text... -- an executable stand-in
 	local makeFile="$1" ; shift
@@ -259,7 +259,7 @@ rigReset
 rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 for rigOp in --manager-feature-list "--manager-feature-part install $rigAi_ stt-a --yes" ; do
 	rigRun "" $rigOp
-	rigAssert "from inside a member's session it is refused in the one line of the family, and nothing is called: ${rigOp%% *}" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErr "this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" ) [$( rigCalls )]" "1 0 1 []"
+	rigAssert "from inside a member's session it is refused in the one line of the family, and nothing is called: ${rigOp%% *}" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErr "this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session" ) [$( rigCalls )]" "1 0 1 []"
 done
 rigPre=()
 rigRun "" --manager-feature-nothing

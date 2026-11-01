@@ -30,6 +30,7 @@ rigGenerator="$rigOrigin/myx/myx.distro-source/sh-lib/SourceTools.Make.BuildCode
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
 [ -f "$rigGenerator" ] || rigRefuse "the workspace generator is not at the origin: $rigGenerator"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsVscodePanelInstallCheck.XXXXXX" )" || exit 1
 trap 'chflags -R nouchg "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -49,11 +50,11 @@ mkdir -p "$rigTmp/origin/myx"
 for rigDir in "$rigOrigin"/myx/* ; do
 	case "${rigDir##*/}" in
 		myx.distro-agents) cp -R "$rigDir" "$rigTmp/origin/myx/" ;;
-		*) ln -s "$rigDir" "$rigTmp/origin/myx/${rigDir##*/}" ;;
+		*) rigCopyTree "$rigDir" "$rigTmp/origin/myx/${rigDir##*/}" ;;
 	esac
 done
 for rigDir in "$rigOrigin"/* ; do
-	[ "${rigDir##*/}" = "myx" ] || ln -s "$rigDir" "$rigTmp/origin/${rigDir##*/}"
+	[ "${rigDir##*/}" = "myx" ] || rigCopyTree "$rigDir" "$rigTmp/origin/${rigDir##*/}"
 done
 rigTool="$rigTmp/origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigBasic="$rigTmp/origin/myx/myx.distro-agents/skillset/magic-team/magic-team/magic-team.basic.md"

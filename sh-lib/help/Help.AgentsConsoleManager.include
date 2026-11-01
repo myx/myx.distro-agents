@@ -3,6 +3,7 @@
 
 ## The help of AgentsConsoleManager.fn.sh: the manager screen of the agents console, opened
 ## straight. Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+## Its syntax lines are echoed here, so `--help` and the console's help reader find them in one file.
 echo "📘 syntax: AgentsConsoleManager.fn.sh [--style <name>] [--component <path>] [--view list|view] [--filter <text>] [--dialog <name>] [--text <text>]" >&2
 echo "📘 syntax: AgentsConsoleManager.fn.sh [--help-syntax]" >&2
 echo "📘 syntax: AgentsConsoleManager.fn.sh [--help]" >&2

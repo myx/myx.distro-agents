@@ -26,6 +26,7 @@ case "$1" in
 		## Open to any member (a wrong prefix, MAGIC.md "Who may call an operation"), and sent
 		## under the sender's own credentials: a spawned session names only itself.
 		AgentsToolsActingMemberCheck "$digestMember" magic-contact-digest-send || { set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$commsClient" "$@" \
 			--context --magic-contact-digest-send
 		return $?

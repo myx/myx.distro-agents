@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on what calls a work-duty at any hour (F7.12, the owner's rulings of 2026-10-20; AgentsToolsScheduleTagNews, AgentsToolsScheduleTeamTags,
-## AgentsToolsScheduleDmTags, sh-lib/session/AgentsTools.DispatcherLoop.include, and AgentsTools.TrackingDrop.include). The real loop (--one) and the real
+## AgentsToolsScheduleDmTags, sh-lib/session/AgentsTools.DispatcherSchedule.include, and AgentsTools.TrackingDrop.include). The real loop (--one) and the real
 ## spawner run, as in AgentsScheduleLoopCheck; the console, curl, date and every setting are this rig's own. GUARD: every tooling call goes through one `env -i`
 ## whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this rig's tree and PATH holds no agent CLI. Held:
 ##   5. OUT OF THE FLAGS A CALL BY NAME KEEPS A DUTY, and nothing else does. A person's tag in the team channel and a person's DM keep a duty that has been idle

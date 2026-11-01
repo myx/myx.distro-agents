@@ -24,6 +24,12 @@
 ##      template holds a `/` or starts at a variable: under the workspace, or beside a target), comment lines aside;
 ##      and no python tempfile call goes without `dir=`. Every site is listed. The words are built from parts here, so
 ##      this file is read like every other.
+##   7. TOOL SCRATCH TAKES THE CALLING SESSION'S OUTPUT FOLDER FIRST, by the owner's rule that scratch goes in the
+##      session's output folder and never in its tmp: every site that keeps a tool's scratch -- the test run
+##      folder, the MCP server's root and its requests, the knowledge store's, the installer's patch and the epic
+##      edit's -- takes `$MDAT_SPAWN_SANDBOX_ROOT/output` where a session runs it, and `.local/temp` otherwise. Two
+##      lines at each site, and no include, because he does not want one for something this small. Every site is
+##      listed.
 ## Offline: one mktemp tree, every call through `env -i` whose child refuses to run outside it; a fake `curl`
 ## first on PATH would log a request, and none is made.
 set -u
@@ -108,7 +114,7 @@ rigList(){
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|main-loop.config-check.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-collect.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-remind.last.$$|written by the main loop itself, a step after another in its own shell' \
-		'sh-lib/mcp/AgentsTools.InternMcpServer.include|8|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \
+		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|pid=$$|no file name: said in a log line' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|--intern-mcp-request "$$"|no file name: the server names itself to its request' \
 		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a receipt id, made its own by the first eight of the spawn id' \
@@ -121,7 +127,7 @@ rigList(){
 		'sh-lib/questions/AgentsTools.InternOpPendingReply.include|3|$clarFile.$$|under the lock of that one pending reply' \
 		'sh-lib/questions/AgentsTools.InternOpPendingReply.include|3|$revFile.$$|under the lock of that one pending reply' \
 		'sh-lib/grants/AgentsTools.InternOpPermission.include|1|mdat-permission-hook-held.$$.$RANDOM|a client hook is a process of its own for each call, and the mark is one another process makes, so it cannot be made beforehand' \
-		'sh-lib/magic/AgentsTools.LocalLock.include|1|ln -s "$$"|no file name: the holder a lock names' \
+		'sh-lib/magic/AgentsTools.LocalLock.include|1|printf '\''%s'\'' "$$" > "$agentsLocalLockPath"|no file name: the holder a lock names' \
 		'sh-lib/magic/AgentsTools.LocalLock.include|1|!= "$$"|no file name: the holder a lock names' \
 		'sh-lib/manager/AgentsTools.ManagerSession.include|3|$1.killed.$$|beside the one spawn record a kill marks: a kill marks a record after another' \
 		'sh-lib/comms/AgentsTools.MemberCommsEmail.include|1|mdat-comms-email-boundary-$$-$RANDOM|no file name: the boundary inside one message' \
@@ -339,15 +345,15 @@ rigLock="$rigTmp/lock" ; mkdir -p "$rigLock/ws/.local/agents/locks"
 (
 	MMDAPP="$rigLock/ws" ; export MMDAPP
 	. "$rigLib/magic/AgentsTools.LocalLock.include"
-	ln -s "$rigDeadPid" "$MMDAPP/.local/agents/locks/rig-broken"
-	AgentsToolsLocalLockTake rig-broken 3 "the rig lock" 2> "$rigLock/broken.err" ; printf '%s %s\n' "$?" "$( [ "$( readlink "$MMDAPP/.local/agents/locks/rig-broken" 2> /dev/null )" = "$$" ] && echo held-by-this-shell )" > "$rigLock/broken.result"
+	printf '%s' "$rigDeadPid" > "$MMDAPP/.local/agents/locks/rig-broken"
+	AgentsToolsLocalLockTake rig-broken 3 "the rig lock" 2> "$rigLock/broken.err" ; printf '%s %s\n' "$?" "$( [ "$( cat "$MMDAPP/.local/agents/locks/rig-broken" 2> /dev/null )" = "$$" ] && echo held-by-this-shell )" > "$rigLock/broken.result"
 	## the move lost to another breaker: nothing is moved, whatever the reason
-	ln -s "$rigDeadPid" "$MMDAPP/.local/agents/locks/rig-lost"
+	printf '%s' "$rigDeadPid" > "$MMDAPP/.local/agents/locks/rig-lost"
 	mv(){ return 1 ; }
 	AgentsToolsLocalLockTake rig-lost 2 "the rig lock" 2> "$rigLock/lost.err" ; printf '%s\n' "$?" > "$rigLock/lost.result"
 ) > /dev/null 2>&1
 rigAssert "a dead lock is broken and taken, and said" "$( cat "$rigLock/broken.result" 2> /dev/null ) $( LC_ALL=C grep -c -F -- 'broke a stale lock on the rig lock' "$rigLock/broken.err" || : )" "0 held-by-this-shell 1"
-rigAssert "a breaker whose move did not happen takes nothing" "$( cat "$rigLock/lost.result" 2> /dev/null ) $( readlink "$rigLock/ws/.local/agents/locks/rig-lost" 2> /dev/null )" "1 $rigDeadPid"
+rigAssert "a breaker whose move did not happen takes nothing" "$( cat "$rigLock/lost.result" 2> /dev/null ) $( cat "$rigLock/ws/.local/agents/locks/rig-lost" 2> /dev/null )" "1 $rigDeadPid"
 rigAssert "and the lock folder holds the two locks and no other name" "$( ls "$rigLock/ws/.local/agents/locks" | LC_ALL=C tr '\n' ' ' )" "rig-broken rig-lost "
 
 echo "-- 5. nothing was posted --"
@@ -438,6 +444,30 @@ rigAssert "no line of any package names the root temp folder or the variable, no
 rigAssert "every line of the second list takes as many sites as it says" "$rigNoTmpListLeft" "0"
 [ "$rigNoTmpSiteLeft" -eq 0 ] || { echo "-- the sites --" ; LC_ALL=C grep '^SITE: ' "$rigTmp/notmp-left" | LC_ALL=C cut -c1-260 | LC_ALL=C sed -e 's/^/  /' ; }
 [ "$rigNoTmpListLeft" -eq 0 ] || { echo "-- the list --" ; LC_ALL=C grep '^LIST: ' "$rigTmp/notmp-left" | LC_ALL=C sed -e 's/^/  /' ; }
+
+echo "-- 7. every site that keeps tool scratch takes the calling session's output folder first --"
+## THE RULE: the calling session's own output folder where there is one, the workspace's .local/temp
+## otherwise. It is two lines, and he does not want an include for it, so it is written at each site.
+## THE SITES: one line each, the file and the text that shows it takes that folder. A site that stops
+## taking it fails here, and so does a file that no longer parses, so the list is read and never trusted.
+rigScratchList(){
+	printf '%s\n' \
+		'sh-lib/member/AgentsTools.Testbed.include|$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests' \
+		'sh-lib/team-data/AgentsTools.KnowledgeStore.include|spreadBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
+		'sh-lib/config/AgentsTools.Install.include|patchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
+		'sh-lib/magic/AgentsTools.MagicEpic.include|epicBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
+		'sh-lib/mcp/AgentsTools.InternMcpServer.include|mcpScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|mcpScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
+		'sh-lib/mcp/AgentsTools.RootSession.include|rootBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
+		'sh-test/AgentsRunTests.sh|runRoot="$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests"'
+}
+rigScratchSaid=""
+while IFS='|' read -r rigScratchFile rigScratchText ; do
+	[ -n "$rigScratchFile" ] || continue
+	bash -n "$rigPackage/$rigScratchFile" 2> /dev/null || rigScratchSaid="$rigScratchSaid $rigScratchFile:no-parse"
+	LC_ALL=C grep -q -F -- "$rigScratchText" "$rigPackage/$rigScratchFile" || rigScratchSaid="$rigScratchSaid $rigScratchFile"
+done <<< "$( rigScratchList )"
+rigAssert "each site of tool scratch parses and asks the calling session's folder first" "${rigScratchSaid:-none}" "none"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ TEMP NAMES CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -405,6 +405,7 @@ def keysFocus(state, row):
 
 registerPlugin({
     "name": "configuration",
+    "apps": ("agents",),
     "root": {"id": "configuration", "label": "Configuration", "go": "~C~onfiguration", "group": "setup"},
     ## The wizards that configure a feature (Wizards.py): each feature declares its own form and puts it here.
     "registries": {"wizards": "plain"},
@@ -550,6 +551,7 @@ ACTION_HANDLERS["checkoutrun"] = askCheckoutRun
 def registerDiagnostics():
     registerPlugin({
         "name": "diagnostics",
+        "apps": ("agents",),
         "mount": "configuration",
         "root": {"id": "diagnostics", "label": "Diagnostics"},
         "rows": {

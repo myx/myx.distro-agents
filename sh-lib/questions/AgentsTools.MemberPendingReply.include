@@ -273,6 +273,7 @@ case "$1" in
 		[ -z "$settleConsole" ] || settleMember="$settleOwner"
 		[ -n "$settleConsole" ] || settleSaid="$settleReason"
 		if [ -n "$settleWithdraw" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status withdrawn \
 				--withdrawn-by "${settleBy:-$settleMember}" --withdraw-reason "$settleReason" --context "$MDSC_CMD" || settleRc=$?
 			case "$settleRc" in
@@ -299,6 +300,7 @@ case "$1" in
 				settleNote="$( ASKP_BLOCK="Ask/$( [ -n "$settleConsole" ] && printf 'console-dismissed' || printf 'withdrawn' )" ASKP_F_by="$settleConsole" ASKP_F_member="$settleMember" ASKP_F_reason="$settleSaid" ASKP_F_address_to="$settleTo" \
 					AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || settleNote=""
 				[ -n "$settleNote" ] || echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note that says so could not be filled from its template (tooling-note.post.format.md, Ask/withdrawn)" >&2
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${settleArgs[@]}" > /dev/null 2>&1 \
 					|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
 			fi
@@ -339,6 +341,7 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status reply-received --resolved-as settled \
 			--verdict "settled: $settleReason" --answered-by "$settleMember (settled)" --context "$MDSC_CMD" || settleRc=$?
 		case "$settleRc" in
@@ -396,6 +399,7 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-pending-reply-close "$amendId" --amend --status reply-received \
 			--verdict "$amendVerdict" --amended-by "$amendMember" --amend-reason "$amendReason" --context "$MDSC_CMD" || amendRc=$?
 		case "$amendRc" in

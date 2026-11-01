@@ -42,10 +42,10 @@ rigAssert(){ ## what is asserted, got, want
 }
 
 ## ---- the fixture ----
-## The copy: the package's own code by link, and its sh-test this rig's own: the runner under test, two tiny tests
+## The copy: the package's own code by copy, and its sh-test this rig's own: the runner under test, two tiny tests
 ## that each write down that they ran, and a fixture that would say so too, were it ever run.
 for rigPart in sh-lib sh-scripts project.inf ; do
-	ln -s "$rigPackage/$rigPart" "$rigCopy/myx/myx.distro-agents/$rigPart" || rigRefuse "the copy could not link $rigPart"
+	rigCopyTree "$rigPackage/$rigPart" "$rigCopy/myx/myx.distro-agents/$rigPart" || rigRefuse "the rig copy could not be made: $rigPart"
 done
 cp "$rigRunner" "$rigTests/AgentsRunTests.sh" || rigRefuse "the runner could not be copied into the rig"
 mkdir -p "$rigTests/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$rigTests/check-fixtures"/

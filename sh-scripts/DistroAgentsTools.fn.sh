@@ -7,13 +7,16 @@
 
 if [ -z "$MMDAPP" ] ; then
 	set -e
-	export MMDAPP="$( ( cd "$( dirname "$0" )/../../../.." && pwd ) )"
-	echo "$0: Working in: $MMDAPP"  >&2
+	export MMDAPP="$( cd $(dirname "$0")/../../../.. ; pwd )"
+	echo "$0: Working in: $MMDAPP" >&2
 	[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '.local' directory." >&2 && exit 1 )
 fi
 
 : "${MDLT_ORIGIN:=$MMDAPP/.local}"
 export MDLT_ORIGIN
+
+## Sourced into a console (`Distro DistroAgentsTools ...`), the context functions come from here.
+type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
 
 ## Every child finds the bash this runs in. Where the PATH holds no `bash`, the directory of the running one
 ## goes at its END, once: where one is found nothing changes, and nothing on the PATH is ever shadowed. And a
@@ -145,82 +148,8 @@ DistroAgentsTools(){
 
 
 		--agents-config-option)
-			## A write into a preset, or of a key that belongs to presets or to the tiers, asks the write check first.
-			case "${3:-}" in
-				--upsert|--upsert-from-stdin|--upsert-if|--delete|--delete-if)
-					case "$2:${4:-}" in
-						preset-*:*|*:PRESET_*|*:SPAWN_TIER_*|*:SPAWN_CLI_SERVICE)
-							type AgentsToolsPresetWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
-							AgentsToolsPresetWriteCheck "${MMDAPP%/}" "$2" "$3" "${4:-}" "${5:-}" || { set +e ; return 1 ; }
-							if [ -n "$agentsPresetStdinTaken" ] ; then
-								agentsPresetStdinTaken=""
-								. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" <<< "$agentsPresetStdin"
-								return $?
-							fi
-						;;
-					esac
-				;;
-			esac
-			## An option is this workspace's own; a read of one that is another workspace's names that workspace (AgentsToolsConfigOptionElsewhere).
-			case "${3:-}" in
-				--select|--select-default)
-					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include).
-					if [ "$2" = "magic-team" ] ; then
-						local overlayOut overlayRc=0
-						type AgentsToolsPresetOverlay > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
-						overlayOut="$( AgentsToolsPresetOverlay "${4:-}" )" || overlayRc=$?
-						case "$overlayRc" in
-							0)
-								if [ -n "$overlayOut" ] ; then printf '%s\n' "$overlayOut" ; elif [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
-								return 0
-							;;
-							1)
-								## The CLI service is the tier's preset's alone: no tier is no CLI service, whatever an old line of the scope still holds (it is not read).
-								if [ "${4:-}" = "SPAWN_CLI_SERVICE" ] ; then
-									if [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
-									return 0
-								fi
-							;;
-							*) set +e ; return 1 ;;
-						esac
-					fi
-					AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
-					if [ -n "$agentsConfigOptionElsewhere" ] ; then
-						( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
-						return $?
-					fi
-				;;
-				--upsert|--upsert-from-stdin|--upsert-if)
-					## A write is this workspace's own; the first setting of a borrowed system ends the borrowing, said once (AgentsToolsMemberSettingsBorrowEndedSay).
-					local optionScope="$2" optionKey="${4:-}" optionThere="" optionRc=0
-					case "$optionScope" in
-						magic-team) ;;
-						*) AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null && optionThere="$agentsConfigOptionElsewhere" ;;
-					esac
-					if [ -n "$optionThere" ] ; then
-						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" || optionRc=$?
-						[ "$optionRc" -ne 0 ] || AgentsToolsMemberSettingsBorrowEndedSay "$optionScope" "$optionKey" "$optionThere"
-						return "$optionRc"
-					fi
-				;;
-				--delete|--delete-if)
-					## The mirror: the last setting of a system deleted begins the borrowing again, said once (AgentsToolsMemberSettingsBorrowBegunSay).
-					local optionScope="$2" optionKey="${4:-}" optionPrefix="" optionRc=0
-					case "$optionScope" in
-						magic-team) ;;
-						*) optionPrefix="$( AgentsToolsMemberSettingSystemOf "$optionKey" )" ;;
-					esac
-					if [ -n "$optionPrefix" ] && AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$optionScope" "$optionPrefix" ; then
-						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" || optionRc=$?
-						if [ "$optionRc" -eq 0 ] ; then
-							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null || :
-							[ -z "$agentsConfigOptionElsewhere" ] || AgentsToolsMemberSettingsBorrowBegunSay "$optionScope" "$optionKey" "$agentsConfigOptionElsewhere"
-						fi
-						return "$optionRc"
-					fi
-				;;
-			esac
-			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			AgentsToolsConfigOption "${@:2}"
 			return $?
 		;;
 
@@ -231,7 +160,8 @@ DistroAgentsTools(){
 			case "$1" in
 				--backend)
 					shift
-					DistroAgentsTools --agents-config-option "$@"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					AgentsToolsConfigOption "$@"
 					return $?
 				;;
 				*)
@@ -327,8 +257,9 @@ DistroAgentsTools(){
 		## Sketch 10.6's tester family: `--tester-<operation>` is DistroAgentsTesting.fn.sh `--<operation>`, one thin stub an operation,
 		## as the librarian family fronts its own. A name outside the list is refused with the list, so no stub is invented here.
 		--tester-*)
-			local agentsTesterOperations="apply-tool retest-drain retest-queue retest-result run-all-nightly-regressions run-oldest-untested send-report
-				skillset-validate-routine test-invalidate test-list test-register test-unregister test-update"
+			## One line, so every name in it is matched: a name after a line break in this text was
+			## never found, and --tester-skillset-validate-routine was refused as no operation.
+			local agentsTesterOperations="apply-tool retest-drain retest-queue retest-result run-all-nightly-regressions run-oldest-untested send-report skillset-validate-routine test-invalidate test-list test-register test-unregister test-update"
 			testerOperation="${1#--tester-}"
 			case " $agentsTesterOperations " in
 				*" $testerOperation "*) ;;
@@ -860,6 +791,7 @@ case "$0" in
 			exit 1
 		fi
 		if [ "$1" = "--help" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --help
 			exit 0
 		fi

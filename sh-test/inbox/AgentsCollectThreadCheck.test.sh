@@ -96,7 +96,7 @@ rigNote(){ ## pid -- noted for the end of this check
 	[ -z "$1" ] || { rigProcNote "$1" ; rigStarted="$rigStarted $1" ; }
 }
 rigLockPid(){
-	readlink "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }'
+	cat "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }'
 }
 rigWaitFor(){ ## seconds*2, command... -- waits until the command succeeds
 	local waitMax="$1" waitN=0
@@ -114,7 +114,7 @@ rigHasNotes(){ ## inbox member, count
 	[ "$( rigNotes "$1" )" -ge "$2" ]
 }
 rigLockGone(){
-	[ ! -L "$rigDir/ws/.local/agents/collect/thread.lock" ]
+	[ ! -e "$rigDir/ws/.local/agents/collect/thread.lock" ]
 }
 
 echo "-- 1. the check --"
@@ -132,7 +132,7 @@ rigOp conf-scan --check
 rigPid="$( rigPidOf conf-scan )"
 rigNote "$rigPid"
 rigAssert "a scan's check, a source of a member a scan reads never checked: a thread is started" "$( rigWord conf-scan ):$( [ -n "$rigPid" ] && printf pid )" "started:pid"
-rigWaitFor 20 test -L "$rigDir/ws/.local/agents/collect/thread.lock"
+rigWaitFor 20 test -e "$rigDir/ws/.local/agents/collect/thread.lock"
 rigOp conf-again --check
 rigAssert "the next check is told it lives, and starts nothing" "$( rigWord conf-again ):$( rigPidOf conf-again )" "alive:${rigPid:-none}"
 rigAssert "it was wanted" "$( [ -s "$rigDir/ws/.local/agents/collect/thread.wanted" ] && printf yes )" yes
@@ -149,7 +149,7 @@ rigAssert "a scan that used the one source of the one member it acts for starts 
 rigScene s-two two
 rigScanOp scan-two
 rigPid2="$( rigLockPid )"
-rigWaitFor 20 test -L "$rigDir/ws/.local/agents/collect/thread.lock"
+rigWaitFor 20 test -e "$rigDir/ws/.local/agents/collect/thread.lock"
 rigPid2="$( rigLockPid )"
 rigNote "$rigPid2"
 rigAssert "with another member's source long expired, the scan starts the thread" "$rigRc:$( [ -n "$rigPid2" ] && printf started )" "0:started"
@@ -170,8 +170,8 @@ rigOpEnv=""
 rigDaemon="$( rigPidOf proc-start )"
 rigNote "$rigDaemon"
 rigAssert "a start says it started a process" "$( rigWord proc-start )" started
-rigWaitFor 20 test -L "$rigDir/ws/.local/agents/collect/thread.lock"
-rigAssert "the lock names it: its pid, and when it began" "$( rigLockPid ):$( readlink "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
+rigWaitFor 20 test -e "$rigDir/ws/.local/agents/collect/thread.lock"
+rigAssert "the lock names it: its pid, and when it began" "$( rigLockPid ):$( cat "$rigDir/ws/.local/agents/collect/thread.lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
 rigAssert "it shows in the process list as its operation, a process of its own" "$( LC_ALL=C ps -ww -o args= -p "${rigDaemon:-0}" 2> /dev/null | LC_ALL=C grep -c -F -e '--intern-source-collect --run' )" 1
 rigAssert "it is no run of any session, by the rule that tells a run" "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRegistryRunWords | wc -l | tr -d ' '" )" 0
 rigWaitFor 40 rigHasNotes rig-member 2
@@ -191,7 +191,7 @@ rigWaitFor 40 rigHasNotes rig-member 3
 rigAssert "and a new mail, once the TTL of the source has passed, with no scan asking" "$( rigNotes rig-member )" "3"
 rigProcSignal TERM "${rigDaemon:-0}"
 rigWaitFor 30 rigLockGone
-rigAssert "TERM ends it in order: its lock is given back" "$( [ -L "$rigDir/ws/.local/agents/collect/thread.lock" ] && printf held || printf given )" given
+rigAssert "TERM ends it in order: its lock is given back" "$( [ -e "$rigDir/ws/.local/agents/collect/thread.lock" ] && printf held || printf given )" given
 rigAssert "and the process is gone" "$( rigProcStill "${rigDaemon:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 rigAssert "its log says how it ended" "$( LC_ALL=C grep -c 'ends: it was ended by TERM' "$rigDir/ws/.local/agents/collect/thread.log" )" 1
 ln -s "999999 Mon_Jan__1_00:00:00_2001" "$rigDir/ws/.local/agents/collect/thread.lock"
@@ -209,7 +209,7 @@ rigOpEnv=""
 rigDaemon3="$( rigPidOf idle-start )"
 rigNote "$rigDaemon3"
 rigWaitFor 40 test -z "$( rigProcStill "${rigDaemon3:-0}" )"
-rigAssert "with nobody wanting it for the time set, it ends by itself, and gives its lock back" "$( rigProcStill "${rigDaemon3:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( [ -L "$rigDir/ws/.local/agents/collect/thread.lock" ] && printf held || printf given )" "0:given"
+rigAssert "with nobody wanting it for the time set, it ends by itself, and gives its lock back" "$( rigProcStill "${rigDaemon3:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( [ -e "$rigDir/ws/.local/agents/collect/thread.lock" ] && printf held || printf given )" "0:given"
 rigAssert "and says why in its log" "$( LC_ALL=C grep -c 'nobody has wanted it' "$rigDir/ws/.local/agents/collect/thread.log" )" 1
 
 echo "-- 4. a source that failed --"
@@ -231,7 +231,7 @@ echo "-- 5. one pass, and the places --"
 rigScene o-one conf
 rm -f "$rigFix/login-fails"
 rigOp one-pass --one --force
-rigAssert "--one makes one pass under the lock and ends, saying what it did" "$rigRc:$( rigCount "$rigDir/one-pass.err" 'mail:rig-member: 2 new' ):$( [ -L "$rigDir/ws/.local/agents/collect/thread.lock" ] && printf held ):$( rigNotes rig-member )" "0:1::2"
+rigAssert "--one makes one pass under the lock and ends, saying what it did" "$rigRc:$( rigCount "$rigDir/one-pass.err" 'mail:rig-member: 2 new' ):$( [ -e "$rigDir/ws/.local/agents/collect/thread.lock" ] && printf held ):$( rigNotes rig-member )" "0:1::2"
 rigScene o-git conf
 git init -q "$rigDir/data" && git -C "$rigDir/data" config user.name rig && git -C "$rigDir/data" config user.email rig@rig.invalid
 git -C "$rigDir/data" commit -q -m base --allow-empty > /dev/null 2>&1

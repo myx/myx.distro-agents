@@ -8,7 +8,7 @@
 ##
 ## A SOURCE IS READ THROUGH THE TOOLING THAT OWNS IT, never by this file: mail and trello through AgentsToolsCollectOne
 ## (AgentsTools.Collect.include), the tagged channel and the DMs through AgentsToolsScheduleTeamTags and
-## AgentsToolsScheduleDmTags (AgentsTools.DispatcherLoop.include), and the live session thread through
+## AgentsToolsScheduleDmTags (AgentsTools.DispatcherSchedule.include), and the live session thread through
 ## AgentsToolsSessionCommsRead (AgentsTools.SessionComms.include). Each line it prints is a `collect:` line in the shape the
 ## collection already uses: `collect: <kind>:<member>: N new` (`no session` for a chat of a member in no live run).
 ##
@@ -17,7 +17,7 @@
 ## AgentsToolsIncomingOne, by kind.
 ##
 
-type AgentsToolsScheduleDmTags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include"
+type AgentsToolsScheduleDmTags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
 type AgentsToolsCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 
 ## The kinds of the incoming sources a member pre-caches, in their order: the mailbox and the Trello notifications the

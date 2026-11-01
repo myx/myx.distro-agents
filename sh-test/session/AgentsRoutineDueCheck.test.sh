@@ -3,8 +3,10 @@
 ## routine declares its own autorun, `runs-at: <days> <HH:MM>` and `runs-after: <routine>`, and Dispatcher decides from the settings, the
 ## clock and the run history, which it owns. The time is the earliest start; where a predecessor is named it is the trigger, and the
 ## chain needs no waiting state (epic 1740-1752). rc 0 due; rc 1 not due, and why; rc 2 refused, naming the predecessor that did not run;
-## rc 3 a call that could not be understood. Held, run and not read, with a clock and a Slack of the rig's own:
-##   1. A routine with no autorun, `runs-at: none` or none at all, is not due, whatever else it says.
+## rc 3 a call that could not be understood, or a routine whose `runs-at:` is absent, since the key is mandatory.
+## Held, run and not read, with a clock and a Slack of the rig's own:
+##   1. A routine with `runs-at: none` is not due, whatever else it says. A routine with no `runs-at:` at all is an invalid file: rc 3,
+##      nothing on stdout, and an error line naming the mandatory key.
 ##   2. runs-at: due from its time on a day of its days, in the team's zone; not before that time; not on another day; once a day:
 ##      a run of it that started that day, whatever became of it, makes it not due again until the next such day. A run of another day,
 ##      and one of another routine, do not. `workdays` and `weekend` read the weekend setting, or sat,sun where none is set (the owner, 2026-10-21).
@@ -44,7 +46,7 @@ printf 'magic-coordinator=URIGCOORD1=m=M=M=d\n' > "$rigWs/.local/.agents/slack-m
 cp "$rigFixtures/session-chat.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 : > "$rigScn/calls"
-ln -s "$( command -v date )" "$rigTmp/bin/date.real" || rigRefuse "no date on PATH to hand the other calls to"
+rigRealTool date "$rigTmp/bin/date.real" || rigRefuse "no date on PATH to hand the other calls to"
 cat > "$rigTmp/bin/date" <<'RIGDATE'
 #!/bin/sh
 ## The rig's clock: the instant in now.epoch, formatted by the real date as it would at that instant (TZ is the caller's).
@@ -120,8 +122,10 @@ rigRoutine d "daily 09:00"
 echo "-- 1. no autorun --"
 rigRun "$rigDispatcher" --set-timezone Etc/GMT-3 ; rigRun "$rigDispatcher" --set-weekend sat,sun
 rigAssert "runs-at: none is not due, and says why" "$( rigDue none-key )" "1|NOT-DUE: rig-member.none-key.routine.md: it declares no autorun (runs-at: none)|"
-rigAssert "no runs-at is not due" "$( rigDue no-key )" "1|NOT-DUE: rig-member.no-key.routine.md: it declares no autorun (no runs-at)|"
-rigAssert "runs-after alone is no autorun: the time is the earliest start, and there is none" "$( rigDue only-after )" "1|NOT-DUE: rig-member.only-after.routine.md: it declares no autorun (no runs-at)|"
+rigRun "$rigDispatcher" --routine-due rig-member.no-key.routine.md
+rigAssert "no runs-at is an invalid file, not a plain not-due: rc 3, nothing on stdout, and an error line naming the key" "$( printf '%s|%s|%s' "$rigRc" "$( printf '%s' "$rigOut" | wc -c | tr -d ' ' )" "$( printf '%s\n' "$rigErr" | LC_ALL=C grep -c 'runs-at: is mandatory' )" )" "3|0|1"
+rigRun "$rigDispatcher" --routine-due rig-member.only-after.routine.md
+rigAssert "runs-after alone is no autorun either, and is refused the same way" "$( printf '%s|%s|%s' "$rigRc" "$( printf '%s' "$rigOut" | wc -c | tr -d ' ' )" "$( printf '%s\n' "$rigErr" | LC_ALL=C grep -c 'runs-at: is mandatory' )" )" "3|0|1"
 
 echo "-- 2. runs-at --"
 rigAssert "Monday 13:00, workdays 09:00, no run: due" "$( rigDue r )" "0|DUE: rig-member.r.routine.md|"

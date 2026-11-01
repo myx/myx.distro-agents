@@ -170,20 +170,20 @@ rigAssert "no fragment writes a task of its own: each is made from its package's
 
 ## THE ORIGIN OF THIS CHECK: the real one, linked, but for the list of each of the four packages, which is the rig's.
 mkdir -p "$rigOrigin/myx"
-for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigOrigin/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigOrigin/${rigEntry##*/}" ; done
 for rigEntry in "$MDLT_ORIGIN"/myx/* ; do
 	case "${rigEntry##*/}" in
 		myx.distro-source|myx.distro-deploy|myx.distro-remote|myx.distro-agents) ;;
-		*) ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; continue ;;
+		*) rigCopyTree "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; continue ;;
 	esac
 	## sh-lib and sh-lib/config are folders of the rig's own, with the files of the real ones linked in but for the list: a write to the list
 	## must never go through a linked folder into the package
 	mkdir -p "$rigOrigin/myx/${rigEntry##*/}/sh-lib"
-	for rigOne in "$rigEntry"/* ; do [ "${rigOne##*/}" = sh-lib ] || ln -s "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/${rigOne##*/}" ; done
-	for rigOne in "$rigEntry"/sh-lib/* ; do case "${rigOne##*/}" in config|workspace-commands.list) ;; *) ln -s "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/sh-lib/${rigOne##*/}" ;; esac ; done
+	for rigOne in "$rigEntry"/* ; do [ "${rigOne##*/}" = sh-lib ] || rigCopyTree "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/${rigOne##*/}" ; done
+	for rigOne in "$rigEntry"/sh-lib/* ; do case "${rigOne##*/}" in config|workspace-commands.list) ;; *) rigCopyTree "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/sh-lib/${rigOne##*/}" ;; esac ; done
 	if [ -d "$rigEntry/sh-lib/config" ] ; then
 		mkdir -p "$rigOrigin/myx/${rigEntry##*/}/sh-lib/config"
-		for rigOne in "$rigEntry"/sh-lib/config/* ; do [ "${rigOne##*/}" = workspace-commands.list ] || ln -s "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/sh-lib/config/${rigOne##*/}" ; done
+		for rigOne in "$rigEntry"/sh-lib/config/* ; do [ "${rigOne##*/}" = workspace-commands.list ] || rigCopyTree "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/sh-lib/config/${rigOne##*/}" ; done
 	fi
 	[ ! -L "$rigOrigin/myx/${rigEntry##*/}/sh-lib/config" ] || rigRefuse "the rig's sh-lib/config of ${rigEntry##*/} is a link into the package: the lists would be written there"
 done

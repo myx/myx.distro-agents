@@ -51,5 +51,6 @@ AgentsToolsCommsEmailSend(){ ## member, channel-id or declared name, subject, th
 		echo "⛔ ERROR: $MDSC_CMD: an email needs a subject. Nothing was sent." >&2
 		return 1
 	}
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-comms-email-send "$emailMember" "$emailAddress" -- "$emailSubject" -- --from-stdin
 }

@@ -415,8 +415,10 @@ AgentsToolsInstallDshHomePatch(){ ## workspace
 
 	(
 		umask 022
-		mkdir -p "$MMDAPP/.local/temp" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot make the step's scratch folder -- nothing was changed" >&2 ; exit 1 ; }
-		patchTmp="$( mktemp -d "$MMDAPP/.local/temp/dsh-home-patch.XXXXXX" )" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot make the step's scratch folder -- nothing was changed" >&2 ; exit 1 ; }
+		patchBase="$MMDAPP/.local/temp"
+		[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || patchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
+		mkdir -p "$patchBase" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot make the step's scratch folder -- nothing was changed" >&2 ; exit 1 ; }
+		patchTmp="$( mktemp -d "$patchBase/dsh-home-patch.XXXXXX" )" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot make the step's scratch folder -- nothing was changed" >&2 ; exit 1 ; }
 		trap 'rm -rf "$patchTmp"' EXIT
 		AgentsToolsInstallDshPatchRow "$patchWorkspace" "$patchTmp/want" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot write the row this step installs -- nothing was changed" >&2 ; exit 1 ; }
 
@@ -711,8 +713,10 @@ case "$1" in
 			while IFS= read -r fanRoot ; do
 				[ -n "$fanRoot" ] || continue
 				if [ "$removeMode" = "true" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --install-skillset-symlinks --remove --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
 				else
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
 				fi
 			done <<< "$fanRoots"
@@ -721,6 +725,7 @@ case "$1" in
 				unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
 			fi
 			if [ "$ownsReport" = "true" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --install-skillset-report-render
 				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
 			fi
@@ -2082,6 +2087,7 @@ case "$1" in
 		## registration and the member links write theirs: that one index, by its name, and
 		## only for the workspace the tooling runs for, which is the one the index is of.
 		if [ "$createdCount" -gt 0 ] && [ "$workspace" = "$( cd "$MMDAPP" && pwd )" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --make-harness-indices harness.roots || { rm -f "$fragmentTmp" ; set +e ; return 1 ; }
 		fi
 
@@ -2394,6 +2400,7 @@ case "$1" in
 		## it is both, as it always was.
 		local integrationsPart="${makeInstallPart:-}"
 		if [ "$integrationsPart" != "after-indices" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
 
 			local ownsReport="false"
@@ -2413,8 +2420,10 @@ case "$1" in
 				export MDSC_SKILLSET_PRESCAN="1" ; ownsPrescan="true"
 			fi
 			if [ -n "$scope" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || installStatus=1
 			else
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || installStatus=1
 				DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || installStatus=1
 			fi
@@ -2422,6 +2431,7 @@ case "$1" in
 				unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
 			fi
 			if [ "$ownsReport" = "true" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --install-skillset-report-render
 				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
 			fi
@@ -2430,6 +2440,7 @@ case "$1" in
 		[ "$integrationsPart" != "before-indices" ] || return 0
 
 		## must follow --install-vscode-integrations, which creates $HOME/.claude.json when missing
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --install-claude-workspace-trust --workspace "$workspace" || { set +e ; return 1 ; }
 		DistroAgentsTools --install-claude-permissions --workspace "$workspace" || { set +e ; return 1 ; }
 
@@ -2483,6 +2494,7 @@ case "$1" in
 		## and their settings entries come from the policy as it stands now. The hook index is the mark,
 		## written only by --install-workspace-restrictions.
 		if [ -f "$workspace/.local/agents/harness.hooks.index" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --install-workspace-restrictions --workspace "$workspace" || { set +e ; return 1 ; }
 		fi
 
@@ -2490,6 +2502,7 @@ case "$1" in
 		## source, so a workspace set up here has copilot's --add-dir access
 		## ready for the generated console -- installer prepares it, launcher
 		## uses it. Copilot only; harmless where copilot is never run.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --install-copilot-access-fragment --workspace "$workspace" || { set +e ; return 1 ; }
 		DistroAgentsTools --install-copilot-agent-files || { set +e ; return 1 ; }
 
@@ -2788,6 +2801,7 @@ case "$1" in
 
 		## The Magic-Team panel, after the workspace file is regenerated, so its links follow
 		## the folders listed now.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --install-vscode-magic-team-panel "$workspace" || failed=1
 		## What VS Code reads per folder, authoritative at the workspace root, which is never a
 		## VS Code folder: linked into every listed folder by the one helper (MAGIC.md).

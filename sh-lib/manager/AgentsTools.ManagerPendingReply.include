@@ -83,6 +83,7 @@ AgentsToolsManagerPendingOutcome(){ ## record file, standing member, answer word
 	outcomeSession="$( AgentsToolsEscalationField "$1" session-id )"
 	while IFS= read -r outcomeAsked ; do
 		[ -n "$outcomeAsked" ] || continue
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		case "$( DistroAgentsTools --intern-op-permission-holds "$outcomeHolder" "${outcomeAsked%%$'\t'*}" "${outcomeAsked#*$'\t'}" \
 			${outcomeSession:+--session-id "$outcomeSession"} 2> /dev/null | head -1 )" in
 			'HOLDS '*) ;;

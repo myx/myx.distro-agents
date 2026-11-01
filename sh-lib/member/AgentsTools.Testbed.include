@@ -268,9 +268,14 @@ AgentsToolsTestbedPassed(){ ## test id...
 
 ## The runs of the tests in the last run folders of the runner: `<id><TAB><run folder><TAB><rc><TAB><seconds>`, the newest run first.
 AgentsToolsTestbedRuns(){ ## the number of run folders to look at
-	local runsRoot="$MMDAPP/.local/temp/mdat-tests" runsDir
-	[ -d "$runsRoot" ] || return 0
-	for runsDir in $( ls -d "$runsRoot"/2*/ 2> /dev/null | LC_ALL=C sort -r | head -"$1" ) ; do
+	local runsDir runsFound
+	## A run a session started stands in that session's own sandbox; the workspace's folder holds every other one.
+	## The newest by the run folder's own stamp, never by its path: two roots' paths sort apart from their stamps.
+	runsFound="$( { ls -d "$MMDAPP/.local/temp/mdat-tests"/2*/ 2> /dev/null
+		[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || ls -d "$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests"/2*/ 2> /dev/null ; } \
+		| LC_ALL=C awk '{ n = $0 ; sub( /\/$/, "", n ) ; sub( /^.*\//, "", n ) ; print n "\t" $0 }' | LC_ALL=C sort -r | head -"$1" | LC_ALL=C cut -f2 )"
+	[ -n "$runsFound" ] || return 0
+	for runsDir in $runsFound ; do
 		LC_ALL=C grep -H -e '^rc=' -e '^seconds=' "$runsDir"*.receipt 2> /dev/null
 	done | LC_ALL=C awk -F: '
 		{ file = $1 ; key = $2 ; sub( /^.*\//, "", file ) ; name = file ; sub( /\.receipt$/, "", name ) ; run = $1 ; sub( /\/[^\/]*$/, "", run ) ; sub( /^.*\//, "", run ) ; val = $0 ; sub( /^[^=]*=/, "", val ) ;

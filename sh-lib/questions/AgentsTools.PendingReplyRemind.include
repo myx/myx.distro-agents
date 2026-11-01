@@ -147,8 +147,10 @@ AgentsToolsPendingReplyRemindSend(){ ## owner, identity, target, address to, tex
 	local sendOut sendRc=0
 	sendOut="$( mktemp "$MMDAPP/.local/temp/mdat-pending-remind-send.XXXXXX" )" || { printf 'no work file\n' ; return 1 ; }
 	if [ "$2" = "bot" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		printf '%s' "$5" | DistroAgentsTools --intern-op-comms-slack-send-message "$1" "$3" --address-to "$4" --identity-bot --from-stdin > "$sendOut" 2>&1 || sendRc=$?
 	else
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		printf '%s' "$5" | DistroAgentsTools --intern-op-comms-slack-send-message "$1" "$3" --address-to "$4" --from-stdin > "$sendOut" 2>&1 || sendRc=$?
 	fi
 	if [ "$sendRc" != "0" ] ; then
@@ -171,9 +173,11 @@ AgentsToolsPendingReplyRemindAnswered(){ ## acting member, pending id, the place
 	[ "$4" != "none" ] || return 1
 	readOut="$( mktemp "$MMDAPP/.local/temp/mdat-pending-remind-read.XXXXXX" )" || return 1
 	if [ "$4" != "-" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		MDAT_WAIT_READ_AS_BOT=true MDAT_WAIT_SETTLE_SECONDS=0 DistroAgentsTools --intern-op-wait-for-input "$1" --wait-source "slack:$3" \
 			--wait-timeout 0 --wait-since-utime "${3##*:}" --wait-addressee "$4" > "$readOut" 2> /dev/null || readRc=$?
 	else
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-wait-for-input "$1" --wait-source "ask:$2" --wait-timeout 0 > "$readOut" 2> /dev/null || readRc=$?
 	fi
 	[ "$readRc" != "0" ] || IFS= read -r readSaid < "$readOut" || :

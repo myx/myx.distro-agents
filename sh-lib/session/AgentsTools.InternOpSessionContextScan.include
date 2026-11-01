@@ -517,7 +517,8 @@ case "$1" in
 					## Presence only -- reduced to a boolean on the next lines and
 					## dropped. No credential is compared, stored or printed.
 					local ownTokenPresent=""
-					ownTokenPresent="$( DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_USER_TOKEN )" || ownTokenPresent=""
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					ownTokenPresent="$( AgentsToolsConfigOption "$actingMember" --select SLACK_USER_TOKEN )" || ownTokenPresent=""
 					slackOwnCredentials="false"
 					[ -z "$ownTokenPresent" ] || slackOwnCredentials="true"
 					ownTokenPresent=""
@@ -538,7 +539,8 @@ case "$1" in
 					slackRosterTypesArg=( --types im,mpim,public_channel,private_channel )
 
 					local configuredSource
-					configuredSources="$( DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					configuredSources="$( AgentsToolsConfigOption "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
 					for configuredSource in ${configuredSources//,/ } ; do
 						slackSourceSpecs+=( "user|$configuredSource|$configuredSource|" )
 					done
@@ -707,7 +709,8 @@ case "$1" in
 				if [ "$commsDoSlackTags" = "true" ] ; then
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
 					local mentionUserToken=""
-					mentionUserToken="$( AgentsToolsSlackOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_USER_TOKEN )" || mentionUserToken=""
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					mentionUserToken="$( AgentsToolsSlackOwnSettingsApply "$actingMember" && AgentsToolsConfigOption "$actingMember" --select SLACK_USER_TOKEN )" || mentionUserToken=""
 					local mentionHasToken="false"
 					[ -z "$mentionUserToken" ] || mentionHasToken="true"
 					mentionUserToken=""
@@ -730,6 +733,7 @@ case "$1" in
 							## cut-off is applied by the trim every source already goes
 							## through. Same over-fetch --slack-search-messages
 							## documents at its own call site.
+							type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 							mentionResponse="$( DistroAgentsTools --intern-op-slack-call "$actingMember" \
 								--api search.messages --identity user \
 								--form "query=<@$ownSlackId> after:$mentionAfter" \
@@ -1368,7 +1372,8 @@ case "$1" in
 				## asked by every scan that wants it.
 				## The mailbox this scan reads as, from the acting member's own scope. A member with no EMAIL_USER keeps the stated default.
 				local emailUser=""
-				emailUser="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_USER )" || emailUser=""
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				emailUser="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && AgentsToolsConfigOption "$actingMember" --select EMAIL_USER )" || emailUser=""
 				[ -z "$emailUser" ] || emailIdentity="$emailUser"
 				type AgentsToolsCollectEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 				## Mirrors the collection's own gate: an optional source nothing is configured for must not read as one that failed.

@@ -115,7 +115,8 @@ AgentsToolsManagerWizardWrite(){ ## scope, key, value
 			printf 'unchanged\t%s\t%s\n' "$1" "$2"
 			return 0
 		fi
-		DistroAgentsTools --agents-config-option "$1" --delete "$2" > /dev/null 2>&1 < /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $2 could not be taken out of $1 -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		AgentsToolsConfigOption "$1" --delete "$2" > /dev/null 2>&1 < /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $2 could not be taken out of $1 -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
 		printf 'removed\t%s\t%s\n' "$1" "$2"
 		return 0
 	fi
@@ -124,7 +125,8 @@ AgentsToolsManagerWizardWrite(){ ## scope, key, value
 		return 0
 	fi
 	writeRc=0
-	writeErr="$( printf '%s\n' "$3" | DistroAgentsTools --agents-config-option "$1" --upsert-from-stdin "$2" 2>&1 > /dev/null )" || writeRc=$?
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	writeErr="$( printf '%s\n' "$3" | AgentsToolsConfigOption "$1" --upsert-from-stdin "$2" 2>&1 > /dev/null )" || writeRc=$?
 	if [ "$writeRc" != 0 ] ; then
 		printf '%s\n' "$writeErr" | LC_ALL=C grep -F -- 'ERROR' | LC_ALL=C head -1 >&2
 		echo "$MDSC_CMD: ⛔ ERROR: $2 was not written to $1 -- the rows above were applied, this and the rest were not" >&2

@@ -47,7 +47,7 @@ cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse 
 ## `<pid> <command line>` line a process, and hands every other call to the real ps. Each line
 ## is a stand-in process of this rig under its own pid, and is listed only while that process
 ## lives: one that is stopped is gone from the list, as it would be from the host's.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

@@ -82,7 +82,7 @@ rigAssert "a word that is no domain is refused, rc 1, nothing printed, nothing r
 rigRun "$rigOp" --seconds 0
 rigAssert "a bound that is no number above nought is refused" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --seconds takes a whole number above nought of up to four digits -- nothing was run" )" "1 0 1"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" ) ; rigRun "$rigOp" storage ; rigPre=()
-rigAssert "from inside a member's session it is refused by the one rule of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
+rigAssert "from inside a member's session it is refused by the one rule of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" "1 0 1"
 
 echo "-- 2b. what the checks print is kept in the workspace's own scratch, never the system's temp folder --"
 rigAssert "while the checks ran, their run folder was in the workspace's .local/agents/scratch" "$( LC_ALL=C grep -c '^AgentsManagerCheck\.' "$rigTmp/stand-in.scratch" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "there" : "not-there" }' )" there

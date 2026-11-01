@@ -13,6 +13,7 @@
 ## registered in (pluginsOrdered).
 registerPlugin({
     "name": "magic-team",
+    "apps": ("agents",),
     "root": {"id": "magic-team", "label": "Magic-Team (Agents)", "go": "Ma~g~ic-Team (Agents)", "group": "team"},
     "summaries": {
         "magic-team": {"lines": "foldersSummary"},

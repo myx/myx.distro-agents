@@ -150,6 +150,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 				fi
 			;;
 		esac
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		if DistroAgentsTools --intern-op-board-upsert-move-edit review "$itemName" --from-state:review \
 			--header:upsert:review-by:magic-coordinator --context "routine lock take (advance)" > /dev/null 2>&1 ; then
 			housekeepingLog="${housekeepingLog}housekeeping: $itemName review-by -> magic-coordinator"$'\n'

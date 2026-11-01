@@ -412,6 +412,7 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 	fi
 	decText="${decTag:+$decTag }$( AgentsToolsDecisionsQuestionFirst "$decFirst" ) -> ${decVerdict:-(answered; the answer text was not recorded)}"
 	[ "$decStatus" != "reply-received" ] || [ -n "$decAmend" ] || decMentions="$decId $decQts $decTts"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-decisions-append "$decWho" "$decItem" --kind "$decLineKind" --text "$decText" \
 		--source "$decId${decAnswerTs:+, ${decChannel:+$decChannel:}$decAnswerTs}" \
 		$( for decKey in $decMentions ; do printf -- '--clear-if-mentions %s ' "$decKey" ; done ) \
@@ -431,6 +432,7 @@ AgentsToolsDecisionsClarification(){ ## pending id, record file, author, text, m
 	[ -n "$clItem" ] || return 0
 	clTag="$( AgentsToolsDecisionsField "$2" question-tag )"
 	clChannel="$( AgentsToolsDecisionsField "$2" channel )"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-decisions-append "${3:-unknown}" "$clItem" --kind clarification \
 		--text "on $1${clTag:+ ($clTag)}: $4" --source "${5:+${clChannel:+$clChannel:}$5}" \
 		--context "${MDSC_CMD:-pending-reply-clarify}" > /dev/null 2>&1 \
@@ -495,6 +497,7 @@ AgentsToolsDecisionsAppend(){ ## who, item, kind, text, source, clear (all|empty
 			esac
 		done
 	done
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s' "$agentsDecisionsAppendAwk" | MDAT_DECISIONS_LINE="$appLine" MDAT_DECISIONS_MARKER="$( AgentsToolsDecisionsMarker "$appName" )" DistroAgentsTools --intern-op-board-upsert-move-edit "$appState" "$appName" \
 		--from-state:"$appState" --edit-script-from-stdin:awk "${appHeaders[@]+"${appHeaders[@]}"}" \
 		--context "${MDSC_CMD:-decisions-append}" --log-verb:updated || appRc=$?

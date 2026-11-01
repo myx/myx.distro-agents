@@ -92,8 +92,8 @@ rigAssert "the validator finds an old-form citation, and only it" "$( rigValidat
 rigAssert "the text check finds it" "$( printf '%s\n' 'magic-team/magic-team.authority.client.contract.md' 'magic-team/contracts/magic-team.authority.partner.contract.md' | LC_ALL=C grep -c -v -E '^(magic-team/)?contracts/magic-team[.]authority[.]' || : )" "1"
 
 echo "-- 6. the harness serves a moved file --"
-ln -s "$rigMember" "$rigTmp/ws/.local/agents/members/magic-team"
-ln -s "$rigMember" "$rigTmp/home/.claude/skills/magic-team"
+rigCopyTree "$rigMember" "$rigTmp/ws/.local/agents/members/magic-team"
+rigCopyTree "$rigMember" "$rigTmp/home/.claude/skills/magic-team"
 rigCall(){ ## tool, argument object, text to find -- 'served' where it came back
 	local rigOut
 	rigOut="$( printf '%s' "$2" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigTmp/ws/.local/agents/members" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \

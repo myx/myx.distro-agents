@@ -6,22 +6,24 @@
 ## check writes. Sourced by the check:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-distro-workspace.include.sh"
 ##
-## WHAT IT HOLDS, and nothing more. The rig copies nothing of the tooling: it reads the tooling of the origin the check
-## runs from. What ListDistroProjects needs of the workspace itself is made here:
+## WHAT IT HOLDS, and nothing more. The rig copies, and never links, the tooling of the origin the check runs from. What
+## ListDistroProjects needs of the workspace itself is made here:
 ##   <ws>/source/<repo>/repository.inf           the repository of the check's own projects
 ##   <ws>/source/<repo>/<project>/project.inf    each project the check writes (rigDistroProject)
-##   <ws>/.local/myx/<package>                   a link to each package of the origin's myx/ folder, the place a set-up
+##   <ws>/.local/myx/<package>                   a copy of each package of the origin's myx/ folder, the place a set-up
 ##                                               workspace holds its tooling (LocalContext.include is looked for there)
 ## and the myx.common command on PATH, which the source scan calls (rigDistroPath). The rig lives under
 ## `$MMDAPP/.local/temp/sh-test/`, and its HOME is its own, so nothing of the integrations reaches this machine's.
 ##
 ##   rigDistroTmp <check name>                      makes the rig's root, `$MMDAPP/.local/temp/sh-test/<name>.XXXXXX`,
 ##                                                  and prints it, physical
-##   rigDistroWorkspace <ws> <repo>                 makes the workspace: its repository and its tooling links
+##   rigDistroWorkspace <ws> <repo>                 makes the workspace: its repository and its tooling copies
 ##   rigDistroProject <ws> <repo> <project> <body>  writes a project's project.inf: `Name: <project>`, then the body
 ##   rigDistroPath                                  prints a PATH for the rig: myx.common's folder, then the system's
 ##   rigDistroRun <ws> <home> <words...>            runs DistroAgentsTools.fn.sh in the workspace, as its console,
 ##                                                  output on the caller's streams, under a five-minute bound
+
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || return 1
 
 rigDistroTmp(){ ## check name
 	mkdir -p "$MMDAPP/.local/temp/sh-test" || return 1
@@ -36,9 +38,18 @@ rigDistroWorkspace(){ ## workspace, repository
 	for distroPackage in "$MDLT_ORIGIN"/myx/* ; do
 		[ -d "$distroPackage" ] || continue
 		case "${distroPackage##*/}" in
-			myx.*|mdci-packages-*) ln -s "$( cd "$distroPackage" && pwd -P )" "$1/.local/myx/${distroPackage##*/}" || return 1 ;;
+			myx.*|mdci-packages-*) rigCopyTree "$distroPackage" "$1/.local/myx/${distroPackage##*/}" || return 1 ;;
 		esac
 	done
+	## The declares index of those packages: the origin's own where it has one, and an empty one otherwise, since a
+	## package installed with no index to read is a fault the integrations report. The grants a check exercises are
+	## declared by the projects the check writes, in the rig workspace's own source/.
+	mkdir -p "$1/.local/system-index" || return 1
+	if [ -f "$MDLT_ORIGIN/system-index/distro-declares.txt" ] ; then
+		cp -p "$MDLT_ORIGIN/system-index/distro-declares.txt" "$1/.local/system-index/distro-declares.txt" || return 1
+	else
+		: > "$1/.local/system-index/distro-declares.txt"
+	fi
 }
 rigDistroProject(){ ## workspace, repository, project, project.inf body after its Name line
 	mkdir -p "$1/source/$2/$3" || return 1

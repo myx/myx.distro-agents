@@ -457,6 +457,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-harden: could not set 770/660 on every path under $storeDir" >&2
 			set +e ; return 1
 		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --owner-credential-store-verify || return 1
 		return 0
 	;;
@@ -473,19 +474,23 @@ case "$1" in
 		local probeVal="selftest-$$-$( date +%s )"
 		local probeFailed=0
 
-		if ! ( umask 022 ; DistroAgentsTools --agents-config-option magic-coordinator --upsert "$probeKey" "$probeVal" >/dev/null ) ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		if ! ( umask 022 ; AgentsToolsConfigOption magic-coordinator --upsert "$probeKey" "$probeVal" >/dev/null ) ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: --upsert under umask 022 failed" >&2
 			set +e ; return 1
 		fi
 
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --owner-credential-store-verify || probeFailed=1
 
-		if [ "$( DistroAgentsTools --agents-config-option magic-coordinator --select "$probeKey" )" != "$probeVal" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		if [ "$( AgentsToolsConfigOption magic-coordinator --select "$probeKey" )" != "$probeVal" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: probe key round-trip mismatch" >&2
 			probeFailed=1
 		fi
 
-		DistroAgentsTools --agents-config-option magic-coordinator --delete "$probeKey" >/dev/null
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		AgentsToolsConfigOption magic-coordinator --delete "$probeKey" >/dev/null
 
 		## Each file this package seeds or publishes, at the mode it claims for it. A file
 		## that is absent is stated and not asserted: there is nothing to hold a mode.
@@ -571,12 +576,14 @@ magic-team TEAM_DATA_GIT_USER_EMAIL
 magic-team MDAT_WORKSPACE_MODE"
 		while read -r clearScope clearKey ; do
 			clearAll=$(( clearAll + 1 ))
-			DistroAgentsTools --agents-config-option "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" || continue
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			AgentsToolsConfigOption "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" || continue
 			clearSet=$(( clearSet + 1 ))
 			echo "SETTING: $clearScope $clearKey set"
 			[ "$clearApply" = "yes" ] || continue
-			DistroAgentsTools --agents-config-option "$clearScope" --delete "$clearKey" > /dev/null 2>&1 < /dev/null || :
-			if DistroAgentsTools --agents-config-option "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" ; then
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			AgentsToolsConfigOption "$clearScope" --delete "$clearKey" > /dev/null 2>&1 < /dev/null || :
+			if AgentsToolsConfigOption "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" ; then
 				echo "⛔ ERROR: $MDSC_CMD --owner-clear-just-agents: $clearScope $clearKey is still set after its delete" >&2
 				set +e ; return 1
 			fi
@@ -875,10 +882,12 @@ magic-team MDAT_WORKSPACE_MODE"
 				## declaring it. --print-apply-command changes nothing and so is out.
 				## claude-native is the same binary and discards the same permissions.allow while untrusted.
 				if { [ "$setupDomain" = "claude" ] || [ "$setupDomain" = "claude-native" ] ; } && [ "$setupOperation" = "--apply" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --install-claude-workspace-trust --workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" || { set +e ; return 1 ; }
 				fi
 
 				local setupApplyRc=0
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-owner-setup "$setupDomain" "$setupEngineMode" \
 					--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" \
 					"${setupDeclareArgs[@]}" \
@@ -930,6 +939,7 @@ magic-team MDAT_WORKSPACE_MODE"
 								|| ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null \
 								|| ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null \
 								|| ! ( DistroAgentsTools "--owner-setup-$setupDomain" ) >/dev/null 2>&1 ; then
+								type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 								( DistroAgentsTools --make-workspace-integrations --quiet ) || {
 									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: stopped at the workspace integrations step -- the settings above are stored, the console and the access grants are not" >&2
 									exit 1
@@ -976,6 +986,7 @@ magic-team MDAT_WORKSPACE_MODE"
 				## Activity-log and alert channels never gate: with neither set the
 				## traffic they carry falls back to the team channel, so an absent
 				## one costs routing, not a working installation.
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
 					--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
@@ -986,13 +997,16 @@ magic-team MDAT_WORKSPACE_MODE"
 					--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
 					--expect-id-kind SLACK_CHANNEL_HUMAN_OWNER:user \
 					--context "--owner-setup-slack:$setupCtxTag" || setupRc=$?
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "SLACK_BOT_TOKEN:<token>" \
 					--expect-secret SLACK_BOT_TOKEN \
 					--context "--owner-setup-slack:$setupCtxTag" || true
 			;;
 			storage)
-				if [ -n "$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				if [ -n "$( AgentsToolsConfigOption magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs magic-coordinator \
 						--optional "TEAM_DATA_DIRECTORY:<path>" \
 						--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
@@ -1002,6 +1016,7 @@ magic-team MDAT_WORKSPACE_MODE"
 					echo "  note: not set, so the team data is this workspace's own store"
 					echo "  path: $MDAT_DATA_ROOT"
 				fi
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 					--context "--owner-setup-storage:$setupCtxTag" || true
@@ -1042,10 +1057,12 @@ magic-team MDAT_WORKSPACE_MODE"
 				## read only where the preset already exists: a --check writes nothing.
 				local setupCredValue=""
 				if [ -f "$setupHere/.local/.agents/preset-grok.agent.env" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs preset-grok \
 						--optional "XAI_API_KEY:<key>" --expect-secret XAI_API_KEY \
 						--context "--owner-setup-grok:$setupCtxTag" || true
-					setupCredValue="$( DistroAgentsTools --agents-config-option preset-grok --select XAI_API_KEY 2>/dev/null )"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					setupCredValue="$( AgentsToolsConfigOption preset-grok --select XAI_API_KEY 2>/dev/null )"
 				fi
 				if [ -z "$setupCredValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
@@ -1081,10 +1098,12 @@ magic-team MDAT_WORKSPACE_MODE"
 				## and the same read-only guard around it.
 				local setupCredValue=""
 				if [ -f "$setupHere/.local/.agents/preset-deepseek.agent.env" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs preset-deepseek \
 						--optional "DEEPSEEK_API_KEY:<key>" --expect-secret DEEPSEEK_API_KEY \
 						--context "--owner-setup-deepseek:$setupCtxTag" || true
-					setupCredValue="$( DistroAgentsTools --agents-config-option preset-deepseek --select DEEPSEEK_API_KEY 2>/dev/null )"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					setupCredValue="$( AgentsToolsConfigOption preset-deepseek --select DEEPSEEK_API_KEY 2>/dev/null )"
 				fi
 				if [ -z "$setupCredValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
@@ -1536,10 +1555,12 @@ magic-team MDAT_WORKSPACE_MODE"
 				## name. A preset called mel-scaleway-deepseek is only a name.
 				local setupCredValue=""
 				if [ -f "$setupHere/.local/.agents/preset-scaleway.agent.env" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-check-configs preset-scaleway \
 						--optional "SCALEWAY_API_KEY:<key>" --expect-secret SCALEWAY_API_KEY \
 						--context "--owner-setup-scaleway:$setupCtxTag" || true
-					setupCredValue="$( DistroAgentsTools --agents-config-option preset-scaleway --select SCALEWAY_API_KEY 2>/dev/null )"
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+					setupCredValue="$( AgentsToolsConfigOption preset-scaleway --select SCALEWAY_API_KEY 2>/dev/null )"
 				fi
 				if [ -z "$setupCredValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
@@ -1859,6 +1880,7 @@ magic-team MDAT_WORKSPACE_MODE"
 				## file it reads, so a --check writes nothing.
 				setupCredential=""
 				if [ -f "$setupHere/.local/.agents/preset-copilot.agent.env" ] ; then
+					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 					setupCredential="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option preset-copilot --select COPILOT_GITHUB_TOKEN || : )"
 				fi
 				if [ -n "$setupCredential" ] ; then
@@ -2380,7 +2402,8 @@ magic-team MDAT_WORKSPACE_MODE"
 							MMDAPP="$setupRoot"
 							for setupAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
 								[ -f "$setupRoot/.local/.agents/preset-claude.agent.env" ] || continue
-								setupAuthValue="$( DistroAgentsTools --agents-config-option preset-claude --select "$setupAuthKey" 2>/dev/null || : )"
+								type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+								setupAuthValue="$( AgentsToolsConfigOption preset-claude --select "$setupAuthKey" 2>/dev/null || : )"
 								[ -n "$setupAuthValue" ] || continue
 								export "$setupAuthKey=$setupAuthValue"
 							done
@@ -2631,6 +2654,7 @@ magic-team MDAT_WORKSPACE_MODE"
 		if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] && [ ${#setupDeclareArgs[@]} -ne 0 ] ; then
 			[ -n "$setupBlock1Printed" ] || { echo "" ; echo "Block 1:" ; }
 			local setupStillMissing="" setupRenderRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			setupStillMissing="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-missing \
 				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" "${setupDeclareArgs[@]}" )" || setupRenderRc=$?
 			if [ "$setupRenderRc" -ne 0 ] ; then
@@ -2648,6 +2672,7 @@ magic-team MDAT_WORKSPACE_MODE"
 			fi
 
 			local setupFullCommand="" setupFullRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			setupFullCommand="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-full \
 				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" "${setupDeclareArgs[@]}" )" || setupFullRc=$?
 			echo ""

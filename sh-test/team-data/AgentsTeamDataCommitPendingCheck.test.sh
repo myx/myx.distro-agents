@@ -66,7 +66,11 @@ rigPending(){ ## store path
 }
 rigOp(){ ## store path, result file, member, extra args...
 	local opStore="$1" opOut="$2" ; shift 2
-	( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$opStore" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	## The op resolves the member a call acts as from the session (AgentsToolsActingMember), never from
+	## the word it is given, so the rig stands one up: without MDAT_SPAWN_AGENT every call here acts as
+	## whatever session runs this check, and the owner check refuses it before any commit.
+	( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u CLAUDE_CODE_SESSION_ID \
+		MDAT_SPAWN_AGENT="$1" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$opStore" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_WORKSPACE_MODE=team-rig \
 		bash "$rigFn" --commit-pending "$@" ) > "$opOut" 2> "$opOut.err"
 	printf '%s' "$?" > "$opOut.rc"

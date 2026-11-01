@@ -43,6 +43,7 @@ AgentsMagicCommsSlackListPaged(){
 		fi
 		listArgs+=( --context "$listContext (page $listIndex)" )
 		listRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		listBody="$( DistroAgentsTools --intern-op-slack-call "${listArgs[@]}" )" || listRc=$?
 		if [ "$listRc" != "0" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD: $listApi under the $listIdentity identity failed on page $listIndex. Pages 1..$(( listIndex - 1 )) are DISCARDED rather than returned: an inventory missing its tail reads as a workspace with fewer conversations than it has." >&2
@@ -127,7 +128,8 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 	fi
 
 	local token="" tokenSource
-	! AgentsToolsSlackOwnSettingsApply "$memberName" || token="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	! AgentsToolsSlackOwnSettingsApply "$memberName" || token="$( AgentsToolsConfigOption "$memberName" --select SLACK_USER_TOKEN )"
 	if [ -n "$token" ] ; then
 		tokenSource="member-user-token"
 	else
@@ -295,6 +297,7 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 		echo "⛔ ERROR: $MDSC_CMD --slack-conversations-roster: syntax is <team-member> [--identity user|bot|both] [--types <csv>]" >&2
 		set +e ; return 1
 	fi
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$memberName" "<team-member>" slack-conversations-roster || { set +e ; return 1 ; }
 
 	local rosterIdentities="user bot" rosterTypes="im,mpim"
@@ -333,7 +336,8 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 	## member with no user token has no user persona at all -- that is a
 	## configuration fact, reported as `no-token`, and it is NOT a failure.
 	local memberUserToken=""
-	memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$memberName" && DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )" || memberUserToken=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$memberName" && AgentsToolsConfigOption "$memberName" --select SLACK_USER_TOKEN )" || memberUserToken=""
 	local memberHasUserToken="false"
 	[ -z "$memberUserToken" ] || memberHasUserToken="true"
 	memberUserToken=""
@@ -346,6 +350,7 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 		fi
 
 		local rosterAuthResp="" rosterAuthRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		rosterAuthResp="$( DistroAgentsTools --intern-op-slack-call "$memberName" --api auth.test \
 			--identity "$rosterIdentity" \
 			--context "--slack-conversations-roster ($rosterIdentity identity)" )" || rosterAuthRc=$?
@@ -398,6 +403,7 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 		rosterCounterpartyIds="$( printf '%s\n' "$rosterLines" | LC_ALL=C awk -F '\t' '$4 != "" && !seen[$4]++ { print $4 }' )"
 		local rosterHandles="" rosterInfoId rosterInfoResp rosterInfoName
 		for rosterInfoId in $rosterCounterpartyIds ; do
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			rosterInfoResp="$( DistroAgentsTools --intern-op-slack-call "$memberName" --api users.info --identity "$rosterIdentity" \
 				--form "user=$rosterInfoId" --context "--slack-conversations-roster ($rosterIdentity identity, one counterparty)" )" || continue
 			rosterInfoName="$( printf '%s\n' "$rosterInfoResp" | LC_ALL=C awk -v path=user.name -v optional=1 \
@@ -526,6 +532,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-search --member "$actingMember" --context jira-issue-search --jql "$jqlQuery" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -551,6 +558,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-comment-read --member "$actingMember" --context jira-comment-read --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -585,6 +593,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-create --member "$actingMember" --context jira-issue-create "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -626,6 +635,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-update --member "$actingMember" --context jira-issue-update --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -667,6 +677,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-transition --member "$actingMember" --context jira-issue-transition --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -708,6 +719,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-comment-add --member "$actingMember" --context jira-comment-add --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -733,6 +745,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-delete --member "$actingMember" --context jira-issue-delete --issue-key "$issueKey" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -758,6 +771,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-search --member "$actingMember" --context confluence-page-search --cql "$cqlQuery" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -783,6 +797,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-comment-read --member "$actingMember" --context confluence-comment-read --page-id "$pageId" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -817,6 +832,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-create --member "$actingMember" --context confluence-page-create "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -858,6 +874,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$actingMember" --context confluence-page-update --page-id "$pageId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -899,6 +916,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-comment-add --member "$actingMember" --context confluence-comment-add --page-id "$pageId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -924,6 +942,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-delete --member "$actingMember" --context confluence-page-delete --page-id "$pageId" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0

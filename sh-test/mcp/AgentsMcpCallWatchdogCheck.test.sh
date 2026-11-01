@@ -74,16 +74,16 @@ printf 'rig\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.basic.md"
 
 ## The origin of the rig: the one this workspace resolves, with sh-lib copied so that the harness is the rig's.
 for rigEntry in "$rigSource"/* ; do
-	[ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigTmp/origin/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigTmp/origin/${rigEntry##*/}"
 done
 for rigEntry in "$rigSource"/myx/* ; do
-	[ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigTmp/origin/myx/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigTmp/origin/myx/${rigEntry##*/}"
 done
 for rigEntry in "$rigPackage"/* ; do
 	if [ "${rigEntry##*/}" = sh-lib ] ; then
 		cp -R "$rigEntry" "$rigTmp/origin/myx/myx.distro-agents/sh-lib" || rigRefuse "sh-lib could not be copied"
 	else
-		ln -s "$rigEntry" "$rigTmp/origin/myx/myx.distro-agents/${rigEntry##*/}"
+		rigCopyTree "$rigEntry" "$rigTmp/origin/myx/myx.distro-agents/${rigEntry##*/}"
 	fi
 done
 rigTool="$rigTmp/origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

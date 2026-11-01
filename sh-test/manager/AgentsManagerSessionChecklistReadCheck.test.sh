@@ -59,6 +59,15 @@ printf -- '- [x] read the brief\n- [ ] write the check (in progress: writing the
 printf -- '- [ ] the other member item\n' > "$rigSp/sess-c/magic-tester.checklist.md"
 printf -- '- [ ] this one is in the wrong place\n' > "$rigStores/sess-c/keeper-rig.checklist.md"
 printf -- '- [x] a list kept in the session folder\n' > "$rigStores/sess-d/magic-tester.checklist.md"
+## One sandbox whose folder is not named by its id, and one that holds a record named for an id whose own
+## spawn-id says otherwise. The first is a guard: the hand-rolled glob found it too. The second is the change:
+## the shared lookup rejects that record, so the session store is read where the hand-rolled search read the decoy.
+mkdir -p "$rigSp/moved-away" "$rigSp/decoy" "$rigStores/sess-e" "$rigStores/sess-m"
+printf -- '---\nsession-id: sess-m\nspawn-id: sess-m\nhost: rig-host\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-13 09:00 +0300\n---\n\n# Spawn session\n' > "$rigSp/moved-away/sess-m.spawn.md"
+printf -- '- [ ] the list of a sandbox folder not named by its id\n' > "$rigSp/moved-away/keeper-rig.checklist.md"
+printf -- '---\nsession-id: sess-e\nspawn-id: another-run\nhost: rig-host\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-13 09:00 +0300\n---\n\n# Spawn session\n' > "$rigSp/decoy/sess-e.spawn.md"
+printf -- '- [ ] the decoy folder is not this session\n' > "$rigSp/decoy/keeper-rig.checklist.md"
+printf -- '- [x] the list the session store keeps\n' > "$rigStores/sess-e/keeper-rig.checklist.md"
 rigBefore="$( rigTree )"
 
 echo "-- the lists --"
@@ -72,6 +81,10 @@ rigRun "$rigOp" --session-id sess-d keeper-rig
 rigAssert "a member that kept none gives nothing, and status 0" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -E 'ERROR|WARNING' "$rigTmp/err" | LC_ALL=C grep -c -v -F -e SystemContext.SetInputSpec | LC_ALL=C tr -d ' ' )" "0 0 0"
 rigRun "$rigOp" --session-id no-such-session keeper-rig
 rigAssert "so does a session nothing has run in" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" "0 0"
+rigRun "$rigOp" --session-id sess-m keeper-rig
+rigAssert "guard: a sandbox folder the id does not name is found by its record, as the hand-rolled glob found it too" "$rigRc $( cat "$rigTmp/out" )" "0 - [ ] the list of a sandbox folder not named by its id"
+rigRun "$rigOp" --session-id sess-e keeper-rig
+rigAssert "a record whose own spawn-id names another run is no record of this session, so the session store is read" "$rigRc $( cat "$rigTmp/out" )" "0 - [x] the list the session store keeps"
 
 echo "-- the refusals --"
 rigRun "$rigOp" keeper-rig
@@ -93,7 +106,7 @@ rigAssert "a name that is no bare name, as the member or as the session, is refu
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigOp" --session-id sess-c keeper-rig
 rigPre=()
-rigAssert "from inside a member's session it is refused, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
+rigAssert "from inside a member's session it is refused, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" "1 0 1"
 
 echo "-- it writes nothing --"
 rigAssert "no file of the rig workspace was changed, made or left behind by any call" "$( rigTree )" "$rigBefore"

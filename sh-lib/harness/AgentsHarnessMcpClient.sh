@@ -258,10 +258,14 @@ AgentsHarnessMcpReply(){ ## request id
 	[ -n "$harnessMcpReply" ]
 }
 
-## The three lines every exchange opens with; only the last request differs.
+## The three lines every exchange opens with; only the last request differs. The handshake names the session this run
+## serves, so a tool served through the server writes to that run's own store (owner 2026-10-31); a run that knows no
+## session sends the handshake it always sent.
 AgentsHarnessMcpHandshake(){
+	local handshakeSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	case "$handshakeSession" in ''|.|..|*/*|*[[:space:]]*) handshakeSession='' ;; esac
 	printf '%s\n' \
-		'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"AgentsUniversalHarness","version":"1"}}}' \
+		"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"AgentsUniversalHarness\",\"version\":\"1\"$( [ -z "$handshakeSession" ] || printf ',\"sessionId\":\"%s\"' "$handshakeSession" )}}}" \
 		'{"jsonrpc":"2.0","method":"notifications/initialized"}'
 }
 

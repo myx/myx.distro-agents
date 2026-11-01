@@ -146,7 +146,7 @@ cp "$rigTmp/second.out" "$rigStore/work-duty.rig-keeper.out" ; printf '1\n' > "$
 printf '%s\n' "⛔ ERROR: DistroAgentsTools: rig failure of another kind" > "$rigStore/work-duty.rig-other.out" ; printf '1\n' > "$rigStore/work-duty.rig-other.rc"
 printf 'ok\n' > "$rigStore/work-duty.rig-fine.out" ; printf '0\n' > "$rigStore/work-duty.rig-fine.rc"
 rigReport="$( env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-	bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include" ; AgentsToolsScheduleSpawnReport' 2>&1 )"
+	bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" ; AgentsToolsScheduleSpawnReport' 2>&1 )"
 rigAssert "a start the lock refused is not reported" "$( printf '%s\n' "$rigReport" | LC_ALL=C grep -c 'work-duty.rig-keeper' || : )" 0
 rigAssert "a start that failed otherwise still is, with its first error" "$( printf '%s\n' "$rigReport" | LC_ALL=C grep -c -F 'schedule: the start of work-duty.rig-other failed: ⛔ ERROR: DistroAgentsTools: rig failure of another kind' || : )" 1
 rigAssert "a start that went well is not" "$( printf '%s\n' "$rigReport" | LC_ALL=C grep -c 'rig-fine' || : )" 0

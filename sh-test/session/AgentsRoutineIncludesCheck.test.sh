@@ -31,7 +31,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigSkills="$rigTmp/skills" rigWs="$rigTmp/ws"
 mkdir -p "$rigSkills" "$rigWs/.local/.agents" "$rigTmp/home" "$rigSkills/rig-member"
-for rigMember in magic-coordinator magic-team magic-librarian magic-architect ; do ln -s "$rigTeamDir/$rigMember" "$rigSkills/$rigMember" ; done
+for rigMember in magic-coordinator magic-team magic-librarian magic-architect ; do rigCopyTree "$rigTeamDir/$rigMember" "$rigSkills/$rigMember" ; done
 
 rigPassCount=0
 rigFailCount=0

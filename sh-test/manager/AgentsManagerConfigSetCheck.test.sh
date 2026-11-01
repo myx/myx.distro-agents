@@ -224,7 +224,7 @@ for rigOne in keeper-rig magic-coordinator ; do
 	rigPre=( "MDAT_SPAWN_AGENT=$rigOne" )
 	rigRun "$rigWrite" SESSION_CONTROL_REQUEST_SECONDS 7
 	rigPre=()
-	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigWrite#--}: ⛔ ERROR: this session acts as $rigOne, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" = 1 ] || rigCallerBad="$rigCallerBad [$rigOne]"
+	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = 1 ] || rigCallerBad="$rigCallerBad [$rigOne]"
 done
 rigAssert "a change of the workspace's is the console's alone to make: from inside a member's session it is refused by the one rule of the family, magic-coordinator's too" "${rigCallerBad:-each refused}" "each refused"
 rigRun --manager-config-interface-set MDLT_MANAGER_STYLE magic

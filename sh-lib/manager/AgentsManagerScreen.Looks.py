@@ -408,6 +408,10 @@ MARK_OLD = "!"
 ## What a window says while it waits for its first rows, its name in it, in a pale look.
 ## One that was read and holds nothing, and one whose read failed, keep their own words.
 POPULATING = "Populating %s..."
+## The words of an answered view that holds no text of its own, where the item is one participant's
+## check list: named where the screen holds the member, and the one it says where it does not.
+CHECKLIST_NONE = "%s has no checklist in this session."
+CHECKLIST_NONE_UNNAMED = "This member has no checklist in this session."
 ## The narrow column at the right end of a row of the list, after its tail: what the row
 ## carries under "wide", a session the total of its tokens. Shown where a row has that
 ## many cells, and that many cells wide, its figures one under another.

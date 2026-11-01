@@ -42,13 +42,13 @@ rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx/mdci-packages-myx/setup.feature-lancedb/host/install" "$rigTmp/cwd"
 for rigEntry in "$MDLT_ORIGIN"/* "$MDLT_ORIGIN"/.[!.]* ; do
 	[ -e "$rigEntry" ] || continue
-	[ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigOrigin/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigOrigin/${rigEntry##*/}"
 done
 for rigEntry in "$MDLT_ORIGIN/myx"/* ; do
-	[ "${rigEntry##*/}" = mdci-packages-myx ] || ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = mdci-packages-myx ] || rigCopyTree "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}"
 done
 for rigEntry in "$MDLT_ORIGIN/myx/mdci-packages-myx"/* ; do
-	[ "${rigEntry##*/}" = setup.feature-lancedb ] || ln -s "$rigEntry" "$rigOrigin/myx/mdci-packages-myx/${rigEntry##*/}"
+	[ "${rigEntry##*/}" = setup.feature-lancedb ] || rigCopyTree "$rigEntry" "$rigOrigin/myx/mdci-packages-myx/${rigEntry##*/}"
 done
 rigFeature="$rigOrigin/myx/mdci-packages-myx/setup.feature-lancedb/host/install/feature-lancedb.install.txt"
 cp "$rigFixDir/knowledge-store-install.feature.stub.sh" "$rigFeature"

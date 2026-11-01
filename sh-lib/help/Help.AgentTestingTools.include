@@ -3,6 +3,7 @@
 
 ## The help of AgentTestingTools.fn.sh: any member's personal tool for a testing need. Every echo stays flush-left:
 ## --member-help cuts help files on a ^echo anchor.
+## Its syntax lines are echoed here, so `--help` and the console's help reader find them in one file.
 ##
 ## The default syntax is the one operation a reader starts from, in the shortest form that runs; the expanded options
 ## sit behind --help-syntax, the manual behind --help.

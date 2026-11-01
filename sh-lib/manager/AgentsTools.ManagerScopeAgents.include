@@ -29,7 +29,8 @@ AgentsToolsManagerScopeAgentsSources(){
 AgentsToolsManagerScopeAgentsCall(){ ## `read` or `write`, then the reader's arguments
 	local callHow="$1" ; shift
 	if [ "$callHow" = write ] ; then
-		DistroAgentsTools --agents-config-option "$scopeName" "$@"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		AgentsToolsConfigOption "$scopeName" "$@"
 	else
 		( set -- --agents-config-option "$scopeName" "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
 	fi

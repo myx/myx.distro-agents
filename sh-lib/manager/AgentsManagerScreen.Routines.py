@@ -252,6 +252,7 @@ ACTION_HANDLERS["routinehistory"] = askRoutineHistory
 
 registerPlugin({
     "name": "routines",
+    "apps": ("agents",),
     "mount": "magic-team",
     "root": {"id": "routines", "label": "Routines", "go": "~R~outines", "group": "team"},
     "focus": {"routines": "routinesStateFocus"},

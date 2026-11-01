@@ -338,6 +338,36 @@ AgentsHarnessReadGate(){ ## tool, path
 	return 1
 }
 
+## The working directory of a Bash call, decided as the file tools decide a path they read:
+## this run's roots, then the member's own live grants (AgentsHarnessFileGate). A standing Edit
+## or Write row opens it, as it opens a read, and so does a grant that lands after this run
+## started. A Bash row on it opens it too, which is what an answer to a refused cwd leaves.
+## The refusal names Bash, the tool the member is refused.
+AgentsHarnessCwdAllowed(){ ## cwd
+	local cwdGateRc=0 cwdPath
+	AgentsHarnessFileGate Read "$1" read || cwdGateRc=$?
+	case "$cwdGateRc" in
+		0) return 0 ;;
+		1) return 1 ;;
+	esac
+	cwdPath="${harnessResolvedPath:-$1}"
+	if AgentsHarnessGranted Bash "$cwdPath" ; then return 0 ; fi
+	AgentsHarnessRefusal Bash "$cwdPath" "ERROR: cwd not in the allowed access-root set: $1. Nothing was started.$( AgentsHarnessDeniedHint "$1" )"
+	return 1
+}
+
+## The same refusal, printed on stdout where it is refused and rc 0, and rc 1 where the cwd is
+## allowed: for the caller that decides a background call's cwd BEFORE the call becomes a task.
+## A task that returned its handle early would have started nothing, and said so only in its own
+## output, long after the member was told it was running.
+AgentsHarnessCwdRefusalText(){ ## cwd
+	local cwdTextCwd="$1" cwdText="" cwdTextRc=0
+	[ -n "$cwdTextCwd" ] || return 1
+	cwdText="$( AgentsHarnessCwdAllowed "$cwdTextCwd" )" || cwdTextRc=$?
+	[ "$cwdTextRc" -ne 0 ] || return 1
+	printf '%s' "$cwdText"
+}
+
 ## One writer per target at a time, through the package's one local lock primitive
 ## (sh-lib/magic/AgentsTools.LocalLock.include), keyed by the cksum of the resolved path.
 AgentsHarnessLockTake(){ ## resolved target

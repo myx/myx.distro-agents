@@ -260,9 +260,7 @@ AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset,
 		return 0
 	fi
 	if [ "$toolDetach" = "true" ] || [ "$toolDetach" = "1" ] || [ "$toolDetach" = "yes" ] ; then
-		if ! AgentsHarnessPathAllowed "$toolCwd" ; then
-			AgentsHarnessRefusal Bash "$toolCwd" "ERROR: cwd not in the allowed access-root set: $toolCwd. Nothing was started. Pass a cwd under one of: $( printf '%s\n' "$harnessRoots" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? ", " : "" ), $0 }' )" ; return 0
-		fi
+		if ! AgentsHarnessCwdAllowed "$toolCwd" ; then return 0 ; fi
 		toolCwd="$harnessResolvedPath"
 		if [ ! -d "$toolCwd" ] ; then
 			printf 'ERROR: no such directory: %s. Nothing was started.\n' "$toolCwd" ; return 0
@@ -332,9 +330,7 @@ AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset,
 			"$toolHandle" "$toolCommand" "$toolCwd" "${processDir#"$MMDAPP"/}/$toolHandle.out" "${processDir#"$MMDAPP"/}/$toolHandle.err" "$toolHandle" "$toolHandle" "$processReportNote"
 		return 0
 	fi
-	if ! AgentsHarnessPathAllowed "$toolCwd" ; then
-		AgentsHarnessRefusal Bash "$toolCwd" "ERROR: cwd not in the allowed access-root set: $toolCwd. Pass a cwd under one of: $( printf '%s\n' "$harnessRoots" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? ", " : "" ), $0 }' )" ; return 0
-	fi
+	if ! AgentsHarnessCwdAllowed "$toolCwd" ; then return 0 ; fi
 	toolCwd="$harnessResolvedPath"
 	if [ ! -d "$toolCwd" ] ; then
 		printf 'ERROR: no such directory: %s\n' "$toolCwd" ; return 0

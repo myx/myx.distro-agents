@@ -144,7 +144,7 @@ case "$1" in
 			AgentsToolsManagerSpawnMemberCheck "$spawnOp" "$spawnEach" || { set +e ; return 1 ; }
 			## A work-duty is one a member: where the member's duty runs already, no second is started.
 			if [ "$spawnKind" = "work-duty" ] ; then
-				type AgentsToolsScheduleWorkDutyRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include"
+				type AgentsToolsScheduleWorkDutyRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
 				if spawnDutyRecord="$( AgentsToolsScheduleWorkDutyRecord "$spawnEach" )" ; then
 					echo "⛔ ERROR: $MDSC_CMD $spawnOp: the work-duty of $spawnEach runs already (${spawnDutyRecord##*/}) -- nothing was started" >&2
 					set +e ; return 1
@@ -194,6 +194,7 @@ case "$1" in
 			spawnArgs+=( ${spawnRoutineArgs[@]+"${spawnRoutineArgs[@]}"} )
 			[ -z "$spawnName" ] || spawnArgs+=( --session-name-or-comment "$spawnName" )
 			[ -z "$spawnDescription" ] || spawnArgs+=( --description "$spawnDescription" )
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			spawnOut="$( printf '%s\n' "$spawnPrompt" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context "$spawnOp" )" || { set +e ; return 1 ; }
 			[ -n "$spawnSession" ] || spawnSession="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 			spawnItem="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "DISPATCH_ITEM" { print $2 ; exit ; }' )"

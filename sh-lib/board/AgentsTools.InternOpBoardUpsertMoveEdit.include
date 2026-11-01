@@ -34,7 +34,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## A state is a word of the one list (AgentsTools.BoardStates.include), and nothing else.
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+		type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
 		case "${toState//[[:space:]]/?}: $agentsBoardStates " in
 			"$toState:"*" $toState "*)
 			;;

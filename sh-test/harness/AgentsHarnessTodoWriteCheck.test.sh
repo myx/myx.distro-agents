@@ -88,6 +88,16 @@ rigEnv(){ ## caller -- runs the rest of the line in that caller's environment
 rigCall(){ ## caller, arguments JSON -- one served CheckList call, its result on stdout
 	printf '%s' "$2" | rigEnv "$1" "$BASH" "$rigHarness" --intern-tool CheckList 2>> "$rigTmp/stderr" | rigReplyBare
 }
+
+## One reader of sh-lib/harness/AgentsHarnessBatch.include, run in one of the rig's own callers with the two includes it reads and
+## the member that caller names: no harness process, and its whole output the assertion's.
+rigReader(){ ## caller, function
+	rigEnv "$1" "$BASH" -c '
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" || exit 1
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" || exit 1
+		harnessAgent="${MDAT_SPAWN_AGENT:-}"
+		"$1"' rigReader "$2"
+}
 rigFirst(){ ## text
 	printf '%s\n' "$1" | LC_ALL=C awk 'NR == 1 { print ; }'
 }
@@ -117,19 +127,22 @@ rigOtherPlace=".local/agents/spawned/rig-other"
 
 rigList1='[{"content":"Read the brief","status":"completed","activeForm":"Reading the brief"},{"content":"Write the check","status":"in_progress","activeForm":"Writing the check"},{"content":"Run the check","status":"pending","activeForm":"Running the check"}]'
 rigMd1='- [x] Read the brief
-- [ ] Write the check (in progress: Writing the check)
+- [~] Write the check (in progress: Writing the check)
 - [ ] Run the check'
 rigList2='[{"content":"Hand back","status":"in_progress","activeForm":"Handing back"}]'
-rigMd2='- [ ] Hand back (in progress: Handing back)'
+rigMd2='- [~] Hand back (in progress: Handing back)'
 rigList3='[{"content":"Fix the reader","status":"completed","activeForm":"Fixing the reader"},{"content":"Line one\nline two","status":"pending","activeForm":"Doing both lines"}]'
 rigMd3='- [x] Fix the reader
 - [ ] Line one line two'
 rigList4='[{"content":"Draw the boundary","status":"in_progress","activeForm":"Drawing the boundary"}]'
-rigMd4='- [ ] Draw the boundary (in progress: Drawing the boundary)'
+rigMd4='- [~] Draw the boundary (in progress: Drawing the boundary)'
 rigList5='[{"content":"Second run step","status":"pending","activeForm":"Stepping"}]'
 rigMd5='- [ ] Second run step'
 rigList6='[{"content":"Check the idiom","status":"completed","activeForm":"Checking the idiom"}]'
 rigMd6='- [x] Check the idiom'
+rigList7='[{"content":"Draft the plan","status":"pending","activeForm":"Drafting the plan"},{"content":"Write the check","status":"in_progress","activeForm":"Writing the check"}]'
+rigMd7='- [ ] Draft the plan
+- [~] Write the check (in progress: Writing the check)'
 
 echo "-- 1. a session a root session founded keeps its lists in the session folder --"
 rigOut="$( rigCall root '{"todos":'"$rigList1"'}' )"
@@ -321,6 +334,19 @@ rigAssert "with no team identity, the call refuses with the hint" \
 rigAssert "with no session, the search still finds it" "$( rigFound "$( rigSearch session= TodoWrite )" CheckList )" "found"
 rigAssert "with no session, the call refuses with the hint, not silence" \
 	"$( rigHolds "$( rigCall session= '{}' )" 'RootSession operation=mint' )" "yes"
+
+echo "-- 13. the list carries three states: pending, in progress, done --"
+rigCall tester '{"todos":'"$rigList7"'}' > /dev/null
+rigAssert "an item in progress is written with its own mark" "$( rigKept "$rigRootPlace/magic-tester.checklist.md" )" "$rigMd7"
+rigAssert "the open items are the pending ones, and not the item in progress" "$( rigReader tester AgentsHarnessCheckListOpenItems )" "- [ ] Draft the plan"
+rigAssert "the count is every item, the pending ones and the one in progress" "$( rigReader tester AgentsHarnessCheckListCounts )" "2 1 1"
+printf -- '%s\n' '- [ ] Draft the plan' '- [ ] Write the check (in progress: Writing the check)' > "$rigWs/$rigRootPlace/magic-tester.checklist.md"
+rigAssert "a line the writer wrote before the mark reads as in progress" "$( rigReader tester AgentsHarnessCheckListCounts )" "2 1 1"
+rigAssert "and it is not printed as an open item" "$( rigReader tester AgentsHarnessCheckListOpenItems )" "- [ ] Draft the plan"
+printf -- '%s\n' '- [ ] Hand back to the parent' '- [~] Hand back the result (in progress: Handing it back)' > "$rigWs/$rigRootPlace/magic-tester.checklist.md"
+rigReader tester AgentsHarnessCheckListCloseHandback > /dev/null
+rigAssert "the handback closes an item in either open mark" "$( rigKept "$rigRootPlace/magic-tester.checklist.md" )" '- [x] Hand back to the parent
+- [x] Hand back the result'
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CHECKLIST CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2

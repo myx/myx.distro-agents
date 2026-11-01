@@ -46,9 +46,9 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 [ -d "$rigOrigin/myx/myx.distro-system" ] || rigRefuse "myx.distro-system is not at the origin: $rigOrigin/myx/myx.distro-system"
 rigToolOrigin="$rigTmp/origin"
 mkdir -p "$rigToolOrigin/myx"
-ln -s "$rigPackage" "$rigToolOrigin/myx/myx.distro-agents"
-ln -s "$rigOrigin/myx/myx.distro-system" "$rigToolOrigin/myx/myx.distro-system"
-ln -s "$rigOrigin/myx/myx.distro-.local" "$rigToolOrigin/myx/myx.distro-.local"
+rigCopyTree "$rigPackage" "$rigToolOrigin/myx/myx.distro-agents"
+rigCopyTree "$rigOrigin/myx/myx.distro-system" "$rigToolOrigin/myx/myx.distro-system"
+rigCopyTree "$rigOrigin/myx/myx.distro-.local" "$rigToolOrigin/myx/myx.distro-.local"
 rigSourceStub="$rigToolOrigin/myx/myx.distro-source"
 mkdir -p "$rigSourceStub/sh-scripts" "$rigSourceStub/sh-lib/source-prepare"
 cat > "$rigSourceStub/sh-scripts/DistroSourceTools.fn.sh" <<'SH'
@@ -89,7 +89,7 @@ mkdir -p "$rigWs/.local/myx" "$rigWs/source" "$rigWs/.local/.agents" "$rigHome/.
 for rigPackageDir in "$rigOrigin"/myx/* ; do
 	[ -d "$rigPackageDir" ] || continue
 	[ "${rigPackageDir##*/}" = "myx.common" ] && continue
-	ln -s "$rigPackageDir" "$rigWs/.local/myx/${rigPackageDir##*/}" || rigRefuse "cannot link ${rigPackageDir##*/} into the rig workspace"
+	rigCopyTree "$rigPackageDir" "$rigWs/.local/myx/${rigPackageDir##*/}" || rigRefuse "cannot copy ${rigPackageDir##*/} into the rig workspace"
 done
 rigMcpRoot="$rigWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
 mkdir -p "$rigMcpRoot/bin/lib" "$rigMcpRoot/bin/setup" "$rigMcpRoot/include/data"

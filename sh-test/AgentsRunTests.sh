@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 ##
 ## AgentsRunTests.sh -- runs sh-test/*.test.sh and sh-test/*/*.test.sh in parallel (myx.common lib/parallel) and keeps
-## one log and one receipt per test in a run folder:
-##   $MMDAPP/.local/temp/mdat-tests/<UTC-stamp>/<test>.log      the test's whole output
+## one log and one receipt per test in a run folder, in the folder the run was started from: the
+## session's own output folder where a session runs it, the workspace's .local/temp otherwise:
+##   <that folder>/mdat-tests/<UTC-stamp>/<test>.log      the test's whole output
 ##     (<UTC-stamp>-<pid> for a run started in the same second as another)
-##   $MMDAPP/.local/temp/mdat-tests/<UTC-stamp>/<test>.receipt  rc, seconds, last line
-##   $MMDAPP/.local/temp/mdat-tests/<UTC-stamp>/summary.txt     PASS / FAIL per test, totals
-## and points $MMDAPP/.local/temp/mdat-tests/latest at it.
+##   <that folder>/mdat-tests/<UTC-stamp>/<test>.receipt  rc, seconds, last line
+##   <that folder>/mdat-tests/<UTC-stamp>/summary.txt     PASS / FAIL per test, totals
+## and points <that folder>/mdat-tests/latest at it.
 ##
 ## Usage: AgentsRunTests.sh [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
 ##        AgentsRunTests.sh --passed [<name-substring>...]
@@ -326,7 +327,11 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 ## Every run waits its turn, a run of named tests as the whole suite does (ONE RUN AT A TIME, above).
 AgentsRunQueueTurn
 
+## A run a session starts keeps its folder in that session's output folder, beside its own files, and a run
+## with no session keeps the workspace's .local/temp. The rule stands here as well as at the tooling's own
+## sites because a runner copied alone into a rig cannot reach sh-lib.
 runRoot="$MMDAPP/.local/temp/mdat-tests"
+[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || runRoot="$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests"
 runDir="$runRoot/$( date -u +%Y%m%dT%H%M%SZ )"
 ## A folder of its own: a run started in the same second as another takes its pid into the name,
 ## since two runs in one folder would each run the other's list and overwrite its logs.

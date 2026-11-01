@@ -25,6 +25,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-atlassian-jira-board-list --member "$actingMember" --context jira-board-list "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
@@ -42,6 +43,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-read: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-atlassian-jira-board-read --member "$actingMember" --context jira-board-read --board-id "$boardId" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
@@ -59,6 +61,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-issue-search: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-atlassian-jira-board-issue-search --member "$actingMember" --context jira-board-issue-search --board-id "$boardId" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
@@ -76,6 +79,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-list: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-atlassian-jira-sprint-list --member "$actingMember" --context jira-sprint-list --board-id "$boardId" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
@@ -93,6 +97,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: not accepted: $actingMember $sprintId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-atlassian-jira-sprint-issue-search --member "$actingMember" --context jira-sprint-issue-search --sprint-id "$sprintId" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0

@@ -24,6 +24,7 @@ rigMember="magic-tester"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to read under"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsPendingReplyCollectCheck.XXXXXX" )" || exit 1
@@ -40,7 +41,7 @@ chmod +x "$rigTmp/bin/"*
 ## one of its ids for a run of its own, and another copy of this check for its own. So the ps
 ## first on PATH answers the whole-host listing from the rig's own list, beside it, one
 ## `<pid> <command line>` line a process, and hands every other call to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 ## The parent's run, alive by the one rule a run is alive by: a line of the rig's own process list
 ## whose own --session-id is the parent's id. A route to a session goes to a member that runs there.

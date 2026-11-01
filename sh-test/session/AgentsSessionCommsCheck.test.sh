@@ -300,7 +300,7 @@ rigScene inject-start
 printf 'RIG-AUTO-BODY' | rigOp inject-start-1 --inject --session-id "$rigSession" --from keeper-rig
 rigWaited=0
 while [ "$rigWaited" -lt 40 ] && [ "$( rigBlocks )" != "1" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigDaemon4="$( readlink "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"
+rigDaemon4="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"
 [ -z "$rigDaemon4" ] || { rigProcNote "$rigDaemon4" ; rigStarted="$rigStarted $rigDaemon4" ; }
 rigAssert "an inject starts the reader where none lives, which sends the message" "$( LC_ALL=C grep -c -E 'the reader: (started|alive) ' "$rigDir/inject-start-1.err" ):$( rigBlocks ):$( rigBody 1 )" "1:1:RIG-AUTO-BODY"
 rigProcSignal TERM "${rigDaemon4:-0}"
@@ -375,8 +375,8 @@ rigDaemon="$( LC_ALL=C sed -n 's/^started \([0-9][0-9]*\)$/\1/p' "$rigDir/proc-s
 rigAssert "a start says it started a process"                          "$( [ -n "$rigDaemon" ] && printf started )" started
 [ -z "$rigDaemon" ] || { rigProcNote "$rigDaemon" ; rigStarted="$rigStarted $rigDaemon" ; }
 rigWaited=0
-while [ "$rigWaited" -lt 20 ] && [ ! -L "$rigDir/ws/.local/agents/comms/lock" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "the lock names it: its pid, and when it began"              "$( readlink "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' ):$( readlink "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
+while [ "$rigWaited" -lt 20 ] && [ ! -e "$rigDir/ws/.local/agents/comms/lock" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
+rigAssert "the lock names it: its pid, and when it began"              "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk 'NF == 2 { print "two" }' )" "${rigDaemon:-none}:two"
 rigAssert "it shows in the process list as its operation, a process of its own" "$( LC_ALL=C ps -ww -o args= -p "${rigDaemon:-0}" 2> /dev/null | LC_ALL=C grep -c -F -e '--intern-session-comms --run' )" 1
 rigAssert "it is no run of any session, by the rule that tells a run"   "$( cd "$rigDir/ws" && MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/team-data/AgentsTools.Registries.include' ; ps -ww -o pid=,args= -p ${rigDaemon:-0} | AgentsToolsRegistryRunWords | wc -l | tr -d ' '" )" 0
 rigOp proc-again --start < /dev/null
@@ -392,16 +392,16 @@ rigAssert "and what the thread says while it runs"                     "$( rigBl
 rigAssert "its log says it started"                                    "$( LC_ALL=C grep -c 'the communications reader' "$rigDir/ws/.local/agents/comms/log" 2> /dev/null | LC_ALL=C awk '{ print ( $1 > 0 ) ? "yes" : "no" }' )" yes
 rigProcSignal TERM "${rigDaemon:-0}"
 rigWaited=0
-while [ "$rigWaited" -lt 30 ] && [ -L "$rigDir/ws/.local/agents/comms/lock" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "TERM ends it in order: its lock is given back"              "$( [ -L "$rigDir/ws/.local/agents/comms/lock" ] && printf held || printf given )" given
+while [ "$rigWaited" -lt 30 ] && [ -e "$rigDir/ws/.local/agents/comms/lock" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
+rigAssert "TERM ends it in order: its lock is given back"              "$( [ -e "$rigDir/ws/.local/agents/comms/lock" ] && printf held || printf given )" given
 rigAssert "and the process is gone"                                    "$( rigProcStill "${rigDaemon:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 ln -s "999999 Mon_Jan__1_00:00:00_2001" "$rigDir/ws/.local/agents/comms/lock"
 rigOp proc-take --start < /dev/null
 rigDaemon2="$( LC_ALL=C sed -n 's/^started \([0-9][0-9]*\)$/\1/p' "$rigDir/proc-take.out" | head -1 )"
 [ -z "$rigDaemon2" ] || { rigProcNote "$rigDaemon2" ; rigStarted="$rigStarted $rigDaemon2" ; }
 rigWaited=0
-while [ "$rigWaited" -lt 20 ] && [ "$( readlink "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" != "${rigDaemon2:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "a lock whose holder is gone is taken over"                  "$( readlink "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" "${rigDaemon2:-none}"
+while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" != "${rigDaemon2:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
+rigAssert "a lock whose holder is gone is taken over"                  "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" "${rigDaemon2:-none}"
 rigProcSignal TERM "${rigDaemon2:-0}"
 rigScene idle
 rigOpEnv="MDAT_COMMS_IDLE_SECONDS=3"
@@ -411,7 +411,7 @@ rigDaemon3="$( LC_ALL=C sed -n 's/^started \([0-9][0-9]*\)$/\1/p' "$rigDir/idle-
 [ -z "$rigDaemon3" ] || { rigProcNote "$rigDaemon3" ; rigStarted="$rigStarted $rigDaemon3" ; }
 rigWaited=0
 while [ "$rigWaited" -lt 40 ] && [ -n "$( rigProcStill "${rigDaemon3:-0}" )" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
-rigAssert "with no live session for the time set, it ends by itself, and gives its lock back" "$( rigProcStill "${rigDaemon3:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( [ -L "$rigDir/ws/.local/agents/comms/lock" ] && printf held || printf given )" "0:given"
+rigAssert "with no live session for the time set, it ends by itself, and gives its lock back" "$( rigProcStill "${rigDaemon3:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( [ -e "$rigDir/ws/.local/agents/comms/lock" ] && printf held || printf given )" "0:given"
 rigAssert "and says why in its log"                                    "$( LC_ALL=C grep -c 'no live session' "$rigDir/ws/.local/agents/comms/log" 2> /dev/null )" 1
 rigOp mode-none < /dev/null
 rigAssert "no mode: a usage, and a failure"                            "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c -F -e '--run' "$rigDir/mode-none.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "usage" : "none" }' )" "failed:usage"

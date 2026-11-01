@@ -3,7 +3,7 @@
 ## stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh)
 ## that notes each start and prints the fixture: the rows `--manager-feature-list` and `--manager-feature-part` print.
 ## Held:
-##   1. `Optional Features` stands in `Installed Subsystems`, and entered lists each feature with its parts, their state and size, and under each the commands the tooling gave it (Install, Update,
+##   1. `Optional Features` is a root of its own, in the setup group, and entered lists each feature with its parts, their state and size, and under each the commands the tooling gave it (Install, Update,
 ##      Uninstall), in the order of the operation: the screen keeps no table of the parts of a feature
 ##   2. Enter on a command asks the plan first (`--manager-feature-part <action> <feature> <part>`, no `--yes`), shows it in the dialog, and runs nothing until Run is pressed; Cancel runs nothing;
 ##      Run runs the same operation with `--yes` and no other word; a plan the operation says is blocked is shown as blocked and Run does nothing
@@ -108,13 +108,10 @@ rigType(){ ## text -- the keys that type it, one a character
 	printf '%s' "$typeKeys"
 }
 
-echo "-- 1. Optional Features stands in Installed Subsystems, and lists the features, their parts and their commands --"
+echo "-- 1. Optional Features is a root, and lists the features, their parts and their commands --"
 rigCase list
 rigScript <<'RIGSCRIPT'
-at @subsystems
-turn
-rowids folder
-at @subsystems features
+at @features
 turn
 wait list 30
 turn
@@ -122,7 +119,6 @@ get in
 rowids ids
 show s
 RIGSCRIPT
-rigAssert "Installed Subsystems holds the row of Optional Features" "$( rigVal folder | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x features )" "1"
 rigAssert "the list is asked once of the operation of the features, and of nothing else of theirs" "$( rigCalled --manager-feature-list ) $( LC_ALL=C grep -c -F -e 'feature-part' -e 'feature-ask' "$MANAGER_SCREEN_RIG/calls" || : )" "1 0"
 rigAssert "each feature, its parts and the commands the tooling gave: in the order of the operation" "$( rigVal ids )" ".. $rigLance $rigLance:install $rigAi $rigAi/stt-whisper-small-q5_1 $rigAi/stt-whisper-small-q5_1:update $rigAi/stt-whisper-small-q5_1:uninstall $rigAi/qwen3-4b-q4_k_m $rigAi/qwen3-4b-q4_k_m:update $rigAi/qwen3-4b-q4_k_m:uninstall $rigAi/qwen3-8b-q4_k_m $rigAi/qwen3-8b-q4_k_m:install"
 rigAssert "the folder as a table: the state, the size on disk and the memory of the parts, as the operation gave them" "$( rigHolds s 'qwen3-4b-q4_k_m         installed      2.3G    2.7G    yes' ) $( rigHolds s 'setup.feature-lancedb   not installed  -       -       -' ) $( rigHolds s 'qwen3-8b-q4_k_m         not installed  0B      5.5G    no' )" "1 1 1"
@@ -130,7 +126,7 @@ rigAssert "the folder as a table: the state, the size on disk and the memory of 
 echo "-- 2. a command asks the plan first, and runs nothing until Run --"
 rigCase plan
 rigScript <<'RIGSCRIPT'
-at @subsystems features
+at @features
 turn
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
@@ -150,7 +146,7 @@ rigAssert "Enter reads the plan of the operation, without --yes, and shows it: w
 rigAssert "Esc closes it and nothing was run: the operation was never called with --yes" "[$( rigVal esc.dialog )] $( LC_ALL=C grep -c -F -e '--yes' "$MANAGER_SCREEN_RIG/calls" || : )" "[] 0"
 rigCase run
 rigScript <<'RIGSCRIPT'
-at @subsystems features
+at @features
 turn
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
@@ -167,7 +163,7 @@ RIGSCRIPT
 rigAssert "Run runs the same operation with --yes and no other word, in the output dialog titled by the command" "$( rigVal ran.dialogTitle ) $( rigCalled "--manager-feature-part install $rigAi qwen3-8b-q4_k_m --yes" )" "Install qwen3-8b-q4_k_m 1"
 rigCase blocked
 rigScript <<'RIGSCRIPT'
-at @subsystems features
+at @features
 turn
 wait list 30
 keys DOWN DOWN
@@ -288,7 +284,7 @@ rigAssert "Voice test with no file: the operation is called with no word after i
 echo "-- the agreed set: the plan first, the run only when it is shown, fits and is confirmed --"
 rigCase set
 rigScript <<'RIGSCRIPT'
-at @subsystems features
+at @features
 turn
 wait list 30
 keys i
@@ -304,7 +300,7 @@ rigAssert "i asks the operation for the plan of the host's profile, without --ye
 rigAssert "Esc closes it and nothing was installed" "[$( rigVal esc.dialog )] $( LC_ALL=C grep -c -F -e '--yes' "$MANAGER_SCREEN_RIG/calls" || : )" "[] 0"
 rigCase setrun
 rigScript <<'RIGSCRIPT'
-at @subsystems features
+at @features
 turn
 wait list 30
 keys i
@@ -321,7 +317,7 @@ RIGSCRIPT
 rigAssert "Install runs the same operation with --yes, once, in the output dialog, which shows the rows the operation printed" "$( rigCalled '--manager-feature-models --yes' ) $( rigVal ran.dialogTitle ) $( rigBoxHas e 'result' ) $( rigBoxHas e 'end' )" "1 Install the agreed set 1 1"
 rigCase setblocked
 rigScript <<'RIGSCRIPT'
-at @subsystems features
+at @features
 turn
 wait list 30
 keys i

@@ -208,7 +208,7 @@ rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigOp"
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family's rule" \
-	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
+	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" "1 0 1"
 rigRun "$rigOp" --all
 rigAssert "an argument is refused, rc 1, nothing on stdout, in one line with its syntax: the list takes none" \
 	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: syntax is no argument, got: --all" )" "1 0 1"

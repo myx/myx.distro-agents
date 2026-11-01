@@ -56,7 +56,8 @@ case "$1" in
 
 		local repoRoot="" originUrl="" gitOut="" gitRc=0
 		set +e
-		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
 		set -e
 		if [ -z "$repoRoot" ] ; then
@@ -161,9 +162,18 @@ case "$1" in
 			"${MYXROOT:-}/bin/git/cloneSync.Common" "$repoRoot" "$originUrl" "$headBranch" >&2
 		syncRc=$?
 		## The pull met a conflict: it is settled and committed, and the sync runs again, so the push goes out (AgentsToolsTeamDataMergeSettle).
-		if [ "$syncRc" -ne 0 ] && [ -e "$gitDir/MERGE_HEAD" ] ; then
+		## cloneSync aborts a merge it cannot settle and leaves no MERGE_HEAD behind, so the conflict is taken again here, by
+		## our own merge of origin's branch, which the settling engine can work. A merge that comes in clean is committed
+		## too: either way the sync below runs on a store with nothing left open.
+		if [ "$syncRc" -ne 0 ] ; then
 			type AgentsToolsTeamDataMergeSettle > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			if AgentsToolsTeamDataMergeSettle "--commit-pending" ; then
+			git -C "$repoRoot" fetch -q origin "+refs/heads/$headBranch:refs/remotes/origin/$headBranch" > /dev/null 2>&1 || :
+			git -C "$repoRoot" merge --no-commit --no-ff "refs/remotes/origin/$headBranch" > /dev/null 2>&1 || :
+			AgentsToolsTeamDataMergeSettle "--commit-pending" || :
+			if [ -e "$gitDir/MERGE_HEAD" ] && [ -z "$( git -C "$repoRoot" diff --name-only --diff-filter=U 2>/dev/null )" ] ; then
+				git -C "$repoRoot" commit -q -m "* team-data merge committed by the tooling, no conflict in it" > /dev/null 2>&1 || :
+			fi
+			if [ ! -e "$gitDir/MERGE_HEAD" ] ; then
 				GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false \
 					"${MYXROOT:-}/bin/git/cloneSync.Common" "$repoRoot" "$originUrl" "$headBranch" >&2
 				syncRc=$?

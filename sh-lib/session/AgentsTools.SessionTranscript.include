@@ -312,20 +312,23 @@ AgentsTranscriptSetItem(){ ## session id, item file name
 	return 0
 }
 
-## A milestone: the tokens header brought up to date, then every transcript part
-## committed. Nothing changed is no commit; a failure warns and goes on.
+## A milestone: the line the console reads, written whatever the run keeps of a transcript, then the tokens header brought up to date
+## and every transcript part committed. Nothing changed is no commit; a failure warns and goes on.
 AgentsTranscriptMilestone(){ ## session id, reason
 	local milestoneSession="$1" milestoneReason="$2" milestoneDir milestoneRoot="" milestonePart milestoneParts=()
 	## The commit helper names its caller by this; a harness process has none of its own.
 	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}"
 	milestoneDir="$( AgentsTranscriptSessionDir "$milestoneSession" )" || return 0
+	## THE LINE IS WRITTEN BEFORE ANY TRANSCRIPT IS ASKED FOR (owner 2026-10-31): a run idle in a Wait or an ask is read
+	## from these lines alone, and a run whose harness keeps no transcript has no other record that it waits.
+	mkdir -p "$milestoneDir" 2>/dev/null || :
+	printf '%s %s\n' "$( AgentsTranscriptStamp )" "$milestoneReason" >> "$milestoneDir/milestones" 2>/dev/null || return 0
 	[ -s "$milestoneDir/transcript" ] || return 0
 	[ ! -s "$milestoneDir/data-root" ] || IFS= read -r milestoneRoot < "$milestoneDir/data-root" || :
 	[ -n "$milestoneRoot" ] || milestoneRoot="${MDAT_DATA_ROOT:-}"
 	[ -n "$milestoneRoot" ] || return 0
 	## A harness session whose context is kept: its model rounds, from that log, first.
 	AgentsTranscriptContextRender "$milestoneSession" || :
-	printf '%s %s\n' "$( AgentsTranscriptStamp )" "$milestoneReason" >> "$milestoneDir/milestones" 2>/dev/null || :
 	MDAT_DATA_ROOT="$milestoneRoot" AgentsSessionTokensHeaderUpdate "$milestoneSession" || :
 	while IFS= read -r milestonePart ; do
 		[ -z "$milestonePart" ] || milestoneParts+=( "$milestonePart" )
@@ -336,11 +339,12 @@ AgentsTranscriptMilestone(){ ## session id, reason
 	return 0
 }
 
-## Called before a tool runs: starts its clock, and a Wait about to block is a milestone.
+## Called before a tool runs: starts its clock, and a tool about to block on a person is a milestone.
 AgentsTranscriptToolStart(){ ## tool name
 	agentsTranscriptT0="$( AgentsTranscriptNowMs )"
 	case "$( AgentsTranscriptBaseTool "$1" )" in
 		Wait) AgentsTranscriptMilestone "$( AgentsTranscriptSessionKey )" "wait going idle" ;;
+		AskUserQuestion|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove) AgentsTranscriptMilestone "$( AgentsTranscriptSessionKey )" "ask going idle" ;;
 	esac
 	return 0
 }
@@ -365,6 +369,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	if [ "$doneSource" = "loop" ] && [ -n "${agentsTranscriptFromLog:-}" ] ; then
 		case "$doneBase:$doneOutcome" in
 			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok|AskQuestion:ok|ConfirmReadback:ok|EscalateDecision:ok|RequestPermission:ok|ProposeApprove:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
+			AskUserQuestion:*|AskQuestion:*|ConfirmReadback:*|EscalateDecision:*|RequestPermission:*|ProposeApprove:*) AgentsTranscriptMilestone "$doneSession" "ask ended" ;;
 			SubagentHandback:ok) AgentsTranscriptMilestone "$doneSession" "handback" ;;
 			Wait:*) case "$doneFirst" in 'WAIT-RESULT: DISMISSED'*) AgentsTranscriptMilestone "$doneSession" "dismissed" ;; esac ;;
 		esac
@@ -434,7 +439,8 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 			AgentsTranscriptEvent "$doneSession" ASK "$( AgentsTranscriptJsonField "$doneArgs" question )" 4096 \
 				to "$( AgentsTranscriptJsonField "$doneArgs" to )" kind "$doneKind"
 			AgentsTranscriptEvent "$doneSession" ANSWER "$doneResult" 4096
-			[ "$doneOutcome" != "ok" ] || AgentsTranscriptMilestone "$doneSession" "message out"
+			## The end of the block, whatever came of it: nothing waits on an ask that is over.
+			if [ "$doneOutcome" != "ok" ] ; then AgentsTranscriptMilestone "$doneSession" "ask ended" ; else AgentsTranscriptMilestone "$doneSession" "message out" ; fi
 		;;
 		Agent)
 			AgentsTranscriptEvent "$doneSession" SPAWN "$doneResult" 1024 agent "$( AgentsTranscriptJsonField "$doneArgs" agent )"

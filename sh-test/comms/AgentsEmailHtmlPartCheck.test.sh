@@ -81,18 +81,18 @@ rigCount(){
 ## not trailing argv, so a fence's embedded newlines survive intact, same
 ## reasoning as AgentsSlackBareUrlLinkCheck.test.sh's rigSendStdin.
 ## An optional fourth argument sets --format explicitly.
-rigSend(){ ## recipient subject [format]
-	local recipient="$1" subject="$2" fmt="${3:-}"
+rigSend(){ ## recipient subject [format] [origin] -- the origin names the tooling tree it runs from, this workspace's by default
+	local recipient="$1" subject="$2" fmt="${3:-}" origin="${4:-$MDLT_ORIGIN}"
 	local out=""
 	if [ -z "$fmt" ] ; then
-		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
-			MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-			bash "$rigTool" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin 2>"$rigTmp/stderr" )" \
+		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT MDAT_TEAM_MEMBER=keeper-myx RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
+			MMDAPP="$rigWs" MDLT_ORIGIN="$origin" \
+			bash "$origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin 2>"$rigTmp/stderr" )" \
 			|| { printf 'send-failed: %s' "$( grep ERROR "$rigTmp/stderr" | head -1 )" ; return 0 ; }
 	else
-		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
-			MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-			bash "$rigTool" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin --format "$fmt" 2>"$rigTmp/stderr" )" \
+		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT MDAT_TEAM_MEMBER=keeper-myx RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
+			MMDAPP="$rigWs" MDLT_ORIGIN="$origin" \
+			bash "$origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin --format "$fmt" 2>"$rigTmp/stderr" )" \
 			|| { printf 'send-failed: %s' "$( grep ERROR "$rigTmp/stderr" | head -1 )" ; return 0 ; }
 	fi
 	printf '%s' "$out"
@@ -174,6 +174,15 @@ rigAssert "bold markdown renders without passing --format at all" \
 rigAssert "a code span renders too, same default" \
 	"$( rigHas "$rigMsg" '<code>a code span</code>' )" yes
 
+echo "-- a send that names --format markdown renders its plain part too, never mails the marks --"
+rigMsg="$( printf '%s\n' 'A **bold** word and `a code span`.' | rigSend 'test@example.com' 'Explicit markdown case' 'markdown' )"
+rigAssert "explicit markdown: the plain part carries the words, not the Markdown marks" \
+	"$( rigHas "$rigMsg" '**bold**' )" no
+rigAssert "...a code span keeps the backticks the console shows it with, its rendering and not raw Markdown" \
+	"$( rigHas "$rigMsg" 'bold word and `a code span`.' )" yes
+rigAssert "...while the html part is the rendered one, as the default's is" \
+	"$( rigHas "$rigMsg" '<strong>bold</strong>' )" yes
+
 echo "-- format=text has no markdown constructs, escaping and linkifying only --"
 rigMsg="$( printf '%s\n' 'A `code` span and myx@meloscope.com here.' | rigSend 'test@example.com' 'Text format case' 'text' )"
 rigAssert "format=text never opens a code span" \
@@ -182,6 +191,34 @@ rigAssert "format=text still bolds a bare address" \
 	"$( rigHas "$rigMsg" '<b style="color:#0000EE">myx@meloscope.com</b>' )" yes
 rigAssert "format=text never makes the address a mailto link" \
 	"$( rigHas "$rigMsg" 'mailto:' )" no
+
+echo "-- no document renderer on this machine: the mail still goes, its html part escaped and linkified only --"
+## A rig origin whose myx.distro-.local carries no sh-lib/markdown/LocalMarkdownHtmlDocument.awk. Every other package, and every other
+## file of that one, is a real copy of the origin's: the tool runs as it always does and only that renderer is gone.
+rigOriginNoHtml="$rigTmp/origin-no-html"
+mkdir -p "$rigOriginNoHtml/myx/myx.distro-.local/sh-lib"
+for rigSibling in "$MDLT_ORIGIN/myx"/* ; do
+	case "${rigSibling##*/}" in myx.distro-.local) continue ;; esac
+	rigCopyTree "$rigSibling" "$rigOriginNoHtml/myx/${rigSibling##*/}" || rigRefuse "the rig origin could not be copied: ${rigSibling##*/}"
+done
+for rigEntry in "$MDLT_ORIGIN/myx/myx.distro-.local"/* ; do
+	case "${rigEntry##*/}" in sh-lib) continue ;; esac
+	rigCopyTree "$rigEntry" "$rigOriginNoHtml/myx/myx.distro-.local/${rigEntry##*/}" || rigRefuse "the rig origin could not be copied: ${rigEntry##*/}"
+done
+for rigEntry in "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib"/* ; do
+	case "${rigEntry##*/}" in markdown) continue ;; esac
+	rigCopyTree "$rigEntry" "$rigOriginNoHtml/myx/myx.distro-.local/sh-lib/${rigEntry##*/}" || rigRefuse "the rig origin could not be copied: ${rigEntry##*/}"
+done
+[ ! -e "$rigOriginNoHtml/myx/myx.distro-.local/sh-lib/markdown/LocalMarkdownHtmlDocument.awk" ] \
+	|| rigRefuse "the document renderer is still reachable in the rig origin, so nothing below would be measured"
+rigMsg="$( printf '%s\n' 'A **bold** word.' | rigSend 'test@example.com' 'No renderer case' 'markdown' "$rigOriginNoHtml" )"
+rigAssert "the mail is built and still carries both parts" \
+	"$( [ "$( rigHas "$rigMsg" 'MIME-Version: 1.0' ) $( rigHas "$rigMsg" 'multipart/alternative' )" = "yes yes" ] && printf yes || printf no )" yes
+rigAssert "...its plain part rendered as the console renders it" "$( rigHas "$rigMsg" 'A bold word.' )" yes
+rigAssert "...and its html part escaped and linkified only, the emphasis never rendered" "$( rigHas "$rigMsg" '<strong>' )" no
+rigAssert "...the body still there, its Markdown marks untouched in that part" "$( rigHas "$rigMsg" 'A **bold** word.' )" yes
+rigAssert "...and one line saying the renderer was not there" \
+	"$( LC_ALL=C grep -c 'no document renderer answered on this machine' "$rigTmp/stderr" )" 1
 
 if [ -s "$rigTmp/curl-calls" ] ; then
 	rigRefuse "curl was invoked during an offline check: $( cat "$rigTmp/curl-calls" )"

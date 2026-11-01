@@ -73,7 +73,7 @@ printf 'keeper-install\t%s\t.local-symlink\trig/skillset/keeper-install\t%s\n' "
 printf 'The guide of the rig.\n' > "$rigWs/docs/guide.md"
 rigHereOrig="$( cat "$rigHere" ; printf x )" ; rigHereOrig="${rigHereOrig%x}"
 ## the rig's own process list: a session runs while a stand-in process is listed under its id
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" ; : > "$rigTmp/ps.list"
+rigRealTool ps "$rigTmp/bin/ps.real" ; : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
 case " $* " in

@@ -86,6 +86,7 @@ case "$1" in
 		done
 
 		local phaseAOutput
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state review --state blocked \
 			--header communication-channel-id \
@@ -178,6 +179,7 @@ case "$1" in
 			AgentsToolsMagicSweepAccountOne(){ ## team | client <member>
 				local accountStatus=0
 				if [ "$1" = "team" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" \
 						--do-inbox-inquiry-active --do-inbox-reflections \
 						--do-inbox-notes --do-inbox-other \
@@ -197,6 +199,7 @@ case "$1" in
 				## sweep-state record, the default window only when it has none).
 				## SWEPT AS THAT CLIENT. The scan reads one client's own accounts, and this pass is the
 				## coordinator's: it runs the scan as the client named, for the one call.
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				( local -x MDAT_SPAWN_AGENT="$2" ; DistroAgentsTools --intern-op-client-sweep-input-scan "$2" ) \
 					> "$clientSweepDir/$2.document" || accountStatus=$?
 				printf '%s\n' "$accountStatus" > "$clientSweepDir/$2.status"

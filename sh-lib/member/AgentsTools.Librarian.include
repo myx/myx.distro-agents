@@ -144,6 +144,7 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-board-trash "$callingMember" "$fromInboxArg" "$itemName" \
 				${trashOnly[@]+"${trashOnly[@]}"} --context --librarian-inbox-item-trash
 			return $?
@@ -184,6 +185,7 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-inbox-to-processed "$callingMember" "$itemName" \
 				--context --librarian-inbox-to-processed \
 				"${passthrough[@]}"

@@ -34,14 +34,16 @@ AgentsToolsResolveTelegramBotToken(){ ## member
 		return 0
 	fi
 	if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] && AgentsToolsCommsOwnSettingsApply "$memberName" ; then
-		resolvedToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TELEGRAM_BOT_TOKEN 2> /dev/null )" || resolvedToken=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		resolvedToken="$( AgentsToolsConfigOption "$memberName" --select TELEGRAM_BOT_TOKEN 2> /dev/null )" || resolvedToken=""
 		if [ -n "$resolvedToken" ] ; then
 			printf 'member-bot-token %s\n' "$resolvedToken"
 			return 0
 		fi
 	fi
 	! AgentsToolsCommsClientSide "$memberName" || return 1
-	resolvedToken="$( DistroAgentsTools --agents-config-option magic-team --select TELEGRAM_BOT_TOKEN 2> /dev/null )" || resolvedToken=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	resolvedToken="$( AgentsToolsConfigOption magic-team --select TELEGRAM_BOT_TOKEN 2> /dev/null )" || resolvedToken=""
 	[ -n "$resolvedToken" ] || return 1
 	printf 'shared-bot-token %s\n' "$resolvedToken"
 }

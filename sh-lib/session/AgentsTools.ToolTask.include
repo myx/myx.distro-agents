@@ -58,11 +58,11 @@ AgentsToolsTaskMessagePending(){ ## session, member
 	[ -n "$pendingText" ]
 }
 
-## The handle a returned task owns: a link named for it, made exclusively, so no start can take a name a Bash detach holds.
+## The handle a returned task owns: a file named for it, made exclusively, so no start can take a name a Bash detach holds.
 AgentsToolsTaskClaim(){ ## processes dir, hidden folder name
 	local claimNumber=1
 	while [ "$claimNumber" -le 9999 ] ; do
-		if ln -s "$2/out" "$1/process-$claimNumber.out" 2> /dev/null ; then
+		if ( set -C ; printf '%s' "$2/out" > "$1/process-$claimNumber.out" ) 2> /dev/null ; then
 			printf 'process-%s' "$claimNumber"
 			return 0
 		fi

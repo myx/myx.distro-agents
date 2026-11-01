@@ -173,6 +173,7 @@ def launchpadFocus(state, row):
 
 registerPlugin({
     "name": "launch",
+    "apps": ("agents",),
     "mount": "magic-team",
     "root": {"id": "launch", "label": "Launchpad", "go": "~L~aunchpad", "group": "team", "spaceAfter": True},
     ## The rows a level always holds, ahead of the rows its operation gives: a start of each kind that is no routine's.

@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
-
 ##
 ## AgentsTools.MemberCommsSlackProfile.include -- --slack-profile-*.
 ## Sourced lazily from AgentsTools.MemberCommsSlack.include's own case; relies
 ## on being dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism:
 ## myx.distro-agents/MAGIC.md.
 ##
-
 ## One field emitter for both ops. Own copy rather than the file-info one:
 ## that emitter names files.info in its own failure message.
 AgentsToolsCommsSlackProfileEmitField(){
@@ -40,32 +38,27 @@ AgentsToolsCommsSlackProfileEmitField(){
 	echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: the field reader could not parse the response body while reading '$profileEmitPath' (rc=$profileEmitRc -- 1: the body is not a parseable Slack API response, 2: no key path was given). Nothing about this facet is known from this call, and the fields printed before this line are NOT a complete set." >&2
 	return 1
 }
-
 ## One call site for all four Slack methods these two ops reach. Response on
 ## stdout, the op's own diagnostic passed through on stderr.
 AgentsToolsCommsSlackProfileCall(){
 	local profileCallOp="$1" profileCallFacet="$2" profileCallLabel="$3"
 	shift 3
-
 	## The op's own diagnostic goes straight to stderr rather than through a
 	## capture: it was only ever re-emitted there, and ACTING_IDENTITY= is
 	## already on the line the message below points the reader at.
 	echo "# $MDSC_CMD $profileCallOp: $profileCallLabel" >&2
 	local profileCallResponse="" profileCallRc=0
-	profileCallResponse="$( DistroAgentsTools --intern-op-slack-call "$@" )" || profileCallRc=$?
-
+	type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+	profileCallResponse="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$@" )" || profileCallRc=$?
 	if [ "$profileCallRc" != "0" ] ; then
 		local profileCallIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
 		echo "⛔ ERROR: $MDSC_CMD $profileCallOp: the '$profileCallFacet' facet did NOT complete under $profileCallIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This facet's state is UNKNOWN from this call, not known-unchanged. Nothing was rolled back and no retry under another identity was attempted; any other facet reported applied really was applied." >&2
 		set +e ; return 1
 	fi
-
 	printf '%s\n' "$profileCallResponse"
 	return 0
 }
-
 case "$1" in
-
 	--intern-op-comms-slack-profile-set)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
@@ -93,7 +86,6 @@ case "$1" in
 				fi
 			;;
 		esac
-
 		local profileFieldCount=0
 		local profileDisplayNameGiven="false" profileDisplayName=""
 		local profileTitleGiven="false" profileTitle=""
@@ -238,12 +230,10 @@ case "$1" in
 				;;
 			esac
 		done
-
 		if [ "$profileFieldCount" -eq 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: at least one field is required -- pass one or more of --display-name, --title, --status-text, --status-emoji, --status-expiry, --avatar, --presence, --snooze or --snooze-end. Nothing was changed. An empty string IS a value here: --status-text '' clears the status and counts as a field." >&2
 			set +e ; return 1
 		fi
-
 		## Slack refuses an emptied status field unless its partner travels with it; hoisted to parse time like --avatar above.
 		local profileClearing=""
 		if [ "$profileStatusTextGiven" = "true" ] && [ -z "$profileStatusText" ] && [ "$profileStatusEmojiGiven" != "true" ] ; then profileClearing="--status-text ''" ; fi
@@ -252,7 +242,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: $profileClearing empties one of the two status fields while the other is not passed at all, and Slack refuses that outright -- users.profile.set answers must_clear_both_status_text_and_status_emoji unless status_text and status_emoji travel in the same request. Measured: a request carrying BOTH is accepted whatever the two values are, so pass --status-text and --status-emoji together here, both empty to clear the status. Checked at parse time and not left to the API call: this operation writes four facets, and a refusal raised by Slack would surface only after the rest of the profile had already been written, leaving the persona half-configured. Nothing was changed." >&2
 			set +e ; return 1
 		fi
-
 		local profileFieldsJson="" profileEscaped=""
 		if [ "$profileDisplayNameGiven" = "true" ] ; then
 			profileEscaped="$( printf '%s' "$profileDisplayName" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
@@ -276,10 +265,8 @@ case "$1" in
 		if [ -n "$profileFieldsJson" ] ; then
 			profileFieldsJson="{\"profile\":{${profileFieldsJson#,}}}"
 		fi
-
 		local profileFailed=0 profileApplied=0
 		local profileResponse="" profileRc=0
-
 		if [ -n "$profileFieldsJson" ] ; then
 			profileRc=0
 			profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-set profile \
@@ -299,7 +286,6 @@ case "$1" in
 			printf '%s\n' PROFILE_SET_FACET=profile
 			printf '%s\n' PROFILE_SET_STATE=not-requested
 		fi
-
 		if [ "$profileAvatarGiven" = "true" ] ; then
 			profileRc=0
 			profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-set avatar \
@@ -319,7 +305,6 @@ case "$1" in
 			printf '%s\n' PROFILE_SET_FACET=avatar
 			printf '%s\n' PROFILE_SET_STATE=not-requested
 		fi
-
 		if [ -n "$profilePresence" ] ; then
 			profileRc=0
 			profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-set presence \
@@ -339,7 +324,6 @@ case "$1" in
 			printf '%s\n' PROFILE_SET_FACET=presence
 			printf '%s\n' PROFILE_SET_STATE=not-requested
 		fi
-
 		case "$profileSnoozeMode" in
 			set)
 				profileRc=0
@@ -367,7 +351,6 @@ case "$1" in
 			printf '%s\n' PROFILE_SET_STATE=failed
 			profileFailed=$(( profileFailed + 1 ))
 		fi
-
 		echo "# $MDSC_CMD --slack-profile-set: $profileApplied facet(s) applied, $profileFailed not applied (acting member $profileMember)" >&2
 		if [ "$profileFailed" != "0" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --slack-profile-set: $profileFailed facet(s) were NOT applied -- read the per-facet PROFILE_SET_STATE lines above. A non-zero exit here never means the whole call failed: the facets reported applied really were applied, nothing was rolled back, and nothing was retried under another identity." >&2
@@ -375,7 +358,6 @@ case "$1" in
 		fi
 		return 0
 	;;
-
 	--intern-op-comms-slack-profile-get)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
@@ -401,7 +383,6 @@ case "$1" in
 				fi
 			;;
 		esac
-
 		local profileRawOutput="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -419,13 +400,11 @@ case "$1" in
 				;;
 			esac
 		done
-
 		local profileRead=0 profileFailed=0 profileFieldRc=0
 		local profileResponse="" profileRc=0 profileFieldSpec=""
 		## Kept because the custom-fields facet joins this body against the
 		## workspace's own definitions; empty means that facet has no values to read.
 		local profileBodyProfile=""
-
 		profileRc=0
 		profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get profile \
 			"GET users.profile.get (acting member $profileMember)" \
@@ -465,7 +444,6 @@ case "$1" in
 			printf '%s\n' PROFILE_GET_STATE=failed
 			profileFailed=$(( profileFailed + 1 ))
 		fi
-
 		profileRc=0
 		profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get presence \
 			"GET users.getPresence (acting member $profileMember)" \
@@ -494,7 +472,6 @@ case "$1" in
 			printf '%s\n' PROFILE_GET_STATE=failed
 			profileFailed=$(( profileFailed + 1 ))
 		fi
-
 		profileRc=0
 		profileResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get dnd \
 			"GET dnd.info (acting member $profileMember)" \
@@ -524,7 +501,6 @@ case "$1" in
 			printf '%s\n' PROFILE_GET_STATE=failed
 			profileFailed=$(( profileFailed + 1 ))
 		fi
-
 		local profileTeamResponse=""
 		profileRc=0
 		profileTeamResponse="$( AgentsToolsCommsSlackProfileCall --slack-profile-get custom-fields \
@@ -568,7 +544,6 @@ case "$1" in
 				profileRead=$(( profileRead + 1 ))
 			fi
 		fi
-
 		echo "# $MDSC_CMD --slack-profile-get: $profileRead facet(s) read, $profileFailed not read (acting member $profileMember)" >&2
 		if [ "$profileFailed" = "0" ] ; then
 			return 0
@@ -580,7 +555,6 @@ case "$1" in
 		echo "⛔ ERROR: $MDSC_CMD --slack-profile-get: $profileFailed facet(s) could NOT be read for $profileMember -- read the per-facet PROFILE_GET_STATE lines above. The facets reported read really were read; the ones reported failed are UNKNOWN, not absent and not unset." >&2
 		set +e ; return 3
 	;;
-
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1

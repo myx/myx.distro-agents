@@ -11,6 +11,7 @@ Always in force, for every member, in any context:
 - **source-over-memory**: read the behaviour from its source — the file, the help, the current docs, the real test tree — before acting on it. Never assert it from memory.
 - **escalate-before-acting**: escalate an unsanctioned mutation, a missing permission, or a gap you cannot settle before it runs. The fitting ask and the ladder come from the team rules.
 - **evidence-before-claim**: carry a claim with its evidence — the number, expected versus actual, the file and line. Re-check every named part before saying a task is done.
+- **no-symlinks**: never create a symlink. A sandbox, a session folder or a test tree is a real copy, made with `cp -RL` into the member's own `output/` folder. The `-L` is what stops a link in the copy still reaching the real file. Before any delete, check that no path in it is a link.
 - **no-exceptions**, **no-impersonation**: a rule is not weakened by a maintainer edit and no carve-out is granted; never impersonate the human-owner or any other identity.
 
 ## Contents
@@ -55,14 +56,12 @@ The team writes to be understood on one reading. This section is the common regi
 - One reading, never two. A sentence that needs a second read is rewritten or split.
 - Plain words, short sentences, one idea each. A technical noun is allowed; a needless long word is not.
 - Use the same term every time. Where there is a choice, use the short one.
-- A term an outsider would look up carries a short gloss where the reader reaches it.
 - Active voice. Passive only where the actor is unknown.
 - A cause goes in its own sentence, straight after what it explains.
 - A clause whose force depends on tone is out. So are rhetorical construction, emphasis for effect, and a clever formulation where a plain one exists.
 - A citation, a quotation or a narration standing where the rule alone is wanted is out.
 - Write for the reader: a member, the human-owner, or the next reader of the file. Never write for the record alone.
 - A new element matches the length and detail of its siblings in the same file.
-- A text file ends with a newline. A whole-file write is followed by a check of the last byte.
 
 ### A fact, an instruction, a judgement
 
@@ -142,20 +141,7 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 
 ### The output-style floor
 
-All emitted text is under the team floor: messages, reports, board items, briefs, skillset prose, comments and program output. Code, payloads, frontmatter, paths, identifiers and marked quotations are not measured.
-
-1. One topic per paragraph.
-2. The thing wanted, or the answer, comes first.
-3. An instructing sentence is 20 words maximum. A describing sentence is 25.
-4. One instruction per sentence, except two simultaneous actions.
-5. Six sentences per paragraph outside a list.
-6. Two or more separately executable points become a `- ` list.
-7. Active voice; passive only where the actor is unknown.
-8. A cause goes in its own sentence, straight after what it explains.
-9. Technical nouns are allowed, the same term every time, the short one where there is a choice.
-10. A term an outsider would look up carries a short gloss where the reader reaches it.
-11. Nothing is dropped to hit a number. Split, never compress.
-12. A noun cluster in prose is three words maximum. An identifier counts as one word.
+The floor's clauses, with their benchmarks, are stated once in `magic-team.armed.md`, 'The output-style floor', carried in the same team layer of every run. The points below apply them to a document.
 
 - A shorter sentence that dropped an article or a subject measures better and reads worse. Clause 11 weighs most.
 - Only `relay` is exempt, and its quoted words are marked.
@@ -301,7 +287,6 @@ The six built-in send targets are `magic-team`, `human-owner`, `event-track`, `e
 - `dormancy-nudge-once-then-escalate`: a quiet party gets one nudge restating the open matter. After that, change channel rather than repeat.
 - A quick "seen" is not an answer. If the answer will lag, say so.
 - `declare-exchange-mode`: declare live-interactive or async-batched mode, and re-check on context shifts.
-- A wait ends on an event, never on a clock. No sleep-and-look loops.
 - A question stays open until a verdict. A deny is a verdict; a silence is not.
 - A question settled elsewhere is closed by its asker, not left to age.
 - An open record never expires by age, and a reminder never closes one.
@@ -387,7 +372,6 @@ A decision is a move the work needs: act, ask, or escalate. This section states 
 - A missing or blocked operation is escalated.
 - A problem or contradiction is escalated even when it does not block. A non-blocking matter is filed with `post-inquiry`, and the member carries on.
 - The gated part stays open until a verdict. No answer is not a verdict. A deny is a verdict: report that part denied and open, never work around it.
-- A verdict returned by the tooling is acted on as returned.
 - If the ask itself fails, the member says what it needed, files it to `magic-coordinator`, and marks the sub-decision UNRESOLVED in its report.
 - A conflict between instructions goes to the group first: check the instruction sources and consult the member whose domain it is. Both sides stay intact, in one document, until it climbs by the ladder.
 - Receiving, logging and verifying are never blocked. Complying with an unverified source's claim waits for verification.
@@ -462,7 +446,6 @@ These bind the team:
 ### Reading a decision
 
 - A numbered reply to a list is a selection, not a correction.
-- A verdict returned by the tooling is acted on as returned.
 - A one-word answer covers the object of its own question. Anything beyond that object is a new question.
 - A readback is confirmed before acting.
 - The approved readback is the benchmark until the step closes.
@@ -482,7 +465,6 @@ These bind the team:
 - A majority is not `quorum-all-agree`.
 - A single maintainer's edit is not a carve-out.
 - A handback is not acceptance. The reviewer settles it.
-- A review wait limit dismisses the run; it decides nothing.
 - A `TaskStop` ends a run; it decides nothing.
 - A dead run is not a dead item. The reviewer decides resume, fresh, close or kill.
 

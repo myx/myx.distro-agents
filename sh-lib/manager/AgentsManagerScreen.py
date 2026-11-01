@@ -77,12 +77,9 @@ def appOf(arguments):
 
 
 SCREEN_APP = appOf(sys.argv[1:])
-## The plugins an app keeps, set before the parts load and read by the plugin mechanism (Plugins.py):
-## None keeps every plugin. A sibling keeps its two day-one roots, the Dashboard and the Manuals,
-## and the plugins that hold no root of their own but offer what those two and the engine's
-## commands integrate into: `list` (alphabetical/unfiltered), `markdown` (on/help) and `glance`
-## (the list filter). The agents app keeps every one.
-APP_PLUGINS = None if SCREEN_APP == "agents" else frozenset(("list", "markdown", "glance", "dashboard", "manuals"))
+## The plugins an app keeps are each plugin's own: `apps`, declared with the plugin, a tuple of APP_NAMES (Plugins.py).
+## Its roots and theirs stand beside it, so a sibling adds a screen of its own without editing this list, and a plugin
+## that declares none is refused by name.
 
 ## The parts of the screen, in the order they are loaded: each is executed here, in the namespace of this file, so the
 ## screen stays one module whatever its files are -- a declaration names a function by its name (globals()[name]), and a

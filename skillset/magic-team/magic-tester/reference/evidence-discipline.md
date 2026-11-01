@@ -109,7 +109,7 @@ What a good suite gets right transfers to any domain:
   - assertions read the produced output, not reachability, because a broken route can still answer 200.
   - each case is named, and carries a written reason it exists.
   - fixtures are added alongside the real assets, and the originals are never edited.
-  - each run is isolated: loopback only, an unprivileged port, fresh working directories. A read-only overlay over the real artifact tree means nothing checked in is written to.
+  - each run is isolated: loopback only, an unprivileged port, fresh working directories. A real copy of the artifact tree in the run's own `output/` folder means nothing checked in is written to.
   - a finding is recorded with its date, and marked stale when its premise stops holding.
 
 For a transformation with no dedicated suite — a converter, formatter, generator,
@@ -445,7 +445,7 @@ rather than by line. Do not treat it as the finding being false.
   `sh-test/check-fixtures/`, named by their type, such as `<check>.<command>.stub.sh`.
   Nothing but a check ends in `.test.sh`.** A check finds its package from its own location, with an override variable for
   a mutated copy. It does not assume `MDLT_ORIGIN` points at the package.
-- **A row is shown able to fail on a copy.** Copy the package tree to a temporary directory: siblings symlinked, no `.git`.
+- **A row is shown able to fail on a copy.** Copy the package tree with `cp -RL` into the run's own `output/` folder: a real copy, no `.git`.
 Break the one line the row guards. Run the same check against the copy, once
 per behaviour.
 - **A reader for words, dates or names proves only that those patterns are

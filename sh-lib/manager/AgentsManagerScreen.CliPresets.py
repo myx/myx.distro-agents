@@ -423,6 +423,7 @@ def scopeKeyCommands(view):
 
 registerPlugin({
     "name": "clipresets",
+    "apps": ("agents",),
     "mount": "configuration",
     "root": {"id": "clipresets", "label": "CLI Presets and Tiers"},
     "summaries": {"clipresets": {"lines": "cliPresetsSummary"}},
@@ -440,6 +441,7 @@ registerPlugin({
 
 registerPlugin({
     "name": "presets",
+    "apps": ("agents",),
     "mount": "clipresets",
     "root": {"id": "presets", "label": "CLI Service Presets"},
     "focus": {"presets/*": "scopeKeyFocus"},
@@ -462,6 +464,7 @@ registerPlugin({
 
 registerPlugin({
     "name": "tiers",
+    "apps": ("agents",),
     "mount": "clipresets",
     "root": {"id": "tiers", "label": "Member Tier Assignments"},
     "focus": {"tiers/*": "tierSlotFocus"},

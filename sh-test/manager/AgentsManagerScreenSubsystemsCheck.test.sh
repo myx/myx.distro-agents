@@ -113,17 +113,17 @@ wait list 30
 turn
 get in
 rowids ids
-cells r1 5 85 119
-cells r2 6 85 119
-cells r3 9 85 119
-cells r4 8 85 119
-cells r5 10 85 119
-cells r6 11 85 119
-cells r7 12 85 119
-cells r10 16 85 119
+cells r1 3 85 119
+cells r2 4 85 119
+cells r3 7 85 119
+cells r4 6 85 119
+cells r5 8 85 119
+cells r6 9 85 119
+cells r7 10 85 119
+cells r10 14 85 119
 RIGSCRIPT
 rigAssert "the operation was asked for the list, once, and nothing else of the operations of this folder" "$( rigCalled --manager-subsystem-list ) $( LC_ALL=C grep -c -F -e 'subsystem-run' "$MANAGER_SCREEN_RIG/calls" || : )" "1 0"
-rigAssert "in the order of the operation, Update All first, a command under each subsystem that is offered one (Update for an installed one, the console's own among them), none under .local and system" "$( rigVal ids )" ".. features all:update .local system deploy deploy:update deploy:uninstall source source:install remote remote:update remote:uninstall agents agents:update"
+rigAssert "in the order of the operation, Update All first, a command under each subsystem that is offered one (Update for an installed one, the console's own among them), none under .local and system" "$( rigVal ids )" ".. all:update .local system deploy deploy:update deploy:uninstall source source:install remote remote:update remote:uninstall agents agents:update"
 rigAssert "each subsystem shows its state at the end of its row" "[$( rigVal r2 | sed 's/  */ /g' )][$( rigVal r4 | sed 's/  */ /g' )][$( rigVal r6 | sed 's/  */ /g' )][$( rigVal r10 | sed 's/  */ /g' )]" "[ .local installed][ deploy installed][ source not installed][ agents installed]"
 rigAssert "a command stands set in by two under its subsystem" "[$( rigVal r5 | sed 's/ *$//' )][$( rigVal r7 | sed 's/ *$//' )] [$( rigVal r1 | sed 's/^ *//; s/ *$//' )][$( rigVal r3 | sed 's/ *$//' )]" "[   Uninstall...][   Install...] [Update All...][   Update...]"
 
@@ -138,7 +138,7 @@ show f
 keys ENTER
 wait list 30
 turn
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 turn
 wait view 30
 turn
@@ -161,7 +161,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get on
 keys ENTER
@@ -185,7 +185,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 keys ENTER
 turn
@@ -206,7 +206,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 turn
 get on
 keys ENTER
@@ -226,7 +226,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN
+keys DOWN
 turn
 get on
 keys ENTER
@@ -247,7 +247,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN
+keys DOWN DOWN
 turn
 keys ENTER
 turn
@@ -263,7 +263,7 @@ turn
 keys ENTER
 wait list 30
 turn
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 turn
 wait view 30
 turn

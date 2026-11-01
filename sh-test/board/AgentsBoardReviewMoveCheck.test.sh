@@ -71,7 +71,7 @@ rigAssert "the item lands back in board/running"       "$( rigLoc task-rig-rejec
 
 echo "-- accept: review -> processed, via the existing --move-to-processed --"
 printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' > "$rigData/board/review/task-rig-accept.md"
-rigOp "$rigTmp/o3" --move-to-processed magic-tester task-rig-accept.md --from-state:review
+rigOp "$rigTmp/o3" --move-to-processed --team-member magic-tester task-rig-accept.md --from-state:review
 rigAssert "the move succeeds"                          "$( cat "$rigTmp/o3.rc" )" 0
 rigAssert "the item lands in board/processed"          "$( rigLoc task-rig-accept.md )" processed
 

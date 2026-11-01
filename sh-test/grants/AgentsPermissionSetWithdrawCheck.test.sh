@@ -40,7 +40,7 @@ chmod +x "$rigTmp/bin/curl"
 ## first on PATH answers the whole-host listing from the rig's own list, beside it, one
 ## `<pid> <command line>` line a process, and hands every other call to the real ps.
 mkdir -p "$rigTmp/bin"
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -226,7 +226,7 @@ rigEditsBefore="$( rigCalls chat.update )"
 rigWithdraw "$rigKeepId" "not mine to drop" magic-developer
 rigAssert "another member cannot withdraw it: it stays open, its post as it was" \
 	"$( rigField "$rigKeepFile" status ):$( rigHas "$rigTmp/op.err" "was asked by magic-coordinator, so magic-developer cannot withdraw it" ):$(( $( rigCalls chat.update ) - rigEditsBefore )):$( rigReacted reactions.removed "$rigKeepTs" )" "reply-pending:yes:0:"
-RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigKeepId" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$rigKeepId" allow-set
 RIG_OP_SESSION=""
 rigAssert "the allow-set grants the one asked entry to each participant" "$( rigHas "$rigTmp/op.out" 'GRANT: set 3 entries for ' )" yes
 rigAssert "and not the entry that was held already"        "$( rigGrantRead magic-tester rig-set-tester Read "$rigWs/SETK/a.txt" ):$( rigGrantRead magic-tester rig-set-tester Edit "$rigWs/DEV/held/x" )" "task:"

@@ -386,6 +386,7 @@ for storeId, storeLabel in TEAM_DATA_STORES:
 
 registerPlugin({
     "name": "teamdata",
+    "apps": ("agents",),
     "mount": "magic-team",
     "root": {"id": "teamdata", "label": "Team Data", "go": "Tea~m~ Data", "group": "team",
              "when": {"shown": "teamDataHere", "says": "no team data is configured for this workspace"}},

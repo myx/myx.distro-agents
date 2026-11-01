@@ -129,6 +129,12 @@ rigManagerWay(){ ## refusal text -> whether it says where the operation is run i
 	case "$1" in *"run it at the console directly, outside any member's session"*) printf yes ;; *) printf no ;; esac
 }
 rigAssert "the --manager-* refusal says where it is run instead (S18.1)" "$( rigManagerWay "$( rigRefusalOf g3 )" )" yes
+rigManagerLine(){ ## refusal text -> whether it is that one line whole, word for word: yes|no
+	[ "$1" = "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-myx, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session" ] && printf yes || printf no
+}
+rigAssert "the --manager-* refusal is that one line whole, so a reword of any part of it is caught here" "$( rigManagerLine "$( rigRefusalOf g3 )" )" "yes"
+rigAssert "control: the same line without its tail does not pass for it" "$( rigManagerLine "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-myx, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "no"
+rigAssert "control: the same line with one word rewritten mid-line does not pass for it either" "$( rigManagerLine "DistroAgentsTools: manager-session-list: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session" )" "no"
 
 echo "-- 5. each refusal is the dispatcher's own, word for word --"
 rigAs dm keeper-myx "$rigFn" --advance-to-running magic-coordinator

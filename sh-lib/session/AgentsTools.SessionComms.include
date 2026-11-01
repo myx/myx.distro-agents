@@ -120,11 +120,17 @@ AgentsToolsSessionCommsHolderLives(){ ## `<pid> <start>`
 AgentsToolsSessionCommsLive(){
 	local liveDir liveLine="" liveRc
 	liveDir="$( AgentsToolsSessionCommsDir )" || return 1
-	[ -L "$liveDir/lock" ] || return 1
-	liveLine="$( readlink "$liveDir/lock" 2> /dev/null )" || return 1
+	[ -e "$liveDir/lock" ] || return 1
+	liveLine="$( AgentsToolsSessionCommsLockHolder "$liveDir/lock" )" || return 1
 	AgentsToolsSessionCommsHolderLives "$liveLine" ; liveRc=$?
 	[ "$liveRc" != 1 ] || return 1
 	printf '%s\n' "${liveLine%% *}"
+}
+
+## The holder a comms lock names: the lock file's own text, or the target of the link an
+## older release made. Empty where it names nobody.
+AgentsToolsSessionCommsLockHolder(){ ## lock path
+	if [ -L "$1" ] ; then readlink "$1" 2> /dev/null ; else cat "$1" 2> /dev/null ; fi
 }
 
 ## Takes the lock for this process (commsLock, commsMe). rc 0 held, and commsTookOver names the holder it was taken from, where
@@ -134,10 +140,13 @@ AgentsToolsSessionCommsLockTake(){
 	commsHolder="" ; commsTookOver=""
 	while [ "$takeTries" -lt 5 ] ; do
 		takeTries=$(( takeTries + 1 ))
-		## Checked first: `ln -s` onto a directory creates the link inside it and succeeds.
+		## Checked first: a lock of an older release may be a directory, which `set -C` cannot make over.
 		[ ! -d "$commsLock" ] || [ -L "$commsLock" ] || return 2
-		ln -s "$commsMe" "$commsLock" 2> /dev/null && return 0
-		takeHolder="$( readlink "$commsLock" 2> /dev/null )" || takeHolder=""
+		## `set -C` writes over nothing: the file is made here, or one already there is left alone.
+		if [ ! -L "$commsLock" ] && ( set -C ; printf '%s' "$commsMe" > "$commsLock" ) 2> /dev/null ; then
+			return 0
+		fi
+		takeHolder="$( AgentsToolsSessionCommsLockHolder "$commsLock" )" || takeHolder=""
 		[ -n "$takeHolder" ] || continue
 		[ "$takeHolder" != "$commsMe" ] || return 0
 		AgentsToolsSessionCommsHolderLives "$takeHolder" ; takeTold=$?
@@ -145,13 +154,13 @@ AgentsToolsSessionCommsLockTake(){
 		## Claimed by rename, so of two breakers only one moves it; a fresh lock moved by mistake is put back for its holder.
 		takeStale="$( mktemp "$commsLock.stale.XXXXXX" 2> /dev/null )" || continue
 		if mv -f "$commsLock" "$takeStale" 2> /dev/null ; then
-			takeMoved="$( readlink "$takeStale" 2> /dev/null )" || takeMoved=""
+			takeMoved="$( AgentsToolsSessionCommsLockHolder "$takeStale" )" || takeMoved=""
 			rm -f "$takeStale"
 			if [ "$takeMoved" = "$takeHolder" ] ; then
 				commsTookOver="$takeHolder"
 				continue
 			fi
-			[ -z "$takeMoved" ] || ln -s "$takeMoved" "$commsLock" 2> /dev/null || :
+			[ -z "$takeMoved" ] || ( set -C ; printf '%s' "$takeMoved" > "$commsLock" ) 2> /dev/null || :
 		else
 			rm -f "$takeStale"
 		fi
@@ -159,7 +168,7 @@ AgentsToolsSessionCommsLockTake(){
 	return 2
 }
 AgentsToolsSessionCommsLockGive(){
-	[ "$( readlink "$commsLock" 2> /dev/null )" != "$commsMe" ] || rm -f "$commsLock" 2> /dev/null
+	[ "$( AgentsToolsSessionCommsLockHolder "$commsLock" )" != "$commsMe" ] || rm -f "$commsLock" 2> /dev/null
 	return 0
 }
 
@@ -400,6 +409,7 @@ AgentsToolsSessionCommsRead(){ ## session, conversation:thread, member
 	readOldest="$( LC_ALL=C awk -F'\t' -v where="$readThread" '$3 == where && $2 ~ /^[0-9]+\.[0-9]+$/ && ( $2 "" ) > ( newest "" ) { newest = $2 ; } END { print newest ; }' "$readDir/$agentsSessionChatName.index" 2> /dev/null )" || readOldest=""
 	readBefore="$( { LC_ALL=C wc -l < "$readDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
 	case "$readBefore" in ''|*[!0123456789]*) readBefore=0 ;; esac
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-comms-slack-read "$readMember" "$readThread" --thread --identity-bot ${readOldest:+--oldest "$readOldest"} > "$readWork/read" 2> "$readWork/err" || readRc=$?
 	if [ "$readRc" != 0 ] ; then
 		commsReadError="$( LC_ALL=C grep -m1 -e 'ERROR' "$readWork/err" 2> /dev/null | LC_ALL=C tr -s '\t\r ' ' ' | LC_ALL=C cut -c1-300 )"
@@ -461,7 +471,8 @@ AgentsToolsSessionCommsPost(){ ## session, outbox file `<n>.retry`
 	postPayload="$( tail -n +3 "$postFile" 2> /dev/null )"
 	type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
 	if [ "$postIdentity" = "user" ] ; then
-		postToken="$( AgentsToolsSlackOwnSettingsApply "$postMember" && DistroAgentsTools --agents-config-option "$postMember" --select SLACK_USER_TOKEN 2> /dev/null )" || postToken=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		postToken="$( AgentsToolsSlackOwnSettingsApply "$postMember" && AgentsToolsConfigOption "$postMember" --select SLACK_USER_TOKEN 2> /dev/null )" || postToken=""
 	else
 		postLine="$( AgentsToolsResolveSlackBotToken "$postMember" )" || postLine=""
 		postToken="${postLine#* }"
@@ -548,6 +559,7 @@ AgentsToolsSessionCommsTake(){ ## session, the file left in chat.inbox
 	takeBefore="$( { LC_ALL=C wc -l < "$takeDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
 	case "$takeBefore" in ''|*[!0123456789]*) takeBefore=0 ;; esac
 	if [ -n "$takeThread" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		tail -n +2 "$takeFile.taken" | ( export MDAT_SESSION_ID="$takeSession" MDAT_SESSION_THREAD="$takeThread" MDAT_CHAT_ORIGIN=console ; DistroAgentsTools --intern-op-comms-slack-send-message "$takeFrom" "$takeThread" ${takeAddr[@]+"${takeAddr[@]}"} --from-stdin ) > "$takeFile.out" 2>&1 || :
 	else
 		printf 'ERROR: the session has no thread to send into\n' > "$takeFile.out"

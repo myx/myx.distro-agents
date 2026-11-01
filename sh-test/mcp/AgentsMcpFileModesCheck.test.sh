@@ -40,8 +40,8 @@ rigHolds(){ ## file, fixed text
 rigScenario(){ ## name -- a workspace that passes the set-up check, and an empty HOME
 	rigDir="$rigTmp/$1"
 	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/home" "$rigDir/ws/.local/myx/myx.distro-.local/sh-lib"
-	ln -s "$rigLocalContext" "$rigDir/ws/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
-	ln -s "$MDLT_ORIGIN/myx/myx.common" "$rigDir/ws/.local/myx/myx.common"
+	rigCopyTree "$rigLocalContext" "$rigDir/ws/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+	rigCopyTree "$MDLT_ORIGIN/myx/myx.common" "$rigDir/ws/.local/myx/myx.common"
 }
 rigRun(){ ## umask, result file, op and arguments...
 	local runMask="$1" runOut="$2" ; shift 2

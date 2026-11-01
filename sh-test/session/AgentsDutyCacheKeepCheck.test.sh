@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check that a work-duty is NEVER STARTED TO KEEP A CACHE WARM (sketch 7.3, 10.4; it replaces the cache-keep restart of T1 of the
-## 20261021 refactorings epic): the cache is kept inside the running session by the keepalive of its --idle-wait. AgentsToolsScheduleWorkDuty, sh-lib/session/AgentsTools.DispatcherLoop.include, taken at each iteration of --intern-main-loop). The real
+## 20261021 refactorings epic): the cache is kept inside the running session by the keepalive of its --idle-wait. AgentsToolsScheduleWorkDuty, sh-lib/session/AgentsTools.DispatcherSchedule.include, taken at each iteration of --intern-main-loop). The real
 ## loop (--one) and the real spawner run, as in AgentsScheduleLoopCheck; the console, curl, date and every setting are this rig's own.
 ## GUARD: every tooling call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this rig's
 ## tree and PATH holds no agent CLI. Held:

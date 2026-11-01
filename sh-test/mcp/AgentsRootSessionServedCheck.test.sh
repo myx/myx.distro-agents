@@ -111,7 +111,7 @@ mkdir -p "$rigOrigin/myx" \
 cp -Rp "$rigPackage" "$rigOrigin/myx/myx.distro-agents" || rigRefuse "cannot copy the tree under test into the rig origin"
 for rigSibling in myx.distro-system myx.distro-.local ; do
 	[ -d "$rigSource/myx/$rigSibling" ] || rigRefuse "this check runs the real $rigSibling read-only beside the package, and none is at $rigSource/myx/$rigSibling"
-	ln -s "$rigSource/myx/$rigSibling" "$rigOrigin/myx/$rigSibling" || rigRefuse "cannot link the real $rigSibling beside the rig's package"
+	rigCopyTree "$rigSource/myx/$rigSibling" "$rigOrigin/myx/$rigSibling" || rigRefuse "cannot copy the real $rigSibling beside the rig's package"
 done
 cp "$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigBin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package"

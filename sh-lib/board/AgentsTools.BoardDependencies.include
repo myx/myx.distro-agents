@@ -121,6 +121,7 @@ AgentsToolsBoardDependencies(){
 	depFindings="$( AgentsToolsBoardDependenciesFindings )"
 	while IFS=$'\t' read -r depKind depItemState depItem depField depValue ; do
 		[ "$depKind" = FIX ] || continue
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		if DistroAgentsTools --intern-op-board-upsert-move-edit "$depItemState" "$depItem.md" --from-state:"$depItemState" --header:upsert:"$depField":"$depValue" --context --intern-main-loop > /dev/null 2>&1 ; then
 			depFixed="${depFixed}$depItem $depField now $depValue"$'\n'
 			printf 'dependencies: %s has %s %s, the other end of an edge\n' "$depItem" "$depField" "$depValue"

@@ -45,7 +45,7 @@ rigAssert(){ ## what is asserted, got, want
 rigWs="$rigTmp/ws-a" rigWs2="$rigTmp/ws-b" rigWs3="$rigTmp/ws-c" rigHome="$rigTmp/home" rigData="$rigTmp/data" rigSkills="$rigTmp/skills" rigEvil="$rigTmp/evil"
 mkdir -p "$rigWs/.local/temp" "$rigWs/.local/agents" "$rigWs2/.local/temp" "$rigWs2/.local/agents/spawned/sess-b" "$rigWs3/.local/temp" "$rigHome/.agents/magic-team" "$rigData" "$rigSkills/magic-rig" "$rigSkills/magic-team" "$rigEvil" "$rigWs2/source"
 printf '# rig armed\n' > "$rigSkills/magic-rig/magic-rig.armed.md"
-ln -s "$MDLT_ORIGIN/myx" "$rigEvil/myx" ; ln -s "$MDLT_ORIGIN/myx" "$rigWs2/source/myx"
+rigCopyTree "$MDLT_ORIGIN/myx" "$rigEvil/myx" ; rigCopyTree "$MDLT_ORIGIN/myx" "$rigWs2/source/myx"
 printf -- '---\nsession-id: sess-b\nspawn-id: run-b\nstart-context: spawned\nworkspace: ws-b\nowner: magic-rig\nstatus: spawn-started\nstarted-at: 2026-10-20 10:00 +0300\n---\n\n# Spawn session: run-b\n' > "$rigWs2/.local/agents/spawned/sess-b/run-b.spawn.md"
 ## The machine: ws-a (here) and ws-b are workspaces it knows (a place of ws-a's registry names ws-b); ws-c it does not. magic-rig is set up here, keeper-other only in ws-b.
 printf 'ws-b-place\tworkspace\tread-write\t%s\tworkspace\n' "$rigWs2" > "$rigWs/.local/agents/directories.registry"
@@ -161,7 +161,7 @@ rigRun "$rigTmp/k1" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --toolin
 rigRun "$rigTmp/k2" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --tooling-origin "$rigWs2/source"
 rigRun "$rigTmp/k3" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --tooling-origin "$MDLT_ORIGIN"
 rigRun "$rigTmp/k4" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --tooling-origin "$rigWs3/source"
-mkdir -p "$rigWs3/source" ; ln -s "$MDLT_ORIGIN/myx" "$rigWs3/source/myx"
+mkdir -p "$rigWs3/source" ; rigCopyTree "$MDLT_ORIGIN/myx" "$rigWs3/source/myx"
 rigRun "$rigTmp/k5" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --tooling-origin "$rigWs3/source"
 rigAssert "an arbitrary path (a tree with the tooling the member controls) is refused, and so is the source of a workspace the machine does not know" "$( rigHas 'not the origin of a workspace this machine knows' "$rigTmp/k1.err" ) $( [ ! -s "$rigTmp/k1.out" ] && printf none ) $( rigHas 'not the origin of a workspace this machine knows' "$rigTmp/k5.err" ) $( [ ! -s "$rigTmp/k5.out" ] && printf none )" "1 none 1 none"
 rigAssert "the origin of a known workspace is accepted, and so is the one the session runs from" "$( rigLine tooling-origin "$rigTmp/k2.out" ) $( rigLine tooling-origin "$rigTmp/k3.out" )" "$rigWs2/source $MDLT_ORIGIN"
@@ -183,10 +183,10 @@ echo "-- 10. required where the context does not hold it --"
 ## A rig origin whose manual holds one more operation, written with --session-id unbracketed (so it needs the value); everything else is the real package, linked.
 rigOrg="$rigTmp/origin-needs" rigPkg="$rigOrg/myx/myx.distro-agents"
 mkdir -p "$rigPkg/sh-lib/help"
-for rigE in "$MDLT_ORIGIN"/myx/* ; do [ "${rigE##*/}" = myx.distro-agents ] || ln -s "$rigE" "$rigOrg/myx/${rigE##*/}" ; done
-for rigE in "$rigPackage"/* "$rigPackage"/.[a-zA-Z]* ; do [ -e "$rigE" ] || continue ; [ "${rigE##*/}" = sh-lib ] || ln -s "$rigE" "$rigPkg/${rigE##*/}" ; done
-for rigE in "$rigPackage"/sh-lib/* ; do [ "${rigE##*/}" = help ] || ln -s "$rigE" "$rigPkg/sh-lib/${rigE##*/}" ; done
-for rigE in "$rigPackage"/sh-lib/help/* ; do [ "${rigE##*/}" = Help.DistroAgentsTools.help.md ] || ln -s "$rigE" "$rigPkg/sh-lib/help/${rigE##*/}" ; done
+for rigE in "$MDLT_ORIGIN"/myx/* ; do [ "${rigE##*/}" = myx.distro-agents ] || rigCopyTree "$rigE" "$rigOrg/myx/${rigE##*/}" ; done
+for rigE in "$rigPackage"/* "$rigPackage"/.[a-zA-Z]* ; do [ -e "$rigE" ] || continue ; [ "${rigE##*/}" = sh-lib ] || rigCopyTree "$rigE" "$rigPkg/${rigE##*/}" ; done
+for rigE in "$rigPackage"/sh-lib/* ; do [ "${rigE##*/}" = help ] || rigCopyTree "$rigE" "$rigPkg/sh-lib/${rigE##*/}" ; done
+for rigE in "$rigPackage"/sh-lib/help/* ; do [ "${rigE##*/}" = Help.DistroAgentsTools.help.md ] || rigCopyTree "$rigE" "$rigPkg/sh-lib/help/${rigE##*/}" ; done
 cp "$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md" "$rigPkg/sh-lib/help/Help.DistroAgentsTools.help.md"
 printf '📘 syntax: DistroAgentsTools.fn.sh --librarian-rig-needs-session --session-id <session-id> <thing>\n' >> "$rigPkg/sh-lib/help/Help.DistroAgentsTools.help.md"
 rigRunNeeds(){ ## result prefix, VAR=value..., --, words...

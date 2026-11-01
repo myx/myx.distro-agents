@@ -67,6 +67,7 @@ case "$1" in
 		## started-at it has, as the help says.
 		local startedArgs=( --header:upsert:started-at:"$startedAt" )
 		[ "$fromStateArg" != "--from-state:running" ] || startedArgs=()
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			"$fromStateArg" \
 			${startedArgs[@]+"${startedArgs[@]}"} \
@@ -109,6 +110,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
 			set +e ; return 1
 		}
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
 			--context --advance-to-parked \
@@ -179,6 +181,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: execution-receipt required" >&2
 				set +e ; return 1
 			fi
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			if ! DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 				--from-state:running \
 				--header:upsert:outcome:"$outcome" \

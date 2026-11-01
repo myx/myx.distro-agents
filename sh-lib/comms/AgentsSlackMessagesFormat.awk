@@ -30,7 +30,19 @@
 
 BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; }
 
+## THIS PAGE IS TAKEN FROM THE FRONT. `substr(s, p, k)` copies from `p` on, so a page read a character
+## or a token at a time from an ever-growing position is quadratic: 1 MB that way is 88 s on this
+## machine's awk, and a 258-message thread took 145 s. So what is left of the page is re-sliced once
+## every few KB, and every step after that is taken near its start.
+function rebase() {
+	if (p <= 4096) return
+	s = substr(s, p)
+	p = 1
+	n = length(s)
+}
+
 function skipws(   c) {
+	rebase()
 	while (p <= n) {
 		c = substr(s, p, 1)
 		if (c == " " || c == "\t" || c == "\n" || c == "\r") p++
@@ -69,13 +81,30 @@ function utf8enc(cp,   c1, c2, c3, c4) {
 	}
 }
 
-function parseString(   c, out, hex, code, hex2, code2, cp) {
+## A string is taken a run at a time: the text to the next escape or the closing quote is appended
+## whole from one window, so a page of a megabyte costs a pass and not a copy of the page for every
+## character of it.
+function parseString(   c, out, hex, code, hex2, code2, cp, tail, at, quoteAt) {
+	rebase()
 	p++ # skip opening quote
 	out = ""
 	while (p <= n) {
-		c = substr(s, p, 1)
-		if (c == "\"") { p++; break; }
-		if (c == "\\") {
+		tail = substr(s, p, 8192)
+		at = index(tail, "\\")
+		quoteAt = index(tail, "\"")
+		if (at == 0 && quoteAt == 0) {
+			out = out tail
+			p += length(tail)
+			continue
+		}
+		if (quoteAt > 0 && (at == 0 || quoteAt < at)) {
+			out = out substr(tail, 1, quoteAt - 1)
+			p += quoteAt
+			return out
+		}
+		out = out substr(tail, 1, at - 1)
+		p += at - 1
+		{
 			p++
 			c = substr(s, p, 1)
 			if (c == "\"") out = out "\""
@@ -105,9 +134,6 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 				}
 			}
 			else out = out c
-			p++
-		} else {
-			out = out c
 			p++
 		}
 	}
@@ -144,7 +170,7 @@ function dateFallbacks(textValue,   outText, tokenText, barAt) {
 ## answer of a member with no account of its own by `[sender: X]` -- so that place holds
 ## the formatter's word only, never what somebody typed.
 function ownStart(textValue) {
-	return (textValue ~ /^\[(sender|tracking|session|reactions|thread|file): /) ? " " textValue : textValue
+	return (textValue ~ /^\[(sender|tracking|session|reactions|thread|file|voice): /) ? " " textValue : textValue
 }
 
 function ownLines(textValue,   outText) {
@@ -241,10 +267,9 @@ function parseValue(path,   c, startp, val, raw) {
 	skipws()
 	c = substr(s, p, 1)
 	if (c == "\"") {
-		startp = p
-		val = parseString()
-		raw = substr(s, startp, p - startp)
-		emitLeaf(path, raw, val)
+		## No raw text is kept for a string: emitLeaf reads its value only, and the position before the
+		## string no longer survives parseString's own re-slice.
+		emitLeaf(path, "", parseString())
 	} else if (c == "{") {
 		parseObject(path)
 	} else if (c == "[") {

@@ -665,6 +665,7 @@ def settingsFocus(state, row):
 ## wherever they are listed: the member's own, in `Team Members`.
 registerPlugin({
     "name": "settings",
+    "apps": ("agents",),
     "root": {"id": "settings", "label": "Settings", "go": "S~e~ttings", "group": "setup"},
     "registries": {"lines": "place"},
     "focus": {"settings/*": "settingsFocus"},

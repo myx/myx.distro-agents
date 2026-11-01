@@ -283,7 +283,8 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || return 0
 	[ -n "$repoRoot" ] || return 0
 	gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 0
-	originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	originUrl="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
 	[ -n "$originUrl" ] || return 0
 	storeRoot="$( cd "$MDAT_DATA_ROOT" && pwd -P )" || storeRoot=""
 	[ -n "$storeRoot" ] && [ "$storeRoot" = "$( cd "$repoRoot" && pwd -P )" ] || return 0
@@ -327,13 +328,21 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 		## cloneSync's pull needs a reconcile mode when the two sides diverged: a merge,
 		## which keeps both sides' commits and rewrites none. No merge was in progress
 		## above, so one present after a failure is this call's own, and only that is aborted.
+		## cloneSync aborts a merge it cannot settle and leaves no MERGE_HEAD behind, so the conflict is taken again
+		## here, by our own merge of origin's branch, which the settling engine can work. A merge that came in clean is
+		## committed too, so the push below runs on a store with nothing left open.
 		pushOut="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
 			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$pushBranch" 2>&1 )" || {
-			## A conflict is settled and committed (AgentsToolsTeamDataMergeSettle) and the push goes on; a merge that cannot be settled is taken back out.
-			if [ -e "$gitDir/MERGE_HEAD" ] && AgentsToolsTeamDataMergeSettle "$pushWhere" && [ ! -e "$gitDir/MERGE_HEAD" ] ; then
+			git -C "$repoRoot" fetch -q origin "+refs/heads/$pushBranch:refs/remotes/origin/$pushBranch" > /dev/null 2>&1 || :
+			git -C "$repoRoot" merge --no-commit --no-ff "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 || :
+			AgentsToolsTeamDataMergeSettle "$pushWhere" || :
+			if [ -e "$gitDir/MERGE_HEAD" ] && [ -z "$( git -C "$repoRoot" diff --name-only --diff-filter=U 2>/dev/null )" ] ; then
+				git -C "$repoRoot" commit -q -m "* team-data merge committed by the tooling, no conflict in it" > /dev/null 2>&1 || :
+			fi
+			if [ ! -e "$gitDir/MERGE_HEAD" ] ; then
 				pushOut=""
 			else
-				[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
+				git -C "$repoRoot" merge --abort > /dev/null 2>&1
 				echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected and integrating origin failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
 				return 0
 			fi
@@ -401,7 +410,8 @@ AgentsToolsTeamDataEnsureClone(){ ## where
 	## Once per process tree: an op dispatching nested ops never tries, or warns, twice.
 	[ -z "${MDAT_TEAM_DATA_CLONE_TRIED:-}" ] || return 0
 	local cloneRemote="" cloneLock=""
-	cloneRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || cloneRemote=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	cloneRemote="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || cloneRemote=""
 	[ -n "$cloneRemote" ] || return 0
 	export MDAT_TEAM_DATA_CLONE_TRIED=1
 	## Two first writers never both clone: the loser, once it holds the lock, finds the clone done.
@@ -432,7 +442,8 @@ AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote
 		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set and no local board exists, but myx.common git/clonePull is unreachable, so it was not cloned" >&2
 		return 0
 	fi
-	cloneBranch="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || cloneBranch=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	cloneBranch="$( AgentsToolsConfigOption magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || cloneBranch=""
 	[ -n "$cloneBranch" ] || cloneBranch="main"
 	if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$cloneBranch" \
 		"$MYXROOT/bin/git/clonePull.Common" "$MDAT_DATA_ROOT" "$cloneRemote" "$cloneBranch" >&2 ) ; then
@@ -457,8 +468,9 @@ AgentsToolsTeamDataPrepareStore(){
 	set -- --owner-setup-storage
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: the team-data store could not be resolved" >&2 ; return 1 ; }
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
-	prepareRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || prepareRemote=""
+	type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	prepareRemote="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || prepareRemote=""
 	## A store inside a larger repository is never given a nested one, nor an identity of the outer one's.
 	local prepareProbe="$MDAT_DATA_ROOT"
 	while [ -n "$prepareProbe" ] && [ ! -d "$prepareProbe" ] ; do
@@ -475,7 +487,8 @@ AgentsToolsTeamDataPrepareStore(){
 			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 			if [ -n "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/git/cloneSync.Common" ] && [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
 				local prepareBranch=""
-				prepareBranch="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || prepareBranch=""
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				prepareBranch="$( AgentsToolsConfigOption magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || prepareBranch=""
 				[ -n "$prepareBranch" ] || prepareBranch="main"
 				( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$prepareBranch" \
 					"$MYXROOT/bin/git/cloneSync.Common" "$MDAT_DATA_ROOT" "$prepareRemote" "$prepareBranch" >&2 ) || :
@@ -492,8 +505,9 @@ AgentsToolsTeamDataPrepareStore(){
 		fi
 	fi
 	[ -z "$prepareRemote" ] || AgentsToolsTeamDataRemoteAlign "--owner-setup-storage" "$prepareRemote" || :
-	prepareName="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_NAME 2>/dev/null )" || prepareName=""
-	prepareEmail="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_EMAIL 2>/dev/null )" || prepareEmail=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	prepareName="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_USER_NAME 2>/dev/null )" || prepareName=""
+	prepareEmail="$( AgentsToolsConfigOption magic-team --select TEAM_DATA_GIT_USER_EMAIL 2>/dev/null )" || prepareEmail=""
 	[ -z "$prepareName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$prepareName" || return 1
 	[ -z "$prepareEmail" ] || git -C "$MDAT_DATA_ROOT" config user.email "$prepareEmail" || return 1
 	[ -z "$prepareName$prepareEmail" ] || echo "# $MDSC_CMD --owner-setup-storage: the configured author identity is written into $MDAT_DATA_ROOT's own config" >&2

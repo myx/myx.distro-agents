@@ -67,7 +67,7 @@ printf 'SESSION_CONTROL_TICK_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.ag
 ## listing from the rig's own list, one `<pid> <command line>` line a process, each listed only while it lives, and
 ## hands every other call to the real ps. It keeps the environment it was last called with, and fails every call
 ## while the file ps.fails stands: a process list that cannot be read.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

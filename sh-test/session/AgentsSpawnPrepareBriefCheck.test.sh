@@ -67,22 +67,38 @@ rigBrief(){ ## result file, then --routine/--routine-default/--context args for 
 
 echo "-- --routine-default, no warnings --"
 rigBrief "$rigTmp/b1" --routine-default
-printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help rig-member when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task." \
+printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe." \
+	"- Read --member-help rig-member when unsure how a tool works." \
+	"- Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by." \
+	"- Report a blockage the prescribed way, so the tooling can be polished." \
+	"- Never hack around it." "- Do not research source code unless it is the task." \
+	"" \
 	"skillset-reader: Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.armed.md}" \
+	"" \
 	"scratchpad: your own files go in the output/ folder this dispatch's own \"## Your sandbox\" section names" \
-	"read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them." \
-	"session-kind: coworking, defined by magic-team.coworking.routine.md. Read it too, the same way: its Opening steps run before the Opening steps of magic-team.coworking.routine.md, its Closure steps after the Closure steps of magic-team.coworking.routine.md, and its rules and tooling apply as well. DistroAgentsSession.fn.sh --get-routine-text magic-team.coworking.routine.md prints the routine mixed in that order." \
-	"Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}" \
-	"executors: magic-coordinator" "invitees: magic-team" \
+	"" \
+	"read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them." \
+	"session-kind: coworking, defined by magic-team.coworking.routine.md." \
+	"- Read magic-team.coworking.routine.md the same way." \
+	"- Its Opening steps run before the Opening steps of magic-team.coworking.routine.md." \
+	"- Its Closure steps run after the Closure steps of magic-team.coworking.routine.md." \
+	"- Its rules and tooling apply as well." \
+	'- `DistroAgentsSession.fn.sh --get-routine-text magic-team.coworking.routine.md` prints the routine mixed in that order.' \
+	"" \
+	"Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:" \
+	"- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}" \
+	"" \
+	"" \
+	"executors: magic-coordinator" "invitees: magic-team" "" \
 	"## open warning-* items" "(none open)" "## standing directives in force" "(none in force)" "## your access" "to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides. Your other standing rows: --list-permissions." "When done, hand back; then Wait until dismissed." > "$rigTmp/b1.want"
 rigAssert "the brief is the filled Skeleton, byte for byte" "$( cmp -s "$rigTmp/b1" "$rigTmp/b1.want" && printf same || printf differs )" same
 rigAssert "no slot is left unfilled"                   "$( LC_ALL=C grep -c '{{' "$rigTmp/b1" )" 0
 rigAssert "the header names the member"                "$( LC_ALL=C grep -c -x -F 'SPAWN-PREPARE-BRIEF: rig-member' "$rigTmp/b1" )" 1
-rigAssert "and so does the tool-routing line"          "$( LC_ALL=C grep '^tool-routing: ' "$rigTmp/b1" | LC_ALL=C grep -c -F -- '--member-help rig-member ' )" 1
+rigAssert "and so does a list item of the tool-routing block" "$( LC_ALL=C grep -c -x -F -- '- Read --member-help rig-member when unsure how a tool works.' "$rigTmp/b1" )" 1
 rigAssert "the read-and-obey line names the duty file and routine" \
-	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/b1" )" 1
+	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigTmp/b1" )" 1
 rigAssert "names the armed.md sections" \
-	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/b1" )" 1
+	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' "$rigTmp/b1" )$( LC_ALL=C grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/b1" )" 11
 if [ -n "${RIG_OLD_BRIEF:-}" ] ; then
 	rigAssert "and equals the pre-routine-slots output"  "$( cmp -s "$rigTmp/b1" "$RIG_OLD_BRIEF" && printf same || printf differs )" same
 fi
@@ -109,9 +125,9 @@ echo "-- a routine selector matching part of one filename --"
 rigBrief "$rigTmp/b5" --routine alphabeta
 rigAssert "the brief lands"                            "$( cat "$rigTmp/b5.rc" )" 0
 rigAssert "the read-and-obey line names the matched routine" \
-	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and rig-member.alphabeta.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/b5" )" 1
+	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and rig-member.alphabeta.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigTmp/b5" )" 1
 rigAssert "names the armed.md sections" \
-	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/b5" )" 1
+	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' "$rigTmp/b5" )$( LC_ALL=C grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/b5" )" 11
 rigAssert "its executors fill the slot"                "$( LC_ALL=C grep -c -x -F 'executors: rig-member' "$rigTmp/b5" )" 1
 rigAssert "an absent invitees field reads none"        "$( LC_ALL=C grep -c -x -F 'invitees: none' "$rigTmp/b5" )" 1
 
@@ -158,8 +174,8 @@ echo "-- a template that cannot be used --"
 ## The template is the package's own: a temp origin (this package copied, the rest linked) holds the changed one.
 rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx"
-for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigOrigin/${rigEntry##*/}" ; done
-for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || rigCopyTree "$rigEntry" "$rigOrigin/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; done
 mkdir "$rigOrigin/myx/myx.distro-agents"
 ( cd "$MDLT_ORIGIN/myx/myx.distro-agents" && tar cf - --exclude=.git . ) | ( cd "$rigOrigin/myx/myx.distro-agents" && tar xf - )
 MDLT_ORIGIN="$rigOrigin"

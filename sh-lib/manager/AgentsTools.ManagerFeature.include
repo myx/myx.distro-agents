@@ -362,6 +362,7 @@ case "$1" in
 		while IFS=$'\t' read -r setFeature setPart setAction ; do
 			[ -n "$setPart" ] || continue
 			setRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			setOut="$( DistroAgentsTools --manager-feature-part "$setAction" "$setFeature" "$setPart" --yes 2>&1 < /dev/null )" || setRc=$?
 			printf '%s\n' "$setOut" >&2
 			if [ "$setRc" = 0 ] ; then
@@ -439,8 +440,10 @@ case "$1" in
 		presetPart="$( printf '%s\n' "$presetCheck" | AgentsToolsManagerFeatureValue "part.$presetModel.part" )" || presetPart=""
 		[ "$presetState" = "installed" ] || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is $presetState" ; set +e ; return 1 ; }
 		[ "$presetPart" = "chat" ] || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is a $presetPart model, and a preset speaks to a chat model" ; set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --manager-preset-new "$presetName" --cli-service local > /dev/null || { set +e ; return 1 ; }
-		printf '%s\n' "$presetModel" | DistroAgentsTools --agents-config-option "preset-$presetName" --upsert-from-stdin PRESET_MODEL_OR_MACRO > /dev/null || {
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		printf '%s\n' "$presetModel" | AgentsToolsConfigOption "preset-$presetName" --upsert-from-stdin PRESET_MODEL_OR_MACRO > /dev/null || {
 			echo "⛔ ERROR: $MDSC_CMD $presetOp: the setting reader refused the model of the preset -- the preset was taken out again" >&2
 			rm -f -- "${MMDAPP%/}/.local/.agents/preset-$presetName.agent.env"
 			set +e ; return 1

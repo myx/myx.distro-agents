@@ -34,6 +34,7 @@ that the code and docs do not readily tell you.
 20. Questions, decisions and review
 21. Permission refusals and grants
 22. Test instruments
+23. Owner resolutions, 2026-10-30 and 2026-10-31
 
 ---
 
@@ -322,8 +323,11 @@ that the code and docs do not readily tell you.
   one correct idiom now. Never under `/tmp` (no atomic rename, symlink
   planting). Set a mode on the temp, never the target. Check the entry landed by re-running the
   idempotent writer and comparing.
-- **Scratch paths**: a scratch dir is `mktemp -d "$MMDAPP/.local/temp/<name>-XXXXXXXX"`, a scratch file
-  `mktemp "$MMDAPP/.local/temp/<name>.XXXXXX"`, each after `mkdir -p` of its folder. Never `/tmp` or
+- **Scratch paths**: a tool's own scratch goes in the calling session's `output` folder where there is one, and in
+  the workspace's `.local/temp` otherwise. The rule is two lines at each site, and no include: he does not want an
+  include, a function or a variable for something this small (`AgentsTempNamesCheck` section 7 holds the sites).
+  Below that folder a scratch dir is `mktemp -d "<base>/<name>-XXXXXXXX"` and a scratch file
+  `mktemp "<base>/<name>.XXXXXX"`. Never `/tmp` or
   `TMPDIR`, so never `mktemp -d -t` or a `mktemp` with no template, which create there. The tooling
   uses neither: with no workspace, a call fails with a clear error. The harness's scratch is the
   spawn's sandbox `tmp/`, else `$MMDAPP/.local/agents/scratch/`. A name spelled with the shell's own process id (`<name>.$$`) is shared by
@@ -829,6 +833,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   the mouse and the spacers, stands in its
   `sh-lib/manager/LocalTools.ManagerInterface.include`, which the digest below
   expands into its `interface` subject.
+- **A console screen's roots are a plugin's `mount`.** `.local`'s features plugin, `LocalManagerScreen.Features.py`,
+  carries no `mount`, so `Optional Features` is a root of the screen's `setup` group, beside `Configuration` and
+  `This Machine`. It stood under `Configuration -> Installed Subsystems` until 2026-10-31, three levels down, where
+  nobody found a way to install or uninstall a feature. A feature moves in the list by changing that one word, and
+  the paths its declarations write follow it. A test that walks a level moves with it: a row leaving a level shifts
+  both a pane line number and a key step, and a blanket shift of the key steps breaks the step taken after landing
+  on a row. `AgentsManagerScreenFeaturesCheck` and `AgentsManagerScreenSubsystemsCheck` are the two that moved.
 - **`--manager-session-list [--active]`** is the `--manager-*` family's first operation: it lists the
   coworking sessions with their runs, ending with one row of counters. It is the only one of the three
   session operations that rebuilds the `spawned-sessions` and `pending-replies` registries at every
@@ -1678,7 +1689,7 @@ contracts are here.
   `tools.listChanged` false, and no `notifications/tools/list_changed` is sent: the list is fixed for the
   run.
 - **A trailing `wait` drains in-flight handlers** before the scratch root
-  (`$MMDAPP/.local/temp/agent-mcp.$$/`) is removed.
+  (`agent-mcp.<pid>` in the calling session's output folder, else `$MMDAPP/.local/temp/agent-mcp.$$/`) is removed.
 - **`execute`**: `command` starts, `job` addresses an existing job (read first), so `required` is empty.
   Foreground `timeout` defaults to 600 s, capped at 3600; a bad value takes the default. On expiry the answer goes out at once. It says the call was asked to end, and
   that whatever of it is left is killed five seconds after. The partial output is kept at a named path. The call's process group is ended
@@ -2173,6 +2184,13 @@ contracts are here.
 
 ## 16. Team data, board and inbox
 
+- **A session in a just-agents workspace files team data with `MMDAPP` at its team rig.** The gate
+  (`AgentsTools.TeamDataGate.include`) asks the mode of the workspace the call runs in, while the store is
+  the one `MDAT_DATA_ROOT` names: run the item operation with `MMDAPP` at the team rig, and unset
+  `MDAT_DATA_ROOT` so the rig's `TEAM_DATA_DIRECTORY` is resolved. The Meloscope team rig is
+  `ws-myx.prv-farm`. A rig stores the team data in the folder its settings name in `TEAM_DATA_DIRECTORY`.
+  For `ws-myx.prv-farm` that folder is `ws-myx-devops/source/myx/todo-sketchpad/magic-team-deployed`.
+  `ws-myx-devops` is just-agents and stays so.
 - **Every tooling writer commits** the paths it wrote through `AgentsToolsTeamDataCommitPaths`
   (`AgentsTools.TeamDataCommit.include`). A close point (spawn close, main-loop iteration)
   pushes through `AgentsToolsTeamDataPushIfAhead` under the `team-data-push` lock: fetch,
@@ -3320,7 +3338,9 @@ op's own option arm.
   ask.
 - **A member's own set does not ask again for what is held** (`--intern-op-permission-set-ask`). An entry the
   asking member holds now, through the session's grants among others, is not asked: the answer is
-  `PERMISSION-SET: held`, nothing posted, no permission edited. An entry another participant with a live run in the session holds returns a
+  `PERMISSION-SET: held`, nothing posted, no permission edited. Every entry it holds, its own floor row and
+  standing row included, leaves the ask itself, so a mixed set asks only the rest and the post's
+  `Already held` group names a participant that passes the entry on, never the asker's own grant. An entry another participant with a live run in the session holds returns a
   correction naming that participant. Ask them, or have them pass it on. A request sent again is
   no override: the same correction comes back. The call says `--escalate`, or `escalate: true`,
   when the member needs the access itself, and it is asked as it stands.
@@ -3514,3 +3534,50 @@ Each instrument states what it proves and its red recipe in its own header. What
 - **`sh-test/AgentsSweepTimingInstrument.sh` asserts nothing** and is kept off `.test.sh` so no sweep runs
   it: `MMDAPP=<ws> sh-test/AgentsSweepTimingInstrument.sh [<latency> [<dms> [<clients>]]]`, `INST_KEEP=<dir>`
   keeps output.
+
+## 23. Owner resolutions, 2026-10-30 and 2026-10-31
+
+Standing decisions of the human-owner. Each holds until he changes it.
+
+**Grants and places**
+- A grant is declared as a directory, a workspace or a namespace. The index resolves every form to absolute paths internally.
+- An ask is written and shown in place form, `<place>:<relative>/**`, named by the asking member's own grant. A name is never guessed back from a path.
+- Declarations come only from the authoritative copy of a repository. A stray copy in another workspace never feeds grants.
+- Every `keeper-*` holds standing write on its own workspaces and namespaces.
+- The Bash working directory follows the live grant decision, the same as the file tools.
+
+**Comms and Wait**
+- A reply to a member's own post is always read. `replies:` stays beside `chat:`.
+- The communication id of any message is its full pointer, `<driver>:<container>:<message-id>`, never the container alone. Slack is `slack:<conversation>:<ts>`, and email is `email:<account>:<message-id>`. The comms cache's `communication-channel-id`, Wait output, feeds, records and reply targets all use that one form.
+- A read of a bot-started DM thread falls back to the bot on `thread_not_found`.
+- A member posts under its own user token. The bot posts only for a member with none.
+- A child's escalation reaches its caller through the parent's `owner:`.
+- A session whose own chat, roster or log is newer than its spawn record is not ended.
+
+**Asks and work**
+- Members never sit idle waiting on the human-owner. His open questions stay open, and other work goes on.
+- An answered ask is closed with `AskQuestion` readback or withdraw, never with a plain message. A reminder is sent only after reading the thread.
+- A name the sketch or the epic gives is approved. A new name needs his approval.
+- Long work runs async: `background: true`, or the tool's own queue.
+- A document extension names its format. A file that does not follow the format does not take the extension.
+
+**Changing the tooling**
+- An include, a function or a variable is made only where it brings a gain, names a non-obvious gotcha that needs its comment, or holds real substance. One or two trivial basic lines, such as a path like `$MMDAPP/...`, are written inline wherever they are used. A wrapper around them costs speed, readability and maintainability, and adds coupling.
+- A member's scratch goes in its session's `output/` folder, the only writable one. `.local/temp` is for temporary files, never a work folder.
+- No member, tool or test ever creates a symlink. A delete or a copy that follows a link acts on the real tree behind it. A test that needs a tree copies it into its session's `output/` folder.
+- The one approved exception is the ssh short-path link in `myx.distro-system/sh-lib/DistroImage.SyncScriptMaker.include`. That package's MAGIC.md says why it stays.
+- Every tool except `DistroLocalTools.fn.sh` follows `myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh`. That means the six-line validator testing `.local` at the top, and the context block only in the `.fn.sh` arm. `DistroLocalTools.fn.sh` is the installer and runs bare, so it is the one exception.
+- A tool that calls its own family's context, such as `DistroDeployContext`, loads that context both in its function and in its `.fn.sh` arm. Any console can call the function, and the arm sets it at the root. One comment line in the arm marks it as special. A generic tool needs only SystemContext, which every console has.
+- A change that replaces working code names what the old code does, what the new code does, and why, before it lands.
+- A change goes through a sandbox and `DistroAgentsTesting.fn.sh --apply-tool`. A file a running session reads is never rewritten in place.
+- `DistroAgentsTools.fn.sh` loads its context at file scope. It is called as `Distro DistroAgentsTools`, by name, or by full path.
+
+**Organisations**
+- The reflection design and its implementation are Meloscope's, and stay off a client Confluence. A client's own coordinator publishes only the reflections produced in its workspace.
+- The MDV workspace works only MAGIC-* and NDM items. The refactorings epic lives only on Meloscope's board.
+
+## Member installs are links, made only by the installer (2026-11-01)
+
+- Each member under `.local/agents/members/` is a link into its skillset, made by `--install-skillset-symlinks`. These are installation links, not sandboxes.
+- A sweep that removes every link under `.local/agents` removes every member install with it. No member can then be started in that workspace.
+- Put them back with the installer, never by hand: `Distro DistroAgentsTools --install-skillset-symlinks --workspace <workspace>`. That was verified on 2026-11-01 in all four workspaces.

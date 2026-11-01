@@ -32,6 +32,7 @@ case "$1" in
 			;;
 		esac
 		AgentsToolsActingMemberCheck "$digestMember" send-contact-digest || { set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$digestOrigin" "$@" \
 			--context --send-contact-digest
 		return $?

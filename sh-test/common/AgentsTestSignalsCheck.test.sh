@@ -94,7 +94,12 @@ rigOtherStart="Mon_Jan__1_00:00:00_2001"
 echo "-- 1a. a process that was noted and is still itself is signalled; one never noted is not --"
 rigStand ; rigOwn="$rigStandPid"
 rigProcNote "$rigOwn"
-rigAssert "control: the note is the pid and when it began, as the tooling keeps a process" "$( printf '%s\n' "$rigProcNoted" | LC_ALL=C grep -c -E "^$rigOwn [A-Z][a-z]{2}_[A-Z][a-z]{2}_[0-9]{1,2}_[0-9:]{8}_[0-9]{4}\$" )" 1
+## The pattern is a variable, not inline text: a brace count written straight into this word, command
+## substitution and all, is a word bash's own brace expansion scans whole -- `{1,2}` split this single
+## word into two before the substitution ever ran, and "1" at the line's own end became a stray word of
+## its own. A variable's own content is never rescanned that way.
+rigNoteShape="^$rigOwn [A-Z][a-z]{2}_[A-Z][a-z]{2}_[0-9]{1,2}_[0-9:]{8}_[0-9]{4}\$"
+rigAssert "control: the note is the pid and when it began, as the tooling keeps a process" "$( printf '%s\n' "$rigProcNoted" | LC_ALL=C grep -c -E "$rigNoteShape" )" 1
 rigProcSignal TERM "$rigOwn" ; rigRc=$?
 rigAssert "a noted process that is still itself is signalled: rc 0, and it is gone" "$rigRc $( rigLeftAfter "$rigOwn" )" "0 0"
 rigProcSignal KILL "$rigOwn" ; rigRc=$?
@@ -372,7 +377,19 @@ rigList(){
 		'member/AgentsWaitWakeLatencyCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
 		'member/AgentsWaitWakeLatencyCheck.test.sh|1|kill -TERM "$rigScanPid"|@probed' \
 		'questions/AgentsEscalationWaitTrapCheck.test.sh|1|kill -"$2" "$waitPid"|@uncollected' \
-		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
+		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch' \
+		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill -TERM $$ 2|the own pid of the top-level script, read by $$, which a subshell never shadows with its own, so the number is this very process while it is still the one running this line' \
+		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill -KILL $$ 2|the same own pid as just above, five seconds later if the first signal did not already end the script' \
+		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill "${rigWatchdog:-}" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the watchdog started at the top of this check, read by $! at that moment, with no start kept beside it to recheck at the trap that signals it' \
+		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill $rigChildPids 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a trap-time sweep of every child pid this check started, each read by $! when it began, with no start kept beside any of them to recheck' \
+		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill "$rigChildPid" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the child started a few lines above, read by $! at that moment, with no start kept beside it to recheck' \
+		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill "$rigParentPid" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the parent loop started a few lines above by this check, read by a command substitution of $!, with no start kept beside it to recheck' \
+		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill "$rigChildPid2" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same gap as rigChildPid above, for this scenes own second child' \
+		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill "$rigParentPid2" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same gap as rigParentPid above, for this scenes own second parent loop' \
+		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$endOne" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a trap-time sweep of every child pid this check started, each read by $! when it began, with no start kept beside any of them to recheck' \
+		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$( cat "$rigKidsAt/$1.pid" )" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the pid a child wrote to its own file the moment it began, read back and signalled with no start kept beside it to recheck' \
+		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$waitPid" 2>/dev/null ; sleep 2 ; kill -KILL "$waitPid"|@probed' \
+		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
 }
 rigToolingList(){
 	printf '%s\n' \

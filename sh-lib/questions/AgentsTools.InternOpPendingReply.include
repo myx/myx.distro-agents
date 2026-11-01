@@ -43,11 +43,13 @@ AgentsToolsPendingReplyResolve(){ ## pending id
 ## `already_reacted` is a success of the react op. A failure is logged and changes nothing.
 AgentsToolsPendingReplyReact(){ ## member, <channel>:<ts>, emoji, pending id, the record's ask-identity (bot|member; empty: member)
 	if [ "${5:-}" = "bot" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" --identity-bot > /dev/null 2>&1 \
 			|| DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" > /dev/null 2>&1 \
 			|| echo "$MDSC_CMD: ⚠️ WARNING: $4 is closed, but :$3: was not added on $2" >&2
 		return 0
 	fi
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" > /dev/null 2>&1 \
 		|| DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" --identity-bot > /dev/null 2>&1 \
 		|| echo "$MDSC_CMD: ⚠️ WARNING: $4 is closed, but :$3: was not added on $2" >&2
@@ -229,6 +231,7 @@ case "$1" in
 		if [ -n "$pendingSession" ] && [ -n "$pendingOwner" ] ; then
 			local pendingWaitErr
 			pendingWaitErr="$( mktemp "$pendingRoot/.$pendingId.wait-add.XXXXXX" 2> /dev/null )" || pendingWaitErr=/dev/null
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-wait-for-input "$pendingOwner" --wait-add --wait-session-id "$pendingSession" --wait-source "ask:$pendingId" > /dev/null 2> "$pendingWaitErr" \
 				|| { echo "$MDSC_CMD: ⛔ ERROR: $pendingId is asked, but it could not join the stored wait of session $pendingSession, so a cut-off call loses its answer until a Wait names it:" >&2 ; cat "$pendingWaitErr" >&2 ; }
 			[ "$pendingWaitErr" = /dev/null ] || rm -f "$pendingWaitErr"
@@ -425,12 +428,15 @@ case "$1" in
 			|| { rm -f "$pendingFile.$$" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		AgentsToolsLocalLockGive "$pendingLock"
 		## A QUESTION CLOSED WITH NO VERDICT LEAVES THE ASK'S WAIT SOURCE (S21.6, owner 2026-10-30): a withdrawn one, or one settled elsewhere,
-		## can never answer the wait that watches it. An answered one keeps its thread watched, so a later message there arrives as CLARIFIED.
+		## can never answer the wait that watches it. An answered one is carried by the one call that shows its closed note and is stored no
+		## more (owner ruling 2026-10-31, AgentsWaitStateStore in AgentsTools.MemberWait.include): a later message in its thread reaches the
+		## asker as the session floor's, never as a CLARIFIED of this question.
 		if [ -z "$pendingVerdict" ] ; then
 			local dropOwner="" dropSession=""
 			dropOwner="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "owner: ") == 1 { print substr($0, 8) ; exit }' "$pendingFile" 2> /dev/null )" || dropOwner=""
 			dropSession="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "session-id: ") == 1 { print substr($0, 13) ; exit }' "$pendingFile" 2> /dev/null )" || dropSession=""
 			if [ -n "$dropOwner" ] && [ -n "$dropSession" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-wait-for-input "$dropOwner" --wait-drop --wait-session-id "$dropSession" --wait-source "ask:$pendingId" > /dev/null 2>&1 || :
 			fi
 		fi
@@ -802,6 +808,7 @@ case "$1" in
 							printf '# Note: an answer arrived after your session ended\n\n'
 							printf 'Pending reply `%s` is answered, and its record is closed. What the tooling collected:\n\n' "$collectNoteId"
 							printf -- '- %s\n' "${collectLine#ANSWERED }"
+						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 						} | DistroAgentsTools --intern-op-member-inbox-upsert "$collectOwner" "note-$( date -u +%Y%m%dT%H%M%SZ )-answer-${collectNoteId%%-*}.md" \
 							--context "$MDSC_CMD" > /dev/null 2>&1 \
 							|| echo "⚠️ WARNING: $MDSC_CMD: $collectNoteId is answered and closed, but the note to $collectOwner's inbox was not written" >&2

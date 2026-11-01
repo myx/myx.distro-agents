@@ -40,6 +40,7 @@ AgentsToolsInboxToProcessedReply(){ ## owner (who processed), request (name), re
 		return 0
 	fi
 	printf '%s\n' "$replyText" > "$replyFile"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-member-inbox-upsert "$3" "$replyName" --from-member "$1" --from-file "$replyFile" --context --inbox-inquiry-reply > /dev/null || replyRc=$?
 	rm -f "$replyFile"
 	[ "$replyRc" = 0 ] || echo "$MDSC_CMD: ⚠️ WARNING: $2 is processed, but the note to $3 could not be filed" >&2

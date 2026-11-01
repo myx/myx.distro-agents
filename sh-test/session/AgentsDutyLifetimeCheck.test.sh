@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on how long a work-duty lives (F7.12, the owner's rulings of 2026-10-20; AgentsToolsScheduleDutyLifetime, sh-lib/session/
-## AgentsTools.DispatcherLoop.include, taken at each iteration of --intern-main-loop). The real loop (--one) and the real spawner run, as in
+## AgentsTools.DispatcherSchedule.include, taken at each iteration of --intern-main-loop). The real loop (--one) and the real spawner run, as in
 ## AgentsScheduleLoopCheck; the console, curl, date and every setting are this rig's own, the runs are stand-in processes with milestones and a log
 ## of their own. GUARD: every tooling call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this
 ## rig's tree and PATH holds no agent CLI. Held, each case on its own:

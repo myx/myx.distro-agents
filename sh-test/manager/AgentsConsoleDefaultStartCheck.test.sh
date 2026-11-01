@@ -66,15 +66,15 @@ rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx/myx.distro-agents/sh-scripts"
 for rigPkg in "$MDLT_ORIGIN"/myx/* ; do
 	[ "${rigPkg##*/}" != "myx.distro-agents" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/myx/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/${rigPkg##*/}"
 done
 for rigPkg in "$MDLT_ORIGIN"/myx/myx.distro-agents/* ; do
 	[ "${rigPkg##*/}" != "sh-scripts" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/myx/myx.distro-agents/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/myx.distro-agents/${rigPkg##*/}"
 done
 for rigPkg in "$MDLT_ORIGIN"/myx/myx.distro-agents/sh-scripts/* ; do
 	[ "${rigPkg##*/}" != "DistroAgentsTools.fn.sh" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-scripts/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-scripts/${rigPkg##*/}"
 done
 printf '#!/bin/sh\ncase "$1" in\n\t--manager)\n\t\tprintf "called %%s\\n" "$*" >> "$MMDAPP/../manager.log"\n\t\t[ "${RIG_SCREEN:-}" = real ] || exit 0\n\t;;\nesac\nexec "%s" "$@"\n' "$rigFn" \
 	> "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

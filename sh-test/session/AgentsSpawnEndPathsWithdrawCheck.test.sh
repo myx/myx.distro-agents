@@ -46,7 +46,7 @@ printf '# rig armed\n' > "$rigSkills/rig-member/rig-member.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member/rig-member.basic.md"
 ## THE RIG'S OWN PROCESS LIST: the ps first on PATH answers the whole-host listing from the rig's file, which holds
 ## no line at all, so no run of this rig is ever "running", and hands every other call to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

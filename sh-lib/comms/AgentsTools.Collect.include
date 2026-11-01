@@ -100,14 +100,16 @@ AgentsToolsCollectConfigured(){ ## kind, member
 	AgentsToolsCommsOwnSettingsApply "$confMember" || return 5
 	case "$confKind" in
 		mail)
-			confA="$( DistroAgentsTools --agents-config-option "$confMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || confA=""
-			confB="$( DistroAgentsTools --agents-config-option "$confMember" --select EMAIL_USER 2> /dev/null )" || confB=""
-			confC="$( DistroAgentsTools --agents-config-option "$confMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || confC=""
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			confA="$( AgentsToolsConfigOption "$confMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || confA=""
+			confB="$( AgentsToolsConfigOption "$confMember" --select EMAIL_USER 2> /dev/null )" || confB=""
+			confC="$( AgentsToolsConfigOption "$confMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || confC=""
 			[ -n "$confA" ] && [ -n "$confB" ] && [ -n "$confC" ] || return 4
 		;;
 		trello)
-			confA="$( DistroAgentsTools --agents-config-option "$confMember" --select TRELLO_KEY 2> /dev/null )" || confA=""
-			confB="$( DistroAgentsTools --agents-config-option "$confMember" --select TRELLO_TOKEN 2> /dev/null )" || confB=""
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			confA="$( AgentsToolsConfigOption "$confMember" --select TRELLO_KEY 2> /dev/null )" || confA=""
+			confB="$( AgentsToolsConfigOption "$confMember" --select TRELLO_TOKEN 2> /dev/null )" || confB=""
 			[ -n "$confA" ] && [ -n "$confB" ] || return 4
 		;;
 		*) return 4 ;;
@@ -126,6 +128,7 @@ AgentsToolsCollectItemWrite(){ ## member, item name, channel id, block file
 		[ "$itemChannel" = "-" ] || printf 'communication-channel-id: %s\n' "$itemChannel"
 		printf -- '---\n\n'
 		cat "$itemBlock"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	} | DistroAgentsTools --intern-op-member-inbox-upsert "$itemMember" "$itemName" --no-commit --context --intern-op-collect-sources > /dev/null 2> "$itemErr" || itemRc=$?
 	LC_ALL=C grep -e 'WARNING' -e 'ERROR' -e 'nothing was written' -e 'contract-' "$itemErr" >&2 || :
 	rm -f "$itemErr"
@@ -197,9 +200,10 @@ AgentsToolsCollectMail(){ ## member, since
 	local mailMember="$1" mailSince="${2:-}" mailHost mailUser mailPass mailWork mailOut mailRc=0 mailPointer mailKnown mailUids mailUid
 	local mailLast mailGap=0 mailItemRc mailName mailDate mailBlockRc mailNotRead="" mailPending=0
 	agentsCollectNew=0 ; agentsCollectWhy=""
-	mailHost="$( DistroAgentsTools --agents-config-option "$mailMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || mailHost=""
-	mailUser="$( DistroAgentsTools --agents-config-option "$mailMember" --select EMAIL_USER 2> /dev/null )" || mailUser=""
-	mailPass="$( DistroAgentsTools --agents-config-option "$mailMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || mailPass=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	mailHost="$( AgentsToolsConfigOption "$mailMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || mailHost=""
+	mailUser="$( AgentsToolsConfigOption "$mailMember" --select EMAIL_USER 2> /dev/null )" || mailUser=""
+	mailPass="$( AgentsToolsConfigOption "$mailMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || mailPass=""
 	if [ -z "$mailHost" ] || [ -z "$mailUser" ] || [ -z "$mailPass" ] ; then
 		agentsCollectWhy="the mailbox is not configured in the member's own scope"
 		return 1

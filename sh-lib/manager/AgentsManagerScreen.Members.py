@@ -442,6 +442,7 @@ def helpFocus(state, row):
 
 registerPlugin({
     "name": "team",
+    "apps": ("agents",),
     "mount": "magic-team",
     "root": {"id": "team", "label": "Team Members", "go": "~T~eam Members", "group": "team"},
     ## What a member holds as a folder: MEMBER_FOLDERS.

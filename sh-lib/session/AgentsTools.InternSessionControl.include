@@ -444,7 +444,8 @@ AgentsToolsSessionControlKeep(){ ## name of the file, its text
 ## else its default; a value that is no number above zero reads as the default.
 AgentsToolsSessionControlSeconds(){ ## key, default
 	local secondsValue
-	secondsValue="$( DistroAgentsTools --agents-config-option magic-team --select-default "$1" "$2" 2> /dev/null )" || secondsValue=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	secondsValue="$( AgentsToolsConfigOption magic-team --select-default "$1" "$2" 2> /dev/null )" || secondsValue=""
 	case "$secondsValue" in ''|*[!0123456789]*|0|????????*) secondsValue="$2" ;; esac
 	printf '%s\n' "$secondsValue"
 }
@@ -1031,7 +1032,8 @@ case "$1" in
 		fi
 
 		local controlTick
-		controlTick="$( DistroAgentsTools --agents-config-option magic-team --select-default SESSION_CONTROL_TICK_SECONDS 5 2> /dev/null )" || controlTick=5
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		controlTick="$( AgentsToolsConfigOption magic-team --select-default SESSION_CONTROL_TICK_SECONDS 5 2> /dev/null )" || controlTick=5
 		case "$controlTick" in ''|*[!0123456789]*) controlTick=5 ;; esac
 		[ "$controlTick" -gt 0 ] || controlTick=5
 

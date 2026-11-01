@@ -189,6 +189,7 @@ AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, s
 			done
 			[ -n "$awaitSources" ] || awaitSources="--wait-source inbox:$2"
 			## The Wait of the start has no session of its own: not the caller's floor, and not a pointer of the new session.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			awaitOut="$( unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID ; DistroAgentsTools --wait-for-input --team-member "$2" $awaitSources --wait-since-utime "$awaitFrom" --wait-timeout "$awaitLeft" 2> /dev/null < /dev/null )" || :
 			awaitHead="$( printf '%s\n' "$awaitOut" | head -n 1 )"
 			case "$awaitHead" in
@@ -238,11 +239,14 @@ AgentsToolsInputScanDefNames(){ ## definition lines (one a line)
 }
 
 ## The scans run for a start, their results in one file: each line of the definition in order, then the member, session
-## and spawn it is run for, then the file. One scan: its report as it is. Several: each under `## input scan: <scan>`.
+## and spawn it is run for, then the file. One scan: its report as it is. Several: each in a section of its own, `## input
+## scan: <scan>`, composed by the one nesting engine (--intern-merge-md-files, AgentsToolsMergeMdFiles), so a report's own
+## headings are reworked one level down into that section instead of standing beside it.
 ## A scan's own failure is not the start's: the file then says it failed, and what it said, and the agent reads that.
 ## rc 1 only for a definition that cannot be run at all, before any scan has run.
 AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, session id, spawn id, result file
-	local runLines="" runLine runCount=0 runScan runWords runWord runArgs runRc runOut runErr runAt=0
+	local runLines="" runLine runCount=0 runScan runWords runWord runArgs runRc runAt=0 runMergeRc=0
+	local runFiles=() runNames=() runMixins=() runErr="$5.err" runOne
 	while IFS= read -r runLine ; do
 		[ -n "$runLine" ] && [ "$runLine" != "none" ] || continue
 		AgentsToolsInputScanDefWords "$runLine" "$2" "$3" "$4" > /dev/null || return 1
@@ -250,7 +254,6 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 		runCount=$(( runCount + 1 ))
 	done <<< "$1"
 	: > "$5" || return 1
-	runOut="$5.one" ; runErr="$5.err"
 	while IFS= read -r runLine ; do
 		[ -n "$runLine" ] || continue
 		runAt=$(( runAt + 1 ))
@@ -259,29 +262,42 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 		runArgs=()
 		while IFS= read -r runWord ; do runArgs+=( "$runWord" ) ; done <<< "$runWords"
 		runRc=0
+		runOne="$5.$runAt"
 		## The report the wait of this line made last (AgentsToolsInputScanDefAwait) is the one this start goes on with; the scan is not run a second time.
 		if [ -n "${agentsInputScanGiven:-}" ] && [ -f "$agentsInputScanGiven/line.$runAt" ] ; then
-			cp "$agentsInputScanGiven/line.$runAt" "$runOut" && : > "$runErr" || runRc=1
+			cp "$agentsInputScanGiven/line.$runAt" "$runOne" && : > "$runErr" || runRc=1
 		else
 			## Cached 5 minutes, per session or spawn (sketch 7.1, option A): the same words run again for the one start
 			## are served the one report, never run twice.
-			AgentsToolsInputScanCachedCall "$runWords" "${3:-$4}" "" "$runOut" "$runErr" || runRc=$?
+			AgentsToolsInputScanCachedCall "$runWords" "${3:-$4}" "" "$runOne" "$runErr" || runRc=$?
 		fi
-		[ "$runCount" -le 1 ] || printf '## input scan: %s\n\n' "$runScan" >> "$5"
 		if [ "$runRc" -ne 0 ] ; then
-			{
-				printf '%s\n\n' "## input scan failed"
-				printf 'The spawner ran `%s` for this start and it failed (exit %s). What it said:\n\n' "${runArgs[*]}" "$runRc"
-				cat "$runOut" "$runErr" 2> /dev/null
-			} >> "$5"
+			{ printf '## input scan failed\n\n' ; printf 'The spawner ran `%s` for this start and it failed (exit %s). What it said:\n\n' "${runArgs[*]}" "$runRc" ; cat "$runOne" "$runErr" 2> /dev/null ; } > "$runOne.failed"
+			mv -f "$runOne.failed" "$runOne"
 			echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the input scan $runScan of this routine failed (exit $runRc), and input/input-scan.md says so" >&2 || :
 		else
-			cat "$runOut" >> "$5"
-			AgentsToolsInputScanDefSeed "$runLine" "$runScan" "$2" "$3" "$runOut"
+			AgentsToolsInputScanDefSeed "$runLine" "$runScan" "$2" "$3" "$runOne"
 		fi
-		[ "$runCount" -le 1 ] || printf '\n' >> "$5"
+		runFiles+=( "$runOne" ) ; runNames+=( "$runScan" ) ; runMixins+=( --mixin "$runOne" "input scan: $runScan" )
 	done <<< "$runLines"
-	rm -f "$runOut" "$runErr"
+	if [ ${#runFiles[@]} -le 1 ] ; then
+		[ ${#runFiles[@]} -eq 0 ] || cat "${runFiles[0]}" >> "$5"
+	else
+		type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+		AgentsToolsMergeMdFiles --section-prefix 2 "${runMixins[@]}" > "$5" || runMergeRc=$?
+		## A merge that could not be made is said in the file the agent reads, and each report follows as it came: a start
+		## that went on with an empty file would read as a start with nothing to do.
+		if [ "$runMergeRc" -ne 0 ] ; then
+			{ printf '## input scan: merge failed\n\n' ; printf 'The spawner could not merge this start'\''s scan reports (exit %s). Each report follows as it came.\n\n' "$runMergeRc"
+				runAt=0
+				while [ "$runAt" -lt ${#runFiles[@]} ] ; do
+					printf '## input scan: %s\n\n' "${runNames[$runAt]}" ; cat "${runFiles[$runAt]}" ; printf '\n'
+					runAt=$(( runAt + 1 ))
+				done
+			} > "$5"
+		fi
+	fi
+	rm -f "$5".[0-9]* "$runErr"
 	[ -z "${agentsInputScanGiven:-}" ] || { rm -rf "$agentsInputScanGiven" ; agentsInputScanGiven="" ; }
 	return 0
 }

@@ -113,11 +113,13 @@ case "$1" in
 			## that read everything and found little, unless the document says which.
 			printf 'resumed-from: %s (%s)\n\n' "${commsCutoffArgs[1]:-none}" "$clientCutoffOrigin"
 
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --client-sweep-config-check "$clientMember" || true
 			printf '\n'
 
 			## --do-board-related-active supplies the state set; a --state list here would
 			## have to byte-match it.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
 				--do-board-related-active \
 				--all-types --filter-owner "$clientMember" \
@@ -168,6 +170,7 @@ case "$1" in
 			;;
 		esac
 
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-check-configs "$checkMember" \
 			"$conversationsMode" "SLACK_CONVERSATIONS:<conversation-id>[,<conversation-id>]..." \
 			--optional "SLACK_USER_TOKEN:<token>" \

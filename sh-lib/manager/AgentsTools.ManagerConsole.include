@@ -69,6 +69,7 @@ AgentsToolsManagerConsoleRows(){ ## the operation as it was called
 	if [ -f "$rowsCommand" ] && [ -x "$rowsCommand" ] ; then
 		rowsVendor="$( LC_ALL=C sed -n 's/^DAGC_VENDOR_CLIS="\(.*\)"$/\1/p' "$rowsCommand" 2> /dev/null )" || rowsVendor=""
 		rowsUsable=""
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		[ -z "$rowsVendor" ] || rowsUsable="$( DistroAgentsTools --manager-config-digest cli 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "cli" && $4 == "usable" && $5 == "set" && $6 == "yes" { print $3 ; }' )" || rowsUsable=""
 		for rowsName in $rowsVendor ; do
 			case "$rowsEnd$rowsUsable$rowsEnd" in

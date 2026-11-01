@@ -78,6 +78,15 @@ printf -- 'matter: Go live\nbody: Ship it.\n' \
 rigAssert "an approval without the required blocks is refused" "$( cat "$rigDir/c2.rc" )" 1
 rigAssert "and nothing is written"                           "$( [ -e "$rigStore/board/running/approval-20261014T0104Z-rig.md" ] && printf made || printf none )" none
 
+echo "-- an investigation from its slots --"
+rigScenario investigation
+printf -- 'matter: Why the loader drops its last line\nquestion:\n  Which line is dropped, and why.\ngoal:\n  - The dropped line is named.\n  - Its cause is shown.\ncurrent:\n  The last line is dropped, reproduced at 10:00.\nsettled:\n  none\nopen:\n  The cause.\nlog:\n  Round 1: the drop was reproduced.\n' \
+	| rigOp "$rigDir/c" --intern-op-board-upsert-move-edit running investigation-20261014T0106Z-rig.md --create --upsert-from-slots --context rig
+rigAssert "the investigation create succeeds"               "$( cat "$rigDir/c.rc" )" 0
+rigAssert "the type and contract are stamped"              "$( LC_ALL=C grep -c -e '^type: investigation$' -e '^document-contract: board-item.investigation$' "$rigStore/board/running/investigation-20261014T0106Z-rig.md" 2>/dev/null )" 2
+rigAssert "the title is rendered from matter"              "$( LC_ALL=C grep -c '^# Investigation: Why the loader drops its last line$' "$rigStore/board/running/investigation-20261014T0106Z-rig.md" 2>/dev/null )" 1
+rigAssert "the question, goal, current and open sections render" "$( LC_ALL=C grep -c -e '^# Question$' -e '^# Goal$' -e '^# Current$' -e '^# Open$' -e '^# Log$' "$rigStore/board/running/investigation-20261014T0106Z-rig.md" 2>/dev/null )" 5
+
 echo "-- an unknown board type is refused --"
 rigScenario unknown
 printf -- 'matter: X\nbody: Y\n' \

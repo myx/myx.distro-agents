@@ -125,6 +125,7 @@ AgentsToolsLibrarianEpoch(){ ## file
 ## (--intern-op-permission-grant-read). A call that holds none is refused as a tool call is: the refusal is recorded (--intern-op-permission-refusal-log),
 ## its REFUSAL-ID said with the way to ask for it, RequestPermission, and rc 1; a granted call is retried exactly as it was made.
 AgentsToolsLibrarianPermission(){ ## op, target (<team-member>:<pathname>)
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local permMember permSession="${MDAT_SPAWN_SESSION_ID:-}" permOut="" permRc=0 permGrant permId permOpen permLog
 	AgentsToolsLibrarianLoad
 	permMember="$( AgentsToolsActingMember )"
@@ -272,6 +273,7 @@ AgentsToolsLibrarianProduceInput(){ ## target file (unused), op, mode, path
 ## THE CORE of the write, the same for a call and for the librarian's apply of a request: the checks in their order, the resulting text made by the
 ## producer function (called with the target file, then its own arguments; it prints the file with the text), validated, then saved.
 AgentsToolsLibrarianSkillsetCore(){ ## op, team-member, pathname, producer, producer arguments...
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local upOp="$1" upMember="$2" upPath="$3" upProducer="$4" upTarget upText upRows upRc=0 upFlag upReason
 	shift 4
 	AgentsToolsLibrarianLoad
@@ -416,6 +418,7 @@ AgentsToolsLibrarianWaiting(){
 ## The tooling records the target file's date and checksum itself; they are never given. A request is a notice unless it asks for the outcome with --reply
 ## (`reply-requested: yes`): then --queue-done files one note with the outcome into the requester's inbox. Without --reply nothing is sent back.
 AgentsToolsLibrarianRequestUpdate(){ ## the operation, its arguments...
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local reqOp="$1" reqKind="" reqTarget="" reqWhy="" reqMode="" reqFrom="" reqWhole="" reqReply="" reqOld="" reqOldSet="" reqOldFile="" reqNew="" reqNewSet="" reqNewFile=""
 	local reqMember reqForm reqFile reqDetail="" reqOldPath="" reqNewPath="" reqText reqName reqTail reqSent reqRc=0 reqDate="" reqSum="" reqWhy2 reqLeft
 	shift
@@ -622,6 +625,7 @@ AgentsToolsLibrarianProduceEdit(){ ## target file, op, request file
 ## The outcome of a request, told to the requester that asked for it (`reply-requested: yes`): one note into the requester's inbox, from the template
 ## block Librarian/update-reply, by the inbox operation that writes any member's inbox. Said on stderr when it could not be filed; the close stands.
 AgentsToolsLibrarianReply(){ ## op, request name, requester, kind, target, outcome, result
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local replyText replyFile replyRc=0 replyName
 	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
 	replyText="$( ASKP_F_requester="$3" ASKP_F_request="$2" ASKP_F_kind="$4" ASKP_F_target="$5" ASKP_F_outcome="$6" ASKP_F_result="$7" AgentsToolsEscalationNote "Librarian/update-reply" )" || replyText=""
@@ -644,6 +648,7 @@ AgentsToolsLibrarianReply(){ ## op, request name, requester, kind, target, outco
 ## One waiting update request closed into processed/ by the inbox operation, with its outcome and its result on one line each of its frontmatter; and,
 ## where the request asked for its outcome, the note that tells the requester.
 AgentsToolsLibrarianClose(){ ## op, name, outcome (applied|refused|closed), result
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local closeFile closeFrom closeReply closeKind closeTarget closePending
 	closeFile="$( AgentsToolsInboxDir magic-librarian )/$2"
 	closeFrom="$( AgentsToolsLibrarianKey "$closeFile" from )" ; closeReply="$( AgentsToolsLibrarianKey "$closeFile" reply-requested )"
@@ -766,6 +771,7 @@ AgentsToolsLibrarianMtime(){ ## file
 ## rc 0 with none. --queue files one message update request into magic-librarian's inbox for each, recording the newest code
 ## file's checksum (`update-target-checksum`), so the librarian decides it with --queue-done.
 AgentsToolsLibrarianDocDrift(){ ## the operation, its arguments...
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local driftOp="$1" driftQueue="" driftRoots=() driftPkg driftFile driftDocNew="" driftCodeNew="" driftM driftNewestFile="" driftSum driftName driftTail
 	local driftText driftSent driftWhy driftRc=0
 	shift
@@ -884,6 +890,7 @@ AgentsToolsLibrarianDocDriftCodeNewest(){ ## package dir
 ## the doc's date and checksum recorded as --request-update records them. Prints the request's name; rc 1, said on stderr, where
 ## it could not be filed.
 AgentsToolsLibrarianDocDriftQueue(){ ## op, target (rel path), doc file
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local queueOp="$1" queueTarget="$2" queueFile="$3" queueText="" queueName queueSent queueRc=0 queueTail
 	local queueSum="" queueDate=""
 	if [ -f "$queueFile" ] ; then
@@ -1003,6 +1010,7 @@ AgentsToolsLibrarianPendingWithdraw(){ ## op, pending id
 ## The question's requester is the librarian, with its run, so its allow answer applies the edit as the librarian
 ## (AgentsToolsAuthorityRequestAct runs the action it keeps beside it, --queue-done --apply); its deny runs no action and leaves the request waiting.
 AgentsToolsLibrarianQueueAsk(){ ## the operation, name
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local askOp="$1" askName="${2:-}" askFile askKind askForm askTarget askFrom askText askId askHolder askOptions askRequester askRequesterRun
 	[ -n "$askName" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: syntax is <name>" >&2 ; return 1 ; }
 	AgentsToolsLibrarianLoad

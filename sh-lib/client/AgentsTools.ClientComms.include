@@ -78,6 +78,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-board-list --member "$actingMember" --context client-comms-jira-board-list "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -103,6 +104,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-board-read --member "$actingMember" --context client-comms-jira-board-read --board-id "$boardId" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -128,6 +130,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-board-issue-search --member "$actingMember" --context client-comms-jira-board-issue-search --board-id "$boardId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -153,6 +156,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-sprint-list --member "$actingMember" --context client-comms-jira-sprint-list --board-id "$boardId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -178,6 +182,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-sprint-issue-search --member "$actingMember" --context client-comms-jira-sprint-issue-search --sprint-id "$sprintId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -203,6 +208,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-search --member "$actingMember" --context client-comms-jira-issue-search --jql "$jqlQuery" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -254,6 +260,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-comment-read --member "$actingMember" --context client-comms-jira-comment-read --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -288,6 +295,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-create --member "$actingMember" --context client-comms-jira-issue-create "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -331,6 +339,7 @@ case "$1" in
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-update jira issue "$issueKey" \
 			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-update --member "$actingMember" --context client-comms-jira-issue-update --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -374,6 +383,7 @@ case "$1" in
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-transition jira issue "$issueKey" \
 			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-transition --member "$actingMember" --context client-comms-jira-issue-transition --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -415,6 +425,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-comment-add --member "$actingMember" --context client-comms-jira-comment-add --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -442,6 +453,7 @@ case "$1" in
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-delete jira issue "$issueKey" \
 			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-jira-issue-delete --member "$actingMember" --context client-comms-jira-issue-delete --issue-key "$issueKey" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -465,6 +477,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-space-list --member "$actingMember" --context client-comms-confluence-space-list "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -516,6 +529,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-search --member "$actingMember" --context client-comms-confluence-page-search --cql "$cqlQuery" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -541,6 +555,7 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-comment-read --member "$actingMember" --context client-comms-confluence-comment-read --page-id "$pageId" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -575,6 +590,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-create --member "$actingMember" --context client-comms-confluence-page-create "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -618,6 +634,7 @@ case "$1" in
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-update confluence page "$pageId" \
 			AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$actingMember" --context client-comms-confluence-page-update --page-id "$pageId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -659,6 +676,7 @@ case "$1" in
 			esac
 		done
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-comment-add --member "$actingMember" --context client-comms-confluence-comment-add --page-id "$pageId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
@@ -686,6 +704,7 @@ case "$1" in
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-delete confluence page "$pageId" \
 			AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
 		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-delete --member "$actingMember" --context client-comms-confluence-page-delete --page-id "$pageId" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0

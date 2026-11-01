@@ -595,7 +595,7 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 - Two place names are built in, needing no registration: `.skillset-shared` (the machine's HOME skills folder) and `.skillset-.local` (the workspace's own local skillset). Use either in place of a path. A custom place name may not start with a dot.
 - Read `reference/workspace-and-execution.md` for the registries, the three workspace roles, invited members and the source of settings.
 - The team edits inside the workspace holding its own source tree. A workspace or directory outside it is read, and edited only under a write grant on it. A member's own skillset files are the exception, at the path its folder resolves to.
-- A member never edits `$MMDAPP/.local/` outside `.local/temp/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
+- A member never edits `$MMDAPP/.local/` outside its own session sandbox. Scratch never goes to `.local/temp/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
 
 # Human-owner's standing rules
 
@@ -619,6 +619,10 @@ Content he confirmed is never touched as a side effect of unrelated work. Scope 
 ## Corrections go forward, never by reverting
 
 A correction lands as the next edit, never as an undo.
+
+## Problems are fixed forward, by improving the mechanism
+
+A problem found is fixed by improving the mechanism that let it happen. Never put a patch on a patch.
 
 ## His words are carried literally
 

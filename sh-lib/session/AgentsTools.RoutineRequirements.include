@@ -144,6 +144,7 @@ AgentsToolsRoutineStartAsk(){ ## the member the run is, the routine file, the re
 	askFile="$( mktemp "$MMDAPP/.local/temp/mdat-start-ask.XXXXXX" )" || return 0
 	askName="inquiry-$( date -u +%Y%m%dT%H%MZ )-start-$3-${2%.routine.md}.md"
 	printf '# Inquiry: %s needs a %s for its start\n\nThe start of `%s` as %s (session %s, run %s) lacks something only you can supply, and went on with a warning (%s so far):\n\n%s\n\nPlease supply it for that session.\n' "$2" "$3" "$2" "$1" "$5" "$6" "$warnCount" "$4" > "$askFile"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --upsert-inbox-inquiry magic-coordinator "$askName" --from-file "$askFile" > /dev/null 2>&1 || askRc=$?
 	rm -f "$askFile"
 	[ "$askRc" -eq 0 ] || echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the inquiry to magic-coordinator for $2 could not be filed" >&2 || :

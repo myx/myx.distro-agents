@@ -152,10 +152,13 @@ rigAssert "a handback keeps its report" "$( rigHas "$rigT" '> outcome: done' )" 
 rigAssert "a Wait result keeps its text" "$( LC_ALL=C grep -A2 ' WAIT-RESULT$' "$rigT" | tail -1 )" '> from human: go on'
 rigAssert "DISMISSED is its own event" "$( rigHas "$rigT" ' DISMISSED' )" 1
 rigAssert "an ask and its answer are both kept" "$( rigHas "$rigT" 'ASK to=human-owner' )$( rigHas "$rigT" '> ANSWER: the second' )" 11
-rigAssert "milestones: message out, handback, wait going idle x2, dismissed, ask" "$( awk '{ $1 = "" ; print }' "$rigWs/.local/agents/sessions/$rigSid/milestones" | tr '\n' '|' )" ' message out| handback| wait going idle| wait going idle| dismissed| message out|'
+rigAssert "milestones: message out, handback, wait going idle x2, dismissed, the ask going idle and its message out" "$( awk '{ $1 = "" ; print }' "$rigWs/.local/agents/sessions/$rigSid/milestones" | tr '\n' '|' )" ' message out| handback| wait going idle| wait going idle| dismissed| ask going idle| message out|'
 rigAssert "each milestone with something new is one commit; a Wait with nothing new is none" "$(( $( rigCommits ) - rigBefore ))" 5
 rigAssert "and the transcript is committed clean" "$( git -C "$rigStore" status --porcelain -- "$rigRel" )" ""
 rigAssert "a session with no transcript writes nothing and fails nothing" "$( MDAT_SPAWN_SESSION_ID=nobody AgentsTranscriptToolDone Read '{}' x loop ; echo rc=$? )" rc=0
+echo "-- an ask that got no answer ends its own block --"
+AgentsTranscriptToolStart AskQuestion ; AgentsTranscriptToolDone AskQuestion '{"to":"magic-team","question":"Which one?"}' 'ERROR: the question could not be posted' loop error
+rigAssert "a refused ask writes ask going idle then ask ended, so no run is left waiting on a question that was never asked" "$( awk '{ $1 = "" ; print }' "$rigWs/.local/agents/sessions/$rigSid/milestones" | tail -2 | tr '\n' '|' )" ' ask going idle| ask ended|'
 
 echo "-- SessionTranscriptAppend, the function, the op with no --transcript-name, the tool --"
 rigAssert "a line goes to the current session's transcript" "$( AgentsTranscriptNote "$rigSid" magic-tester 'trying the second way' | cut -c1-15 )" "OK: appended to"

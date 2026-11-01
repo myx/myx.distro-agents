@@ -52,6 +52,7 @@ AgentsToolsManagerTeamMemberOwn(){ ## the operation as it was called
 ## operation's own code, so nothing here reads the store of the sessions a second way. rc 1,
 ## with one line after that operation's own, where it fails.
 AgentsToolsManagerTeamMemberSessions(){ ## the operation as it was called
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	sessionRows="$( DistroAgentsTools --manager-session-list )" || {
 		echo "⛔ ERROR: $MDSC_CMD $1: the sessions of this workspace could not be read -- nothing is shown" >&2
 		return 1
@@ -218,6 +219,7 @@ AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 ## console reads it: only there a password inside a URL is masked alone.
 AgentsToolsManagerTeamMemberSettingRows(){ ## member, set-up
 	local settingsMember="$1" settingsLines settingsName settingsSystem settingsThere settingsKeys settingsKey
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	settingsLines="$( DistroAgentsTools --manager-config-digest ${readFull:+--full} scopes )" || return 1
 	settingsName="${MMDAPP%/}" ; settingsName="${settingsName##*/}"
 	printf '%s\n' "$settingsLines" | LC_ALL=C awk -F'\t' -v OFS='\t' -v wantScope="$settingsMember" -v scopeWorkspace="${settingsName//[[:space:]]/_}" '
@@ -344,6 +346,7 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 			}
 		}
 	' )" || readSessions=""
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	readGrants="$( DistroAgentsTools --list-permissions --member "$readMember" )" || {
 		echo "⛔ ERROR: $MDSC_CMD $readOp: the grants of $readMember could not be listed -- nothing is shown" >&2
 		return 1

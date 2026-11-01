@@ -143,6 +143,7 @@ case "$1" in
 
 		## This workspace's places, its own row included, on every update: the grants and the
 		## member scan below read them (LocalTools.Places.include).
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-directory-register || { set +e ; return 1 ; }
 		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
 		## The install in two parts, with the ONE build of the indices between them: the part
@@ -150,17 +151,21 @@ case "$1" in
 		## same call and no other ever sees. First the part the indices are made from: the MCP
 		## registration, and the member links, which write the member registry.
 		local makeInstallPart="before-indices"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
 		## After the member registry is written: the members of registered workspaces without
 		## agents, and every member's home (AgentsTools.MemberHomes.include).
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-member-home-register || { set +e ; return 1 ; }
 		## Then every index of the tooling, once and with no name: built here, each describes
 		## the places, the members, their homes and the servers every step above has just
 		## finished registering, and every step below reads what this one built.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --make-harness-indices || { set +e ; return 1 ; }
 		## Then the part of the install that reads the indices: the trust, the permissions, the
 		## settings and the copilot access.
 		makeInstallPart="after-indices"
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
 		makeInstallPart=""
 		## The restrictions are a manual opt-in (--install-workspace-restrictions). Where the
@@ -170,6 +175,7 @@ case "$1" in
 		## that op does not take, and the workspace it works on is the $MMDAPP
 		## default it resolves for itself.
 		if [ -f "$MMDAPP/.claude/hooks/deny-native-tool-reroute.sh" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --install-workspace-restrictions || { set +e ; return 1 ; }
 		fi
 		return 0
@@ -177,6 +183,7 @@ case "$1" in
 	--make-console-command)
 		shift
 		set -e
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		# shortcut for: `DistroAgentsTools --make-console-script`
 		## Built beside the target and renamed over it, never written in place. A direct
 		## redirect truncates on open, so a generation that dies partway leaves a

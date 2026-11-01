@@ -42,7 +42,7 @@ rigW="$rigTmp/ws" rigD="$rigTmp/data" rigH="$rigTmp/home"
 rigMember="magic-coordinator"
 mkdir -p "$rigW/.local/.agents" "$rigW/.local/agents/spawned/rig" "$rigW/.local/agents/members/$rigMember" "$rigD/inboxes/$rigMember/incoming" "$rigH"
 ## The rig's own workspace has a source folder: the context of the tool is detected from it.
-ln -s "${rigHere%/myx/myx.distro-agents/sh-lib}" "$rigW/source" || rigRefuse "the rig's source link could not be made"
+rigCopyTree "${rigHere%/myx/myx.distro-agents/sh-lib}" "$rigW/source" || rigRefuse "the rig's source copy could not be made"
 printf '# %s\n' "$rigMember" > "$rigW/.local/agents/members/$rigMember/SKILL.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigW/.local/.agents/magic-team.agent.env"
 for rigState in pending running blocked parked review ; do

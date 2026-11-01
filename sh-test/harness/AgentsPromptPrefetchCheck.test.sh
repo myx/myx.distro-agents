@@ -141,8 +141,9 @@ rigMakeSkills(){ ## skillset directory
 }
 ## The brief the spawner puts first in a dispatch, as far as it tells the member what to read (spawn-brief.document.format.md).
 rigBrief="SPAWN-PREPARE-BRIEF: rig-a
-read-and-obey: read rig-a.armed.md and the routine, through the skillset reader, carefully and in full, before acting, and obey them.
-Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: $rigSectionA|$rigSectionB}"
+read-and-obey: read rig-a.armed.md and the routine through the skillset reader, in full, before you act. Obey them.
+Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:
+- {name: magic-team, file: magic-team.armed.md, section: $rigSectionA|$rigSectionB}"
 rigTask="RIG-TASK-MARKER"
 
 ## One scene is one run folder: its sandbox and canned streams. Its workspace and skillset are named by the second word, and are

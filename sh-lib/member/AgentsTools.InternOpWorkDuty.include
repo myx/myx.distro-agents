@@ -56,7 +56,8 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## The window: the setting of the team scope where it is a whole number of one second or more, else a minute.
-		workWindow="$( DistroAgentsTools --agents-config-option magic-team --select WAIT_COLLECT_SECONDS 2> /dev/null )" || workWindow=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		workWindow="$( AgentsToolsConfigOption magic-team --select WAIT_COLLECT_SECONDS 2> /dev/null )" || workWindow=""
 		case "$workWindow" in ''|0|*[!0123456789]*) workWindow=60 ;; esac
 
 		mkdir -p "$MMDAPP/.local/agents/scratch" 2> /dev/null || true
@@ -81,6 +82,7 @@ case "$1" in
 
 		## The inbox: the items not yet processed, which is what the member's incoming/ holds.
 		printf '## Inbox: items not yet processed\n\n'
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$workMember" --all-types \
 			--do-inbox-reflections --do-inbox-notes --do-inbox-inquiry-active --do-inbox-other \
 			--no-slack --no-email --no-trello --no-board-related \
@@ -101,6 +103,7 @@ case "$1" in
 			AgentsToolsExternalOwnerSection
 			workTrace external-owner-items
 			printf '\n'
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-permission-escalation-input-scan "$workMember" 2> /dev/null || printf '## permission asks addressed to permission-escalation.routine\n\n(the permission asks could not be read)\n'
 			workTrace permission-asks
 			## The board, for the rules of magic-team.advance.routine, which this duty takes (F7.12): the items of the active states, the review items,
@@ -144,6 +147,7 @@ case "$1" in
 		if [ -n "${MDAT_SCAN_SEED_QUIET:-}" ] ; then
 			: > "$workWork/collect.out" ; : > "$workWork/collect.err"
 		else
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source "mentions:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
 		fi
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then

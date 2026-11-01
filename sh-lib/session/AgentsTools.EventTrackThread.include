@@ -42,6 +42,7 @@
 ## event-track any more.
 ##
 
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 
 	## The record written whole or not at all, by a rename: a write cut short must never read
@@ -154,7 +155,8 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 		local postMember="$1" postDir="$2" postStore postLock="" postOut postRc=0
 		shift 2
 		agentsEventTrackThread="" ; agentsEventTrackPost="" ; agentsEventTrackError=""
-		[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null < /dev/null )" ] || return 2
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		[ -n "$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null < /dev/null )" ] || return 2
 		postStore="$( AgentsToolsEventTrackThreadDir "$postDir" )"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
 		if AgentsToolsLocalLockTake "event-track-${postStore##*/}" 30 "the event-track thread of ${postStore##*/}" ; then
@@ -210,7 +212,8 @@ if ! type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 ; then
 
 	## The event-track conversation's id, or nothing where none is configured.
 	AgentsToolsEventTrackChannel(){
-		DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null < /dev/null || :
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null < /dev/null || :
 	}
 
 	AgentsToolsEventTrackThreadIs(){ ## <channel>:<ts>, the event-track conversation where the caller has read it (optional)

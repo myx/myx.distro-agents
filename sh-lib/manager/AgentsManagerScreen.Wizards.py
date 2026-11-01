@@ -581,6 +581,7 @@ def gitFocus(state, row):
 
 registerPlugin({
     "name": "git",
+    "apps": ("agents",),
     "mount": "configuration",
     "root": {"id": "git", "label": "Git Settings"},
     "focus": {"git": "gitFocus"},
@@ -696,6 +697,7 @@ def harnessApplyProtocol(state, held):
 ## `.local` (Plugins.py).
 registerPlugin({
     "name": "harness",
+    "apps": ("agents",),
     "mount": "configuration",
     "root": {"id": "harness", "label": "Configure Harness"},
     "focus": {"harness": "harnessFocus"},
@@ -820,6 +822,7 @@ ACTION_REFUSALS["keytrustdelete"] = lambda state, row: "this is not a key we tru
 
 registerPlugin({
     "name": "wizards",
+    "apps": ("agents",),
     "integrates": {"configuration": {"wizards": (
         {"name": "harness-retries", "title": "Configure Harness: retries", "read": ["--manager-harness-read"], "parse": "parseHarnessSettings",
          "steps": ("harnessStepRetries",), "apply": "harnessApplyRetries"},

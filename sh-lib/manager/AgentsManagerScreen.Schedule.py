@@ -170,6 +170,7 @@ def scheduleFocus(state, row):
 
 registerPlugin({
     "name": "schedule",
+    "apps": ("agents",),
     "mount": "magic-team",
     "root": {"id": "schedule", "label": "Schedule", "go": "Sche~d~ule", "group": "team"},
     "focus": {"schedule": "scheduleFocus"},

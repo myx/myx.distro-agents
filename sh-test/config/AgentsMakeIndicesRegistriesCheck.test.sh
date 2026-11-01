@@ -280,7 +280,7 @@ mkdir -p "$rigHome/.agents/magic-team"
 } > "$rigHome/.agents/magic-team/members.registry"
 rigMake keeper-far
 rigAssert "a name the machine's members index knows as another workspace's member is no member to this operation: refused in the operation's own line" "$rigRc $( rigChanged "$rigBefore" ) $( LC_ALL=C grep -F -- "DistroAgentsTools" "$rigTmp/err" )" "1 none $( rigRefusal "$rigOne" keeper-far )"
-rigRun --member-help keeper-far
+rigRun --agents-config-option keeper-far
 rigAssert "control: the same index does make the dispatcher take that word for a member of another workspace, in an operation that names one" "$rigRc $( rigErrN "member 'keeper-far' is in the team members index but is present in no tracked workspace" )" "1 1"
 rigMake spawned-sessions
 rigAssert "and a real name is built with that index in place" "$rigRc $( rigChanged "$rigBefore" )" "0 spawned-sessions"
@@ -322,7 +322,21 @@ echo "-- 6a. the integrations run, whole, in a rig: one build step, and every in
 command -v myx.common > /dev/null 2>&1 || rigRefuse "myx.common is not on PATH, and the install's source scan runs it"
 rigIntWs="$rigTmp/int/ws" ; rigIntHome="$rigTmp/int/home" ; rigIntAgents="$rigIntWs/.local/agents"
 mkdir -p "$rigIntHome" "$rigIntWs/.local/myx" "$rigIntWs/source"
-for rigIntPackage in "$MDLT_ORIGIN/myx"/myx.* ; do ln -s "$rigIntPackage" "$rigIntWs/.local/myx/${rigIntPackage##*/}" ; done
+for rigIntPackage in "$MDLT_ORIGIN/myx"/myx.* ; do rigCopyTree "$rigIntPackage" "$rigIntWs/.local/myx/${rigIntPackage##*/}" ; done
+## The declares index the floor is read through (.local/system-index/distro-declares.txt), built here as live has it:
+## one `<project id> <declare>` row for every --magic-team:permissions: line of each installed package's project.inf.
+mkdir -p "$rigIntWs/.local/system-index"
+: > "$rigIntWs/.local/system-index/distro-declares.txt"
+for rigIntPackage in "$MDLT_ORIGIN/myx"/myx.* ; do
+	[ -f "$rigIntPackage/project.inf" ] || continue
+	LC_ALL=C awk -v id="myx/${rigIntPackage##*/}" '
+		/^[[:space:]]*--magic-team:permissions:/ {
+			line = $0
+			sub( /^[[:space:]]+/, "", line )
+			sub( /[[:space:]]*\\$/, "", line )
+			print id " " line
+		}' "$rigIntPackage/project.inf" 2> /dev/null
+done >> "$rigIntWs/.local/system-index/distro-declares.txt"
 rigIntPath="$rigTmp/bin:$( dirname "$( command -v myx.common )" ):/usr/bin:/bin:/usr/sbin:/sbin"
 rigInt(){ ## tool arguments... -- in that workspace; rc in rigRc, stderr in $rigTmp/int.err
 	rigRc=0
@@ -357,7 +371,7 @@ rigIntCurrent(){ ## -- whether a build run right now changes a byte of any of th
 rigIntOrder(){ ## -- whether the run went: member links, then the one build, then the readers of the indices
 	local orderLinks orderBuildFirst orderBuildLast orderPermissions orderCopilot
 	orderLinks="$( rigIntLine 'member index written: .local/agents/members.index' )"
-	orderBuildFirst="$( rigIntLine "wrote $rigIntAgents/team-members.registry (" )" ; orderBuildLast="$( rigIntLine 'harness hooks index written: .local/agents/harness.hooks.index' )"
+	orderBuildFirst="$( rigIntLine "wrote $rigIntAgents/team-members.registry (" )" ; orderBuildLast="$( rigIntLine '🧭 harness hooks index written: .local/agents/harness.hooks.index' )"
 	orderPermissions="$( rigIntLine 'claude permissions ' )" ; orderCopilot="$( rigIntLine '✅ copilot access ' )"
 	if [ "$orderLinks" -gt 0 ] && [ "$orderLinks" -lt "$orderBuildFirst" ] && [ "$orderBuildFirst" -lt "$orderBuildLast" ] && [ "$orderBuildLast" -lt "$orderPermissions" ] && [ "$orderPermissions" -lt "$orderCopilot" ] ; then
 		printf 'ordered\n'

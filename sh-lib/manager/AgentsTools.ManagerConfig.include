@@ -186,7 +186,8 @@ AgentsToolsManagerConfigHolds(){ ## scope, key
 ## The value of a spawn setting: asked of the dispatcher's own operation, so it is read from
 ## the workspace named to pay where one is (AgentsToolsConfigOptionElsewhere).
 AgentsToolsManagerConfigSpawnValue(){ ## key
-	DistroAgentsTools --agents-config-option magic-team --select "$1" 2> /dev/null || :
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	AgentsToolsConfigOption magic-team --select "$1" 2> /dev/null || :
 }
 
 ## The keys the catalogue of the owner setup holds, one a line, in its own order: the labels
@@ -369,7 +370,8 @@ AgentsToolsManagerConfigMode(){
 AgentsToolsManagerConfigCli(){
 	local cliHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" cliKnown cliVendor cliLegs="" cliLeg cliName cliFile cliKey cliKeys cliValue cliPath cliUsable
 	for cliKey in SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS WAIT_COLLECT_SECONDS WAIT_MENTIONS_SEARCHER ; do
-		cliValue="$( DistroAgentsTools --agents-config-option magic-team --select "$cliKey" 2> /dev/null )" || cliValue=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		cliValue="$( AgentsToolsConfigOption magic-team --select "$cliKey" 2> /dev/null )" || cliValue=""
 		if [ -n "$cliValue" ] ; then
 			AgentsToolsManagerConfigLine cli workspace "$cliKey" set "$cliValue"
 		else
@@ -607,6 +609,10 @@ knowledge|store|MDAT_KNOWLEDGE_STORE|choice|environment team|off|off=Off,on=On"
 ## `<key>|<name>=<value>,...`. The interface settings' other names are .local's own, with their rows.
 agentsManagerConfigFormer="$localManagerInterfaceFormer"
 
+## THE OTHER NAMES of the settings themselves: the key each was saved under before it took its own,
+## `<was>=<now>` a pair. .local declares them beside the settings, as it declares their other values.
+agentsManagerConfigFormerKeys="$localManagerInterfaceFormerKeys"
+
 ## The subjects whose changeable lines keep, where the digest is not asked in full, the form
 ## they had first: where the value comes from and what it takes ahead of the label.
 agentsManagerConfigEarlierForm="interface"
@@ -755,7 +761,8 @@ AgentsToolsManagerConfigTeamFile(){
 ## One setting of the team in this workspace, by the tooling's own operation, as every
 ## reader of such a setting asks it.
 AgentsToolsManagerConfigTeamValue(){ ## key
-	DistroAgentsTools --agents-config-option magic-team --select "$1" 2> /dev/null < /dev/null || :
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	AgentsToolsConfigOption magic-team --select "$1" 2> /dev/null < /dev/null || :
 }
 
 ## Saves one setting of the team in this workspace, by that same operation: the tooling's
@@ -764,13 +771,15 @@ AgentsToolsManagerConfigTeamValue(){ ## key
 ## put in place by a rename, with nothing said where that fails: whoever saves reads the
 ## value back.
 AgentsToolsManagerConfigTeamSave(){ ## key, value
-	DistroAgentsTools --agents-config-option magic-team --upsert "$1" "$2" > /dev/null 2>&1 < /dev/null
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	AgentsToolsConfigOption magic-team --upsert "$1" "$2" > /dev/null 2>&1 < /dev/null
 }
 ## Takes one setting of the team out of its file, by that same operation. Where the file is
 ## not there, there is nothing to take out, and none is made.
 AgentsToolsManagerConfigTeamDrop(){ ## key
 	[ -f "$( AgentsToolsManagerConfigTeamFile )" ] || return 0
-	DistroAgentsTools --agents-config-option magic-team --delete "$1" > /dev/null 2>&1 < /dev/null
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	AgentsToolsConfigOption magic-team --delete "$1" > /dev/null 2>&1 < /dev/null
 }
 
 ## Whether a value is one a setting takes: rc 0 where it is. A choice takes the values of
@@ -810,6 +819,18 @@ AgentsToolsManagerConfigSettingFormer(){ ## key, value
 	printf '%s\n' "$2"
 }
 
+## What a setting's key was called before it took its own name, or the key itself where it never had another.
+## The pairs are the interface settings' own declaration (agentsManagerConfigFormerKeys).
+AgentsToolsManagerConfigKeyFormer(){ ## key
+	local keyList="$agentsManagerConfigFormerKeys" keyPair
+	local IFS=,
+	for keyPair in $keyList ; do
+		[ "${keyPair#*=}" = "$1" ] || continue
+		printf '%s\n' "${keyPair%%=*}" ; return 0
+	done
+	printf '%s\n' "$1"
+}
+
 ## What a changeable setting is now and where that comes from, `<value> <source>`: the first
 ## place of its row that holds a value it takes. `environment`, `user`, or `workspace` for
 ## the workspace's own file and for the settings of the team alike; else its default,
@@ -820,7 +841,14 @@ AgentsToolsManagerConfigSettingNow(){ ## key, kind, places, default, what it tak
 	for nowPlace in $3 ; do
 		case "$nowPlace" in
 			environment) nowValue="${!nowKey:-}" ; nowSource=environment ;;
-			user) nowValue="$( AgentsToolsManagerConfigUserValue "$nowKey" )" || nowValue="" ; nowSource=user ;;
+			user)
+				nowValue="$( AgentsToolsManagerConfigUserValue "$nowKey" )" || nowValue=""
+				## A value saved under the name the setting had before: still this user's value, reported as his
+				if [ -z "$nowValue" ] ; then
+					nowValue="$( AgentsToolsManagerConfigUserValue "$( AgentsToolsManagerConfigKeyFormer "$nowKey" )" )" || nowValue=""
+				fi
+				nowSource=user
+			;;
 			system) nowValue="$( AgentsToolsManagerConfigSystemValue "$nowKey" )" || nowValue="" ; nowSource=workspace ;;
 			team) nowValue="$( AgentsToolsManagerConfigTeamValue "$nowKey" )" || nowValue="" ; nowSource=workspace ;;
 			*) continue ;;

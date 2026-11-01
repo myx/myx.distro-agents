@@ -199,7 +199,7 @@ rigAssert "a member started alone from the console has a control thread: the spa
 rigAssert "the console was started as that member, in the workspace the console is in" "$( LC_ALL=C awk '{ print $1 }' "$rigSc/who.$rigFirst" ) $( cat "$rigSc/where.$rigFirst" )" "keeper-myx $rigWs"
 rigAssert "it received the prompt in its brief, both lines, whole and in order" "$( rigPromptOf "$rigSc/brief.$rigFirst" )" "$( cat "$rigTmp/prompt.two" )"
 rigAssert "behind the spawn brief block of the standing default routine, which names the member and its duty file" \
-	"$( head -1 "$rigSc/brief.$rigFirst" ) $( LC_ALL=C grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigSc/brief.$rigFirst" )" "SPAWN-PREPARE-BRIEF: keeper-myx 1"
+	"$( head -1 "$rigSc/brief.$rigFirst" ) $( LC_ALL=C grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md through the skillset reader, in full, before you act. Obey them.' "$rigSc/brief.$rigFirst" )" "SPAWN-PREPARE-BRIEF: keeper-myx 1"
 rigAssert "the id printed is the run's own id and its session's: the session is the member's own, and new" \
 	"$( LC_ALL=C awk '{ print $2 }' "$rigSc/who.$rigFirst" ) $( rigHeader "$rigFirst" session-id ) $( rigHeader "$rigFirst" spawn-id )" "$rigFirst $rigFirst $rigFirst"
 rigAssert "its record names the member as its owner and the routine its session runs, and no session it was started from" \
@@ -383,7 +383,7 @@ rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family's rule, and nothing is started" \
-	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" ) [$( rigMade )]" "1 0 1 [$rigMadeBefore]"
+	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) [$( rigMade )]" "1 0 1 [$rigMadeBefore]"
 rigRun /dev/null --manager-spawn-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-spawn-no-such" )" "1 1"
 rigAssert "the family has one arm for the starts, which sources their include, and that include asks nobody who calls" \

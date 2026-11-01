@@ -26,7 +26,8 @@ AgentsToolsKnowledgeStoreRefuse(){ ## text -- why, on standard error; rc 1
 AgentsToolsKnowledgeStoreSetting(){
 	local settingValue="${MDAT_KNOWLEDGE_STORE:-}"
 	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
-	settingValue="$( DistroAgentsTools --agents-config-option magic-team --select MDAT_KNOWLEDGE_STORE 2> /dev/null < /dev/null )" || settingValue=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	settingValue="$( AgentsToolsConfigOption magic-team --select MDAT_KNOWLEDGE_STORE 2> /dev/null < /dev/null )" || settingValue=""
 	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
 	printf 'off\n'
 }

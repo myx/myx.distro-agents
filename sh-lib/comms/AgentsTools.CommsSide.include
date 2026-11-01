@@ -30,6 +30,17 @@ AgentsToolsCommsClientSide(){ ## acting member
 	return 1
 }
 
+## The config key name by the side of the call: a client-* member's client-side call
+## reads the CLIENT_-prefixed name, and every other call reads the name as given. The
+## client set and the member set of one member never share a name, so a client's own
+## credentials never stand in on the team's own side, nor the team's on the client's.
+AgentsToolsCommsClientKey(){ ## acting member, key
+	case "${MDAT_COMMS_SIDE:-}:$1" in
+		client:client-*) printf 'CLIENT_%s\n' "$2" ;;
+		*) printf '%s\n' "$2" ;;
+	esac
+}
+
 ## The one plain line for a client-* member's operation on our own side, in a system where
 ## our side holds no setting for it: says so, and names the --client-* operation that
 ## reaches the other organisation. That operation is the --client-comms-* twin of the Slack, Atlassian, Google, mail or

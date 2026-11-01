@@ -15,6 +15,7 @@ rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/slack-send
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || rigRefuse "the rig's copy helper is missing from the package: sh-test/check-fixtures/rig-copy.include.sh"
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set, so the rig has no workspace temp folder}"
@@ -31,7 +32,7 @@ cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse 
 ## one of its ids for a run of its own, and another copy of this check for its own. So the ps
 ## first on PATH answers the whole-host listing from the rig's own list, beside it, one
 ## `<pid> <command line>` line a process, and hands every other call to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -76,7 +77,7 @@ rigAccept(){ ## result file, item filename, from state
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			[ "$( command -v curl )" = "$RIG_TMP/bin/curl" ] || exit 98
 			cd "$MMDAPP" && exec bash "$RIG_FN" "$@"
-		' rig "${RIG_ACCEPT_OP:---move-to-processed}" "${RIG_ACCEPT_WHO:-magic-coordinator}" "$2" --from-state:"$3" > "$1" 2>&1
+		' rig "${RIG_ACCEPT_OP:---move-to-processed}" --team-member "${RIG_ACCEPT_WHO:-magic-coordinator}" "$2" --from-state:"$3" > "$1" 2>&1
 	printf '%s' "$?" > "$1.rc"
 }
 ## The review flow's own call: the in-context helper, run inside the tool's set-up context

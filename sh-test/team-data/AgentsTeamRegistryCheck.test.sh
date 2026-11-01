@@ -48,7 +48,7 @@ rigAssert(){ ## what is asserted, got, want
 
 rigHome="$rigTmp/home" rigWs="$rigTmp/ws-here" rigOther="$rigTmp/ws-other"
 mkdir -p "$rigHome" "$rigWs/.local/myx/myx.distro-.local/sh-lib" "$rigWs/source" "$rigOther/source/ns/skillset/keeper-rig" "$rigTmp/copy/magic-coordinator"
-ln -s "$rigLocalContext" "$rigWs/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+rigCopyTree "$rigLocalContext" "$rigWs/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
 printf -- '---\nname: keeper-rig\n---\n' > "$rigOther/source/ns/skillset/keeper-rig/SKILL.md"
 printf -- '---\nname: magic-coordinator\n---\n' > "$rigTmp/copy/magic-coordinator/SKILL.md"
 rigBundle="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
@@ -177,10 +177,10 @@ rigSrcWs="$rigTmp/ws-src" rigInstWs="$rigTmp/ws-inst"
 rigOtherInst="$rigTmp/ws-other-inst/.local/myx/myx.distro-agents/skillset/magic-team"
 rigOtherSrc="$rigTmp/ws-other-src/source/myx/myx.distro-agents/skillset/magic-team"
 mkdir -p "$rigSlots" "$rigSrcWs/.local/myx/myx.distro-.local/sh-lib" "$rigInstWs/.local/myx/myx.distro-agents/skillset" "$rigOtherInst/magic-coordinator" "$rigOtherSrc/magic-architect"
-ln -s "$MDLT_ORIGIN" "$rigSrcWs/source"
-ln -s "$rigLocalContext" "$rigSrcWs/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
-for rigEntry in "$MDLT_ORIGIN/myx"/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigInstWs/.local/myx/${rigEntry##*/}" ; done
-for rigEntry in "$MDLT_ORIGIN/myx/myx.distro-agents"/* ; do [ "${rigEntry##*/}" = skillset ] || ln -s "$rigEntry" "$rigInstWs/.local/myx/myx.distro-agents/${rigEntry##*/}" ; done
+rigCopyTree "$MDLT_ORIGIN" "$rigSrcWs/source"
+rigCopyTree "$rigLocalContext" "$rigSrcWs/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+for rigEntry in "$MDLT_ORIGIN/myx"/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || rigCopyTree "$rigEntry" "$rigInstWs/.local/myx/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN/myx/myx.distro-agents"/* ; do [ "${rigEntry##*/}" = skillset ] || rigCopyTree "$rigEntry" "$rigInstWs/.local/myx/myx.distro-agents/${rigEntry##*/}" ; done
 cp -R "$rigBundle" "$rigInstWs/.local/myx/myx.distro-agents/skillset/" || rigRefuse "could not copy the bundle into the rig's installed copy"
 printf 'rig installed copy\n' > "$rigInstWs/.local/myx/myx.distro-agents/skillset/magic-team/magic-coordinator/rig-installed.md"
 printf -- '---\nname: magic-coordinator\n---\n' > "$rigOtherInst/magic-coordinator/SKILL.md"

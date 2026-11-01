@@ -41,7 +41,7 @@ mkdir -p "$rigData/board/running" "$rigWs/.local/.agents" "$rigSpawned" "$rigTmp
 ## the whole-host listing from the rig's own list, beside it, one `<pid> <command line>` line
 ## a process, each a stand-in under its own pid and listed only while it lives; every other
 ## call, when a process began and which process started which, is handed to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

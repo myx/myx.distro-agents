@@ -78,23 +78,23 @@ rigOrigin="$rigTmp/origin"
 mkdir -p "$rigOrigin/myx/myx.distro-agents/sh-lib/help"
 for rigPkg in "$MDLT_ORIGIN"/* ; do
 	[ "${rigPkg##*/}" != "myx" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/${rigPkg##*/}"
 done
 for rigPkg in "$MDLT_ORIGIN"/myx/* ; do
 	[ "${rigPkg##*/}" != "myx.distro-agents" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/myx/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/${rigPkg##*/}"
 done
 for rigPkg in "$MDLT_ORIGIN"/myx/myx.distro-agents/* ; do
 	[ "${rigPkg##*/}" != "sh-lib" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/myx/myx.distro-agents/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/myx.distro-agents/${rigPkg##*/}"
 done
 for rigPkg in "$rigHere"/* ; do
 	[ "${rigPkg##*/}" != "help" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-lib/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-lib/${rigPkg##*/}"
 done
 for rigPkg in "$rigHere"/help/* ; do
 	[ "${rigPkg##*/}" != "Help.DistroAgentsTools.include" ] || continue
-	ln -s "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-lib/help/${rigPkg##*/}"
+	rigCopyTree "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-lib/help/${rigPkg##*/}"
 done
 LC_ALL=C awk '{ print } $0 == "\t--help-syntax)" { count = split("owner intern client librarian", rigFamilies, " ") ; for (i = 1; i <= count; i++) printf "echo \"📘 syntax: DistroAgentsTools.fn.sh --%s-rig-probe\" >&2\n", rigFamilies[i] }' \
 	"$rigHelpInclude" > "$rigOrigin/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"

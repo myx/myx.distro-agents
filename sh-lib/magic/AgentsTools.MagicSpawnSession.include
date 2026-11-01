@@ -449,6 +449,7 @@ case "$1" in
 			elif [ "$spawnFirst" = "true" ] ; then
 				## This operation starts a session, so its first spawn asks for one of its own:
 				## otherwise it would be brought into the calling session's.
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --context --spawn-session )" || { set +e ; return 1 ; }
 				spawnSessionId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 				if [ -z "$spawnSessionId" ] ; then
@@ -459,6 +460,7 @@ case "$1" in
 				[ -z "$recordNotes" ] || AgentsToolsSpawnSessionNoteSession "$spawnSessionId" "$recordNotes"
 			else
 				spawnArgs+=( --session-id "$spawnSessionId" )
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --spawn-session > /dev/null || { set +e ; return 1 ; }
 			fi
 		done

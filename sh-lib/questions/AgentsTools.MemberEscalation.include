@@ -16,6 +16,7 @@
 ##
 
 ## One frontmatter field of a record, or empty.
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 AgentsToolsEscalationField(){ ## record file, field
 	local fieldLine
 	while IFS= read -r fieldLine ; do
@@ -219,6 +220,7 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 	cfTo="$( AgentsToolsEscalationField "$cfFile" address-to )"
 	[ -z "$cfForward" ] || cfTo="human-owner"
 	[ -z "$cfTo" ] || cfArgs=( "${cfArgs[@]}" --address-to "$cfTo" )
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$cfText" | DistroAgentsTools --intern-op-comms-slack-send-message "${cfArgs[@]}" > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the answer $cfVerdict for $cfId was read, but its confirmation was not posted in $cfChannel:$cfThread" >&2
 	return 0
@@ -240,6 +242,7 @@ AgentsToolsEscalationForwardPost(){ ## record file, request id, forwarded by, wh
 	fpOut="$( {
 		printf '%s\n\n' "$fpLead"
 		LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$fpFile"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	} | DistroAgentsTools --intern-op-comms-slack-send-message "$fpBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
 		echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $fpId is still answered only where it was asked: $( LC_ALL=C grep -m1 '⛔' <<< "$fpOut" )" >&2
 		return 1
@@ -276,6 +279,7 @@ AgentsToolsEscalationForwardPost(){ ## record file, request id, forwarded by, wh
 ## is never silent: where the request cannot be posted to who it goes up to, it is not
 ## re-addressed at all, and the answer says so. Prints the result lines.
 AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is not held, the verdict that is not applied, read in the forward's thread (non-empty|empty)
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local rrFile="$1" rrId="$2" rrBy="$3" rrWhat="$4" rrVerdict="${5:-}" rrFromForward="${6:-}" rrTool rrTarget rrHolder="" rrTo rrOut="" rrSession rrRunning rrOne rrThread="" rrWhy rrOwner rrSaid="" rrNote=""
 	rrTool="${rrWhat%%$'\t'*}" ; rrTarget="${rrWhat#*$'\t'}"
 	rrTo="$( AgentsToolsEscalationField "$rrFile" address-to )"
@@ -335,10 +339,10 @@ AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is no
 }
 
 ## THE CLAIM on an open record's answer: <record>.answered/, a directory, and in it one
-## holder.<n> for each process that held it, a symlink whose target names that process as
+## holder.<n> for each process that held it, a file whose text names that process as
 ## `<host>:<pid>:<start>` -- its short host name, the pid of the shell that applies, and when
 ## that process started, so a pid given to another process later is never taken for it. The
-## holder in charge is the one of the highest number. A holder is created by `ln -s`, which
+## holder in charge is the one of the highest number. A holder is created by `set -C`, which
 ## names it in the same step and fails where that number is taken: of any number of answers
 ## at once exactly one gets a number, the first as a takeover alike, so exactly one applies.
 ## Nothing is ever renamed or removed to take a claim over. A claim whose holder is gone --
@@ -391,6 +395,12 @@ AgentsToolsEscalationClaimOpen(){ ## record file, finish (non-empty|empty)
 	fi
 }
 
+## The holder a claim names: the holder file's own text, or the target of the link an older
+## release made. Empty where it names nobody.
+AgentsToolsEscalationClaimHolder(){ ## holder path
+	if [ -L "$1" ] ; then readlink "$1" 2>/dev/null ; else cat "$1" 2>/dev/null ; fi
+}
+
 ## Takes the claim on one open record for the process that will apply an answer to it. rc 0:
 ## held by this process, agentsEscalationClaimHolder naming its own holder file. rc 3: not
 ## taken -- the record is answered, or a live holder kept it for the 10 seconds it is given
@@ -408,12 +418,12 @@ AgentsToolsEscalationClaim(){ ## record file, finish (non-empty|empty)
 		AgentsToolsEscalationClaimOpen "$1" "$claimFinish" || return 3
 		claimGen=0 ; claimHolder="" ; claimKept=""
 		for claimName in "$claimDir"/holder.* ; do
-			[ -L "$claimName" ] || continue
+			[ -e "$claimName" ] || [ -L "$claimName" ] || continue
 			case "${claimName##*.}" in ''|*[!0-9]*) continue ;; esac
 			[ "${claimName##*.}" -le "$claimGen" ] || claimGen="${claimName##*.}"
 		done
 		if [ "$claimGen" != "0" ] ; then
-			claimHolder="$( readlink "$claimDir/holder.$claimGen" 2>/dev/null )"
+			claimHolder="$( AgentsToolsEscalationClaimHolder "$claimDir/holder.$claimGen" )"
 			! AgentsToolsEscalationClaimAlive "$claimHolder" || claimKept=1
 		elif [ -z "$claimMade" ] ; then
 			## No holder named, and not this process's own: respected while it is new.
@@ -427,7 +437,7 @@ AgentsToolsEscalationClaim(){ ## record file, finish (non-empty|empty)
 			claimWaited=$(( claimWaited + 1 ))
 			continue
 		fi
-		if ln -s "$claimSelf" "$claimDir/holder.$(( claimGen + 1 ))" 2>/dev/null ; then
+		if ( set -C ; printf '%s' "$claimSelf" > "$claimDir/holder.$(( claimGen + 1 ))" ) 2>/dev/null ; then
 			agentsEscalationClaimHolder="$claimDir/holder.$(( claimGen + 1 ))"
 			## The holder before may have closed the record just before it went.
 			AgentsToolsEscalationClaimOpen "$1" "$claimFinish" || return 3
@@ -567,6 +577,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 			applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
 			while IFS= read -r applyAsked ; do
 				[ -n "$applyAsked" ] || continue
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				case "$( DistroAgentsTools --intern-op-permission-holds "$applyHolder" "${applyAsked%%$'\t'*}" "${applyAsked#*$'\t'}" \
 					${applySession:+--session-id "$applySession"} 2>/dev/null | head -1 )" in
 					'HOLDS '*) continue ;;
@@ -624,6 +635,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 				AgentsToolsEscalationNoteSet "$applyNote" grant-stamp "$applyStamp" || applyStamp=""
 			fi
 			## A task grant is for the ask's own item, and lives while it is open.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			[ -z "$applyStamp" ] || applyGrant="$( DistroAgentsTools --intern-op-permission-grant-open "$applyBy" --session-id "$applySession" \
 				--refusal-id "$applyRefusal" --kind "${applyVerdict#allow-}" --asked "$( AgentsToolsEscalationField "$applyFile" address-to )" --stamp "$applyStamp" \
 				$( [ -z "${agentsEscalationCapacity:-}" ] || printf -- '--holds-as %s' "$agentsEscalationCapacity" ) \
@@ -737,6 +749,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	## message in the question's own thread goes with the close, so the :eyes: that acknowledges it
 	## lands on the message the person sent rather than on the question, which only takes the mark of
 	## the answer. A forward's own answer names no message of this channel's thread, so it passes none.
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-pending-reply-close "$applyId" --status reply-received --verdict "$applyVerdict" --answered-by "$applyBy" \
 		${applyAnswerTs:+--answer-ts "$applyAnswerTs"} --no-decision --context escalation > /dev/null 2>&1 || {
 		## The claim goes with the failed close, so the next answer is not kept out. With a
@@ -858,6 +871,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 	[ -z "$threadAsBot" ] || threadAs="the team bot"
 	[ -n "$threadChannel" ] && [ -n "$threadQuestion" ] && [ -n "$threadRoot" ] && [ -n "$threadAuthors" ] || { printf 'OPEN\t\n' ; return 0 ; }
 	threadErrFile="$( mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mktemp "$MMDAPP/.local/temp/mdat-escalation-thread.XXXXXX" 2> /dev/null )" || threadErrFile=""
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	threadWork="$( DistroAgentsTools --intern-op-comms-slack-read "$threadMember" "$threadChannel:$threadRoot" --thread ${threadAsBot:+--identity-bot} 2> "${threadErrFile:-/dev/null}" )" || threadRc=$?
 	if [ "$threadRc" != "0" ] ; then
 		## Slack's own error where the call names one, else the read's first error line as it stands.
@@ -917,11 +931,13 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		if ! printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' \
 			&& AgentsToolsEscalationAskDirect "$threadFile" "$threadChannel" ; then
 			local threadDirect="" threadDirectRc=0
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			threadDirect="$( DistroAgentsTools --intern-op-comms-slack-read "$threadMember" "$threadChannel" --oldest "$threadLive" \
 				${threadAsBot:+--identity-bot} 2> /dev/null )" || threadDirectRc=$?
 			if [ "$threadDirectRc" = "0" ] ; then
 				threadAnswers="$( printf '%s\n' "$threadDirect" | LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print }' \
 					| LC_ALL=C awk -v rootTs="$threadLive" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" \
+						-v mode=conversation -v callerName="$threadMember" -v includeOwn=0 \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadAnswers=""
 			fi
@@ -993,6 +1009,7 @@ AgentsToolsEscalationClarify(){ ## request id, thread verdict output, optional f
 	local clarifyLines
 	clarifyLines="$( printf '%s\n' "$2" | LC_ALL=C awk 'index( $0, "CLARIFY\t" ) == 1 { print substr( $0, 9 ) ; }' )"
 	[ -n "$clarifyLines" ] || [ -n "${3:-}" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$clarifyLines" | DistroAgentsTools --intern-op-pending-reply-clarify "$1" --from-stdin ${3:+--follow-floor "$3"} --context "$MDSC_CMD" 2>/dev/null \
 		| LC_ALL=C grep '^CLARIFIED ' || echo "⚠️ WARNING: $MDSC_CMD: the clarifications on $1 were not kept" >&2
 	return 0
@@ -1038,6 +1055,7 @@ AgentsToolsEscalationAskDirect(){ ## record file, channel
 	[ -n "$directChannel" ] || return 1
 	[ "$( AgentsToolsEscalationField "$1" thread-ts )" = "$( AgentsToolsEscalationField "$1" question-ts )" ] || return 1
 	[ "$( AgentsToolsEscalationField "$1" ask-identity )" != "bot" ] || directIdentity="bot"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	directInfo="$( DistroAgentsTools --intern-op-slack-call "$( AgentsToolsEscalationField "$1" owner )" --api conversations.info \
 		--resolve-target "$directChannel" ${directIdentity:+--identity "$directIdentity"} --context "--intern-op-escalation-read" 2> /dev/null )" || return 1
 	directIsIm="$( printf '%s\n' "$directInfo" | LC_ALL=C awk -v path=channel.is_im -v dialect=slack \
@@ -1081,6 +1099,7 @@ AgentsToolsEscalationConsoleTrace(){ ## record file, request id, block (console-
 	traceArgs=( "$( AgentsToolsEscalationField "$1" owner )" "$traceChannel:$traceThread" --from-stdin --identity-bot )
 	traceTo="$( AgentsToolsEscalationField "$1" address-to )"
 	[ -z "$traceTo" ] || traceArgs=( "${traceArgs[@]}" --address-to "$traceTo" )
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$traceText" | DistroAgentsTools --intern-op-comms-slack-send-message "${traceArgs[@]}" > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: $2 is answered from the console, but the line that says so was not posted in $traceChannel:$traceThread" >&2
 	return 0
@@ -1098,6 +1117,7 @@ case "$1" in
 	## --intern-op-escalation-read implementation below directly.
 	--read-escalation)
 		[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-escalation-read "${@:2}"
 		return $?
 	;;
@@ -1392,9 +1412,11 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ "$( AgentsToolsEscalationField "$rbFile" ask-identity )" = "bot" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			rbSent="$( printf '%s\n' "$rbNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$rbMember" "$rbChannel:$rbThread" --identity-bot \
 				--address-to "$( AgentsToolsEscalationField "$rbFile" address-to )" --from-stdin 2>&1 )" || rbSent=""
 		else
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			rbSent="$( printf '%s\n' "$rbNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$rbMember" "$rbChannel:$rbThread" \
 				--address-to "$( AgentsToolsEscalationField "$rbFile" address-to )" --from-stdin 2>&1 )" || rbSent=""
 		fi
@@ -1723,6 +1745,7 @@ case "$1" in
 			return 0
 		fi
 		## Read first: an answer that stands there already is applied to the prompt as it was asked.
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		case "$( DistroAgentsTools --intern-op-escalation-read "$addMember" "$addId" 2> /dev/null )" in
 			"ESCALATION: $addId open"$'\n'"WAITING-ON: "*) ;;
 			*)
@@ -1749,6 +1772,7 @@ case "$1" in
 		fi
 		## The post first: it shows the call before the record lets any answer grant it.
 		local addEditArgs=( "$addMember" "$addChannel" --update-ts "$addOpenTs" --identity-bot --address-to human-owner --from-stdin )
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		printf '%s\n' "$addBody" | DistroAgentsTools --intern-op-comms-slack-send-message "${addEditArgs[@]}" > /dev/null 2>&1 || {
 			AgentsToolsLocalLockGive "$addGate"
 			printf 'NOT-ADDED: the post of the open prompt %s could not be edited, so it stands as it was asked\n' "$addId"
@@ -1769,8 +1793,10 @@ case "$1" in
 			## Withdrawn by its asker meanwhile, it is put back as a post that takes no answer.
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || addText="$( AgentsToolsAskPostRecordFill closed "$addOpen" 2> /dev/null )" || addText=""
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || [ -z "$addText" ] || addWas="$addText"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			printf '%s\n' "$addWas" | DistroAgentsTools --intern-op-comms-slack-send-message "${addEditArgs[@]}" > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the post of $addId could not be put back as it was asked, so it shows a call its record does not hold: $addEntry" >&2
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-escalation-read "$addMember" "$addId" > /dev/null 2>&1 || :
 			AgentsToolsLocalLockGive "$addGate"
 			printf 'NOT-ADDED: the open prompt %s takes no further call: %s\n' "$addId" "$addWhy"
@@ -1821,6 +1847,7 @@ case "$1" in
 		if [ -z "$addWritten" ] ; then
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || addText="$( AgentsToolsAskPostRecordFill closed "$addOpen" 2> /dev/null )" || addText=""
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || [ -z "$addText" ] || addWas="$addText"
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			printf '%s\n' "$addWas" | DistroAgentsTools --intern-op-comms-slack-send-message "${addEditArgs[@]}" > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the post of $addId could not be put back as it was asked, so it shows a call its record does not hold: $addEntry" >&2
 			AgentsToolsLocalLockGive "$addGate"

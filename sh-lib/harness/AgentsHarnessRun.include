@@ -326,6 +326,56 @@ AgentsHarnessAnnounceTool(){
 			AgentsHarnessArgFind calls.__count || harnessArgFound="?"
 			announceDetail="$harnessValue$harnessArgFound$harnessOff$harnessDim call(s), ${harnessArgV_mode:-no mode}$harnessOff"
 		;;
+		## A secondary tool (agentsFrontSecondary): the operation it names is the call, so that is what the
+		## line shows. Each arm is a name of its own, because the site check reads one arm per tool.
+		DistroAgentsSlack)
+			announceIcon="💬"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsAtlassian)
+			announceIcon="🧭"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsGoogle)
+			announceIcon="📗"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsMail)
+			announceIcon="📧"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsTrello)
+			announceIcon="🗂️"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsContacts)
+			announceIcon="👤"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		AgentDispatcherTools)
+			announceIcon="🎛️"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsDispatcher)
+			announceIcon="🚦"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsQuestions)
+			announceIcon="❓"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsItems)
+			announceIcon="🗄️"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsKnowledge)
+			announceIcon="🧠"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
+		DistroAgentsTesting)
+			announceIcon="🧪"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		## A call carrying a command is announced like Bash/Grep/Glob above: the command
 		## on the announce line, an optional comment on its own labelled line below, no
@@ -441,7 +491,7 @@ AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "" "" reply )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
 		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" "" "${harnessArgV_unwait}" )" ;;
-		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
+		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "${harnessArgV_checklist_pending_count}" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "${harnessArgV_to}" "${harnessArgV_subject}" "${harnessArgV_findings}" "${harnessArgV_evidence}" "${harnessArgV_confidence}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "${harnessArgV_to}" "${harnessArgV_severity}" "${harnessArgV_headline}" "${harnessArgV_detail}" "${harnessArgV_action_required}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
 		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "${harnessArgV_to}" "${harnessArgV_url}" "${harnessArgV_title}" "${harnessArgV_kind}" "${harnessArgV_summary}" "${harnessArgV_as_bot}" "${harnessArgV_file}" "$harnessFuncArgsRaw" "${harnessArgV_address_to}" )" ;;
@@ -464,10 +514,65 @@ AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
 		ThisSession) harnessResult="$( AgentsHarnessToolThisSession "${harnessArgV_operation}" "${harnessArgV_message}" "${harnessArgV_address_to}" "${harnessArgV_routine}" )" ;;
 		CheckList) harnessResult="$( AgentsHarnessToolCheckList "$harnessFuncArgsRaw" )" ;;
 		BatchTools) harnessResult="$( AgentsHarnessToolBatchTools "$harnessFuncArgsRaw" )" ;;
+		## The secondary tools (agentsFrontSecondary): one arm a name, so the population is read here as it is
+		## on the wire, and one handler for all of them, because their difference is the tool file's own name.
+		DistroAgentsSlack) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsSlack "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsAtlassian) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsAtlassian "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsGoogle) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsGoogle "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsMail) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsMail "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsTrello) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsTrello "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsContacts) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsContacts "$harnessFuncArgsRaw" )" ;;
+		AgentDispatcherTools) harnessResult="$( AgentsHarnessToolSecondary AgentDispatcherTools "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsDispatcher) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsDispatcher "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsQuestions) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsQuestions "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsItems) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsItems "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsKnowledge) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsKnowledge "$harnessFuncArgsRaw" )" ;;
+		DistroAgentsTesting) harnessResult="$( AgentsHarnessToolSecondary DistroAgentsTesting "$harnessFuncArgsRaw" )" ;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
 		*)         harnessResult="ERROR: unknown tool: $harnessFuncName" ;;
 	esac
+}
+
+## A secondary tool's operation (agentsFrontSecondary): `operation` is the call and `args` its words, run in the tool
+## file that is the tool. Sourced in a subshell, as the MCP server runs it, so a service client it forks dies with the
+## call; its output goes to a file rather than a capture, because a capture returns on pipe EOF, not on the command it
+## ran (the same reason the message tools do). The acting member goes by --team-member, as those tools already pass it;
+## --help-syntax is excepted, because it reads its own next word as the name to show, before any common option.
+AgentsHarnessToolSecondary(){ ## tool file name, arguments JSON -- prints the result
+	local secondaryName="$1" secondaryOp secondaryArgCount=0 secondaryAt=0 secondaryOut=""
+	local secondaryArgs=()
+	AgentsHarnessArgParse "$2"
+	secondaryOp="${harnessArgV_operation:-}"
+	if [ -z "$secondaryOp" ] ; then
+		printf 'ERROR: %s requires a non-empty operation: the operation to run, such as --slack-read. List them with --help-syntax. Nothing was done.\n' "$secondaryName"
+		return 0
+	fi
+	if [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$secondaryName.fn.sh" ] ; then
+		printf 'ERROR: there is no tool file %s.fn.sh in the package this workspace resolves, so nothing ran.\n' "$secondaryName"
+		return 0
+	fi
+	AgentsHarnessArgFind args.__count || harnessArgFound=""
+	case "$harnessArgFound" in ''|*[!0123456789]*) ;; *) secondaryArgCount="$harnessArgFound" ;; esac
+	while [ "$secondaryAt" -lt "$secondaryArgCount" ] ; do
+		AgentsHarnessArgFind "args.$secondaryAt" || harnessArgFound=""
+		secondaryArgs+=( "$harnessArgFound" )
+		secondaryAt=$(( secondaryAt + 1 ))
+	done
+	secondaryOut="$harnessScratch/secondary.out"
+	if ! : > "$secondaryOut" 2> /dev/null ; then
+		printf 'ERROR: %s could not be run: this run has no scratch folder to keep its output in. Nothing was done.\n' "$secondaryName"
+		return 0
+	fi
+	(
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$secondaryName.fn.sh" || exit 1
+		if [ -n "${harnessAgent:-}" ] && [ "--help-syntax" != "$secondaryOp" ] ; then
+			"$secondaryName" "$secondaryOp" --team-member "$harnessAgent" ${secondaryArgs[@]+"${secondaryArgs[@]}"}
+		else
+			"$secondaryName" "$secondaryOp" ${secondaryArgs[@]+"${secondaryArgs[@]}"}
+		fi
+	) > "$secondaryOut" 2>&1
+	cat "$secondaryOut"
 }
 
 ## EVERY CALL IS A TASK UNDERNEATH (epic S20, AgentsTools.ToolTask.include). The call runs in a subshell and this shell waits for it. It comes back with
@@ -490,7 +595,7 @@ AgentsHarnessTaskBody(){ ## tool name, arguments JSON -- the result on stdout
 }
 
 AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
-	local taskName="$1" taskArgs="$2" taskTimeout taskAction taskBackground
+	local taskName="$1" taskArgs="$2" taskTimeout taskAction taskBackground taskCwdRefusal
 	case "$taskName" in
 		Wait|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove|ThisSession|TaskOutput|TaskStop|SubagentHandback|BatchTools)
 			AgentsHarnessRunToolNow "$taskName" "$taskArgs"
@@ -514,6 +619,14 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 			[ "${harnessArgV_detach:-}" != "true" ] || taskBackground=""
 		;;
 	esac
+	## A background call returns its handle before the tool runs, so a cwd that tool would refuse is
+	## decided here: otherwise the member is told a task is running that never started.
+	if [ -n "$taskBackground" ] && [ "$taskName" = Bash ] ; then
+		if taskCwdRefusal="$( AgentsHarnessCwdRefusalText "${harnessArgV_cwd:-}" )" ; then
+			harnessResult="$taskCwdRefusal"
+			return 0
+		fi
+	fi
 	AgentsToolsTaskCall "$taskName" "$taskBackground" "$taskTimeout" "$taskAction" AgentsHarnessTaskBody "$taskName" "$taskArgs"
 	harnessResult="$agentsTaskOut"
 	## A session that was dismissed and has given its handback is ended by the harness itself.

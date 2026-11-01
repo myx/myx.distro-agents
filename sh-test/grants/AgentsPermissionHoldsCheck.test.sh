@@ -26,7 +26,13 @@ done
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsPermissionHoldsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+## The check is bounded: an operation that never returns fails here, said on stderr, instead of
+## holding the batch that runs it. Measured 2026-10-31: one permission-holds call takes 7s, and
+## the whole check ran past twenty minutes without a bound of its own.
+rigDeadline="${RIG_DEADLINE_SECONDS:-1800}"
+( sleep "$rigDeadline" ; printf '%s: no result within %ss, so an operation never returned\n' "PERMISSION_HOLDS" "$rigDeadline" >&2 ; kill -TERM $$ 2> /dev/null ; sleep 5 ; kill -KILL $$ 2> /dev/null ) &
+rigWatchdog=$!
+trap 'kill "${rigWatchdog:-}" 2> /dev/null || : ; chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home"
 cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
@@ -329,7 +335,7 @@ echo "-- the permission set: held entries, ONE ask for the extras, Decisions and
 rigPosts="$( rigCalls chat.postMessage )"
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
 rigOp --request-permission-set magic-coordinator task-rig --entry "Write:$rigWs/DEV/**" \
-	--entry "WebFetch:https://api.rig.example/*" --entry "cred:rig-api-token" --scope task --session-id rig-cow \
+	--entry "WebFetch" --entry "cred:rig-api-token" --scope task --session-id rig-cow \
 	--participant magic-developer --participant magic-tester
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigAssert "a held entry is said held, by its holder"      "$( rigHas "$rigTmp/op.out" "HELD: Write:$rigWs/DEV/** by magic-developer standing" )" yes
@@ -339,10 +345,10 @@ rigAssert "ONE ask is posted for them"                     "$(( $( rigCalls chat
 rigAssert "a permission-set escalation to the human-owner" "$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" kind ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" address-to )" "permission-set:human-owner"
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigSetId" allow-set
 rigAssert "the asking coordinator cannot approve its own set" "$( rigHas "$rigTmp/op.err" 'cannot answer it' ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" status )" "yes:reply-pending"
-RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigSetId" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$rigSetId" allow-set
 rigAssert "the human-owner's allow-set is applied"         "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigSetId answered" ):$( rigHas "$rigTmp/op.out" 'GRANT: set ' )" "yes:yes"
 rigAssert "the set is recorded on the item's Decisions"    "$( rigHas "$rigData/board/running/task-rig.md" 'permission set approved for the task' )" yes
-rigAssert "and as its access-control row, for a later dispatch"        "$( rigHas "$rigData/board/running/task-rig.md" 'access-control: participants:allow-tool:WebFetch:https%3A//api.rig.example/*:human-owner:' )" yes
+rigAssert "and as its access-control row, for a later dispatch"        "$( rigHas "$rigData/board/running/task-rig.md" 'access-control: participants:allow-tool:WebFetch::human-owner:' )" yes
 rigAssert "every participant holds the extras now"         "$( rigGrantRead magic-tester rig-tester WebFetch https://api.rig.example/v1 ):$( rigGrantRead magic-developer rig-dev cred rig-api-token )" "task:task"
 rigAssert "the held entry was not granted to others"       "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/q.txt" )" ""
 
@@ -564,7 +570,7 @@ rigTrackPartCount="$( printf '%s\n' $rigTrackParts | LC_ALL=C grep -c . )"
 rigAssert "the set is for the members it names, the three of the rig" \
 	"$( [ "$rigTrackPartCount" -ge 3 ] && printf enough || printf few ):$( printf '%s\n' $rigTrackParts | LC_ALL=C grep -c -x -e magic-coordinator -e magic-developer -e magic-tester )" "enough:3"
 rigAssert "asking for a set posts no grant"                "$( rigTrackPosts '✅ permission granted' )" 0
-RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigTrackSet" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$rigTrackSet" allow-set
 rigAssert "a set applied"                                  "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigTrackSet answered" ):$( rigHas "$rigTmp/op.out" 'GRANT: set ' )" "yes:yes"
 rigAssert "is said in one grant post for each participant, in that same thread" \
 	"$( rigTrackPosts '✅ permission granted' "permission set $rigTrackSet, 1 permission(s)" "\"thread_ts\":\"${rigTrackThread#*:}\"" ):$( rigTrackPosts '✅ permission granted' )" "$rigTrackPartCount:$rigTrackPartCount"
@@ -578,7 +584,7 @@ rigOp --request-permission-set magic-coordinator task-rig --entry "WebFetch:http
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigTrackDenied="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 [ -n "$rigTrackDenied" ] || rigRefuse "the rig asked for no permission set to deny"
-RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigTrackDenied" deny
+RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$rigTrackDenied" deny
 rigAssert "a set denied"                                   "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigTrackDenied answered" ):$( rigField "$rigWs/.local/agents/pending/$rigTrackDenied.md" verdict )" "yes:deny"
 rigAssert "is said in one denial post in that same thread: the set, who denied it, who asked" \
 	"$( rigTrackPosts '❌ permission denied' "permission set $rigTrackDenied, 1 permission(s)" 'denied by: human-owner · member: magic-coordinator' "\"thread_ts\":\"${rigTrackThread#*:}\"" ):$( rigTrackPosts '❌ permission denied' )" "1:1"
@@ -669,7 +675,7 @@ rigAssert "the post that went out is that body, to the human-owner" \
 	"$( LC_ALL=C grep -l -F 'rig-ws:SETP/**' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" kind ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" address-to )" "1:permission-set:human-owner"
 rigAssert "the record keeps every entry exactly as asked, with its exact target, and each purpose with its place" \
 	"$( LC_ALL=C grep -c -x -F "entry: Write:$rigWs/SETP/**" "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c '^entry: ' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c -x -F "purpose: $rigWs/SETP/**"$'\t''need to read some files' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c -x -F "purpose: $rigWs/SETQ/**"$'\t''want to update vars there' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c '^purpose: ' "$rigWs/.local/agents/pending/$rigSetId.set" )" "1:8:1:1:2"
-RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigSetId" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$rigSetId" allow-set
 rigAssert "an allow-set still writes the grants: every extra, for every participant, by its exact path" \
 	"$( rigHas "$rigTmp/op.out" 'GRANT: set 24 entries for ' ):$( rigGrantRead magic-tester rig-set-tester Write "$rigWs/SETP/a/b.txt" ):$( rigGrantRead magic-developer rig-set-dev Read "$rigWs/SETQ/c.txt" ):$( rigGrantRead magic-tester rig-set-tester Read /nowhere/rig-set/x ):$( rigGrantRead magic-tester rig-set-tester Edit "$rigWs/DEV/held/x" )" "yes:task:task:task:"
 rigAssert "and the set grant record says what each place's access is for" \
@@ -948,6 +954,25 @@ rigOpRc=0
 rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdOwn" --task-ref "the rig" --reason "rig" --entry "Write:$rigWs/OWN/a.txt" || rigOpRc=$?
 rigAssert "an entry the asker holds already: held, rc 0, nothing posted, no record, no grant written" \
 	"$rigOpRc:$( LC_ALL=C grep -c '^PERMISSION-SET: held' "$rigTmp/op.out" ):$(( $( rigCalls chat.postMessage ) - rigSetAskPosts )):$(( $( ls "$rigWs/.local/agents/pending"/*.set 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ) - rigSetAskSets )):$( LC_ALL=C grep -c -F -- "$rigIdOwn" "$rigWs/.local/agents/sessions/rig-tester/grants" 2> /dev/null || true )" "0:1:0:0:0"
+## One entry the asker's standing row covers and one nobody holds: the first is said held and left out of
+## the ask, and is never shown in the post as an access a holder passes on.
+rigLive rig-tester
+rigIdMix="$( rigRefusal magic-tester rig-tester Read "$rigWs/ELSE/mix.txt" )"
+rigOpRc=0
+rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdMix" --task-ref "the rig" --reason "rig" --entry "Read:$rigWs/OWN/held.txt" --entry "Read:$rigWs/ELSE/mix.txt" || rigOpRc=$?
+rigSetIdMix="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
+rigAssert "an own set says held the entry it holds and asks the other one, on the record too" \
+	"$rigOpRc:$( rigHas "$rigTmp/op.out" "HELD: Read:$rigWs/OWN/held.txt by magic-tester already (standing)" ):$( LC_ALL=C grep -c '^EXTRA: ' "$rigTmp/op.out" ):$( LC_ALL=C grep -c '^entry: ' "$rigWs/.local/agents/pending/$rigSetIdMix.set" 2> /dev/null )" "0:yes:1:1"
+rigAssert "and the post asks that one only: the asker's own grant is never shown as held and passed on by a holder" \
+	"$( rigSetBody "$rigSetIdMix" | LC_ALL=C grep -c -e 'Already held' -e 'OWN/held.txt' ):$( rigSetBody "$rigSetIdMix" | LC_ALL=C grep -c -F 'ELSE/mix.txt' )" "0:1"
+rigDead rig-tester
+## Every entry the floor covers: nothing is asked, and the member is told what to call next.
+rigIdFloor="$( rigRefusal magic-tester rig-tester Read "$rigWs/.local/temp/team/floor.txt" )"
+rigSetAskPosts="$( rigCalls chat.postMessage )"
+rigOpRc=0
+rigOp --intern-op-permission-set-ask magic-tester --session-id rig-tester --refusal-id "$rigIdFloor" --task-ref "the rig" --reason "rig" --entry "Read:$rigWs/.local/temp/team/floor.txt" || rigOpRc=$?
+rigAssert "an own set the floor covers whole: held, rc 0, nothing posted, and the member told to make the call again" \
+	"$rigOpRc:$( LC_ALL=C grep -c '^PERMISSION-SET: held' "$rigTmp/op.out" ):$( rigHas "$rigTmp/op.out" 'Make the call again' ):$(( $( rigCalls chat.postMessage ) - rigSetAskPosts ))" "0:1:yes:0"
 rigIdDev="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/setask.txt" )"
 rigSetAskPosts="$( rigCalls chat.postMessage )"
 rigOpRc=0

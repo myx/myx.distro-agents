@@ -397,14 +397,20 @@ def pluginsApplied(built):
 
 
 ## A plugin registered: put in the registries at once. A name registered twice is refused, and so is a plugin whose command clashes
-## with another's (keyClashes): the registries stay as they were.
+## with another's (keyClashes): the registries stay as they were. A plugin that declares no `apps` is refused too, and the
+## refusal names it.
 def registerPlugin(plugin):
     if not plugin.get("name"):
         raise PluginError("a plugin has a name")
-    ## The app of this start keeps only the plugins it names (APP_PLUGINS, set by the screen
-    ## before the parts load): a sibling console keeps the Dashboard and the Manuals alone, so a
-    ## part that loads but is no plugin of the app registers nothing. `agents` keeps every one.
-    if APP_PLUGINS is not None and plugin["name"] not in APP_PLUGINS:
+    ## The apps that keep this plugin: `apps`, a tuple of APP_NAMES, declared beside the plugin itself. A plugin that
+    ## declares none is refused, and the refusal names it, because the set it would keep is then nobody's to read. The
+    ## console kept every plugin for agents and one shared five for the four siblings, from a list in this screen's own
+    ## file. The declaration stands with the plugin now, so a sibling adds its own screen and touches no other's.
+    apps = plugin.get("apps")
+    if not apps:
+        raise PluginError("plugin %s declares no \"apps\": name the console apps that keep it, one or more of %s" % (plugin["name"], ", ".join(APP_NAMES)))
+    ## An app this plugin does not name keeps nothing of it, so a part that loads but names no app of this start registers nothing.
+    if SCREEN_APP not in apps:
         return
     if any(record["name"] == plugin["name"] for record in PLUGIN_RECORDS):
         raise PluginError("plugin %s is registered already" % plugin["name"])

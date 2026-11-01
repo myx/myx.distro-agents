@@ -7,8 +7,10 @@
 ## TodoWrite keeps its list -- a call with todos replaces the caller's whole list -- and read by a
 ## call with none: the caller's own list, or with member that participant's, or with `*` every
 ## participant's. One member, one list in a session, however many runs it has there:
-## <member>.checklist.md, Markdown, one line an item, `- [x]` done, `- [ ]` not yet, the item in
-## progress followed by its activeForm. Kept in the session's place (AgentsHarnessCheckListPlace).
+## <member>.checklist.md, Markdown, one line an item, `- [x]` done, `- [~]` in progress, `- [ ]` not
+## yet, the item in progress followed by its activeForm. A `- [ ]` line ending with one is the
+## in-progress shape before the mark, and reads as in progress for good. Kept in the session's place
+## (AgentsHarnessCheckListPlace).
 ## A participant writes its own list alone. Checked whole first, so a list with one bad item is
 ## refused and the list kept before stays as it was; written to a temp file mktemp names beside
 ## it and put in place by one rename, so no reader sees half a list.
@@ -91,7 +93,7 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 			in_progress)
 				todoActive=$(( todoActive + 1 ))
 				AgentsHarnessArgFind "todos.$todoIndex.activeForm" || :
-				todoLine="- [ ] $todoContent (in progress: $harnessArgFound)"
+				todoLine="- [~] $todoContent (in progress: $harnessArgFound)"
 			;;
 			completed) todoDone=$(( todoDone + 1 )) ; todoLine="- [x] $todoContent" ;;
 			*) printf 'ERROR: %s: status must be pending, in_progress or completed, got: %s. Nothing was written.\n' "$todoWhere" "$( AgentsHarnessTruncateArg "$harnessArgFound" )" ; return 0 ;;
@@ -189,4 +191,88 @@ AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 	esac
 	AgentsHarnessFileText "$checkListFolder/$readWant.checklist.md"
 	printf 'CHECKLIST of %s in session %s:\n%s\n' "$readWant" "$checkListSession" "${harnessFileText:-(empty)}"
+}
+
+## The state one line of a list carries: rc 0 pending, 1 in progress, 2 done, 3 no item. A `- [ ]` line whose text ends with its
+## activeForm is the in-progress shape before the `[~]` mark, and reads as in progress for good: a list either writer wrote reads the
+## same, so a writer reverted alone loses no item.
+AgentsHarnessCheckListLineState(){ ## one line of a list
+	case "$1" in
+		'- [ ] '*)
+			case "$1" in *' (in progress: '*')') return 1 ;; esac
+			return 0
+		;;
+		'- [~] '*) return 1 ;;
+		'- [x] '*) return 2 ;;
+	esac
+	return 3
+}
+
+## The items of the caller's own list in its session that are pending, one a line as the file keeps them and nothing else read:
+## rc 0 printing them where a list is on record (nothing where every item is closed or in progress), rc 1 where the session keeps none,
+## rc 2 where the harness gives it no place for one. The list, its place and its marks are this file's, so every reader of a list asks
+## here and none spells the format again: the Wait's nudge, the idle Wait and the handback all read the same way.
+AgentsHarnessCheckListOpenItems(){
+	local openFile="" openLine=""
+	AgentsHarnessCheckListPlace || return 2
+	openFile="$checkListFolder/$checkListMember.checklist.md"
+	[ -f "$openFile" ] || return 1
+	while IFS= read -r openLine || [ -n "$openLine" ] ; do
+		AgentsHarnessCheckListLineState "$openLine" || continue
+		printf '%s\n' "$openLine"
+	done < "$openFile"
+	return 0
+}
+
+## How many items the caller's own list holds, how many are pending and how many are in progress, as three numbers on one line: rc
+## and the reading as AgentsHarnessCheckListOpenItems says them. Read for a line that says the list's state without its items.
+AgentsHarnessCheckListCounts(){
+	local countFile="" countLine="" countAll=0 countOpen=0 countActive=0 countState=0
+	AgentsHarnessCheckListPlace || return 2
+	countFile="$checkListFolder/$checkListMember.checklist.md"
+	[ -f "$countFile" ] || return 1
+	while IFS= read -r countLine || [ -n "$countLine" ] ; do
+		countState=0
+		AgentsHarnessCheckListLineState "$countLine" || countState=$?
+		case "$countState" in
+			0) countAll=$(( countAll + 1 )) ; countOpen=$(( countOpen + 1 )) ;;
+			1) countAll=$(( countAll + 1 )) ; countActive=$(( countActive + 1 )) ;;
+			2) countAll=$(( countAll + 1 )) ;;
+		esac
+	done < "$countFile"
+	printf '%s %s %s\n' "$countAll" "$countOpen" "$countActive"
+	return 0
+}
+
+## Whether an item's own text names the handback itself: the step a member writes into its list and then does, which the handback
+## closes rather than reports as work left over. Case-insensitive, `hand back` and `handback`.
+AgentsHarnessCheckListNamesHandback(){ ## the item's text, without its mark
+	LC_ALL=C grep -qi -e 'hand back' -e 'handback' <<< "$1"
+}
+
+## Marks every open item of the caller's own list whose text names the handback closed, in one rewrite of the list: the handback
+## does that step, so a member that wrote it is never told its own handback is work left. An item in progress is often that step itself,
+## so either open mark is closed, its ' (in progress: ...)' suffix dropped so a closed item never claims to be in progress. rc 0 where
+## the list now says so (or held no such item), rc 1 where there is no list or the write failed.
+AgentsHarnessCheckListCloseHandback(){
+	local closeFile="" closeLine="" closeOut="" closeTmp="" closeText="" closeClosed=0 closeState=0
+	AgentsHarnessCheckListPlace || return 1
+	closeFile="$checkListFolder/$checkListMember.checklist.md"
+	[ -f "$closeFile" ] || return 1
+	while IFS= read -r closeLine || [ -n "$closeLine" ] ; do
+		closeState=0
+		AgentsHarnessCheckListLineState "$closeLine" || closeState=$?
+		if [ "$closeState" -gt 1 ] || ! AgentsHarnessCheckListNamesHandback "${closeLine:6}" ; then
+			closeOut="$closeOut$closeLine"$'\n'
+			continue
+		fi
+		closeText="${closeLine:6}"
+		[ "$closeState" -ne 1 ] || closeText="${closeText% (in progress: *)}"
+		closeOut="$closeOut- [x] $closeText"$'\n'
+		closeClosed=$(( closeClosed + 1 ))
+	done < "$closeFile"
+	[ "$closeClosed" -gt 0 ] || return 0
+	closeTmp="$( mktemp "$closeFile.XXXXXX" 2> /dev/null )" || return 1
+	{ printf '%s' "$closeOut" > "$closeTmp" && mv -f "$closeTmp" "$closeFile" ; } 2> /dev/null || { rm -f "$closeTmp" ; return 1 ; }
+	return 0
 }

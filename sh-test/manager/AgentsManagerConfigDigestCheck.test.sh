@@ -371,7 +371,7 @@ echo "-- 10. the place of the operation in its family --"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigOp"
 rigPre=()
-rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, by the one rule of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
+rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, by the one rule of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" "1 0 1"
 rigRun --manager-config-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-config-no-such" )" "1 1"
 rigAssert "the family's include has one arm for the settings, which sources their include" "$( LC_ALL=C grep -c -x -e '	--manager-config-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"

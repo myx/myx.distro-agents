@@ -152,6 +152,7 @@ case "$1" in
 			## through --agents-config-option creates the file it reads.
 			setupCurrent=""
 			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupKey" || : )"
 			fi
 			if [ -n "$setupCurrent" ] && [ "$setupMode" != "--render-full" ] ; then
@@ -254,6 +255,7 @@ case "$1" in
 				setupScope="${setupSpec%%|*}"
 				setupCurrent=""
 				if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupGroupKey" || : )"
 				fi
 				## What this call does to the key decides, over what is stored: a
@@ -304,6 +306,7 @@ case "$1" in
 		## that selection would make it, and an existing block is left exactly as
 		## it stands: nothing here overwrites a preset.
 		if [ -n "$setupServiceKey" ] && [ ! -f "$setupWorkspace/.local/.agents/preset-$setupServiceValue.agent.env" ] ; then
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "preset-$setupServiceValue" --upsert-from-stdin PRESET_CLI_SERVICE ) || {
 				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not make the preset $setupServiceValue in $setupWorkspace" >&2
 				set +e ; return 1
@@ -317,6 +320,7 @@ case "$1" in
 			setupScope="${setupSpec%%|*}"
 			setupCurrent=""
 			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupKey" || : )"
 			fi
 			## A set removes a setting by naming it with no value: KEY= is the one
@@ -330,6 +334,7 @@ case "$1" in
 					echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupKey is not set"
 					continue
 				fi
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --delete "$setupKey" ) || {
 					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not remove $setupKey from the $setupScope scope of $setupWorkspace" >&2
 					set +e ; return 1
@@ -344,6 +349,7 @@ case "$1" in
 			## Written through stdin whatever its kind: the value never reaches
 			## argv, so nothing distinguishes a secret from a plain value in the
 			## process table.
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			printf '%s' "${setupLine#*=}" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --upsert-from-stdin "$setupKey" ) || {
 				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not write $setupKey into the $setupScope scope of $setupWorkspace" >&2
 				set +e ; return 1
@@ -359,6 +365,7 @@ case "$1" in
 			setupScope="${setupSpec%%|*}"
 			setupCurrent=""
 			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupServiceKey" || : )"
 			fi
 			if [ "$setupCurrent" = "$setupServiceValue" ] ; then
@@ -370,6 +377,7 @@ case "$1" in
 				## before the values, so that a credential has its block to be written
 				## in -- and the team's SPAWN_TIER_NORMAL pointing at it. SPAWN_CLI_SERVICE
 				## is no setting, so nothing is written under that name.
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --upsert-from-stdin SPAWN_TIER_NORMAL ) || {
 					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not write SPAWN_TIER_NORMAL into the $setupScope scope of $setupWorkspace" >&2
 					set +e ; return 1

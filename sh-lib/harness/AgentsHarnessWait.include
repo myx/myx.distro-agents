@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-## AgentsHarnessWait.include: dismissal records, seats and the Wait tool. Sourced by AgentsUniversalHarness.sh, definitions only.
+## AgentsHarnessWait.include: dismissal records, seats, the Wait tool and the CheckList it names on every return. Sourced by AgentsUniversalHarness.sh, definitions only.
 
 ## The mark's file. rc 1, nothing printed, for a session that keeps none.
 AgentsHarnessDismissedFile(){
@@ -192,6 +192,76 @@ AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn 
 	return 0
 }
 
+## The one line a Wait adds about the caller's own CheckList, on every return that is not the idle one: the count and never the
+## items, so a quiet round and a delivered one cost a member about ten tokens. A session the harness gives no place for a list says
+## nothing, having nowhere to keep one, and neither does a call that waits for an ask (its output is the ask's, not a Wait result's).
+AgentsHarnessWaitCheckListLine(){
+	local lineCounts="" lineRc=0 lineAll=0 lineOpen=0 lineActive=0
+	lineCounts="$( AgentsHarnessCheckListCounts )" ; lineRc=$?
+	case "$lineRc" in
+		0) ;;
+		1) printf 'CHECKLIST: none on record, so write one with CheckList\n' ; return 0 ;;
+		*) return 0 ;;
+	esac
+	lineAll="${lineCounts%% *}" lineOpen="${lineCounts#* }" lineOpen="${lineOpen%% *}" lineActive="${lineCounts##* }"
+	if [ "$lineActive" != "0" ] ; then
+		printf 'CHECKLIST: %s pending, %s in progress\n' "$lineOpen" "$lineActive"
+	elif [ "$lineOpen" != "0" ] ; then
+		printf 'CHECKLIST: %s pending\n' "$lineOpen"
+	else
+		printf 'CHECKLIST: all %s closed\n' "$lineAll"
+	fi
+}
+
+## The idle Wait (owner 2026-10-31): a call naming no source of its own, from a session that has handed back since the floor last
+## returned an arrival, or that is a work duty's own quiet loop, is that member asking for more work, a review or DISMISSED. Its open
+## items are returned at once then, before any probe and any wait, so it finishes or closes them first; what the floor already holds
+## comes with this return, from the reply layer every tool result carries, so nothing is probed for it and no network is read.
+## ONCE PER CHANGE OF THE LIST. An immediate return costs a whole model round, so a member that does not touch its list gets the
+## ordinary wait: `checklist.nudged` keeps the checksum of the items the last immediate return named.
+## The mark `handback.given`, in the same folder, is written by a delivered handback and cleared by a Wait that delivers an arrival:
+## it is the whole of "has handed back since its last arrival", one local file, and a work duty needs none of it.
+AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
+	local idleOwn="$1" idleModeArg="$2" idleOpen="" idleRc=0 idleCount=0 idleItem="" idleSum="" idleStored=""
+	local idleFolder="" idleGiven="" idleActive=0
+	[ -z "$idleOwn" ] || return 0
+	case "$idleModeArg" in default|continue) ;; *) return 0 ;; esac
+	idleOpen="$( AgentsHarnessCheckListOpenItems )" ; idleRc=$?
+	[ "$idleRc" = "0" ] || return 0
+	while IFS= read -r idleItem ; do
+		[ -z "$idleItem" ] || idleCount=$(( idleCount + 1 ))
+	done <<< "$idleOpen"
+	[ "$idleCount" -gt 0 ] || return 0
+	AgentsHarnessCheckListPlace || return 0
+	idleFolder="$checkListFolder"
+	if ! AgentsHarnessWorkDuty ; then
+		[ -f "$idleFolder/handback.given" ] || return 0
+		IFS= read -r idleGiven < "$idleFolder/handback.given" || :
+		case "$idleGiven" in ''|*[!0123456789]*) return 0 ;; esac
+	fi
+	idleSum="$( printf '%s' "$idleOpen" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
+	[ ! -f "$idleFolder/checklist.nudged" ] || IFS= read -r idleStored < "$idleFolder/checklist.nudged" || :
+	[ "$idleStored" != "$idleSum" ] || return 0
+	printf '%s\n' "$idleSum" > "$idleFolder/checklist.nudged" 2> /dev/null || :
+	idleActive="$( AgentsHarnessCheckListCounts )" ; idleActive="${idleActive##* }"
+	case "$idleActive" in ''|*[!0123456789]*) idleActive=0 ;; esac
+	if [ "$idleActive" != "0" ] ; then
+		printf 'CHECKLIST: %s pending, %s in progress. Finish or close them before you wait for DISMISSED.\n%s' "$idleCount" "$idleActive" "$idleOpen"
+	else
+		printf 'CHECKLIST: %s pending. Finish or close them before you wait for DISMISSED.\n%s' "$idleCount" "$idleOpen"
+	fi
+}
+
+## A Wait that delivered an arrival answers whatever handback was given before it: the mark is cleared here, so the next idle Wait
+## is one again only after another handback. One local file, removed, and nothing read from the network.
+AgentsHarnessWaitCheckListAnswered(){
+	local answeredFolder=""
+	AgentsHarnessCheckListPlace || return 0
+	answeredFolder="$checkListFolder"
+	[ ! -f "$answeredFolder/handback.given" ] || rm -f "$answeredFolder/handback.given" 2> /dev/null || :
+	return 0
+}
+
 ## The wait happens HERE, in this process, inside one tool call: the model spends
 ## nothing while nothing is happening and its context does not grow, which is the
 ## whole reason this is a tool and not a loop of reads. Through the team's own
@@ -207,7 +277,7 @@ AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn 
 ## A call naming a mode (arguments 7 to 11: mode, seen, note, done, wait) is a stateful wait kept per
 ## session; an internal caller passing six arguments or fewer gets today's stateless wait.
 AgentsHarnessToolWait(){
-	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread
+	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread waitOwnSources="$1" waitIdleReturn=""
 	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
 	## unwait names one source to drop from the stored wait on demand -- the same
 	## kind:target (or slack:session-current/slack:session-parent alias) `sources`
@@ -369,6 +439,12 @@ AgentsHarnessToolWait(){
 		cat "$harnessScratch/wait.out"
 		return 0
 	fi
+	## The idle Wait comes before any probe: a member that has handed back and still holds open items is given them, not made to
+	## wait (AgentsHarnessWaitCheckListIdle). Nothing where its list holds none, or has not changed since the last such return.
+	if [ "$waitTool" = "true" ] ; then
+		waitIdleReturn="$( AgentsHarnessWaitCheckListIdle "$waitOwnSources" "$toolMode" )"
+		[ -z "$waitIdleReturn" ] || { printf '%s\n' "$waitIdleReturn" ; return 0 ; }
+	fi
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
 	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input --team-member "$harnessAgent"
@@ -397,7 +473,8 @@ AgentsHarnessToolWait(){
 	waitDiag="$( MDAT_WAIT_SEEN_OWN="${toolAsking:+1}${MDAT_WAIT_SEEN_OWN:-}" "$@" 2>&1 1>"$harnessScratch/wait.out" )" || waitRc=$?
 	if [ "$waitRc" != "0" ] ; then
 		printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources -- this is not a wait that found nothing, and their silence must not be read as quiet. What the operation reported follows:\n' "$waitRc"
-		[ -z "$waitDiag" ] || printf '%s\n' "$waitDiag"
+		## The operation names its own flags; the caller holds this tool's arguments, so the report names those.
+		[ -z "$waitDiag" ] || printf '%s\n' "$waitDiag" | LC_ALL=C sed -e 's/--wait-since-utime/since_utime/g' -e 's/--wait-source/sources/g' -e 's/--wait-timeout/timeout/g' -e 's/--wait-addressee/addressee/g'
 		return 0
 	fi
 	## What a wait that worked said on its stderr goes to this run's own log, never left in scratch.
@@ -423,10 +500,12 @@ AgentsHarnessToolWait(){
 	fi
 	## A TIMEOUT on the tool's own stateful wait is ONE line: every quiet result stays in the
 	## model's context, and that it is normal is said once, in the tool description. Only a
-	## source never read adds its WAIT-NEVER-READ line, since its silence means nothing.
+	## source never read adds its WAIT-NEVER-READ line, since its silence means nothing, and
+	## the CheckList's own line follows, which is what the member's list costs a quiet round.
 	if [ "$waitTool" = "true" ] && [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: TIMEOUT" ] ; then
 		printf 'WAIT-RESULT: TIMEOUT (%ss) NEXT: Wait mode=continue\n' "$( LC_ALL=C sed -n 's/^# waited: \([0-9]*\)s of .*/\1/p' "$harnessScratch/wait.out" | head -1 )"
 		LC_ALL=C grep '^WAIT-NEVER-READ: ' "$harnessScratch/wait.out" || :
+		AgentsHarnessWaitCheckListLine
 		return 0
 	fi
 	cat "$harnessScratch/wait.out"
@@ -437,6 +516,12 @@ AgentsHarnessToolWait(){
 	## An asked question's wait item that arrived is taken into its record here, as the asking call would.
 	[ "$( head -1 "$harnessScratch/wait.out" )" != "WAIT-RESULT: RECEIVED" ] || AgentsHarnessWaitAskResolve "$harnessScratch/wait.out"
 	case "$( head -1 "$harnessScratch/wait.out" )" in
-		"WAIT-RESULT: RECEIVED") printf 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here\n' ;;
+		"WAIT-RESULT: RECEIVED")
+			## An arrival is the moment a member is about to act on something new: the list's own line comes with it, and the
+			## handback mark is cleared, since the arrival answers the handback that was given before it.
+			AgentsHarnessWaitCheckListAnswered
+			AgentsHarnessWaitCheckListLine
+			printf 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here\n'
+		;;
 	esac
 }

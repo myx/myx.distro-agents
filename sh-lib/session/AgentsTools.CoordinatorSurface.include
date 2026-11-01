@@ -166,6 +166,7 @@ AgentsToolsSurfaceLockTake(){ ## the operation, owner label, wait seconds
 	local lockLeft="$3" lockOut lockRc
 	while : ; do
 		lockRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		lockOut="$( AgentsToolsSurfaceTool DistroAgentsTools --state-note-lock-acquire magic-coordinator "$2" 2>&1 )" || lockRc=$?
 		[ "$lockRc" != 0 ] || return 0
 		if [ "$lockLeft" -le 0 ] ; then
@@ -213,6 +214,7 @@ AgentsToolsSurfaceStateWrite(){ ## the operation, wait seconds, set|end, id, the
 	export SURFACE_LINES="$writeKept"
 	writeContent="$( AgentsToolsSurfaceRewrite "$writeNote" )" || writeRc=1
 	if [ "$writeRc" = 0 ] && [ -n "$writeContent" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		printf '%s\n' "$writeContent" | AgentsToolsSurfaceTool DistroAgentsTools --intern-op-state-note-upsert magic-coordinator > /dev/null || writeRc=$?
 	else
 		writeRc=1

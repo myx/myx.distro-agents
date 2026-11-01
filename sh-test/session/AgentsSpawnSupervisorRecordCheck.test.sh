@@ -72,7 +72,7 @@ trap 'rigControlThreadsEnd "$rigTmp" ; rigCleanup' EXIT
 ## THE RIG'S OWN PROCESS LIST. The ps first on PATH answers the whole-host listing from the rig's own list, beside
 ## it, which holds no line: no process of the host is ever read as a run, and a run of this rig lives by the
 ## process its record names. The listing of pid and ppid, and every other call, is handed to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh

@@ -97,7 +97,8 @@ case "$1" in
 			--extend) newKey="PRESET_EXTEND" ;;
 			*) newKey="PRESET_CLI_SERVICE" ;;
 		esac
-		printf '%s\n' "$newValue" | DistroAgentsTools --agents-config-option "preset-$newName" --upsert-from-stdin "$newKey" > /dev/null || {
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		printf '%s\n' "$newValue" | AgentsToolsConfigOption "preset-$newName" --upsert-from-stdin "$newKey" > /dev/null || {
 			echo "⛔ ERROR: $MDSC_CMD $newOp: the setting reader refused the first variable of the preset -- nothing was made" >&2
 			rm -f -- "$newFile"
 			set +e ; return 1

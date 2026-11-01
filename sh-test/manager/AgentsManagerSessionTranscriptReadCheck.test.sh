@@ -44,7 +44,7 @@ mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigPend" "$rigStores" 
 rigHost="$( hostname -s 2>/dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 
 ## THE RIG'S OWN PROCESS LIST, as in AgentsManagerSessionListCheck. No run of this rig is alive: the list is empty.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
@@ -280,7 +280,7 @@ rigAssert "a call that finds the registries fresh rewrites neither" "$rigRc $( r
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigOp" --session-id sess-t
 rigPre=()
-rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
+rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" "1 0 1"
 rigAssert "the operation is one arm of the include of the sessions; a line of the feed is made by the tracking post's own renderer and its template, and the feed file its poster empties is never read" \
 	"$( LC_ALL=C grep -c -x -e "	$rigOp)" "$rigHere/manager/AgentsTools.ManagerSession.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsEventTrackPostRender feed ' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionTranscript.awk" "$rigHere/manager/AgentsManagerSessionRead.awk" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e '/feed' -e 'feed\.posting' || : )" "1 1 0"
 

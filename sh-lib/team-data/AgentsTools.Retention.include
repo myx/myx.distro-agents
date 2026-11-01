@@ -29,6 +29,7 @@ AgentsToolsRetentionRun(){
 	mkdir -p "${retentionStamp%/*}" 2> /dev/null && printf '%s\n' "$retentionNow" > "$retentionStamp" || :
 	local retentionOut retentionRc
 	retentionRc=0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	retentionOut="$( DistroAgentsTools --intern-team-data-reflection-sweep magic-coordinator --context --intern-main-loop 2>&1 )" || retentionRc=$?
 	case "$retentionRc" in
 		0|2) ;;
@@ -36,6 +37,7 @@ AgentsToolsRetentionRun(){
 	esac
 	[ -z "$retentionOut" ] || printf '%s\n' "$retentionOut" | tail -n 1
 	retentionRc=0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	retentionOut="$( DistroAgentsTools --intern-team-data-final-gc-deletion magic-coordinator --context --intern-main-loop 2>&1 )" || retentionRc=$?
 	case "$retentionRc" in
 		0|2) ;;

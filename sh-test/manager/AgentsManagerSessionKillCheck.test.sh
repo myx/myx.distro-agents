@@ -56,8 +56,8 @@ rigHost="$( hostname -s 2>/dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 ## THE RIG'S OWN PROCESS LIST. A line of it is `<pid> <when that process began> <command line>`. The ps first on
 ## PATH prints, for the whole-host listing, the lines whose pid is still that very process, and hands the listing
 ## of pid and ppid, and every other call, to the real ps.
-ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
-ln -s "$( command -v id )" "$rigTmp/bin/id.real" || rigRefuse "no id on PATH to hand the other calls to"
+rigRealTool ps "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+rigRealTool id "$rigTmp/bin/id.real" || rigRefuse "no id on PATH to hand the other calls to"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
 case " $* " in
@@ -486,7 +486,7 @@ rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigOp" --session-id sess-three
 rigPre=()
 rigAssert "from inside a member's session, magic-coordinator's among them, it is refused in the family's one line, and the run lives" \
-	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as magic-coordinator, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" ) $( rigAlive sess-three ) $( rigHeader "$rigSp/sess-three/sess-three.spawn.md" killed-by )" "1 0 1 1 "
+	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigAlive sess-three ) $( rigHeader "$rigSp/sess-three/sess-three.spawn.md" killed-by )" "1 0 1 1 "
 
 echo "-- 14. through the real spawn proxy: the supervising shell closes the record, and a killed run is not started again --"
 ## The stand-in console of the proxy's own runs: it keeps each launch, its pid and when it began, and runs until

@@ -9,7 +9,8 @@
 ## serves it; no `--` operation of its own.
 ##
 ## THE SESSION IS THE SERVER'S, for the life of the server, and the server's scratch root names it:
-## $MMDAPP/.local/temp/agent-mcp.<server pid>/root-session holds its id and token, one line. Every
+## `agent-mcp.<server pid>/root-session` holds its id and token, one line, in the calling session's
+## output folder where it has one, else the workspace's .local/temp. Every
 ## request is a process of its own, so that file -- not the requesting process -- is what makes a
 ## second mint the same session (F1.1 S3).
 ##
@@ -38,11 +39,12 @@
 ## named as this server's session, and never a place on a disk.
 agentsRootSessionUse="root-harness session of this myx.distro MCP server; give its id and its token to RootSession operation=adopt."
 
-## The file holding this server instance's session, one line: its id, a space, its token. Nothing
-## for a pid that names no server scratch root.
+## The file holding this server instance's session, one line: its id, a space, its token, in the server's
+## own scratch root: the calling session's output folder where it has one, the workspace's .local/temp otherwise.
 AgentsToolsRootSessionStore(){ ## server pid
-	[ -n "${MMDAPP:-}" ] || return 1
-	printf '%s' "$MMDAPP/.local/temp/agent-mcp.$1/root-session"
+	local rootBase="$MMDAPP/.local/temp"
+	[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || rootBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
+	printf '%s' "$rootBase/agent-mcp.$1/root-session"
 }
 
 ## The token kept for one session of this workspace, rc 1 where there is none: what a mint wrote,

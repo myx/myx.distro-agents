@@ -70,12 +70,18 @@ AgentsToolsCollectThreadHolderLives(){ ## `<pid> <start>`
 	return 2
 }
 
+## The holder a thread lock names: the lock file's own text, or the target of the link an
+## older release made. Empty where it names nobody.
+AgentsToolsCollectThreadLockHolder(){ ## lock path
+	if [ -L "$1" ] ; then readlink "$1" 2> /dev/null ; else cat "$1" 2> /dev/null ; fi
+}
+
 ## The pid of the thread of this workspace on this host, while one holds the lock; rc 1, nothing printed, for none.
 AgentsToolsCollectThreadLive(){
 	local liveDir liveLine="" liveRc
 	liveDir="$( AgentsToolsCollectThreadDir )" || return 1
-	[ -L "$liveDir/thread.lock" ] || return 1
-	liveLine="$( readlink "$liveDir/thread.lock" 2> /dev/null )" || return 1
+	[ -e "$liveDir/thread.lock" ] || return 1
+	liveLine="$( AgentsToolsCollectThreadLockHolder "$liveDir/thread.lock" )" || return 1
 	AgentsToolsCollectThreadHolderLives "$liveLine" ; liveRc=$?
 	[ "$liveRc" != 1 ] || return 1
 	printf '%s\n' "${liveLine%% *}"
@@ -88,10 +94,13 @@ AgentsToolsCollectThreadLockTake(){
 	colThreadHolder="" ; colThreadTookOver=""
 	while [ "$takeTries" -lt 5 ] ; do
 		takeTries=$(( takeTries + 1 ))
-		## Checked first: `ln -s` onto a directory creates the link inside it and succeeds.
+		## Checked first: a lock of an older release may be a directory, which `set -C` cannot make over.
 		[ ! -d "$colThreadLock" ] || [ -L "$colThreadLock" ] || return 2
-		ln -s "$colThreadMe" "$colThreadLock" 2> /dev/null && return 0
-		takeHolder="$( readlink "$colThreadLock" 2> /dev/null )" || takeHolder=""
+		## `set -C` writes over nothing: the file is made here, or one already there is left alone.
+		if [ ! -L "$colThreadLock" ] && ( set -C ; printf '%s' "$colThreadMe" > "$colThreadLock" ) 2> /dev/null ; then
+			return 0
+		fi
+		takeHolder="$( AgentsToolsCollectThreadLockHolder "$colThreadLock" )" || takeHolder=""
 		[ -n "$takeHolder" ] || continue
 		[ "$takeHolder" != "$colThreadMe" ] || return 0
 		AgentsToolsCollectThreadHolderLives "$takeHolder" ; takeTold=$?
@@ -99,13 +108,13 @@ AgentsToolsCollectThreadLockTake(){
 		## Claimed by rename, so of two breakers only one moves it; a fresh lock moved by mistake is put back for its holder.
 		takeStale="$( mktemp "$colThreadLock.stale.XXXXXX" 2> /dev/null )" || continue
 		if mv -f "$colThreadLock" "$takeStale" 2> /dev/null ; then
-			takeMoved="$( readlink "$takeStale" 2> /dev/null )" || takeMoved=""
+			takeMoved="$( AgentsToolsCollectThreadLockHolder "$takeStale" )" || takeMoved=""
 			rm -f "$takeStale"
 			if [ "$takeMoved" = "$takeHolder" ] ; then
 				colThreadTookOver="$takeHolder"
 				continue
 			fi
-			[ -z "$takeMoved" ] || ln -s "$takeMoved" "$colThreadLock" 2> /dev/null || :
+			[ -z "$takeMoved" ] || ( set -C ; printf '%s' "$takeMoved" > "$colThreadLock" ) 2> /dev/null || :
 		else
 			rm -f "$takeStale"
 		fi
@@ -113,7 +122,7 @@ AgentsToolsCollectThreadLockTake(){
 	return 2
 }
 AgentsToolsCollectThreadLockGive(){
-	[ "$( readlink "$colThreadLock" 2> /dev/null )" != "$colThreadMe" ] || rm -f "$colThreadLock" 2> /dev/null
+	[ "$( AgentsToolsCollectThreadLockHolder "$colThreadLock" )" != "$colThreadMe" ] || rm -f "$colThreadLock" 2> /dev/null
 	return 0
 }
 
