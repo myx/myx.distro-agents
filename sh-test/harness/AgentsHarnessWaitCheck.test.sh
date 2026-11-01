@@ -12,6 +12,8 @@
 ## `curl` is first on PATH and refuses every request that is not one of this
 ## check's own canned model rounds, every source used is a `file:` source under
 ## this check's own temp tree, and nothing outlives the EXIT trap.
+## THE MEMBER IS NAMED WITH --team-member, never positionally: S21.3 retired the positional,
+## and the operation refuses a bare member name in front of its own arguments.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -245,14 +247,14 @@ rigOpErr=""
 ## it does not. The operation is backgrounded directly so $! is the real killable
 ## pid, and the wait is on the process rather than on a pipe.
 rigOpGuard=45
-rigOp(){ ## output basename, then the operation's own arguments
-	local opName="$1" opStart opEnd opPid opWatchPid
-	shift
+rigOp(){ ## output basename, the member the wait acts as, then the operation's own arguments
+	local opName="$1" opMember="${2:-}" opStart opEnd opPid opWatchPid
+	shift 2
 	rigOpOut="$rigTmp/$opName.out"
 	rigOpErr="$rigTmp/$opName.err"
 	rigOpStatus=0
 	opStart="$( date +%s )"
-	MMDAPP="$rigOpWs" "$rigTool" --wait-for-input "$@" > "$rigOpOut" 2> "$rigOpErr" &
+	MMDAPP="$rigOpWs" "$rigTool" --wait-for-input --team-member "$opMember" "$@" > "$rigOpOut" 2> "$rigOpErr" &
 	opPid=$!
 	(
 		opLeft="$rigOpGuard"

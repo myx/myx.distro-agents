@@ -250,7 +250,7 @@ rigThread a sess-a ; rigA="$rigThreadPid"
 rigWaitFor 20 rigHolds sess-a "$rigA" || rigRefuse "the thread of sess-a did not start, so nothing below would be measured: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/a.err" | cut -c1-600 )"
 rigABegan="$( rigProcBegan "$rigA" )"
 rigAssert "its pid file holds its pid with when that process began, as the tooling keeps a process" "$( cat "$rigStores/sess-a/control/pid" )" "$rigABegan"
-rigAssert "its lock is a link that names the same process" "$( [ -L "$rigStores/sess-a/control/lock" ] && readlink "$rigStores/sess-a/control/lock" )" "$rigABegan"
+rigAssert "its lock is a file that names the same process" "$( cat "$rigStores/sess-a/control/lock" 2> /dev/null )" "$rigABegan"
 rigALine="$( "$rigTmp/bin/ps.real" -ww -o args= -p "$rigA" 2> /dev/null )"
 rigAssert "its command line holds the operation and the id of its session" "$( LC_ALL=C grep -c -F -- " $rigOp --run --session-id sess-a " <<< " $rigALine " )" "1"
 rigAssert "its starter is told once which pid it is and where its log is, and nothing more" \
@@ -262,13 +262,13 @@ rigAssert "a second start of the same session is refused in one line that names 
 	"$rigRc:$( rigErrorCount ):$( rigErrors | LC_ALL=C grep -c -F -- "the control thread of session sess-a already runs as pid $rigA, begun ${rigABegan#* } -- a second one is not started" )" "1:1:1"
 rigOne sess-a
 rigAssert "and so is one tick by hand while the thread lives" "$rigRc:$( rigErrorCount ):$( rigErrors | LC_ALL=C grep -c -F -- "already runs as pid $rigA" )" "1:1:1"
-rigAssert "the first thread goes on, with its pid file and its lock as they were" "$( rigLives "$rigA" ):$( rigPrint "$rigStores/sess-a/control/pid" ):$( readlink "$rigStores/sess-a/control/lock" )" "1:$rigPidBefore:$rigABegan"
+rigAssert "the first thread goes on, with its pid file and its lock as they were" "$( rigLives "$rigA" ):$( rigPrint "$rigStores/sess-a/control/pid" ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null )" "1:$rigPidBefore:$rigABegan"
 rigRec sess-b sess-b sess-b sess-b "$rigHost" spawn-started ''
 rigStand sess-b ; rigRunB="$rigStandPid"
 rigThread b sess-b ; rigB="$rigThreadPid"
 rigWaitFor 20 rigHolds sess-b "$rigB" || rigRefuse "the thread of sess-b did not start: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/b.err" | cut -c1-600 )"
 rigAssert "the thread of another session runs beside it, each with its own pid file and its own lock" \
-	"$( rigLives "$rigA" "$rigB" ):$( readlink "$rigStores/sess-b/control/lock" ):$( readlink "$rigStores/sess-a/control/lock" )" "2:$( rigProcBegan "$rigB" ):$rigABegan"
+	"$( rigLives "$rigA" "$rigB" ):$( cat "$rigStores/sess-b/control/lock" 2> /dev/null ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null )" "2:$( rigProcBegan "$rigB" ):$rigABegan"
 rigWaitFor 10 rigStateIs sess-b running
 rigProcSignal TERM "$rigB"
 rigStatusOf "$rigB"
@@ -330,7 +330,7 @@ rigAssert "an interrupt: the thread is there, and its next tick is right" "$rigR
 rigProcSignal QUIT "$rigA" ; rigProcSignal PIPE "$rigA" ; rigProcSignal USR1 "$rigA" ; rigProcSignal USR2 "$rigA"
 sleep 2
 rigAssert "a quit, a broken pipe, USR1 and USR2: the thread is there, and its next tick is right" "$( rigLives "$rigA" ):$( rigTickRight sess-a "$rigA" )" "1:there, and right"
-rigAssert "and none of them moved its pid file or its lock" "$( rigPrint "$rigStores/sess-a/control/pid" ):$( readlink "$rigStores/sess-a/control/lock" )" "$rigPidBefore:$rigABegan"
+rigAssert "and none of them moved its pid file or its lock" "$( rigPrint "$rigStores/sess-a/control/pid" ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null )" "$rigPidBefore:$rigABegan"
 
 ## A STARTER THAT IS CLOSED. The thread is a plain background job of its starter: not detached, the starter's own
 ## pipe on its descriptors 1, 2 and 5, the starter's folder as its working folder.
@@ -428,11 +428,11 @@ rigAssert "the process list readable again: the thread is there, and its next ti
 rm -f "$rigStores/sess-a/control/pid" "$rigStores/sess-a/control/lock"
 rigWaitFor 10 rigHolds sess-a "$rigA"
 rigAssert "its pid file and its lock are removed: both are made again by the next tick, in the name of the same process" \
-	"$( rigLives "$rigA" ):$( cat "$rigStores/sess-a/control/pid" 2> /dev/null ):$( readlink "$rigStores/sess-a/control/lock" 2> /dev/null )" "1:$rigABegan:$rigABegan"
+	"$( rigLives "$rigA" ):$( cat "$rigStores/sess-a/control/pid" 2> /dev/null ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null )" "1:$rigABegan:$rigABegan"
 rm -rf "$rigStores/sess-a/control"
 rigWaitFor 10 rigStateIs sess-a running
 rigAssert "its whole control folder is removed: it is made again, with its pid file, its lock and the state" \
-	"$( rigLives "$rigA" ):$( cat "$rigStores/sess-a/control/pid" 2> /dev/null ):$( readlink "$rigStores/sess-a/control/lock" 2> /dev/null ):$( rigState sess-a )" "1:$rigABegan:$rigABegan:running"
+	"$( rigLives "$rigA" ):$( cat "$rigStores/sess-a/control/pid" 2> /dev/null ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null ):$( rigState sess-a )" "1:$rigABegan:$rigABegan:running"
 if [ "$( id -u )" != 0 ] ; then
 	sleep 2
 	rm -f "$rigStores/sess-a/control/state"
@@ -472,7 +472,7 @@ rigEBegan="$( rigProcBegan "$rigE" )"
 rigProcSignal XCPU "$rigE" ; rigRcSent=$?
 rigWaitFor 15 rigLogSays sess-e 'is put back in place'
 rigAssert "the shell of a thread ends without its doing: the thread is put back in place, the same process with the same pid and the same beginning, its pid file and its lock as they were" \
-	"$rigRcSent:$( rigProcBegan "$rigE" ):$( cat "$rigStores/sess-e/control/pid" 2> /dev/null ):$( readlink "$rigStores/sess-e/control/lock" 2> /dev/null ):$( rigLogHas sess-e "the control thread of session sess-e is put back in place, pid $rigE as before: its shell had ended without its doing" )" \
+	"$rigRcSent:$( rigProcBegan "$rigE" ):$( cat "$rigStores/sess-e/control/pid" 2> /dev/null ):$( cat "$rigStores/sess-e/control/lock" 2> /dev/null ):$( rigLogHas sess-e "the control thread of session sess-e is put back in place, pid $rigE as before: its shell had ended without its doing" )" \
 	"0:$rigEBegan:$rigEBegan:$rigEBegan:1"
 rigAssert "and its next tick is right" "$( rigTickRight sess-e "$rigE" )" "there, and right"
 rigProcSignal HUP "$rigE" ; rigProcSignal INT "$rigE" ; sleep 2
@@ -494,11 +494,11 @@ rm -f "$rigStores/sess-e/control/pid" "$rigStores/sess-e/control/lock"
 
 echo "-- 5. the lock: a holder that is gone, a number another process has, a holder that lives, two starts at once --"
 rigProcSignal KILL "$rigA" ; rigStatusOf "$rigA"
-rigAssert "a thread ended by KILL leaves its pid file and its lock as they were" "$( cat "$rigStores/sess-a/control/pid" 2> /dev/null ):$( readlink "$rigStores/sess-a/control/lock" 2> /dev/null )" "$rigABegan:$rigABegan"
+rigAssert "a thread ended by KILL leaves its pid file and its lock as they were" "$( cat "$rigStores/sess-a/control/pid" 2> /dev/null ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null )" "$rigABegan:$rigABegan"
 rigThread a2 sess-a ; rigA2="$rigThreadPid"
 rigWaitFor 20 rigHolds sess-a "$rigA2" || rigRefuse "the second thread of sess-a did not start: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/a2.err" | cut -c1-600 )"
 rigAssert "the next start takes the lock over and runs: the pid file and the lock name the new thread, and one line of the log says whose lock it was" \
-	"$( rigLives "$rigA2" ):$( readlink "$rigStores/sess-a/control/lock" ):$( rigLogHas sess-a "took over the lock of pid $rigA, which is gone" )" "1:$( rigProcBegan "$rigA2" ):1"
+	"$( rigLives "$rigA2" ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null ):$( rigLogHas sess-a "took over the lock of pid $rigA, which is gone" )" "1:$( rigProcBegan "$rigA2" ):1"
 rigProcSignal TERM "$rigA2" ; rigStatusOf "$rigA2"
 rigAssert "control: that thread ended in order" "$rigGot:$( rigControl sess-a )" "0:log state"
 ## A lock that names a pid no process has, written by hand as a thread long gone left it.
@@ -516,7 +516,7 @@ rigAssert "a lock whose process id another process has taken is taken over, and 
 ln -s "$( rigProcBegan "$rigOther" )" "$rigStores/sess-a/control/lock"
 rigOne sess-a
 rigAssert "control: a lock whose holder lives, the same pid begun when the lock says, is not taken over: refused, and the lock left" \
-	"$rigRc:$( rigErrors | LC_ALL=C grep -c -F -- "already runs as pid $rigOther" ):$( readlink "$rigStores/sess-a/control/lock" ):$( rigLives "$rigOther" )" "1:1:$( rigProcBegan "$rigOther" ):1"
+	"$rigRc:$( rigErrors | LC_ALL=C grep -c -F -- "already runs as pid $rigOther" ):$( cat "$rigStores/sess-a/control/lock" 2> /dev/null ):$( rigLives "$rigOther" )" "1:1:$( rigProcBegan "$rigOther" ):1"
 rm -f "$rigStores/sess-a/control/lock"
 ## Two starts at the same moment.
 rigRec sess-f sess-f sess-f sess-f "$rigHost" spawn-started ''
@@ -537,7 +537,7 @@ ln -s "$( rigProcBegan "$rigOther" )" "$rigStores/sess-f/control/lock.rig" ; mv 
 printf '%s\n' "$( rigProcBegan "$rigOther" )" > "$rigStores/sess-f/control/pid.rig" ; mv -f "$rigStores/sess-f/control/pid.rig" "$rigStores/sess-f/control/pid"
 rigStatusOf "$rigFWon"
 rigAssert "a thread that finds another live holder in its lock ends, status 1, and touches neither the lock nor the pid file of the other" \
-	"$rigGot:$( readlink "$rigStores/sess-f/control/lock" ):$( cat "$rigStores/sess-f/control/pid" ):$( rigLogHas sess-f "another control thread holds the lock of its session now, pid $rigOther" ):$( rigLives "$rigOther" )" "1:$( rigProcBegan "$rigOther" ):$( rigProcBegan "$rigOther" ):1:1"
+	"$rigGot:$( cat "$rigStores/sess-f/control/lock" 2> /dev/null ):$( cat "$rigStores/sess-f/control/pid" ):$( rigLogHas sess-f "another control thread holds the lock of its session now, pid $rigOther" ):$( rigLives "$rigOther" )" "1:$( rigProcBegan "$rigOther" ):$( rigProcBegan "$rigOther" ):1:1"
 
 echo "-- 6. it runs as no member --"
 rigRec sess-m sess-m sess-m sess-m "$rigHost" spawn-started ''

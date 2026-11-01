@@ -226,6 +226,8 @@ AgentsHarnessCheckListOpenItems(){
 
 ## How many items the caller's own list holds, how many are pending and how many are in progress, as three numbers on one line: rc
 ## and the reading as AgentsHarnessCheckListOpenItems says them. Read for a line that says the list's state without its items.
+## A PENDING ITEM THAT NAMES THE HANDBACK IS NOT COUNTED AS PENDING: that item is the step the handback itself closes, and the
+## handback's own gate counts the rest. The predicate is asked here, once, so the Wait's line, the gate and the nudge cannot disagree.
 AgentsHarnessCheckListCounts(){
 	local countFile="" countLine="" countAll=0 countOpen=0 countActive=0 countState=0
 	AgentsHarnessCheckListPlace || return 2
@@ -235,7 +237,7 @@ AgentsHarnessCheckListCounts(){
 		countState=0
 		AgentsHarnessCheckListLineState "$countLine" || countState=$?
 		case "$countState" in
-			0) countAll=$(( countAll + 1 )) ; countOpen=$(( countOpen + 1 )) ;;
+			0) countAll=$(( countAll + 1 )) ; AgentsHarnessCheckListNamesHandback "${countLine#'- [ ] '}" || countOpen=$(( countOpen + 1 )) ;;
 			1) countAll=$(( countAll + 1 )) ; countActive=$(( countActive + 1 )) ;;
 			2) countAll=$(( countAll + 1 )) ;;
 		esac

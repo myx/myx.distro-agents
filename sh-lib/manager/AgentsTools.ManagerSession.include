@@ -196,8 +196,12 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 				{ IFS= read -r controlsLine < "$controlsFile" ; } 2> /dev/null || :
 			;;
 			*)
-				[ -L "$controlsFile" ] || continue
-				controlsLine="$( readlink "$controlsFile" 2> /dev/null )" || controlsLine=""
+				[ -e "$controlsFile" ] || [ -L "$controlsFile" ] || continue
+				if [ -L "$controlsFile" ] ; then
+					controlsLine="$( readlink "$controlsFile" 2> /dev/null )" || controlsLine=""
+				else
+					{ IFS= read -r controlsLine < "$controlsFile" ; } 2> /dev/null || :
+				fi
 			;;
 		esac
 		controlsId="${controlsFile%/control/*}" ; controlsId="${controlsId##*/}"

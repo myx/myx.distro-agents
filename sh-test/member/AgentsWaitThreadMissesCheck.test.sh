@@ -162,19 +162,19 @@ rigAssert "the first Wait delivers the arrival" "$( rigHas RIG-FIRST-ARRIVAL )" 
 rigDefault rig-miss-resume
 rigAssert "the second Wait, in the same session, does not deliver it again: it resumes after the newest message the first returned" "$( rigHas RIG-FIRST-ARRIVAL )" "0"
 
-echo "-- 6. a named set is the wait's own (sketch 3.2), the stored set never shrinks, a floor lives for a source of the set --"
+echo "-- 6. a named set replaces the stored one (owner 2026-10-31), the floor stands beside it, and --unwait is how one goes on demand --"
 printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigScenario/history.json"
 : > "$rigWs/named-a.txt" ; : > "$rigWs/named-b.txt"
 rigSourcesOf(){ LC_ALL=C sed -n 's/^# sources: //p' "$rigTmp/out" | head -1 ; }
 rigDefault rig-miss-named --wait-source "file:$rigWs/named-a.txt"
 rigAssert "a default call naming a source watches it in place of the defaults: the file, and no team channel or owner DM" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner ):$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" )" "0:1"
 rigDefault rig-miss-named --wait-source "file:$rigWs/named-b.txt"
-rigAssert "and the next call, naming another, keeps the first in the stored set: both files" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "2"
+rigAssert "and the next call, naming another, replaces the first in the stored set: only the second file" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "1"
 rigDefault rig-miss-named
-rigAssert "a call naming nothing keeps them all" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "4"
+rigAssert "a call naming nothing goes back to the defaults: the team channel and the owner DM, and no named file" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e slack:magic-team -e slack:human-owner -e "file:$rigWs/named-a.txt" -e "file:$rigWs/named-b.txt" )" "2"
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MDAT_SLACK_THREAD_CACHE_SECONDS=0 MMDAPP="$rigWs" bash "$rigTools" --wait-for-input --team-member "$rigMember" --unwait "file:$rigWs/named-a.txt" --wait-session-id rig-miss-named ) > "$rigTmp/out" 2> "$rigTmp/err"
 rigDefault rig-miss-named
-rigAssert "only --unwait takes a source out of the stored set" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" ) $( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-b.txt" )" "0 1"
+rigAssert "a file that left the stored set stays out, and --unwait of it changes nothing" "$( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-a.txt" ) $( rigSourcesOf | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e "file:$rigWs/named-b.txt" )" "0 0"
 rigAssert "the header says which session thread is on record for the session, or that none is" "$( LC_ALL=C grep -c '^# session thread: ' "$rigTmp/out" )" "1"
 rigStateDir="$rigWs/.local/agents/sessions/rig-miss-floors/wait"
 mkdir -p "$rigStateDir"

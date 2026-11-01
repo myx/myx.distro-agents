@@ -1594,8 +1594,36 @@ case "${harnessWindowTokens:-}" in
 		fi
 	;;
 esac
+## THE REPLY RESERVE IS A POLICY NUMBER, NOT THE MODEL'S MAXIMUM. The trigger is the window
+## less this reserve, and a request is refused when its prompt plus the reserve passes the
+## window -- so a reserve at the model's maximum puts the trigger on that very bound, with
+## no room to fire before the refusal. Said at start, as the fault opposite the one above.
+## HARNESS_SUMMARY_TOKENS is the summarise round's own smaller allowance: it is the round
+## that repairs a full context, so it must itself be admissible at that prompt.
+harnessSummaryTokens="${HARNESS_SUMMARY_TOKENS:-8192}"
+case "$harnessSummaryTokens" in
+	''|0|*[!0123456789]*)
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_SUMMARY_TOKENS must be a whole number of tokens, got: $harnessSummaryTokens" >&2
+		exit 1
+	;;
+esac
+case "${harnessWindowTokens:-}" in
+	''|0|*[!0123456789]*) ;;
+	*)
+		if [ -n "$harnessOutputTokens" ] && [ "$(( harnessOutputTokens * 4 ))" -ge "$harnessWindowTokens" ] ; then
+			printf '%s\n' "${harnessWarn}⚠️  reply reserve $harnessOutputTokens is a quarter of the window${harnessOff} ${harnessDim}-- $harnessOutputTokens against $harnessWindowTokens for $harnessModel ($harnessTier tier); a request is refused when its prompt plus that reserve passes the window, so the restart trigger sits on that bound and the round that would repair the run cannot be sent -- lower HARNESS_OUTPUT_TOKENS_* to what a reply actually needs, or unset it${harnessOff}" >&2
+		fi
+	;;
+esac
 harnessRestartCount=0
 harnessSummariseRound=0
+## The trigger reads the prompt with the growth one round adds on top of it: the finished
+## round measures the prompt, and the next request carries that plus everything the round
+## appended. With none measured yet the floor is the summarise round's own allowance.
+harnessPromptLast=""
+harnessPromptGrowth="$harnessSummaryTokens"
+harnessOutputBudget="$harnessOutputTokens"
+harnessHandoverAsk="Your context is full for this leg and it is about to be restarted, so no further tool call can run in it. Write the handover a fresh leg needs: it will be given the original task again word for word, and nothing else from this conversation. State what you have already done, what you found -- exact paths, names, values and commands, not a description of them -- what is still to do, and what must not be repeated. Write it as notes to yourself, in plain text, with no preamble."
 ## Read by the wire adapter; empty leaves that wire's own default in place.
 harnessToolChoice=""
 ## Recorded and displayed, never enforced: this leg carries no budget.
@@ -1614,21 +1642,23 @@ while : ; do
 		harnessToolChoice="none"
 		harnessClosingRound=1
 		printf '%s\n' "${harnessWarn}⚠️  round cap reached${harnessOff} ${harnessDim}-- closing round, tools off; MDAT_HARNESS_MAX_ROUNDS raises the cap${harnessOff}" >&2
-	## The signal is the last round's own total, never the running sum: every round
-	## re-sends the whole conversation, so the sum counts the same context once per
-	## round while one round's prompt plus completion is what actually sat in the
-	## window. A restart zeroes it, so the summarise round's own total cannot re-trip it.
-	elif [ "$harnessContextTokens" != 0 ] && [ "${harnessRoundTotal:-0}" -ge "$harnessContextTokens" ] ; then
+	## The signal is the last round's prompt plus the largest single-round growth measured
+	## in this leg, never the running sum: every round re-sends the whole conversation, so
+	## the sum counts the same context once per round while one round's prompt is what sat
+	## in the window. Judging the finished round alone leaves a round's own growth unbounded
+	## between two measurements, which is how a run walks past its trigger and is refused.
+	elif [ "$harnessContextTokens" != 0 ] && [ -n "$harnessPromptLast" ] && [ "$(( harnessPromptLast + harnessPromptGrowth ))" -ge "$harnessContextTokens" ] ; then
 		if [ -n "$harnessMaxRestarts" ] && [ "$harnessRestartCount" -ge "$harnessMaxRestarts" ] ; then
 			harnessMessages+=( "$( AgentsWireUserRecord "Your context is full and your restart budget is spent, so no further tool call can run. Reply now, in plain text, with what you did, what you found, and what is left unfinished." )" )
 			harnessToolChoice="none"
 			harnessClosingRound=1
 			printf '%s\n' "${harnessWarn}⚠️  context threshold reached with no restart left${harnessOff} ${harnessDim}-- closing round, tools off; MDAT_HARNESS_MAX_RESTARTS raises the bound${harnessOff}" >&2
 		else
-			harnessMessages+=( "$( AgentsWireUserRecord "Your context is nearly full and this leg is about to be restarted, so no further tool call can run in it. Write the handover a fresh leg needs: it will be given the original task again word for word, and nothing else from this conversation. State what you have already done, what you found -- exact paths, names, values and commands, not a description of them -- what is still to do, and what must not be repeated. Write it as notes to yourself, in plain text, with no preamble." )" )
+			harnessMessages+=( "$( AgentsWireUserRecord "$harnessHandoverAsk" )" )
 			harnessToolChoice="none"
 			harnessSummariseRound=1
-			printf '%s\n' "${harnessWarn}♻️  context threshold reached${harnessOff} ${harnessDim}-- $harnessRoundTotal tokens last round, at or over $harnessContextTokens; summarising for restart $(( harnessRestartCount + 1 ))${harnessMaxRestarts:+ of $harnessMaxRestarts}${harnessOff}" >&2
+			harnessOutputTokens="$harnessSummaryTokens"
+			printf '%s\n' "${harnessWarn}♻️  context threshold reached${harnessOff} ${harnessDim}-- prompt $harnessPromptLast plus growth $harnessPromptGrowth at or over $harnessContextTokens; summarising for restart $(( harnessRestartCount + 1 ))${harnessMaxRestarts:+ of $harnessMaxRestarts}, at its own $harnessSummaryTokens tokens${harnessOff}" >&2
 		fi
 	fi
 
@@ -1781,6 +1811,16 @@ while : ; do
 	## live in these variables, which the round header shows, and in no file at all.
 	if [ -s "$harnessScratch/stream.usage" ] ; then
 		read -r harnessRoundPrompt harnessRoundCompletion harnessRoundTotal < "$harnessScratch/stream.usage" || :
+		case "${harnessRoundPrompt:-}" in
+			''|*[!0123456789]*) ;;
+			*)
+				if [ -n "$harnessPromptLast" ] && [ "$harnessRoundPrompt" -gt "$harnessPromptLast" ] \
+					&& [ "$(( harnessRoundPrompt - harnessPromptLast ))" -gt "$harnessPromptGrowth" ] ; then
+					harnessPromptGrowth=$(( harnessRoundPrompt - harnessPromptLast ))
+				fi
+				harnessPromptLast="$harnessRoundPrompt"
+			;;
+		esac
 		harnessUsagePrompt=$(( harnessUsagePrompt + harnessRoundPrompt ))
 		harnessUsageCompletion=$(( harnessUsageCompletion + harnessRoundCompletion ))
 		harnessUsageTotal=$(( harnessUsageTotal + harnessRoundTotal ))
@@ -1816,7 +1856,36 @@ while : ; do
 		harnessErrorDetail="$( AgentsHarnessArgValue "$harnessResponse" message )"
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: $harnessHost refused the request -- $harnessErrorCode: ${harnessErrorDetail:-<no message>}" >&2
 		AgentsHarnessRefusalKeep "$harnessHost refused the request -- $harnessErrorCode: ${harnessErrorDetail:-<no message>}"
-		exit 1
+		## A request refused for its length is a full context, never an answer: the round is
+		## re-requested as the summarise round, whose own small allowance fits where the
+		## refused request did not. A summarise round refused in turn cannot reduce anything,
+		## so it ends the run once with its reason instead of retrying a refused request.
+		harnessContextRefusal=0
+		case "$harnessErrorCode$harnessErrorDetail" in
+			*context_length*|*maximum*context*|*context*window*|*context*too*long*|*reduce*the*length*) harnessContextRefusal=1 ;;
+		esac
+		## That wording is one provider's prose, and another may refuse the same condition in
+		## words this list does not hold. A request refused at three quarters of the window is
+		## a context refusal whatever it says, so the size decides it too.
+		case "${harnessWindowTokens:-}:${harnessPromptLast:-}" in
+			''|*[!0123456789:]*|*:) ;;
+			*)
+				if [ "$(( harnessPromptLast * 4 ))" -ge "$(( harnessWindowTokens * 3 ))" ] ; then
+					harnessContextRefusal=1
+				fi
+			;;
+		esac
+		[ "$harnessContextRefusal" = 1 ] || exit 1
+		if [ "$harnessSummariseRound" = 1 ] ; then
+			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the summarise round was refused too -- summarising cannot reduce a context the service will not take, so this run ends here${harnessOff}" >&2
+			exit 1
+		fi
+		harnessMessages+=( "$( AgentsWireUserRecord "$harnessHandoverAsk" )" )
+		harnessToolChoice="none"
+		harnessSummariseRound=1
+		harnessOutputTokens="$harnessSummaryTokens"
+		printf '%s\n' "${harnessWarn}♻️  refused for its context length${harnessOff} ${harnessDim}-- $harnessHost would not take this round with a $harnessOutputBudget-token reply; asking for the handover as the summarise round at $harnessSummaryTokens tokens instead of ending the run${harnessOff}" >&2
+		continue
 	elif [ "$harnessErrorRc" != "3" ] ; then
 		AgentsHarnessRefusalKeep "$harnessHost gave an answer that was not a parseable JSON object (rc=$harnessErrorRc)"
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: response was not a parseable JSON object (rc=$harnessErrorRc): $harnessResponse" >&2
@@ -1854,14 +1923,17 @@ while : ; do
 		harnessMessages+=( "$( AgentsWireUserRecord "$harnessSummary" )" )
 		harnessToolChoice=""
 		harnessSummariseRound=0
+		harnessOutputTokens="$harnessOutputBudget"
 		harnessRestartCount=$(( harnessRestartCount + 1 ))
 		AgentsTranscriptHarnessRestart "$harnessRestartCount" "${#harnessSummary}" || :
 		AgentsHarnessRestartKeep "$harnessRestartCount" "$harnessContextTokens" || :
 		## The new leg's array replaces the old one in the kept context.
 		AgentsHarnessContextBegin 0
-		## The signal describes a conversation that has just been replaced.
+		## The signal describes a conversation that has just been replaced. The growth bound
+		## is kept: it is a property of what this run appends per round, not of the old leg.
 		harnessRoundTotal=0
 		harnessLegRound=0
+		harnessPromptLast=""
 		printf '%s\n' "${harnessValue}♻️  restarted${harnessOff} ${harnessDim}-- original task verbatim plus the summary above; restart $harnessRestartCount${harnessMaxRestarts:+ of $harnessMaxRestarts}${harnessOff}" >&2
 		continue
 	fi
@@ -1904,12 +1976,23 @@ while : ; do
 		## shows 1 of 5 without spending one, a matching set spends one before it shows, and at 0 the run ends as it always has.
 		quitOpenRc=0
 		quitPending="$( AgentsHarnessCheckListOpenItems )" || quitOpenRc=$?
+		## An item naming the handback is the send that closes it, so it is counted nowhere here: the instruction's number is the count a
+		## handback must declare, and a list whose only open item is that one is a member finishing, whose plain reply ends the run.
+		quitOpen=""
+		if [ "$quitOpenRc" -eq 0 ] ; then
+			while IFS= read -r quitLine ; do
+				case "$quitLine" in '') continue ;; esac
+				if AgentsHarnessCheckListNamesHandback "${quitLine#'- [ ] '}" ; then continue ; fi
+				quitOpen="$quitOpen$quitLine"$'\n'
+			done <<< "$quitPending"
+			quitOpen="${quitOpen%$'\n'}"
+		fi
 		quitFolder=""
-		if [ "$quitOpenRc" -eq 0 ] && [ -n "$quitPending" ] ; then
+		if [ -n "$quitOpen" ] ; then
 			quitFolder="$( AgentsHarnessCheckListPlace && printf '%s' "$checkListFolder" )" || quitFolder=""
 		fi
 		if [ -n "$quitFolder" ] ; then
-			quitHash="$( printf '%s' "$quitPending" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
+			quitHash="$( printf '%s' "$quitOpen" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
 			quitStored="" quitLeft=5 quitAttempt=1
 			[ ! -f "$quitFolder/checklist.quit-attempt" ] || IFS= read -r quitStored < "$quitFolder/checklist.quit-attempt" || :
 			case "$quitStored" in
@@ -1927,7 +2010,7 @@ while : ; do
 				quitContinue=1
 			fi
 			if [ -n "$quitContinue" ] ; then
-				quitPendingCount="$( LC_ALL=C awk 'END { print NR }' <<< "$quitPending" )"
+				quitPendingCount="$( LC_ALL=C awk 'END { print NR }' <<< "$quitOpen" )"
 				harnessMessages+=( "$( AgentsWireUserRecord "$( printf "This session's CheckList still holds %s pending item(s), and a plain reply ends the run with them open. Do one of three things, then carry on: close each item you have finished with CheckList, mark the one you are working on in progress, or hand back with checklist_pending_count=%s listing them as unfinished. This is attempt %s of 5 on this same list, and at 0 the run ends with the items still open for the reviewer." "$quitPendingCount" "$quitPendingCount" "$quitAttempt" )" )" )
 				continue
 			fi

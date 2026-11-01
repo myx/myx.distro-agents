@@ -51,8 +51,8 @@ agentsSessionControlPauseSeconds=300
 agentsSessionControlHoldSeconds=10
 
 ## Which of the sessions given have a control thread that lives now, `<session id> <pid>` a
-## line. A thread keeps a pid file and a lock, which is a link, in control/ of the session's
-## folder for as long as it lives, each naming it as `<pid> <start>`. It lives while the
+## line. A thread keeps a pid file and a lock, a file of its own, in control/ of the
+## session's folder for as long as it lives, each naming it as `<pid> <start>`. It lives while the
 ## process one of the two names is still that process: the same pid begun at another time is
 ## another process, and a session with neither has no thread. It is the reading the list of
 ## sessions shows a thread by (AgentsToolsManagerSessionControls,
@@ -68,6 +68,8 @@ AgentsToolsSessionControlLive(){ ## -- stdin: session ids, a line each
 				{ IFS= read -r liveLine < "$MMDAPP/.local/agents/sessions/$liveSession/control/pid" ; } 2> /dev/null || :
 			elif [ -L "$MMDAPP/.local/agents/sessions/$liveSession/control/lock" ] ; then
 				liveLine="$( readlink "$MMDAPP/.local/agents/sessions/$liveSession/control/lock" 2> /dev/null )" || liveLine=""
+			elif [ -e "$MMDAPP/.local/agents/sessions/$liveSession/control/lock" ] ; then
+				liveLine="$( cat "$MMDAPP/.local/agents/sessions/$liveSession/control/lock" 2> /dev/null )" || liveLine=""
 			fi
 			livePid="${liveLine%% *}"
 			case "$livePid" in ''|*[!0123456789]*) continue ;; esac

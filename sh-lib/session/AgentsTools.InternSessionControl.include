@@ -10,10 +10,10 @@
 ##
 ## A live session has one. What it keeps is in the session's own folder,
 ## $MMDAPP/.local/agents/sessions/<session id>/control/:
-##   lock   a symlink whose target is `<pid> <start>`: the process that holds it and when
-##          that process began, as a spawn record names a process (run-process). `ln -s`
-##          creates it and names its holder in one step, as the one local lock of the
-##          tooling does (AgentsTools.LocalLock.include). That lock is a critical section
+##   lock   a file whose text is `<pid> <start>`: the process that holds it and when
+##          that process began, as a spawn record names a process (run-process). `set -C`
+##          creates it and never writes over one already there, as the one local lock of
+##          the tooling does (AgentsTools.LocalLock.include). That lock is a critical section
 ##          under .local/agents/locks, waited for and given back within one call, its holder
 ##          told by the pid alone. This one is held for the whole life of the thread and is
 ##          the guard against a second thread of the same session: nobody waits for it, a
@@ -210,6 +210,12 @@ AgentsToolsSessionControlHolderLives(){ ## `<pid> <start>`
 	return 2
 }
 
+## The holder a session's control lock names: the lock file's own text, or the target of the
+## link an older release made. Empty where it names nobody.
+AgentsToolsSessionControlLockHolder(){ ## lock path
+	if [ -L "$1" ] ; then readlink "$1" 2> /dev/null ; else cat "$1" 2> /dev/null ; fi
+}
+
 ## Takes the lock of the session for this process. rc 0 held, and controlTookOver names the
 ## holder it was taken over from, where it was. rc 1 another process holds it: controlHolder
 ## names it, and controlHolderTold is 2 where it could not be told whether that is still the
@@ -219,10 +225,13 @@ AgentsToolsSessionControlLockTake(){
 	controlHolder="" ; controlHolderTold=0 ; controlTookOver=""
 	while [ "$takeTries" -lt 5 ] ; do
 		takeTries=$(( takeTries + 1 ))
-		## Checked first: `ln -s` onto a directory creates the link inside it and succeeds.
+		## Checked first: a lock of an older release may be a directory, which `set -C` cannot make over.
 		[ ! -d "$controlLock" ] || [ -L "$controlLock" ] || return 2
-		ln -s "$controlMe" "$controlLock" 2> /dev/null && return 0
-		takeHolder="$( readlink "$controlLock" 2> /dev/null )" || takeHolder=""
+		## `set -C` writes over nothing: the file is made here, or one already there is left alone.
+		if [ ! -L "$controlLock" ] && ( set -C ; printf '%s' "$controlMe" > "$controlLock" ) 2> /dev/null ; then
+			return 0
+		fi
+		takeHolder="$( AgentsToolsSessionControlLockHolder "$controlLock" )" || takeHolder=""
 		[ -n "$takeHolder" ] || continue
 		[ "$takeHolder" != "$controlMe" ] || return 0
 		AgentsToolsSessionControlHolderLives "$takeHolder" ; controlHolderTold=$?
@@ -233,13 +242,13 @@ AgentsToolsSessionControlLockTake(){
 		## back for its holder.
 		takeStale="$( mktemp "$controlLock.stale.XXXXXX" 2> /dev/null )" || continue
 		if mv -f "$controlLock" "$takeStale" 2> /dev/null ; then
-			takeMoved="$( readlink "$takeStale" 2> /dev/null )" || takeMoved=""
+			takeMoved="$( AgentsToolsSessionControlLockHolder "$takeStale" )" || takeMoved=""
 			rm -f "$takeStale"
 			if [ "$takeMoved" = "$takeHolder" ] ; then
 				controlTookOver="$takeHolder"
 				continue
 			fi
-			[ -z "$takeMoved" ] || ln -s "$takeMoved" "$controlLock" 2> /dev/null || :
+			[ -z "$takeMoved" ] || ( set -C ; printf '%s' "$takeMoved" > "$controlLock" ) 2> /dev/null || :
 		else
 			rm -f "$takeStale"
 		fi
@@ -251,9 +260,9 @@ AgentsToolsSessionControlLockTake(){
 AgentsToolsSessionControlLeave(){
 	local leaveLine=""
 	{ IFS= read -r leaveLine < "$controlDir/pid" ; } 2> /dev/null || :
-	[ "${controlMode:-}" != "--run" ] || [ "$( readlink "$controlLock" 2> /dev/null )" != "$controlMe" ] || rm -f "$controlDir/takes" 2> /dev/null
+	[ "${controlMode:-}" != "--run" ] || [ "$( AgentsToolsSessionControlLockHolder "$controlLock" )" != "$controlMe" ] || rm -f "$controlDir/takes" 2> /dev/null
 	[ "$leaveLine" != "$controlMe" ] || rm -f "$controlDir/pid" 2> /dev/null
-	[ "$( readlink "$controlLock" 2> /dev/null )" != "$controlMe" ] || rm -f "$controlLock" 2> /dev/null
+	[ "$( AgentsToolsSessionControlLockHolder "$controlLock" )" != "$controlMe" ] || rm -f "$controlLock" 2> /dev/null
 	rm -f "$controlRowsFile" 2> /dev/null
 	return 0
 }
@@ -763,8 +772,8 @@ AgentsToolsSessionControlTick(){
 	## writes its pid file too.
 	[ -d "$controlDir" ] || mkdir -p "$controlDir" 2> /dev/null
 	{ IFS= read -r tickLine < "$controlDir/pid" ; } 2> /dev/null || tickLine=""
-	if [ "$tickLine" != "$controlMe" ] || [ ! -L "$controlLock" ] || [ -n "$tickFull" ] ; then
-		tickLock="$( readlink "$controlLock" 2> /dev/null )" || tickLock=""
+	if [ "$tickLine" != "$controlMe" ] || [ ! -e "$controlLock" ] || [ -n "$tickFull" ] ; then
+		tickLock="$( AgentsToolsSessionControlLockHolder "$controlLock" )" || tickLock=""
 		if [ "$tickLock" != "$controlMe" ] ; then
 			AgentsToolsSessionControlLockTake ; tickRc=$?
 			if [ "$tickRc" = 0 ] ; then

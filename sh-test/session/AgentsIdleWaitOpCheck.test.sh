@@ -124,7 +124,7 @@ rigAssert "a standalone routine of two executors"                               
 rigBind invited ; rigOp --idle-wait
 rigAssert "a standalone routine with an invitee"                                        "$rigRc:$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:yes:"
 rigBind teamwide ; rigOp --idle-wait
-rigAssert "a routine whose executors are the whole team"                                "$rigRc:$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:yes:"
+rigAssert "a routine whose executors are the whole team is not one participant, so it waits" "$rigRc:$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:no:idle - scan:work-duty wake:rig-a"
 rigBind "" ; rigOp --idle-wait
 rigAssert "a separate spawn, with no routine, has it"                                   "$rigRc:$( rigRequests )" "0:idle - wake:rig-a"
 rigBind soloquiet ; rigOp --idle-wait

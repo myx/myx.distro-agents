@@ -7,7 +7,8 @@
 ##   3. a list with only an item in progress ends the run on the first plain reply
 ##   4. no list at all ends the run, as today
 ##   5. a changed set resets the counter, and the first instruction after it says 1 of 5
-##   6. an item in progress never raises the count
+##   6. an item in progress never raises the count, and neither does one naming the handback
+##   7. a list whose only open item names the handback ends the run, as a member finishing
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -139,12 +140,20 @@ rigAssert "and the first after the change names the second"     "$( rigSaid "$ri
 rigAssert "with its attempt counted from one again"             "$( rigSaid "$rigDir/req.4" 'This is attempt 1 of 5 on this same list' )" "1"
 rigAssert "and the run ended cleanly"                           "$rigLoopRc" "0"
 
-echo "-- 6. an item in progress never raises the count --"
+echo "-- 6. an item in progress never raises the count, and neither does one naming the handback --"
 rigScene mixed '- [ ] Fix the index
+- [ ] Hand back the result
 - [~] Run the suite'
 rigPlainRounds 6
 rigLoop
 rigAssert "the count is the pending items alone"                "$( rigSaid "$rigDir/req.2" 'holds 1 pending item(s)' )" "1"
+
+ echo "-- 7. a list whose only open item names the handback ends the run --"
+rigScene handback-only '- [ ] Hand back the result'
+rigPlainRounds 1
+rigLoop
+rigAssert "the run ended at once"                               "$rigLoopRc:$( cat "$rigDir/round" )" "0:1"
+rigAssert "and no instruction was given"                        "$( rigInstructions )" "0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ QUIT NUDGE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

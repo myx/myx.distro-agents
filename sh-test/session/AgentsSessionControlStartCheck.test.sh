@@ -247,7 +247,7 @@ rigAssert "it shows in the process list by the tooling script, its operation and
 	"$( rigArgs "$rigA" | LC_ALL=C grep -c -F -- "$rigTool --intern-session-control --run --session-id $( rigId a )" )" "1"
 rigAssert "it is in a process group of its own, not the one this check runs in" "$( [ -n "$rigA" ] && [ "$( rigGroup "$rigA" )" = "$rigA" ] && echo own || echo "[$( rigGroup "${rigA:-0}" )]" ):$( [ -n "$rigA" ] && [ "$( rigGroup "$rigA" )" != "$( rigGroup "$$" )" ] && echo apart || echo shared )" "own:apart"
 rigAssert "the lock the dead thread left is taken over, and the log of the thread says whose it was" \
-	"$( readlink "$rigStores/$( rigId a )/control/lock" | LC_ALL=C awk '{ print $1 }' ):$( rigLogHas a "took over the lock of pid $rigGonePid, which is gone" )" "$rigA:1"
+	"$( { if [ -L "$rigStores/$( rigId a )/control/lock" ] ; then readlink "$rigStores/$( rigId a )/control/lock" ; else cat "$rigStores/$( rigId a )/control/lock" 2> /dev/null ; fi ; } | LC_ALL=C awk '{ print $1 }' ):$( rigLogHas a "took over the lock of pid $rigGonePid, which is gone" )" "$rigA:1"
 rigAssert "the log holds the one start, with the process it made and when that process began" "$( rigMade a ):$( rigLogHas a "is made: pid $rigA, begun $( rigProcBegan "$rigA" | LC_ALL=C awk '{ print $2 }' )" )" "1:1"
 rigWaitFor 10 rigStateIs a running
 rigAssert "the thread watches: the state of the session reads running" "$( rigState a )" "running"
@@ -327,7 +327,7 @@ printf 'the log of the thread that died\n' > "$rigLeftDir/log" ; printf 'finishe
 rigAssert "control: a finished session whose thread died reads gone in the list of sessions, by the pid file and the lock it left" "$( rigListed c )" "gone"
 rigRun "$rigOp" --session-id "$( rigId c )"
 rigAssert "a finished session whose thread died: not-needed as before, and the pid file and the lock, which name a process that is gone, are removed" \
-	"$rigRc:$( rigTroubles ):$( rigOut ):$( [ -e "$rigLeftDir/pid" ] && echo pid || echo no-pid ):$( [ -L "$rigLeftDir/lock" ] && echo lock || echo no-lock )" "0:0:control|$( rigId c )|not-needed|-|every run of it has closed its record, and a finished session needs no thread:no-pid:no-lock"
+	"$rigRc:$( rigTroubles ):$( rigOut ):$( [ -e "$rigLeftDir/pid" ] && echo pid || echo no-pid ):$( [ -e "$rigLeftDir/lock" ] && echo lock || echo no-lock )" "0:0:control|$( rigId c )|not-needed|-|every run of it has closed its record, and a finished session needs no thread:no-pid:no-lock"
 rigAssert "nothing else of its control folder is touched, and nothing was started: the log and the state stand as they were" \
 	"$( cat "$rigLeftDir/log" 2> /dev/null ):$( cat "$rigLeftDir/state" 2> /dev/null ):$( ls "$rigLeftDir" 2> /dev/null | LC_ALL=C tr '\n' ' ' ):$( rigThreads c )" "the log of the thread that died:finished:log state :0"
 rigAssert "the session then reads none in the list of sessions" "$( rigListed c )" "none"
@@ -352,7 +352,7 @@ mkdir -p "$rigStores/$( rigId f )/control"
 printf '%s\n' "$rigLeft" > "$rigStores/$( rigId f )/control/pid" ; ln -s "$rigLeft" "$rigStores/$( rigId f )/control/lock"
 rigRun "$rigOp" --session-id "$( rigId f )"
 rigAssert "a session its starter waits on needs none either, and keeps nothing of a thread that died: not-needed, and both are removed" \
-	"$rigRc:$( rigOut | LC_ALL=C cut -d '|' -f 3 ):$( [ -e "$rigStores/$( rigId f )/control/pid" ] && echo pid || echo no-pid ):$( [ -L "$rigStores/$( rigId f )/control/lock" ] && echo lock || echo no-lock ):$( rigThreads f )" "0:not-needed:no-pid:no-lock:0"
+	"$rigRc:$( rigOut | LC_ALL=C cut -d '|' -f 3 ):$( [ -e "$rigStores/$( rigId f )/control/pid" ] && echo pid || echo no-pid ):$( [ -e "$rigStores/$( rigId f )/control/lock" ] && echo lock || echo no-lock ):$( rigThreads f )" "0:not-needed:no-pid:no-lock:0"
 rigRun "$rigOp" --session-id "$( rigId e )"
 rigAssert "a session of another host alone gets none: its row says whose its runs are, status 1, nothing started" \
 	"$rigRc:$( rigOut ):$( rigSaid '1 control thread(s) could not be started' ):$( rigThreads e ):$( [ -e "$rigStores/$( rigId e )" ] && echo folder || echo none )" "1:control|$( rigId e )|not-started|-|its open records are runs of another host (elsewhere), which cannot be watched from here:1:0:none"

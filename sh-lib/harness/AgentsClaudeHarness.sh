@@ -72,8 +72,8 @@ HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-claude-opus-5-5}"
 ## takes) where the vendor page says it cannot be: Fable 5 and 5.1 and Opus 5.5 are "Adaptive (always on)" (their pages, read 2026-10-28), and the Models API reports
 ## thinking.types.disabled.supported false for Sonnet 5.5 (the overview). A model whose page was not read for this (Haiku 5.5, Sonnet 5, Opus 5 and 4.7 or 4.8) keeps
 ## `thinking:disabled`.
-HARNESS_MODEL_TABLE="*haiku-4*|200000|64000|thinking:disabled|https://platform.claude.com/docs/en/models/haiku-4-5/overview.md Claude Haiku 4.5 (legacy): context 200K, max output 64K, read 2026-10-28
-*opus-4-5*|200000|64000|thinking:disabled|https://platform.claude.com/docs/en/models/opus-4-5/overview.md Claude Opus 4.5 (legacy): context 200K, max output 64K, read 2026-10-28
+HARNESS_MODEL_TABLE="*haiku-4*|200000|32768|thinking:disabled|https://platform.claude.com/docs/en/models/haiku-4-5/overview.md Claude Haiku 4.5 (legacy): context 200K, max output 64K, read 2026-10-28
+*opus-4-5*|200000|32768|thinking:disabled|https://platform.claude.com/docs/en/models/opus-4-5/overview.md Claude Opus 4.5 (legacy): context 200K, max output 64K, read 2026-10-28
 *haiku*|1000000|128000|thinking:disabled|https://platform.claude.com/docs/en/models/overview.md Claude Haiku 5.5 read 2026-10-28
 *sonnet-5-5*|1000000|128000|refuse|https://platform.claude.com/docs/en/models/overview.md Claude Sonnet 5.5: the Models API reports thinking.types.disabled.supported false, read 2026-10-28; context 1M, max output 128K
 *sonnet*|1000000|128000|thinking:disabled|https://platform.claude.com/docs/en/models/overview.md Claude Sonnet 5.5 read 2026-10-28

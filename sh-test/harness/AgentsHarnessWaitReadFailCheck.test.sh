@@ -2,6 +2,9 @@
 ## A wait source read at least once and then failing is reported as read-then-failed,
 ## never as never-read, and never as clean. A source unreadable from the start is the
 ## control that must say never-read. Offline: file sources under this rig's temp tree.
+## An absent absolute path is reported never-read because the probe could not read it at all.
+## THE MEMBER IS NAMED WITH --team-member, never positionally: S21.3 retired the positional,
+## and the operation refuses a bare member name in front of its own arguments.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -37,7 +40,7 @@ echo "-- a source read once and then failing --"
 printf 'rig\n' > "$rigTmp/src"
 ( sleep 2 ; chmod 000 "$rigTmp/src" ) &
 rigRc=0
-"$rigTool" --wait-for-input magic-tester --wait-source "file:$rigTmp/src" --wait-timeout 5 --wait-poll-interval 1 > "$rigTmp/rf.out" 2> "$rigTmp/rf.err" || rigRc=$?
+"$rigTool" --wait-for-input --team-member magic-tester --wait-source "file:$rigTmp/src" --wait-timeout 5 --wait-poll-interval 1 > "$rigTmp/rf.out" 2> "$rigTmp/rf.err" || rigRc=$?
 wait
 rigAssert "the wait completes as TIMEOUT"             "$( head -1 "$rigTmp/rf.out" )" "WAIT-RESULT: TIMEOUT"
 rigAssert "it returns 0"                              "$rigRc" 0
@@ -47,7 +50,7 @@ rigAssert "it is not reported as never-read"          "$( rigHolds "$rigTmp/rf.o
 
 echo "-- control: a source unreadable from the start --"
 rigRc=0
-"$rigTool" --wait-for-input magic-tester --wait-source "file:$rigTmp/never" --wait-timeout 2 --wait-poll-interval 1 > "$rigTmp/nr.out" 2> "$rigTmp/nr.err" || rigRc=$?
+"$rigTool" --wait-for-input --team-member magic-tester --wait-source "file:$rigTmp/never" --wait-timeout 2 --wait-poll-interval 1 > "$rigTmp/nr.out" 2> "$rigTmp/nr.err" || rigRc=$?
 rigAssert "control: it is reported as never-read"     "$( rigHolds "$rigTmp/nr.out" "WAIT-NEVER-READ: [file:$rigTmp/never]" )" yes
 rigAssert "control: and claims no successful wait"    "$( rigHolds "$rigTmp/nr.out" 'COMPLETE, SUCCESSFUL' )" no
 

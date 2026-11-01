@@ -20,6 +20,8 @@
 ##   6. THE FLOOR IS DELIVERED ONCE. What another source of the same Wait already returns is not returned again.
 ##   7. THE NEXT LINE of SendMessage and of the tools that ask says only to call Wait; the record of the run's
 ##      own posts (sessions/<id>/last-own-post) keeps the latest first, with its first two words as ever.
+##   8. EVERY OWN POST IS WATCHED. A record of five own posts, one unread reply each: the newest three come in the
+##      first Wait, the other two in the next, and one round reads no more than three threads.
 ## Offline: a Slack-shaped fake curl is first on PATH, every workspace is a folder of the rig's own, and no
 ## model CLI is started.
 set -u
@@ -120,7 +122,7 @@ rigWait(){ ## output basename, then the operation's arguments after the member
 	local waitName="$1" waitPid waitWatch
 	shift
 	rigOut="$rigDir/$waitName.out"
-	env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
+	env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
 		"PATH=$rigWaitPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
 		MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off ${rigSessionThread:+MDAT_SESSION_THREAD=$rigSessionThread} \
 		"$rigTool" --wait-for-input --team-member "$rigMember" "$@" > "$rigOut" 2> "$rigDir/$waitName.err" &
@@ -435,7 +437,7 @@ rigAssert "the plain Wait names the floor among its sources, first" "$( LC_ALL=C
 rigWait sources-continue --wait-continue --wait-session-id "$rigSession" --wait-timeout 2
 rigAssert "a continued wait keeps it"                                "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigWait sources-named --wait-default --wait-session-id "$rigSession" --wait-source "file:$rigDir/nothing" --wait-timeout 2
-rigAssert "a Wait that names a source has the floor too, first, and the stored set beside it"      "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession file:$rigDir/nothing slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "a Wait that names a source replaces the stored set, and the floor stands beside it"      "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession file:$rigDir/nothing dms:$rigMember mentions:$rigMember wake:$rigMember"
 rigWait sources-none --wait-timeout 2
 rigAssert "a call with no session has no record of posts to read: no floor"  "$( rigHolds 'replies:' )" no
 
@@ -493,6 +495,28 @@ rigToolCall Wait '{"timeout":4}' wait
 rigAskPath="$rigTmp/askbin:$PATH"
 rigAssert "the Wait tool with no sources carries the floor, first"          "$( LC_ALL=C grep -c -E '^# sources: replies:rig-child-id ' "$rigToolDir/wait.out" )" 1
 rigAssert "and returns the reply given in the thread"                        "$( LC_ALL=C grep -c -F 'RIG-TOOL-REPLY' "$rigToolDir/wait.out" )" 1
+
+## ---------------------------------------------------------------------------
+## 8. Every own post is watched, the newest first and a few a round, never dropped for the count of the record.
+## ---------------------------------------------------------------------------
+echo "-- 8. every own post --"
+rigScene many
+: > "$( rigRecordFile )"
+rigManyIndex=1
+while [ "$rigManyIndex" -le 5 ] ; do
+	rigManyPost="$( rigAt $(( 300 + rigManyIndex )) 100 )"
+	printf 'CRIG00001:%s %s URIGADDR1 - - 0 - 0\n' "$rigManyPost" "$rigManyPost" >> "$( rigRecordFile )"
+	rigThread CRIG00001 "$rigManyPost" \
+		"$( rigMsg "$rigManyPost" URIGSELF1 "RIG-MANY-QUESTION-$rigManyIndex" '' "$rigOwnMeta" )" \
+		"$( rigMsg "$( rigAt $(( 100 + rigManyIndex )) 200 )" URIGADDR1 "RIG-MANY-REPLY-$rigManyIndex" "$rigManyPost" )"
+	rigManyIndex=$(( rigManyIndex + 1 ))
+done
+rigPlain many-first 4
+rigAssert "a record of five posts: the first Wait returns a reply"     "$( rigFirstLine )" "WAIT-RESULT: RECEIVED"
+rigAssert "the newest post's reply is among them"                      "$( rigHolds 'RIG-MANY-REPLY-1' )" yes
+rigAssert "and one round reads no more than three threads"             "$( rigReads conversations.replies CRIG00001 )" 3
+rigPlain many-second 4
+rigAssert "the posts the first Wait did not reach come in the next"    "$( rigHolds 'RIG-MANY-REPLY-5' )" yes
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WAIT OWN POST REPLIES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

@@ -120,7 +120,7 @@ AgentsToolsSessionCommsHolderLives(){ ## `<pid> <start>`
 AgentsToolsSessionCommsLive(){
 	local liveDir liveLine="" liveRc
 	liveDir="$( AgentsToolsSessionCommsDir )" || return 1
-	[ -e "$liveDir/lock" ] || return 1
+	[ -e "$liveDir/lock" ] || [ -L "$liveDir/lock" ] || return 1
 	liveLine="$( AgentsToolsSessionCommsLockHolder "$liveDir/lock" )" || return 1
 	AgentsToolsSessionCommsHolderLives "$liveLine" ; liveRc=$?
 	[ "$liveRc" != 1 ] || return 1

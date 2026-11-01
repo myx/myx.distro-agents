@@ -97,7 +97,7 @@ rigAssert "it leaves the stored sources line, the floor staying: the replies, th
 rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming it again explicitly still works: dropping is not blocking" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 
-echo "-- an answered question quiet for far more than five minutes stays in the wait --"
+echo "-- an answered question leaves the stored wait once a later call does not name it (owner 2026-10-31) --"
 rigSession2="rig-wait-expire"
 rigRecord rig-expired-001 1600000000.000000
 : > "$rigScenarioDir/ws/quiet.txt"
@@ -105,9 +105,9 @@ rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-
 rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 3 --wait-poll-interval 1
 rigAssert "it is not dropped by age" "$( rigHolds "$rigScenarioDir/out" "WAIT-DROPPED-EXPIRED" )" "no"
-rigAssert "it is still in the stored sources, carried forward" "$( rigHolds "$rigScenarioDir/out" "ask:rig-expired-001" )" "yes"
+rigAssert "it is not carried forward once it is not named" "$( rigHolds "$rigScenarioDir/out" "ask:rig-expired-001" )" "no"
 
-echo "-- a question with a recent clarification stays in the wait too --"
+echo "-- a question with a recent clarification leaves it too, its record being answered --"
 rigSession3="rig-wait-clarified"
 rigRecord rig-clarified-001 1600000000.000000
 printf -- '- %s.000000 URIGOWNER: a recent clarification\n' "$( date +%s )" >> "$rigScenarioDir/ws/.local/agents/pending/rig-clarified-001.md"
@@ -117,7 +117,7 @@ rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out"
 rigOp --wait-for-input --team-member "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 3 --wait-poll-interval 1
 rigAssert "it is not dropped" \
 	"$( rigHolds "$rigScenarioDir/out" "WAIT-DROPPED-EXPIRED" )" "no"
-rigAssert "it is still in the stored sources, carried forward" "$( rigHolds "$rigScenarioDir/out" "ask:rig-clarified-001" )" "yes"
+rigAssert "it is not carried forward once it is not named" "$( rigHolds "$rigScenarioDir/out" "ask:rig-clarified-001" )" "no"
 
 rigAssert "no request went anywhere but a Slack method" \
 	"$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )" 0

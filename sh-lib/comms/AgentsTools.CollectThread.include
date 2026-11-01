@@ -80,7 +80,7 @@ AgentsToolsCollectThreadLockHolder(){ ## lock path
 AgentsToolsCollectThreadLive(){
 	local liveDir liveLine="" liveRc
 	liveDir="$( AgentsToolsCollectThreadDir )" || return 1
-	[ -e "$liveDir/thread.lock" ] || return 1
+	[ -e "$liveDir/thread.lock" ] || [ -L "$liveDir/thread.lock" ] || return 1
 	liveLine="$( AgentsToolsCollectThreadLockHolder "$liveDir/thread.lock" )" || return 1
 	AgentsToolsCollectThreadHolderLives "$liveLine" ; liveRc=$?
 	[ "$liveRc" != 1 ] || return 1

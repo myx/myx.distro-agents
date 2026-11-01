@@ -59,15 +59,17 @@ rigStart(){ ## scenario directory name
 }
 
 ## A round answering with one Read tool call, then the usage chunk the threshold reads.
-rigToolStream(){ ## canned-stream file, this round's total_tokens
+## The trigger reads the round's PROMPT and the growth since the last one, so a canned round
+## states its prompt tokens: the number each scenario names is that prompt.
+rigToolStream(){ ## canned-stream file, this round's prompt tokens
 	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-call","type":"function","function":{"name":"Read","arguments":"{\\"path\\":\\"%s\\"}"}}]}}]}\n' "$rigScenarioDir/read.txt" > "$1"
-	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":%s}}\n' "$2" >> "$1"
+	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":%s,"completion_tokens":1,"total_tokens":%s}}\n' "$2" "$(( $2 + 1 ))" >> "$1"
 	printf 'data: [DONE]\n' >> "$1"
 }
 
 ## A round answering with plain text and no tool call.
-rigTextStream(){ ## canned-stream file, content, finish_reason, this round's total_tokens
-	printf 'data: {"choices":[{"index":0,"delta":{"content":"%s"},"finish_reason":"%s"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":%s}}\n' "$2" "$3" "$4" > "$1"
+rigTextStream(){ ## canned-stream file, content, finish_reason, this round's prompt tokens
+	printf 'data: {"choices":[{"index":0,"delta":{"content":"%s"},"finish_reason":"%s"}],"usage":{"prompt_tokens":%s,"completion_tokens":1,"total_tokens":%s}}\n' "$2" "$3" "$4" "$(( $4 + 1 ))" > "$1"
 	printf 'data: [DONE]\n' >> "$1"
 }
 
@@ -237,12 +239,15 @@ rigScalewayRun(){ ## this round's total_tokens, a preset threshold in PRESET_CON
 	[ "$rigRoundCount" != 0 ] || rigRefuse "the Scaleway leaf issued no request at all, so this scenario exercised nothing"
 }
 rigStart scaleway-under-window
-rigScalewayRun 223231
-rigAssert "a round just under 256000 less 32768 does not trip"  "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
+## THE BOUNDARY MOVES WITH THE GROWTH RESERVE. The trigger fires at the prompt plus the
+## growth one round adds, so on this 256000 window with a 32768 reserve the prompt that
+## trips it is 256000 less 32768 less 8192 (HARNESS_SUMMARY_TOKENS) = 215040, not 223232.
+rigScalewayRun 215039
+rigAssert "a round just under the growth reserve does not trip"  "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
 rigAssert "the Scaleway leaf is the one that ran"    "$( rigHolds "$rigScenarioDir/err" 'Scaleway' )" yes
 rigStart scaleway-at-window
-rigScalewayRun 223232
-rigAssert "a round at 256000 less 32768 trips the threshold"    "$( rigHolds "$rigScenarioDir/err" 'at or over 223232' )" yes
+rigScalewayRun 215040
+rigAssert "a round at the reserve plus one round's growth trips"  "$( rigHolds "$rigScenarioDir/err" 'at or over 223232' )" yes
 rigAssert "and the leg restarted onto its summary"   "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "the Scaleway leaf's own 256000 window governs, not a chosen 900000"
 

@@ -133,7 +133,7 @@ AgentsHarnessEffortApply(){
 AgentsHarnessOpenModelTable(){
 	printf '%s\n' \
 		"qwen*[-:_]9b*|262144|32768|thinking:disabled|Qwen/Qwen3.5-9B config.json max_position_embeddings and card output length, read 2026-10-26" \
-		"qwen*[-:_]27b*|262144|131072|thinking:disabled|Qwen/Qwen3.8-27B config.json max_position_embeddings and card final-response length, read 2026-10-26" \
+		"qwen*[-:_]27b*|262144|32768|thinking:disabled|Qwen/Qwen3.8-27B config.json max_position_embeddings and card final-response length, read 2026-10-26" \
 		"qwen*[-:_]4b*|32768|4096|thinking:disabled|https://huggingface.co/Qwen/Qwen3-4B card: context 32,768 native (131,072 with YaRN), output a budget (card recommends 32,768), read 2026-10-28" \
 		"qwen*[-:_]8b*|32768|8192|thinking:disabled|https://huggingface.co/Qwen/Qwen3-8B card: context 32,768 native (131,072 with YaRN), output a budget, read 2026-10-28" \
 		"qwen*[-:_]14b*|32768|8192|thinking:disabled|https://huggingface.co/Qwen/Qwen3-14B card: context 32,768 native (131,072 with YaRN), output a budget, read 2026-10-28" \

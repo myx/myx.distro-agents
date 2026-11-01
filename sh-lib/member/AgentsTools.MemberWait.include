@@ -693,8 +693,11 @@ AgentsWaitProbeFile(){
 	if [ -f "$probeTarget" ] ; then
 		## Read by the shell itself, not by cat: this probe runs once a tick, and a process per
 		## tick per source is the load the tick must not be.
+		## A FILE THAT IS THERE AND CANNOT BE READ IS A FAILED PROBE, never an empty rendering:
+		## an empty rendering is a state, and would read as an arrival on a source read before.
 		local probeBody=""
-		IFS= read -r -d '' probeBody < "$probeTarget" || :
+		[ -r "$probeTarget" ] || return 2
+		{ IFS= read -r -d '' probeBody < "$probeTarget" ; } 2> /dev/null || :
 		AgentsWaitPut "$probeOut" "$probeBody" || return 2
 		return 0
 	fi
@@ -770,7 +773,7 @@ AgentsWaitProbeInbox(){
 	## The rendering this source is measured against, where the caller names one: an item it
 	## already lists passed the floor then, and a date process per item per tick is what this
 	## saves. A call that names none reads every item's time, as it always did.
-	[ -z "${7:-}" ] || { IFS= read -r -d '' probeKnown < "$7" 2> /dev/null || : ; }
+	[ -z "${7:-}" ] || [ ! -f "$7" ] || { IFS= read -r -d '' probeKnown < "$7" 2> /dev/null || : ; }
 	[ -d "$probeDir" ] || { AgentsWaitPut "$4" "" || return 2 ; return 0 ; }
 	for probeFile in "$probeDir"/*.md ; do
 		[ -f "$probeFile" ] || continue
@@ -1133,12 +1136,10 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 	done
 	lookQuiet=$(( lookNow - lookActivity ))
 	[ "$lookQuiet" -ge 0 ] || lookQuiet=0
-	## A post quiet for an hour is no longer read: each read is a Slack request, and one round must stay short.
-	[ "$lookQuiet" -lt "${agentsWaitRepliesQuietMax:-3600}" ] || return 1
-	## Backing off linearly to a ceiling of 100 (20 times the base) once quiet reaches 1000 (200 times the base), never past it
-	## (S21.2): a run quiet for a long time still watches its own posts, rather than drifting toward an unbounded wait.
-	lookTtlQuiet="$lookQuiet" ; [ "$lookTtlQuiet" -le 1000 ] || lookTtlQuiet=1000
-	[ $(( lookNow - lookChecked )) -ge $(( 5 + ( 95 * lookTtlQuiet ) / 1000 )) ] || return 1
+	## Backing off linearly to a ceiling of 100 at 1900 quiet, never past it (S21.2): a run quiet for a long time
+	## still watches its own posts, rather than drifting toward an unbounded wait.
+	lookTtlQuiet="$lookQuiet" ; [ "$lookTtlQuiet" -le 1900 ] || lookTtlQuiet=1900
+	[ $(( lookNow - lookChecked )) -ge $(( 5 + lookTtlQuiet / 20 )) ] || return 1
 	## What the other sources of this wait read, found once for the call and the first post that needs it.
 	[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$lookMember" $agentsWaitCoverSources )"
 	## A post in a thread another source reads is not read from Slack again.
@@ -1260,17 +1261,25 @@ AgentsWaitProbeReplies(){
 	while IFS= read -r probeLine ; do
 		[ -z "$probeLine" ] || { probeCount=$(( probeCount + 1 )) ; probeLines[$probeCount]="$probeLine" ; }
 	done < "$probeRecord"
-	probeIndex="$probeCount"
-	while [ "$probeIndex" -ge 1 ] ; do
-		## Only the newest posts are watched: the record grows with every post, and reading all of it kept a Slack read every few seconds.
-		[ $(( probeCount - probeIndex )) -lt "${agentsWaitRepliesWatched:-3}" ] || break
+	## EVERY POST IS WATCHED, THREE A ROUND, EACH ROUND TAKING UP WHERE THE LAST LEFT: the newest first, so the question an
+	## answer is due on is looked at first, and a record of twelve posts covered in four rounds. The look's own TTL paces each
+	## post, and a post is never dropped for its age or for the count of the record (a cap on the count alone dropped the newest).
+	probeTake="${agentsWaitRepliesWatched:-3}"
+	probeStart=1
+	case "${waitRound:-}" in
+		''|*[!0-9]*) ;;
+		*) [ "$probeCount" -lt 1 ] || [ "$probeTake" -lt 1 ] || probeStart=$(( ( ( waitRound - 1 ) * probeTake ) % probeCount + 1 )) ;;
+	esac
+	probeWatched=0
+	while [ "$probeWatched" -lt "$probeTake" ] && [ "$probeWatched" -lt "$probeCount" ] ; do
 		probeRc=0
-		AgentsWaitRepliesLook "$probeMember" "$probeNow" "${probeLines[$probeIndex]}" "$probeOut" "$probeIndex" || probeRc=$?
+		AgentsWaitRepliesLook "$probeMember" "$probeNow" "${probeLines[$probeStart]}" "$probeOut" "$probeStart" || probeRc=$?
 		case "$probeRc" in
 			0) probeAttempted=$(( probeAttempted + 1 )) ;;
 			2) probeAttempted=$(( probeAttempted + 1 )) ; probeFailed=$(( probeFailed + 1 )) ;;
 		esac
-		probeIndex=$(( probeIndex - 1 ))
+		probeWatched=$(( probeWatched + 1 ))
+		probeStart=$(( probeStart + 1 )) ; [ "$probeStart" -le "$probeCount" ] || probeStart=1
 	done
 	if [ "$probeAttempted" != "0" ] && [ "$probeFailed" -ge "$probeAttempted" ] ; then
 		## The round that returns this stops short of the commit of a source that ran: the pacing is stored here.
@@ -2678,7 +2687,7 @@ case "$1" in
 		if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then
 			local carrySource carryRecord
 			for carrySource in $waitStoredSources ; do
-				case " $waitSources" in *" $carrySource "*) continue ;; esac
+				case " $waitSources " in *" $carrySource "*) continue ;; esac
 				case "$carrySource" in
 					ask:*)
 						carryRecord="$MMDAPP/.local/agents/pending/${carrySource#ask:}.md"
@@ -2728,7 +2737,7 @@ case "$1" in
 				done < "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post"
 			fi
 			if [ -n "$floorChatKey" ] && AgentsToolsSessionChatDir "$floorChatKey" > /dev/null 2>&1 && [ -d "$MMDAPP/.local/agents/sessions/$floorChatKey" ] ; then
-				case " $waitSources" in
+				case " $waitSources " in
 					*" chat:$floorChatKey "*) ;;
 					*) waitSources="chat:$floorChatKey $waitSources" ;;
 				esac
@@ -2736,7 +2745,7 @@ case "$1" in
 				floorOwnElsewhere="true"
 			fi
 			if [ -n "$floorOwnElsewhere" ] ; then
-				case " $waitSources" in
+				case " $waitSources " in
 					*" replies:$waitSessionId "*) ;;
 					*) waitSources="replies:$waitSessionId $waitSources" ;;
 				esac
@@ -2749,7 +2758,7 @@ case "$1" in
 			case "$memberName" in client-*) ;; *) floorWays="$floorWays mentions:$memberName" ;; esac
 			floorWays="$floorWays wake:$memberName"
 			for floorWay in $floorWays ; do
-				case " $waitSources" in *" $floorWay "*) continue ;; esac
+				case " $waitSources " in *" $floorWay "*) continue ;; esac
 				waitSources="$waitSources${waitSources:+ }$floorWay "
 			done
 			waitSources="$( printf '%s' "$waitSources" | LC_ALL=C tr -s ' ' )"
@@ -2968,7 +2977,7 @@ case "$1" in
 			fi
 			for editSource in $editOld ; do
 				editIndex=$(( editIndex + 1 ))
-				if [ "$waitMode" = "drop" ] && case " $waitSources" in *" $editSource "*) true ;; *) false ;; esac ; then
+				if [ "$waitMode" = "drop" ] && case " $waitSources " in *" $editSource "*) true ;; *) false ;; esac ; then
 					rm -f "$waitStateDir/base.$editIndex"
 					editFloors="$( printf '%s' "$editFloors" | LC_ALL=C awk -v gone="$editSource" '$1 == "floor" && $2 == gone { next ; } { print ; }' )"
 					[ -z "$editFloors" ] || editFloors="$editFloors"$'\n'
@@ -2982,7 +2991,7 @@ case "$1" in
 			done
 			if [ "$waitMode" = "add" ] ; then
 				for editSource in $waitSources ; do
-					case " $editNew" in *" $editSource "*) continue ;; esac
+					case " $editNew " in *" $editSource "*) continue ;; esac
 					editKept=$(( editKept + 1 ))
 					editNew="$editNew$editSource "
 					rm -f "$waitStateDir/base.$editKept"
@@ -3577,13 +3586,14 @@ case "$1" in
 				## is empty: what stood there was taken -- an answer its asker read moves the floor of
 				## its thread past it -- or taken back, and neither is an arrival.
 				## A Slack source that renders empty has nothing to return either: its floor moved past what stood there.
+				## The run's own posts arrive on a rendered message or a reaction, never on the heading alone.
 				if ! AgentsWaitSameFile "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \
 					&& { LC_ALL=C grep -q '[^[:space:]]' "$waitDir/now.$roundIndex" 2> /dev/null || case " $agentsWaitKindEmptyBaseline slack " in *" $roundKind "*) false ;; *) true ;; esac ; } \
 					&& case " $agentsWaitKindArrivalsOnly " in
 						*" $roundKind "*) LC_ALL=C awk 'FILENAME == ARGV[1] { seen[$0] = 1 ; next } !( $0 in seen ) { added = 1 ; exit } END { exit !added }' "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ;;
 						*) true ;;
 					esac \
-					&& { [ "$roundKind" != "replies" ] || LC_ALL=C grep -q -E '^[0-9]+\.[0-9]+ \| ' "$waitDir/now.$roundIndex" 2> /dev/null ; } ; then
+					&& { [ "$roundKind" != "replies" ] || LC_ALL=C grep -q -E -e '^[0-9]+\.[0-9]+ \| ' -e '^reactions on your post ' "$waitDir/now.$roundIndex" 2> /dev/null ; } ; then
 					if [ -n "$waitCollect" ] && [ "$roundKind" != "tagged" ] && [ "$roundKind" != "mentions" ] && [ "$roundKind" != "dms" ] ; then
 						## In a collect only the tags are immediate: every other source accumulates until the window ends.
 						case " $waitDeferred" in *" $roundIndex=$roundSource "*) ;; *) waitDeferred="$waitDeferred$roundIndex=$roundSource " ;; esac
