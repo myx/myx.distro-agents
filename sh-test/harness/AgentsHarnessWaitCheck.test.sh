@@ -504,10 +504,11 @@ rigAssert "it waited on nothing"                        "$( rigHolds "$rigOpOut"
 rigAssert "one listed kind per kind the build names"    "$rigProbesListed" "$rigKindsCount"
 rigAssert "the listing offers exactly the kinds the build names" "$rigKindsListed" "$rigKindsNamed"
 rigAssert "at least one kind is named at all"           "$( rigAtLeast "$rigKindsCount" 1 )" "at-least-1"
+cat "$rigHere"/member/AgentsTools.MemberWait*.include > "$rigTmp/wait-family.include" || rigRefuse "the wait includes could not be read together"
 for rigKind in $rigKindsNamed ; do
 	rigNamedProbe="$( LC_ALL=C awk -F'\t' -v wantKind="$rigKind" '$1 == wantKind { print $2 ; }' "$rigOpOut" )"
 	rigAssert "the build names $rigKind and the listing's probe is defined in the source" \
-		"$( [ -n "$rigNamedProbe" ] && rigHolds "$rigInclude" "${rigNamedProbe}(){" || printf 'not-listed' )" yes
+		"$( [ -n "$rigNamedProbe" ] && rigHolds "$rigTmp/wait-family.include" "${rigNamedProbe}(){" || printf 'not-listed' )" yes
 done
 rigAssert "the file adapter is offered by name"         "$( rigHolds "$rigOpOut" 'file' )" yes
 ## The negative control: a kind no adapter defines is absent from the listing, so

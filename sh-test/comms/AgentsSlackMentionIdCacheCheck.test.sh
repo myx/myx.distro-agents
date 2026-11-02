@@ -16,12 +16,14 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigInclude="$rigHere/comms/AgentsTools.MemberCommsSlack.include"
+rigSendInclude="$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigInclude" ] || rigRefuse "the Slack include is not at: $rigInclude"
+[ -f "$rigSendInclude" ] || rigRefuse "the Slack send include is not at: $rigSendInclude"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSlackMentionIdCacheCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -65,12 +67,12 @@ rigCacheWrite(){ ## rows... -- the cache holding the idle lock generation and th
 rigSide=()
 rigCall(){ ## function and arguments... -- one cache function in a fresh shell over the real tooling; its stdout in $rigTmp/fn.out
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigData" RIG_TOOL="$rigTool" RIG_INCLUDE="$rigInclude" ${rigSide[@]+"${rigSide[@]}"} \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigData" RIG_TOOL="$rigTool" RIG_INCLUDE="$rigInclude" RIG_SEND_INCLUDE="$rigSendInclude" ${rigSide[@]+"${rigSide[@]}"} \
 		bash -c '
 			. "$RIG_TOOL"
 			MDSC_CMD=rig
 			rigArgs=( "$@" )
-			set -- --rig-none ; . "$RIG_INCLUDE" > /dev/null 2>&1
+			set -- --rig-none ; . "$RIG_INCLUDE" > /dev/null 2>&1 ; . "$RIG_SEND_INCLUDE" > /dev/null 2>&1
 			"${rigArgs[@]}"
 		' rig "$@" ) > "$rigTmp/fn.out" 2> "$rigTmp/fn.err" < /dev/null
 }
@@ -162,7 +164,7 @@ rigAssert "a row without columns never matches, nor does a - row, by the member'
 rigAssert "a row with too few columns never matches, even where a column holds the name"   "$( rigCall AgentsToolsCommsSlackMentionFindByName shortrow ; cat "$rigTmp/fn.out" )" ""
 rigAssert "a partial name does not match"                                "$( rigCall AgentsToolsCommsSlackMentionFindByName magic ; cat "$rigTmp/fn.out" )" ""
 rigAssert "it reads the cache and nothing else: no Slack call was made"  "$( rigCalls )" ""
-rigAssert "the include holds the function in a few lines on the cache alone: lines between its heading and its closing brace" "$( LC_ALL=C awk '/^AgentsToolsCommsSlackMentionFindByName\(\)/ { on = 1 } on { n++ } on && /^}/ { print n ; exit }' "$rigInclude" )" 3
+rigAssert "the include holds the function in a few lines on the cache alone: lines between its heading and its closing brace" "$( LC_ALL=C awk '/^AgentsToolsCommsSlackMentionFindByName\(\)/ { on = 1 } on { n++ } on && /^}/ { print n ; exit }' "$rigSendInclude" )" 3
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK MENTION ID CACHE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

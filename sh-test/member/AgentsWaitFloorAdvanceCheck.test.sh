@@ -120,7 +120,7 @@ rigProbeNew(){ ## probeSince
 	probeLog="$probeFile.log"
 	rm -f "$probeFile"
 	$rigEnvClean MMDAPP="$rigDir/ws" MDAT_SPAWN_LAUNCH_MARKER="$rigDir/launch.marker" MDAT_SESSION_ID="$rigSession" MDAT_SKILLSET_ROOT="$rigTmp/skills" PATH="$rigWaitPath" RIG_SCENARIO="$rigDir" MDAT_SLACK_THREAD_CACHE_SECONDS=0 \
-		bash -c ". '$rigHere/member/AgentsTools.MemberWait.include' ; AgentsWaitProbeSlack '$rigMember' '${rigThread}:conversation' '$1' '$probeFile' '' false" > "$probeLog" 2>&1
+		bash -c ". '$rigHere/member/AgentsTools.MemberWaitSlack.include' ; AgentsWaitProbeSlack '$rigMember' '${rigThread}:conversation' '$1' '$probeFile' '' false" > "$probeLog" 2>&1
 	[ -f "$probeFile" ] && cat "$probeFile"
 	rm -f "$probeFile" "$probeFile.rendered" "$probeFile.err" "$probeLog"
 }

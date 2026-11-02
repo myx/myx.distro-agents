@@ -45,7 +45,7 @@ runs-at: none
     Those are the executor's own team sources, and every `client-*` member's
     own external sources. A `client-*` member is an avatar of this routine's executor, so its traffic is swept here; no routine belongs to one client.
   - Treat two kinds of traffic differently. A message addressed from one member to another is **routed**: the coordinator delivers it and does not answer it. A message addressed to the coordinator, any DM, any client DM, and an unaddressed external request in a team channel is **handled** here.
-  - Run inside the coordinator's board round (`magic-coordinator.work-duty.routine`) every pass, in `magic-coordinator.daily.routine`, in `magic-coordinator.coordination-session.routine`, or standalone on request.
+  - Run inside the coordinator's board round (`magic-coordinator.work-duty.routine`) every pass, in `magic-coordinator.daily.routine`, or standalone on request.
 - Doesn't:
   - Read Google Drive or Sheets. That is grooming's, when searching.
   - Triage or classify deeply. Grooming does that later.
@@ -73,7 +73,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Nothing new, could not be read, and no part at all are three different results. The run's exit status says whether all, some or none of the sources were scanned; output present is never evidence of success. A capped section is never read as complete.
    - A member's own inbox and board items in its part are read to know what is recorded, never answered.
    - A post by another member is inbound. Its author is the item's `author:`, who it is for its `addressees:`; `@here (unaddressed)` is unaddressed. The conversation it was posted in settles neither.
-3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call. On a `client-*` member's source each comms call to the other organisation runs through `--client-operation-run`. A `--member-comms-*` call acts only as this executor, and `--magic-comms-*` never reaches the other organisation. Steps:
+3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call. On a `client-*` member's source each comms call to the other organisation runs through `--client-operation-run`. A plain `--slack-*` or `--email-*` call acts only as this executor, and never reaches the other organisation. Steps:
    1. **read**: Read the full message. A message quoting a block is read past the quote: the instruction is usually after it.
    2. **analyze**: Cross-reference it with the board and the current todo state. Identify what it needs: work ready to dispatch, an idle-pass candidate, a knowledge candidate for `magic-librarian`, a reply. Nothing needed is a normal result. Whether it was handled is judged from what it asked and whether that was done, never from a later reply existing. Slack: react 👀 now.
    3. **act**: Settle whether it is routed or handled:
@@ -132,7 +132,13 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- `AskQuestion` — asks one person one question, and waits in the same call. Pass `to` and `question`. Add `select` with `options` for a closed answer, and read the `VERDICT:` line. Unattended, pass `wait: false`: the reply waits for his answer.
+- `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on.
+- `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
 
 ## Tooling operations
 

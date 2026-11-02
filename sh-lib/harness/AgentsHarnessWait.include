@@ -506,10 +506,14 @@ AgentsHarnessToolWait(){
 	case "$toolIncludeOwn" in
 		true|1|yes) set -- "$@" --wait-include-own ;;
 	esac
-	## An asking call (the twelfth argument) reacts to the reply it takes itself: the wait leaves the seen reaction to it.
+	## An asking call (the twelfth argument) reacts to the reply it takes itself: the wait leaves the seen reaction to it, for that one
+	## source only (MDAT_WAIT_SEEN_OWN_SOURCE: the call's own answer, or the source it named). Every other source of the same wait is a
+	## delivery like any, and the wait marks it, so a message for the member shows eyes as it arrives.
+	local waitSeenOwnSource="${MDAT_WAIT_SEEN_OWN_SOURCE:-}"
+	[ -z "$toolAsking" ] || waitSeenOwnSource="${waitSeenOwnSource:-$toolSources}"
 	## Only the result goes to a file: the operation's own stderr is held here and printed
 	## where it is read, so a wait leaves one file and not two.
-	waitDiag="$( MDAT_WAIT_SEEN_OWN="${toolAsking:+1}${MDAT_WAIT_SEEN_OWN:-}" "$@" 2>&1 1>"$harnessScratch/wait.out" )" || waitRc=$?
+	waitDiag="$( MDAT_WAIT_SEEN_OWN="${toolAsking:+1}${MDAT_WAIT_SEEN_OWN:-}" MDAT_WAIT_SEEN_OWN_SOURCE="$waitSeenOwnSource" "$@" 2>&1 1>"$harnessScratch/wait.out" )" || waitRc=$?
 	if [ "$waitRc" != "0" ] ; then
 		printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources -- this is not a wait that found nothing, and their silence must not be read as quiet. What the operation reported follows:\n' "$waitRc"
 		## The operation names its own flags; the caller holds this tool's arguments, so the report names those.

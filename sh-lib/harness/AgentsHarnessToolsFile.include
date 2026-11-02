@@ -32,6 +32,8 @@ AgentsHarnessReadRange(){ ## path, offset, limit, optional numbered
 }
 
 AgentsHarnessToolRead(){
+	## Cold pause, temporary: a read of a paused session waits here before it reads, checking only the flag every 5 seconds.
+	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
 	local toolPath="${5:-$1}" toolOffset="$2" toolLimit="$3" toolPages="$4" toolBytes toolMime pdfFirst pdfLast pdfText imagePath imageEdge
 	if [ -z "$toolPath" ] ; then
 		printf 'ERROR: file_path is required and was empty. Nothing was read.\n' ; return 0
@@ -234,7 +236,7 @@ AgentsHarnessChangeHold(){ ## tool, resolved target, the file as it stands (empt
 }
 
 ## Whole-file overwrite or create, never a partial patch; Edit is the partial path.
-AgentsHarnessToolWrite(){
+AgentsHarnessToolWriteRun(){
 	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock="" toolGateRc=0 toolHeld=""
 	if [ -z "$toolPath" ] ; then
 		AgentsHarnessRefusal Write "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
@@ -284,6 +286,13 @@ AgentsHarnessToolWrite(){
 	AgentsToolsLocalLockGive "$toolLock"
 	printf 'OK: wrote %s\n' "$toolPath"
 }
+AgentsHarnessToolWrite(){
+	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	local pauseRc=0
+	AgentsHarnessToolWriteRun "$@" || pauseRc=$?
+	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	return "$pauseRc"
+}
 
 ## Partial edit by exact literal replacement. It reads the whole file inside this
 ## process and returns only a one-line result, so it is the way to change a file too
@@ -292,7 +301,7 @@ AgentsHarnessToolWrite(){
 ## One call carries one edit, or a list of them in edits, and both are one list here:
 ## applied in order, each to the text the one before it left, and written once, all or
 ## nothing. An edit of a list that cannot be applied is named by its position from 1.
-AgentsHarnessToolEdit(){
+AgentsHarnessToolEditRun(){
 	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock="" toolGateRc=0
 	local editsListed="" editsCount=1 editsIndex=0 editsOld=() editsNew=() editsAll=() editsSource editsOut editsSpare editsWhere="" editsNote=""
 	local toolHeld="" editsSeen=""
@@ -440,6 +449,13 @@ AgentsHarnessToolEdit(){
 	else
 		printf 'OK: replaced one occurrence in %s\n' "$toolPath"
 	fi
+}
+AgentsHarnessToolEdit(){
+	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	local pauseRc=0
+	AgentsHarnessToolEditRun "$@" || pauseRc=$?
+	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	return "$pauseRc"
 }
 
 ## The root is tested before the pattern is evaluated, so a missing directory is named

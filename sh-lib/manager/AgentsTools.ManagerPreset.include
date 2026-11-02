@@ -158,21 +158,27 @@ case "$1" in
 
 	## The tiers, one `tier` row each, the team's first and then each member's: the id of the scope, its label, how many variables its file holds, whether it may be cleared,
 	## whether it may be deleted, its file, what its three tiers are set to, low, normal and high, `-` where one is not, and
-	## then what each resolves to and how (AgentsToolsPresetChosenLine, the spawner's own choice), six fields.
+	## then what each resolves to and how (AgentsToolsPresetChosenLine, the spawner's own choice), six fields. The team's own file is the
+	## paying workspace's where one pays, which is where its tiers are read and written (AgentsToolsPresetPayRoot).
 	--manager-preset-tiers)
-		local tiersOp="$1" tiersMember tiersDir tiersFile tiersScope tiersLabel tiersKeys
+		local tiersOp="$1" tiersMember tiersDir tiersFile tiersScope tiersLabel tiersKeys tiersRoot
 		shift
 		[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $tiersOp: syntax is $tiersOp, got $# argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
 		tiersRow(){ ## scope name, label
 			local tiersLow tiersNormal tiersHigh
-			tiersFile="${MMDAPP%/}/.local/.agents/$1.agent.env"
+			## The team's tiers are the paying workspace's, as a read and a write of one answer and land there: its own file is the row's, so SET HERE and the edit are that one value.
+			case "$1" in
+				magic-team) tiersRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || tiersRoot="${MMDAPP%/}" ;;
+				*) tiersRoot="${MMDAPP%/}" ;;
+			esac
+			tiersFile="$tiersRoot/.local/.agents/$1.agent.env"
 			tiersKeys="$( AgentsToolsManagerPresetKeys "$tiersFile" )"
 			tiersLow="$( AgentsToolsPresetChosenLine "$1" light )" || tiersLow=$'\t'
 			tiersNormal="$( AgentsToolsPresetChosenLine "$1" normal )" || tiersNormal=$'\t'
 			tiersHigh="$( AgentsToolsPresetChosenLine "$1" heavy )" || tiersHigh=$'\t'
 			printf 'tier\tagents:%s\t%s\t%s\t%s\tno\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerPresetField "$2" )" "$tiersKeys" "$( [ "$tiersKeys" -gt 0 ] && echo yes || echo no )" \
-				"$( AgentsToolsManagerPresetField "$tiersFile" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_LOW )" )" \
-				"$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_NORMAL )" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_HIGH )" )" \
+				"$( AgentsToolsManagerPresetField "$tiersFile" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$tiersRoot" "$1" SPAWN_TIER_LOW )" )" \
+				"$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$tiersRoot" "$1" SPAWN_TIER_NORMAL )" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$tiersRoot" "$1" SPAWN_TIER_HIGH )" )" \
 				"$( AgentsToolsManagerPresetField "${tiersLow%%$'\t'*}" )" "$( AgentsToolsManagerPresetField "${tiersLow#*$'\t'}" )" \
 				"$( AgentsToolsManagerPresetField "${tiersNormal%%$'\t'*}" )" "$( AgentsToolsManagerPresetField "${tiersNormal#*$'\t'}" )" \
 				"$( AgentsToolsManagerPresetField "${tiersHigh%%$'\t'*}" )" "$( AgentsToolsManagerPresetField "${tiersHigh#*$'\t'}" )"

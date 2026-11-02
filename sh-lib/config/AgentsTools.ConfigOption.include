@@ -24,7 +24,15 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 							AgentsToolsPresetWriteCheck "${MMDAPP%/}" "$2" "$3" "${4:-}" "${5:-}" || { set +e ; return 1 ; }
 							if [ -n "$agentsPresetStdinTaken" ] ; then
 								agentsPresetStdinTaken=""
-								. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" <<< "$agentsPresetStdin"
+								local presetStdinThere=""
+								case "$2:${4:-}" in
+									magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
+										type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+										AgentsToolsConfigOptionElsewhere "$2" "${4:-}" 2> /dev/null || :
+										presetStdinThere="$agentsConfigOptionElsewhere"
+									;;
+								esac
+								( MMDAPP="${presetStdinThere:-${MMDAPP%/}}" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) <<< "$agentsPresetStdin"
 								return $?
 							fi
 						;;
@@ -63,12 +71,17 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 				;;
 				--upsert|--upsert-from-stdin|--upsert-if)
 					## A write is this workspace's own; the first setting of a borrowed system ends the borrowing, said once (AgentsToolsMemberSettingsBorrowEndedSay).
+					## A team tier setting is the exception: it is the paying workspace's, so it is written where it is read.
 					local optionScope="$2" optionKey="${4:-}" optionThere="" optionRc=0
-					case "$optionScope" in
-						magic-team) ;;
+					case "$optionScope:$optionKey" in
+						magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH) AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null || : ; optionThere="$agentsConfigOptionElsewhere" ;;
+						magic-team:*) ;;
 						*) AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null && optionThere="$agentsConfigOptionElsewhere" ;;
 					esac
 					if [ -n "$optionThere" ] ; then
+						case "$optionScope" in
+							magic-team) ( MMDAPP="$optionThere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ; return $? ;;
+						esac
 						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" || optionRc=$?
 						[ "$optionRc" -ne 0 ] || AgentsToolsMemberSettingsBorrowEndedSay "$optionScope" "$optionKey" "$optionThere"
 						return "$optionRc"
@@ -76,9 +89,14 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 				;;
 				--delete|--delete-if)
 					## The mirror: the last setting of a system deleted begins the borrowing again, said once (AgentsToolsMemberSettingsBorrowBegunSay).
+					## A team tier setting is taken out where it is read, as it is written there.
 					local optionScope="$2" optionKey="${4:-}" optionPrefix="" optionRc=0
-					case "$optionScope" in
-						magic-team) ;;
+					case "$optionScope:$optionKey" in
+						magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
+							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null || :
+							[ -z "$agentsConfigOptionElsewhere" ] || { ( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ; return $? ; }
+						;;
+						magic-team:*) ;;
 						*) optionPrefix="$( AgentsToolsMemberSettingSystemOf "$optionKey" )" ;;
 					esac
 					if [ -n "$optionPrefix" ] && AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$optionScope" "$optionPrefix" ; then

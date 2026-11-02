@@ -32,7 +32,7 @@ rigFail(){
 ## answered by a wrapper that records the name and then runs the real one.
 mkdir -p "$rigTmp/shim" || exit 1
 LC_ALL=C awk '{ n = split( $0, w, /[^A-Za-z0-9_.-]+/ ) ; for ( i = 1 ; i <= n ; i++ ) if ( w[i] != "" ) print w[i] }' \
-	"$rigWaitInclude" | sort -u > "$rigTmp/words.txt" || exit 1
+	"$rigPackage"/sh-lib/member/AgentsTools.MemberWait*.include | sort -u > "$rigTmp/words.txt" || exit 1
 rigShimmed=0
 while read -r rigWord ; do
 	## bash, sh and env are never shimmed: the shim's own interpreter line names bash through

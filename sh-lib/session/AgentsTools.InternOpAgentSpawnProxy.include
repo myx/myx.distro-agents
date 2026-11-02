@@ -1732,9 +1732,26 @@ case "$1" in
 		## keep them: one line each, redacted, and a field only where one was given
 		## (AgentsTools.TaskText.include).
 		type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
-		local spawnDescriptionKept="" sessionCommentKept=""
+		local spawnDescriptionKept="" sessionCommentKept="" sessionTitleRoutine="" sessionTitleItem=""
 		spawnDescriptionKept="$( AgentsToolsTaskTextKept "$spawnDescription" )"
 		sessionCommentKept="$( AgentsToolsTaskTextKept "$sessionNameOrComment" )"
+		## The default title by kind (S21.20), for the run that opens the session and no other:
+		## a dispatch document's own title, else the routine's, else the member's with its id.
+		if [ -z "$sessionCommentKept" ] && [ "$sessionId" = "$MDAT_SPAWN_SESSION_ID" ] ; then
+			sessionTitleItem=""
+			if [ -n "$trackedItemName" ] ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+				sessionTitleItem="$( AgentsToolsDecisionsItemPath "$trackedItemName" )" || sessionTitleItem=""
+				[ -z "$sessionTitleItem" ] || sessionCommentKept="$( AgentsToolsTaskTextValue "$( AgentsToolsTaskText "$sessionTitleItem" )" title )"
+			fi
+			if [ -z "$sessionCommentKept" ] && [ -n "$routineRecorded" ] ; then
+				sessionTitleRoutine="${routineRecorded%.routine.md}" ; sessionTitleRoutine="${sessionTitleRoutine#"$callerName".}" ; sessionTitleRoutine="${sessionTitleRoutine#magic-team.}"
+				sessionCommentKept="$( AgentsToolsTaskTextKept "$callerName, $sessionTitleRoutine" )"
+			fi
+			if [ -z "$sessionCommentKept" ] ; then
+				sessionCommentKept="$( AgentsToolsTaskTextKept "${callerName:+$callerName, standalone }$sessionId" )"
+			fi
+		fi
 
 		## The three workspaces of this run as its records keep them: each by its basename, never
 		## a path, the convention of the record's own `workspace`. ALWAYS written, also where all
@@ -1970,18 +1987,13 @@ case "$1" in
 			## (AgentsToolsSpawnProxySessionRootPost). The thread under it is the participants' own.
 			## Posted where this spawn runs, as its other settings are read: this workspace, so the
 			## token and the conversation are always one Slack's.
-			## With no name given, the title is the routine's name and the member (`Morning review · magic-librarian`), the routine's
-			## name from its file name; with no routine, the member alone. Never the session id: it names nothing to a person.
-			local rootTitle="$sessionNameOrComment" rootRoutine=""
+			## The title is the session's own (S21.20): the one its opening run gave it, read off its records where this run only joins it.
+			local rootTitle="$sessionCommentKept"
 			if [ -z "$rootTitle" ] ; then
-				if [ -n "$routineFilePath" ] ; then
-					rootRoutine="${routineFilePath##*/}" ; rootRoutine="${rootRoutine%.routine.md}"
-					rootRoutine="${rootRoutine#"$callerName".}" ; rootRoutine="${rootRoutine#magic-team.}" ; rootRoutine="${rootRoutine//-/ }"
-					rootTitle="$( printf '%s' "${rootRoutine:0:1}" | LC_ALL=C tr 'a-z' 'A-Z' )${rootRoutine:1} · $callerName"
-				else
-					rootTitle="$callerName"
-				fi
+				rootTitle="$( LC_ALL=C grep -l -x -F "session-id: $sessionId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1 )" || rootTitle=""
+				[ -z "$rootTitle" ] || rootTitle="$( AgentsToolsSpawnSandboxRecordHeader "$rootTitle" session-comment )"
 			fi
+			[ -n "$rootTitle" ] || rootTitle="$callerName"
 			sessionThread="$(
 				AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnerMember"
 			)" || sessionThread=""

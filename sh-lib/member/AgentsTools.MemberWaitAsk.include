@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitAsk.include -- the probe of an asked question's answer.
+## Sourced by --wait-for-input for a source of its kind, and by a caller that needs one probe of it.
+## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
+##
+type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include"
+type AgentsWaitProbeSlack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitSlack.include"
+
+## A question asked with AskQuestion, named by its pending reply id: the wait item the ask
+## adds to its session's wait. What it is judged against comes from its record -- the thread,
+## our own question's ts as the floor, the accounts whose answer counts -- and the thread is read
+## through the slack probe above, so this is exactly the read AskQuestion's own wait makes.
+## An escalation to a member with no Slack account is answered by the team operation closing
+## the record, so there the record's status is the arrival; on a thread a closed record adds its
+## status line too, which is how an answer taken elsewhere is seen. Arrivals only, so its
+## baseline is empty (agentsWaitKindEmptyBaseline). Turning the answer into the record's verdict
+## is the asking harness's (AgentsHarnessAskResolve), never this probe's.
+## A decision its asker closed by readback keeps a `follow-floor`, the readback's own ts: it
+## is then watched from there, with no closed line, so what arrives is only what the person
+## wrote after the readback -- an objection, or more -- which the asking harness keeps.
+## An answer given through the team operation -- by the one asked, or on its behalf -- is in
+## no thread, and the record keeps the session that gave it: there the record's status is the
+## arrival, said beside whatever its thread holds from its follow floor, and when that thread
+## cannot be read. So it reaches its asker in the wait that runs, or in the next one, whoever
+## was asked: an account, or a member with none, which stands among the addressees by its
+## member name and whose reply in the thread is read too (AgentsSlackThreadAnswers.awk).
+## The conversation of an ask that is one top-level post of a direct conversation, read for what its person typed there after the floor, appended to the ask's rendering
+## in the form of a thread's answers. The escalation reader does the same (AgentsToolsEscalationAskDirect): a reply typed in the conversation is no reply to the post, so no
+## read of the thread carries it. Whether the conversation is a direct one is asked of Slack once and kept beside the record (`.direct`: `im`, or `other <epoch>`, asked again
+## after five minutes); only a conversation id that begins with D is asked about at all. A read that fails leaves the thread's result as it was.
+AgentsWaitAskDirectLoad(){
+	set -- --helpers-only
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" > /dev/null 2>&1 || :
+}
+
+AgentsWaitAskDirectRead(){ ## member, record file, channel, floor, addressees, asking accounts, ask identity, the ask's rendering file, the question's own ts (the conversation is read from it)
+	local directCache="${2%.md}.direct" directKind="" directNow directThen
+	case "$3" in D*) ;; *) return 1 ;; esac
+	[ ! -f "$directCache" ] || directKind="$( cat "$directCache" 2> /dev/null )"
+	directNow="$( date +%s )"
+	case "$directKind" in
+		im) ;;
+		other\ *)
+			directThen="${directKind#other }"
+			case "$directThen" in ''|*[!0-9]*) directThen=0 ;; esac
+			[ $(( directNow - directThen )) -ge 300 ] || return 1
+			directKind=""
+		;;
+		*) directKind="" ;;
+	esac
+	if [ -z "$directKind" ] ; then
+		type AgentsToolsEscalationAskDirect > /dev/null 2>&1 || AgentsWaitAskDirectLoad
+		type AgentsToolsEscalationAskDirect > /dev/null 2>&1 || return 1
+		if AgentsToolsEscalationAskDirect "$2" "$3" ; then
+			printf 'im\n' > "$directCache" 2> /dev/null || :
+		else
+			printf 'other %s\n' "$directNow" > "$directCache" 2> /dev/null || :
+			return 1
+		fi
+	fi
+	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$1" "$3" --oldest "${9:-$4}" ${7:+$( [ "$7" = bot ] && printf '%s' --identity-bot )} > "$8.direct" 2> /dev/null || return 1
+	AgentsWaitOwnFile "$8.direct" || return 1
+	LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print }' "$8.direct" \
+		| LC_ALL=C awk -v rootTs="${9:-$4}" -v askingUsers="$6" -v fromUsers="$5" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackThreadAnswers.awk" 2> /dev/null \
+		| LC_ALL=C awk -v floorTs="$4" '
+			function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+			function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+			## what stands at or before the floor was delivered already: only the rows after it
+			/^[0-9]+\.[0-9]+ \| / { keep = ( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ; }
+			keep { print ; }' > "$8.direct.out" 2> /dev/null || return 1
+	AgentsWaitOwnFile "$8.direct.out" || return 1
+	cat "$8.direct.out" >> "$8"
+}
+
+AgentsWaitProbeAsk(){
+	local probeMember="$1" probeTarget="$2" probeOut="$4" probeRecord probeLine
+	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees="" probeFollow=""
+	local probeAsking="" probeRevision="" probeKind="" probeSelect="" probeIdentity=""
+	local probeBySession="" probeByOperation="" probeUnread=""
+	probeRecord="$MMDAPP/.local/agents/pending/$probeTarget.md"
+	[ -f "$probeRecord" ] || probeRecord="$MMDAPP/.local/agents/pending/closed/$probeTarget.md"
+	[ -f "$probeRecord" ] || return 2
+	while IFS= read -r probeLine ; do
+		case "$probeLine" in
+			'status: '*) probeStatus="${probeLine#status: }" ;;
+			'channel: '*) probeChannel="${probeLine#channel: }" ;;
+			'question-ts: '*) probeTs="${probeLine#question-ts: }" ;;
+			'thread-ts: '*) probeThreadTs="${probeLine#thread-ts: }" ;;
+			'addressees: '*) probeAddressees="${probeLine#addressees: }" ;;
+			'follow-floor: '*) probeFollow="${probeLine#follow-floor: }" ;;
+			'asking-accounts: '*) probeAsking="${probeLine#asking-accounts: }" ;;
+			'revision-ts: '*) probeRevision="${probeLine#revision-ts: }" ;;
+			'kind: '*) probeKind="${probeLine#kind: }" ;;
+			'select: '*) probeSelect="${probeLine#select: }" ;;
+			'ask-identity: '*) probeIdentity="${probeLine#ask-identity: }" ;;
+			'answered-session: '*) probeBySession="${probeLine#answered-session: }" ;;
+			'# '*) break ;;
+		esac
+	done < "$probeRecord"
+	[ "$probeStatus" != "reply-pending" ] || probeFollow=""
+	## Answered through the team operation.
+	[ "$probeStatus" = "reply-pending" ] || [ -z "$probeBySession" ] || probeByOperation=1
+	## A question asked again, changed, is answered on its live version: the replies after it
+	## and the clicks under it -- and, where the question has its own thread, the clicks under
+	## its first post too, which stays the place to answer.
+	local probeAlso=""
+	[ -z "$probeRevision" ] || [ "$probeThreadTs" != "$probeTs" ] || [ -n "$probeFollow" ] || probeAlso="$probeTs"
+	if [ -n "$probeChannel" ] && [ -n "$probeTs" ] && [ -n "$probeThreadTs" ] && [ -n "$probeAddressees" ] ; then
+		## Read with the identity the question was asked with, as every reader of its answer does.
+		## A proposal is answered on its root alone: the clicks under its root, never those under
+		## the proposal reply, and the replies after that reply (AgentsSlackThreadAnswersSince.awk).
+		if [ "$probeKind" = "proposal" ] && [ -n "$probeRevision" ] && [ -z "$probeFollow" ] ; then
+			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut.root" "$probeAddressees" "false" "$probeAsking" "" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
+			[ -n "$probeUnread" ] || LC_ALL=C awk -v sinceTs="$probeRevision" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackThreadAnswersSince.awk" \
+				< "$probeOut.root" > "$probeOut" 2>/dev/null || probeUnread=1
+		else
+			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
+		fi
+		## A thread that cannot be read is an unreadable source, except where the record itself
+		## holds the answer: what the team operation answered is said from the record alone.
+		if [ -n "$probeUnread" ] ; then
+			[ -n "$probeByOperation" ] || return 2
+			: > "$probeOut" || return 2
+		fi
+		## An answered question is watched for what the person writes after. A click under it
+		## answers nothing any more, and the emoji there change by the tooling's own hand: its
+		## answer emoji leave that post with the answered mark, or as the post is closed. So
+		## once the record is closed no reaction line is an arrival: only a message is.
+		if [ "$probeStatus" != "reply-pending" ] && LC_ALL=C grep -q '^reaction on the question: ' "$probeOut" 2>/dev/null ; then
+			LC_ALL=C grep -v '^reaction on the question: ' "$probeOut" > "$probeOut.kept" 2>/dev/null || :
+			mv -f "$probeOut.kept" "$probeOut" || return 2
+		fi
+		## Several options are sent by the send mark: until the clicks give a verdict
+		## (AgentsEscalationVerdict.awk, the one reader), a number clicked is no arrival yet.
+		if [ "$probeSelect" = "many" ] && [ "$probeStatus" = "reply-pending" ] && LC_ALL=C grep -q '^reaction on the question: ' "$probeOut" 2>/dev/null ; then
+			case "$( LC_ALL=C grep '^reaction on the question: ' "$probeOut" | MDAT_VERDICT_KIND="${probeKind:-question}" MDAT_VERDICT_SELECT="$probeSelect" \
+				MDAT_VERDICT_OPTIONS="$( cat "${probeRecord%.md}.options" 2>/dev/null )" MDAT_VERDICT_AUTHORS="$probeAddressees" MDAT_VERDICT_ASKING="$probeAsking" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" in
+				RETURNED*|'')
+					LC_ALL=C grep -v '^reaction on the question: ' "$probeOut" > "$probeOut.kept" 2>/dev/null || :
+					mv -f "$probeOut.kept" "$probeOut" || return 2
+				;;
+			esac
+		fi
+		## What the person types at the top of a direct conversation, where the question is one top-level post of it, answers too.
+		if [ -z "$probeUnread" ] && ! LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' "$probeOut" 2>/dev/null ; then
+			AgentsWaitAskDirectRead "$probeMember" "$probeRecord" "$probeChannel" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeAddressees" "$probeAsking" "$probeIdentity" "$probeOut" "${probeRevision:-$probeTs}" || :
+		fi
+	else
+		## No thread is read here, so a record's status is all there is to watch: closed, it says so.
+		probeFollow=""
+		: > "$probeOut" || return 2
+	fi
+	[ "$probeStatus" = "reply-pending" ] || { [ -n "$probeFollow" ] && [ -z "$probeByOperation" ] ; } || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
+	## The closed note above has now been shown once (S21.6): a sibling marker, so the
+	## carry-forward below stops holding this ask in the stored wait once it has. The record
+	## itself is retained for good (T9), never deleted, so its own existence is no signal of that.
+	[ "$probeStatus" = "reply-pending" ] || { [ -n "$probeFollow" ] && [ -z "$probeByOperation" ] ; } || : > "${probeRecord%.md}.closed-delivered" 2> /dev/null || :
+	return 0
+}
+

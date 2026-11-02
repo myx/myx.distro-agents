@@ -205,6 +205,35 @@ while [ "$checkIntentAt" -lt "$checkIndex" ] ; do
 	checkIntentAt=$(( checkIntentAt + 1 ))
 done
 
+## THE LITERAL AS THE SHELL READS IT, not only as text (S21.20, the 1833a28c spawn refusal).
+## The extraction above finds the literal with awk, so it reads the FILE, never the shell's own
+## value. Two unescaped apostrophes inside the literal ended the shell string early: the awk
+## extraction still saw a whole, valid array, and this check passed 44 declarations while every
+## DeepSeek spawn started with no catalogue at all. Sourcing the wire is the reading a spawn
+## gets, so it is asserted here, and an empty or short value is the FAIL.
+checkSourcedBytes="$(
+	bash -c '. "$1" >/dev/null 2>&1 || : ; printf "%s" "${harnessToolsJson:-}"' _ "$checkWire" 2>/dev/null
+)"
+if [ "${#checkSourcedBytes}" -eq 0 ] ; then
+	echo "HARNESS_TOOLS_JSON: FAIL"
+	echo "  warn: the literal is valid text but the shell builds NOTHING from it. Sourcing"
+	echo "        ${checkWire##*/} leaves harnessToolsJson empty, which is what a run on this"
+	echo "        wire would carry: no tools at all. An unescaped single quote inside the"
+	echo "        literal is what does this, and bash -n cannot see it."
+	echo "  fix:  remove the apostrophe from the description, or escape it as \\'"
+	exit 1
+fi
+checkTextBytes="$( printf '%s' "$checkToolsJson" | wc -c | tr -d ' ' )"
+if [ "${#checkSourcedBytes}" != "$checkTextBytes" ] ; then
+	echo "HARNESS_TOOLS_JSON: FAIL"
+	echo "  warn: the shell builds ${#checkSourcedBytes} bytes of literal, but the file's own text is"
+	echo "        $checkTextBytes. The two readings disagree, so something in the literal is not"
+	echo "        what the shell ends up with -- an escaped quote, or a broken string."
+	echo "  fix:  compare the source of the literal with what the shell builds, and repair the"
+	echo "        first place they part"
+	exit 1
+fi
+
 printf 'HARNESS_TOOLS_JSON: OK (%d declarations parse, text and parser agree, every one takes the optional description)\n' "$checkIndex"
 printf '  tools:%s\n' "$checkNames"
 exit 0

@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitChat.include -- the probes of the session chat and of the scans.
+## Sourced by --wait-for-input for a source of its kind, and by a caller that needs one probe of it.
+## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
+##
+type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include"
+
+## THE SESSION CHAT FILE AS A SOURCE (F9.2): `chat:<session>`, the floor of a run beside the replies to its own posts. It reads
+## the file (AgentsTools.SessionChat.include) from the pointer of the member forward, in full, the executor of the session every
+## message of its thread (and, in a session with no thread, its `local` console message), a participant the ones that name it,
+## and the session's own printback channel's message (F2.2). The file is kept up to date here: where no other source of this
+## wait reads the session thread, the thread is read into the file when its TTL has passed (AgentsWaitChatTopUp); where one does,
+## that source's own read brings it in (AgentsWaitChatImportRead), so the thread is read once. Both paths run, and a message is
+## delivered once: what a source of the same Wait reads itself is read past here and not returned (AgentsWaitCoveredSet).
+## Its rendering holds arrivals only (agentsWaitKindEmptyBaseline); the pointer moves once the wait has returned it
+## (AgentsWaitChatCommit), and at once where the read held nothing to return.
+## ThisSession's --wait-session-channel (F7.2, DistroAgentsSession.fn.sh) is a wait on this source alone, with MDAT_WAIT_CHAT_FILTER set
+## for its one call to the spaced words me, here, any: the floor's rule for the messages of the session thread is then theirs
+## (AgentsToolsSessionChatFloor, agentsSessionChatFilter), and what the call delivered beyond a block the floor still owes is marked
+## delivered to the member at the commit, so nothing is lost and nothing comes twice.
+AgentsWaitChatTopUp(){ ## member, session, thread (channel:ts), a name for the read's files
+	local topNow topLast topNewest topQuiet=0 topTtl topReader
+	## Its TTL is 5 at least, so it is weighed at most every 5 seconds: a tick in between starts no process here.
+	[ -z "${agentsWaitTopUpAt:-}" ] || [ $(( SECONDS - agentsWaitTopUpAt )) -ge 5 ] || return 0
+	agentsWaitTopUpAt="$SECONDS"
+	topNow="${roundNow:-}"
+	case "$topNow" in ''|*[!0-9]*) topNow="$( date +%s )" ;; esac
+	topLast="$( AgentsToolsSessionChatPointer "$2" "topup:$3" )" || topLast=0
+	case "$topLast" in ''|*[!0123456789]*) topLast=0 ;; esac
+	topNewest="$( LC_ALL=C awk -F'\t' -v where="$3" '$3 == where { split($2, part, ".") ; if ( ( part[1] + 0 ) > newest ) { newest = part[1] + 0 ; } } END { print newest + 0 ; }' "$MMDAPP/.local/agents/sessions/$2/session.chat.index" 2> /dev/null )" || topNewest=0
+	[ "$topNewest" -le 0 ] || [ "$topNow" -le "$topNewest" ] || topQuiet=$(( topNow - topNewest ))
+	topTtl=$(( 5 + topQuiet / 20 ))
+	[ "$topTtl" -le 300 ] || topTtl=300
+	[ $(( topNow - topLast )) -ge "$topTtl" ] || return 0
+	## The communications reader (F9.3) keeps the file up to date while it is current: a look of its own within the TTL and ten seconds
+	## more stands this one down, and only a reader that is late, or not running, leaves the reading to the wait.
+	topReader="$( AgentsToolsSessionChatReaderLooked "$2" )"
+	[ -z "$topReader" ] || [ $(( topNow - topReader )) -ge $(( topTtl + 10 )) ] || return 0
+	AgentsWaitReadRendered "$1" "$3" thread "" "$4" || return 1
+	AgentsToolsSessionChatImport "$2" "$3" "$4" slack -
+	AgentsToolsSessionChatPointerSet "$2" "topup:$3" "$topNow"
+	return 0
+}
+
+AgentsWaitProbeChat(){
+	local probeMember="$1" probeSession="$2" probeOut="$4" probeThread="" probeSeen probeNewestText probeChatDir
+	AgentsToolsAssertBareName "$probeSession" "<session-id>" chat > /dev/null 2>&1 || return 2
+	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
+	[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$probeMember" $agentsWaitCoverSources )"
+	## The member's pointer first: what the file holds before this wait reads anything into it is not new to the member. Once a wait.
+	case " ${agentsWaitChatInit:-} " in
+		*" $probeSession "*) ;;
+		*) AgentsToolsSessionChatReaderInit "$probeSession" "$probeMember" ; agentsWaitChatInit="${agentsWaitChatInit:-} $probeSession" ;;
+	esac
+	## Says to the communications reader that a wait is blocked on the session, so that it looks at the thread every few seconds.
+	AgentsToolsSessionChatWaiting "$probeSession"
+	## AgentsToolsSessionChatThread, read by the shell itself: no subshell per tick.
+	probeThread="${MDAT_SESSION_THREAD:-}"
+	[ -n "$probeThread" ] || { IFS= read -r probeThread < "$MMDAPP/.local/agents/sessions/$probeSession/session.thread" ; } 2> /dev/null || probeThread=""
+	if [ -n "$probeThread" ] ; then
+		case " $agentsWaitCovered " in
+			*" $probeThread "*) ;;
+			*) AgentsWaitChatTopUp "$probeMember" "$probeSession" "$probeThread" "$probeOut.thread" || : ;;
+		esac
+	fi
+	## The floor is read again only where the chat file's index or its pointers changed since its last read (`$probeOut.seen` strictly
+	## newer than both): an idle tick then reads and writes nothing. Equal times read it again, so nothing written in that second is missed.
+	probeChatDir="$MMDAPP/.local/agents/sessions/$probeSession"
+	if [ -f "$probeOut" ] && [ "$probeOut.seen" -nt "$probeChatDir/session.chat.index" ] && [ "$probeOut.seen" -nt "$probeChatDir/session.chat.pointers" ] ; then
+		return 0
+	fi
+	AgentsWaitClear "$probeOut" || return 2
+	: > "$probeOut.seen" 2> /dev/null || :
+	agentsSessionChatFilter="${MDAT_WAIT_CHAT_FILTER:-}"
+	AgentsToolsSessionChatFloor "$probeSession" "$probeMember" "$agentsWaitCovered" > "$probeOut" 2> /dev/null || :
+	agentsSessionChatFilter=""
+	probeNewestText="${agentsSessionChatNewest:-}"$'\n'
+	for probeSeen in ${agentsSessionChatSeen:-} ; do probeNewestText="${probeNewestText}seen $probeSeen"$'\n' ; done
+	AgentsWaitPut "$probeOut.newest" "$probeNewestText" || :
+	return 0
+}
+
+## Moves the member's pointer to what a look at the file read, once the wait has said it (the file holds the number on its first
+## line, and a line `seen <n>` for each block the call delivered beyond it, to be marked delivered to the member).
+AgentsWaitChatCommit(){ ## session, member, the file holding the number
+	local commitNewest="" commitLine commitSeen=""
+	[ -f "$3" ] && IFS= read -r commitNewest < "$3" || return 0
+	case "$commitNewest" in ''|*[!0123456789]*) return 0 ;; esac
+	AgentsToolsSessionChatPointerSet "$1" "read:$2" "$commitNewest" max
+	while IFS= read -r commitLine ; do
+		case "$commitLine" in "seen "[0123456789]*) commitSeen="$commitSeen${commitLine#seen } " ;; esac
+	done < "$3"
+	[ -z "$commitSeen" ] || AgentsToolsSessionChatSeen "$1" "$2" $commitSeen
+	return 0
+}
+
+## A SCAN AS A SOURCE (F3.3): `scan:<scan>`, one of the scans of the tooling (AgentsToolsInputScanNames) for the tooling's own
+## use -- a tool or a routine run that waits on a scan, as AskQuestion adds an ask to a set. No member is taught it (F6.4) and the
+## default set holds none. The scan runs afresh at each pass that is past its TTL of the table (AgentsToolsSourceTtlOf) -- or at
+## once on a pass the member's wake marker brought forward, so a message the scan would report is not behind that TTL: the table's
+## 300 is how long an UNCHANGED scan is left to stand, never how late a message may be (THE SCAN IS WOKEN AND NOT ON ITS TTL) --,
+## and its report is the one the scan returned; the Wait wakes when the report differs from the one this session was last given
+## (the pointer `scan:<scan>:<member>` of session.chat.pointers, kept once a wait has returned it; with no session, the one an
+## earlier pass of the same call saw), and the first time with the report it has.
+AgentsWaitProbeScan(){
+	local probeMember="$1" probeScan="$2" probeOut="$4" probeKept probeSum probeKey probeStored=""
+	type AgentsToolsInputScanNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include" 2> /dev/null || return 2
+	AgentsToolsInputScanNames | LC_ALL=C grep -q -x -- "$probeScan" || return 2
+	DistroAgentsTools "--intern-op-$probeScan-input-scan" "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || {
+		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+		return 2
+	}
+	AgentsWaitOwnFile "$probeOut.reply" || return 2
+	## MDAT_SCAN_TRACE=1 on the wait: the seconds each section of the scan took, which the scan wrote to its stderr, are said on this one.
+	[ -z "${MDAT_SCAN_TRACE:-}" ] || LC_ALL=C grep '^scan-trace: ' "$probeOut.err" >&2 || :
+	## A report kept for the session is named by the reply (AgentsTranscriptReplyRef); the report is what that file holds.
+	probeKept="$( LC_ALL=C sed -n 's/^\.\.\. KEPT: .* is in \(.*\) -- .*\.\.\.$/\1/p' "$probeOut.reply" | head -1 )"
+	if [ -n "$probeKept" ] && [ -f "$probeKept" ] ; then
+		cat "$probeKept" > "$probeOut.report" 2> /dev/null || return 2
+	else
+		cp "$probeOut.reply" "$probeOut.report" 2> /dev/null || return 2
+	fi
+	## THE SUM IS OF THE REPORT LESS ITS TOKEN COUNTERS. The board sections of a scan print the `tokens:` and `tokens-total:` lines of
+	## every running item, the session's own dispatch item among them, and the harness rewrites those at every model round: summed whole,
+	## the report differed at every wait and the wait never idled. Only a line of exactly the counters' own shape is left out
+	## (AgentsSessionTokensRollupText); the report returned is whole.
+	probeSum="$( LC_ALL=C awk '/^tokens(-total)?: in=[0-9]+ cache-read=[0-9]+ cache-write=[0-9]+ out=[0-9]+( \(incl\. [0-9]+ sub-sessions?\))?$/ { next ; } { print ; }' "$probeOut.report" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
+	if [ -n "$probeKey" ] ; then
+		probeStored="$( AgentsToolsSessionChatPointer "$probeKey" "scan:$probeScan:$probeMember" 2> /dev/null )" || probeStored=""
+	elif [ -f "$probeOut.stored" ] ; then
+		IFS= read -r probeStored < "$probeOut.stored" || :
+	fi
+	: > "$probeOut" || return 2
+	## A report that says `# ready: <N>` for N above 0 holds input the member has not taken (S23.5): the Wait returns with it again, whatever it last gave, until it is taken.
+	if [ "$probeSum" != "$probeStored" ] || LC_ALL=C grep -q '^# ready: [1-9]' "$probeOut.report" ; then
+		cp "$probeOut.report" "$probeOut" 2> /dev/null || return 2
+		printf '%s\n' "$probeSum" > "$probeOut.sum"
+		## With no session to keep it in, the report this call has returned is kept for its later passes.
+		[ -n "$probeKey" ] || cp "$probeOut.sum" "$probeOut.stored" 2> /dev/null || :
+	fi
+	return 0
+}
+
+## Keeps the report a wait has returned as the one the session was last given.
+AgentsWaitScanCommit(){ ## member, scan, the file holding the report's sum
+	local commitSum="" commitKey
+	[ -f "$3" ] && IFS= read -r commitSum < "$3" || return 0
+	[ -n "$commitSum" ] || return 0
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	commitKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || commitKey=""
+	[ -z "$commitKey" ] || AgentsToolsSessionChatPointerSet "$commitKey" "scan:$2:$1" "$commitSum"
+	return 0
+}
+

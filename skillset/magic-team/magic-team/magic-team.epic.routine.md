@@ -38,4 +38,8 @@ None.
 
 # Routine-specific tooling
 
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Tooling operations
+
 - `--idle-wait [--wait-timeout <seconds>]`

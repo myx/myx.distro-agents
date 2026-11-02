@@ -194,9 +194,9 @@ rigAssert "addressed: a member with no mark by its group's icon and its member n
 rigSend keeper-here --address-to human-owner RIG-BODY
 rigAssert "the human-owner's own mark is kept" "$( rigHeader | LC_ALL=C sed 's/ <@[A-Z0-9]*>\.$/ <@ID>./' )" '🔧 *_keeper-here_* @herakeep → :rig-owner: *_human-owner_* <@ID>.'
 rigAssert "no member is named by the rule: the list holds prefixes, and of single names only the human-owner the member table already had" \
-	"$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep -c ') *printf' ):$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep ') *printf' | LC_ALL=C grep -v -e '^[[:space:]]*[a-z|*-]*-\*)' -e '^[[:space:]]*\*)' -e '^[[:space:]]*human-owner)' | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n '/^AgentsToolsCommsSlackMemberTeamPresentation()/,/^}/p' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" | LC_ALL=C grep -c -e 'client-[a-z]' -e 'keeper-[a-z]' -e 'magic-[a-z]' -e 'partner-[a-z]' )" "6:0:0"
+	"$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep -c ') *printf' ):$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep ') *printf' | LC_ALL=C grep -v -e '^[[:space:]]*[a-z|*-]*-\*)' -e '^[[:space:]]*\*)' -e '^[[:space:]]*human-owner)' | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n '/^AgentsToolsCommsSlackMemberTeamPresentation()/,/^}/p' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" | LC_ALL=C grep -c -e 'client-[a-z]' -e 'keeper-[a-z]' -e 'magic-[a-z]' -e 'partner-[a-z]' )" "6:0:0"
 rigAssert "the installer's table and the author line take the icon from the one list: neither file holds an icon of a kind" \
-	"$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" )" "0:0:1:1"
+	"$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" )" "0:0:1:1"
 rm -f "$( rigNames ws-there )"
 rigSend keeper-there RIG-BODY
 rigAssert "with no registry at all in the workspace it is set up in: its group's icon, its member name, and the one line" "$rigRc $( rigText ) $( rigNoRowLines keeper-there )" '0 🔏 *_keeper-there_* → @here.\nRIG-BODY 1'
@@ -273,7 +273,7 @@ rigAssert "nowhere in the post does the name follow itself" "$( LC_ALL=C grep -c
 rigAssert "the line the reader takes off a reply is the whole first line: a header" \
 	"$( rigText | LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" header
 rigAssert "the one rule is asked in two places of the send, the sender and the addressee, and the send writes no alias of its own" \
-	"$( LC_ALL=C grep -c 'AgentsToolsCommsSlackAliasShown "' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" ):$( LC_ALL=C grep -c -e '@\$fromAlias' -e '@\$addrAlias' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" )" "2:0"
+	"$( LC_ALL=C grep -c 'AgentsToolsCommsSlackAliasShown "' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" ):$( LC_ALL=C grep -c -e '@\$fromAlias' -e '@\$addrAlias' "$rigHere/comms/AgentsTools.InternOpCommsSlackSend.include" )" "2:0"
 rigSend keeper-here --address-to magic-plain DISMISSED
 rigToPlain="$( rigText )"
 rigAssert "addressed to it, a dismissal reaches it by its name said once, and nobody else" \
@@ -298,7 +298,7 @@ rigAssert "no request left this box: every call went to the fake curl" "$( LC_AL
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK HEADER INVITED MEMBER CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: a member is shown with no icon or not with its own mark, an invited member under another member's alias, a client inside our team under its persona's alias, or a name said twice or not read where it is said once" >&2
-	echo "  fix:  repair AgentsToolsCommsSlackMemberTeamPresentation, AgentsToolsCommsSlackMemberPresentation and AgentsToolsCommsSlackAliasShown in sh-lib/comms/AgentsTools.MemberCommsSlack.include, or the readers of the line (AgentsDismissalMatch.awk, AgentsEscalationVerdict.awk) -- never the assertion" >&2
+	echo "  fix:  repair AgentsToolsCommsSlackMemberTeamPresentation, AgentsToolsCommsSlackMemberPresentation and AgentsToolsCommsSlackAliasShown in sh-lib/comms/AgentsTools.InternOpCommsSlackSend.include, or the readers of the line (AgentsDismissalMatch.awk, AgentsEscalationVerdict.awk) -- never the assertion" >&2
 	exit 1
 fi
 printf 'SLACK_HEADER_INVITED_MEMBER: OK (%d assertions, offline)\n' "$rigPasses"

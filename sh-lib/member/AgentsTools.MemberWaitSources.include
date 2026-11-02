@@ -1,0 +1,600 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.MemberWaitSources.include -- the sources of a wait: what it can wait on, the stored wait, the defaults, the checks and the no-wait modes. Its longer notes are in MAGIC.md, "The Wait includes".
+
+		## Asked what it can wait on, it answers and waits on nothing, so a caller has no second list to keep in step.
+		if [ "$waitListOnly" = "true" ] ; then
+			echo "WAIT-RESULT: RECEIVED"
+			echo "# input source kinds this build carries:"
+			local listKind
+			for listKind in $agentsWaitSourceKinds ; do
+				printf '%s\t%s\n' "$listKind" "$( AgentsWaitProbeFunctionName "$listKind" )"
+			done
+			return 0
+		fi
+
+		## slack:session-current and slack:session-parent resolve to that session's thread and are waited on as its :conversation source.
+		local sessionSource sessionSources="" sessionResolved="" sessionRc=0 sessionAddress="" sessionForm="" sessionOriginal=""
+		for sessionSource in $waitSources ; do
+			sessionOriginal="$sessionSource"
+			case "$sessionSource" in
+				slack:session-current|slack:session-current:*|slack:session-parent|slack:session-parent:*)
+					sessionAddress="${sessionSource#slack:}" ; sessionForm=""
+					case "$sessionAddress" in *:conversation) sessionForm=":conversation" ; sessionAddress="${sessionAddress%:conversation}" ;; esac
+					## The name alone is the thread itself: any new post there.
+					case "$sessionAddress" in *:*) ;; *) sessionForm=":conversation" ;; esac
+					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+					sessionRc=0
+					sessionResolved="$( DistroAgentsToolsResolveTarget "$sessionAddress" "$memberName" )" || sessionRc=$?
+					if [ "$sessionRc" != "0" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: $sessionResolved Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+					sessionSource="slack:$( printf '%s\n' "$sessionResolved" | sed -n 's/^CHANNEL=//p' ):$( printf '%s\n' "$sessionResolved" | sed -n 's/^THREAD_TS=//p' )$sessionForm"
+				;;
+			esac
+			## The form chosen for the name the caller gave stays with the thread it names.
+			[ "$sessionSource" = "${sessionOriginal:-$sessionSource}" ] || waitModes="${waitModes/ ${sessionOriginal}=/ ${sessionSource}=}"
+			sessionSources="$sessionSources$sessionSource "
+		done
+		waitSources="$sessionSources"
+		## The sources the caller NAMED: the store keeps a closed ask that is named again, and drops the one it carried.
+		waitNamedSources="$waitSources"
+		## State is per session, never per member, and --wait-continue refuses a source or filter of its own.
+		local waitStateDir="" waitStateLine waitStoredSources="" waitStoredAddressee="" waitOwnPost="" waitOwnSecond="" waitSessionStart=""
+		if [ -n "$waitMode" ] ; then
+			if [ -z "$waitSessionId" ] ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-$waitMode needs --wait-session-id, because the state it keeps or ends is the state of one session. Nothing was waited on." >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$waitSessionId" "<session-id>" wait-for-input || {
+				echo "WAIT-RESULT: ERROR"
+				set +e ; return 1
+			}
+			if [ "$waitMode" = "continue" ] && { [ -n "$waitSources" ] || [ -n "$waitSince" ] || [ -n "$waitAddressee" ] || [ "$waitIncludeOwn" = "true" ] ; } ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-continue repeats the stored wait and takes no source, since, addressee or include-own of its own. Nothing was waited on: call --wait-default to change them." >&2
+				set +e ; return 1
+			fi
+			if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ] ; then
+				if [ -z "$waitSources" ] || [ -n "$waitSince" ] || [ -n "$waitAddressee" ] || [ "$waitIncludeOwn" = "true" ] || [ -n "$waitReactions" ] ; then
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-$waitMode takes one or more --wait-source and nothing else, since the since, addressee and include-own of a stored wait are shared by all its sources. Nothing was changed." >&2
+					set +e ; return 1
+				fi
+				local editSource
+				## A drop names a source and nothing else: only an add needs the since and addressee a thread source carries.
+				[ "$waitMode" != "add" ] || for editSource in $waitSources ; do
+					case "${editSource/#slack:client:/slack:}" in
+						slack:*:*)
+							echo "WAIT-RESULT: ERROR"
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-$waitMode does not take the thread source '$editSource', which needs a since and an addressee of its own. Nothing was changed: name it in a --wait-default." >&2
+							set +e ; return 1
+						;;
+					esac
+				done
+			fi
+			waitStateDir="$MMDAPP/.local/agents/sessions/$waitSessionId/wait"
+			echo "# --wait-for-input: mode=$waitMode member=$memberName session=$waitSessionId" >&2
+			## Abandoned state is swept on the way in, as the working directories below are.
+			find "$MMDAPP/.local/agents/sessions" -maxdepth 2 -type d -name wait -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+			if [ "$waitMode" = "continue" ] && [ ! -f "$waitStateDir/state" ] ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-continue found no stored wait for session $waitSessionId. Nothing was waited on, and no default wait was started in its place: call --wait-default." >&2
+				set +e ; return 1
+			fi
+			## close names its own ids against the stored sources, unless it was given some.
+			if [ -f "$waitStateDir/state" ] && { [ "$waitMode" = "continue" ] || { [ "$waitMode" = "close" ] && [ -z "$waitSources" ] ; } ; } ; then
+				while IFS= read -r waitStateLine ; do
+					case "$waitStateLine" in
+						"sources: "*) waitSources="${waitStateLine#sources: }" ;;
+						"addressee: "*) waitAddressee="${waitStateLine#addressee: }" ;;
+						"include-own: "*) waitIncludeOwn="${waitStateLine#include-own: }" ;;
+						"ttl "*)
+							waitStateLine="${waitStateLine#ttl }"
+							waitTtls="$waitTtls${waitStateLine% *}=${waitStateLine##* } "
+						;;
+						"mode "*)
+							waitStateLine="${waitStateLine#mode }"
+							waitModes="$waitModes${waitStateLine% *}=${waitStateLine##* } "
+						;;
+						"floor "*)
+							waitStateLine="${waitStateLine#floor }"
+							waitFloors="$waitFloors${waitStateLine% *}=${waitStateLine##* } "
+						;;
+					esac
+				done < "$waitStateDir/state"
+			fi
+			## default keeps every stored floor: never dropped, only reused or replaced by an explicit since.
+			if [ -f "$waitStateDir/state" ] && [ "$waitMode" = "default" ] ; then
+				while IFS= read -r waitStateLine ; do
+					case "$waitStateLine" in
+						"sources: "*) waitStoredSources="${waitStateLine#sources: }" ;;
+						"addressee: "*) waitStoredAddressee="${waitStateLine#addressee: }" ;;
+						## A floor lives only for a source of the stored set: one stored for a source that left it is stale, and a source that comes back starts at the wait's start.
+						"floor "*)
+							waitStateLine="${waitStateLine#floor }"
+							case " $waitStoredSources " in
+								*" ${waitStateLine% *} "*) waitFloors="$waitFloors${waitStateLine% *}=${waitStateLine##* } " ;;
+							esac
+						;;
+					esac
+				done < "$waitStateDir/state"
+			fi
+			## The session's own last post, "<channel> <ts>": the floor of a thread source with none stored.
+			[ ! -f "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" ] \
+				|| IFS= read -r waitOwnPost < "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" || :
+			## Its first two words only, the thread and the ts of the latest post: the rest of the line is the floor's.
+			case "$waitOwnPost" in
+				*" "*" "*) waitOwnSecond="${waitOwnPost#* }" ; waitOwnPost="${waitOwnPost%% *} ${waitOwnSecond%% *}" ;;
+			esac
+			## The launcher's marker file, written once at launch, is the floor of a thread with no stored floor and no own post.
+			if [ -n "${MDAT_SPAWN_LAUNCH_MARKER:-}" ] && [ -f "$MDAT_SPAWN_LAUNCH_MARKER" ] ; then
+				waitSessionStart="$( stat -f %m "$MDAT_SPAWN_LAUNCH_MARKER" 2>/dev/null || stat -c %Y "$MDAT_SPAWN_LAUNCH_MARKER" 2>/dev/null )" || waitSessionStart=""
+				case "$waitSessionStart" in ''|*[!0-9]*) waitSessionStart="" ;; esac
+			fi
+		fi
+
+		## Defaults: the session's own thread, any post but its own, else the two team conversations. A named set replaces the defaults.
+		if [ -z "$waitSources" ] ; then
+			type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			local defaultSessionSources=""
+			defaultSessionSources="$( AgentsToolsWaitDefaultSources 2>/dev/null )" || defaultSessionSources=""
+			if [ -n "$defaultSessionSources" ] ; then
+				## The session thread and every conversation thread this session continues.
+				waitSources="$defaultSessionSources "
+				## A thread source needs a floor: the stored one, else the session's own last post there, else the wait's start.
+			else
+				waitSources="slack:magic-team slack:human-owner "
+				## A native client session has no spawn thread, so it watches the two team conversations and its own session thread once on record.
+				local defaultOwnThread=""
+				type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+				defaultOwnThread="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || defaultOwnThread=""
+				[ -z "$defaultOwnThread" ] || ! AgentsToolsSpawnConversationThreadValid "$defaultOwnThread" || waitSources="${waitSources}slack:$defaultOwnThread:conversation "
+			fi
+		fi
+		## An ask's wait item is carried while its record is open, and the rest of the stored set only by a call naming no source.
+		if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then
+			local carrySource carryRecord
+			for carrySource in $waitStoredSources ; do
+				case " $waitSources " in *" $carrySource "*) continue ;; esac
+				case "$carrySource" in
+					ask:*)
+						carryRecord="$MMDAPP/.local/agents/pending/${carrySource#ask:}.md"
+						[ -f "$carryRecord" ] || carryRecord="$MMDAPP/.local/agents/pending/closed/${carrySource#ask:}.md"
+						[ -f "$carryRecord" ] || continue
+						## A closed ask is closed for good once its note has been shown once, as its record is retained forever.
+						[ ! -f "${carryRecord%.md}.closed-delivered" ] || continue
+					;;
+					*)
+						## A named source replaces the stored set; an ask above is the one thing it never takes out.
+						if [ -n "$waitSources" ] ; then continue ; fi
+						case "$carrySource" in
+							## the floor adds these itself, below, in its own order
+							replies:*|chat:*|dms:*|mentions:*|wake:*) continue ;;
+							## a thread source answers by the addressee of the wait that stored it
+							slack:*:*:conversation) ;;
+							slack:*:*)
+								[ -n "$waitAddressee" ] || waitAddressee="$waitStoredAddressee"
+								[ -n "$waitAddressee" ] || continue
+							;;
+						esac
+					;;
+				esac
+				waitSources="$waitSources$carrySource "
+			done
+		fi
+		## The floor: a session's default or continued wait holds its session thread from the chat file, and named sources are added to it.
+		if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then
+			local floorChatKey=""
+			type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			floorChatKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || floorChatKey=""
+			## The chat file is no substitute for the replies: a reply to one of the run's own posts elsewhere is the replies source's.
+			local floorOwnElsewhere="" floorOwnLine floorOwnThread=""
+			if [ -f "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" ] ; then
+				[ ! -f "$MMDAPP/.local/agents/sessions/$waitSessionId/session.thread" ] || IFS= read -r floorOwnThread < "$MMDAPP/.local/agents/sessions/$waitSessionId/session.thread" || floorOwnThread=""
+				while IFS= read -r floorOwnLine ; do
+					case "$floorOwnLine" in ''|' '*) continue ;; esac
+					[ "${floorOwnLine%% *}" != "$floorOwnThread" ] || continue
+					floorOwnElsewhere="true" ; break
+				done < "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post"
+			fi
+			if [ -n "$floorChatKey" ] && AgentsToolsSessionChatDir "$floorChatKey" > /dev/null 2>&1 && [ -d "$MMDAPP/.local/agents/sessions/$floorChatKey" ] ; then
+				case " $waitSources " in
+					*" chat:$floorChatKey "*) ;;
+					*) waitSources="chat:$floorChatKey $waitSources" ;;
+				esac
+			else
+				floorOwnElsewhere="true"
+			fi
+			if [ -n "$floorOwnElsewhere" ] ; then
+				case " $waitSources " in
+					*" replies:$waitSessionId "*) ;;
+					*) waitSources="replies:$waitSessionId $waitSources" ;;
+				esac
+			fi
+			## The floor adds its DMs, its mentions and its wake marker, each on its own TTL, with a work-duty's tags at the DM poll.
+			local floorWays="dms:$memberName" floorWay waitDutyRun="" waitDutyRecord=""
+			case "$waitSessionId" in ''|*/*|.|..) ;; *)
+				waitDutyRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$waitSessionId.spawn.md"
+				[ -f "$waitDutyRecord" ] || waitDutyRecord="$MMDAPP/.local/agents/spawned/$waitSessionId/$waitSessionId.spawn.md"
+				case "$( LC_ALL=C grep -m1 -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$waitDutyRecord" 2> /dev/null )" in
+					'routine: '*) waitDutyRun="true" ; floorWays="$floorWays tagged:$memberName" ;;
+				esac
+			esac
+			case "$memberName" in client-*) ;; *) floorWays="$floorWays mentions:$memberName" ;; esac
+			floorWays="$floorWays wake:$memberName"
+			for floorWay in $floorWays ; do
+				case " $waitSources " in *" $floorWay "*) continue ;; esac
+				waitSources="$waitSources${waitSources:+ }$floorWay "
+			done
+			waitSources="$( printf '%s' "$waitSources" | LC_ALL=C tr -s ' ' )"
+			waitSources="${waitSources% } "
+		fi
+		## The scans are read last, because a scan takes minutes and a source after it would wait for it.
+		if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then
+			local orderOne orderFirst="" orderScans=""
+			for orderOne in $waitSources ; do
+				case "$orderOne" in
+					scan:*) orderScans="$orderScans$orderOne " ;;
+					*) orderFirst="$orderFirst$orderOne " ;;
+				esac
+			done
+			waitSources="$orderFirst$orderScans"
+		fi
+		## The return bound: no --wait-timeout is no bound. A round reads every source whatever the bound, and the poll cadence is a tick and a slow look.
+		local waitBackoff="false" waitActivity="" waitWakeSeen=""
+		[ -n "$waitPoll" ] || waitPoll="${MDAT_WAIT_POLL_SECONDS:-}"
+		[ -n "$waitPoll" ] || { waitPoll="$agentsWaitTickSeconds" ; waitBackoff="true" ; }
+
+		case "$waitTimeout" in
+			'') ;;
+			*[!0-9]*)
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-timeout must be a whole number of seconds, got: $waitTimeout" >&2
+				set +e ; return 1
+			;;
+		esac
+		[ -z "$waitSessionId" ] || AgentsWaitActivityIdle "$waitSources"
+		## A wait of a session comes back a little sooner than the prompt cache of its CLI service expires, at most that service's round.
+		if [ -n "$waitSessionId" ] ; then
+			case "$waitMode" in
+				default|continue)
+					local waitRound=""
+					type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
+					waitRound="$( AgentsToolsCliServiceWaitRound "$( AgentsToolsCliServiceOfSession "$waitSessionId" )" )"
+					case "$waitRound" in
+						''|*[!0-9]*) ;;
+						*) [ -n "$waitTimeout" ] && [ "$waitTimeout" -le "$waitRound" ] || waitTimeout="$waitRound" ;;
+					esac
+				;;
+			esac
+		fi
+		case "$waitPoll" in
+			''|*[!0-9]*)
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-poll-interval must be a whole number of seconds, got: $waitPoll" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ "$waitPoll" -lt 1 ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-poll-interval must be at least 1 second -- a zero interval is a spin, not a poll." >&2
+			set +e ; return 1
+		fi
+		if [ -n "$waitSince" ] ; then
+			case "$waitSince" in
+				## A Slack message ts is epoch seconds with microseconds, the same <epoch>[.<micros>] shape --oldest takes on the read side.
+				''|.*|*.|*[!0-9.]*|*.*.*)
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-since-utime: not epoch seconds, and not a Slack message ts either -- pass <epoch>[.<micros>]: $waitSince" >&2
+					set +e ; return 1
+				;;
+			esac
+			## A floor is a moment that has passed, so a floor ahead of the present is refused at second zero with both moments named.
+			local waitSinceNow
+			waitSinceNow="$( date +%s )"
+			if AgentsWaitTsNewer "$waitSince" "$(( waitSinceNow + agentsWaitFloorAhead ))" ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-since-utime: $waitSince is ahead of the present, which is $waitSinceNow in epoch seconds on this host. A floor is a moment that has passed: nothing at or before it counts, so from this one nothing that arrives would be returned until then. Nothing was waited on: pass the ts of a message already posted, or epoch seconds at or before the present, or leave it out to wait from the floor stored for the source, else from now." >&2
+				set +e ; return 1
+			fi
+		fi
+
+		## Every source is resolved to its probe before the wait starts, so a kind this build does not carry is an error at second zero.
+		local checkSource checkKind checkTarget checkFn
+		for checkSource in $waitSources ; do
+			checkKind="${checkSource%%:*}"
+			checkTarget="${checkSource#*:}"
+			if [ "$checkKind" = "$checkSource" ] || [ -z "$checkTarget" ] ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' is not <kind>:<target>. Nothing was waited on. Kinds this build carries: $agentsWaitSourceKinds" >&2
+				set +e ; return 1
+			fi
+			checkFn="$( AgentsWaitProbeFunctionName "$checkKind" )"
+			## The include of a probe is read only for a source of its kind, once, before the wait starts.
+			type "$checkFn" > /dev/null 2>&1 || case "$checkKind" in
+				slack) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitSlack.include" ;;
+				replies) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitReplies.include" ;;
+				ask) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitAsk.include" ;;
+				mentions|tagged) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitMentions.include" ;;
+				dms) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitDms.include" ;;
+				chat|scan) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitChat.include" ;;
+				file|process|inbox|board|wake) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitLocal.include" ;;
+			esac
+			## A source that reads Slack loads the Slack router here, once, ahead of its probes: a probe runs in a subshell and would load it again on every tick.
+			case "$checkKind" in
+				slack|replies|ask|mentions|tagged|dms|chat) type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null ;;
+			esac
+			if ! command -v "$checkFn" >/dev/null 2>&1 ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: no input source of kind '$checkKind' exists in this build, so nothing was waited on -- this is NOT a wait that found nothing. Kinds this build carries: $agentsWaitSourceKinds" >&2
+				set +e ; return 1
+			fi
+			## A member waits on its own inbox only, and a board state is one of the nine directories.
+			case "$checkKind:$checkTarget" in
+				inbox:"$memberName"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
+				inbox:*|board:*)
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: inbox:<own member name> is the own inbox only, and board:<state> is one of backlog pending running review blocked parked processed archived retained. Nothing was waited on." >&2
+					set +e ; return 1
+				;;
+				## A scan is one of the tooling's own scans (AgentsToolsInputScanNames); the tags are the member's own; the session chat is a session's.
+				scan:*)
+					type AgentsToolsInputScanNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include" 2> /dev/null || :
+					if ! AgentsToolsInputScanNames | LC_ALL=C grep -q -x -- "$checkTarget" ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names no scan of the tooling: scan:<scan> takes one of $( AgentsToolsInputScanNames | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ). Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+				;;
+				tagged:*)
+					if [ "$checkTarget" != "$memberName" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: tagged:<own member name> is the own tags only. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+				;;
+				dms:*|mentions:*)
+					if [ "$checkTarget" != "$memberName" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: ${checkKind}:<own member name> is the own ${checkKind} only. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+				;;
+				chat:*)
+					AgentsToolsAssertBareName "$checkTarget" "<session-id>" wait-for-input || {
+						echo "WAIT-RESULT: ERROR"
+						set +e ; return 1
+					}
+				;;
+				## A detached process is one this session started with Bash detach true, and its output is read from the session's processes folder.
+				process:*)
+					AgentsToolsAssertBareName "$checkTarget" "<process-handle>" wait-for-input || {
+						echo "WAIT-RESULT: ERROR"
+						set +e ; return 1
+					}
+				;;
+				## An ask's record must exist and only the session that asked may wait on it, except the participants of a permission set.
+				ask:*)
+					[ "$waitMode" != "drop" ] || continue
+					local checkAskLine checkAskSession="" checkAskRecord=""
+					## A record closed since it was asked is retired to pending/closed/ and is resolved there too, as AgentsWaitProbeAsk does.
+					checkAskRecord="$MMDAPP/.local/agents/pending/$checkTarget.md"
+					[ -f "$checkAskRecord" ] || checkAskRecord="$MMDAPP/.local/agents/pending/closed/$checkTarget.md"
+					if ! AgentsToolsAssertBareName "$checkTarget" "<pending-id>" wait-for-input || [ ! -f "$checkAskRecord" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names no pending reply in this workspace, so there is no question to wait on. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+					while IFS= read -r checkAskLine ; do
+						case "$checkAskLine" in
+							'session-id: '*) checkAskSession="${checkAskLine#session-id: }" ;;
+							'# '*) break ;;
+						esac
+					done < "$checkAskRecord"
+					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] \
+						&& [ -f "${checkAskRecord%.md}.set" ] \
+						&& LC_ALL=C grep -q -x -F -- 'kind: permission-set' "$checkAskRecord" \
+						&& case " $( LC_ALL=C sed -n 's/^participants: //p' "${checkAskRecord%.md}.set" | head -1 ) " in *" $memberName "*) true ;; *) false ;; esac ; then
+						checkAskSession=""
+					fi
+					local checkAskOwn=""
+					## Its own record, at its exact path: a participant's record names its session, and no folder is scanned.
+					case "$waitSessionId" in ''|*/*|.|..) ;; *)
+						checkAskOwn="${MDAT_SPAWN_SANDBOX_ROOT:-}/$waitSessionId.spawn.md"
+						[ -f "$checkAskOwn" ] || checkAskOwn="$MMDAPP/.local/agents/spawned/$waitSessionId/$waitSessionId.spawn.md"
+					esac
+					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] \
+						&& LC_ALL=C grep -q -x -F -- "session-id: $checkAskSession" "$checkAskOwn" 2> /dev/null ; then
+						checkAskSession=""
+					fi
+					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' is a question asked by session $checkAskSession, not $waitSessionId, so this session may not wait on it. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+		done
+
+		## --wait-add and --wait-drop change the stored source list and wait on nothing, and an added source starts with no base.
+		if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ] ; then
+			local editLine editOld="" editNew="" editAddressee="" editIncludeOwn="false" editFloors="" editModes="" editIndex=0 editKept=0 editTmp
+			if [ -f "$waitStateDir/state" ] ; then
+				while IFS= read -r editLine ; do
+					case "$editLine" in
+						"sources: "*) editOld="${editLine#sources: }" ;;
+						"addressee: "*) editAddressee="${editLine#addressee: }" ;;
+						"include-own: "*) editIncludeOwn="${editLine#include-own: }" ;;
+						"floor "*) editFloors="$editFloors$editLine"$'\n' ;;
+						"mode "*|"ttl "*) editModes="$editModes$editLine"$'\n' ;;
+					esac
+				done < "$waitStateDir/state"
+			fi
+			for editSource in $editOld ; do
+				editIndex=$(( editIndex + 1 ))
+				if [ "$waitMode" = "drop" ] && case " $waitSources " in *" $editSource "*) true ;; *) false ;; esac ; then
+					rm -f "$waitStateDir/base.$editIndex"
+					editFloors="$( printf '%s' "$editFloors" | LC_ALL=C awk -v gone="$editSource" '$1 == "floor" && $2 == gone { next ; } { print ; }' )"
+					[ -z "$editFloors" ] || editFloors="$editFloors"$'\n'
+					editModes="$( printf '%s' "$editModes" | LC_ALL=C awk -v gone="$editSource" '( $1 == "mode" || $1 == "ttl" ) && $2 == gone { next ; } { print ; }' )"
+					[ -z "$editModes" ] || editModes="$editModes"$'\n'
+					continue
+				fi
+				editKept=$(( editKept + 1 ))
+				editNew="$editNew$editSource "
+				[ "$editKept" = "$editIndex" ] || [ ! -f "$waitStateDir/base.$editIndex" ] || mv -f "$waitStateDir/base.$editIndex" "$waitStateDir/base.$editKept"
+			done
+			if [ "$waitMode" = "add" ] ; then
+				for editSource in $waitSources ; do
+					case " $editNew " in *" $editSource "*) continue ;; esac
+					editKept=$(( editKept + 1 ))
+					editNew="$editNew$editSource "
+					rm -f "$waitStateDir/base.$editKept"
+				done
+				## The form an added source was added in is kept with it, a new one replacing an old.
+				for editSource in $waitSources ; do
+					case "$waitModes$waitTtls" in *" $editSource="*) ;; *) continue ;; esac
+					editModes="$( printf '%s' "$editModes" | LC_ALL=C awk -v gone="$editSource" '( $1 == "mode" || $1 == "ttl" ) && $2 == gone { next ; } { print ; }' )"
+					[ -z "$editModes" ] || editModes="$editModes"$'\n'
+					[ -z "$( AgentsWaitModeOf "$editSource" )" ] || editModes="${editModes}mode $editSource $( AgentsWaitModeOf "$editSource" )"$'\n'
+					[ -z "$( AgentsWaitTtlOwn "$editSource" )" ] || editModes="${editModes}ttl $editSource $( AgentsWaitTtlOwn "$editSource" )"$'\n'
+				done
+			fi
+			if [ -z "$editNew" ] ; then
+				rm -rf "$waitStateDir" 2>/dev/null || true
+			else
+				mkdir -p "$waitStateDir" && editTmp="$( mktemp "$waitStateDir/state.XXXXXX" )" || {
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the stored wait under $waitStateDir could not be written, so it is unchanged." >&2
+					set +e ; return 1
+				}
+				{
+					echo "sources: $editNew"
+					echo "addressee: $editAddressee"
+					echo "include-own: $editIncludeOwn"
+					printf '%s' "$editFloors"
+					printf '%s' "$editModes"
+				} > "$editTmp"
+				mv -f "$editTmp" "$waitStateDir/state"
+			fi
+			[ "$waitMode" = "add" ] && echo "WAIT-RESULT: ADDED" || echo "WAIT-RESULT: DROPPED"
+			echo "WAIT-MODE: $waitMode"
+			echo "# member: $memberName"
+			echo "# sources: ${editNew% }"
+			return 0
+		fi
+
+		## A thread source needs the message it came after and the party it came from, and is refused here without them.
+		local checkThreads=0 checkConversation=0 checkUnfloored=0
+		for checkSource in $waitSources ; do
+			case "${checkSource/#slack:client:/slack:}" in
+				slack:*:*:conversation)
+					checkThreads=$(( checkThreads + 1 ))
+					checkConversation=$(( checkConversation + 1 ))
+				;;
+				slack:*:*)
+					checkThreads=$(( checkThreads + 1 ))
+					## A question thread's floor is our own message there: given, or stored by an earlier wait.
+					case " $waitFloors" in
+						*" $checkSource="*) ;;
+						*) checkUnfloored=$(( checkUnfloored + 1 )) ;;
+					esac
+				;;
+			esac
+		done
+		## A continued or closed wait has its floors stored, so no since is asked for.
+		if [ "$checkUnfloored" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: a thread source needs --wait-since-utime carrying the ts of our own message in that thread, because an answer is what arrives AFTER it. Without that floor every message already in the thread would count as an answer, our own included. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+		if [ "$checkThreads" -gt "$checkConversation" ] && [ -z "$waitAddressee" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: a thread source needs --wait-addressee carrying the Slack account the question was addressed to, because an answer is what that party wrote. Without it an unrelated message in the same thread would count as the answer, and so would our own next post. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+		if [ "$checkConversation" -gt 0 ] && [ "$checkThreads" = "$checkConversation" ] && [ -n "$waitAddressee" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: a :conversation thread source takes no --wait-addressee, because any new post counts, not just one party's reply. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+		if [ "$checkThreads" = "0" ] && [ -n "$waitAddressee" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-addressee qualifies an answer inside the thread the question was posted in, and this wait names no thread source. Over a whole conversation there is no message for an answer to come after. Nothing was waited on: name the thread as slack:<channel>:<ts>." >&2
+			set +e ; return 1
+		fi
+		## --wait-include-own changes something only on a :conversation thread source, so it is refused anywhere else.
+		if [ "$waitIncludeOwn" = "true" ] && [ "$checkConversation" = "0" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-include-own only changes anything on a slack:<channel>:<ts>:conversation source, which already includes this member's own posts everywhere else. Nothing was waited on: name a :conversation source, or drop the flag." >&2
+			set +e ; return 1
+		fi
+		## Reactions follow every check and precede the wait; a failed one is listed and never stops it.
+		local reactSet reactId reactEmoji reactOk reactFailed="" reactSummary="" reactNew="" reactSlack=0 reactChannel=""
+		if [ -n "$waitReactions" ] ; then
+			for checkSource in $waitSources ; do
+				case "$checkSource" in
+					slack:*)
+						reactSlack=$(( reactSlack + 1 ))
+						reactChannel="${checkSource#slack:}"
+						case "$reactChannel" in
+							client:*) reactChannel="${reactChannel#client:}" ; reactChannel="client:${reactChannel%%:*}" ;;
+							*) reactChannel="${reactChannel%%:*}" ;;
+						esac
+					;;
+				esac
+			done
+			for reactWord in $waitReactions ; do
+				case "${reactWord#*=}" in
+					*:*) reactNew="$reactNew$reactWord " ;;
+					*)
+						if [ "$reactSlack" != "1" ] ; then
+							echo "WAIT-RESULT: ERROR"
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the message id '${reactWord#*=}' is a bare ts, which names a message only when the wait has exactly one slack source, and this one has $reactSlack. Nothing was reacted to or waited on: write it <channel>:<ts>." >&2
+							set +e ; return 1
+						fi
+						reactNew="$reactNew${reactWord%%=*}=$reactChannel:${reactWord#*=} "
+					;;
+				esac
+			done
+			waitReactions="$reactNew"
+		fi
+		for reactSet in seen note done wait ; do
+			reactOk=0
+			case "$reactSet" in
+				seen) reactEmoji="eyes" ;;
+				note) reactEmoji="writing_hand" ;;
+				done) reactEmoji="white_check_mark" ;;
+				wait) reactEmoji="hourglass_flowing_sand" ;;
+			esac
+			for reactWord in $waitReactions ; do
+				[ "${reactWord%%=*}" = "$reactSet" ] || continue
+				reactId="${reactWord#*=}"
+				## The member's own identity first, then the bot: which one may react differs by conversation.
+				type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+				if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" > /dev/null 2>&1 \
+					|| AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" --identity-bot > /dev/null 2>&1 ; then
+					reactOk=$(( reactOk + 1 ))
+				else
+					reactFailed="$reactFailed$reactId "
+				fi
+			done
+			reactSummary="$reactSummary$reactSet=$reactOk "
+		done
+		reactSummary="${reactSummary}failed=${reactFailed:-none}"
+		reactSummary="${reactSummary% }"
+
+		if [ "$waitMode" = "close" ] ; then
+			rm -rf "$waitStateDir" 2>/dev/null || true
+			echo "WAIT-RESULT: CLOSED"
+			echo "WAIT-MODE: close"
+			echo "# reactions: $reactSummary"
+			return 0
+		fi
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitRun.include"
+		return $?

@@ -20,7 +20,7 @@ AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<st
 	local itemName="$1"
 	shift || true
 	if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --move-to-processed: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+		echo "⛔ ERROR: $MDSC_CMD --move-to-processed: syntax is --team-member <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 		set +e ; return 1
 	fi
 	local fromStateArg=""

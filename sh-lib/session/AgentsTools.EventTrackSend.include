@@ -59,13 +59,15 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 	## How many records one window collects behind its lead at most.
 	agentsEventTrackSendGroupMax=40
 
-	## The outbox of a channel, in this workspace's own state, made when it is first used.
-	## rc 1 with no workspace, or for a channel that is no bare name.
-	AgentsToolsEventTrackSendDir(){ ## channel
-		local sendChannel="${1:-}"
+	## The outbox of a tooling thread, or of a channel for the root posts that open threads, in this workspace's own state, made
+	## when it is first used. Each thread is buffered on its own, so no thread waits behind another. rc 1 with no workspace, or for
+	## a channel or thread that is no bare name.
+	AgentsToolsEventTrackSendDir(){ ## channel, [thread ts]
+		local sendChannel="${1:-}" sendThread="${2:-}"
 		[ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local" ] || return 1
 		case "$sendChannel" in ''|.|..|*/*|*' '*) return 1 ;; esac
-		printf '%s' "$MMDAPP/.local/agents/event-track-send/$sendChannel"
+		case "$sendThread" in */*|*' '*) return 1 ;; esac
+		printf '%s' "$MMDAPP/.local/agents/event-track-send/$sendChannel${sendThread:+.$sendThread}"
 	}
 
 	AgentsToolsEventTrackSendLockLib(){

@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCommsSlackRead.include -- --slack-read.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+
+case "$1" in
+
+		--intern-op-comms-slack-read)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-read: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-read || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+			if [ -z "$target" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-read: target required -- <channel>:<ts> for one message, or a bare <channel>/<conversation-id>/magic-team/human-owner/event-track/event-alert for that conversation's own messages." >&2
+				set +e ; return 1
+			fi
+			local wantThread="false" identityAsBot="false" readOldest=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--thread)
+						wantThread="true" ; shift
+					;;
+					## Bare-channel form only: a conversation is paged to its end,
+					## so a busy channel needs a floor or the page cap ends the read.
+					--oldest)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-read: --oldest: value required (<epoch>[.<micros>])" >&2
+							set +e ; return 1
+						fi
+						readOldest="$2" ; shift 2
+					;;
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			## A READ TAKES THE IDENTITY FALLBACK OF A SEND: what a send posted under the bot, because the member's user identity could not reach the conversation, is read back
+			## under the bot as well. The read goes once as asked; where Slack says channel_not_found, not_in_channel or thread_not_found (a thread the bot started in its own DM) it goes once more under the bot, in the same call
+			## (no second process). --identity-bot asked is final.
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					local targetUserId=""
+					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --slack-read: $resolved" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-read: could not resolve target '$target' -- pass <channel>:<ts> for one message, or a bare channel/conversation for its own messages" >&2
+					set +e ; return 1
+				;;
+			esac
+			local readErrFile="" readRc=0
+			mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && readErrFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read.XXXXXX" 2> /dev/null )" || readErrFile=""
+			## No <ts>: the target names a conversation, not a message. Read the
+			## conversation itself -- the case a caller is in when it wants the ts
+			## of something just posted and so cannot supply one. AgentsToolsSlackCheck
+			## already reads a whole conversation through the paged reader; this is
+			## that read, reached under the member-facing name.
+			if [ -z "$threadTs" ] ; then
+				if [ "$wantThread" = "true" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-read: --thread reads one thread and needs that thread's parent <ts> -- pass <channel>:<ts> --thread, or drop --thread to read the conversation" >&2
+					[ -z "$readErrFile" ] || rm -f "$readErrFile"
+					set +e ; return 1
+				fi
+				## HUMAN-OWNER READS BOTH DMs: the bare macro name must reach AgentsToolsSlackCheck
+				## literally, never the one party id it resolves to above -- that id is a single DM,
+				## and the fan-out that reads both of the human-owner's DMs (one per identity, merged
+				## chronologically) only engages on the literal target. Delegated whole, uncached: the
+				## fan-out already reads both DMs itself, one conversation cache cannot cover two DMs.
+				if [ "$target" = "human-owner" ] ; then
+					local hoArgs=( "$memberName" human-owner )
+					[ "$identityAsBot" = "false" ] || hoArgs+=( --identity-bot )
+					[ -z "$readOldest" ] || hoArgs+=( --oldest "$readOldest" )
+					AgentsToolsSlackCheck "${hoArgs[@]}" 2> "${readErrFile:-/dev/null}" || readRc=$?
+					[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
+					[ "$readRc" = "0" ] || { set +e ; return 1 ; }
+					return 0
+				fi
+				## THROUGH THE COMMS CACHE (AgentsTools.CommsCache.include), slack/<channel>: a read from a floor it covers is served from
+				## it; once its TTL has passed only what came after its newest is pulled from Slack and added. ONE PATH (epic S21.13): a
+				## read with no floor is cached too, as floor 0 -- covered only by a cache itself built from floor 0, the whole history.
+				local convFile="" convTmp="" convAt="" convFrom="" convNewest="" convNow="" convKey convFetch="$readOldest" convTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
+				case "$convTtl" in ''|*[!0-9]*) convTtl=15 ;; esac
+				local convFloorNum
+				case "$readOldest" in '') convFloorNum=0 ;; *) convFloorNum="${readOldest%%.*}" ;; esac
+				type AgentsToolsCommsCacheSlackDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+				if [ -n "${MMDAPP:-}" ] && [ "$convTtl" != 0 ] && AgentsToolsCommsCacheSlackDir "$memberName" "$identityAsBot" "$channel" ; then
+					convFile="$agentsCommsCacheDir"
+					convNow="$( date +%s )"
+					if AgentsToolsCommsCacheState "$convFile" ; then
+						convAt="$agentsCommsCacheAt" convFrom="$agentsCommsCacheFrom" convNewest="$agentsCommsCacheNewest"
+					fi
+					AgentsToolsCommsCacheInterest "$convFile" "$convNow" "$convTtl"
+					## Covered: the cache starts at or before this floor. Fresh: inside its TTL, served as it is.
+					if [ -n "$convAt" ] && [ -d "$convFile" ] && [ "${convFrom%%.*}" -le "$convFloorNum" ] ; then
+						if [ $(( convNow - convAt )) -lt "$convTtl" ] ; then
+							if AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+								echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache, read $(( convNow - convAt ))s ago" >&2
+								[ -z "$readErrFile" ] || rm -f "$readErrFile"
+								return 0
+							fi
+						fi
+						convFetch="$convNewest"
+					else
+						convFrom=""
+					fi
+					## STALE IS ENOUGH for a call that waits no longer than the TTL (MDAT_COMMS_CACHE_STALE_OK): it is served what the cache
+					## covers at once, and one detached read of its own brings the channel up to date for the next read.
+					if [ "${MDAT_COMMS_CACHE_STALE_OK:-}" = "true" ] && [ -n "$convFrom" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+						[ -f "$convFile/.pulling.txt" ] || ( MDAT_COMMS_CACHE_STALE_OK="" AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$memberName" "$channel" $( [ -z "$readOldest" ] || printf '%s\n' --oldest "$readOldest" ) $( [ "$identityAsBot" = "false" ] || printf '%s' --identity-bot ) ) > /dev/null 2>&1 < /dev/null &
+						echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache as it stands, a pull of it runs" >&2
+						[ -z "$readErrFile" ] || rm -f "$readErrFile"
+						return 0
+					fi
+					## One pull at a time: where another holds the channel, what the cache covers is served as it stands.
+					if ! AgentsToolsCommsCachePullTake "$convFile" "$convNow" ; then
+						## One pull at a time: a miss waits for the one that runs, and is served what it brought.
+						if AgentsToolsCommsCachePullAwait "$convFile" && AgentsToolsCommsCacheState "$convFile" && [ "${agentsCommsCacheFrom%%.*}" -le "$convFloorNum" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+							echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache after the pull that ran" >&2
+							[ -z "$readErrFile" ] || rm -f "$readErrFile"
+							return 0
+						fi
+						if [ -n "$convFrom" ] && AgentsToolsCommsCacheServe "$convFile" "$readOldest" head ; then
+							echo "# $MDSC_CMD --slack-read: conversation $channel served from the cache while another pull runs" >&2
+							[ -z "$readErrFile" ] || rm -f "$readErrFile"
+							return 0
+						fi
+						convFile="" convFetch="$readOldest"
+					fi
+					[ -z "$convFile" ] || { mkdir -p "$convFile" 2> /dev/null && convTmp="$( mktemp "$convFile/read.XXXXXX" 2> /dev/null )" ; } || { AgentsToolsCommsCachePullGive "$convFile" ; convFile="" ; convTmp="" ; convFetch="$readOldest" ; }
+				fi
+				echo "# $MDSC_CMD --slack-read: GET conversations.history channel=$channel${convFetch:+ oldest=$convFetch} (whole conversation, acting member $memberName)" >&2
+				local conversationArgs=( "$memberName" "$channel" )
+				[ "$identityAsBot" = "false" ] || conversationArgs+=( --identity-bot )
+				[ -z "$convFetch" ] || conversationArgs+=( --oldest "$convFetch" )
+				AgentsToolsSlackCheck "${conversationArgs[@]}" 2> "${readErrFile:-/dev/null}" > "${convTmp:-/dev/stdout}" || readRc=$?
+				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$readErrFile" 2> /dev/null ; then
+					cat "$readErrFile" >&2
+					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
+					readRc=0
+					AgentsToolsSlackCheck "${conversationArgs[@]}" --identity-bot 2> "$readErrFile" > "${convTmp:-/dev/stdout}" || readRc=$?
+				fi
+				[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
+				if [ -n "$convTmp" ] ; then
+					if [ "$readRc" = "0" ] && AgentsToolsCommsCacheMerge "$convFile" "$convTmp" "${convFrom:-${readOldest:-0}}" "$convNow" "slack-conversation $channel $memberName $identityAsBot" ; then
+						AgentsToolsCommsCacheServe "$convFile" "$readOldest" head || readRc=1
+					else
+						## The cache could not take it: the caller still gets what was read.
+						[ "$readRc" != "0" ] || cat "$convTmp" || readRc=1
+					fi
+					rm -f "$convTmp"
+					AgentsToolsCommsCachePullGive "$convFile"
+				fi
+				[ "$readRc" = "0" ] || { set +e ; return 1 ; }
+				return 0
+			fi
+			if [ -n "$readOldest" ] && [ "$wantThread" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-read: --oldest bounds how far back a conversation or a thread is read, and '$target' names one message -- drop --oldest, or drop the :<ts>, or add --thread" >&2
+				[ -z "$readErrFile" ] || rm -f "$readErrFile"
+				set +e ; return 1
+			fi
+			local identityArgs=() oldestArgs=()
+			if [ "$identityAsBot" = "true" ] ; then
+				identityArgs+=( --identity bot )
+			fi
+			## A thread read from a ts on (the communications reader's, F9.3): Slack returns the parent and the replies after it.
+			[ -z "$readOldest" ] || oldestArgs+=( --form "oldest=$readOldest" )
+			if [ "$wantThread" = "true" ] ; then
+				echo "# $MDSC_CMD --slack-read: GET conversations.replies channel=$channel ts=$threadTs${readOldest:+ oldest=$readOldest} (${readOldest:+replies after it of the }full thread, acting member $memberName)" >&2
+				## Slack drops a message's own metadata.event_payload from this
+				## endpoint's reply unless this form field asks for it -- live-
+				## verified in this workspace: event_type alone survives without
+				## it, event_payload only with it.
+				AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+					--api conversations.replies \
+					--resolve-target "$channel" \
+					--form "ts=$threadTs" \
+					--form "include_all_metadata=true" \
+					${oldestArgs[@]+"${oldestArgs[@]}"} \
+					"${identityArgs[@]}" \
+					--context "--slack-read" 2> "${readErrFile:-/dev/null}" || readRc=$?
+				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$readErrFile" 2> /dev/null ; then
+					cat "$readErrFile" >&2
+					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
+					readRc=0
+					AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+						--api conversations.replies \
+						--resolve-target "$channel" \
+						--form "ts=$threadTs" \
+						--form "include_all_metadata=true" \
+						${oldestArgs[@]+"${oldestArgs[@]}"} \
+						--identity bot \
+						--context "--slack-read" 2> "$readErrFile" || readRc=$?
+				fi
+				[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
+				[ "$readRc" = "0" ] || { set +e ; return 1 ; }
+			else
+				echo "# $MDSC_CMD --slack-read: GET conversations.replies channel=$channel ts=$threadTs (single message, selected by exact ts, acting member $memberName)" >&2
+				local response callRc=0
+				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+					--api conversations.replies \
+					--resolve-target "$channel" \
+					--form "ts=$threadTs" \
+					--form "include_all_metadata=true" \
+					"${identityArgs[@]}" \
+					--context "--slack-read" 2> "${readErrFile:-/dev/null}" )" || callRc=$?
+				if [ "$callRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$readErrFile" 2> /dev/null ; then
+					cat "$readErrFile" >&2
+					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
+					callRc=0
+					response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+						--api conversations.replies \
+						--resolve-target "$channel" \
+						--form "ts=$threadTs" \
+						--form "include_all_metadata=true" \
+						--identity bot \
+						--context "--slack-read" 2> "$readErrFile" )" || callRc=$?
+				fi
+				[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
+				if [ "$callRc" != "0" ] ; then
+					set +e ; return 1
+				fi
+				local selectStatus=0
+				printf '%s\n' "$response" | LC_ALL=C awk -v wantTs="$threadTs" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessageSelect.awk" || selectStatus=$?
+				case "$selectStatus" in
+					0)
+					;;
+					1)
+						echo "⛔ ERROR: $MDSC_CMD --slack-read: COULD NOT READ $channel:$threadTs -- conversations.replies answered successfully but returned no message carrying that exact ts. This is a failed read, NOT an empty conversation: do not conclude the message is absent or unanswered from this result. Check the ts and the channel, then read again." >&2
+						set +e ; return 1
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-read: COULD NOT READ $channel:$threadTs -- the conversations.replies response could not be parsed as an API response, or Slack refused it (see the selector's own error above). Nothing was read, so nothing about that message is known from this call." >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			return 0
+		;;
+esac

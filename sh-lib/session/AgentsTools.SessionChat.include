@@ -350,7 +350,7 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 	if [ "${4:-}" = "deliver" ] && [ -n "$floorThreadTs" ] ; then
 		case "$floorThread" in
 			*:*)
-				type AgentsWaitFloorAdvance > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include" 2> /dev/null || :
+				type AgentsWaitFloorAdvance > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include" 2> /dev/null || :
 				type AgentsWaitFloorAdvance > /dev/null 2>&1 && AgentsWaitFloorAdvance "$1" "slack:$floorThread:conversation" "$floorThreadTs"
 			;;
 		esac

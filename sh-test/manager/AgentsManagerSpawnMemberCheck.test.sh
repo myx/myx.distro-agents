@@ -208,7 +208,7 @@ rigItem="$( LC_ALL=C awk -F'\t' '{ print $5 }' "$rigTmp/out" )"
 rigItemPath="$( find "$rigData/board" -type f -name "$rigItem" 2> /dev/null | head -1 )"
 rigAssert "it made a dispatch item, the one the row names, whose brief holds the prompt" \
 	"$( rigItemNamed "$rigItem" ) $( [ -n "$rigItemPath" ] && LC_ALL=C grep -c -x -F -e 'first line of the prompt' -e 'second line of it' "$rigItemPath" )" "named 2"
-rigAssert "with no name given the row's name is -, and the record keeps no session-comment" "$( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" ) [$( rigHeader "$rigFirst" session-comment )]" "- []"
+rigAssert "with no name given the row's name is the member and its routine, and the record keeps that same title" "$( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" ) [$( rigHeader "$rigFirst" session-comment )]" "keeper-myx,_coworking [keeper-myx, coworking]"
 rigAssert "one sandbox, one run store, one item and one console more than before" "$rigMadeBefore -> $( rigMade )" "0 0 0 0 -> 1 1 1 1"
 
 echo "-- 2. the name given is on the record --"

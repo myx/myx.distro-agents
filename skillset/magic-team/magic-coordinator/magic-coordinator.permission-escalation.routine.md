@@ -91,7 +91,12 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- `EscalateDecision` — asks one person to choose one option, and waits. Pass `to`, `question` and `options`, one a line, each opening with its own answer word. End at most one with `(recommended)`. The options here are `allow-once`, `allow-session`, `allow-task` and `deny`.
+- `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
 
 ## Tooling operations
 

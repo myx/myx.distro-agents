@@ -21,7 +21,9 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
   - `<local-procedure-name>` — [goal+intent short summary]
 - Routine's local rules
 - Routine-specific tooling
+  - Harness tools
   - Tooling operations
+  - Gaps
   - `--operation-name` Operation Reference
 - Maintainer Notes
   - Verbatim-goals (intents)
@@ -96,7 +98,11 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- [`ToolName` — what the routine uses it for, and the detail a run needs to call it right the first time.]
 
 ## Tooling operations
 
@@ -105,6 +111,12 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 ## `--operation-name` Operation Reference
 
 [Only what the operation's own help, read with `--member-help`, does not carry. Omit this subsection where the help carries it all.]
+
+## Gaps
+
+[Only where the routine needs a planned tool the implementation lacks. Omit this subsection otherwise.]
+
+- [**GAP** the planned tool, its epic item, and what the run does until it exists.]
 
 # Maintainer Notes
 
@@ -206,11 +218,15 @@ Used to check this file's own definitions against its own goals when it is updat
   - A participant's disagreement, where the routine needs group agreement, follows "The ladder: one rung at a time".
   - Any other rules, exceptions, overrides.
 - `# Routine-specific tooling`
-  - Every `magic-tooling` operation this routine uses — not more, not less.
+  - Every harness tool and `magic-tooling` operation this routine uses — not more, not less.
+  - `## Harness tools`
+    - Each harness tool the steps call, by its own name, with the detail a run needs to call it right the first time. Absent where the routine calls none.
   - `## Tooling operations`
     - List, with argument syntax.
   - `## <--operation-name> Operation Reference`
     - Only what that operation's own help, read with `--member-help`, does not carry. Absent where the help carries it all.
+  - `## Gaps`
+    - Each planned tool the routine needs and the implementation lacks, as `**GAP**`, with its epic item. Absent where there is none.
 - `# Maintainer Notes`
   - Not part of a participant's own instructions.
   - `## Verbatim-goals (intents)`

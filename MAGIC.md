@@ -55,6 +55,11 @@ that the code and docs do not readily tell you.
 - **One arm per group of operations.** A family arm sources one include, or several when one gets too
   big. Size is the only reason to split. A family arm works only because every stub of that family
   lives in the include it sources. A stub placed in another file is not routed, and nothing reports it.
+- **One include per operation, one per kind of source (S28.1).** A call reads only its own path.
+  - The Slack router `AgentsTools.MemberCommsSlack.include` holds the stubs and one arm per operation. Each arm sources `AgentsTools.InternOpCommsSlack<Operation>.include`.
+  - File-info has its own include, which `--slack-file-info` and file-fetch both load. Send carries the mention and presentation helpers.
+  - A Wait runs `AgentsTools.MemberWait.include`, then `MemberWaitSources`, `MemberWaitRun` and `MemberWaitResult`. Each ends by sourcing the next.
+  - `MemberWaitCore` holds the helpers the probes share. One piece per kind of source is read only when the wait holds a source of that kind: `Slack`, `Replies`, `Ask`, `Mentions` (mentions and tagged), `Dms`, `Chat` (chat and scan), `Local` (file, process, inbox, board, wake).
 - **Order matters.** The comms routes come before the `--member-*` route, or the broader glob takes
   them. An arm that claims a prefix (`--intern-op-slack-*`, `--intern-op-permission-*`) must have any
   differently-routed op of that prefix above it.
@@ -935,7 +940,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   one part at a time. A failed part does not stop the rest (`result`, `end`
   rows). `AgentsManagerFeatureCheck` holds it.
 - **A member's send into the event-track channel keeps the channel's outbox
-  rules** (`AgentsTools.MemberCommsSlack.include`, before its POST). What is
+  rules** (`AgentsTools.InternOpCommsSlackSend.include`, before its POST). What is
   queued for the channel is drained first, then the 7 s window since its last
   message is waited out. The moment of the post is noted. The post is the member's own, not a tracking post, and is not
   collected with others. `AgentsEventTrackMemberSendCheck` holds it. The spawn proxy's root post stays direct.
@@ -2061,7 +2066,7 @@ contracts are here.
   latest first, its first line what it was before.
 - **A session's `Wait` always carries `replies:<session>` first, the floor**
   (`--wait-default` or `--wait-continue` with `--wait-session-id`;
-  `AgentsWaitProbeReplies`, `AgentsTools.MemberWait.include`). That floor is
+  `AgentsWaitProbeReplies`, `AgentsTools.MemberWaitReplies.include`). That floor is
   the replies to the run's own posts, whatever tool posted them, read from
   `last-own-post`. A named set is the Wait's own (sketch 3.2: "either OWN set / either adding OWN implicit floor to
   current set"). The sources a call names replace the defaults: the session thread, or the team
@@ -2082,7 +2087,7 @@ contracts are here.
    A bare conversation source (`slack:<id>`) returns its arrivals: its read is already formatted,
   and the JSON formatter is applied to a thread's read only.
 - **`mentions:<member>` is one `search.messages` call**
-  (`AgentsWaitProbeMentions`, `AgentsTools.MemberWait.include`). It asks for
+  (`AgentsWaitProbeMentions`, `AgentsTools.MemberWaitMentions.include`). It asks for
   the member's mentions in any conversation, thread replies included, from the
   session's pointer `mentions:<member>`. Its TTL is 60 seconds, and the
   session keeps it across Waits (`mentions-checked:<member>`). So a Wait start
@@ -2183,6 +2188,1045 @@ contracts are here.
   printed (`ARTIFACT_URL`, `ARTIFACT_TITLE`, `ARTIFACT_KIND`). A publish that fails after the document exists says its URL and posts nothing.
   The publish never goes through the `--magic-`/`--client-` page-create stubs: it is the caller
   acting with its own credentials, gated by the permission alone (human-owner, 2026-10-10).
+
+### The Wait includes: the notes their comments held
+
+The shell lexes every comment of a file it sources, on every Wait. So `AgentsTools.MemberWait.include`, `AgentsTools.MemberWaitRun.include` and `AgentsTools.MemberWaitSources.include` keep one line a comment (S28.7).
+The longer text of each comment is kept below as it was written, under the code line it stood above. Code lines are quoted as they were when the notes moved.
+
+#### `AgentsTools.MemberWait.include`
+
+- The head of the file
+
+~~~text
+
+AgentsTools.MemberWait.include -- --wait-for-input: one bounded long
+poll over a list of input sources, returning the moment any of them changes.
+
+The waiting happens HERE, in the shell, which is the whole point: a caller
+that would otherwise burn a round trip per check spends one call and one
+result, and its context does not grow while nothing is happening.
+
+A TIMEOUT IS NOT A FAILURE. "Nothing arrived within N seconds" is a normal,
+successful outcome, and a caller must be able to tell it apart from "the
+probe could not run" without guessing -- otherwise it cannot choose between
+waiting again and escalating, which is the only reason this operation exists.
+So stdout ALWAYS opens with exactly one marker line:
+
+    WAIT-RESULT: RECEIVED   -- something arrived; the detail follows
+    WAIT-RESULT: TIMEOUT    -- the bound expired with nothing new; normal. No --wait-timeout
+                               is no bound, so then only an unreadable first round returns it
+    WAIT-RESULT: ERROR      -- the wait could not be performed; see stderr
+    WAIT-RESULT: CLOSED     -- --wait-close ended the stored wait; nothing was waited on
+
+RECEIVED, TIMEOUT, CLOSED, ADDED and DROPPED all return 0, because all are answers. ERROR returns 1.
+
+    WAIT-RESULT: ADDED      -- --wait-add put its sources into the stored wait; nothing was waited on
+    WAIT-RESULT: DROPPED    -- --wait-drop took its sources out of it; nothing was waited on
+
+MODES, mutually exclusive, each needing --wait-session-id: --wait-default waits on the
+sources and filters it is given (or the default ones), --wait-continue repeats the stored
+sources and filters, --wait-close removes the state. With none of them the call keeps no state.
+
+LOSSLESS BY DESIGN. Neither --wait-default nor --wait-continue drops a stored per-source
+floor: a Slack source the session already waited on resumes after the last message a
+wait returned on it, so a post that landed while the caller was busy between two calls
+is returned by the next one, whichever mode it names. Only an explicit
+--wait-since-utime replaces those floors, and only --wait-close (or --wait-drop) removes
+them. A :conversation thread with no stored floor starts at the session's own last post
+in that thread (sessions/<id>/last-own-post, written by the harness send), else at the
+spawn's launch (the mtime of $MDAT_SPAWN_LAUNCH_MARKER), whichever applies and is older
+than the wait; every other source with none starts at the wait's start. A floor only ever advances to the newest
+message a result actually carried. On an arrival from a Slack source the wait settles
+for $MDAT_WAIT_SETTLE_SECONDS (default 3) and re-reads, up to
+$MDAT_WAIT_SETTLE_ROUNDS (default 3) times while more keeps arriving, so a burst
+returns together, oldest first.
+--wait-add appends sources to the stored wait, creating it when there is none, and
+--wait-drop removes them, removing the wait once none is left: this is how an asked
+question's wait item (ask:<pending-id>) joins the session's wait and leaves it once
+answered. Neither takes a thread source, since, addressee or include-own: those are
+shared by the whole stored wait, which a source joining it must not change.
+Message ids named in --wait-react-seen|note|done|wait are reacted to before anything else.
+
+--unwait <kind>:<target> is a named shorthand for --wait-drop --wait-source <kind>:<target>:
+nothing more than that, and returns the same WAIT-RESULT: DROPPED. Dropping a source from
+the stored wait is never blocking it: a later call naming the same source explicitly,
+whatever mode it uses, reaches it exactly as if it had never been dropped.
+
+A source never read once during the wait is named on the line right after it:
+
+    WAIT-NEVER-READ: [<kind>:<target>] ...
+
+absent when every source was read at least once. It changes neither the outcome
+nor the return code; a caller watching one thread reads it to tell a quiet
+thread from one it could not see at all.
+
+A NAMED SET REPLACES THE STORED SET, THE FLOOR IS ALWAYS ADDED, A CLOSED ASK LEAVES (owner rulings 2026-10-31; sketch 3.2: "either OWN
+set / either adding OWN implicit floor to current set"). A --wait-default call that names sources watches those in place of the defaults
+(the session thread, or the team channel and the owner DM), which it watches where it names none; the floor -- the replies to its posts,
+its session chat, its DMs and tags, its mentions and its wake marker -- is added either way, and what the stored wait holds comes beside
+it only where the call names no source of its own: a named set replaces the stored one, which is how a stale thread leaves it. An open
+ask:<pending-id> is carried either way, its answer having no other watcher. A floor lives for a
+source of the stored set alone and advances at every wait that watches it; the floor of a source that left the set is
+dropped at the next write, and a source that comes back starts at the wait's start: what came in the gap is not replayed.
+A closed ask leaves the stored wait: an answered one is carried by the one call that shows its closed note, then stored no more, and a
+later reply in its thread reaches the asker as the session floor's (replies:, chat:), never as a CLARIFIED of the question.
+The header says which session thread is on record for the session (`# session thread:`), or that none is.
+
+RECEIVED on a thread source (slack:<channel>:<ts>, or its :conversation form)
+also names the newest message it just printed:
+
+    WAIT-LAST-TS: <ts>
+
+Pass that ts back as the next call's --wait-since-utime to keep reading
+forward without re-parsing the body for it. Absent on a bare conversation or
+file source: neither prints one message per line, so neither has a single
+ts this line could name.
+
+SOURCE ADAPTERS -- the extension point.
+
+A source is named `<kind>:<target>`. The kind selects a probe function by
+name, `AgentsWaitProbe` + the kind with its first letter uppercased, and
+$agentsWaitSourceKinds lists the kinds this build carries. Adding an input
+source -- an IM bridge, a portal interaction feed, anything later -- is one
+new function plus one word in that list. Nothing else in this operation, in
+the Wait harness tool, or in the harness self-check knows a source kind.
+
+The adapter contract is deliberately narrow:
+
+    AgentsWaitProbe<Kind> <team-member> <target> <since-epoch> <render-file> <addressee>
+        rc 0 -- <render-file> now holds this source's current state for
+                <target>. An empty rendering is a legitimate state.
+        rc 2 -- the probe could not run. <render-file> is not a rendering
+                and is not compared against anything.
+
+An adapter is never asked what "new" means: this operation decides that
+generically, by comparing each rendering against the baseline it took at the
+start of the wait. So an adapter needs no notion of cursors, read marks or
+message identity -- only "render what is there now".
+
+The third argument is a READ FLOOR, not that decision. It defaults to the wait's
+own start time, and an adapter that can narrow server-side should render only
+from it -- otherwise every poll re-renders a whole conversation to discover
+nothing changed. An adapter that cannot narrow ignores it and renders the lot;
+the baseline comparison above is unaffected either way.
+
+The fifth argument is WHOSE ANSWER COUNTS -- the Slack accounts of the party a
+question was addressed to, exactly as the send operation resolved and reported
+them, so the send and the wait read one value rather than each deciding for
+itself. An adapter that cannot tell one author from another ignores it. The slack
+adapter does not ignore it: on a thread it is what makes a reply an answer,
+together with our own message being the floor it must come after.
+
+The sixth argument is INCLUDE OWN POSTS -- true on a :conversation thread source
+lifts this operation's own default skip of the caller's own posts there. An
+adapter with no such skip ignores it, same as an adapter that cannot tell one
+author from another ignores the fifth.
+
+Any number of sources and threads may share one wait. A plain thread source, the
+question-and-answer form, takes the one --wait-since-utime and --wait-addressee the
+call carries, so several of them share those values; the own-post skip and the
+addressee keep the sending session's own post from coming back.
+
+ITERATION DIVIDERS. $agentsWaitKindEvery says a kind is probed on every Nth poll
+round (the first round always probes all), so a costly kind, a repository check later,
+can be read less often than a session thread. 1 is every round.
+
+THE TICK AND THE SLOW LOOK -- THE WAKE LATENCY. A duty session's routine promises it wakes "within seconds of an item
+arriving in its inbox", and a poll cannot keep that promise with one interval for every source: an inbox is a
+listing of a directory and costs nothing to read every second, a Slack conversation is a request out of a budget of
+about fifty a minute for the whole app, so it cannot be. The wait therefore runs a ONE-SECOND TICK over the kinds it
+reads out of files ($agentsWaitKindLocal: file, inbox, board, process, the session chat file, the replies, and the
+own wake marker) and reads the costly kinds (slack, tagged, ask) on THE SLOW GAP instead -- the interval this
+operation used to poll at, which still grows with the idle time of the sources (AgentsWaitBackoffNap), so no Slack
+request is made more often than before. A scan keeps its own TTL of the table, and a wake marker brings its next
+run forward (THE WAKE MARKER, and THE SCAN IS WOKEN AND NOT ON ITS TTL, below).
+
+THE WAKE MARKER closes the one gap a tick cannot: a message one of our own members sends. The send operation
+writes the recipient's marker the moment the message is posted (AgentsTools.WakeMarker.include) and the wait
+reads it on its tick, so the arrival wakes the wait in about a second rather than at the next slow look of the
+Slack source. The marker is no arrival of its own: the round that finds it changed takes it as read and reads
+every source again at once, costly ones included, and returns what those find.
+
+THE SCAN IS WOKEN AND NOT ON ITS TTL. A scan is the one source a duty's own arrivals are read from -- the inbox,
+the tags, the board, in one report -- so a scan-only watcher that is left to the table's TTL of five minutes (or,
+in a session, to the end of the wait round that precedes the next call's first look) is exactly the duty that
+"reacts in five minutes or so". The marker brings the scan's next run forward with every other costly source, so
+the item a message announces is in the report returned within about a second. The TTL stays what it is for: an
+unchanged scan is still left alone for it, and the TTL is no floor on noticing a message.
+
+WHY THAT DOES NOT MAKE A SCAN RUN EVERY SECOND. A scan is minutes of work (an inbox, the board, a Slack collect
+window), and nothing here runs one on a tick: the marker is written by a send alone, one line per message, and
+the round that finds it changed takes it as read -- its rendering becomes the baseline -- so one message buys at
+most one extra run. Ten messages in an hour are ten scans, where a one-second tick would be three thousand six
+hundred. A quiet wait runs no scan at all once its TTL has passed, exactly as before.
+
+Not built, one probe away: repo:<name>, returning that repository HEAD through the
+team git tooling. inbox:<member> is the own inbox only, board:<state> one board state.
+
+THE FLOOR. A --wait-default or --wait-continue call, in a session, always waits on
+replies:<session id>: the replies to the run's own posts, ahead of its other sources (AgentsWaitProbeReplies),
+and, where the session has a folder, on chat:<session>: the messages of its session thread that are for the run,
+read from the session chat file by the member's pointer (AgentsWaitProbeChat, AgentsTools.SessionChat.include).
+A caller never names a channel, a thread or an addressee to get a reply, and the sources it names are
+added to the floor, never put in its place. What a return carries is the floor first, then the messages of all
+the other sources together in one group sorted by time, each behind the source it came from
+(AgentsWaitArrivalsOrder.awk). The same floor goes with every tool return, from the same file and no network
+(AgentsTranscriptReplyFloor), so a message is delivered once, by whichever reaches the member first.
+
+ALSO CARRIED, for the tooling's own use and for the work-duty scan: scan:<scan> (a scan's report, run afresh past its TTL,
+and at once on the round a wake marker announces a message -- THE SCAN IS WOKEN AND NOT ON ITS TTL),
+tagged:<member> (what is for the member by name), wake:<member> (the marker a message to that member writes, read on the
+tick, never returned -- see THE WAKE MARKER), and --wait-collect <seconds> (a window that returns, ahead of
+its end, on an arrival of the tags). Their TTLs are AgentsWaitTtlOf's.
+
+REMINDERS. A wait also reminds: the asks it stands for, still waiting on a person, on
+their schedule (AgentsWaitRemind below, AgentsTools.PendingReplyRemind.include). It changes
+nothing a wait returns, and what it did is said on stderr only.
+
+~~~
+
+- Above `agentsWaitSourceKinds="slack file inbox board ask replies chat scan tagged dms mentions process wake"`
+
+~~~text
+The kinds this build carries. One word per adapter, in the order they are
+offered to a caller that asks.
+~~~
+
+- Above `agentsWaitKindLocal="file inbox board process chat replies wake"`
+
+~~~text
+THE TICK AND THE SLOW LOOK. A wait reads a source out of a file every second -- an inbox listing, a board
+state, the session chat file, the own wake marker -- and that is what makes it wake within a second of an
+arrival in one of them. A source that costs a request must not be read that often (about fifty a minute for
+the app, shared by every host and session of it), so the kinds watched over the network are read on the slow
+gap instead: the gap this operation used to poll at, five seconds growing by one for every twenty idle up to
+five minutes, counted from the newest activity on the watched sources (AgentsWaitBackoffNap). A wait whose
+caller names an interval (--wait-poll-interval, else MDAT_WAIT_POLL_SECONDS) keeps that one interval for
+every source, as it always did: that is how a check drives it.
+~~~
+
+- Above `agentsWaitKindUnbounded="file inbox board process wake"`
+
+~~~text
+The same local kinds, minus chat and replies (S21.15): those two still make a real Slack network call on their own
+TTL, so a probe past the caller's deadline needs the bound wrapper exactly as a true network kind does. Used only
+by the bound-wrapper exemption below; the backoff-skip exemption above keeps agentsWaitKindLocal unchanged.
+~~~
+
+- Above `agentsWaitKindEmptyBaseline="ask replies chat scan tagged dms mentions"`
+
+~~~text
+Kinds whose rendering holds arrivals only, never a standing state, so a source of one with no
+stored baseline starts from an empty one: an arrival already there returns at once, as a
+--wait-since-utime does for a thread. Every other kind takes its first probe as the baseline.
+~~~
+
+- Above `agentsWaitKindArrivalsOnly="inbox"`
+
+~~~text
+Kinds whose rendering is a list of arrivals from a floor, so only a line the baseline lacks
+is an arrival: an item taken away (an inbox item marked handled, moved out of incoming/) is none.
+~~~
+
+- Above `agentsWaitFloorAhead=300`
+
+~~~text
+How far a floor (--wait-since-utime) may lead this host's clock, in seconds. The ts of a
+message just posted is another clock's "now", so a floor that close ahead is still a
+moment that has passed; one further ahead is not, and is refused before anything is waited on.
+~~~
+
+- Above `AgentsWaitProbedFlush(){`
+
+~~~text
+THE STATE OF A WAIT, stored: its sources, addressee, include-own, modes and floors (the newest ts returned for a slack source), the baselines of the rest. Run in the wait's own
+scope (its locals are the caller's) once BEFORE the result is said, so a result that was emitted has its floors committed whatever becomes of the caller after it (a client that
+moves the call to the background or interrupts it), and again at the end. rc 1 where the state cannot be written.
+Writes the check times of this wait's costly sources to the session's `probed`, one line a source, where any changed since the last
+write. Run in the wait's own scope.
+~~~
+
+- Above `AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the floor is added`
+
+~~~text
+A WAIT ON ITS FLOOR ALONE IS IDLE (S27.4). The harness marks a Wait call `tool Wait`, which the registry reads as `waiting`. Where every source of
+the wait is the floor (replies, chat, dms, mentions, wake, the scans, the session's own threads, or the two team conversations of a run with no
+thread), the run is idle: the mark is rewritten, in the round it holds, as `idle`, which the registry reads as `idling`. A mark that is not
+`tool Wait`, and a run with no mark (a native client's), is left alone. The harness writes `thinking` again when the run's next round begins.
+~~~
+
+- Above `local waitKeepList waitKeepAt waitKeepCount=0 storeIndex=0 storeAsk="" storeSource`
+
+~~~text
+WHAT IS STORED IS WHAT IS STILL OPEN. A closed ask leaves the stored wait (owner ruling 2026-10-31): its record is closed, so
+nothing it watches can still answer it. The one call that shows its closed note carries it (AgentsWaitProbeAsk), and this write
+is that call's own, so it is stored no more. A kept source keeps its base and floor files at the place it takes in the STORED
+list, which is the place the next call reads them by, so the place it had in this call's round is kept beside it (waitKeepAt).
+~~~
+
+- Above `case " $waitNamedSources " in *" $storeSource "*) ;; *) continue ;; esac`
+
+~~~text
+A closed ask the caller NAMED is stored with its own base, so a later call naming it again stays quiet
+(AgentsWaitAskBaselineCarryCheck); one carried out of the stored set leaves the list here.
+~~~
+
+- Above `AgentsWaitAddressConv(){ ## member, source`
+
+~~~text
+The conversation a message's reply address is built in (AgentsWaitReplyAddress.awk), for a source whose own name is
+not one: a bare channel id, or an alias such as `magic-team` resolved to its channel. Empty where the source names
+none -- a file, a process, a board -- and the address pass then invents nothing.
+~~~
+
+- Above `AgentsWaitSeenIds(){ ## member, source, the rendering file, the member's own Slack id`
+
+~~~text
+The ids (`<conversation>:<ts>`) of the messages a person wrote in the rendering of one source that a wait returned: the conversation is the one the source names, or the
+one the rendering names before its messages (`# in <conversation>`, `# replies to your post <conversation>:<ts>`); a source that names a team channel or the owner by
+name is resolved. The member's own and anything that is not a user id are left out.
+~~~
+
+- Above `AgentsWaitTtlOwn(){ ## source`
+
+~~~text
+THE FORM OF A SOURCE THE CALLER ADDS (F3.3, Settled). Short or full is the caller's choice when it adds the source, written after it,
+`slack:magic-team#short` or `slack:magic-team#full`. SHORT returns each message cut to a short form with its own reference, <source>:<ts>,
+and, once in the return, the line that says how to read one in full (--slack-read <member> <source>:<ts> --thread, the
+operation the agent has); it keeps only that short form, so a large message is copied nowhere. FULL returns every message whole; a single message too long for the return, over F2.4's threshold,
+is kept as a file of its own in the session's folder and the return carries a preview and a reference (the preview of F2.4), and no file is
+made for any other. Either way the source's index cache file, sessions/<session>/sources/<source>.md, keeps a line for each message once,
+the short form, the whole message's first words, or the preview with its file. A source with neither is returned whole, as it always was. The
+form is kept in the stored wait (`mode <source> <form>`) and goes with the source. A long return follows F2.4 as every result does.
+Prints the form of a source, nothing for none.
+The TTL a caller gave a source (#ttl=<seconds>, --wait-source-ttl), nothing for none: the table's then holds (AgentsWaitTtlOf).
+~~~
+
+- Above `AgentsWaitProbeFunctionName(){`
+
+~~~text
+`slack` -> `AgentsWaitProbeSlack`, without ${var^} -- bash 3.2 has no such
+expansion, and this package targets it.
+The probe function of a source kind, by a case: the cut and tr it replaces cost three
+processes a call, and this is read once per source per tick. A kind the list does not
+name keeps the generic form, which is right for one this file never met.
+~~~
+
+- Above `AgentsWaitSameFile(){ ## a, b`
+
+~~~text
+Two renderings hold the same bytes -- rc 0 when they do. A builtin read either side, in
+place of a cmp process a tick.
+~~~
+
+- Above `AgentsWaitCopy(){ ## from, to`
+
+~~~text
+A file copied only where the copy differs from it, and an empty one made only where it is not empty already: a quiet call
+writes no baseline. rc as cp's.
+~~~
+
+- Above `AgentsWaitNewestActivity(){ ## call start (epoch), session id, sources, floors used ("<source>=<ts> ...")`
+
+~~~text
+THE BACKOFF IS MEASURED FROM THE NEWEST ACTIVITY on what a wait watches, never from
+when the call started alone: in a long call, a question asked an hour in must still be
+watched closely. The newest of: the call start; the floor of each Slack source (the last
+message a wait returned there, or the since given); each watched question's own ts and
+follow floor; and the session's own latest post (last-own-post), where a watched source
+would carry its reply -- that thread, an ask's thread, or a whole conversation. Prints
+"<epoch seconds>\t<what>", <what> one of start, floor, question, own-post.
+~~~
+
+- Above `AgentsWaitBackoffNap(){ ## now (epoch), newest activity (epoch)`
+
+~~~text
+One nap of the default backoff, in seconds: 5, plus 1 for every 20 since the newest
+activity, capped at 300 -- the formula and cap as ever, only its base is the activity.
+~~~
+
+- Above `AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working directory`
+
+~~~text
+THE REMINDERS OF A WAIT. An ask still waiting on a person is reminded on its schedule
+(30 minutes, 2 hours, then daily: AgentsTools.PendingReplyRemind.include) by the wait that
+stands for it, so it is reminded while a member waits and no main loop runs: the asks the
+wait watches (its ask:<pending-id> sources) and every open ask of its coworking session,
+whoever of that session asked it. The record's own stamps make a repeat send nothing, so
+this and the main loop's run send one reminder for a stage. A wait that reads a thread
+for a reminder run (agentsPendingReplyRemindRunning, set by that run) starts none itself.
+In a subshell, and it fails nothing here: what a run did is said on stderr, each line once
+a call, and a run that could not start is said there too. MDAT_WAIT_REMIND=off switches
+it off for a call: the test runner sets it for every test (sh-test/AgentsRunTests.sh).
+~~~
+
+- Above `` AgentsWaitFolderSweep(){ ## member -- keeps this shell's own `<pid> <start>` for the record (agentsWaitFolderShell) ``
+
+~~~text
+THE WORKING DIRECTORY OF A WAIT, AND WHOSE IT IS. Every wait makes one of its own (mktemp,
+below) and removes it as it ends, and nothing else removes it while that wait lives. A wait
+that was killed leaves its directory behind, so the next wait of that member sweeps on its
+way in: by whose a directory is, never by how old it looks. A directory holds `owner`, the
+host and the process its wait runs in with when that process began, as the one reading of
+that gives it (AgentsToolsRegistryProcessesBegan), and it goes only once that process is no
+process of this host any more; the same pid begun at another time is another process. So a
+wait that stands for days keeps its directory, and so do several waits of one member at
+once, in as many sessions. A directory another host made is never touched, and none is
+while the process list cannot be read: this shell is a process, and a reading that does not
+hold it read nothing. One with no whole record was made before records were kept, or is
+being made this instant: it goes once it stood a day untouched, its age taken from its own
+modification time and compared here, never by a -mtime of find, which one find rounds up
+to whole days and another down.
+A directory its wait kept for whoever looks into it (`kept`, AgentsWaitLost below) stands that
+same day, whoever owned it.
+~~~
+
+- Above `AgentsWaitFolderEnd(){`
+
+~~~text
+The record the sweep reads, written by the wait into the directory it just made. A shell the
+process list did not give keeps no process there: its directory is then one with no whole record.
+The end of a Wait's folder: a kept one only lets its hold go, one of its own under .local/temp goes whole. Run in the wait's scope.
+~~~
+
+- Above `:`
+
+~~~text
+A probe detached at the bound (S20, S21.11) still writes into this directory: it
+outlives this call, and is the detached task's own problem to clean up once it ends.
+~~~
+
+- Above `--wait-for-input|--intern-op-wait-for-input)`
+
+~~~text
+The member stub and its implementation, one arm. A wait reads and reacts under the named member's own credentials, so
+a spawned session names only itself; tooling calls --intern-op-wait-for-input directly.
+~~~
+
+- Above `if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && LC_ALL=C grep -q -s '^routine-lock: ' "${MMDAPP%/}"/.local/agents/spawned/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" 2> /dev/null ; then`
+
+~~~text
+A run that holds the lock of its routine keeps it held while it waits (AgentsToolsRoutineLockRefreshOwn): the record of the run is looked at first,
+and the lock code loaded only for a run that holds one.
+~~~
+
+- Above `--unwait)`
+
+~~~text
+One flag, its source inline -- the named shorthand for --wait-drop --wait-source
+<source>, nothing more. Dropping from the stored set is not blocking it: naming
+the same source again, explicitly, on a later call is unaffected by this.
+~~~
+
+- Above `local sourceSpec="$2" sourceTail sourceTtl="$waitTtlNext" sourceMode=""`
+
+~~~text
+A source the caller adds may end in #short or #full, chosen when it is added (F3.3, AgentsWaitSourceModeApply), and in
+#ttl=<seconds>, its own TTL (owner 2026-10-29); --wait-source-ttl before it gives the same. Either, both or neither.
+~~~
+
+- Above `waitAddressee="$waitAddressee$2 "`
+
+~~~text
+Resolved ids only, never a name: the send resolves a name once and reports
+what it resolved, and a second resolution here could disagree with the
+party the message was actually addressed to.
+~~~
+
+- Above `--wait-collect)`
+
+~~~text
+A COLLECT (F4.1): a wait of a window of seconds that returns, ahead of it, on an immediate arrival -- the tags
+(tagged:<member>) are immediate, every other source collects until the window ends. See AgentsWaitCollectFloors.
+~~~
+
+#### `AgentsTools.MemberWaitRun.include`
+
+- The head of the file
+
+~~~text
+
+AgentsTools.MemberWaitRun.include -- the wait itself: its directory, its floors, the rounds of probes.
+The next part of the --wait-for-input arm of AgentsTools.MemberWait.include, dot-sourced inside that arm: it shares
+its locals and its arguments, and ends by dot-sourcing the next part and returning its status.
+
+~~~
+
+- Above `local waitDir waitDirWhy="" agentsWaitLost=""`
+
+~~~text
+mktemp, never `$$`: this operation is a shell function inside a long-lived
+process, so every call in that process shares one PID. Two concurrent waits
+by one member then share a directory, and the first to finish removes the
+other's state mid-poll -- which surfaces as a missing base file, not as the
+collision it is. Coworking makes concurrent waits the normal case.
+~~~
+
+- Above `AgentsWaitFolderSweep "$memberName"`
+
+~~~text
+A unique name per call means an interrupted wait no longer has its directory
+overwritten by the next one, so they accumulate instead. An EXIT trap cannot
+clean up here -- this is a shell function inside a long-lived process, and its
+trap would silently replace the caller's -- so stale ones are swept on the way
+in. This member's own, and only those whose wait is proven gone (AgentsWaitFolderSweep).
+~~~
+
+- Above `local waitDirKept="" waitSeenBefore=""`
+
+~~~text
+What mktemp says of a failure is kept and said: the wait then ends on one line, never on a
+name that is no directory. A directory its record cannot be written into holds no rendering either.
+ONE WORKING FOLDER A MEMBER KEEPS IN ITS SESSION, across its Waits (owner 2026-10-29): sessions/<id>/wait/work.<member>,
+held by one Wait at a time (.held, its owner a live process). A quiet first round then finds its files as the last Wait
+left them, and the keys of what it read in seen.txt, so it writes nothing. A Wait with no session, or one that finds the
+folder held, takes one of its own under .local/temp, as before.
+~~~
+
+- Above `local waitBaselineMode="first-probe"`
+
+~~~text
+With a cut-off named, the caller is waiting on something at or after a
+moment it already knows -- so the first probe is EVALUATED against an
+empty baseline, and a reply already sitting there returns immediately.
+With no cut-off, "new" can only mean "different from now", so the first
+probe is the baseline and the wait starts from it.
+~~~
+
+- Above `waitSecs0=$SECONDS`
+
+~~~text
+The one clock of this wait: every later round reads the shell's own second count from
+here, so a quiet tick costs no date process at all.
+~~~
+
+- Above `local waitReadFloor="${waitSince:-$waitStart}"`
+
+~~~text
+What a probe READS from, which is not what the baseline is taken against.
+With no cut-off named, a source that can narrow reads from this wait's own
+start: measured at 142s per round otherwise -- 40s for one channel and 102s
+for a DM -- because each round re-renders the whole conversation only to
+diff it and find nothing. At that cost a 15s interval means nothing and a
+reply lands a minute or more late. A probe that cannot narrow ignores this,
+so the file adapter keeps comparing whole renderings and a file already
+sitting there still does not count as an arrival.
+~~~
+
+- Above `local waitFloorOf=() waitFloorNew=() waitFloorsUsed="" floorIndex=0 floorStored floorStoredIndex floorStoredSource`
+
+~~~text
+One floor per source. LOSSLESS: a stored floor is never dropped. Without an explicit
+since it is the floor; with one, a plain question thread takes the since (its own
+question is the root an answer must follow), and any other Slack source takes the
+OLDER of the two, so a since newer than the stored floor -- the ts of a reply the
+caller posted after the last wait returned -- cannot skip what landed in between.
+With neither, a :conversation thread starts at the session's own last post in
+that thread, else at the spawn's launch, and every other source at the wait's start.
+Every Slack source's baseline is empty: its rendering holds only what is after its
+floor, so whatever is there is new, including a post made before the first read.
+A continued wait, and a default one over a source the stored wait already had,
+also start a non-Slack source from its stored baseline.
+~~~
+
+- Above `local collectKey="" collectStored`
+
+~~~text
+A COLLECT resumes each Slack source and the tags from the pointer the session kept for it, the last message of
+it a collect returned (AgentsToolsSessionChatPointer, `collect:<member>:<source>`): it has no stored wait to keep
+floors in. A source with none starts at the wait's start, as every source does.
+~~~
+
+- Above `local convFloorCandidate=""`
+
+~~~text
+THE OLDER OF THE TWO IS THE FLOOR: a message that landed before the member's own last post
+still has to arrive, so the spawn's launch is taken where it is older than that post.
+~~~
+
+- Above `case "$checkSource" in`
+
+~~~text
+An inbox renders from its floor (AgentsWaitProbeInbox): continued, from when the
+stored wait ended, so what came between the two calls is rendered, and is new.
+~~~
+
+- Above `floorStoredIndex=0`
+
+~~~text
+since_utime is a Slack-source floor (AgentsWaitTsNewer, above); it names no
+opinion about a non-Slack source's own stored content baseline, so carrying
+a held source's baseline forward here does not wait on it being empty. A
+default wait naming since_utime must still start an ask:/file:/inbox:/board:
+source already in waitStoredSources from what it last held, or the same
+unchanging content -- an ask: record's own closed-line among it -- reads as
+arriving fresh on every call that also names a since_utime.
+~~~
+
+- Above `local waitProbedFile="" probedSource probedAt probedIndex=0`
+
+~~~text
+THE TTL HOLDS ACROSS WAITS (sketch 3.2, sources of different frequencies): a source with a TTL is checked at a round, the first
+included, only once its TTL has passed since its last check by any Wait of the session (`probed` beside the stored wait).
+~~~
+
+- Above `local waitRoundFn=() waitRoundIndex=0 waitRoundSource`
+
+~~~text
+The probe function of each source, resolved once: it cannot change while this wait
+runs, and reading it per tick cost a subshell and three processes a source.
+~~~
+
+- Above `local waitCacheTtl=1`
+
+~~~text
+THE AGE A SLACK LOOK IS SERVED AT (owner design 2026-10-31: Slack is read through the comms cache, so a Wait never
+re-reads Slack itself). A thread the cache holds is served; one second past its newest pull it brings in only what
+came after and merges that in, so a round asks Slack for nothing an earlier pull already covers. Reading the thread
+whole instead cannot end inside a bound its caller gives: a 258-message thread renders in 145 s here, so the round is
+detached at the bound and the source falls into WAIT-NEVER-READ (AgentsWaitThreadCacheCheck). A caller that turned the
+cache off, with 0, keeps the read it asked for. The burst settle is the same look, after the return.
+~~~
+
+- Above `case "$waitCallerPid" in`
+
+~~~text
+A CALLER THAT IS GONE TAKES ITS WAIT WITH IT. Signal 0 asks whether the process that
+started this shell is still there: a builtin, so the check starts nothing. A pid of 1
+is that process already gone. Neither spins nor forks, so it is read every round.
+~~~
+
+- Above `case "$roundKind" in`
+
+~~~text
+THE TTL of the source (AgentsWaitTtlOf): while its previous check, by this Wait or an earlier one of the session, is
+inside it, the source is skipped on this pass, the first included. A source skipped so was checked within its TTL:
+it is not one never read.
+~~~
+
+- Above `if [ "$waitBackoff" = "true" ] ; then`
+
+~~~text
+THE TICK AND THE SLOW LOOK: a local source is read every tick, a costly one only once the slow gap has
+passed -- the gap that was the wait's own poll before, from the same activity, so the requests the
+team's Slack budget pays for are no more than they were. Read once, and only when a costly source is
+actually due, so a quiet tick over local files spends nothing on the activity reading either.
+Round 1 included: a costly source the last Wait of the session read within its gap is not read again (sketch 3.2).
+~~~
+
+- Above `if [ "$roundKind" = "slack" ] ; then`
+
+~~~text
+A named Slack source has its own TTL floor too (AgentsTools.SourceTtl.include), the same
+round-1-included skip as tagged, mentions and dms above, kept inside this backoff-only
+branch: a caller naming its own --wait-poll-interval still reads every round.
+~~~
+
+- Above `roundQuietFrom="${waitFloorOf[$roundIndex]%%.*}"`
+
+~~~text
+BACKED OFF while the source brings nothing (owner 2026-10-29): from its TTL to twenty times it, reached after two
+hundred times the TTL since its floor -- the newest it returned, or its since -- kept by the session across Waits.
+~~~
+
+- Above `if [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -lt "$roundSlowGap" ] ; then`
+
+~~~text
+A source skipped so was read within its own slow gap, by this Wait or an earlier one of the session: it is not
+one never read, as the TTL skips above say of their own.
+~~~
+
+- Above `if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $(( waitStart + SECONDS - waitSecs0 )) -ge "$waitDeadline" ] ; } ; } ; then`
+
+~~~text
+A ROUND READS EVERY SOURCE IT HOLDS (owner ruling 2026-10-31). An arrival already in hand is returned once the round has
+read the rest of them, and a probe that cannot finish inside the bound is handed to the task wrapper as it always is
+(roundProbeTimeout). A source the round could not read -- a probe that failed, or a scan not begun -- shows in WAIT-NEVER-READ.
+A scan takes minutes, so one that has not begun is not begun once something has arrived in this round (the arrival wakes
+the caller, and the scan is read at the next wait, its report being compared with the one last given), nor once the
+bound has passed in it. It then shows in WAIT-NEVER-READ.
+~~~
+
+- Above `if [ -n "$waitProbedFile" ] ; then`
+
+~~~text
+Its check is kept for the next Wait of the session: written with the others at most every 30 s, and when the wait
+stores its state (AgentsWaitProbedFlush), so a probe writes no file of its own.
+~~~
+
+- Above `roundStaleOk=""`
+
+~~~text
+A ROUND TAKES THE CACHE'S LOOK, which pulls what arrived since its newest pull (waitCacheTtl above).
+A round with under two seconds left, too little for the probe wrapper to do anything, is served what
+the cache holds at once, its refresh detached (MDAT_COMMS_CACHE_STALE_OK, AgentsTools.CommsCache.include).
+~~~
+
+- Above `roundProbeTimeout=""`
+
+~~~text
+A PROBE PAST THE BOUND IS NEVER CUT SHORT, BUT IT NO LONGER HOLDS THE CALL (S20, S21.11): a costly probe,
+with the caller's own deadline in sight, is handed to the task wrapper on the deadline's own remaining
+seconds (AgentsTools.ToolTask.include). One still running at it returns early as a task, the rest of
+this wait ending on it, never silently past the bound it was given. A local probe never stalls on the
+network, so it keeps running here, unwrapped, as it always did.
+~~~
+
+- Above `case " $agentsWaitKindUnbounded " in`
+
+~~~text
+chat and replies are excluded here (S21.15, agentsWaitKindUnbounded above): each makes a real Slack
+call on its own TTL and must not be exempt from the bound wrapper the way a genuinely local kind is.
+~~~
+
+- Above `*) [ -z "$waitDeadline" ] || [ "${waitTimeout:-0}" = "0" ] || roundProbeTimeout=$(( waitDeadline - roundNow )) ;;`
+
+~~~text
+A ZERO BOUND IS ONE PASS AND NO WAIT: the round is the whole call, so the probe is read in line and
+finishes. Wrapped on the bound's own remaining seconds it gets one second, overruns, and the call
+ends on a detached probe with nothing to return.
+~~~
+
+- Above `case "$roundProbeTimeout" in`
+
+~~~text
+A WRAPPER IS NEVER GIVEN THE LAST SECOND (owner ruling 2026-10-31: a round reads every source it
+holds). Its own start -- a process, its includes and its files -- costs about a second, so a probe
+wrapped on less has no time to read, detaches, and its arrival is lost: the call says TIMEOUT and
+names a source never read for a message already there (AgentsWaitSourceModeCheck, section 4).
+Below two seconds the wrapper is worth nothing, and the round reads that source in line instead.
+~~~
+
+- Above `MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" \`
+
+~~~text
+AgentsToolsTaskCall keeps its own processes under a SESSION it reads from
+harnessSessionId/MDAT_SPAWN_SESSION_ID/CLAUDE_CODE_SESSION_ID (a harness's own run) --
+none of which a plain --wait-for-input call sets. With none of them, it runs the probe
+in-line with no bound at all (S21.11, load incident: Waits measured overshooting by
+158-483s). This wait's own session id, already known here, fills that gap: a harness's
+own id, where this runs inside one, is never overridden.
+~~~
+
+- Above `waitDetachedTask="$agentsTaskHandle ($roundSource)"`
+
+~~~text
+A DETACHED PROBE ENDS NO ROUND (S21.6, settled 2026-10-31 and again 2026-11-02). The probe itself is named,
+as the earlier ruling says: one past the bound is a source this round did not read. The round then goes
+on to its remaining sources, as S21.6 says, instead of naming every one of them unread with it.
+~~~
+
+- Above `if [ "$roundRc" = "4" ] ; then`
+
+~~~text
+A source that cannot be read for want of a permission is an error of its own, said in the header, and no source never
+read: what the member is denied is known, so it never stands for an unknown (rc 4, its reason in the rendering's .permission).
+~~~
+
+- Above `case "$waitProbeFailures" in`
+
+~~~text
+A probe that cannot run is reported, and the wait carries on
+over the sources that can: one unreachable source must not
+turn a multi-source wait into silence.
+~~~
+
+- Above `if [ "$roundKind" = "wake" ] ; then`
+
+~~~text
+THE WAKE MARKER IS NO ARRIVAL OF ITS OWN (AgentsTools.WakeMarker.include). One of our own members
+posted a message to this one, and what the marker says is not what a member is to read. So it is
+taken as read -- its rendering becomes its baseline -- and every source is read again at once,
+the costly kinds included, so that the message itself is returned by this call in about a second
+instead of at the next slow look. The marker is read at every tick, so this costs no request.
+~~~
+
+- Above `if ! AgentsWaitSameFile "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \`
+
+~~~text
+Every source is scanned, and every one that changed is returned, not the first.
+A kind whose rendering holds arrivals only has nothing to return while that rendering
+is empty: what stood there was taken -- an answer its asker read moves the floor of
+its thread past it -- or taken back, and neither is an arrival.
+A Slack source that renders empty has nothing to return either: its floor moved past what stood there.
+The run's own posts arrive on a rendered message or a reaction, never on the heading alone.
+~~~
+
+- Above `[ -n "$waitDeadline" ] || [ -n "$waitReadSources" ] || break`
+
+~~~text
+Unbounded, a first round that could read no source at all returns at once rather
+than wait forever on sources nothing is known about: TIMEOUT with WAIT-NEVER-READ.
+~~~
+
+- Above `if [ -n "$waitWakeSeen" ] ; then`
+
+~~~text
+THE MARKER WAS WRITTEN: read every source again now, the costly kinds included, and do not sleep
+first -- that immediate re-read is the whole point of the marker. THE SCANS COME FORWARD WITH THE
+REST: a scan is where a duty's own arrivals are read from, and without this a message waits for the
+table's 300s (or for the end of the session's wait round, whichever comes first) -- the five minutes
+the owner reported. THE COST IS BOUNDED BY THE MESSAGES, NOT BY THE TICK: the marker is written by a
+send alone, one line per message, and the round that reads it takes it as read (its rendering becomes
+its baseline), so a message buys at most one extra run -- a scan of minutes, once per message, where
+a tick would run it sixty times a minute. An unchanged scan is still left to its TTL, which is what
+the TTL is for.
+~~~
+
+- Above `if [ "$waitNow" -ge "$waitRemindNext" ] ; then`
+
+~~~text
+The asks this wait stands for are reminded from here (AgentsWaitRemind): after a
+round that brought nothing, and at most once a minute.
+~~~
+
+- Above `waitNap="$waitPoll"`
+
+~~~text
+THE NAP IS THE TICK. A local source was read this round and is read again in a second; a costly one
+waits for its own slow gap, which the round gate above holds it to, so no read of the team's Slack
+budget is made more often than before. A caller's own interval (waitBackoff false) is the nap, as it
+always was.
+~~~
+
+#### `AgentsTools.MemberWaitSources.include`
+
+- The head of the file
+
+~~~text
+
+AgentsTools.MemberWaitSources.include -- the sources of a wait: what it can wait on, the stored wait, the defaults, the checks, and the modes that wait on nothing.
+The next part of the --wait-for-input arm of AgentsTools.MemberWait.include, dot-sourced inside that arm: it shares
+its locals and its arguments, and ends by dot-sourcing the next part and returning its status.
+
+~~~
+
+- Above `if [ "$waitListOnly" = "true" ] ; then`
+
+~~~text
+Asked what it can wait on, it answers and waits on nothing. This is the
+extension point made observable: whatever this prints is what a caller
+may name, with no second list to keep in step.
+~~~
+
+- Above `local sessionSource sessionSources="" sessionResolved="" sessionRc=0 sessionAddress="" sessionForm="" sessionOriginal=""`
+
+~~~text
+slack:session-current and slack:session-parent each name that session's thread, as the Wait tool
+takes them: the one address resolver gives the thread, and it is waited on as its :conversation
+source, before anything below checks or stores a source. With :<ts> the name is one message in
+that thread's conversation, and the source is the thread of that message: plain for an answer
+to it, with :conversation for any new post there. A name that names nowhere is refused by the
+resolver's own line.
+~~~
+
+- Above `if [ -n "${MDAT_SPAWN_LAUNCH_MARKER:-}" ] && [ -f "$MDAT_SPAWN_LAUNCH_MARKER" ] ; then`
+
+~~~text
+When this spawn launched: the launcher's own marker file, written once at launch.
+The floor of a session or conversation thread with no stored floor and no own post.
+~~~
+
+- Above `if [ -z "$waitSources" ] ; then`
+
+~~~text
+Defaults. A caller inside a coworking session defaults to that session's
+own thread, any post but its own -- the common "tell me when this session
+moves" case. One shared by every entry point that reaches this operation,
+harness and MCP twin alike, since the default lives here and not above it.
+Absent a session thread, the two team conversations every member already
+watches: the common "tell me when anyone says anything to me" case.
+A NAMED SET IS THE WAIT'S OWN SET (sketch 3.2: "either OWN set / either adding OWN implicit floor to current set"): the sources a
+call names replace the defaults, and the floor below is added to them whatever is named. The defaults stand only where nothing is.
+~~~
+
+- Above `else`
+
+~~~text
+A thread source needs a floor. With no explicit one it is the floor
+stored for this source, else the session's own last post there, else
+the wait's start -- set per source below, never a fresh "now" that
+would skip what arrived since the last wait.
+~~~
+
+- Above `local defaultOwnThread=""`
+
+~~~text
+A session that is itself the coworking session -- a native client session, never
+spawned -- has no thread of a spawn, so it watches these two as it always has, and
+beside them its own session thread once that is on record, as any new post there
+but its own (AgentsToolsSessionCurrentThreadFind). With no record, these two alone.
+~~~
+
+- Above `if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then`
+
+~~~text
+An asked question's wait item (ask:<pending-id>) is carried while its record is OPEN, a named set included: its answer has no
+other watcher. A CLOSED one leaves the stored wait at the next write (AgentsWaitStateStore), which is the write of the one call
+that shows its closed note (owner ruling 2026-10-31). A later reply in that thread reaches the asker as the session floor's,
+replies: or chat:, never as a CLARIFIED of the question.
+The rest of the stored set is carried by a call that names NO source of its own: a named set REPLACES the stored one (owner
+ruling 2026-10-31), which is how a stale thread leaves the wait it was stored in.
+~~~
+
+- Above `[ ! -f "${carryRecord%.md}.closed-delivered" ] || continue`
+
+~~~text
+Closed for good once its note has been shown once (S21.6): the record
+itself is retained forever (T9), so its mere existence carries this
+forward with no end otherwise.
+~~~
+
+- Above `if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then`
+
+~~~text
+THE FLOOR (sketch 12.1). A session's wait -- a default or a continued one -- holds its one session thread, read from the
+session chat file (chat:), ahead of the rest: an agent never chooses a channel or a thread to get a reply, and the sources
+it names are added to the floor, never put in its place. The per-post replies (AgentsWaitProbeReplies) stand in only for a
+run with no session folder, so no chat file. What a named source reads is left to that source (AgentsWaitCoveredSet).
+~~~
+
+- Above `local floorOwnElsewhere="" floorOwnLine floorOwnThread=""`
+
+~~~text
+THE CHAT FILE IS NO SUBSTITUTE FOR THE REPLIES (ruling, 2026-10-31): the chat file is the session thread
+alone, so a reply in the thread of one of the run's own posts ELSEWHERE is the replies source's. A run
+with no such post keeps the chat file alone, which is one read instead of two.
+~~~
+
+- Above `local floorWays="dms:$memberName" floorWay`
+
+~~~text
+And every other way a person may reach the member, never dropped by what a call names (sketch 3.2): its DMs (dms:, the user's
+and the bot's), its mentions anywhere (mentions:, not for a client-* member, whose account is the other organisation's) and its
+wake marker (wake:), each on its own TTL. Read after what the call names (and before the scans, which go last), so a costly
+check of them never holds back the read of a named source in a round.
+~~~
+
+- Above `if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then`
+
+~~~text
+THE SCANS ARE READ LAST. A scan is the one source whose read takes minutes (the work-duty scan runs the inbox, the owner's
+items, the board and a collect window), so a source that follows it in a round is read when the scan has ended. Every other
+source keeps its order. This is an order within the call: a stored wait read back by `continue` is ordered the same way.
+~~~
+
+- Above `local waitBackoff="false" waitActivity="" waitWakeSeen=""`
+
+~~~text
+THE RETURN BOUND. No --wait-timeout is no bound: the wait returns on an arrival and on
+nothing else, so an idle caller spends no round per quiet interval. A caller that must
+return by a deadline (an MCP client cutoff, a zero-bound read) names one.
+A round reads every source it holds, whatever the bound: the bound decides when the wait returns, never which sources it reads.
+THE POLL CADENCE is separate and only decides how soon an arrival is noticed. IT IS A TICK AND A
+SLOW LOOK (see agentsWaitKindLocal above): a source read out of a file is read every second, so an
+item arriving in an inbox, a board state, the session chat file or the own wake marker wakes the
+caller within about a second, and a source read over the network is read on the slow gap -- five
+seconds growing by one for every twenty idle, capped at five minutes, counted from the newest
+activity on the watched sources (AgentsWaitNewestActivity) rather than from the call start alone.
+A given interval (--wait-poll-interval, else MDAT_WAIT_POLL_SECONDS) stays fixed for every source,
+as it always did.
+~~~
+
+- Above `if [ -n "$waitSessionId" ] ; then`
+
+~~~text
+THE ROUND OF A SESSION'S WAIT. A wait that belongs to a session -- a mode, with its
+session id -- comes back, when nothing arrived, a little sooner than the prompt cache
+of the CLI service that session runs on expires, so the turn that goes on waiting
+reads the session's history from that cache. Its bound is at most that service's round
+(AgentsTools.CliService.include), whatever bound the call names, and that round where
+it names none. A wait of no session keeps the bound it was given, or none.
+~~~
+
+- Above `''|.*|*.|*[!0-9.]*|*.*.*)`
+
+~~~text
+A Slack message ts is epoch seconds with microseconds, and is the value a
+caller passes when it is waiting on what follows a message it posted -- the
+same <epoch>[.<micros>] shape --oldest already takes on the read side.
+~~~
+
+- Above `local waitSinceNow`
+
+~~~text
+A FLOOR IS A MOMENT THAT HAS PASSED. Nothing at or before it counts, so a wait from
+a floor ahead of the present returns on nothing until that moment comes, whatever
+arrives meanwhile: for the length of its bound, and through every --wait-continue
+after it, which resumes from the floor stored. Refused at second zero, like a kind
+this build does not carry, with both moments named.
+~~~
+
+- Above `local checkSource checkKind checkTarget checkFn`
+
+~~~text
+Every source is resolved to its probe BEFORE the wait starts. A kind
+this build does not carry is a stated error at second zero, never a
+source that silently never fires for the length of the bound.
+~~~
+
+- Above `process:*)`
+
+~~~text
+A detached process is one this session started with Bash detach true; the handle
+is a bare name, and its output is read from this session's own processes folder.
+~~~
+
+- Above `ask:*)`
+
+~~~text
+An asked question's record must exist, and only the session that asked may wait on it,
+the rule AskQuestion's own pending_id re-wait keeps. Not checked on a drop, which
+must still take out an item whose record was since removed. A permission set is
+asked once for all its participants, so each of them may wait on its answer too,
+whichever session asked: the members its own record names (`<id>.set`, participants).
+~~~
+
+- Above `checkAskRecord="$MMDAPP/.local/agents/pending/$checkTarget.md"`
+
+~~~text
+A record closed since it was asked is retired to pending/closed/ (retention, T9),
+its sidecars with it: resolved there too, as AgentsWaitProbeAsk does, so the
+session that asked can still wait on the question it asked.
+~~~
+
+- Above `if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ] ; then`
+
+~~~text
+--wait-add and --wait-drop change the stored wait's source list and wait on nothing. A
+source keeps its floor line and its base.<position> file, renumbered when one before
+it is dropped; an added source starts with no base, so its first wait reads it afresh.
+~~~
+
+- Above `local checkThreads=0 checkConversation=0 checkUnfloored=0`
+
+~~~text
+Settled before the wait starts and not discovered in its result. A thread source
+is a question waiting on its own answer, and an answer is qualified by the
+message it came after and the party it came from. A thread source missing
+either of those is refused here rather than waited on.
+`slack:<channel>:<ts>:conversation` is the "any new post" thread mode:
+no addressee, sibling to today's named `slack:magic-team` etc. targets.
+~~~
+
+- Above `if [ "$checkUnfloored" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ] ; then`
+
+~~~text
+A continued or closed wait has its floors stored, so no since is asked for. A
+:conversation thread with no since takes its stored floor, the session's own last
+post there, or the wait's start (below), any of which is a floor.
+~~~
+
+- Above `if [ "$waitIncludeOwn" = "true" ] && [ "$checkConversation" = "0" ] ; then`
+
+~~~text
+--wait-include-own only changes anything on a :conversation thread source,
+the one place this operation skips the caller's own posts by default (see
+AgentsSlackThreadAnswers.awk). Everywhere else already includes them, so the
+flag would be a silent no-op there -- refused instead, same shape as the
+--wait-addressee mismatch checks above.
+~~~
 
 ## 16. Team data, board and inbox
 
@@ -3589,6 +4633,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 
 - **A spawn seeds its executor's CheckList.** The spawn proxy writes the list once, after it fills the sandbox and before the member's first turn. The items, in this order, are: the `- ` lines under `## Formal task` in the text the spawner gave (the brief, or the tracked item); the numbered items of the one epic feature that text names, by an epic file it names and the feature id after the word `feature` (S24.19), which seeds nothing when either is absent; the duties of its routine, one for each step of its Opening steps, Steps and Closure steps in the order the routine is read (a numbered `**name**` line, or the deepest heading of a group); and one for each `--checklist-item <text>` argument. A work-duty's routine gives none, because a duty is a loop that no list can finish. Every item is pending. The seed adds an item whose text the list does not hold. It never closes, rewords or moves a line it finds, so a second spawn in the session adds nothing. `sh-lib/session/AgentsTools.CheckListSeed.include` holds it. The heading and the `--checklist-item` argument are names the owner has not yet approved. A tracking document's own contract section joins when a contract declares one.
 - **A dismissal wins over the list.** A dismissed session ends on its plain reply, whatever its CheckList holds. The quit nudge is for a session that is not dismissed. The items stay beside the session as its state, for the reviewer.
+- **A list that stops moving gets one message.** A run whose own list has not changed for 30 minutes, with at least 15 tool calls other than Wait since, is given one plain message as its next chat message. It is given at most once per 30 minutes, and a list write resets both the count and the clock. The clock is the list's own modification time, and the half hour is kept in `checklist.nudge` beside it. `AgentsHarnessCheckListNudgeWanted` in `sh-lib/harness/AgentsUniversalHarness.sh` holds it, and `sh-test/harness/AgentsHarnessCheckListNudgeCheck.test.sh` is its test.
 - **A long tool returns a handle at its own window.** The table is `sh-lib/harness/AgentsHarnessToolWindow.include`. `sync` and `async` override it. A tool that blocks by design carries no row.
 
 ## The queue, the liveness and the duty's inputs (S23, S4)

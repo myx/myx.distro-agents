@@ -107,6 +107,7 @@ echo "-- 0. the tool is on the floor, declared as one tool --"
 rigAssert "ThisSession is declared on the harness tool floor"       "$( LC_ALL=C grep -c -F -- '{"type":"function","function":{"name":"ThisSession","description":"Post to your own session thread.' "$rigWire" )" 1
 rigAssert "and it is the tool that posts, the operation its argument" "$( LC_ALL=C grep -c -F -- 'operation post sends message there and nowhere else, with address_to naming who it is for.' "$rigWire" )" 1
 rigAssert "it is served over MCP by the mirror, derived from that floor" "$( MMDAPP="$rigTmp" MDLT_ORIGIN="$rigOrigin" bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2> /dev/null | LC_ALL=C grep -c '"name":"ThisSession"' )" 1
+rigAssert "the session's title and chapter are operations of the same one tool, named as the epic names them" "$( LC_ALL=C grep -c -F -- '"set-session-topic","set-session-chapter"]' "$rigWire" )" 1
 
 echo "-- 1. a post from a session lands in its thread --"
 rigScene post
@@ -158,6 +159,13 @@ rigCall r-7 '{"operation":"post","message":"RIG-TOOL-NO-SESSION"}' nosession
 rigAssert "from no session: refused, nothing posted"                "$rigRc:$( rigOutHolds 'no session' ):$( [ -f "$rigScn/posts" ] && cat "$rigScn/posts" || printf 0 )" "1:1:0"
 rigCall r-8 '{"operation":"post","message":"RIG-TOOL-NEITHER"}' none
 rigAssert "from no member's session and no session: refused, nothing posted" "$rigRc:$( rigOutHolds 'ERROR:' ):$( [ -f "$rigScn/posts" ] && cat "$rigScn/posts" || printf 0 )" "1:1:0"
+
+echo "-- 6. the session's title and chapter, offered on this one tool --"
+rigScene titles
+rigCall t-1 '{"operation":"set-session-topic"}' session
+rigAssert "a title with no words is refused before anything runs"    "$rigRc:$( rigOutHolds 'message is required' ):$( rigOutHolds 'Nothing was set' )" "1:1:1"
+rigCall t-2 '{"operation":"set-session-chapter","message":"RIG-CHAPTER"}' nomember
+rigAssert "the words reach the tool file, from no member's session: refused there and nothing set" "$rigRc:$( rigOutHolds 'no member' ):$( [ -f "$rigChat/chapter" ] && printf written || printf none )" "1:1:none"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ THIS SESSION TOOL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

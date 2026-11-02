@@ -8,7 +8,7 @@ Terms of "Terminology: Team terminology" that a member needs only on occasion.
 - `client:<conversation-id>`, `client:<channel>:<ts>`, `client:<user-id>` — send targets a `client-*` member uses to reach the other organisation's conversation, thread or person. Taken by send, read, react, the ask tools and `Wait`. Our own aliases are refused there.
 - `--client-comms-slack-*` is the Slack operation family (send, read, search,
   react, edit, delete, file-info, file-fetch, file-share, profile). A
-  `client-*` member uses it to reach the other organisation's Slack. `--member-comms-slack-*` reaches our own team instead, as the team bot.
+  `client-*` member uses it to reach the other organisation's Slack. `--slack-*` reaches our own team instead, as the team bot.
 - `external-channel` — a channel outside the team's own infrastructure. `internal-channel` is its complement. Messages between members of one coworking session are internal.
 - `filing` — writing one piece of live context, with its goal and references, as one inbox or board document for later pickup. It is then dropped from the live session. Filing executes nothing.
 - `harness-session` — the bootstrap state of a `magic-coordinator` instance before a mode is chosen. `harness-session-rules` — the standing rules of that state. Both live in `magic-coordinator`'s files.

@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitResult.include -- what a wait returns: the collect, the settle of a burst, the rendering, the reactions, the stored state.
+## The next part of the --wait-for-input arm of AgentsTools.MemberWait.include, dot-sourced inside that arm: it shares
+## its locals and its arguments, and ends by dot-sourcing the next part and returning its status.
+##
+
+		## A COLLECT ends on its window or on an immediate arrival, whichever came first, and returns everything accumulated
+		## with either: the sources that changed, the tags that ended it among them.
+		if [ -n "$waitCollect" ] && [ "$waitOutcome" != "LOST" ] ; then
+			if [ "$waitOutcome" = "RECEIVED" ] || [ -n "$waitDeferred" ] ; then
+				local collectAll="" collectAt=0 collectOne
+				for collectOne in $waitSources ; do
+					collectAt=$(( collectAt + 1 ))
+					case " $waitHits $waitDeferred" in *" $collectAt=$collectOne "*) collectAll="$collectAll$collectAt=$collectOne " ;; esac
+				done
+				waitHits="$collectAll"
+				waitOutcome="RECEIVED"
+			fi
+			[ -n "$waitReturned" ] || waitReturned="window"
+		fi
+
+		## BURST SETTLE. An arrival on a Slack source is rarely alone: a person sends two or
+		## three lines in a row. Returning on the first and leaving the rest to the next call
+		## costs a round trip each, and before floors were lossless it lost them outright. So
+		## the Slack sources are re-read after a short settle, again while more keeps coming,
+		## up to a small cap; every source that differs from its baseline then is returned,
+		## each rendering whole and oldest first. A re-read that fails keeps what was read.
+		local settleSeconds="${MDAT_WAIT_SETTLE_SECONDS:-3}" settleRounds="${MDAT_WAIT_SETTLE_ROUNDS:-3}" settleRound=0 settleChanged settleSlackHit="false" settleIndex settleSource settleRc settleRead=""
+		case "$settleSeconds" in ''|*[!0-9]*) settleSeconds=3 ;; esac
+		case "$settleRounds" in ''|*[!0-9]*) settleRounds=3 ;; esac
+		case " $waitHits" in *"=slack:"*) settleSlackHit="true" ;; esac
+		while [ "$waitOutcome" = "RECEIVED" ] && [ "$settleSlackHit" = "true" ] && [ -z "$waitCollect" ] && [ "$settleSeconds" -gt 0 ] && [ "$settleRound" -lt "$settleRounds" ] ; do
+			settleRound=$(( settleRound + 1 ))
+			sleep "$settleSeconds"
+			settleChanged="false"
+			settleIndex=0
+			for settleSource in $waitSources ; do
+				settleIndex=$(( settleIndex + 1 ))
+				case "$settleSource" in slack:*) ;; *) continue ;; esac
+				settleRc=0
+				## THE SETTLE READS WHAT ARRIVED, NOT THE WHOLE THREAD AGAIN: the same cache look the round takes.
+				MDAT_COMMS_CACHE_STALE_OK="" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" \
+					AgentsWaitProbeSlack "$memberName" "${settleSource#slack:}" "${waitFloorOf[$settleIndex]}" "$waitDir/settle.$settleIndex" "${waitAddressee% }" "$waitIncludeOwn" || settleRc=$?
+				if [ "$settleRc" != "0" ] ; then
+					! AgentsWaitLost "$waitDir" || { waitOutcome="LOST" ; break ; }
+					continue
+				fi
+				AgentsWaitOwnFile "$waitDir/settle.$settleIndex" || { waitOutcome="LOST" ; break ; }
+				case " $settleRead " in *" $settleIndex "*) ;; *) settleRead="$settleRead $settleIndex" ;; esac
+				if [ -f "$waitDir/now.$settleIndex" ] && cmp -s "$waitDir/now.$settleIndex" "$waitDir/settle.$settleIndex" ; then
+					continue
+				fi
+				mv -f "$waitDir/settle.$settleIndex" "$waitDir/now.$settleIndex" || continue
+				[ -f "$waitDir/base.$settleIndex" ] || : > "$waitDir/base.$settleIndex"
+				settleChanged="true"
+			done
+			[ "$settleChanged" = "true" ] || break
+		done
+		## Hits in source order: every earlier hit, and every Slack source a settle re-read
+		## successfully that now differs from its baseline.
+		if [ "$waitOutcome" = "RECEIVED" ] && [ "$settleRound" -gt 0 ] ; then
+			local settleHits=""
+			settleIndex=0
+			for settleSource in $waitSources ; do
+				settleIndex=$(( settleIndex + 1 ))
+				case " $waitHits" in
+					*" $settleIndex=$settleSource "*) settleHits="$settleHits$settleIndex=$settleSource " ; continue ;;
+				esac
+				case " $settleRead " in *" $settleIndex "*) ;; *) continue ;; esac
+				## One that now renders empty is no arrival: nothing stands there to return.
+				cmp -s "$waitDir/base.$settleIndex" "$waitDir/now.$settleIndex" || ! LC_ALL=C grep -q '[^[:space:]]' "$waitDir/now.$settleIndex" 2> /dev/null || settleHits="$settleHits$settleIndex=$settleSource "
+			done
+			waitHits="$settleHits"
+		fi
+
+		## What is returned is read from the renderings, so each of them is there before a result is said.
+		if [ "$waitOutcome" = "RECEIVED" ] ; then
+			local waitLostHit
+			for waitLostHit in $waitHits ; do
+				AgentsWaitOwnFile "$waitDir/now.${waitLostHit%%=*}" || { waitOutcome="LOST" ; break ; }
+			done
+		fi
+		if [ "$waitOutcome" = "LOST" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			if [ -d "$waitDir" ] ; then
+				printf 'missed: %s\nat: %s\n' "$agentsWaitLost" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$waitDir/kept" 2>/dev/null || true
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: $agentsWaitLost, which a step of this wait wrote, is not there to be read. The wait ended at once, and its working directory is kept as it stands for whoever looks into it: $waitDir. Nothing that arrived is taken as read: wait again." >&2
+			else
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the working directory of this wait, $waitDir, is gone: something other than this wait removed it. The wait ended at once. Nothing that arrived is taken as read: wait again." >&2
+			fi
+			set +e ; return 1
+		fi
+
+		local waitEnd waitElapsed
+		waitEnd="$( date +%s )"
+		waitElapsed=$(( waitEnd - waitStart ))
+
+		local waitNeverRead="" waitOneSource
+		for waitOneSource in $waitSources ; do
+			case "$waitReadSources" in
+				*"[$waitOneSource]"*) ;;
+				*) waitNeverRead="$waitNeverRead[$waitOneSource] " ;;
+			esac
+		done
+
+		## The tooling gives the seen reaction: each message a person wrote that this wait returns gets an eyes reaction in its own conversation,
+		## by the identity that can reach it. A reaction that fails is an error in the header and never stops the wait.
+		## COMMITTED BEFORE IT IS SAID. What a RECEIVED result carries -- the newest ts of each slack source, the replies, the session chat, the scan -- is stored before the first
+		## line of the result is printed: a caller that is gone or moved to the background once the result is out has its floors in the state, and the next wait does not return it again.
+		if [ "$waitOutcome" = "RECEIVED" ] ; then
+			local commitHit commitIndex commitTs
+			for commitHit in $waitHits ; do
+				commitIndex="${commitHit%%=*}"
+				case "${commitHit#*=}" in
+					replies:*) AgentsWaitRepliesCommit "${commitHit#*=replies:}" "$waitDir/now.$commitIndex.advance" ;;
+					chat:*) AgentsWaitChatCommit "${commitHit#*=chat:}" "$memberName" "$waitDir/now.$commitIndex.newest" ;;
+					scan:*) AgentsWaitScanCommit "$memberName" "${commitHit#*=scan:}" "$waitDir/now.$commitIndex.sum" ;;
+					mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$commitIndex.newest" ;;
+					dms:*) AgentsWaitDmsCommit "$memberName" "$waitDir/now.$commitIndex.newest" ;;
+					slack:*)
+						commitTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1; } END { if (ts != "") print ts; }' "$waitDir/now.$commitIndex" )"
+						[ -z "$commitTs" ] || waitFloorNew[$commitIndex]="$commitTs"
+					;;
+				esac
+			done
+		fi
+		AgentsWaitStateStore || echo "# NOTE: the state of this wait could not be stored under $waitStateDir, so --wait-continue will not find it." >&2
+
+		local seenIds="" seenOk=0 seenFailed="" seenOne seenFile seenKind seenSource seenOwnId=""
+		## An asking call marks the reply it takes as its own answer itself (MDAT_WAIT_SEEN_OWN, its source in MDAT_WAIT_SEEN_OWN_SOURCE):
+		## only that one source is left to it, and every other message the wait returns is handed over here and marked as any delivery is.
+		## A call that keeps no state is left alone (the tooling's own internal waits), and a collect is a delivery too: the work-duty scan
+		## reads a member's sources through it, and what it returns is what the duty is handed. Sketch 12.3 (settled): eyes goes on when the member is handed the message.
+		if [ "$waitOutcome" = "RECEIVED" ] && { [ -n "$waitMode" ] || [ -n "$waitCollect" ] ; } ; then
+			type AgentsToolsSeenReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SeenReaction.include"
+			type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			seenOwnId="$( AgentsToolsSessionChatMemberId "$memberName" 2> /dev/null )" || seenOwnId=""
+			for seenOne in $waitHits ; do
+				seenSource="${seenOne#*=}" ; seenKind="${seenSource%%:*}" ; seenFile="$waitDir/now.${seenOne%%=*}"
+				case "$seenKind" in slack|ask|replies|tagged|dms|mentions) ;; *) continue ;; esac
+				## The asking call's own source is the one it marks itself.
+				[ -z "${MDAT_WAIT_SEEN_OWN:-}" ] || [ "$seenSource" != "${MDAT_WAIT_SEEN_OWN_SOURCE:-}" ] || continue
+				[ -f "$seenFile" ] || continue
+				seenIds="$seenIds$( AgentsWaitSeenIds "$memberName" "$seenSource" "$seenFile" "$seenOwnId" ) "
+			done
+			for seenOne in $( printf '%s\n' $seenIds | LC_ALL=C sort -u ) ; do
+				## The store of seen messages (AgentsTools.SeenReaction.include): a message handed over before, by a Wait or a collect, is not reacted to again.
+				if AgentsToolsSeenReact "$memberName" "$seenOne" ; then
+					seenOk=$(( seenOk + 1 ))
+				else
+					seenFailed="$seenFailed$seenOne "
+				fi
+			done
+		fi
+
+		echo "WAIT-RESULT: $waitOutcome"
+		[ -z "$waitMode" ] || echo "WAIT-MODE: $waitMode"
+		[ -z "$seenFailed" ] || echo "# ERROR: the seen reaction (eyes) failed on ${seenFailed% }, so those messages show no sign that they were read"
+		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
+		## A source denied for want of a permission: an error, said apart from the sources never read.
+		[ -z "$waitPermissionErrors" ] || printf '%s' "$waitPermissionErrors" | LC_ALL=C awk 'NF { print "WAIT-SOURCE-ERROR: " $0 }' 
+		if [ -n "$waitMode" ] ; then
+			echo "# filters: sources=${waitSources% } floors=${waitFloorsUsed% } addressee=${waitAddressee% } include-own=$waitIncludeOwn"
+			if [ "$waitMode" = "default" ] ; then
+				local headerThread=""
+				type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+				headerThread="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || headerThread=""
+				if [ -n "$headerThread" ] ; then
+					echo "# session thread: $headerThread, the one on record for this session"
+				else
+					echo "# session thread: none on record for this session, so its defaults are the team channel and the owner DM alone"
+				fi
+			fi
+			echo "# reactions: $reactSummary"
+		fi
+		echo "# member: $memberName"
+		echo "# sources: ${waitSources% }"
+		[ -z "$waitAddressee" ] || echo "# answers counted only from: ${waitAddressee% }"
+		local waitBoundText="no bound"
+		[ -z "$waitTimeout" ] || waitBoundText="${waitTimeout}s bound"
+		local waitPollText="${waitPoll}s"
+		if [ "$waitBackoff" = "true" ] ; then
+			## Honest about both cadences: the tick, and the slow gap of the costly sources with the newest activity it
+			## counted from and how long before the end -- the same activity, and so the same gap, as the old poll.
+			waitActivity="$( AgentsWaitNewestActivity "$waitStart" "$waitSessionId" "$waitSources" "$waitFloorsUsed" )"
+			waitPollText="${waitPoll}s tick for local sources, costly ones by backoff from 5s, cap 300s, since the newest activity (${waitActivity#*$'\t'}) $(( waitEnd - ${waitActivity%%$'\t'*} ))s before the end"
+		fi
+		echo "# waited: ${waitElapsed}s of ${waitBoundText}, ${waitRound} poll round(s) at $waitPollText, baseline: $waitBaselineMode"
+		[ -z "$waitProbeFailures" ] || echo "# probes that could not run this wait (their diagnostics are on stderr): ${waitProbeFailures% }"
+		[ -z "$waitDetachedTask" ] || echo "# detached at the bound: a probe for $waitDetachedTask is still running -- Wait sources=process:${waitDetachedTask%% *} returns on its output and its end, TaskOutput handle=${waitDetachedTask%% *} reads it, TaskStop handle=${waitDetachedTask%% *} cancels it"
+
+		[ -z "$waitCollect" ] || echo "# returned: $waitReturned"
+
+		case "$waitOutcome" in
+			RECEIVED)
+				local waitHit waitHitIndex waitLastTs waitLastLines="" waitHitKind waitHitFile
+				## EVERY MESSAGE CARRIES ITS REPLY ADDRESS (AgentsWaitReplyAddress.awk). One pass over the hits, before either printing
+				## path, writes the rendering this return prints: a channel, a direct conversation and a thread are served the same way,
+				## and a message shown without an address is the one answered at the top of a conversation, never in its thread.
+				local waitAddrInvocation="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitReplyAddress.awk"
+				for waitHit in $waitHits ; do
+					waitHitIndex="${waitHit%%=*}"
+					waitHitKind="${waitHit#*=}" ; waitHitKind="${waitHitKind%%:*}"
+					LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" -f "$waitAddrInvocation" < "$waitDir/now.$waitHitIndex" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
+					[ -f "$waitDir/addr.$waitHitIndex" ] || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex"
+				done
+				## THE FLOOR FIRST, then all the rest together in one group sorted by time, each message naming the source it
+				## came from and consecutive messages of one source under one block (AgentsWaitArrivalsOrder.awk).
+				: > "$waitDir/rest.manifest"
+				for waitHit in $waitHits ; do
+					waitHitIndex="${waitHit%%=*}"
+					waitHitKind="${waitHit#*=}" ; waitHitKind="${waitHitKind%%:*}"
+					case " $agentsWaitKindFloor " in
+						*" $waitHitKind "*)
+							if [ "$waitHitKind" = "chat" ] ; then
+								## The messages of the session thread come each behind the source it is of (`# via <source>`).
+								LC_ALL=C awk '
+									/^# via / { if ( open ) { print "# --- end ---" ; } print "# arrived on: " substr($0, 7) ; print "# --- what that source holds now follows ---" ; open = 1 ; next ; }
+									{ print ( $0 ~ /^(WAIT-|# --- |# arrived on: )/ ? " " $0 : $0 ) ; }
+									END { if ( open ) { print "# --- end ---" ; } }' "$waitDir/addr.$waitHitIndex"
+							else
+								echo "# arrived on: ${waitHit#*=}"
+								echo "# --- what that source holds now follows ---"
+								## A line of the source's own content never reads as a line of this wait's: one that
+								## starts as a section mark, as `# arrived on: ` or as `WAIT-` is printed one space in.
+								## Read as the wait's own, three such lines typed into a watched conversation closed
+								## a question there with somebody else's next message as its answer.
+								LC_ALL=C awk '{ print ( $0 ~ /^(WAIT-|# --- |# arrived on: )/ ? " " $0 : $0 ) ; }' "$waitDir/addr.$waitHitIndex"
+								echo "# --- end ---"
+							fi
+						;;
+						*)
+							## A source added in its short or its full form is served as that (AgentsWaitSourceModeApply).
+							waitHitFile="$waitDir/now.$waitHitIndex"
+							if [ -n "$( AgentsWaitModeOf "${waitHit#*=}" )" ] && AgentsWaitSourceModeApply "$memberName" "${waitHit#*=}" "$( AgentsWaitModeOf "${waitHit#*=}" )" "$waitHitFile" "$waitDir/mode.$waitHitIndex" ; then
+								waitHitFile="$waitDir/mode.$waitHitIndex"
+								LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" -f "$waitAddrInvocation" < "$waitHitFile" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
+							fi
+							printf '%s\t%s\t%s\n' "$waitHitIndex" "${waitHit#*=}" "$waitDir/addr.$waitHitIndex" >> "$waitDir/rest.manifest"
+						;;
+					esac
+				done
+				[ ! -s "$waitDir/rest.manifest" ] || LC_ALL=C awk -v manifest="$waitDir/rest.manifest" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitArrivalsOrder.awk" < /dev/null
+				## The line that reads a cut message in full stands once in a return, not once for each message.
+				[ -z "$( ls "$waitDir"/mode.*.cut 2> /dev/null )" ] || echo "# short forms: read one in full with --slack-read $memberName <source>:<ts> --thread, the source and ts as the message shows them"
+				## What the wait has said is stored, and the last ts of each Slack source named.
+				for waitHit in $waitHits ; do
+					waitHitIndex="${waitHit%%=*}"
+					case "${waitHit#*=}" in
+						replies:*) AgentsWaitRepliesCommit "${waitHit#*=replies:}" "$waitDir/now.$waitHitIndex.advance" ;;
+						chat:*) AgentsWaitChatCommit "${waitHit#*=chat:}" "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
+						scan:*) AgentsWaitScanCommit "$memberName" "${waitHit#*=scan:}" "$waitDir/now.$waitHitIndex.sum" ;;
+						mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
+						dms:*) AgentsWaitDmsCommit "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
+					esac
+					## A slack rendering carries one "<ts> | ..." message head per line, in ts
+					## order; that newest ts is named, and is the floor a continued wait takes.
+					## A file, inbox or board listing has no per-message ts, so it names none.
+					case "${waitHit#*=}" in
+						slack:*)
+							waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1; } END { if (ts != "") print ts; }' "$waitDir/now.$waitHitIndex" )"
+							[ -n "$waitLastTs" ] || continue
+							waitFloorNew[$waitHitIndex]="$waitLastTs"
+							## One hit reads as it always did; several name the source each ts belongs to.
+							if [ -z "${waitHits#* }" ] ; then
+								waitLastLines="WAIT-LAST-TS: $waitLastTs"
+							else
+								waitLastLines="${waitLastLines}WAIT-LAST-TS: ${waitHit#*=} $waitLastTs"$'\n'
+							fi
+						;;
+					esac
+				done
+				[ -z "$waitLastLines" ] || printf '%s\n' "${waitLastLines%$'\n'}"
+				## A collect keeps where each Slack source and the tags got to, the last message it returned: the pointer of the
+				## session (`collect:<member>:<source>`) the next collect resumes from.
+				if [ -n "$waitCollect" ] && [ -n "$collectKey" ] ; then
+					for waitHit in $waitHits ; do
+						waitHitIndex="${waitHit%%=*}"
+						case "${waitHit#*=}" in slack:*|tagged:*) ;; *) continue ;; esac
+						waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) { ts = $1 ; } } END { if (ts != "") print ts; }' "$waitDir/now.$waitHitIndex" )"
+						[ -z "$waitLastTs" ] || AgentsToolsSessionChatPointerSet "$collectKey" "collect:$memberName:${waitHit#*=}" "$waitLastTs"
+					done
+				fi
+			;;
+			## TIMEOUT carries no prose: that it is a normal, successful outcome is stated once, in
+			## the Wait tool description, and a source never read is named by WAIT-NEVER-READ above.
+		esac
+
+		## Stored again at the end, whatever the commit before the return said: the same state.
+		AgentsWaitStateStore || { AgentsWaitFolderEnd ; return 0 ; }
+		## The kept folder stays for the next Wait of the member, its keys saved where they changed and its hold let go.
+		[ -z "$waitDirKept" ] || [ "${agentsWaitConvSeen:-}" = "$waitSeenBefore" ] || printf '%s\n' "${agentsWaitConvSeen:-}" > "$waitStateDir/work.$memberName/seen.txt" 2> /dev/null || :
+		AgentsWaitFolderEnd
+		return 0

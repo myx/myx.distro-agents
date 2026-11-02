@@ -93,9 +93,11 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
 
-`ProposeApprove` runs the whole proposal thread itself: the root, the proposal reply, its revise and the wait for a verdict. It replaces a by-hand send, delete and read.
+## Harness tools
+
+- `ProposeApprove` — runs the whole proposal thread itself: the root, the proposal reply, its revise and the wait for a verdict. It replaces a by-hand send, delete and read. Pass `question`, `proposal` and `document`. Revise with `pending_id` and `revise`.
 
 ## Tooling operations
 

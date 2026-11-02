@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitReplies.include -- the probe of the replies to the run's own posts.
+## Sourced by --wait-for-input for a source of its kind, and by a caller that needs one probe of it.
+## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
+##
+type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include"
+
+## THE REPLIES TO THE RUN'S OWN POSTS: the floor of a plain Wait, `replies:<session id>`. A run that
+## posted a question does not choose where to watch for the answer, a channel or a thread: it calls
+## Wait, and Wait holds every post the run made. They are in sessions/<id>/last-own-post, written at
+## each send (AgentsHarnessOwnPostRecord), a line each, the latest first: `<channel>:<thread> <ts>
+## <addressees> <thread floor> <conversation floor> <siblings> <reactions> <checked>`, a word not known
+## yet `-`. What a post holds, as the epic's floor reads (F3.3):
+##   - every reply in its thread, the run's own posts apart (AgentsWaitOwnPostReplies.awk, mode thread);
+##   - for a post at the top of its conversation, the messages after it there from the people it
+##     addressed, and any that mention the run, until ten siblings have followed it. After that its
+##     siblings are no longer watched: the conversation is read on from where it stopped for a mention
+##     of the run alone. The thread is read as ever: its watch does not end by time alone;
+##   - the reactions to the post, and the mentions of the run, whatever else has ended.
+## A post is looked at only when its TTL has passed since the last look (<checked>): 5 seconds, and 1 more
+## for every 20 it has been quiet, from its newest message seen, to a ceiling of 100 at 1900 quiet (S21.2), so a
+## quiet thread is looked at ever more rarely, on some loop runs only, and is never dropped. A post whose thread another source
+## of the same Wait reads is left to that source, and so is a conversation it reads by name, so a message
+## is returned once; a post a question (AskQuestion and its kin) opened belongs to its pending record's
+## ask: source. What a look finds is rendered to the wait and stored only once the wait has returned it
+## (AgentsWaitRepliesCommit): a wait that ended before it was said loses nothing. The words stored are
+## this record's, the one record of the run's own posts.
+agentsWaitRepliesSiblings=10
+
+## A value of a side file the reading awk wrote, `<key> <value>` a line.
+AgentsWaitRepliesSide(){ ## side file, key
+	LC_ALL=C awk -v wantKey="$2" '$1 == wantKey { sub(/^[^ ]+ /, "") ; print ; exit ; }' "$1" 2> /dev/null
+}
+
+## One post of the record: looked at when its TTL has passed. Appends what it found to the rendering
+## file ($4) and its new line to $4.advance. rc 0 looked, 1 left alone (not due, or not this floor's), 2 could not be read.
+## A post that could not be read is not looked at again at the next round: it keeps its words and has its
+## check time moved, so the TTL paces the retry.
+AgentsWaitRepliesLook(){ ## member, now (epoch), the post's line, the rendering file, a number for its working files
+	local lookRc=0 lookFail
+	AgentsWaitRepliesLookRead "$@" || lookRc=$?
+	if [ "$lookRc" = "2" ] ; then
+		lookFail="$( printf '%s\n' "$3" | LC_ALL=C awk -v now="$2" '{ print $1 " " $2 " " ( NF >= 3 ? $3 : "-" ) " " ( NF >= 4 ? $4 : "-" ) " " ( NF >= 5 ? $5 : "-" ) " " ( NF >= 6 ? $6 : 0 ) " " ( NF >= 7 ? $7 : "-" ) " " now ; }' )"
+		printf '%s\n' "$lookFail" >> "$4.advance"
+	fi
+	return "$lookRc"
+}
+
+AgentsWaitRepliesLookRead(){ ## the same arguments
+	local lookMember="$1" lookNow="$2" lookOut="$4" lookFile="$4.post.$5" lookRc=0
+	local lookWhere lookTs lookAddr lookThreadFloor lookChanFloor lookSibs lookReact lookChecked lookRest
+	local lookChannel lookThread lookActivity lookQuiet lookTtlQuiet lookFrom lookDeliver=1 lookChannelCovered="" lookFound="" lookSide lookNew
+	local lookNewThreadFloor lookNewChanFloor lookNewSibs lookNewReact lookReactions lookSignature lookMentionsOnly
+	read -r lookWhere lookTs lookAddr lookThreadFloor lookChanFloor lookSibs lookReact lookChecked lookRest <<< "$3"
+	lookAddr="${lookAddr:--}" ; lookThreadFloor="${lookThreadFloor:--}" ; lookChanFloor="${lookChanFloor:--}"
+	lookSibs="${lookSibs:-0}" ; lookReact="${lookReact:--}" ; lookChecked="${lookChecked:-0}"
+	case "$lookTs" in ''|.*|*.|*.*.*|*[!0-9.]*) return 1 ;; esac
+	case "$lookSibs$lookChecked" in ''|*[!0-9]*) return 1 ;; esac
+	case "$lookWhere" in
+		*:*) lookChannel="${lookWhere%:*}" ; lookThread="${lookWhere##*:}" ;;
+		*) return 1 ;;
+	esac
+	case "$lookThread" in ''|.*|*.|*.*.*|*[!0-9.]*) return 1 ;; esac
+	## Quiet since its newest message seen: the TTL grows with it.
+	lookActivity="${lookTs%%.*}"
+	for lookRest in "$lookThreadFloor" "$lookChanFloor" ; do
+		lookRest="${lookRest%%.*}"
+		case "$lookRest" in ''|*[!0-9]*) continue ;; esac
+		[ "$lookRest" -le "$lookActivity" ] || lookActivity="$lookRest"
+	done
+	lookQuiet=$(( lookNow - lookActivity ))
+	[ "$lookQuiet" -ge 0 ] || lookQuiet=0
+	## Backing off linearly to a ceiling of 100 at 1900 quiet, never past it (S21.2): a run quiet for a long time
+	## still watches its own posts, rather than drifting toward an unbounded wait.
+	lookTtlQuiet="$lookQuiet" ; [ "$lookTtlQuiet" -le 1900 ] || lookTtlQuiet=1900
+	[ $(( lookNow - lookChecked )) -ge $(( 5 + lookTtlQuiet / 20 )) ] || return 1
+	## What the other sources of this wait read, found once for the call and the first post that needs it.
+	[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$lookMember" $agentsWaitCoverSources )"
+	## A post in a thread another source reads is not read from Slack again.
+	case " $agentsWaitCovered " in *" $lookChannel:$lookThread "*) return 1 ;; esac
+	## Nor one in the session thread, while the chat source reads that thread from the session's file (sketch 12.1).
+	case " ${waitSources:-} " in
+		*" chat:"*)
+			if [ -z "${agentsWaitRepliesSessionThread+x}" ] ; then
+				agentsWaitRepliesSessionThread="${MDAT_SESSION_THREAD:-}"
+				[ -n "$agentsWaitRepliesSessionThread" ] || { IFS= read -r agentsWaitRepliesSessionThread < "$MMDAPP/.local/agents/sessions/${waitSessionId:-.}/session.thread" ; } 2> /dev/null || agentsWaitRepliesSessionThread=""
+			fi
+			[ "$lookChannel:$lookThread" != "$agentsWaitRepliesSessionThread" ] || return 1
+		;;
+	esac
+	## A question the ask tools opened, and the thread it lives in, are answered through its pending record --
+	## its answer, its clicks, what the person adds -- which the stored wait carries as an ask: source.
+	LC_ALL=C grep -q -x -F -e "question-ts: $lookTs" -e "thread-ts: $lookThread" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null && return 1
+	case " $agentsWaitCovered " in *" $lookChannel "*) lookChannelCovered=1 ;; esac
+	lookNewThreadFloor="$lookThreadFloor" ; lookNewChanFloor="$lookChanFloor" ; lookNewSibs="$lookSibs" ; lookNewReact="$lookReact"
+	## Its thread: every reply after the post, or after the last one returned.
+	lookFrom="$lookTs"
+	[ "$lookThreadFloor" = "-" ] || ! AgentsWaitTsNewer "$lookThreadFloor" "$lookFrom" || lookFrom="$lookThreadFloor"
+	AgentsWaitReadRendered "$lookMember" "$lookChannel:$lookThread" thread "" "$lookFile.thread" || return 2
+	LC_ALL=C awk -v mode=thread -v postTs="$lookTs" -v floorTs="$lookFrom" -v callerName="$lookMember" -v deliver="$lookDeliver" -v side="$lookFile.thread.side" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
+		< "$lookFile.thread" > "$lookFile.thread.out" 2>> "$lookFile.thread.err" || lookRc=$?
+	AgentsWaitOwnFile "$lookFile.thread.out" || return 2
+	AgentsWaitOwnFile "$lookFile.thread.side" || return 2
+	if [ "$lookRc" != "0" ] ; then
+		[ ! -s "$lookFile.thread.err" ] || cat "$lookFile.thread.err" >&2
+		return 2
+	fi
+	if [ "$lookDeliver" = "1" ] ; then
+		lookSide="$( AgentsWaitRepliesSide "$lookFile.thread.side" newest )"
+		[ "$lookSide" = "-" ] || [ -z "$lookSide" ] || lookNewThreadFloor="$lookSide"
+	fi
+	lookReactions="$( AgentsWaitRepliesSide "$lookFile.thread.side" reactions )"
+	: > "$lookFile.chan.out"
+	## Its conversation, for a post at the top of it: until ten siblings have followed, the people it
+	## addressed and whoever mentions the run; after the tenth only a mention of the run, read on from
+	## where the last read stopped, which is the cheapest read that finds one. Not where another source
+	## of this wait reads the conversation by name.
+	if [ "$lookThread" = "$lookTs" ] && [ -z "$lookChannelCovered" ] ; then
+		lookMentionsOnly=0
+		[ "$lookSibs" -lt "$agentsWaitRepliesSiblings" ] || lookMentionsOnly=1
+		lookFrom="$lookTs"
+		[ "$lookChanFloor" = "-" ] || ! AgentsWaitTsNewer "$lookChanFloor" "$lookFrom" || lookFrom="$lookChanFloor"
+		AgentsWaitReadRendered "$lookMember" "$lookChannel" conversation "$lookFrom" "$lookFile.chan" || return 2
+		## A top-level message is the reply of the LATEST post of the run above it in that conversation, and is returned once: what stands at or after the run's next
+		## top-level post there belongs to that post, never to this one.
+		if [ -n "${waitSessionId:-}" ] && [ -f "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" ] ; then
+			local lookUntil
+			lookUntil="$( LC_ALL=C awk -v channel="$lookChannel" -v after="$lookTs" '
+				function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+				function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+				function newer(a, b) { return ( secOf(a) > secOf(b) || ( secOf(a) == secOf(b) && fracOf(a) > fracOf(b) ) ) ; }
+				{ split($1, where, ":") ; if ( where[1] == channel && where[2] == $2 && newer($2, after) && ( best == "" || newer(best, $2) ) ) { best = $2 } }
+				END { print best }' "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" 2> /dev/null )" || lookUntil=""
+			if [ -n "$lookUntil" ] ; then
+				LC_ALL=C awk -v untilTs="$lookUntil" '
+					function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+					function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+					/^[0-9]+\.[0-9]+ \| / { keep = ( secOf(untilTs) > secOf($1) || ( secOf(untilTs) == secOf($1) && fracOf(untilTs) > fracOf($1) ) ) ; }
+					NR == 1 && /^## target=/ { print ; next ; }
+					keep || NR == 1 { print ; }' < "$lookFile.chan" > "$lookFile.chan.cut" 2> /dev/null && mv -f "$lookFile.chan.cut" "$lookFile.chan" || rm -f "$lookFile.chan.cut"
+			fi
+		fi
+		LC_ALL=C awk -v mode=channel -v postTs="$lookTs" -v floorTs="$lookFrom" -v callerName="$lookMember" -v addressees="${lookAddr//,/ }" \
+			-v siblings="$lookSibs" -v siblingsMax="$agentsWaitRepliesSiblings" -v mentionsOnly="$lookMentionsOnly" -v side="$lookFile.chan.side" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
+			< "$lookFile.chan" > "$lookFile.chan.out" 2>> "$lookFile.chan.err" || lookRc=$?
+		AgentsWaitOwnFile "$lookFile.chan.out" || return 2
+		AgentsWaitOwnFile "$lookFile.chan.side" || return 2
+		if [ "$lookRc" != "0" ] ; then
+			[ ! -s "$lookFile.chan.err" ] || cat "$lookFile.chan.err" >&2
+			return 2
+		fi
+		lookSide="$( AgentsWaitRepliesSide "$lookFile.chan.side" newest )"
+		[ "$lookSide" = "-" ] || [ -z "$lookSide" ] || lookNewChanFloor="$lookSide"
+		lookSide="$( AgentsWaitRepliesSide "$lookFile.chan.side" siblings )"
+		case "$lookSide" in ''|*[!0-9]*) ;; *) lookNewSibs="$lookSide" ;; esac
+	fi
+	## A reaction to the post: returned when the post has a set it did not have when it was last returned.
+	if [ -n "$lookReactions" ] && [ "$lookReactions" != "-" ] ; then
+		lookSignature="$( printf '%s' "$lookReactions" | LC_ALL=C cksum | LC_ALL=C cut -d' ' -f1 )"
+		if [ "$lookSignature" != "$lookReact" ] ; then
+			lookNewReact="$lookSignature"
+			lookFound="reactions on your post $lookTs: $lookReactions"
+		fi
+	fi
+	## What the floor returns of this post is brought into the session chat file too, as replies to the member's own post
+	## delivered by this wait itself (AgentsWaitChatImportReplies): the tool returns of its other runs carry them only
+	## if this wait did not, and the file stays the record of the session.
+	[ ! -s "$lookFile.thread.out" ] || AgentsWaitChatImportReplies "$lookMember" "$lookChannel:$lookThread" "$lookFile.thread.out" || :
+	[ ! -s "$lookFile.chan.out" ] || AgentsWaitChatImportReplies "$lookMember" "$lookChannel:$lookThread" "$lookFile.chan.out" || :
+	if [ -s "$lookFile.thread.out" ] || [ -s "$lookFile.chan.out" ] || [ -n "$lookFound" ] ; then
+		printf '# replies to your post %s:%s\n' "$lookChannel" "$lookTs" >> "$lookOut"
+		cat "$lookFile.thread.out" "$lookFile.chan.out" >> "$lookOut"
+		[ -z "$lookFound" ] || printf '%s\n' "$lookFound" >> "$lookOut"
+	fi
+	lookNew="$lookWhere $lookTs $lookAddr $lookNewThreadFloor $lookNewChanFloor $lookNewSibs $lookNewReact $lookNow"
+	printf '%s\n' "$lookNew" >> "$lookOut.advance"
+	return 0
+}
+
+## The replies source: every post of the record that is due, oldest first. An unreadable post is left
+## as it was and is looked at again; the source is unreadable only where every look failed.
+AgentsWaitProbeReplies(){
+	local probeMember="$1" probeSession="$2" probeOut="$4" probeRecord probeNow probeLine probeCount=0 probeIndex probeAttempted=0 probeFailed=0 probeRc
+	local probeLines=()
+	AgentsWaitClear "$probeOut" || return 2
+	AgentsWaitClear "$probeOut.advance" || return 2
+	AgentsToolsAssertBareName "$probeSession" "<session-id>" replies > /dev/null 2>&1 || return 2
+	probeRecord="$MMDAPP/.local/agents/sessions/$probeSession/last-own-post"
+	[ -f "$probeRecord" ] || return 0
+	## The round's own moment where there is one: no date process per tick.
+	probeNow="${roundNow:-}"
+	case "$probeNow" in ''|*[!0-9]*) probeNow="$( date +%s )" ;; esac
+	while IFS= read -r probeLine ; do
+		[ -z "$probeLine" ] || { probeCount=$(( probeCount + 1 )) ; probeLines[$probeCount]="$probeLine" ; }
+	done < "$probeRecord"
+	## EVERY POST IS WATCHED, THREE A ROUND, EACH ROUND TAKING UP WHERE THE LAST LEFT: the newest first, so the question an
+	## answer is due on is looked at first, and a record of twelve posts covered in four rounds. The look's own TTL paces each
+	## post, and a post is never dropped for its age or for the count of the record (a cap on the count alone dropped the newest).
+	probeTake="${agentsWaitRepliesWatched:-3}"
+	probeStart=1
+	case "${waitRound:-}" in
+		''|*[!0-9]*) ;;
+		*) [ "$probeCount" -lt 1 ] || [ "$probeTake" -lt 1 ] || probeStart=$(( ( ( waitRound - 1 ) * probeTake ) % probeCount + 1 )) ;;
+	esac
+	probeWatched=0
+	while [ "$probeWatched" -lt "$probeTake" ] && [ "$probeWatched" -lt "$probeCount" ] ; do
+		probeRc=0
+		AgentsWaitRepliesLook "$probeMember" "$probeNow" "${probeLines[$probeStart]}" "$probeOut" "$probeStart" || probeRc=$?
+		case "$probeRc" in
+			0) probeAttempted=$(( probeAttempted + 1 )) ;;
+			2) probeAttempted=$(( probeAttempted + 1 )) ; probeFailed=$(( probeFailed + 1 )) ;;
+		esac
+		probeWatched=$(( probeWatched + 1 ))
+		probeStart=$(( probeStart + 1 )) ; [ "$probeStart" -le "$probeCount" ] || probeStart=1
+	done
+	if [ "$probeAttempted" != "0" ] && [ "$probeFailed" -ge "$probeAttempted" ] ; then
+		## The round that returns this stops short of the commit of a source that ran: the pacing is stored here.
+		AgentsWaitRepliesCommit "$probeSession" "$probeOut.advance"
+		return 2
+	fi
+	return 0
+}
+
+## Stores what a look found, once the wait has said it: the lines of $2 replace the lines of the record
+## that start with the same two words. Under the lock the harness takes to add a post.
+AgentsWaitRepliesCommit(){ ## session id, the advance file
+	local commitRecord="$MMDAPP/.local/agents/sessions/$1/last-own-post" commitTmp commitLock=""
+	[ -s "$2" ] && [ -f "$commitRecord" ] || return 0
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2> /dev/null || :
+	! AgentsToolsLocalLockTake "own-posts-$1" 5 "the record of the run's own posts" 2> /dev/null || commitLock="$agentsLocalLockPath"
+	commitTmp="$( mktemp "$MMDAPP/.local/agents/sessions/$1/last-own-post.XXXXXX" 2> /dev/null )" || commitTmp=""
+	if [ -n "$commitTmp" ] ; then
+		LC_ALL=C awk -v advance="$2" '
+			BEGIN {
+				while ( ( getline line < advance ) > 0 ) {
+					split(line, word, " ")
+					replaced[word[1] " " word[2]] = line
+				}
+			}
+			{
+				split($0, word, " ")
+				key = word[1] " " word[2]
+				print ( key in replaced ? replaced[key] : $0 )
+			}' "$commitRecord" >| "$commitTmp" 2> /dev/null \
+			&& mv -f "$commitTmp" "$commitRecord" 2> /dev/null || rm -f "$commitTmp"
+	fi
+	[ -z "$commitLock" ] || AgentsToolsLocalLockGive "$commitLock"
+	return 0
+}
+
+## The replies to a post of the member, read by its own wait: the member's, and delivered by that wait.
+AgentsWaitChatImportReplies(){ ## member, conversation:thread of the post, the rendering file
+	local repliesSession
+	type AgentsToolsSessionChatImport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	repliesSession="$( AgentsToolsSessionChatKey )"
+	[ -n "$repliesSession" ] || return 0
+	AgentsToolsSessionChatImport "$repliesSession" "$2" "$3" "reply:$1" "$1"
+	return 0
+}
+

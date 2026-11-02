@@ -35,7 +35,9 @@
 ## Sourced, never run. Functions only.
 ##
 
-## THE TEAM FLOOR'S TOOLS: the one place they are named.
+## THE TEAM FLOOR'S TOOLS: the one place they are named. The tooling origin's own project.inf
+## declares them too, as `--magic-team:` rows (AgentsToolsPermissionOriginFloorTools); a tool
+## either seat names is the floor, so the code list answers alone only where the origin names none.
 agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ToolSearch ListAgents TaskOutput TaskStop PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
 ## The file tools a path permission speaks for, and the ones of them that only read.
 agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
@@ -243,6 +245,21 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 	esac
 	[ "$floorPurpose" = "read" ] || return 0
 	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
+	return 0
+}
+
+## The tooling origin's own floor tools, as its project.inf declares them (S21.20, item 20n): the
+## `--magic-team:permissions:workspace:*:allow-tool:*:<tool>` rows of the package MDLT_ORIGIN holds.
+## That is the workspace's tooling origin, never a `.local` copy of the package. Read once per run;
+## empty where the origin carries no such package, so the code list above answers alone.
+agentsPermissionOriginFloorTools="" agentsPermissionOriginFloorRead=""
+AgentsToolsPermissionOriginFloorTools(){
+	local originPackage
+	[ -z "$agentsPermissionOriginFloorRead" ] || return 0
+	agentsPermissionOriginFloorRead=1
+	originPackage="$( cd "${MDLT_ORIGIN:-}/myx/myx.distro-agents" 2> /dev/null && pwd -P )/project.inf" || return 0
+	[ -f "$originPackage" ] || return 0
+	agentsPermissionOriginFloorTools="$( LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) { originWord = $i ; sub( /^\\/, "", originWord ) ; if ( sub( /^--magic-team:permissions:workspace:[*]:allow-tool:[*]:/, "", originWord ) ) printf "%s ", originWord ; } }' "$originPackage" )"
 	return 0
 }
 
@@ -721,7 +738,7 @@ AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id,
 		case "${1:-}:${4:-}" in
 			:*|*:) printf 'REFUSAL-ID: none -- this session has no team identity or session id, so the refusal was not recorded and cannot be escalated by id.\n' ; return 0 ;;
 		esac
-		denyId="$( "$BASH" "$denyTools" --intern-op-permission-refusal-log "${1}" --session-id "${4}" --tool "${2}" --target "${3}" --reason "denied by $denyWhy" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
+		denyId="$( export MDAT_EVENT_TRACK_POST_NOWAIT=1 MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" ; type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-refusal-log "${1}" --session-id "${4}" --tool "${2}" --target "${3}" --reason "denied by $denyWhy" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
 		case "$denyId" in
 			refusal-*) printf 'REFUSAL-ID: %s\n' "$denyId" ;;
 			*) printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id.\n' ;;
@@ -733,7 +750,7 @@ AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id,
 ## The access block of a spawn brief: the refused tools and paths and what the routine adds for this member,
 ## from the standing deny rows and the routine's `access-control:` rows, then always the line that says how to ask for more.
 AgentsToolsPermissionAccessBlock(){ ## member, routine file (optional)
-	local abMember="${1:-}" abFile="${2:-}" abLine abAccess="" abExecutors="" abRow abRest abWho abVerb abValue abOne abGlob abDenyTool="" abDenyRead="" abDenyWrite="" abAddTool="" abAddRead="" abAddWrite="" abIsExec=""
+	local abMember="${1:-}" abFile="${2:-}" abLine abAccess="" abExecutors="" abRow abRest abWho abVerb abValue abOne abGlob abDenyTool="" abDenyRead="" abDenyWrite="" abAddTool="" abAddRead="" abAddWrite="" abFreeSeats="" abIsExec=""
 	if [ -n "$abFile" ] && [ -f "$abFile" ] ; then
 		while IFS= read -r abLine ; do
 			case "$abLine" in
@@ -778,11 +795,39 @@ AgentsToolsPermissionAccessBlock(){ ## member, routine file (optional)
 	[ -z "$abDenyTool" ] || printf 'refused tools: %s\n' "$abDenyTool"
 	[ -z "$abDenyRead" ] || printf 'refused reads: %s\n' "$abDenyRead"
 	[ -z "$abDenyWrite" ] || printf 'refused writes: %s\n' "$abDenyWrite"
+	## THE SEATS A SESSION MAY READ WITHOUT ASKING (S21.20, item 20a): the floor's readable roots, named
+	## so a brief never sends its session outside its floor. A member with nothing to name gets no line.
 	{ [ -z "$abDenyRead" ] && [ -z "$abDenyWrite" ] ; } || printf 'always open: your sandbox, the input/ and output/ folders\n'
+	if [ -n "$abMember" ] ; then
+		abFreeSeats="$( AgentsToolsPermissionFreeReadSeats "$abMember" )"
+		[ -z "$abFreeSeats" ] || printf 'free to read without asking: %s\n' "$abFreeSeats"
+	fi
 	[ -z "$abAddTool" ] || printf 'your routine adds tools: %s\n' "$abAddTool"
 	[ -z "$abAddRead" ] || printf 'your routine adds reads: %s\n' "$abAddRead"
 	[ -z "$abAddWrite" ] || printf 'your routine adds writes: %s\n' "$abAddWrite"
 	printf 'to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides. Your other standing rows: --list-permissions.\n'
+}
+
+## The seats a member may read without asking, for the brief's access block (S21.20, item 20a): the
+## floor's readable roots that this member really holds, each once, comma-separated. Each root is
+## checked against the holds model itself, so a deny row that covers it keeps it out of the line.
+## The sandbox is left out, because the always-open line above already names it whole.
+AgentsToolsPermissionFreeReadSeats(){ ## member
+	local seatMember="${1:-}" seatRoot seatOut="" seatProbe
+	[ -n "$seatMember" ] || return 0
+	while IFS= read -r seatRoot ; do
+		[ -n "$seatRoot" ] || continue
+		case "$seatRoot" in
+			*/input|*/output) continue ;;
+			*/myx/myx.distro-agents/skillset) seatRoot="the team skillset" ;;
+		esac
+		case "$seatOut" in *"$seatRoot"*) continue ;; esac
+		seatProbe="$seatRoot"
+		[ "$seatRoot" != "the team skillset" ] || seatProbe="${MDLT_ORIGIN:-}/myx/myx.distro-agents/skillset/MAGIC.md"
+		AgentsToolsPermissionHolds "$seatMember" Read "$seatProbe" "${MDAT_SPAWN_SESSION_ID:-}" > /dev/null || continue
+		seatOut="$seatOut${seatOut:+, }$seatRoot"
+	done <<< "$( AgentsToolsPermissionFloorRoots "${MMDAPP:-}" "$seatMember" read "${MDAT_SPAWN_SESSION_ID:-}" )"
+	printf '%s' "$seatOut"
 }
 
 ## Whether <member> holds <tool> <target>, and through which layer: prints the layer and
@@ -823,7 +868,11 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 	case "$holdTool" in
 		cred|spend) ;;
 		*)
-			## (a) the floor's tools
+			## (a) the floor's tools: the tooling origin's own declares first, then the code list.
+			AgentsToolsPermissionOriginFloorTools
+			case "$agentsPermissionOriginFloorTools" in
+				*" $holdTool "*) printf 'floor' ; return 0 ;;
+			esac
 			case "$agentsPermissionFloorTools" in
 				*" $holdTool "*) printf 'floor' ; return 0 ;;
 			esac

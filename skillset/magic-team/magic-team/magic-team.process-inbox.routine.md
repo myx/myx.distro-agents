@@ -86,7 +86,12 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- `ThisSession` — acts on this session. `operation` is `post` (with `message` and `address_to`), `routine-run-inline` (with `routine`), `get-uninvited-participants`, `set-session-topic` or `set-session-chapter`.
+- `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on.
 
 ## Tooling operations
 

@@ -405,8 +405,8 @@ AgentsToolsMemberSettingsBorrowBegunSay(){ ## member, the key deleted, the works
 
 ## Where one option is read from when it is not this workspace's own scope, in
 ## agentsConfigOptionElsewhere (a path, or empty: the option is this workspace's): a spawn
-## setting, from the workspace that pays; a member's own setting of a system this
-## workspace holds none of, from the workspace the member is set up in (both above).
+## setting or a team tier setting, from the workspace that pays; a member's own setting of a
+## system this workspace holds none of, from the workspace the member is set up in (both above).
 ## rc 1 where the workspace that pays names none.
 agentsConfigOptionElsewhere=""
 AgentsToolsConfigOptionElsewhere(){ ## scope, key
@@ -416,7 +416,8 @@ AgentsToolsConfigOptionElsewhere(){ ## scope, key
 		'') return 0 ;;
 		magic-team)
 			[ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] || AgentsToolsScopeHoldsKeys "${MMDAPP%/}" magic-team SPAWN_SETTINGS_WORKSPACE || return 0
-			AgentsToolsSpawnSettingKey "$2" || return 0
+			## A tier setting is the paying workspace's as a spawn setting is, so that the console's tier row and its write are one value, and a tier may name a preset only that workspace holds.
+			case "$2" in SPAWN_TIER_LOW|SPAWN_TIER_NORMAL|SPAWN_TIER_HIGH) ;; *) AgentsToolsSpawnSettingKey "$2" || return 0 ;; esac
 			agentsConfigOptionElsewhere="$( AgentsToolsSpawnSettingsWorkspace )" || return 1
 			return 0
 		;;

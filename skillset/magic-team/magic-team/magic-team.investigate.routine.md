@@ -142,9 +142,17 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
 
-Harness tools: `ReportFindings` posts the report, and `DistroAgentsAtlassian` duplicates it to Confluence and its Jira task.
+## Harness tools
+
+- `ConfirmReadback` — asks a person to confirm what you understood, and waits. Pass `to`, `question`, `understood`, `source` and `will_do`. The `VERDICT:` is yes, no or correct.
+- `ReportFindings` — posts the report. Pass `findings`, most severe first, each with `file`, `summary` and `failure_scenario`. An empty list is a valid report.
+- `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on.
+- `SessionTranscriptAppend` — appends one line, `note`, to this session's transcript. It names no file. The verbatim record stays `--append-transcript`.
+- `SubagentHandback` — gives the final report to the session that started you. `outcome` is required. Add `findings`, `unfinished` and `checklist_pending_count`. Then `Wait` until dismissed.
+- `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
+- `DistroAgentsAtlassian` — duplicates the report to Confluence and its Jira task.
 
 ## Tooling operations
 

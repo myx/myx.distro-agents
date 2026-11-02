@@ -547,6 +547,13 @@ DistroAgentsTools(){
 
 		--intern-mcp-execute)
 			shift
+			## Cold pause, temporary: a call of a paused session waits here before anything runs, checking only the flag every 5 seconds,
+			## and once the pause ends it is refused, so the caller runs it again against what is there then.
+			if [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}/paused" ] ; then
+				while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}/paused" ] ; do sleep 5 ; done
+				echo "$MDSC_CMD: mcp-execute: ⛔ PAUSED: this session was paused while this call waited, and nothing ran. Run the same call again." >&2
+				set +e ; return 75
+			fi
 			case "$1" in
 				--workspace)
 					## Our own MDLT_ORIGIN is deliberately left untouched: the caller reached for

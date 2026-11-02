@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCommsSlackSearch.include -- --slack-search-messages and the answer one search prints.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+
+type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+
+## The answer one search prints, as one string: the arm above prints it, and its own cache files it.
+AgentsToolsCommsSlackSearchAnswer(){
+			echo "## target=$target channel=$channel query=$searchQuery cutoff=$cutoffEpoch"
+			echo "# $MDSC_CMD --slack-search-messages: GET search.messages query='$searchQuery' (asking from one day early on purpose; real cut-off $cutoffEpoch applied per match)" >&2
+			local pageNum=1 pagesTotal="" grandMatches=0 grandReplies=0 truncated="false"
+			local pageBodies=() pageLines=()
+			while : ; do
+				local opArgs=( "$memberName" --api search.messages --identity user
+					--form "query=$searchQuery" --form sort=timestamp --form sort_dir=desc
+					--form count=100 --form "page=$pageNum"
+					--context "--slack-search-messages" )
+				local response callRc=0
+				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" )" || callRc=$?
+				if [ "$callRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT SEARCH $channel -- search.messages failed on page $pageNum (see the op's own diagnostic above). This is NOT an empty result: nothing is known from this call about whether that conversation holds matching messages. A not_allowed_token_type error here means the acting identity has no user token, which this operation requires and cannot work around." >&2
+					set +e ; return 1
+				fi
+				local metaOut metaRc=0
+				metaOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" -v mode=meta \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || metaRc=$?
+				if [ "$metaRc" = "1" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT READ the search.messages response for page $pageNum (see the reader's own error above). Nothing is known from this call about presence or absence of matches." >&2
+					set +e ; return 1
+				fi
+				local pageMatches pageExpected pageInRange pageReplies pageOldest
+				pagesTotal="$( printf '%s\n' "$metaOut" | sed -n 's/^SEARCH_PAGES=//p' )"
+				pageMatches="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_MATCH_COUNT=//p' )"
+				pageExpected="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_EXPECTED_COUNT=//p' )"
+				pageInRange="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_IN_RANGE_COUNT=//p' )"
+				pageReplies="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_THREAD_REPLIES=//p' )"
+				pageOldest="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_OLDEST_TS=//p' )"
+				if [ -n "$pagesTotal" ] && [ "$pageNum" -lt "$pagesTotal" ] && [ -n "$pageExpected" ] \
+					&& [ "$pageMatches" -lt "$pageExpected" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: page $pageNum of $pagesTotal carried $pageMatches matches where Slack's own paging says a full page holds $pageExpected. A non-final page is short, so the response body was truncated in transit and the missing matches are NOT known to be absent. Nothing is reported from this read." >&2
+					set +e ; return 1
+				fi
+				if [ "$pretty" = "true" ] ; then
+					local linesOut linesRc=0
+					linesOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || linesRc=$?
+					if [ "$linesRc" = "1" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT FORMAT the search.messages matches for page $pageNum (see the reader's own error above)." >&2
+						set +e ; return 1
+					fi
+					pageLines+=( "$linesOut" )
+				else
+					pageBodies+=( "$response" )
+				fi
+				grandMatches=$(( grandMatches + pageInRange ))
+				grandReplies=$(( grandReplies + pageReplies ))
+				if [ -n "$pageOldest" ] && [ "$( LC_ALL=C awk -v a="$pageOldest" -v b="$cutoffEpoch" 'BEGIN{print (a+0 < b+0) ? "below" : "above"}' )" = "below" ] ; then
+					break
+				fi
+				if [ -z "$pagesTotal" ] || [ "$pageNum" -ge "$pagesTotal" ] ; then
+					break
+				fi
+				if [ "$pageNum" -ge "$maxPages" ] ; then
+					truncated="true"
+					break
+				fi
+				pageNum=$(( pageNum + 1 ))
+			done
+			local idx
+			if [ "$pretty" = "true" ] ; then
+				for (( idx = ${#pageLines[@]} - 1 ; idx >= 0 ; idx-- )) ; do
+					if [ -n "${pageLines[$idx]}" ] ; then
+						printf '%s\n' "${pageLines[$idx]}"
+					fi
+				done
+			else
+				for (( idx = ${#pageBodies[@]} - 1 ; idx >= 0 ; idx-- )) ; do
+					printf '## page=%s\n' "$(( idx + 1 ))"
+					printf '%s\n' "${pageBodies[$idx]}"
+				done
+			fi
+			echo "## matches=$grandMatches thread-replies=$grandReplies pages-read=$pageNum pages-total=${pagesTotal:-?} cutoff=$cutoffEpoch after=$afterDate"
+			if [ "$truncated" = "true" ] ; then
+				echo "## result=truncated"
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: INCOMPLETE -- the --max-pages bound of $maxPages was reached on a query Slack reports as $pagesTotal pages, and the search had not yet reached back to the cut-off. What is printed above is the NEWEST $grandMatches matches, a prefix of the answer and not the answer: older matches inside the requested window exist and were not read, so nothing here supports concluding any particular message is absent. Raise --max-pages or move the cut-off forward, then read again. rc=4 means exactly this incomplete state, distinct from rc=3 (a complete read that found nothing)." >&2
+				set +e ; return 4
+			fi
+			if [ "$grandMatches" = "0" ] ; then
+				echo "## result=none"
+				echo "# $MDSC_CMD --slack-search-messages: NO MATCHES in $channel at or after $cutoffEpoch. The search itself completed normally across $pageNum page(s), so this is a real, complete answer -- that conversation holds no message in the requested window, as far as this identity can see it. rc=3 says exactly that, and is deliberately not rc 0, so absence cannot be read as presence by a caller that ignores status. It is also not rc 1, which would mean the search could not be performed at all." >&2
+				set +e ; return 3
+			fi
+			echo "## result=found"
+			return 0
+}
+case "$1" in
+
+		--intern-op-comms-slack-search-messages)
+			shift
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' search:read
+				return 0
+			fi
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-search-messages || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+			if [ -z "$target" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>)" >&2
+				set +e ; return 1
+			fi
+			local cutoffKind="" cutoffValue="" maxPages=10 pretty="true"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--comms-since-date-time|--comms-since-utime)
+						if [ -n "$cutoffKind" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+							set +e ; return 1
+						fi
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: $1 value missing" >&2
+							set +e ; return 1
+						fi
+						cutoffKind="$1" ; cutoffValue="$2" ; shift 2
+					;;
+					--max-pages)
+						if [ -z "${2:-}" ] || [ -n "$( printf '%s' "$2" | tr -d '0-9' )" ] || [ "$2" = "0" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: --max-pages requires a positive whole number of pages, got: ${2:-}" >&2
+							set +e ; return 1
+						fi
+						maxPages="$2" ; shift 2
+					;;
+					--raw)
+						pretty="false" ; shift
+					;;
+					--identity-bot)
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: --identity-bot is REFUSED by this operation -- Slack's search.messages is available to a user token only, and a bot token cannot call it at all. This is not a permission that could be granted: no scope makes a bot able to search. The flag is rejected rather than accepted-and-ignored on purpose, because acting under the member's user identity while the caller asked for the bot would be a silent identity substitution. Exactly three operations refuse --identity-bot: --slack-search-messages, --slack-profile-set and --slack-profile-get. The message, reaction and file operations accept it; the --member-comms-slack-presence-* and --member-comms-slack-socket-* operations do not take the flag at all. This refusal is Slack's own, not this tool's. Re-run without the flag to search under the member's own user identity." >&2
+						set +e ; return 1
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$cutoffKind" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: a cut-off is required -- pass --comms-since-date-time <YYYY-MM-DD...> or --comms-since-utime <epoch-seconds>. There is deliberately no default: an unbounded search would return this conversation's entire history a page at a time, and a caller that meant 'recently' would get a truncated prefix of years-old messages instead." >&2
+				set +e ; return 1
+			fi
+			local cutoffEpoch=""
+			if [ "$cutoffKind" = "--comms-since-utime" ] ; then
+				case "$cutoffValue" in
+					''|*[!0-9.]*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: --comms-since-utime: not epoch seconds: $cutoffValue" >&2
+						set +e ; return 1
+					;;
+				esac
+				cutoffEpoch="$cutoffValue"
+			else
+				case "$cutoffValue" in
+					[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*) : ;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: --comms-since-date-time: must start with YYYY-MM-DD: $cutoffValue" >&2
+						set +e ; return 1
+					;;
+				esac
+				cutoffEpoch="$( printf '%s\n' "$cutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" )" || cutoffEpoch=""
+				if [ -z "$cutoffEpoch" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: --comms-since-date-time: could not convert to epoch seconds: $cutoffValue" >&2
+					set +e ; return 1
+				fi
+			fi
+			local afterDate=""
+			afterDate="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" )" || afterDate=""
+			if [ -z "$afterDate" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: could not derive the search window's start date from cut-off $cutoffEpoch" >&2
+				set +e ; return 1
+			fi
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				2)
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: unrecognized target: $target" >&2
+					set +e ; return 1
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: $resolved" >&2
+					set +e ; return 1
+				;;
+				*)
+					local targetKey=""
+					type AgentsToolsCommsChannelSlackKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
+					targetKey="$( AgentsToolsCommsChannelSlackKey "${target%%:*}" )" || targetKey=""
+					if [ -n "$targetKey" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
+					else
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
+					fi
+					set +e ; return 1
+				;;
+			esac
+			## A session address names one thread, never a conversation to search: refused for what it is.
+			case "$target" in
+				session-current|session-parent)
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: '$target' names one thread, and this operation searches a whole conversation over a time window, so a session address is refused here. To read that thread, use --slack-read <team-member> $target --thread." >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -n "$threadTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: target '$target' names one specific message (<channel>:<ts>), and this operation searches a whole conversation over a time window. The <ts> was NOT ignored -- pass the channel alone. To read that one message or its thread, use --slack-read <team-member> <channel>:<ts> [--thread] -- note that op takes the acting member as its FIRST argument, ahead of the target." >&2
+				set +e ; return 1
+			fi
+			## A client: address: the rest of this search is on the side of the other organisation,
+			## and Slack is given the id alone.
+			case "$channel" in
+				client:*) local -x MDAT_COMMS_SIDE=client ; channel="${channel#client:}" ;;
+			esac
+			local inTerm=""
+			case "$channel" in
+				C*|D*|G*) inTerm="in:<#$channel>" ;;
+				U*|W*)    inTerm="in:<@$channel>" ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: target '$target' resolved to '$channel', which is neither a conversation id (C/D/G) nor a party id (U/W), so no Slack \`in:\` term can be built for it. Nothing was searched." >&2
+					set +e ; return 1
+				;;
+			esac
+			local searchQuery="$inTerm after:$afterDate"
+			## THE ANSWER ONCE, KEPT BY ITS QUERY (owner 2026-11-01, option one): a repeated search inside its TTL calls Slack not
+			## at all. The answer is filed only where the search finished, and its own ttl state says when it goes stale.
+			local searchSig="" searchAnswer="" searchRc=0
+			searchSig="$( AgentsToolsCommsCacheSearchSignature "$target" "$searchQuery" "$cutoffEpoch" "$maxPages" "$pretty" )" || searchSig=""
+			if [ -n "$searchSig" ] && AgentsToolsCommsCacheSearchServe "$searchSig" "${MDAT_COMMS_SEARCH_TTL:-}" ; then
+				echo "# $MDSC_CMD --slack-search-messages: served from the search cache, nothing asked of Slack"
+				return 0
+			fi
+			searchAnswer="$( AgentsToolsCommsSlackSearchAnswer )"
+			searchRc=$?
+			[ -z "$searchAnswer" ] || printf '%s\n' "$searchAnswer"
+			if [ "$searchRc" -eq 0 ] && [ -n "$searchSig" ] ; then
+				AgentsToolsCommsCacheSearchFile "$searchSig" "$searchAnswer" "${MDAT_COMMS_SEARCH_TTL:-}" || \
+					echo "🙋 WARNING: $MDSC_CMD --slack-search-messages: the search answered, but its answer was not filed in the cache" >&2
+			fi
+			return "$searchRc"
+		;;
+esac

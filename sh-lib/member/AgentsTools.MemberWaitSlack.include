@@ -1,0 +1,340 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitSlack.include -- the Slack conversation probe and the Slack person probe.
+## Sourced by --wait-for-input for a source of its kind, and by a caller that needs one probe of it.
+## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
+##
+type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include"
+
+## Slack. Through the team's own sanctioned read operation and no other path:
+## the credential stays inside that operation and never reaches argv here.
+##
+## A target carrying a `:` names ONE THREAD, and a thread is where a question put
+## to somebody is answered, so that case renders THE ANSWERS IN IT and nothing
+## else. Three existing pieces and no fourth way: the read operation returns the
+## whole thread, AgentsSlackMessagesFormat.awk renders it in its own ts order, and
+## AgentsSlackThreadAnswers.awk keeps only what came after our own message -- a reply
+## from the party the question was addressed to, or a reaction on our own message.
+## No message text decides any of it.
+##
+## <since-epoch> is our own message's ts for a thread, which is what a caller
+## already passes it for, and <addressee> carries the accounts whose answer counts.
+## Because nothing our own side wrote survives that rendering, a wait over a thread
+## CANNOT be satisfied by the session's own post -- which is what it did before,
+## on its first poll, in zero seconds, every time.
+##
+## A bare conversation is rendered from the cut-off forward, which is Slack doing
+## the narrowing server-side rather than this operation pulling history it would
+## only throw away.
+## A SOURCE THAT NAMES A PERSON (slack:human-owner, or a user id) is every direct conversation with that person the member posts in: the member's own and the team bot's
+## (a person is a different DM per identity, and every ask of the bot is posted in the bot's). Each is read by its own id, and its messages stand behind a `# in <conversation>`
+## line, so a reply goes back to the conversation it was read from. From the bot's DM only what the person wrote is kept. rc 0 read, 1 the target names no person (the
+## caller reads it as a conversation), 2 neither DM could be read.
+AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
+	local personMember="$1" personTarget="$2" personSince="$3" personOut="$4" personId personIdentity personInfo personDm personSeen=" " personFailed=0 personParts=0 personRendered="" personLine
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
+	personId="$( DistroAgentsToolsResolveTarget "$personTarget" "$personMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1 )" || personId=""
+	case "$personId" in U*|W*) ;; *) return 1 ;; esac
+	## A PERSON WITH NOTHING NEW IS NOT WRITTEN, as a conversation (AgentsWaitProbeSlack): each direct conversation with them, known
+	## by its id, is read once through the cache. Where each reads as at the last round (its length and
+	## its tail), the files stand as they are. rc 3 says so.
+	local personKey="" personKeyIdentity personKeyLine personKeyP personKeyD personKeyAt personKeyOut personKeyN=0
+	if [ -f "$personOut" ] && [ -f "$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt" ] ; then
+		personKey="$personOut@$personTarget"
+		for personKeyIdentity in user bot ; do
+			personKeyD=""
+			while read -r personKeyLine personKeyP personKeyD personKeyAt ; do
+				[ "$personKeyLine:$personKeyP" = "$personKeyIdentity:$personId" ] && break
+				personKeyD=""
+			done < "$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt"
+			case "$personKeyD" in D[A-Z0-9]*) personKeyN=$(( personKeyN + 1 )) ;; *) continue ;; esac
+			type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+			personKeyOut="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$personMember" "$personKeyD" ${personSince:+--oldest "$personSince"} $( [ "$personKeyIdentity" = bot ] && printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || { personKey="" ; break ; }
+			personKeyOut="${#personKeyOut}:${personKeyOut: -120}"
+			personKey="$personKey/${personKeyOut//[[:space:]]/_}"
+		done
+		[ "$personKeyN" -gt 0 ] || personKey=""
+		[ -z "$personKey" ] || case " ${agentsWaitConvSeen:-} " in *" $personKey "*) return 3 ;; esac
+	fi
+	personRendered=""
+	## The id of a direct conversation never changes: kept a week, per member, in .local/cache/comms/slack/.dm-<member>.txt
+	## (`<identity> <person> <dm id> <at>`), so a probe asks conversations.info only for one it does not know.
+	local personDmFile="$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt" personNow personKnownIdentity personKnownPerson personKnownDm personKnownAt
+	personNow="${roundNow:-}"
+	case "$personNow" in ''|*[!0-9]*) personNow="$( date +%s )" ;; esac
+	for personIdentity in user bot ; do
+		personParts=$(( personParts + 1 ))
+		personDm=""
+		if [ -f "$personDmFile" ] ; then
+			while read -r personKnownIdentity personKnownPerson personKnownDm personKnownAt ; do
+				[ "$personKnownIdentity:$personKnownPerson" = "$personIdentity:$personId" ] || continue
+				case "$personKnownAt" in ''|*[!0-9]*) break ;; esac
+				[ $(( personNow - personKnownAt )) -lt 604800 ] && personDm="$personKnownDm"
+				break
+			done < "$personDmFile"
+		fi
+		if [ -z "$personDm" ] ; then
+			type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+			personInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$personMember" --api conversations.info --resolve-dm "$personId" --identity "$personIdentity" --context "wait: the direct conversation with $personTarget" 2> "$personOut.err" )" || { personFailed=$(( personFailed + 1 )) ; continue ; }
+			personDm="$( printf '%s\n' "$personInfo" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || personDm=""
+			[ -n "$personDm" ] || { personFailed=$(( personFailed + 1 )) ; continue ; }
+			case "$personDm" in
+				D[A-Z0-9]*)
+					{ mkdir -p "${personDmFile%/*}" && personTmp="$( mktemp "$personDmFile.XXXXXX" )" && { [ ! -f "$personDmFile" ] || LC_ALL=C awk -v k="$personIdentity" -v p="$personId" '!( $1 == k && $2 == p )' "$personDmFile" ; printf '%s %s %s %s\n' "$personIdentity" "$personId" "$personDm" "$personNow" ; } > "$personTmp" && mv -f "$personTmp" "$personDmFile" ; } 2> /dev/null || rm -f "${personTmp:-}" 2> /dev/null
+				;;
+			esac
+		fi
+		case "$personSeen" in *" $personDm "*) continue ;; esac
+		personSeen="$personSeen$personDm "
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$personMember" "$personDm" ${personSince:+--oldest "$personSince"} $( [ "$personIdentity" = bot ] && printf '%s' --identity-bot ) > "$personOut.part" 2> "$personOut.err" || { personFailed=$(( personFailed + 1 )) ; cat "$personOut.err" >&2 ; continue ; }
+		AgentsWaitOwnFile "$personOut.part" || return 2
+		LC_ALL=C awk -v person="$personId" -v onlyPerson="$( [ "$personIdentity" = bot ] && printf 1 || printf 0 )" '
+			NR == 1 && /^## target=/ { next ; }
+			/^[0-9]+\.[0-9]+ \| / { split($0, f, " \\| ") ; keep = ( onlyPerson == 0 || f[2] == person ) ; }
+			keep { print ; }' "$personOut.part" > "$personOut.part.kept" 2>> "$personOut.err" || return 2
+		AgentsWaitTrackingDropFile "$personMember" "$personOut.part.kept"
+		personRendered="$personRendered# in $personDm"$'\n'
+		while IFS= read -r personLine ; do personRendered="$personRendered$personLine"$'\n' ; done < "$personOut.part.kept"
+	done
+	AgentsWaitPut "$personOut.rendered" "$personRendered" || return 2
+	[ "$personFailed" -lt "$personParts" ] || return 2
+	[ -z "$personKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $personKey"
+	return 0
+}
+
+AgentsWaitProbeSlack(){
+	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeAddressee="$5" probeIncludeOwn="$6" probeRc=0 probeNext=""
+	## Given by the ask probe only: the accounts that asked, whose reaction never answers, and
+	## the first post of a question asked again in its own thread, where a click still answers.
+	local probeAsking="${7:-}" probeAlso="${8:-}"
+	## A round passes its baseline file in that place, never accounts: an account id holds no `/`, so a path is no ask.
+	case "$probeAsking" in */*) probeAsking="" ;; esac
+	## The identity the thread is read with: the member's own, or the team bot's for a question
+	## the bot posted (its record's `ask-identity: bot`), which may stand in a conversation the
+	## member's own account is not in. Given by the ask probe, or by the collector for the one
+	## read it makes of such a question (MDAT_WAIT_READ_AS_BOT).
+	local probeAsBot="${9:-${MDAT_WAIT_READ_AS_BOT:-}}"
+	local probeArgs probeThread="false" probeMode="" probePersonRc=1
+	case "$probeTarget" in
+		*:*|'') ;;
+		*) case "$probeMember" in client-*) ;; *) [ "$probeAsBot" = "true" ] || { AgentsWaitProbeSlackPerson "$probeMember" "$probeTarget" "$probeSince" "$probeOut" && probePersonRc=0 || probePersonRc=$? ; } ;; esac ;;
+	esac
+	## Nothing new from the person (AgentsWaitProbeSlackPerson rc 3): the source file stands as the last round left it.
+	[ "$probePersonRc" != "3" ] || return 0
+	if [ "$probePersonRc" = "2" ] ; then
+		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+		return 2
+	fi
+	if [ "$probePersonRc" = "0" ] ; then
+		## Strictly after the floor, a `# in` line only before a message that is kept: a conversation with nothing new says nothing.
+		## WRITTEN ONLY WHERE IT DIFFERS (AgentsWaitPut): an idle tick over an unchanged
+		## conversation must not rewrite the source's file every round.
+		probeNext="$( LC_ALL=C awk -v floorTs="${probeSince:-0}" '
+			function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+			function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+			/^# in / { pending = $0 ; next ; }
+			/^[0-9]+\.[0-9]+ \| / { keep = ( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ; if ( keep && pending != "" ) { print pending ; pending = "" ; } }
+			keep { print ; }' < "$probeOut.rendered" 2>> "$probeOut.err" )" || return 2
+		AgentsWaitPut "$probeOut" "${probeNext:+$probeNext$'\n'}" || return 2
+		return 0
+	fi
+	probeArgs=( "$probeMember" )
+	## The shape is read past a client: marker (the other organisation's side of a client-*
+	## member, AgentsTools.CommsSlack.include), which stays on the target the read is given.
+	case "${probeTarget#client:}" in
+		*:*:conversation)
+			probeThread="true"
+			probeMode="conversation"
+			probeTarget="${probeTarget%:conversation}"
+			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
+		;;
+		*:*)
+			probeThread="true"
+			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
+		;;
+		*)
+			probeArgs=( "${probeArgs[@]}" "$probeTarget" )
+			[ -z "$probeSince" ] || probeArgs=( "${probeArgs[@]}" --oldest "$probeSince" )
+		;;
+	esac
+	[ "$probeAsBot" != "true" ] || probeArgs=( "${probeArgs[@]}" --identity-bot )
+	## A thread comes through the comms cache where it can (AgentsWaitThreadCached); else it is read here, as before.
+	local probeCached=1
+	if [ "$probeThread" = "true" ] ; then
+		case "$probeTarget" in
+			client:*) ;;
+			*)
+				AgentsWaitThreadCached "$probeMember" "$probeTarget" "$probeOut.rendered" "${probeAsBot:-false}" && probeCached=0 || probeCached=$?
+				## The thread as it was at the last round, and what this probe made of it still in place: nothing to do again. Not for an
+				## ask (asking accounts or a re-asked first post given): its caller builds on this probe's output, so it is made afresh.
+				[ "$probeCached" != "0" ] || [ -z "${agentsWaitThreadUnchanged:-}" ] || [ ! -f "$probeOut" ] || [ -n "$probeAsking$probeAlso" ] || return 0
+				if [ "$probeCached" = "2" ] ; then
+					[ ! -s "$probeOut.rendered.err" ] || cat "$probeOut.rendered.err" >&2
+					return 2
+				fi
+			;;
+		esac
+	fi
+	## A CONVERSATION WITH NOTHING NEW IS NOT WRITTEN: read once through the cache, which decides hit or pull. Where it reads as
+	## at the last round from the same floor (its length and its tail), the files stand as they are. Otherwise what was read is the round's read.
+	local probeConvKey="" probeQuick="" probeQuickRest="" probeQuickRc=1
+	if [ "$probeThread" = "false" ] && [ "$probeCached" != "0" ] ; then
+		probeQuickRc=0
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		probeQuick="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" 2> /dev/null < /dev/null )" || probeQuickRc=$?
+		if [ "$probeQuickRc" = 0 ] ; then
+			probeQuickRest="${#probeQuick}:${probeQuick: -120}"
+			probeConvKey="$probeOut@$probeTarget/${probeAsBot:-}/${probeQuickRest//[[:space:]]/_}"
+			if [ -f "$probeOut" ] ; then
+				case " ${agentsWaitConvSeen:-} " in *" $probeConvKey "*) return 0 ;; esac
+			fi
+		fi
+	fi
+	if [ "$probeCached" != "0" ] ; then
+	## Output to a file, never a capture: the read operation forks curl, and a
+	## capture returns on pipe EOF rather than on the process that holds it.
+	if [ "$probeQuickRc" = 0 ] ; then
+		printf '%s\n' "$probeQuick" > "$probeOut.read" ; : > "$probeOut.err"
+	else
+	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" \
+		> "$probeOut.read" 2> "$probeOut.err" || probeRc=$?
+	fi
+	if [ "$probeRc" != "0" ] ; then
+		## Actually onto stderr: the TIMEOUT text tells the caller a failed probe's
+		## diagnostics are there, and without this the file is written, read by
+		## nothing, and removed with the working directory -- a claim that reads as
+		## verified while the reason is discarded.
+		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+		return 2
+	fi
+	## What a step wrote is there when the next one reads it, or the wait ends on it (AgentsWaitOwnFile).
+	AgentsWaitOwnFile "$probeOut.read" || return 2
+	## Every message is one "<ts> | user | text" line and has an id. A thread is read raw and formatted here. A
+	## bare conversation is read formatted already (AgentsToolsSlackCheck, its first line a `## target=` mark): its
+	## lines are the rendering, and the JSON formatter would print nothing of them -- so no bare conversation
+	## ever returned an arrival.
+	if [ "$probeThread" = "true" ] ; then
+		## The one rendering (epic S11): the function the read operation and the comms cache render through.
+		type AgentsToolsSlackFormatPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackFormatPagedConversation "$probeMember" "$( cat "$probeOut.read" )" > "$probeOut.rendered" 2>> "$probeOut.err" || probeRc=$?
+	else
+		LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' \
+			< "$probeOut.read" > "$probeOut.rendered" 2>> "$probeOut.err" || probeRc=$?
+	fi
+	fi
+	AgentsWaitOwnFile "$probeOut.rendered" || return 2
+	## A person is a different DM per identity: what that person wrote in the bot's DM is read too.
+	local probePerson=""
+	if [ "$probeThread" = "false" ] && [ "$probeRc" = "0" ] && [ "$probeAsBot" != "true" ] ; then
+		probePerson="$( LC_ALL=C awk 'NR == 1 && /^## target=U[A-Z0-9]+ / { sub(/^## target=/, "") ; sub(/ .*$/, "") ; print ; } { exit ; }' "$probeOut.read" 2> /dev/null )"
+	fi
+	if [ -n "$probePerson" ] ; then
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" --identity-bot > "$probeOut.bot.read" 2> "$probeOut.bot.err" ; then
+			LC_ALL=C awk -v person="$probePerson" '
+				NR == 1 && /^## target=/ { next ; }
+				/^[0-9]+\.[0-9]+ \| / { split($0, f, " \\| ") ; keep = ( f[2] == person ) ; }
+				keep { print ; }' < "$probeOut.bot.read" >> "$probeOut.rendered" 2>> "$probeOut.err" || { [ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2 ; return 2 ; }
+		else
+			echo "⛔ ERROR: the bot's DM with $probePerson could not be read, so what is written there is not seen:" >&2
+			cat "$probeOut.bot.err" >&2
+			return 2
+		fi
+	fi
+	## A client-* member reaches the human-owner on the other organisation's side too: the conversations its own scope names.
+	local probeClientConvs="" probeClientConv
+	if [ "$probeThread" = "false" ] && [ "$probeTarget" = "human-owner" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		case "$probeMember" in client-*) probeClientConvs="$( AgentsToolsConfigOption "$probeMember" --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || probeClientConvs="" ;; esac
+	fi
+	for probeClientConv in ${probeClientConvs//,/ } ; do
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$probeMember" "client:$probeClientConv" ${probeSince:+--oldest "$probeSince"} > "$probeOut.client.read" 2> "$probeOut.client.err" ; then
+			LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' < "$probeOut.client.read" >> "$probeOut.rendered" 2>> "$probeOut.err" || return 2
+		else
+			echo "⛔ ERROR: the human-owner conversation $probeClientConv on $probeMember's other side could not be read, so what is written there is not seen:" >&2
+			cat "$probeOut.client.err" >&2
+			return 2
+		fi
+	done
+	## The session thread, read here, is brought into the session chat file too: one read serves this source and the file.
+	case "$probeTarget" in client:*) ;; *) [ "$probeThread" != "true" ] || [ "$probeRc" != "0" ] || AgentsWaitChatImportRead "$probeMember" "$probeTarget" "$probeOut.rendered" || : ;; esac
+	## What the tooling posted itself is no arrival (AgentsTools.TrackingDrop.include); the chat file above holds the whole thread as it was.
+	## Not for an ask: its own post is the tooling's, and the answer to it, a click on that post, stands on its line.
+	[ -n "$probeAsking$probeAlso" ] || AgentsWaitTrackingDropFile "$probeMember" "$probeOut.rendered"
+	if [ "$probeThread" = "false" ] ; then
+		if [ "$probeRc" != "0" ] ; then
+			[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+			return 2
+		fi
+		## Strictly after the floor, whatever the server did with --oldest: the floor is the
+		## last message a result already carried, so one at the floor must not come back.
+		## WRITTEN ONLY WHERE IT DIFFERS (AgentsWaitPut), for the same reason as above.
+		if [ -n "$probeSince" ] ; then
+			probeNext="$( LC_ALL=C awk -v floorTs="$probeSince" '
+				function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+				function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+				/^[0-9]+\.[0-9]+ \| / { keep = ( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ; }
+				keep { print ; }' < "$probeOut.rendered" 2>> "$probeOut.err" )" || return 2
+			AgentsWaitPut "$probeOut" "${probeNext:+$probeNext$'\n'}" || return 2
+			[ -z "$probeConvKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeConvKey"
+			return 0
+		fi
+		## The rendering is already the final content here: a rewrite this round buys
+		## nothing once it matches what the last round left in place.
+		if [ -f "$probeOut" ] && cmp -s "$probeOut.rendered" "$probeOut" 2> /dev/null ; then
+			[ -z "$probeConvKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeConvKey"
+			return 0
+		fi
+		mv -f "$probeOut.rendered" "$probeOut" || return 2
+		[ -z "$probeConvKey" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeConvKey"
+		return 0
+	fi
+	## A thread several questions share answers each by its tag (AgentsTools.AskThread.include).
+	## Conversation mode has no question to tag, so it skips this lookup entirely.
+	local probeStanding="" probeOthers=""
+	if [ "$probeMode" != "conversation" ] ; then
+		type AgentsToolsAskThreadStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskThread.include"
+		probeStanding="$( AgentsToolsAskThreadStanding "${probeTarget%:*}" "$probeSince" )"
+		[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%:*}" "$probeSince" )"
+	fi
+	AgentsWaitOwnFile "$probeOut.rendered" || return 2
+	if [ "$probeRc" = "0" ] ; then
+		## 0|1, never true|false: a bare digit needs no quoting -v could mangle, and
+		## the awk guard below reads it as the strnum truth value it already is.
+		local probeIncludeOwnFlag=0
+		[ "$probeIncludeOwn" != "true" ] || probeIncludeOwnFlag=1
+		## WRITTEN ONLY WHERE IT DIFFERS (AgentsWaitPut), for the same reason as above.
+		probeNext="$( LC_ALL=C awk -v rootTs="$probeSince" -v alsoTs="$probeAlso" -v askingUsers="$probeAsking" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" -v mode="$probeMode" -v callerName="$probeMember" -v includeOwn="$probeIncludeOwnFlag" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackThreadAnswers.awk" \
+			< "$probeOut.rendered" 2>> "$probeOut.err" )" || probeRc=$?
+		[ "$probeRc" != "0" ] || AgentsWaitPut "$probeOut" "${probeNext:+$probeNext$'\n'}" || return 2
+	fi
+	## A rendering step that could not run is an UNREADABLE SOURCE and is reported as
+	## one -- never as a thread that holds no answer. The filter refuses a rendering
+	## that does not carry our own message for exactly that reason.
+	if [ "$probeRc" != "0" ] ; then
+		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+		return 2
+	fi
+	return 0
+}
+
+## A read of the session thread by another source of this wait brings it into the file too: the rendering <file> is the thread's.
+AgentsWaitChatImportRead(){ ## member, conversation:thread, the rendering file
+	local importSession importThread
+	type AgentsToolsSessionChatImport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	importSession="$( AgentsToolsSessionChatKey )"
+	[ -n "$importSession" ] || return 0
+	importThread="$( AgentsToolsSessionChatThread "$importSession" )" || return 0
+	[ "$importThread" = "$2" ] || return 0
+	## Delivered by the source that read it, so it is the member's own.
+	AgentsToolsSessionChatImport "$importSession" "$2" "$3" slack "$1"
+	AgentsToolsSessionChatPointerSet "$importSession" "topup:$2" "$( date +%s )"
+	return 0
+}
+

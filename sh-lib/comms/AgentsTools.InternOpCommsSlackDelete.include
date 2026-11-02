@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCommsSlackDelete.include -- --slack-delete-message.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+
+case "$1" in
+
+		--intern-op-comms-slack-delete-message)
+			shift
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' chat:write im:write
+				return 0
+			fi
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-delete-message || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local identityAsBot="false"
+			local bulkConfirmed="false"
+			local deleteTargets=()
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					--bulk-confirmed)
+						bulkConfirmed="true" ; shift
+					;;
+					--*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+					*)
+						deleteTargets+=( "$1" ) ; shift
+					;;
+				esac
+			done
+			if [ "${#deleteTargets[@]}" -eq 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: <channel>:<ts> missing" >&2
+				set +e ; return 1
+			fi
+			## A HANDFUL IS A REPAIR; A SWEEP IS AN INCIDENT. On 2026-10-27 a loop over a TEXT
+			## PATTERN called this operation 126 times and emptied a client's channel: every message
+			## whose text matched a word was deleted, threads and all, and Slack cannot restore a
+			## deleted message -- chat.update answers message_not_found. So a single call deletes at
+			## most five targets. More than five needs --bulk-confirmed, which is a deliberate second
+			## word in the command, and the count and the targets are still printed before anything
+			## is touched. A deletion is chosen from a reviewed list of ts's, never derived by a match.
+			if [ "${#deleteTargets[@]}" -gt 5 ] ; then
+				if [ "$bulkConfirmed" != "true" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: ${#deleteTargets[@]} targets in one call -- at most five are deleted without --bulk-confirmed, and this is not a call to sweep with. Nothing was deleted." >&2
+					set +e ; return 1
+				fi
+			fi
+			## BOTH the response and the diagnostic are needed as values here -- the
+			## documented stdout contract is DELETE_TARGET, DELETE_STATE, then the raw
+			## response -- and a substitution yields one capture, so the second stream
+			## needs a real sink. One for the whole run, not one per target.
+			## Its own, by mktemp and never by $$, which every subshell of one shell shares.
+			local diagFile
+			mkdir -p "$MMDAPP/.local/temp" && diagFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-delete-diag.XXXXXX" )" || { set +e ; return 1 ; }
+			chmod 600 "$diagFile"
+			local deleteTotal="${#deleteTargets[@]}" deleteDone=0 deleteFailed=0
+			local oneTarget
+			for oneTarget in "${deleteTargets[@]}" ; do
+				local resolved rc channel threadTs
+				rc=0
+				resolved="$( DistroAgentsToolsResolveTarget "$oneTarget" "$memberName" )" || rc=$?
+				if [ "$rc" != "0" ] ; then
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					printf '%s\n' DELETE_STATE=unresolvable-target
+					## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+					[ "$rc" != "3" ] || echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: $resolved Nothing was deleted for this target; the remaining targets are still attempted." >&2
+					[ "$rc" = "3" ] || echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: could not resolve target '$oneTarget' -- pass <channel>:<ts>. Nothing was deleted for this target; the remaining targets are still attempted." >&2
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+				channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+				local targetUserId=""
+				targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+				threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				if [ -z "$threadTs" ] ; then
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					printf '%s\n' DELETE_STATE=no-message-ts
+					echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names. Nothing was deleted for '$oneTarget'; the remaining targets are still attempted." >&2
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+				local opArgs=( "$memberName" --api chat.delete --resolve-target "$channel" --form "ts=$threadTs" )
+				if [ "$identityAsBot" = "true" ] ; then
+					opArgs+=( --identity bot )
+				fi
+				opArgs+=( --context "--slack-delete-message" )
+				echo "# $MDSC_CMD --slack-delete-message: chat.delete channel=$channel ts=$threadTs (acting member $memberName, target $(( deleteDone + deleteFailed + 1 )) of $deleteTotal)" >&2
+				local response callRc=0
+				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+				local diag
+				## Tested, so nothing between the file's creation and its removal can
+				## abort under `set -e` and leave it behind.
+				diag="$( cat "$diagFile" )" || diag=""
+				[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+				if [ "$callRc" != "0" ] ; then
+					local actingIdentity=""
+					actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+					local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+					case "$actingIdentity" in
+						bot|user)
+							actingIdentityText="the $actingIdentity identity"
+						;;
+						not-yet-selected)
+							actingIdentityText="no identity at all -- the call failed before one was selected"
+						;;
+					esac
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					case "$diag" in
+						*cant_delete_message*|*message_not_found*)
+							printf '%s\n' DELETE_STATE=refused-on-authorship
+							echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: REFUSED FOR $channel:$threadTs -- Slack permits deleting only a message the acting identity itself authored, and this call acted as $memberName under $actingIdentityText. The message was NOT deleted and nothing about it changed. Slack's own code is in the diagnostic above: cant_delete_message means the message exists and belongs to a different identity; message_not_found means this identity cannot see a message with that ts at all (already deleted, wrong ts, or once again another identity's message). Retrying under the other identity is deliberately NOT attempted -- substituting an identity to make a destructive call succeed is the silent degrade this op family forbids. Decide which identity should own this deletion and ask for it explicitly with --identity-bot." >&2
+						;;
+						*)
+							printf '%s\n' DELETE_STATE=could-not-call
+							echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: COULD NOT DELETE $channel:$threadTs -- the call did not complete (see the op's own diagnostic above). This is NOT an authorship refusal: nothing is known from this result about who authored that message, and the message was not deleted." >&2
+						;;
+					esac
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+				printf 'DELETE_TARGET=%s\n' "$oneTarget"
+				printf '%s\n' DELETE_STATE=deleted
+				printf '%s\n' "$response"
+				deleteDone=$(( deleteDone + 1 ))
+			done
+			rm -f "$diagFile"
+			echo "# $MDSC_CMD --slack-delete-message: $deleteDone of $deleteTotal target(s) deleted, $deleteFailed not deleted (acting member $memberName)" >&2
+			if [ "$deleteFailed" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: $deleteFailed of $deleteTotal target(s) were NOT deleted -- read the per-target DELETE_STATE lines above; a non-zero exit here never means the whole run failed, and the targets reported DELETE_STATE=deleted really were deleted." >&2
+				set +e ; return 1
+			fi
+			return 0
+		;;
+esac

@@ -1625,8 +1625,8 @@ rigTaskDispatchFile="$( ls "$rigTmp/data/board"/*/"$rigTaskDispatch" 2>/dev/null
 rigAssert "its start entry: the description on the first line, the task's title with both names, and the task's own text below" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C awk '/^BOX / { boxNo++ ; } boxNo == 2' | LC_ALL=C sed -n '2,4p' | LC_ALL=C tr '\n' '|' )" \
 	"▶️ run start — fix the loader for the vars file|task: Fix the vars loader · \`task-rig-start\` · \`${rigTaskDispatch%.md}\`|The loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite?|"
-rigAssert "the description is kept on the dispatch record and on the spawn's record, and no comment field is written where none was given" \
-	"$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "${rigTaskDispatchFile:-/dev/null}" ):$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" ):$( cat "${rigTaskDispatchFile:-/dev/null}" "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" 2>/dev/null | LC_ALL=C grep -c '^session-comment:' )" "1:1:0"
+rigAssert "the description is kept on the dispatch record and on the spawn's record, and the session is titled by the document it was given" \
+	"$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "${rigTaskDispatchFile:-/dev/null}" ):$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" ):$( LC_ALL=C grep -c -x -F 'session-comment: Fix the vars loader' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" )" "1:1:1"
 ## One that joins says what it was brought in for, from its own dispatch: no description, so
 ## its first line has none, and its own brief's text shows.
 printf 'Check the loader against the three sample files. Report what differs.\n' > "$rigTmp/spawn.brief"

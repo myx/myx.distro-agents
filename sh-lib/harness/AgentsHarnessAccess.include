@@ -167,7 +167,7 @@ AgentsHarnessSessionKey(){
 ## for each post and the latest first, `<channel>:<thread> <ts> <addressees> <thread floor>
 ## <conversation floor> <siblings> <reactions> <checked>`. Its first two words are what the Wait floor
 ## fallback reads of the latest post, and every line is a post whose replies the floor of a plain Wait
-## holds (AgentsTools.MemberWait.include, AgentsWaitProbeReplies, which writes the other words as it
+## holds (AgentsTools.MemberWaitReplies.include, AgentsWaitProbeReplies, which writes the other words as it
 ## looks): the addressees comma-joined, a word not known yet `-`, the siblings and the check time 0.
 AgentsHarnessOwnPostRecord(){ ## send output file
 	local ownSession ownChannel ownTs ownThread ownAddressees ownDir ownTmp ownLock=""
@@ -234,8 +234,11 @@ AgentsHarnessRefusal(){ ## tool, target, error line
 		printf 'REFUSAL-ID: none -- this session has no session id or team identity, so the refusal was not recorded and cannot be escalated by id.\n'
 		return 0
 	fi
-	"$BASH" "$refusalTools" --intern-op-permission-refusal-log "$harnessAgent" --session-id "$refusalSession" --tool "$1" --target "$2" \
-		--reason "$3" > "$harnessScratch/refusal.out" 2> "$harnessScratch/refusal.err" || :
+	## The refusal arm's own include, in a subshell of this function, not the whole command script: its post is queued, never waited for.
+	( export MDAT_EVENT_TRACK_POST_NOWAIT=1 MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}"
+	  type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	  . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-refusal-log "$harnessAgent" \
+		--session-id "$refusalSession" --tool "$1" --target "$2" --reason "$3" ) > "$harnessScratch/refusal.out" 2> "$harnessScratch/refusal.err" || :
 	refusalId="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$harnessScratch/refusal.out" | head -1 )"
 	if [ -z "$refusalId" ] ; then
 		printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id. What the operation reported follows:\n'

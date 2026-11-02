@@ -1,0 +1,279 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitCore.include -- the helpers --wait-for-input shares between its probes, and the floor advance
+## the session chat calls. Functions only: nothing runs when it is sourced.
+##
+
+## The conversations and threads the other sources of this wait read, found from agentsWaitCoverSources (the
+## wait's sources, set before it polls) when a post needs them, `?` until then: `<channel>` for a whole
+## conversation, `<channel>:<thread>` for a thread, spaced.
+agentsWaitCovered=""
+agentsWaitCoverSources=""
+
+## What the other sources of a wait read, for the floor to leave to them.
+AgentsWaitCoveredSet(){ ## member, sources...
+	local coverMember="$1" coverSource coverName coverResolved coverRecord coverLine coverChannel coverThread coverList=""
+	shift
+	for coverSource in "$@" ; do
+		case "${coverSource/#slack:client:/slack:}" in
+			slack:*:*:conversation)
+				coverName="${coverSource#slack:}"
+				coverList="$coverList ${coverName%:conversation}"
+			;;
+			slack:*:*) ;;
+			slack:?*)
+				type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || continue
+				coverResolved="$( DistroAgentsToolsResolveTarget "${coverSource#slack:}" "$coverMember" 2> /dev/null )" || continue
+				coverChannel="$( printf '%s\n' "$coverResolved" | sed -n 's/^CHANNEL=//p' )"
+				[ -z "$coverChannel" ] || coverList="$coverList $coverChannel"
+			;;
+			ask:*)
+				coverRecord="$MMDAPP/.local/agents/pending/${coverSource#ask:}.md"
+				[ -f "$coverRecord" ] || coverRecord="$MMDAPP/.local/agents/pending/closed/${coverSource#ask:}.md"
+				[ -f "$coverRecord" ] || continue
+				coverChannel="" coverThread=""
+				while IFS= read -r coverLine ; do
+					case "$coverLine" in
+						'channel: '*) coverChannel="${coverLine#channel: }" ;;
+						'thread-ts: '*) coverThread="${coverLine#thread-ts: }" ;;
+						'# '*) break ;;
+					esac
+				done < "$coverRecord"
+				[ -z "$coverChannel" ] || [ -z "$coverThread" ] || coverList="$coverList $coverChannel:$coverThread"
+			;;
+		esac
+	done
+	printf '%s\n' "${coverList# }"
+}
+
+## One look at a thread or a conversation, rendered in the form every reader of Slack here reads. The
+## file is the caller's own, and a step of the wait that wrote it is noted (AgentsWaitOwnFile).
+AgentsWaitReadRendered(){ ## member, read target, thread|conversation, oldest (a conversation only; may be empty), the rendering file
+	local readMember="$1" readTarget="$2" readKind="$3" readOldest="$4" readOut="$5" readArgs readRc=0
+	if [ "$readKind" = "thread" ] ; then
+		AgentsWaitThreadCached "$readMember" "$readTarget" "$readOut" "${MDAT_WAIT_READ_AS_BOT:-false}" || readRc=$?
+		case "$readRc" in
+			0) [ -n "${agentsWaitThreadUnchanged:-}" ] || AgentsWaitTrackingDropFile "$readMember" "$readOut" ; return 0 ;;
+			2) [ ! -s "$readOut.err" ] || cat "$readOut.err" >&2 ; return 2 ;;
+		esac
+		readRc=0
+	fi
+	readArgs=( "$readMember" "$readTarget" )
+	[ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] || readArgs=( "${readArgs[@]}" --identity-bot )
+	if [ "$readKind" = "thread" ] ; then
+		readArgs=( "${readArgs[@]}" --thread )
+	elif [ -n "$readOldest" ] ; then
+		readArgs=( "${readArgs[@]}" --oldest "$readOldest" )
+	fi
+	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${readArgs[@]}" > "$readOut.read" 2> "$readOut.err" || readRc=$?
+	## A conversation the user identity cannot see, such as the bot's own DM with a person, is read again as the bot --
+	## on our own side only: a client: target is the other organisation's, where an identity of ours reads nothing.
+	if [ "$readRc" != "0" ] && [ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] && [ "${readTarget#client:}" = "$readTarget" ] && LC_ALL=C grep -q 'channel_not_found' "$readOut.err" 2> /dev/null ; then
+		readRc=0
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${readArgs[@]}" --identity-bot > "$readOut.read" 2> "$readOut.err" || readRc=$?
+	fi
+	if [ "$readRc" != "0" ] ; then
+		[ ! -s "$readOut.err" ] || cat "$readOut.err" >&2
+		return 2
+	fi
+	AgentsWaitOwnFile "$readOut.read" || return 2
+	if [ "$readKind" = "thread" ] ; then
+		## The one rendering (epic S11): the function the read operation and the comms cache render through.
+		type AgentsToolsSlackFormatPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+		AgentsToolsSlackFormatPagedConversation "$readMember" "$( cat "$readOut.read" )" > "$readOut" 2>> "$readOut.err" || readRc=$?
+	else
+		## A conversation is read formatted already (AgentsToolsSlackCheck), its lines the rendering, less the
+		## `## target=` mark: the JSON formatter would print nothing of them.
+		LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' < "$readOut.read" > "$readOut.new" 2>> "$readOut.err" || readRc=$?
+		## A conversation read again with nothing new is the same rendering: the file stands as it is, unwritten.
+		if [ "$readRc" = "0" ] ; then
+			if cmp -s "$readOut.new" "$readOut" ; then rm -f "$readOut.new" ; else mv -f "$readOut.new" "$readOut" ; fi
+		fi
+	fi
+	AgentsWaitOwnFile "$readOut" || return 2
+	if [ "$readRc" != "0" ] ; then
+		[ ! -s "$readOut.err" ] || cat "$readOut.err" >&2
+		return 2
+	fi
+	AgentsWaitTrackingDropFile "$readMember" "$readOut"
+	return 0
+}
+
+## The tooling's own posts out of a rendering file, in place, for a member: a tracking post is no input to it (AgentsTools.TrackingDrop.include).
+AgentsWaitTrackingDropFile(){ ## member, a rendering file
+	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include" 2> /dev/null || return 0
+	[ -f "$2" ] || return 0
+	AgentsToolsTrackingDrop "$1" < "$2" > "$2.nt" 2> /dev/null || { rm -f "$2.nt" ; return 0 ; }
+	## The drop read as much as it took away: the file stands as it is, unwritten.
+	if cmp -s "$2.nt" "$2" ; then rm -f "$2.nt" ; else mv -f "$2.nt" "$2" ; fi
+	return 0
+}
+
+## Whether Slack ts (or epoch seconds) $1 is strictly newer than $2. Seconds as a number,
+## microseconds as a fixed-width string, never a float -- the AgentsSlackThreadAnswers.awk rule.
+AgentsWaitTsNewer(){ ## candidate, floor
+	LC_ALL=C awk -v a="$1" -v b="$2" '
+		function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+		function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+		BEGIN { exit !( secOf(a) > secOf(b) || ( secOf(a) == secOf(b) && fracOf(a) > fracOf(b) ) ) ; }'
+}
+
+## THE TTL OF A SOURCE (F3.3). The timing of a source is a TTL and no interval: Wait loops, and a source whose previous check is
+## still inside its own TTL is skipped on that pass. The TTLs are hardcoded, in seconds, and each is where its source is read:
+##   - the session thread, read into the chat file (AgentsWaitChatTopUp) when no other source of the wait reads it: after 5, and 1
+##     more for every 20 it has been quiet, from its newest message in the file, to 300 at most, so it is looked at ever more
+##     rarely and stays watched;
+##   - the replies to the run's own posts, a post at a time (AgentsWaitRepliesLookRead): 5, backing off linearly to a ceiling of
+##     100 (20 times the base) once quiet reaches 1000 (200 times the base), never past it (S21.2);
+##   - the tags and mentions, and with them the team channel and the DMs they read (AgentsWaitProbeTagged): 15;
+##   - a scan (AgentsWaitProbeScan): 300, how long an unchanged scan is left to stand. It is no floor on noticing a
+##     message: a wake marker runs the scan at once (THE SCAN IS WOKEN AND NOT ON ITS TTL).
+## The inbox, the board, a file and an ask are read at every pass, and so is a Slack source a caller names, at the divider of its
+## kind (agentsWaitKindEvery, 1): the caller chose where to look. Email has no source of its own in Wait; its TTL, and Trello's, are in the table all the same,
+## for the collection of the sources a scan reads (F4.2).
+## Prints the seconds a source of the loop waits between its checks; 0 is every pass. Nothing of it is said in a return: an agent never needs the TTLs.
+## The table itself is AgentsTools.SourceTtl.include's, the one the collection of the sources a scan reads (F4.2) reads too.
+AgentsWaitTtlOf(){ ## source
+	type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
+	AgentsToolsSourceTtlOf "$1"
+}
+
+## THE IMMEDIATE SOURCES OF A WORK-DUTY (S27.9): its DMs, mentions and tags are read at the DM poll, never on the mentions' own 60 s TTL
+## nor on the slow gap, which grows to 300 s. The poll is 15 s by standing ruling, and that is the longest a message for the member can wait.
+## A plain session keeps every source's own TTL: its own thread and its open asks are its immediate sources, and both are read every round.
+agentsWaitImmediateGap=15
+AgentsWaitImmediateKind(){ ## kind -- rc 0 when a work-duty reads a source of this kind at the poll tick
+	case "$1" in dms|mentions|tagged) return 0 ;; esac
+	return 1
+}
+
+## Advances a STORED wait's own floor for one slack:<channel>:<ts>:conversation source, to the ts the session's own
+## floor (AgentsToolsSessionChatFloor, a tool return) just delivered on that same thread -- never backward
+## (AgentsWaitTsNewer), and never where wait/state has no floor line for that exact source already: a source this
+## wait never watched, or a session with no stored wait yet (no --wait-for-input of it ever ran), is left alone, so
+## --wait-continue's "no stored wait" error is never changed by the floor's own side of this fix. Every other line of
+## the file -- sources, addressee, include-own, mode, ttl, and every other source's own floor -- is kept untouched.
+AgentsWaitFloorAdvance(){ ## session, source (slack:<channel>:<ts>:conversation), ts
+	local advanceFile advanceTmp advanceCurrent=""
+	[ -n "${MMDAPP:-}" ] || return 0
+	case "$1" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	case "$2" in slack:*:conversation) ;; *) return 0 ;; esac
+	case "$3" in ''|*[!0-9.]*) return 0 ;; esac
+	advanceFile="$MMDAPP/.local/agents/sessions/$1/wait/state"
+	[ -f "$advanceFile" ] || return 0
+	advanceCurrent="$( LC_ALL=C awk -v want="$2" '$1 == "floor" && $2 == want { print $3 ; exit ; }' "$advanceFile" 2> /dev/null )" || advanceCurrent=""
+	[ -n "$advanceCurrent" ] || return 0
+	AgentsWaitTsNewer "$3" "$advanceCurrent" || return 0
+	advanceTmp="$( mktemp "$advanceFile.XXXXXX" 2> /dev/null )" || return 0
+	LC_ALL=C awk -v want="$2" -v ts="$3" '$1 == "floor" && $2 == want { $3 = ts } { print }' "$advanceFile" >| "$advanceTmp" 2> /dev/null \
+		&& mv -f "$advanceTmp" "$advanceFile" 2> /dev/null || rm -f "$advanceTmp"
+	return 0
+}
+
+## One part of the tags: the lines of a rendering that are for the member, after the floor, PRINTED for the caller to
+## gather into its rendering behind a `# in <where>` line. <what> is `mentions` (the messages that mention the member) or the Slack account of the other party of a DM.
+## With a seventh word of 1 the messages are shown elsewhere, and only the fact is said here. An eighth word is the FYI note of a
+## part that is for the member's knowledge only -- a session thread where its own instance is present: each row of it carries
+## `[fyi: <note>]` in its head line, right after the sender, and a `# fyi: <note> -- for your knowledge, not yours to answer` line
+## stands before the part. That mark is what a reader of the rows (AgentsToolsInputScanReportEmpty) tells a message of no work by.
+AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags rendering, [shown elsewhere], [the FYI note]
+	local partOut="$6.part" partText=""
+	partText="$( LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsToolsSessionChatMemberId "$1" )" -v addressees="$( [ "$3" = mentions ] || printf '%s' "$3" )" \
+		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( [ "$3" = mentions ] && printf 1 || printf 0 )" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
+		< "$5" 2> /dev/null )" || return 1
+	## The part is written only where it differs (AgentsWaitPut): a probe that found the same messages again leaves the file, and the watch on
+	## it, alone.
+	AgentsWaitPut "$partOut" "$partText"
+	AgentsWaitOwnFile "$partOut" || return 1
+	if [ -s "$partOut" ] && [ -n "${8:-}" ] ; then
+		LC_ALL=C awk -v mark="[fyi: ${8}]" '
+			match( $0, /^[0-9]+\.[0-9]+ \| [^|]*\|/ ) { $0 = substr( $0, 1, RSTART + RLENGTH - 1 ) mark substr( $0, RSTART + RLENGTH ) ; }
+			{ print }' "$partOut" > "$partOut.fyi" && mv -f "$partOut.fyi" "$partOut" || return 1
+	fi
+	if [ -s "$partOut" ] ; then
+		if [ -n "${8:-}" ] ; then
+			printf '# fyi: %s -- for your knowledge, not yours to answer\n' "${8}" || return 1
+		fi
+		if [ "${7:-0}" = "1" ] ; then
+			## Shown by the source that reads the conversation. The ts of the newest is kept, for the pointer, as a head line would be.
+			printf '# in %s: tagged there, and shown among its messages under the source that reads it\n' "$2" || return 1
+			LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { if ( ts != "" ) { print ts " | tagged | (see the source that reads this conversation)" ; } }' "$partOut" || return 1
+		else
+			{ printf '# in %s\n' "$2" ; cat "$partOut" ; } || return 1
+		fi
+	fi
+	return 0
+}
+
+## A WHOLE THREAD THROUGH THE COMMS CACHE (AgentsTools.CommsCache.include), slack/slack-<channel>-<thread ts>, rendered: served from it
+## within its TTL, else only the replies after its newest are read from Slack and merged, so a thread is pulled once per TTL
+## whatever reads it. rc 0 the rendering is written, 1 the cache cannot serve (the caller reads Slack itself), 2 the read failed.
+AgentsWaitThreadCached(){ ## member, <channel>:<thread ts>, the rendering file, as bot (true|false)
+	local tcNow="${roundNow:-}"
+	type AgentsToolsCommsCacheSlackThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || return 1
+	case "$tcNow" in ''|*[!0-9]*) tcNow="$( date +%s )" ;; esac
+	local tcServed="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}" tcRc=0
+	case "$tcTtl" in ''|*[!0-9]*) tcTtl=15 ;; esac
+	## Says to the caller that the file is as it left it, so it keeps what it made of it (agentsWaitThreadUnchanged).
+	agentsWaitThreadUnchanged=""
+	case "$2" in
+		*[!A-Za-z0-9.:]*|:*|*:) ;;
+		*:*)
+			if AgentsToolsCommsCacheSlackDir "$1" "${4:-false}" "${2%%:*}" "${2#*:}" ; then
+				AgentsToolsCommsCacheInterest "$agentsCommsCacheDir" "$tcNow" "$tcTtl"
+				## Served into this file already, from a pull still inside its TTL: the file holds it, and is not written again.
+				if [ -f "$3" ] && AgentsToolsCommsCacheState "$agentsCommsCacheDir" && [ $(( tcNow - agentsCommsCacheAt )) -lt "$tcTtl" ] ; then
+					case " ${agentsWaitThreadServed:-} " in *" $3=$agentsCommsCacheAt "*) agentsWaitThreadUnchanged="yes" ; return 0 ;; esac
+				fi
+			fi
+		;;
+	esac
+	AgentsToolsCommsCacheSlackThread "$1" "$2" "$3" "$4" "$tcNow" || tcRc=$?
+	## What this file now holds, by the pull it came from.
+	if [ "$tcRc" = 0 ] && [ -n "${agentsCommsCacheDir:-}" ] && AgentsToolsCommsCacheState "$agentsCommsCacheDir" ; then
+		agentsWaitThreadServed="${agentsWaitThreadServed:-} $3=$agentsCommsCacheAt"
+	fi
+	return "$tcRc"
+}
+
+AgentsWaitEmpty(){ ## file
+	[ -f "$1" ] && [ ! -s "$1" ] && return 0
+	: > "$1"
+}
+
+## A rendering emptied only where it holds something: a quiet tick writes no file.
+AgentsWaitClear(){ ## file
+	[ ! -f "$1" ] || [ -s "$1" ] || return 0
+	: > "$1"
+}
+
+## A rendering written only where its content differs: a quiet tick writes no file.
+AgentsWaitPut(){ ## file, text
+	local putOld=""
+	if [ -f "$1" ] ; then
+		IFS= read -r -d '' putOld < "$1" 2> /dev/null || :
+		[ "$putOld" != "$2" ] || return 0
+	fi
+	printf '%s' "$2" > "$1"
+}
+
+## WHAT A STEP OF A WAIT WROTE IS THERE WHEN THE NEXT STEP READS IT. Where it is not -- the
+## directory was taken from under the wait, or one file of it was -- the wait cannot tell an
+## arrival from nothing: a rendering that is not there differs from every baseline, and was
+## returned as RECEIVED with nothing in it, or its probes failed round after round and the
+## wait stood deaf to its bound. So a step notes the first file it misses (AgentsWaitOwnFile),
+## and the wait ends at once on WAIT-RESULT: ERROR and one line that names it. Nothing that
+## arrived is taken as read by that: no floor moved, and the next wait reads from the same
+## place. A directory that still stands is not removed then: it is kept as it stands, with
+## `kept` saying what was missed and when, and its path is in that line.
+AgentsWaitOwnFile(){ ## a file a step of this wait wrote -- rc 0 while it is there
+	[ ! -f "$1" ] || return 0
+	agentsWaitLost="${agentsWaitLost:-$1}"
+	return 1
+}
+

@@ -88,9 +88,16 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
 
-Harness tools: `WebSearch` and `WebFetch`, granted to every participant by this routine's `access-control:` while it runs.
+## Harness tools
+
+- `AskQuestion` — asks one person one question, and waits in the same call. Pass `to` and `question`. Add `select` with `options` for a closed answer, and read the `VERDICT:` line.
+- `ConfirmReadback` — asks a person to confirm what you understood, and waits. Pass `to`, `question`, `understood`, `source` and `will_do`. The `VERDICT:` is yes, no or correct.
+- `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on.
+- `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
+- `SessionTranscriptAppend` — appends one line, `note`, to this session's transcript. It names no file. The verbatim record stays `--append-transcript`.
+- `WebSearch` and `WebFetch` — granted to every participant by this routine's `access-control:` while it runs.
 
 ## Tooling operations
 

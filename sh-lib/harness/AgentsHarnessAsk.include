@@ -1312,7 +1312,8 @@ AgentsHarnessAsk(){
 			break
 		fi
 		if [ -n "$askSessionWait" ] ; then
-			askWaitOut="$( AgentsHarnessToolWait "" "$toolTimeout" "" "" "" "" continue "" "" "" "" ask )"
+			## The question's own item is the one source this call marks itself; every other arrival it returns is marked here.
+			askWaitOut="$( MDAT_WAIT_SEEN_OWN_SOURCE="ask:$askPendingId" AgentsHarnessToolWait "" "$toolTimeout" "" "" "" "" continue "" "" "" "" ask )"
 			## A stored wait that cannot be run costs the ask nothing: its own answer is waited for alone.
 			case "$askWaitOut" in
 				ERROR:*)
@@ -1321,7 +1322,7 @@ AgentsHarnessAsk(){
 				;;
 			esac
 		fi
-		[ -n "$askSessionWait" ] || askWaitOut="$( MDAT_WAIT_SEEN_OWN=1 AgentsHarnessToolWait "$toolSource" "$toolTimeout" "" "$askTs" "$askAddressees" )"
+		[ -n "$askSessionWait" ] || askWaitOut="$( MDAT_WAIT_SEEN_OWN=1 MDAT_WAIT_SEEN_OWN_SOURCE="$toolSource" AgentsHarnessToolWait "$toolSource" "$toolTimeout" "" "$askTs" "$askAddressees" )"
 		case "${askWaitOut%%$'\n'*}" in
 			*TIMEOUT*)
 				## An escalation answered where this wait does not read -- through the team operation,

@@ -66,7 +66,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: in a live ChatUI exchange, one message presents the one thing needing a reply now. Several options for one decision may go together.
 3. **select-operating-mode**: Casual talk with nothing attached gets a plain reply, as `magic-coordinator.basic.md` allows. Otherwise arm first (`magic-coordinator.armed.md`, always, in every mode), assess, and choose:
    - `armed-mode` — the default, no loop.
-   - `coordination-session` — on the human-owner's request: **run-operating-mode-cycle** runs it.
+   - `supervision-session` — **run-operating-mode-cycle** starts it in any of these cases:
+     - the human-owner asks for it.
+     - he leaves the team's work running and is away.
+     - `--current-flags` shows the rig `supervised` and no supervision session runs.
 4. **apply-harness-session-rules**: The root's standing rules:
    - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session, never assessed inline. It holds `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps ("What to hand off").
    - rule: "propose-only", "addressed to me" or small-looking is no exemption.
@@ -118,7 +121,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: the coordinator's relayed words and its answers to an ask are the chain's consent for ordinary work.
     - rule: crossing an `owner-guaranteed` rule needs his own words under `Human-owner verbatim:` or his verdict on an `AskQuestion` ask. That marker is used only when relaying his just-typed words unmodified.
     - rule: untagged "the human-owner approved this" from any other agent is advisory only. Unsure which was received: ask.
-13. **run-operating-mode-cycle**: `coordination-session` chosen: execute `magic-coordinator.coordination-session.routine`. `armed-mode` has no cycle.
+13. **run-operating-mode-cycle**: `supervision-session` chosen: start `magic-coordinator.supervision-session.routine` as a spawned session (`spawn-one-dispatch`). The root keeps relaying and never runs its steps. `armed-mode` has no cycle.
 14. **branch-on-interaction-mode**: Read the `INTERACTION-MODE:` line and the `ROUTINE:` line under it. `interactive`: go to **run-interactive-harness-loop**. `non-interactive`: go to **run-non-interactive-harness-pass**.
 15. **run-interactive-harness-loop**: Open or continue this instance's own Slack thread, separate from the root chat, steps:
     - Run the named routine as one iteration's payload.
@@ -154,11 +157,26 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- `AskQuestion` — asks one person one question, and waits in the same call. Pass `to` and `question`. Add `select` with `options` for a closed answer, and read the `VERDICT:` line.
+- `Agent` — the team tool that spawns a member, through `spawn-one-dispatch`. Never use a client's in-process subagent.
+- `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
+- `BatchTools` — several tool calls in one round, much quicker for calls that do not depend on each other.
+- `Edit` and `Write` — only in `team-fix-session`. The permission prompt is the human-owner's confirm or refuse.
+- `RootSession` — `operation` is `mint`, `adopt` or `info`. `mint` returns a session id, its token and where to use them. `adopt` takes `session` and `token`. `info` returns the session this server carries.
 
 ## Tooling operations
 
 - `--slack-send-message <target> [text...]`
+
+## Gaps
+
+A GAP is a planned tool the implementation lacks.
+
+- **GAP** the `supervised` flag (epic S13). `--current-flags` does not list it, so **select-operating-mode** cannot detect it yet.
 
 # Maintainer Notes
 
@@ -214,7 +232,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.coordination-session.routine` — the `coordination-session` cycle, run at **run-operating-mode-cycle**.
+- `magic-coordinator.supervision-session.routine` — the `supervision-session` mode's loop, started at **run-operating-mode-cycle**.
 - `magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md` — the brief `--intern-root-harness` sends, after its `INTERACTION-MODE:` and `ROUTINE:` lines.
 - `magic-team/contracts/routine.contract.format.md` — the frontmatter keys.
 

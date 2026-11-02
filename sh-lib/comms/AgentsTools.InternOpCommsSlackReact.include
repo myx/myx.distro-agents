@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCommsSlackReact.include -- --slack-react.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+
+case "$1" in
+
+		--intern-op-comms-slack-react)
+			shift
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' reactions:write reactions:read im:write
+				return 0
+			fi
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-react: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-react || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-react: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+			local emoji="$1"
+			shift || true
+			if [ -z "$target" ] || [ -z "$emoji" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-react: syntax is <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]" >&2
+				set +e ; return 1
+			fi
+			local identityAsBot="false" reactApi="reactions.add"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					## Takes the acting identity's own reaction off again (reactions.remove). One
+					## that is not there (`no_reaction`) is the end state asked for, so a success.
+					--remove)
+						reactApi="reactions.remove" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-react: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					local targetUserId=""
+					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --slack-react: $resolved" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-react: could not resolve target '$target' -- pass <channel>:<ts>" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$threadTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-react: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names" >&2
+				set +e ; return 1
+			fi
+			local opArgs=( "$memberName" --api "$reactApi" --resolve-target "$channel" \
+				--form "timestamp=$threadTs" --form "name=$emoji" )
+			if [ "$identityAsBot" = "true" ] ; then
+				opArgs+=( --identity bot )
+			fi
+			opArgs+=( --context "--slack-react" )
+			echo "# $MDSC_CMD --slack-react: POST $reactApi channel=$channel timestamp=$threadTs name=$emoji (acting member $memberName)" >&2
+			## The response goes straight out on stdout and the DIAGNOSTIC is what is
+			## captured -- a substitution yields one capture, and only the diagnostic
+			## is read back here. The op writes nothing to stdout when it fails.
+			local diag="" callRc=0
+			{ diag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
+			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+			## As --slack-read does: a conversation the user identity cannot reach (the bot's own DM) is reacted to once by the bot.
+			if [ "$callRc" != "0" ] && [ "$identityAsBot" != "true" ] && ! AgentsToolsSlackClientSide "$memberName" && printf '%s\n' "$diag" | LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' ; then
+				echo "# $MDSC_CMD --slack-react: the acting user identity cannot reach this conversation, reacting once under bot identity" >&2
+				callRc=0
+				{ diag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]:0:$(( ${#opArgs[@]} - 2 ))}" --identity bot --context "--slack-react" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
+				[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+			fi
+			if [ "$callRc" != "0" ] ; then
+				local actingIdentity=""
+				actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+				local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+				case "$actingIdentity" in
+					bot|user)
+						actingIdentityText="the $actingIdentity identity"
+					;;
+					not-yet-selected)
+						actingIdentityText="no identity at all -- the call failed before one was selected"
+					;;
+				esac
+				case "$reactApi:$diag" in
+					reactions.remove:*no_reaction*)
+						echo "# $MDSC_CMD --slack-react: ALREADY ABSENT on $channel:$threadTs -- $actingIdentityText holds no :$emoji: on this message, so the end state asked for HOLDS and nothing was removed by this call. Reactions are per identity: this says nothing about any other identity's reaction." >&2
+						return 0
+					;;
+					*already_reacted*)
+						local rawResponseState="" rawResponse=""
+						rawResponseState="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY_STATE=//p' | head -1 )"
+						if [ "$rawResponseState" = "in-diagnostic" ] ; then
+							rawResponse="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY=//p' | head -1 )"
+							printf '%s\n' "$rawResponse"
+						fi
+						echo "# $MDSC_CMD --slack-react: ALREADY PRESENT on $channel:$threadTs -- $actingIdentityText had already added :$emoji: to this message, so the end state asked for HOLDS and nothing was posted by this call. This is a success, not a failure and not a fresh reaction, and it is deliberately reported apart from one. Reactions are per identity: this says nothing about whether any OTHER identity has reacted, and the same call under another identity adding the reaction again is correct behaviour, not a duplicate." >&2
+						return 0
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-react: COULD NOT REACT to $channel:$threadTs with :$emoji: -- the call did not complete under $actingIdentityText (see the op's own diagnostic above, which carries Slack's own error code). The reaction was NOT added, and this is NOT an already-present result: nothing is known from this call about which reactions that message already carries. channel_not_found or not_in_channel here means this identity cannot reach that conversation at all, not that the message is gone -- and the right identity is a property of the METHOD, not of the member or the channel: one channel has been measured answering a read under user, a post under bot, and a reaction under user. Retry under the other identity before concluding anything about the message." >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			return 0
+		;;
+esac

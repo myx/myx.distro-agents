@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitDms.include -- the probe of the member's direct messages.
+## Sourced by --wait-for-input for a source of its kind, and by a caller that needs one probe of it.
+## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
+##
+type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include"
+
+## THE DMS (sketch 3.2): `dms:<member>`, every message of every direct conversation of the member, under its user identity and the
+## team bot's, from the session's pointer of the source (`dms:<member>`, the newest DM returned) -- a part of the floor of every Wait,
+## so a DM that came while the member worked is not lost to a Wait that starts later. The roster of the conversations is kept in the
+## session for agentsWaitDmsRosterSeconds; each DM is one read from the pointer. A client-* member's DMs are the human-owner
+## conversations its own scope names on the other organisation's side. Each part stands behind a `# in <conversation>` line.
+agentsWaitDmsRosterSeconds=300
+
+AgentsWaitProbeDms(){
+	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probePointer="" probeRoster="" probeRosterFile="" probeLine probeConv probeKind probeIdentity probeParty probeIdentArg
+	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0 probeText=""
+	[ "$probeTarget" = "$probeMember" ] || return 2
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
+	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
+	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
+	if [ -n "$probeKey" ] ; then
+		probePointer="$( AgentsToolsSessionChatPointer "$probeKey" "dms:$probeMember" 2> /dev/null )" || probePointer=""
+		probeRosterFile="$MMDAPP/.local/agents/sessions/$probeKey/dms-roster.$probeMember"
+	else
+		{ IFS= read -r probePointer < "$probeOut.pointer" ; } 2> /dev/null || probePointer=""
+	fi
+	probePointer="${probePointer:-$probeFloor}"
+	probeNow="$( date +%s )"
+	case "$probeMember" in
+		client-*)
+			probeText=""
+			rm -f "$probeOut.newest"
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			probeClientConvs="$( AgentsToolsConfigOption "$probeMember" --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || probeClientConvs=""
+			for probeClientConv in ${probeClientConvs//,/ } ; do
+				probeParts=$(( probeParts + 1 ))
+				if AgentsWaitReadRendered "$probeMember" "client:$probeClientConv" conversation "$probePointer" "$probeOut.client" ; then
+					probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "client:$probeClientConv" "" "$probePointer" "$probeOut.client" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
+				else
+					probeFailed=$(( probeFailed + 1 ))
+				fi
+			done
+		;;
+		*)
+			## The roster, kept for its time in the session: a list of conversations changes far more rarely than they are read.
+			if [ -n "$probeRosterFile" ] && [ -s "$probeRosterFile" ] && [ $(( probeNow - $( LC_ALL=C stat -f %m "$probeRosterFile" 2> /dev/null || stat -c %Y "$probeRosterFile" 2> /dev/null || echo 0 ) )) -lt "$agentsWaitDmsRosterSeconds" ] ; then
+				probeRoster="$( cat "$probeRosterFile" 2> /dev/null )"
+			else
+				type AgentsToolsCommsSlackConversationsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include" 2> /dev/null || :
+				## A roster one identity could not list is a partial one, used for what it names. A roster that lists nothing is a member
+				## with no DM; only a roster that could not be listed at all is a failure.
+				probeRosterRc=0
+				probeRoster="$( AgentsToolsCommsSlackConversationsRoster "$probeMember" --types im,mpim 2> /dev/null )" || probeRosterRc=$?
+				[ -z "$probeRoster" ] || [ -z "$probeRosterFile" ] || printf '%s\n' "$probeRoster" > "$probeRosterFile" 2> /dev/null || :
+			fi
+			## A DM ROUND WITH NOTHING NEW WRITES NOTHING: each DM is read once through the cache, into the shell. Where every one reads
+			## as at the last round (its length and its tail), the files stand as they are.
+			local probeQuickKey="" probeQuickOut probeQuickSeen=" "
+			if [ -f "$probeOut" ] && [ -n "$probeRoster" ] ; then
+				probeQuickKey="$probeOut@$probeMember"
+				while IFS= read -r probeLine ; do
+					case "$probeLine" in "CONV|"*) ;; *) continue ;; esac
+					probeConv="" probeKind="" probeIdentity=""
+					for probeIdentArg in ${probeLine//|/ } ; do
+						case "$probeIdentArg" in
+							id=*) probeConv="${probeIdentArg#id=}" ;;
+							kind=*) probeKind="${probeIdentArg#kind=}" ;;
+							identity=*) probeIdentity="${probeIdentArg#identity=}" ;;
+						esac
+					done
+					[ -n "$probeConv" ] || continue
+					case "$probeKind" in im|mpim) ;; *) continue ;; esac
+					case "$probeQuickSeen" in *" $probeConv "*) continue ;; esac
+					probeQuickSeen="$probeQuickSeen$probeConv "
+					type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+					probeQuickOut="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$probeMember" "$probeConv" ${probePointer:+--oldest "$probePointer"} $( [ "$probeIdentity" != "bot" ] || printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || probeQuickOut="#failed"
+					probeQuickOut="${#probeQuickOut}:${probeQuickOut: -120}"
+					probeQuickKey="$probeQuickKey/$probeConv=${probeQuickOut//[[:space:]]/_}"
+				done <<< "$probeRoster"
+				[ -z "$probeQuickKey" ] || case " ${agentsWaitConvSeen:-} " in *" $probeQuickKey "*) AgentsWaitPut "$probeOut" "$probeText" || return 2 ; return 0 ;; esac
+			fi
+			probeText=""
+			rm -f "$probeOut.newest"
+			probeParts=$(( probeParts + 1 ))
+			if [ -n "$probeRoster" ] || [ "$probeRosterRc" = 0 ] ; then
+				while IFS= read -r probeLine ; do
+					case "$probeLine" in "CONV|"*) ;; *) continue ;; esac
+					probeConv="" probeKind="" probeIdentity="" probeParty=""
+					for probeIdentArg in $( printf '%s\n' "$probeLine" | LC_ALL=C tr '|' ' ' ) ; do
+						case "$probeIdentArg" in
+							id=*) probeConv="${probeIdentArg#id=}" ;;
+							kind=*) probeKind="${probeIdentArg#kind=}" ;;
+							identity=*) probeIdentity="${probeIdentArg#identity=}" ;;
+							counterparty=*) probeParty="${probeIdentArg#counterparty=}" ;;
+						esac
+					done
+					[ -n "$probeConv" ] || continue
+					case "$probeKind" in im|mpim) ;; *) continue ;; esac
+					## A DM both identities list is read once, under the first.
+					case " $probeSeenConvs " in *" $probeConv "*) continue ;; esac
+					probeSeenConvs="$probeSeenConvs $probeConv"
+					if MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probePointer" "$probeOut.dm" ; then
+						probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeParty" "$probePointer" "$probeOut.dm" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
+					else
+						probeFailed=$(( probeFailed + 1 ))
+					fi
+				done <<< "$probeRoster"
+			else
+				probeFailed=$(( probeFailed + 1 ))
+			fi
+		;;
+	esac
+	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+	AgentsWaitPut "$probeOut" "$probeText" || return 2
+	AgentsWaitOwnFile "$probeOut" || return 2
+	[ "$probeParts" -eq 0 ] || [ "$probeFailed" -lt "$probeParts" ] || return 2
+	local probeNewestText=""
+	probeNewestText="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { if ( ts == "" || $1 + 0 > ts + 0 ) ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" 2> /dev/null )" || probeNewestText=""
+	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+	AgentsWaitPut "$probeOut.newest" "${probeNewestText:+$probeNewestText$'\n'}" || :
+	[ -z "${probeQuickKey:-}" ] || agentsWaitConvSeen="${agentsWaitConvSeen:-} $probeQuickKey"
+	return 0
+}
+
+## Keeps the newest DM a wait has returned as the session's pointer of the source (else the call's own, with no session).
+AgentsWaitDmsCommit(){ ## member, the file holding the newest ts
+	local commitTs="" commitKey
+	[ -f "$2" ] && IFS= read -r commitTs < "$2" || return 0
+	[ -n "$commitTs" ] || return 0
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	commitKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || commitKey=""
+	if [ -n "$commitKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$commitKey" ] ; then
+		AgentsToolsSessionChatPointerSet "$commitKey" "dms:$1" "$commitTs"
+	else
+		printf '%s\n' "$commitTs" > "${2%.newest}.pointer" 2> /dev/null || :
+	fi
+	return 0
+}
+

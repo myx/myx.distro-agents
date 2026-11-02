@@ -20,7 +20,7 @@
 AgentsToolsPendingReplyPollOwn(){ ## <team-member>
 	local pollMember="$1" pollFile pollId pollStatus pollOwner pollOut pollRc
 	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" 2> /dev/null || return 0
-	type AgentsWaitProbeAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include" 2> /dev/null || return 0
+	type AgentsWaitProbeAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitAsk.include" 2> /dev/null || return 0
 	type AgentsHarnessAskResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" 2> /dev/null || return 0
 	for pollFile in "$MMDAPP/.local/agents/pending"/*.md ; do
 		[ -f "$pollFile" ] || continue

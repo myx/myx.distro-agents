@@ -231,6 +231,27 @@ AgentsEventTrackPostSend(){ ## record dir
 	## The session the post belongs to, as `--session-id` gave it, else the run's own (the one the send log keeps): `[session: <id>]` on a read, which says whose launch a post is.
 	local postMetaSession="${postSession:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-}}}"
 	local postMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$postMember\",\"tracking\":\"$postKind\"${postMetaSession:+,\"session\":\"$postMetaSession\"}}}"
+	## A post into a thread goes to the comms-cache outbox of that thread's communication channel (AgentsTools.CommsCache.include),
+	## each part as its chat.postMessage payload, and the call returns: the one comms loop pushes it. Only a root post, whose ts
+	## opens the thread, is sent here and waited for.
+	if [ -n "$postThread" ] ; then
+		type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+		AgentsToolsCommsCacheSlackDir "$postMember" true "$postChannel" "$postThread"
+		local postQueueNo="$( date +%s )$$" postQueued=0
+		for postFile in "${postPosts[@]}" ; do
+			postText="$( LC_ALL=C awk -f "$agentsEventTrackPostLib/mcp/AgentsMcpJsonEscape.awk" < "${postFile%.blocks}.text" )"
+			postPayload="{\"channel\":\"$postChannel\",\"text\":\"$postText\",\"blocks\":$( cat "$postFile" ),\"thread_ts\":\"$postThread\",\"metadata\":$postMetadata}"
+			AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "${postMetaSession:-event-track}" "$postQueueNo$postQueued" "$postMember" bot chat.postMessage "$postPayload" || {
+				rm -rf "$postDir"
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the $postKind post could not be appended to the outbox in $agentsCommsCacheDir" >&2
+				return 1
+			}
+			postQueued=$(( postQueued + 1 ))
+		done
+		AgentsEventTrackPostLog "$postMember" "$postTarget" "$postChannel" ok "event-track $postKind queued to the comms outbox: $postQueued part(s) lines=$postLineCount thread=$postThread"
+		rm -rf "$postDir"
+		return 0
+	fi
 	local postIndex=0 postText postPayload postResponse postCallRc postJoined="false" postTs postError postErrorName
 	local postSends=() postSendAt postSendFile postAsText postBlocksRefused postSentAny="false"
 	for postFile in "${postPosts[@]}" ; do
@@ -391,7 +412,7 @@ case "$1" in
 		## (AgentsTools.EventTrackSend.include).
 		type AgentsToolsEventTrackSendAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackSend.include"
 		local etpQueue="" etpRecord="" etpSeq="" etpPostRc=0
-		etpQueue="$( AgentsToolsEventTrackSendDir "$etpChannel" )" || etpQueue=""
+		etpQueue="$( AgentsToolsEventTrackSendDir "$etpChannel" "$etpThread" )" || etpQueue=""
 		if [ -z "$etpQueue" ] ; then
 			rm -rf "$etpDir"
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the channel '$etpChannel' has no outbox in this workspace -- nothing was posted" >&2
@@ -405,6 +426,13 @@ case "$1" in
 			set +e ; return 1
 		fi
 		etpSeq="${etpRecord##*/}"
+		## A caller never waits for a post into a thread: it is queued, a drain is started apart, and the call returns. Only a root post,
+		## whose ts opens the thread, is waited for below.
+		if [ -n "$etpThread" ] || [ "${MDAT_EVENT_TRACK_POST_NOWAIT:-}" = 1 ] ; then
+			rm -rf "$etpDir"
+			( AgentsToolsEventTrackSendDrain "$etpQueue" AgentsEventTrackPostSend ) > /dev/null 2>&1 < /dev/null &
+			return 0
+		fi
 		AgentsToolsEventTrackSendDrain "$etpQueue" AgentsEventTrackPostSend || :
 		## Long enough for a sender that is already working through a backlog: seven seconds a
 		## message, and a channel's backlog is small; nothing here gives up while it is going.

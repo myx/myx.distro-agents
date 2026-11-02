@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCommsSlackFileShare.include -- --slack-file-share.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+
+case "$1" in
+
+		--intern-op-comms-slack-file-share)
+			shift
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' files:write chat:write im:write channels:read im:read
+				return 0
+			fi
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-file-share || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-file-share: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local shareTarget="$1"
+			shift || true
+			if [ -z "$shareTarget" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: <target> missing" >&2
+				set +e ; return 1
+			fi
+			local shareFromFile="" shareFromStdin="false" shareSnippetType="" shareTitle="" shareComment="" shareCommentGiven="false" shareAsBot="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-file)
+						if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-file-share: --from-file: file not found: ${2:-<no value>}" >&2
+							set +e ; return 1
+						fi
+						shareFromFile="$2" ; shift 2
+					;;
+					--from-stdin)
+						shareFromStdin="true" ; shift
+					;;
+					--snippet-type)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-file-share: --snippet-type value missing" >&2
+							set +e ; return 1
+						fi
+						shareSnippetType="$2" ; shift 2
+					;;
+					--title)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-file-share: --title value missing" >&2
+							set +e ; return 1
+						fi
+						shareTitle="$2" ; shift 2
+					;;
+					--comment)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-file-share: --comment value missing" >&2
+							set +e ; return 1
+						fi
+						shareComment="$2" ; shareCommentGiven="true" ; shift 2
+					;;
+					--identity-bot)
+						shareAsBot="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-file-share: unrecognized option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ "$shareFromStdin" = "true" ] && [ -n "$shareFromFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: --from-file and --from-stdin name two different bodies and there is no rule for which wins. Pass exactly one -- the same refusal --slack-send-message makes." >&2
+				set +e ; return 1
+			fi
+			if [ "$shareFromStdin" = "false" ] && [ -z "$shareFromFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: one of --from-file <path> or --from-stdin is required -- this call names no content to share." >&2
+				set +e ; return 1
+			fi
+			## TARGET FIRST, UPLOAD SECOND. An unresolvable target costs no upload,
+			## so a failed target never leaves a file behind.
+			local shareResolved="" shareResolveRc=0 shareChannel="" shareThreadTs=""
+			shareResolved="$( DistroAgentsToolsResolveTarget "$shareTarget" "$memberName" )" || shareResolveRc=$?
+			case "$shareResolveRc" in
+				0)
+					shareChannel="$( printf '%s\n' "$shareResolved" | sed -n 's/^CHANNEL=//p' )"
+					shareThreadTs="$( printf '%s\n' "$shareResolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				2)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: unrecognized target: $shareTarget -- nothing was uploaded." >&2
+					set +e ; return 1
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: $shareResolved Nothing was uploaded." >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: could not resolve a channel for target '$shareTarget' -- nothing was uploaded." >&2
+					set +e ; return 1
+				;;
+			esac
+			## A client: address: the rest of this share is on the side of the other organisation,
+			## and Slack is given the id alone.
+			case "$shareChannel" in
+				client:*) local -x MDAT_COMMS_SIDE=client ; shareChannel="${shareChannel#client:}" ;;
+			esac
+			local shareStdinFile=""
+			## Every call below leaves its diagnostic on stderr rather than through
+			## a capture: it was only ever re-emitted there.
+			local shareInfoArgs=( "$memberName" --api conversations.info --resolve-target "$shareChannel" )
+			[ "$shareAsBot" = "false" ] || shareInfoArgs+=( --identity bot )
+			shareInfoArgs+=( --context "--slack-file-share" )
+			local shareInfoResp="" shareInfoRc=0
+			shareInfoResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareInfoArgs[@]}" )" || shareInfoRc=$?
+			if [ "$shareInfoRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: could not resolve target '$shareTarget' to a conversation (see the op's own diagnostic above) -- nothing was uploaded." >&2
+				set +e ; return 1
+			fi
+			local shareConversation="" shareConvRc=0
+			shareConversation="$( printf '%s\n' "$shareInfoResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || shareConvRc=$?
+			if [ "$shareConvRc" != "0" ] || [ -z "$shareConversation" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: the conversation lookup for '$shareTarget' returned no usable channel.id (field reader rc=$shareConvRc -- 3: that path is absent, 1: the body was not a parseable API response) -- nothing was uploaded." >&2
+				set +e ; return 1
+			fi
+			local shareParentTs="$shareThreadTs"
+			if [ -n "$shareThreadTs" ] ; then
+				local shareRepliesArgs=( "$memberName" --api conversations.replies --form "channel=$shareConversation" --form "ts=$shareThreadTs" --form limit=1 )
+				[ "$shareAsBot" = "false" ] || shareRepliesArgs+=( --identity bot )
+				shareRepliesArgs+=( --context "--slack-file-share" )
+				local shareRepliesResp="" shareRepliesRc=0
+				shareRepliesResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareRepliesArgs[@]}" )" || shareRepliesRc=$?
+				if [ "$shareRepliesRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: could not read the thread at $shareThreadTs to find its parent (see the op's own diagnostic above) -- nothing was uploaded. A share is anchored to a thread's parent, and this call could not establish one." >&2
+					set +e ; return 1
+				fi
+				local shareFoundParent="" shareParentRc=0
+				shareFoundParent="$( printf '%s\n' "$shareRepliesResp" | LC_ALL=C awk -v path=messages.0.thread_ts -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || shareParentRc=$?
+				case "$shareParentRc" in
+					0)
+						[ -z "$shareFoundParent" ] || shareParentTs="$shareFoundParent"
+					;;
+					3)
+						## No thread_ts on the first message: it is not in a thread, so
+						## it is its own parent and the caller's ts already is one.
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-file-share: the thread read for $shareThreadTs was not a parseable API response (field reader rc=$shareParentRc) -- nothing was uploaded." >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			## --from-stdin is buffered because step 1 needs the byte length up front.
+			local shareBodyFile="$shareFromFile"
+			if [ "$shareFromStdin" = "true" ] ; then
+				## A file of this share's own, by mktemp and never by $$, which every subshell of one shell shares.
+				mkdir -p "$MMDAPP/.local/temp" && shareStdinFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-share-stdin.XXXXXX" )" || { set +e ; return 1 ; }
+				chmod 600 "$shareStdinFile"
+				cat > "$shareStdinFile"
+				shareBodyFile="$shareStdinFile"
+			fi
+			## BYTES, never characters. A character count sends a wrong length to a
+			## pre-signed upload and fails in a way that never names length.
+			local shareBytes=""
+			shareBytes="$( LC_ALL=C wc -c < "$shareBodyFile" | tr -d '[:space:]' )"
+			if [ -z "$shareBytes" ] || [ "$shareBytes" = "0" ] ; then
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: the content is empty -- there is nothing to share." >&2
+				set +e ; return 1
+			fi
+			local shareFilename="$shareTitle"
+			if [ -z "$shareFilename" ] ; then
+				if [ -n "$shareFromFile" ] ; then
+					shareFilename="$( basename "$shareFromFile" )"
+				else
+					shareFilename="shared-content"
+				fi
+			fi
+			## ---- step 1 of 3: ask for an upload URL ----
+			local shareStep1Args=( "$memberName" --api files.getUploadURLExternal --form "filename=$shareFilename" --form "length=$shareBytes" )
+			[ -z "$shareSnippetType" ] || shareStep1Args+=( --form "snippet_type=$shareSnippetType" )
+			[ "$shareAsBot" = "false" ] || shareStep1Args+=( --identity bot )
+			shareStep1Args+=( --context "--slack-file-share" )
+			local shareStep1Resp="" shareStep1Rc=0
+			shareStep1Resp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareStep1Args[@]}" )" || shareStep1Rc=$?
+			if [ "$shareStep1Rc" != "0" ] ; then
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				if [ -n "$shareSnippetType" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: STEP 1 OF 3 FAILED (asking for an upload URL) -- see the op's own diagnostic above. This call passed --snippet-type '$shareSnippetType'; if that value is not one this platform supports, that is what the diagnostic reports. Nothing was uploaded." >&2
+				else
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: STEP 1 OF 3 FAILED (asking for an upload URL) -- see the op's own diagnostic above. Nothing was uploaded." >&2
+				fi
+				set +e ; return 1
+			fi
+			local shareUploadUrl="" shareUploadUrlRc=0 shareFileId="" shareFileIdRc=0
+			shareUploadUrl="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=upload_url -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || shareUploadUrlRc=$?
+			shareFileId="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=file_id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || shareFileIdRc=$?
+			if [ "$shareUploadUrlRc" != "0" ] || [ -z "$shareUploadUrl" ] || [ "$shareFileIdRc" != "0" ] || [ -z "$shareFileId" ] ; then
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: STEP 1 OF 3 answered ok:true but without a usable upload_url and file_id (field reader rc=$shareUploadUrlRc and rc=$shareFileIdRc -- 3: that path is absent, 1: the body was not a parseable API response). The upload URL is not quoted here: it is a bearer capability. Nothing was uploaded." >&2
+				set +e ; return 1
+			fi
+			local shareStep2Rc=0
+			type AgentsToolsUrlPostBytes > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternOpUrlPostBytes.include"
+			AgentsToolsUrlPostBytes --url "$shareUploadUrl" --body-file "$shareBodyFile" --context "--slack-file-share" >/dev/null || shareStep2Rc=$?
+			if [ "$shareStep2Rc" != "0" ] ; then
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: STEP 2 OF 3 FAILED (sending the bytes) -- see the op's own POST_HTTP_STATUS and POST_BYTES above. The upload was begun and not completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared." >&2
+				set +e ; return 1
+			fi
+			## ---- step 3 of 3: complete the upload into the conversation ----
+			local shareTitleForJson="$shareFilename"
+			[ -z "$shareTitle" ] || shareTitleForJson="$shareTitle"
+			local shareEscapedTitle=""
+			type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
+			shareEscapedTitle="$( printf '%s' "$shareTitleForJson" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
+			local shareStep3Args=( "$memberName" --api files.completeUploadExternal --form "files=[{\"id\":\"$shareFileId\",\"title\":\"$shareEscapedTitle\"}]" --form "channel_id=$shareConversation" )
+			[ -z "$shareParentTs" ] || shareStep3Args+=( --form "thread_ts=$shareParentTs" )
+			[ "$shareAsBot" = "false" ] || shareStep3Args+=( --identity bot )
+			shareStep3Args+=( --context "--slack-file-share" )
+			local shareStep3Resp="" shareStep3Rc=0
+			shareStep3Resp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareStep3Args[@]}" )" || shareStep3Rc=$?
+			[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+			if [ "$shareStep3Rc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: STEP 3 OF 3 FAILED (completing the upload into the conversation) -- see the op's own diagnostic above. The bytes were sent but the upload was never completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared. THIS IS A FAILURE, not a partial success." >&2
+				set +e ; return 1
+			fi
+			printf '%s\n' "$shareStep3Resp"
+			printf 'SHARE_FILE_ID=%s\n' "$shareFileId" >&2
+			printf 'SHARE_CONVERSATION=%s\n' "$shareConversation" >&2
+			printf 'SHARE_BYTES=%s\n' "$shareBytes" >&2
+			if [ "$shareCommentGiven" = "true" ] ; then
+				local shareCommentTarget="$shareConversation"
+				[ -z "$shareParentTs" ] || shareCommentTarget="$shareConversation:$shareParentTs"
+				local shareCommentArgs=( "$memberName" "$shareCommentTarget" )
+				[ "$shareAsBot" = "false" ] || shareCommentArgs+=( --identity-bot )
+				local shareCommentRc=0
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				printf '%s\n' "$shareComment" | AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-send-message "${shareCommentArgs[@]}" --from-stdin >/dev/null || shareCommentRc=$?
+				if [ "$shareCommentRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: the file was shared as $shareFileId but its accompanying message could not be posted (see the send op's own diagnostic above). A shared file with no message beside it is a FAILED operation, not a partial success: the material is there and nothing says what it is for. Post the message yourself with --slack-send-message against $shareCommentTarget, or delete the file." >&2
+					set +e ; return 1
+				fi
+			fi
+			return 0
+		;;
+esac

@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCommsSlackEdit.include -- --slack-edit-message.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+
+case "$1" in
+
+		--intern-op-comms-slack-edit-message)
+			shift
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' chat:write im:write
+				return 0
+			fi
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-edit-message || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+			if [ -z "$target" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: <channel>:<ts> missing" >&2
+				set +e ; return 1
+			fi
+			local identityAsBot="false" fromStdin="false" textGroup=""
+			local textArgs stdinContent
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					--message-from-stdin|--from-stdin)
+						fromStdin="true" ; shift
+					;;
+					## The floor applies with no argument at all. This names the shape
+					## an explicit exception takes, never which default a caller gets.
+					--text-group)
+						if [ $# -lt 2 ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: --text-group value missing -- report, brief or relay, and message is what every edit carries without it" >&2
+							set +e ; return 1
+						fi
+						textGroup="$2" ; shift 2
+					;;
+					--from-file)
+						if [ $# -lt 2 ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: --from-file value missing" >&2
+							set +e ; return 1
+						fi
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: --from-file invalid: ${2:-<no value>}" >&2
+							set +e ; return 1
+						fi
+						if [ ! -f "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: --from-file: file not found: $2" >&2
+							set +e ; return 1
+						fi
+						stdinContent="$( cat "$2" )"
+						fromStdin="file"
+						shift 2
+					;;
+					--*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: unrecognized option: $1 (if you need literal text starting with '--', use --from-stdin/--from-file instead of trailing argv)" >&2
+						set +e ; return 1
+					;;
+					*)
+						textArgs="$textArgs $1" ; shift
+					;;
+				esac
+			done
+			local sourceText
+			if [ "$fromStdin" = "file" ] && [ -n "$textArgs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: --from-file given alongside trailing body argv -- use one or the other, not both" >&2
+				set +e ; return 1
+			fi
+			if [ "$fromStdin" = "true" ] && [ -n "$textArgs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: --from-stdin given alongside trailing body argv -- use one or the other, not both" >&2
+				set +e ; return 1
+			fi
+			if [ "$fromStdin" != "false" ] ; then
+				[ "$fromStdin" = "file" ] || [ -n "$stdinContent" ] || stdinContent="$( cat )"
+				sourceText="$stdinContent"
+			else
+				sourceText="${textArgs# }"
+			fi
+			if [ -z "$sourceText" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: no replacement text given -- chat.update with an empty text field blanks the message, so an empty edit is refused here rather than performed silently. Pass the text as trailing argv, --from-stdin, or --from-file <path>." >&2
+				set +e ; return 1
+			fi
+			## The same floor the send carries. An edit that skipped it would be the
+			## way a refused message reaches the channel anyway. This arm resolves no
+			## bot token of its own, so the shared-identity rule cannot be applied
+			## here and an empty token source is passed.
+			## The predicates this site refuses on, and the whole of a graduation:
+			## a name here refuses, a name absent reports beside it. sentence-cap
+			## is absent because it cannot tell a prose paragraph from a block
+			## written one fact per line -- see MAGIC.md.
+			## Over a limit it is a correction for the sender to make (rc 6), as for the send.
+			type AgentsToolsOutputStyleRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
+			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "" "word-cap semicolon paragraph-gate" || { local editFloorRc=$? ; set +e ; return "$editFloorRc" ; }
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					local targetUserId=""
+					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: $resolved" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: could not resolve target '$target' -- pass <channel>:<ts>" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$threadTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names" >&2
+				set +e ; return 1
+			fi
+			local opArgs=( "$memberName" --api chat.update --resolve-target "$channel" --form "ts=$threadTs" --form "text=$sourceText" )
+			if [ "$identityAsBot" = "true" ] ; then
+				opArgs+=( --identity bot )
+			fi
+			opArgs+=( --context "--slack-edit-message" )
+			echo "# $MDSC_CMD --slack-edit-message: chat.update channel=$channel ts=$threadTs (acting member $memberName)" >&2
+			## Response straight out on stdout, diagnostic captured -- as in --react.
+			local diag="" callRc=0
+			{ diag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
+			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+			if [ "$callRc" != "0" ] ; then
+				local actingIdentity=""
+				actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+				local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+				case "$actingIdentity" in
+					bot|user)
+						actingIdentityText="the $actingIdentity identity"
+					;;
+					not-yet-selected)
+						actingIdentityText="no identity at all -- the call failed before one was selected"
+					;;
+				esac
+				case "$diag" in
+					*cant_update_message*|*message_not_found*)
+						## STATE 2 of 3, refused-on-authorship.
+						echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: REFUSED FOR $channel:$threadTs -- Slack permits editing only a message the acting identity itself authored, and this call acted as $memberName under $actingIdentityText. The message was NOT edited and its text is unchanged. Slack's own code is in the diagnostic above: cant_update_message means the message exists and belongs to a different identity; message_not_found means this identity cannot see a message with that ts at all (wrong ts, deleted message, or once again another identity's message). Retrying under the other identity is deliberately NOT attempted -- substituting an identity to make a mutating call succeed is the silent degrade this op family forbids. Decide which identity should own this edit and ask for it explicitly with --identity-bot." >&2
+					;;
+					*)
+						## STATE 3 of 3, could-not-call.
+						echo "⛔ ERROR: $MDSC_CMD --slack-edit-message: COULD NOT EDIT $channel:$threadTs -- the call did not complete (see the op's own diagnostic above). This is NOT an authorship refusal: nothing is known from this result about who authored that message, and its text was not changed." >&2
+					;;
+				esac
+				set +e ; return 1
+			fi
+			return 0
+		;;
+esac

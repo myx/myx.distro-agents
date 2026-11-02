@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCommsSlackFileFetch.include -- --slack-file-fetch.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+
+type AgentsToolsCommsSlackFileInfo > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpCommsSlackFileInfo.include"
+
+case "$1" in
+
+		--intern-op-comms-slack-file-fetch)
+			shift
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' files:read
+				return 0
+			fi
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-file-fetch || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local fetchFileId="$1"
+			shift || true
+			local fetchDest="$1"
+			shift || true
+			if [ -z "$fetchFileId" ] || [ -z "$fetchDest" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: syntax is <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite] [--channel <id> --ts <ts>] -- the first three are required. The destination is always named by the caller: this op has no default location and will not invent one. To decide whether a file is worth fetching at all, ask --slack-file-info first." >&2
+				set +e ; return 1
+			fi
+			if ! printf '%s\n' "$fetchFileId" | LC_ALL=C grep -qE '^F[A-Z0-9][A-Z0-9]*$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: '$fetchFileId' is not a Slack file id -- expected F followed by uppercase letters and digits (e.g. FXXXXXXXXXX). Nothing was called and nothing was written. If this came out of a message payload, take the file object's own \`id\` field." >&2
+				set +e ; return 1
+			fi
+			local fetchAsBot="false" fetchOverwrite="false" fetchChannel="" fetchTs=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						fetchAsBot="true" ; shift
+					;;
+					--overwrite)
+						fetchOverwrite="true" ; shift
+					;;
+					## Both optional, and only together: the message this file came with, letting the fetch
+					## go through the comms cache (fetched once there, served after) instead of a fresh GET
+					## every time. Neither given: today's direct fetch, unchanged.
+					--channel)
+						[ -n "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: --channel: value required (a Slack conversation id)" >&2 ; set +e ; return 1 ; }
+						fetchChannel="$2" ; shift 2
+					;;
+					--ts)
+						[ -n "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: --ts: value required (the message ts this file was carried on)" >&2 ; set +e ; return 1 ; }
+						fetchTs="$2" ; shift 2
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -n "$fetchChannel" ] && [ -z "$fetchTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: --channel needs --ts beside it (the message this file was carried on)" >&2
+				set +e ; return 1
+			fi
+			if [ -z "$fetchChannel" ] && [ -n "$fetchTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: --ts needs --channel beside it (the conversation that message is in)" >&2
+				set +e ; return 1
+			fi
+			case "/$fetchDest/" in
+				*/.agents/*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: refusing '$fetchDest' as a destination -- it is inside the credential store, which is never written to, read from or listed by any operation. Nothing was called. Choose a destination outside it." >&2
+					set +e ; return 1
+				;;
+			esac
+			local fetchDestDir="" fetchDestBase="" fetchDestDirAbs=""
+			fetchDestDir="$( dirname "$fetchDest" )"
+			fetchDestBase="$( basename "$fetchDest" )"
+			fetchDestDirAbs="$( cd "$fetchDestDir" 2>/dev/null && pwd -P )" || fetchDestDirAbs=""
+			if [ -z "$fetchDestDirAbs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: the destination directory '$fetchDestDir' does not exist or cannot be entered. Nothing was called. This op writes a file; it does not create the directory tree above it." >&2
+				set +e ; return 1
+			fi
+			case "$fetchDestDirAbs/" in
+				*/.agents/*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: refusing '$fetchDest' as a destination -- it resolves to '$fetchDestDirAbs', which is inside the credential store. Nothing was called." >&2
+					set +e ; return 1
+				;;
+			esac
+			local fetchDestAbs="$fetchDestDirAbs/$fetchDestBase"
+			if [ -d "$fetchDestAbs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: '$fetchDestAbs' is a directory, not a file. Nothing was called. Name the file to write, including its filename." >&2
+				set +e ; return 1
+			fi
+			if [ -e "$fetchDestAbs" ] && [ "$fetchOverwrite" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: '$fetchDestAbs' already exists and was left exactly as it is. Nothing was called. Pass --overwrite to replace it, or name a different destination -- this op does not overwrite by default." >&2
+				set +e ; return 1
+			fi
+			local infoOut="" infoRc=0
+			local infoIdentityArgs=()
+			if [ "$fetchAsBot" = "true" ] ; then
+				infoIdentityArgs+=( --identity-bot )
+			fi
+			echo "# $MDSC_CMD --slack-file-fetch: reading metadata for $fetchFileId before fetching (expected size and type come from there)" >&2
+			## The metadata op's own diagnostic goes straight to stderr rather than
+			## through a capture: it was only ever re-emitted there.
+			infoOut="$( AgentsToolsCommsSlackFileInfo "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" )" || infoRc=$?
+			case "$infoRc" in
+				0) ;;
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- $fetchFileId could not be read (file_not_found; the metadata op's own explanation of the two situations that produce it is above). No fetch was attempted and '$fetchDestAbs' was not created or modified." >&2
+					set +e ; return 3
+				;;
+				4)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- $fetchFileId has been deleted (file_deleted). There are no bytes to retrieve under any identity. '$fetchDestAbs' was not created or modified." >&2
+					set +e ; return 4
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- the metadata read for $fetchFileId did not complete (see its own diagnostic above). This is NOT an absence result: nothing is known about whether the file exists. '$fetchDestAbs' was not created or modified." >&2
+					set +e ; return 1
+				;;
+			esac
+			local infoSizeState="" infoSize="" infoName="" infoMimetype=""
+			local infoUrlDownloadState="" infoUrlDownload="" infoUrlPrivateState="" infoUrlPrivate=""
+			infoSizeState="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^SIZE_STATE=//p' | head -1 )"
+			infoSize="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^SIZE=//p' | head -1 )"
+			infoName="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^NAME=//p' | head -1 )"
+			infoMimetype="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^MIMETYPE=//p' | head -1 )"
+			infoUrlDownloadState="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE_DOWNLOAD_STATE=//p' | head -1 )"
+			infoUrlDownload="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE_DOWNLOAD=//p' | head -1 )"
+			infoUrlPrivateState="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE_STATE=//p' | head -1 )"
+			infoUrlPrivate="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE=//p' | head -1 )"
+			## THROUGH THE COMMS CACHE, when the caller names the message this file came with: fetched
+			## once there (AgentsToolsCommsCacheSlackFile), and every later ask for the same file is a
+			## copy, not a fresh GET. Falls through to the direct fetch below on any cache miss.
+			if [ -n "$fetchChannel" ] && [ -n "$fetchTs" ] ; then
+				local cacheFilePath="" cacheRc=0
+				type AgentsToolsCommsCacheSlackDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+				if AgentsToolsCommsCacheSlackDir "$memberName" "$fetchAsBot" "$fetchChannel" ; then
+					cacheFilePath="$( AgentsToolsCommsCacheSlackFile "$memberName" "$agentsCommsCacheDir" "$fetchTs" "$fetchFileId" "${infoName:-file}" "$fetchAsBot" )" || cacheRc=$?
+				else
+					cacheRc=1
+				fi
+				if [ "$cacheRc" = "0" ] && [ -n "$cacheFilePath" ] && [ -s "$cacheFilePath" ] ; then
+					if cp -p "$cacheFilePath" "$fetchDestAbs" 2> /dev/null ; then
+						chmod 600 "$fetchDestAbs" 2> /dev/null || :
+						echo "# $MDSC_CMD --slack-file-fetch: $fetchFileId served from the comms cache, not fetched again" >&2
+						printf '%s\n' FETCH_STATE=fetched
+						printf 'FILE_ID=%s\n' "$fetchFileId"
+						printf 'DESTINATION=%s\n' "$fetchDestAbs"
+						printf 'SOURCE=cache\n'
+						printf 'MIMETYPE=%s\n' "$infoMimetype"
+						return 0
+					fi
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: the cache holds $fetchFileId but it could not be copied to '$fetchDestAbs'. Nothing was written. Falling through to a direct fetch." >&2
+				fi
+			fi
+			local fetchUrlChosen="" fetchUrlWhich=""
+			if [ "$infoUrlDownloadState" = "present" ] && [ -n "$infoUrlDownload" ] ; then
+				fetchUrlChosen="$infoUrlDownload" ; fetchUrlWhich="url_private_download"
+			elif [ "$infoUrlPrivateState" = "present" ] && [ -n "$infoUrlPrivate" ] ; then
+				fetchUrlChosen="$infoUrlPrivate" ; fetchUrlWhich="url_private (fallback -- this file object carries no url_private_download)"
+			else
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- files.info reported $fetchFileId but carried neither url_private_download nor url_private, so there is no address to retrieve the bytes from. This is a metadata shape this op does not know how to fetch, NOT a missing or deleted file. '$fetchDestAbs' was not created or modified." >&2
+				set +e ; return 1
+			fi
+			if [ "$infoSizeState" != "present" ] || ! printf '%s\n' "$infoSize" | LC_ALL=C grep -qE '^[0-9][0-9]*$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- files.info did not report a usable byte size for $fetchFileId (SIZE_STATE='$infoSizeState', SIZE='$infoSize'). The fetch was NOT attempted: without the expected size there is no way to tell a complete file from a truncated one or from a sign-in page, and this op does not fetch what it cannot verify. '$fetchDestAbs' was not created or modified." >&2
+				set +e ; return 1
+			fi
+			## The partial download's whole life is this subshell, so the trap is the
+			## SUBSHELL'S own: it cannot replace the caller's -- a console session
+			## and the MCP server both keep one -- and it fires on every way out,
+			## including a failure not enumerated here. Every check below therefore
+			## states only what went wrong; none of them removes the file itself,
+			## and after the mv there is nothing left at that path to remove.
+			local fetchRc=0
+			(
+				fetchTmp="$( mktemp "$fetchDestDirAbs/.$fetchDestBase.fetch.XXXXXX" )" || {
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: could not create a temporary file in '$fetchDestDirAbs'. Nothing was fetched and '$fetchDestAbs' was not created or modified." >&2
+					exit 1
+				}
+				trap 'rm -f "$fetchTmp"' EXIT
+				chmod 600 "$fetchTmp" || exit 1
+				fetchOpArgs=( "$memberName" --fetch-url "$fetchUrlChosen" --fetch-to "$fetchTmp" )
+				if [ "$fetchAsBot" = "true" ] ; then
+					fetchOpArgs+=( --identity bot )
+				fi
+				fetchOpArgs+=( --context "--slack-file-fetch" )
+				echo "# $MDSC_CMD --slack-file-fetch: GET $fetchUrlWhich for $fetchFileId (${infoName:-<no name>}, ${infoMimetype:-<no mimetype>}, expecting $infoSize bytes, acting member $memberName)" >&2
+				## Fetch mode writes the bytes to --fetch-to and nothing to stdout, so
+				## the merged stream is the diagnostic entire -- re-emitted here, and
+				## read below for the content type the server actually sent.
+				fetchDiag="" ; fetchCallRc=0
+				fetchDiag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${fetchOpArgs[@]}" 2>&1 )" || fetchCallRc=$?
+				[ -z "$fetchDiag" ] || printf '%s\n' "$fetchDiag" >&2
+				if [ "$fetchCallRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- the authenticated GET for $fetchFileId did not complete (see the op's own diagnostic above, which carries the HTTP status it saw). Whatever arrived was discarded with the temporary file, and '$fetchDestAbs' was not created or modified." >&2
+					exit 1
+				fi
+				fetchContentType="$( printf '%s\n' "$fetchDiag" | LC_ALL=C sed -n 's/^FETCH_CONTENT_TYPE=//p' | head -1 )"
+				case "$fetchContentType" in
+					text/html*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 but the server sent Content-Type '$fetchContentType', which is a WEB PAGE and not $fetchFileId's content (files.info reports it as '${infoMimetype:-<no mimetype>}'). This is Slack's sign-in page: the request reached Slack but was not accepted as authenticated for this file, which answers 200 with a login form rather than an error. A 200 is NOT evidence the bytes are the file. Nothing was written to '$fetchDestAbs'." >&2
+						exit 1
+					;;
+				esac
+				if LC_ALL=C head -c 1024 "$fetchTmp" | LC_ALL=C tr -d '\000' | LC_ALL=C grep -qiE '<!doctype[[:space:]]+html|<html[[:space:]>]' ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and Content-Type '$fetchContentType', but the bytes themselves begin as an HTML document. This is Slack's sign-in page wearing the right content type: an unauthenticated or under-scoped fetch of a url_private is answered with a login form at HTTP 200, and only reading the bytes catches it. files.info reports this file as '${infoMimetype:-<no mimetype>}'. Nothing was written to '$fetchDestAbs'." >&2
+					exit 1
+				fi
+				## Every step states its own failure rather than leaning on `set -e`:
+				## bash 3.2 suppresses errexit inside a subshell whose status is
+				## tested, so an unchecked step here would be skipped in silence.
+				## Digits enumerated, never a bracket range -- see MAGIC.md.
+				fetchActualBytes="$( wc -c < "$fetchTmp" | tr -d '[:space:]' )"
+				case "$fetchActualBytes" in
+					''|*[!0123456789]*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- the bytes that arrived for $fetchFileId could not be counted, so the size check that decides whether this is the file never ran. An uncounted body is never treated as a verified one. Nothing was written to '$fetchDestAbs'." >&2
+						exit 1
+					;;
+				esac
+				if [ "$fetchActualBytes" -ne "$infoSize" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and $fetchActualBytes bytes, but files.info reports this file as $infoSize bytes. The sizes must match EXACTLY: a short body is a truncated or interrupted transfer, and a body of any other length is not this file's content at all. Nothing was written to '$fetchDestAbs'." >&2
+					exit 1
+				fi
+				if ! mv -f "$fetchTmp" "$fetchDestAbs" ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: the fetch of $fetchFileId succeeded and passed every check, but the verified result could not be moved into place at '$fetchDestAbs'. The temporary file has been removed; the destination was not modified." >&2
+					exit 1
+				fi
+				chmod 600 "$fetchDestAbs" || exit 1
+				printf '%s\n' FETCH_STATE=fetched
+				printf 'FILE_ID=%s\n' "$fetchFileId"
+				printf 'DESTINATION=%s\n' "$fetchDestAbs"
+				printf 'VERIFIED_BYTES=%s\n' "$fetchActualBytes"
+				printf 'MIMETYPE=%s\n' "$infoMimetype"
+				printf 'SOURCE_URL_KIND=%s\n' "$fetchUrlWhich"
+			) || fetchRc=$?
+			if [ "$fetchRc" != "0" ] ; then
+				set +e ; return "$fetchRc"
+			fi
+			return 0
+		;;
+esac

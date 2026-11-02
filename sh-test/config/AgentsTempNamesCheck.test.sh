@@ -228,9 +228,9 @@ AgentsTools.PendingReplyCollect.include|mktemp "$MMDAPP/.local/temp/mdat-pending
 AgentsTools.PendingReplyRemind.include|mktemp "$MMDAPP/.local/temp/mdat-pending-reply-remind.XXXXXX"
 AgentsTools.MagicSweep.include|mktemp -d "$MMDAPP/.local/temp/mdat-magic-sweep-clients.$callingMember.XXXXXX"
 AgentsTools.MemberCommsEmail.include|mktemp "$MMDAPP/.local/temp/mdat-comms-email-message.XXXXXX"
-AgentsTools.MemberCommsSlack.include|mktemp "$MMDAPP/.local/temp/mdat-slack-file-info-diag.XXXXXX"
-AgentsTools.MemberCommsSlack.include|mktemp "$MMDAPP/.local/temp/mdat-slack-delete-diag.XXXXXX"
-AgentsTools.MemberCommsSlack.include|mktemp "$MMDAPP/.local/temp/mdat-slack-share-stdin.XXXXXX"
+AgentsTools.InternOpCommsSlackFileInfo.include|mktemp "$MMDAPP/.local/temp/mdat-slack-file-info-diag.XXXXXX"
+AgentsTools.InternOpCommsSlackDelete.include|mktemp "$MMDAPP/.local/temp/mdat-slack-delete-diag.XXXXXX"
+AgentsTools.InternOpCommsSlackFileShare.include|mktemp "$MMDAPP/.local/temp/mdat-slack-share-stdin.XXXXXX"
 AgentsTools.LocalLock.include|mktemp "$agentsLocalLockPath.stale.XXXXXX"'
 rigAssert "the twenty places: each makes its name by mktemp, once" "${rigMade:-each by mktemp}" "each by mktemp"
 

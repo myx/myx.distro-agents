@@ -101,7 +101,7 @@ AgentsHarnessSendProse(){ ## values...
 ## the credential stays inside that operation and never reaches argv. The text goes in
 ## on stdin, where no shell quoting can reach it -- a single apostrophe in a composed
 ## send emptied one live message in this estate.
-AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
+AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
 	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" toolNext="${7:-}" sendRc=0 toolShown="" toolSession toolInbox
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
@@ -261,6 +261,13 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	[ -n "$nextChannel" ] && [ -n "$nextTs" ] && [ -n "$nextThread" ] || return 0
 	printf 'NEXT: call Wait\n'
 }
+AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
+	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	local pauseRc=0
+	AgentsHarnessToolSendMessageRun "$@" || pauseRc=$?
+	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	return "$pauseRc"
+}
 
 ## The spawned-sessions registry is what enumerates agents: every spawn has a sandbox, created
 ## even when empty, so a session with no tracking document and no board item is still listed.
@@ -414,8 +421,9 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 ## message is recorded in the session chat file first and posted after, it takes no target -- the
 ## first word is text -- and address_to names who it is for. routine-run-inline runs a routine of
 ## this session inline. get-uninvited-participants reads the participants the session's record
-## names that have no run in it yet, one a line. Nothing here reads the thread: every wait already
-## brings its replies.
+## names that have no run in it yet, one a line. set-session-topic and set-session-chapter set the
+## session's title and what it does now, from the message. Nothing here reads the thread: every
+## wait already brings its replies.
 AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, routine
 	local toolOp="$1" toolMessage="$2" toolAddressTo="$3" toolRoutine="$4"
 	local toolOut="" toolRc=0 toolChannel="" toolThread="" toolTs=""
@@ -438,8 +446,12 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 		get-uninvited-participants)
 			toolArgs=( --get-uninvited-participants )
 		;;
+		set-session-topic|set-session-chapter)
+			[ -n "$toolMessage" ] || { printf 'ERROR: ThisSession %s: message is required, and this call named none. Nothing was set.\n' "$toolOp" ; return 0 ; }
+			toolArgs=( "--$toolOp" "$toolMessage" )
+		;;
 		*)
-			printf 'ERROR: ThisSession: unknown operation: %s -- the operations are post, which posts to your own session thread, routine-run-inline, and get-uninvited-participants, which reads the participants with no run yet. Nothing was done.\n' "${toolOp:-<none>}" ; return 0
+			printf 'ERROR: ThisSession: unknown operation: %s -- the operations are post, which posts to your own session thread, routine-run-inline, get-uninvited-participants, which reads the participants with no run yet, and set-session-topic and set-session-chapter, which set the session title and what it does now. Nothing was done.\n' "${toolOp:-<none>}" ; return 0
 		;;
 	esac
 	## The member this call resolved is the member the operation acts as, and the session is the one

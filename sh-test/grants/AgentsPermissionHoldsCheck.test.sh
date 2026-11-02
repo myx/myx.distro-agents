@@ -497,7 +497,10 @@ rigAssert "the routine's deny joins the refused tools" "$( printf '%s' "$rigBloc
 rigAssert "the routine adds its allow rows for the member, participants and executors, and not another member's" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c -e 'adds tools: RigBlockAdd|' -e 'adds writes: RigBlockDir/\*\*|' )" 1
 rigAssert "another member's row is not shown" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c 'RigNotMine' )" 0
 rigAssert "the ask line names RequestPermission and the human-owner, last" "$( printf '%s' "$rigBlockOut" | LC_ALL=C grep -c 'to ask for more: call RequestPermission .*human-owner decides.*|$' )" 1
-rigAssert "a member with no deny row and no routine gets the ask line alone" "$( rigBlock magic-developer "" )" "to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides. Your other standing rows: --list-permissions.|"
+## S21.20 item 20a: the block also names the seats the member may read without asking, so a member
+## with no deny row gets that line and then the ask line. The ask line is still the last one said.
+rigAssert "a member with no deny row and no routine gets its seat line and then the ask line alone" "$( rigBlock magic-developer "" | LC_ALL=C sed -n 's/^free to read without asking: .*/a seat line/p' )" "a seat line"
+rigAssert "and the ask line is still the last thing the block says" "$( rigBlock magic-developer "" | LC_ALL=C grep -c '|to ask for more: call RequestPermission[^|]*|$' )" 1
 rigAssert "the human-owner is never refused by a deny row" "$( rigHolds human-owner Edit "$rigWs/DNY/locked/a.txt" )" "HOLDS human-owner"
 rigAssert "its member holds Read, Grep and Glob there, standing" \
 	"$( rigHolds magic-tester Read "$rigWs/RONLY/r.txt" ):$( rigHolds magic-tester Grep "$rigWs/RONLY/r.txt" ):$( rigHolds magic-tester Glob "$rigWs/RONLY/**" )" "HOLDS standing:HOLDS standing:HOLDS standing"

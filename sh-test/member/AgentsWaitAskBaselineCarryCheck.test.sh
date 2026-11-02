@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Regression check: a pending reply closed with no thread (answered by the team operation)
 ## must leave the stored Wait set quiet once its one closing line has already been returned.
-## AgentsWaitProbeAsk (AgentsTools.MemberWait.include) writes that same line on every poll of
+## AgentsWaitProbeAsk (AgentsTools.MemberWaitAsk.include) writes that same line on every poll of
 ## such a record. Staying quiet after the first RECEIVED depends on the stored per-source
 ## baseline carrying forward between calls. That carry-forward, for a non-Slack source such as
 ## ask:, used to require --wait-since-utime to be empty -- so a caller resuming a default-mode

@@ -15,24 +15,39 @@ type LocalToolsManagerScopeNameOk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 
 ## The scopes of the agents, one a line as `.local` lists them: the id, `Agents`, the name, the file, and that it may be deleted.
 AgentsToolsManagerScopeAgentsSources(){
-	local sourceFile sourceName
+	local sourceFile sourceName sourceRoot
 	for sourceFile in "${MMDAPP%/}/.local/.agents"/*.agent.env ; do
 		[ -f "$sourceFile" ] || continue
 		sourceName="${sourceFile##*/}" ; sourceName="${sourceName%.agent.env}"
 		LocalToolsManagerScopeNameOk "$sourceName" || continue
-		printf 'agents:%s\tAgents\t%s\t%s\tyes\n' "$sourceName" "$sourceName" "$sourceFile"
+		## The team's scope is the paying workspace's where one pays: its tiers are read and written there, so the file the console shows, edits and unsets is that one.
+		sourceRoot="${MMDAPP%/}"
+		case "$sourceName" in
+			magic-team)
+				type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+				sourceRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || sourceRoot="${MMDAPP%/}"
+			;;
+		esac
+		printf 'agents:%s\tAgents\t%s\t%s\tyes\n' "$sourceName" "$sourceName" "$sourceRoot/.local/.agents/$sourceName.agent.env"
 	done
 	return 0
 }
 
 ## The read and the write of a scope of the agents: a write through the dispatcher, whose write checks (a preset's, the tiers') it must pass.
+## A team tier setting is read from the workspace that pays, as it is written there: the console's `SET HERE` and its own readback of an edit are then one value.
 AgentsToolsManagerScopeAgentsCall(){ ## `read` or `write`, then the reader's arguments
-	local callHow="$1" ; shift
+	local callHow="$1" callRoot="${MMDAPP%/}" ; shift
+	case "$scopeName:$1:${2:-}" in
+		magic-team:--select:SPAWN_TIER_LOW|magic-team:--select:SPAWN_TIER_NORMAL|magic-team:--select:SPAWN_TIER_HIGH)
+			type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+			callRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || callRoot="${MMDAPP%/}"
+		;;
+	esac
 	if [ "$callHow" = write ] ; then
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 		AgentsToolsConfigOption "$scopeName" "$@"
 	else
-		( set -- --agents-config-option "$scopeName" "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
+		( MMDAPP="$callRoot" ; set -- --agents-config-option "$scopeName" "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
 	fi
 }
 
@@ -68,7 +83,7 @@ AgentsToolsManagerScopeAgentsGuard(){ ## name of the scope
 ## A preset takes the parameters of a preset; the team's and a member's scope take the three tiers, each `<preset>[:<effort>]`, chosen from the presets this workspace holds.
 ## No value holds a blank, a `,`, a `=` or a `|`.
 AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
-	local knownName="$1" knownFile knownOne knownList="" knownEfforts="" knownService="" knownKey knownEffort knownPreset
+	local knownName="$1" knownFile knownOne knownList="" knownEfforts="" knownService="" knownKey knownEffort knownPreset knownPayRoot=""
 	case "$knownName" in
 		preset-*)
 			for knownFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
@@ -140,6 +155,19 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 				knownPreset="${knownFile##*/preset-}" ; knownPreset="${knownPreset%.agent.env}"
 				knownList="$knownList${knownList:+,}$knownPreset"
 			done
+			## The team's tier may name a preset only the paying workspace holds, and its write check accepts one there: the selector offers those too.
+			if [ "$knownName" = magic-team ] ; then
+				type AgentsToolsPresetPayRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+				knownPayRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || knownPayRoot="${MMDAPP%/}"
+				if [ "${knownPayRoot%/}" != "${MMDAPP%/}" ] ; then
+					for knownFile in "${knownPayRoot%/}/.local/.agents"/preset-*.agent.env ; do
+						[ -f "$knownFile" ] || continue
+						knownPreset="${knownFile##*/preset-}" ; knownPreset="${knownPreset%.agent.env}"
+						case ",$knownList," in *",$knownPreset,"*) continue ;; esac
+						knownList="$knownList${knownList:+,}$knownPreset"
+					done
+				fi
+			fi
 			## The kind `tier`: two selectors, the preset and the effort. Its values are the presets, a slash, and the efforts of the one list that
 			## lift a tier; unset is the form's own empty choice, so the list is walked without it. The value itself stays
 			## `<preset>[:<effort>]`, and an effort a value already holds (default, hard) is shown by the screen with them.

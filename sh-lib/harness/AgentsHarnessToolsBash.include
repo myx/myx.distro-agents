@@ -140,7 +140,7 @@ AgentsHarnessToolStreams(){ ## stdin file, stdout file, stderr file, output mode
 ## No sandboxing beyond the cwd bound, matching copilot's own --allow-all-tools trust
 ## model. Output goes to a scratch file rather than $( ): a model-supplied command may
 ## background a child that holds a capture pipe open forever.
-AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
+AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
 	local toolCwd="$1" toolCommand="$2" toolTimeout="$3" toolDetach="$4" toolHandle="$5" toolStop="$6" toolOffset="$7" toolLimit="$8" toolStdin="$9" toolOutputMode="${10}" toolStatus=0 toolBytes
 	case "$toolOutputMode" in
 		''|merged) toolOutputMode="" ;;
@@ -401,8 +401,15 @@ AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset,
 	[ ! -f "$harnessScratch/run.timedout" ] || printf '... TIMED OUT after %s seconds ...\n' "$toolTimeout"
 	printf '(exit status %s)\n' "$toolStatus"
 }
+AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
+	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	local pauseRc=0
+	AgentsHarnessToolBashRun "$@" || pauseRc=$?
+	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	return "$pauseRc"
+}
 
-AgentsHarnessToolWorkspaceContextExecute(){ ## command, workspace, timeout
+AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 	local toolCommand="$1" toolWorkspace="$2" toolTimeout="$3" toolStatus=0 toolBytes
 	local toolTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local toolArgs=( "$BASH" "$toolTools" --intern-mcp-execute )
@@ -456,4 +463,11 @@ AgentsHarnessToolWorkspaceContextExecute(){ ## command, workspace, timeout
 	cat "$harnessScratch/run.out"
 	[ ! -f "$harnessScratch/run.timedout" ] || printf '... TIMED OUT after %s seconds ...\n' "$toolTimeout"
 	printf '(exit status %s)\n' "$toolStatus"
+}
+AgentsHarnessToolWorkspaceContextExecute(){ ## command, workspace, timeout
+	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	local pauseRc=0
+	AgentsHarnessToolWorkspaceContextExecuteRun "$@" || pauseRc=$?
+	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	return "$pauseRc"
 }

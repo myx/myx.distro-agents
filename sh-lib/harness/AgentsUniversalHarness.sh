@@ -1645,8 +1645,33 @@ AgentsHarnessWithholdResults(){ ## the first recorded result to withhold
 	done
 	return "$withholdRc"
 }
+## THE CHECKLIST NUDGE (the owner's standing ruling): a run whose own list has not changed for 30 minutes, with at least 15 tool calls other
+## than Wait since, is given one plain message as its next chat message, at most once per 30 minutes. A list write resets both the count and the
+## clock, because the list's own modification time is the clock. Nothing is written but the time of the last nudge, beside the list.
+AgentsHarnessCheckListNudgeWanted(){
+	local nudgeFolder nudgeAge nudgeMark nudgeStamp
+	AgentsHarnessCheckListPlace || return 1
+	[ -f "$checkListFolder/$checkListMember.checklist.md" ] || return 1
+	nudgeFolder="$checkListFolder"
+	nudgeAge="$( stat -f %m "$nudgeFolder/$checkListMember.checklist.md" 2> /dev/null || stat -c %Y "$nudgeFolder/$checkListMember.checklist.md" 2> /dev/null )" || return 1
+	if [ "$nudgeAge" != "$harnessNudgeSeen" ] ; then
+		harnessNudgeSeen="$nudgeAge"
+		harnessNudgeCalls=0
+	fi
+	[ "$harnessNudgeCalls" -ge 15 ] || return 1
+	[ $(( $( date +%s ) - nudgeAge )) -ge 1800 ] || return 1
+	nudgeStamp=0
+	nudgeMark="$nudgeFolder/checklist.nudge"
+	[ ! -f "$nudgeMark" ] || IFS= read -r nudgeStamp < "$nudgeMark" || :
+	case "$nudgeStamp" in ''|*[!0-9]*) nudgeStamp=0 ;; esac
+	[ $(( $( date +%s ) - nudgeStamp )) -ge 1800 ] || return 1
+	return 0
+}
+
 harnessRestartCount=0
 harnessSummariseRound=0
+harnessNudgeSeen=""
+harnessNudgeCalls=0
 ## The trigger reads the prompt with the growth one round adds on top of it: the finished
 ## round measures the prompt, and the next request carries that plus everything the round
 ## appended. With none measured yet the floor is the summarise round's own allowance.
@@ -1722,7 +1747,12 @@ while : ; do
 
 	## To a file, never argv: a long conversation outgrows the OS argument limit, and
 	## stdin is already the header channel.
-	## The kept context first gains whatever user turns this round adds.
+	## The kept context first gains whatever user turns this round adds, and the nudge rides in it as the next chat message.
+	if [ "$harnessToolChoice" != "none" ] && ! AgentsHarnessDismissedBy > /dev/null && AgentsHarnessCheckListNudgeWanted ; then
+		printf '%s\n' "$( date +%s )" > "$checkListFolder/checklist.nudge" 2> /dev/null || :
+		harnessNudgeCalls=0
+		harnessMessages+=( "$( AgentsWireUserRecord "This session's CheckList has not changed for 30 minutes, and you have made at least 15 tool calls other than Wait since. Say in one plain line where the work stands, or write the list to show it: close what is done, mark what you are on." )" )
+	fi
 	AgentsHarnessContextSync user ""
 	AgentsHarnessCacheWatch
 	AgentsWireRequestBody > "$harnessScratch/request.json"
@@ -2113,6 +2143,8 @@ while : ; do
 		## A result already here is a hook's or the arm gate's: the call was refused, not run.
 		harnessTranscriptOutcome="" ; [ -z "$harnessResult" ] || harnessTranscriptOutcome="refused"
 		[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessFuncName" "$harnessFuncArgsRaw"
+		## A Wait is the run keeping still on purpose, so it never counts towards the nudge.
+		[ "$harnessFuncName" = "Wait" ] || [ "$harnessFuncName" = "mcp__myx_distro__Wait" ] || harnessNudgeCalls=$(( harnessNudgeCalls + 1 ))
 		AgentsHarnessArmNote "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessResult"
 		## The result joins the array, and the kept context, before the milestone its
 		## transcript hook may commit, so that commit carries this call. The model is given

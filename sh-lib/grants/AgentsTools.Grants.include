@@ -201,6 +201,9 @@ AgentsToolsGrantsIndexText(){ ## workspace
 ## failure the old index stays, rc 1.
 AgentsToolsGrantsIndexWrite(){ ## workspace
 	local writeFile="${1%/}/.local/agents/grants.index" writeTemp
+	## One index per member set root, so callers under different roots never rebuild each other's: the workspace's own root keeps the plain name.
+	AgentsToolsGrantsSkillsetRoot "$1"
+	[ "$agentsGrantsSkillsetRoot" = "${1%/}/.local/agents/members" ] || writeFile="$writeFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
 	writeTemp="$( mktemp "$writeFile.XXXXXX" )" || writeTemp=""
 	if [ -z "$writeTemp" ] || ! ( AgentsToolsGrantsIndexText "$1" ) > "$writeTemp" ; then
 		[ -z "$writeTemp" ] || rm -f -- "$writeTemp"
@@ -218,6 +221,9 @@ AgentsToolsGrantsIndexEnsure(){ ## workspace
 	agentsGrantsIndexFile="" ; agentsGrantsIndexText=""
 	[ -n "$ensureWs" ] && [ -d "$ensureWs" ] || return 1
 	ensureDir="$ensureWs/.local/agents" ; ensureFile="$ensureDir/grants.index"
+	## One index per member set root, so callers under different roots never rebuild each other's: the workspace's own root keeps the plain name.
+	AgentsToolsGrantsSkillsetRoot "$ensureWs"
+	[ "$agentsGrantsSkillsetRoot" = "$ensureWs/.local/agents/members" ] || ensureFile="$ensureFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
 	if AgentsToolsGrantsIndexFresh "$ensureWs" "$ensureFile" ; then
 		agentsGrantsIndexFile="$ensureFile" ; return 0
 	fi

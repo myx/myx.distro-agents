@@ -20,15 +20,25 @@ The coordinator's duty session: it works what its work-duty scan found, then wai
 
 # Opening steps
 
-None of its own: the Opening steps of its session kind run first.
+The Opening steps of its session kind run first. Then:
+
+1. **write-the-duty-list**: Write these recurring duties to your `CheckList`, one item each:
+   - the inbox.
+   - the due items.
+   - the permission asks.
+   - the board round.
+   - the run asks.
+   - the held work.
+
+   Every round starts from that list.
 
 # Steps
 
-1. **work-the-input**: the input the spawner gave you is `input/input-scan.md`. Read it by line range, and do not scan again. Work what it holds, in this order, a section reading `(none)` skipped:
+1. **work-the-input**: set each recurring duty on your `CheckList` to pending, and mark each done as this round finishes it. The input the spawner gave you is `input/input-scan.md`. Read it by line range, and do not scan again. Work what it holds, in this order, a section reading `(none)` skipped:
    - the inbox: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`). This is the round's one inbox processing.
    - the due items of the human-owner and the external contacts: `magic-coordinator.external-inbox-handle-loop.routine`, inline (`--routine-run-inline magic-coordinator.external-inbox-handle-loop.routine`).
    - the permission asks: `magic-coordinator.permission-escalation.routine`, inline (`--routine-run-inline magic-coordinator.permission-escalation.routine`).
-   - the board and what is tagged to you: the board steps below, **reconcile-sessions** to **continue-running**, against the scan's sections. Keep the round's tracking note current as the round proceeds (`--update-routine-state`), referencing items by name rather than copying them.
+   - the board and what is tagged to you: the board steps below, **reconcile-sessions** to **release-held-work**, against the scan's sections. Keep the round's tracking note current as the round proceeds (`--update-routine-state`), referencing items by name rather than copying them.
 2. **reconcile-sessions**: compare the scan's session registries with the board before any other board work. Each handler states its outcome, steps:
    - **reconcile-read**: read the spawned-sessions and pending-replies registries, and match each `board-running` item to its session by `session-id`. A pending-replies row's `session-id` is the id of the run that asked, never of the coworking session that run joined.
    - **reconcile-dead-session**: a `board-running` item other than a `dispatch-*` whose session is not live is a failed spawn. Record the registry reading in its `execution-receipt`. It carries `restart-session`: respawn that group at the item's recorded state, outcome `respawned`. Otherwise: move it to `board-blocked` with a `condition` naming the dead session, outcome `flagged-once`.
@@ -38,6 +48,10 @@ None of its own: the Opening steps of its session kind run first.
 3. **review-items**: for each `board-review` item whose `review-by` is `magic-coordinator`, or is empty and its run reports to `magic-coordinator` (the scan's review-items section lists them), steps:
    - apply `magic-team.handback-review.routine` to it, inline (`--routine-run-inline magic-team.handback-review.routine`). Every such item is reviewed here, whatever its size.
    - a verdict this member cannot settle alone, such as one that binds the team, climbs by "The ladder: one rung at a time". The item stays in `board-review` meanwhile.
+   - a check that times out on both the old and the new tree compares nothing: drop it from the gate as not measurable under load.
+   - a defect: return the item with the exact files, lines and change, and the instruction to land it without stopping. Code that re-enters a command script for an internal step that has its own include is always a defect.
+   - sound work: accept the item. Then move each proven epic item to Done at once, with its evidence in one line (`--epic-update <epic-file> --set-status <feature-id> done`), and validate the epic (`--intern-doc-validate`).
+   - a handback that closes one round of an item still open: accept the round in the session thread. Then send the session on to the next round.
 4. **communication-sweep**: run `magic-coordinator.communication-sweep.routine`'s Steps inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`), against this round's board read.
 5. **check-process-board**: run `check-process-board` against this round's read.
 6. **start-pending**: start decided `board-pending` work, steps:
@@ -58,11 +72,21 @@ None of its own: the Opening steps of its session kind run first.
    - approved, but no session, no `restart-session` and no dispatch recorded, past the threshold since `started-at`: dispatch its `participants`, else its `owner`, through `spawn-one-dispatch`. Outcome `respawned`.
    - console-backed work: check its channel with `--console-list`. A channel expected but gone is flagged, never restarted. A live item that this round's findings concern gets them relayed through its own channel: `SendMessage`, or `--console-send` for console-backed work.
    - a named participant cannot be spawned: move the item to `board-parked` (`--advance-to-parked`) with `condition` naming that participant and a `recheck-date`, and report it.
-8. **decide-inline**: for each item of this round, decide inline which it is, and move on, steps:
+8. **answer-run-asks**: answer each open ask addressed to the coordinator, from the pending-replies registry, steps:
+   - answer it at once, in its own thread, by the brief and the epic (`--answer-escalation`). Pick the option that keeps the work moving without the human-owner.
+   - an ask only he can answer, while a supervision session runs: record it for him, and tell its run what to do meanwhile. Never ask him. Otherwise forward it to him (`--forward-escalation`).
+9. **release-held-work**: hold the work at what the machine carries, rules and steps:
+   - rule: held work is the epic's sessions that wait for release, in its release order: most important first, by its urgency marks. A critical session is never held.
+   - rule: while a supervision session runs, hold each session that started since the last round. Never hold the critical session, a released session, a supervision session or this one.
+   - rule: the measure of capacity is the gap between tool calls that a run feels, never the load average alone.
+   - step: for every live run, take the gaps between its consecutive tool calls over the last ten minutes, and their median. One long call that is a Wait or a test run is not a slow call.
+   - step: every median under a minute and no run stuck, as `magic-coordinator.supervision-session.routine`'s **unstall-runs** defines it: release the next held session in the release order, per `release-a-session`.
+   - step: a median of a minute or more: release nothing. Find the cause in the call path, and dispatch its fix with no regression.
+10. **decide-inline**: for each item of this round, decide inline which it is, and move on, steps:
    - small: work it at once here, as an inline routine (`--routine-run-inline`).
    - larger: prepare its brief, record it and spawn a sub-task (the Agent tool). The sub-task reuses this session's cached prefix, so its first round is cheap.
-9. **post-the-round**: post one line into the session thread (`--post-session-channel`): what this round started, moved or flagged, or that it found nothing. Post the round's record to `event-track` (`--slack-send-message`): the outcomes per item and their counts, the items left untouched, and what was started. It never repeats `check-process-board`'s **board-report**.
-10. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. On an arrival, go to step 1. It returns nothing until one comes; a `DISMISSED` ends the duty.
+11. **post-the-round**: post one line into the session thread (`--post-session-channel`): what this round started, moved or flagged, or that it found nothing. Post the round's record to `event-track` (`--slack-send-message`): the outcomes per item and their counts, the items left untouched, and what was started. It never repeats `check-process-board`'s **board-report**.
+12. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. On an arrival, go to **work-the-input**. It returns nothing until one comes; a `DISMISSED` ends the duty.
 
 # Closure steps
 
@@ -70,13 +94,37 @@ None of its own: the Closure steps of its session kind run after a dismissal.
 
 # Routine's local procedures
 
-None.
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+
+## `release-a-session` — release one held session
+
+Takes the held session. A critical session gets the same message when its work starts.
+
+Steps:
+1. Release the session and every run joined to it, and add it to the released list, so **release-held-work** leaves it alone.
+2. Post in its session thread, addressed to its executor, that it is released and goes on without stopping. Give its exact numbered steps to run without stopping.
+3. In the same message, give the four call-path rules of `code-craft.md` "Each call runs only its own path":
+   - each call parses and runs only its own path.
+   - nothing common is loaded upfront for a minority of calls.
+   - no command script is re-entered for an internal step.
+   - a large router or multi-feature file is split per source, feature or operation.
+4. In the same message, name:
+   - the files another session holds now, which it must not edit.
+   - the shared files that changed while it was held, which it re-reads before it edits.
 
 # Routine's local rules
 
 - Work the input before you wait; never wait with input unworked.
 - A task whose nature is research, requirements or epic preparation is worked in `investigation` mode from its first round (`magic-team.armed.md`'s "Conversations").
-- A round is one run through steps 1 to 9. Where a rule below says "pass" or "round", it means that.
+- A round is one run through the steps up to **post-the-round**. Where a rule below says "pass" or "round", it means that.
+- Run with a reduced scope when the human-owner sets or agrees one: every job is still considered, only in-scope ones are executed.
+- Every 20 completed rounds, or on notice that a loaded skill file changed, reload the skill fresh. Do it at the top of the next **work-the-input**, never mid-step. A reload re-reads every file, never a partial set.
+- Ending the turn to wait for a notification is always fatal: nothing is left to receive it. The only wait is the one in **wait-for-more**.
+- Nothing substantive is done inline. A real edit, investigation or fix is dispatched (`spawn-one-dispatch`), and its result relayed back. **decide-inline** keeps small work inline.
+- Already-approved work is spawned out by default, never executed in this session's own context.
+- This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance. This is the trust-chain check (narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
+- The main loop is not a mode: the host runs it, and no session starts, relays into or stops it. A stopped host loop explains why nothing advances on its own; it changes nothing about this duty.
+- Re-pinging a visibly stalled spawned session, or restarting it where prior work is safely preserved, is this member's own call. Escalate only when the stall makes prior output untrustworthy or risks a duplicated side effect.
 - The tooling does the housekeeping in the main loop, before the scan. It closes dead spawns, moves their items to review and starts missing control threads. It records the dependency edges too. The sections `## board dependencies` and `## recheck dates due` are its findings. The lock of this session is refreshed by its wait and its state writes.
 - Apply only moves already decided: an approval recorded, a review accepted, a completion recorded, a condition met, a blocker closed. This is what makes the round safe to run unattended. Two bounded judgements are allowed:
   - recording a dependency edge that only an item's text shows (`check-process-board`'s **board-dependencies**).
@@ -112,6 +160,18 @@ None.
 
 # Routine-specific tooling
 
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- `CheckList` — your work queue. Pass the whole list every call, each item with `content`, `status` and `activeForm`, and one item `in_progress`. A call with no `todos` reads the list. `append` with `member` adds pending items to the list of a member in a session you started.
+- `AskQuestion` — asks one person one question, and waits in the same call. Pass `to` and `question`. Add `select` with `options` for a closed answer, and read the `VERDICT:` line. To re-ask a party in a thread, pass `wait: false`.
+- `Agent` — the team tool that spawns a member, through `spawn-one-dispatch`. Never use a client's in-process subagent.
+- `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on. A nudge goes to the session thread of the session it is for.
+- `ThisSession` — acts on this session. `operation` is `post` (with `message` and `address_to`), `routine-run-inline` (with `routine`), `get-uninvited-participants`, `set-session-topic` or `set-session-chapter`. `post` puts the round's line into this session's thread.
+
+## Tooling operations
+
 - `--idle-wait [--wait-timeout <seconds>]`
 - `--post-session-channel [--address-to <team-member>]... (<text...>|--from-stdin)`
 - `--routine-run-inline <routine>`
@@ -126,10 +186,23 @@ None.
 - `--slack-send-message <target> [text...]`
 - `--console-list`
 - `--console-send <channel> [-- <command...>]`
+- `--answer-escalation <request-id> <verdict> [text]`
+- `--forward-escalation <request-id>`
+- `--accept-review <item-filename> [--summary <text>]`
+- `--return-review <item-filename> (--message <text>|--from-stdin)`
+- `--epic-update <epic-file> --set-status <feature-id> <status>`
+- `--intern-doc-validate`
 - `--skillset-upsert <team-member> <pathname>`
 - `--queue-list`
 - `--queue-take`
 - `--queue-done <name>`
+
+## Gaps
+
+A GAP is a planned tool the implementation lacks.
+
+- **GAP** the hold and release of a session (epic S19.1). No operation does either, so **release-held-work** is done through the console until one exists.
+- **GAP** automatic resume of a session's executor when an item is added to its CheckList (epic S4.1, investigation first).
 
 # Maintainer Notes
 
@@ -140,6 +213,12 @@ Used to check this file's own definitions against its own goals when it is updat
 - This routine does the periodic board reconciliation process-flow needs to keep moving — without it, board state can drift from reality between full daily/grooming cycles.
 - `check-process-board`'s own dependencies step exists so task-ordering/dependency reasoning (what blocks what) is a standing, repeatable step recorded on the board itself — not a one-off answer that evaporates once the conversation moves on.
 - The round's full record is kept without spending the human-owner's attention on it: the record goes to `slack-event-track` every round, and his own channel carries only what he can act on.
+- A duty session never does substantive work inline: every real edit, investigation, or fix is dispatched to a sub-spawned session.
+- The reload trigger keeps a long-running duty instance's loaded skill files from silently drifting from what is actually on disk.
+- Held work is released at what the machine carries, most important first. A released session is told how to code and what to do without stopping.
+- "YOU PERSONALLY TALK TO ME IN SLACK DM / DO ORCHESTRATE UNATTENDED / WHEN THEY FINISH - CHECK ALL / UNPAUSE SOME OF EPIC WORK - MOST IMPORTANT FIRST AND ALWAYS CHECK TOOL CALL TIMES / WHILE IT IS ACCEPTABLE - BRING MORE / INSTRUCT ALL TO CODE PROPERLY - ACTIVELY INSTRUCT ALL"
+- "YOU NEED TO GIVE THEM EXACT STEPS TO DO NON STOP AND FUCKING FINISH IT"
+- "CODE REVIEW ALSO SHOULD SEE IT - THEY SUPPOSED TO LOOK AT CODE NOT AT GREEN TEST RESULT"
 
 ## Verbatim-tests (benchmarks)
 
@@ -149,6 +228,12 @@ Used to check this file's own definitions against its own goals when it is updat
 - An approved `board-running` item carrying none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note, sitting past the staleness threshold, gets a real dispatch this round — never a blanket `no-action` stamp with nothing actually tried.
 - A `session-id`-set item that keeps getting nudged with zero observed state change past the staleness threshold is treated as if the nudge failed — not renudged indefinitely as "still working."
 - A high-RICE item blocked on a low-RICE one still records the gate plainly — never silently reordered to make the numbers look consistent.
+- A duty instance ends its own turn to wait for a notification with nothing left alive to receive it. That is always fatal, never a valid wait.
+- One of this session's own watched skill files shows a newer mtime mid-round. The reload waits for the next **work-the-input** rather than firing mid-step.
+- Tool calls slow to minutes after a release. Nothing more is released until the cause in the call path is fixed.
+- A handback whose new code re-enters a command script for an internal step goes back with the exact lines, even with its tests green.
+- A check times out on both the old and the new tree. It is dropped from the gate, and never rerun in batches.
+- An ask only the human-owner can answer arrives while a supervision session runs. It is recorded for him and its run is told what to do meanwhile. He is not asked.
 
 ## Librarian Comments
 
@@ -157,7 +242,10 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team.advance.routine` — the next iteration of each running document, run at **continue-running**.
 - `magic-coordinator.armed.md` — `check-process-board`, `check-pending-comms-actions`, `spawn-one-dispatch`.
 - `magic-team/reference/board-model.md` — board states and the advance/grooming split.
+- `magic-coordinator.supervision-session.routine` — the unattended loop that leaves answering, reviewing and releasing to this routine.
+- `magic-developer/reference/code-craft.md` — "Each call runs only its own path", the rule every released session is given and every review requires.
+- `magic-team.handback-review.routine` — its **review-code** step is the first review bullet of **review-items**.
 
 ### Conventions
 
-- **reconcile-sessions**, **review-items**, **communication-sweep**, **check-process-board**, **start-pending** and **continue-running** are cited by name from other files.
+- **reconcile-sessions**, **review-items**, **communication-sweep**, **check-process-board**, **start-pending**, **continue-running**, **answer-run-asks** and **release-held-work** are cited by name from other files.

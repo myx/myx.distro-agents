@@ -51,7 +51,18 @@ keeps the epic and the state document current until the epic is done.
 
 # Opening steps
 
-None of its own: the Opening steps of the routine it inherits from run first (its session kind's, `magic-team.standalone.routine`).
+The Opening steps of the routine it inherits from run first (its session kind's, `magic-team.standalone.routine`). Then:
+
+1. **write-the-duty-list**: Write the wave's recurring duties to your `CheckList`, one item each:
+   - choose the next features.
+   - dispatch the builders.
+   - check the gates.
+   - rule the gaps.
+   - set the status.
+   - keep the state current.
+   - remind the owner.
+
+   Every wave starts from that list.
 
 # Steps
 
@@ -93,10 +104,17 @@ All statements apply at the same time, always. These rules override a participan
 - Never edit the epic by hand: open items and rules go through `--epic-update`.
 - The tail is postponed, never dropped: what does not finish goes to the next epic's input.
 - Keep `event-track` current as the routine runs.
+- Each wave starts from the `CheckList`: every recurring duty is set to pending, and marked done as the wave finishes it.
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- `CheckList` — your work queue. Pass the whole list every call, each item with `content`, `status` and `activeForm`, and one item `in_progress`. A call with no `todos` reads the list.
+- `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on. A reminder to the owner goes to `human-owner`.
+- `AskQuestion` — asks one person one question, and waits in the same call. Pass `to` and `question`. Add `select` with `options` for a closed answer, and read the `VERDICT:` line.
 
 ## Tooling operations
 

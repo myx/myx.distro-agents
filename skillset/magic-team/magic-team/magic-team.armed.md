@@ -168,7 +168,7 @@ Every member works inside a session. The session is the unit of one continued ro
 - A spawned session does not depend on the human or the UI session being present. Input it needs travels the chain of command. Real-time back-and-forth gets its own spawned interactive session.
 - One logical pass never runs twice at once, whatever started it.
 - The root harness session the human-owner talks to coordinates only. It spawns topic-scoped sessions and relays between him and them.
-- Real coordination work happens in a spawned `magic-coordinator` instance: an armed-mode participation, a coordination-session loop, or a work-duty session.
+- Real coordination work happens in a spawned `magic-coordinator` instance: an armed-mode participation, a supervision session, or a work-duty session.
 - A session has a session thread where its participants talk, and a tracking thread where its trace is posted. They are different records with different readers.
 - A session alone has a tracking thread only. The first member it brings in opens the session thread, in `magic-team`, addressed to that member.
 - A tracking thread of the `event-track` conversation is never a session thread and never a parent thread.

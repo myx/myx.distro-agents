@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWaitLocal.include -- the probes of a file, a process, the inbox, a board state and the wake marker.
+## Sourced by --wait-for-input for a source of its kind, and by a caller that needs one probe of it.
+## Its helpers shared with the other probes are in AgentsTools.MemberWaitCore.include.
+##
+type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitCore.include"
+
+## A local drop path -- a file, or a directory listed by name. This is the shape
+## an IM bridge or a portal interaction feed writes into before either has a
+## native adapter of its own, and it is what makes a wait testable with no host
+## involved. An absent path renders empty rather than failing: "not there yet"
+## is a state, and a drop that appears later is exactly the arrival being waited
+## for.
+AgentsWaitProbeFile(){
+	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeRc=0
+	case "$probeTarget" in
+		/*) ;;
+		*)  return 2 ;;
+	esac
+	if [ -d "$probeTarget" ] ; then
+		local probeListing=""
+		probeListing="$( cd "$probeTarget" && ls -1 )" 2>/dev/null || probeRc=$?
+		[ "$probeRc" = "0" ] || return 2
+		## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+		AgentsWaitPut "$probeOut" "${probeListing:+$probeListing$'\n'}" || return 2
+		return 0
+	fi
+	if [ -f "$probeTarget" ] ; then
+		## Read by the shell itself, not by cat: this probe runs once a tick, and a process per
+		## tick per source is the load the tick must not be.
+		## A FILE THAT IS THERE AND CANNOT BE READ IS A FAILED PROBE, never an empty rendering:
+		## an empty rendering is a state, and would read as an arrival on a source read before.
+		local probeBody=""
+		[ -r "$probeTarget" ] || return 2
+		{ IFS= read -r -d '' probeBody < "$probeTarget" ; } 2> /dev/null || :
+		AgentsWaitPut "$probeOut" "$probeBody" || return 2
+		return 0
+	fi
+	AgentsWaitClear "$probeOut" || return 2
+	return 0
+}
+
+## A detached Bash process's output, owned by the session: its stdout and stderr so far,
+## each line prefixed with > for stdout and ! for stderr, under a State line so a wait
+## wakes on new output AND on the process ending. The target is the handle the Bash
+## start returned; the session folder it lives in is this wait's own session's.
+## A STOPPED handle is read only as far as it stood when the stop took effect: its `.closed`
+## marker keeps the byte counts (out <n>, err <n>), and the rendering stops there. So a child
+## that outlived the stop cannot make a closed handle look like it wrote something new, and a
+## wait that has returned CLOSED never returns that source again on what came after it. A marker
+## with no counts in it was written by an older build, and its output is read whole, as it was.
+AgentsWaitProbeProcess(){
+	local probeTarget="$2" probeOut="$4" probeDir probePid probeCaps="" probeClosedLine probeOutCap="" probeErrCap=""
+	[ -n "${waitSessionId:-}" ] || return 2
+	[ -n "$probeTarget" ] || return 2
+	probeDir="$MMDAPP/.local/agents/sessions/$waitSessionId/processes"
+	[ -d "$probeDir" ] || return 2
+	[ -f "$probeDir/$probeTarget.out" ] || [ -f "$probeDir/$probeTarget.err" ] || return 2
+	probePid=""
+	read -r probePid < "$probeDir/$probeTarget.pid" 2>/dev/null || probePid=""
+	if [ -f "$probeDir/$probeTarget.closed" ] ; then
+		while IFS= read -r probeClosedLine ; do
+			case "$probeClosedLine" in
+				'out '*) probeOutCap="${probeClosedLine#out }" ; probeCaps="yes" ;;
+				'err '*) probeErrCap="${probeClosedLine#err }" ; probeCaps="yes" ;;
+			esac
+		done < "$probeDir/$probeTarget.closed"
+		if [ -n "$probeCaps" ] ; then
+			case "$probeOutCap" in ''|*[!0-9]*) probeOutCap=0 ;; esac
+			case "$probeErrCap" in ''|*[!0-9]*) probeErrCap=0 ;; esac
+		fi
+	fi
+	local probeRendered=""
+	probeRendered="$( {
+		if [ -f "$probeDir/$probeTarget.closed" ] ; then
+			printf 'State: CLOSED\n'
+		## A finished process is read from its own status before its pid is asked: the number may since have been given to another
+		## process, and a handle that ended would then be reported RUNNING for as long as that one lived.
+		elif [ -f "$probeDir/$probeTarget.status" ] ; then
+			printf 'State: FINISHED, exit status %s\n' "$( cat "$probeDir/$probeTarget.status" 2>/dev/null )"
+		elif [ -n "$probePid" ] && kill -0 "$probePid" 2>/dev/null ; then
+			printf 'State: RUNNING\n'
+		else
+			printf 'State: UNKNOWN\n'
+		fi
+		if [ -n "$probeCaps" ] ; then
+			head -c "$probeOutCap" "$probeDir/$probeTarget.out" 2>/dev/null | LC_ALL=C awk '{ print ">" $0 }'
+			head -c "$probeErrCap" "$probeDir/$probeTarget.err" 2>/dev/null | LC_ALL=C awk '{ print "!" $0 }'
+		else
+			LC_ALL=C awk '{ print ">" $0 }' "$probeDir/$probeTarget.out" 2>/dev/null
+			LC_ALL=C awk '{ print "!" $0 }' "$probeDir/$probeTarget.err" 2>/dev/null
+		fi
+	} 2> /dev/null )" || return 2
+	## Written only where it differs (AgentsWaitPut): a quiet tick writes no file.
+	AgentsWaitPut "$probeOut" "${probeRendered:+$probeRendered$'\n'}" || return 2
+	return 0
+}
+
+## The own inbox and one board state are listings of a directory, so they are the file probe over it.
+## The inbox listing is names only, deliberately: an arrival adds a name and wakes the wait.
+## The inbox (AgentsTools.InboxPlace.include) is listed in its incoming/ alone, and only the
+## items that came at or after the read floor: an item in processed/ wakes nothing, and marking an
+## item that came before the floor handled, which moves it out of incoming/, changes nothing that is
+## listed -- marking is the waiting member's own act, never new input for it.
+AgentsWaitProbeInbox(){
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
+	local probeDir="$MDAT_DATA_ROOT/inboxes/$2/incoming" probeFloor="${3%%.*}" probeFile probeAt probeKnown="" probeList=""
+	## The rendering this source is measured against, where the caller names one: an item it
+	## already lists passed the floor then, and a date process per item per tick is what this
+	## saves. A call that names none reads every item's time, as it always did.
+	[ -z "${7:-}" ] || [ ! -f "$7" ] || { IFS= read -r -d '' probeKnown < "$7" 2> /dev/null || : ; }
+	[ -d "$probeDir" ] || { AgentsWaitPut "$4" "" || return 2 ; return 0 ; }
+	for probeFile in "$probeDir"/*.md ; do
+		[ -f "$probeFile" ] || continue
+		case "$probeKnown" in
+			*"${probeFile##*/}"*) ;;
+			*)
+				probeAt="$( date -r "$probeFile" +%s 2> /dev/null )" || continue
+				case "$probeFloor" in
+					''|*[!0-9]*) ;;
+					*) [ "$probeAt" -ge "$probeFloor" ] || continue ;;
+				esac
+			;;
+		esac
+		probeList="$probeList${probeFile##*/}"$'\n'
+	done
+	AgentsWaitPut "$4" "$probeList" || return 2
+	return 0
+}
+
+AgentsWaitProbeBoard(){
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
+	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/board/$2" "$3" "$4"
+}
+
+## THE WAKE MARKER of the member (AgentsTools.WakeMarker.include): the one line a message posted to it by one of
+## our own members writes, one file, no request. It is read at every tick and it is NO ARRIVAL of its own -- what
+## it says is not what a member is to read, so the round that finds it changed takes it as read and reads the
+## sources again at once, the costly ones included, and returns whatever that finds (see the round below).
+## A marker that is absent, or that cannot be read, renders EMPTY and is no fault: it is a hint that a message is
+## there, and a hint missed must never turn a quiet wait into one that reports a source it could not read -- which
+## would silence the keepalive round of a duty session (AgentsHarnessIdleWait) for a file it does not need.
+AgentsWaitProbeWake(){
+	local probeFile="" probeText=""
+	## The path of AgentsToolsWakePath, built here: read at every tick, so it starts no process.
+	case "$2" in ''|.|..|*/*|*[[:space:]]*) ;; *) [ -z "${MMDAPP:-}" ] || probeFile="$MMDAPP/.local/agents/wake/$2" ;; esac
+	[ -z "$probeFile" ] || [ ! -f "$probeFile" ] || { IFS= read -r -d '' probeText < "$probeFile" ; } 2> /dev/null || :
+	AgentsWaitPut "$4" "$probeText" || return 2
+	return 0
+}
+

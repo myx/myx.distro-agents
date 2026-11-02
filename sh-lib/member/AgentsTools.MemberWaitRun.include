@@ -1,0 +1,403 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.MemberWaitRun.include -- the wait itself: its directory, its floors, the rounds of probes, dot-sourced inside the --wait-for-input arm. Its longer notes are in MAGIC.md, "The Wait includes".
+
+		## default does not remove the stored state: its floors are kept (see the floor loop below).
+
+		## The directory comes from mktemp and never from $$, because every call in one long-lived process shares one PID.
+		local waitDir waitDirWhy="" agentsWaitLost=""
+		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || true
+		## A unique name per call leaves stale directories, so the wait sweeps them on the way in, only where their wait is proven gone.
+		AgentsWaitFolderSweep "$memberName"
+		## One working folder per member is kept in its session across Waits and held by one Wait at a time. Otherwise the wait makes its own under .local/temp.
+		local waitDirKept="" waitSeenBefore=""
+		if [ -n "${waitStateDir:-}" ] && [ -d "${waitStateDir%/wait}" ] ; then
+			waitDirKept="$waitStateDir/work.$memberName"
+			if [ -f "$waitDirKept/.held" ] ; then
+				local heldBy=""
+				heldBy="$( LC_ALL=C awk 'index( $0, "process: " ) == 1 { print substr( $0, 10 ) ; exit ; }' "$waitDirKept/.held" 2> /dev/null )" || heldBy=""
+				case "$heldBy" in
+					[0-9]*' '*) [ -z "$( printf '%s\n' "${heldBy%% *}" | AgentsToolsRegistryProcessesBegan 2> /dev/null | LC_ALL=C awk -v want="$heldBy" '$0 == want' )" ] || waitDirKept="" ;;
+				esac
+			fi
+		fi
+		if [ -n "$waitDirKept" ] && mkdir -p "$waitDirKept" 2> /dev/null && AgentsWaitFolderOwn "$waitDirKept" 2> /dev/null && cp -f "$waitDirKept/owner" "$waitDirKept/.held" 2> /dev/null ; then
+			waitDir="$waitDirKept"
+			rm -f "$waitDir/kept" 2> /dev/null
+			{ IFS= read -r waitSeenBefore < "$waitDir/seen.txt" ; } 2> /dev/null || waitSeenBefore=""
+			agentsWaitConvSeen="$waitSeenBefore"
+		else
+			waitDirKept=""
+			waitDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-member-wait.$memberName.XXXXXX" 2>&1 )" || { waitDirWhy="${waitDir//$'\n'/ }" ; waitDir="" ; }
+			if [ -n "$waitDir" ] && [ ! -d "$waitDir" ] ; then
+				waitDirWhy="mktemp named ${waitDir//$'\n'/ }, which is no directory" ; waitDir=""
+			fi
+			if [ -n "$waitDir" ] && ! AgentsWaitFolderOwn "$waitDir" 2>/dev/null ; then
+				rm -rf "$MMDAPP/.local/temp/mdat-member-wait.$memberName.${waitDir##*.}" 2> /dev/null || :
+				waitDirWhy="the owner record could not be written into $waitDir" ; waitDir=""
+			fi
+		fi
+		if [ -z "$waitDir" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: could not create a working directory under $MMDAPP/.local/temp (${waitDirWhy:-mktemp gave no reason}), so no probe could write a rendering. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+
+		## With a cut-off named, the first probe is judged against an empty baseline. With none, the first probe is the baseline.
+		local waitBaselineMode="first-probe"
+		[ -z "$waitSince" ] || waitBaselineMode="empty"
+
+		local waitStart waitSecs0 waitCallerPid waitDeadline=""
+		waitStart="$( date +%s )"
+		## The one clock of this wait is the shell's own second count, so a quiet tick starts no date process.
+		waitSecs0=$SECONDS
+		waitCallerPid=$PPID
+		[ -z "$waitTimeout" ] || waitDeadline=$(( waitStart + waitTimeout ))
+
+		## What a probe reads from is not what the baseline is taken against. With no cut-off, a source that can narrow reads from the wait's start.
+		local waitReadFloor="${waitSince:-$waitStart}"
+
+		## One floor per source, and a stored floor is never dropped. The rules that combine it with a since are in MAGIC.md.
+		local waitFloorOf=() waitFloorNew=() waitFloorsUsed="" floorIndex=0 floorStored floorStoredIndex floorStoredSource
+		[ "$waitMode" != "continue" ] || waitBaselineMode="stored"
+		## A collect resumes each Slack source and the tags from the pointer the session kept for it, and has no stored wait.
+		local collectKey="" collectStored
+		if [ -n "$waitCollect" ] ; then
+			type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			collectKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || collectKey=""
+			if [ -n "$collectKey" ] ; then
+				for checkSource in $waitSources ; do
+					case "$checkSource" in slack:*|tagged:*) ;; *) continue ;; esac
+					collectStored="$( AgentsToolsSessionChatPointer "$collectKey" "collect:$memberName:$checkSource" 2> /dev/null )" || continue
+					waitFloors="$waitFloors$checkSource=$collectStored "
+				done
+			fi
+		fi
+		for checkSource in $waitSources ; do
+			floorIndex=$(( floorIndex + 1 ))
+			waitFloorOf[$floorIndex]="$waitReadFloor"
+			floorStored=""
+			case " $waitFloors" in
+				*" $checkSource="*)
+					floorStored="${waitFloors#*"$checkSource="}"
+					floorStored="${floorStored%% *}"
+				;;
+			esac
+			if [ -n "$floorStored" ] ; then
+				if [ -z "$waitSince" ] ; then
+					waitFloorOf[$floorIndex]="$floorStored"
+				else
+					case "${checkSource/#slack:client:/slack:}" in
+						slack:*:*:conversation) ;;
+						slack:*:*) floorStored="" ;;
+					esac
+					[ -z "$floorStored" ] || AgentsWaitTsNewer "$floorStored" "$waitSince" || waitFloorOf[$floorIndex]="$floorStored"
+				fi
+			elif [ -z "$waitSince" ] ; then
+				case "${checkSource/#slack:client:/slack:}" in
+					slack:*:*:conversation)
+						## The older of the two is the floor, so a message that landed before the member's own last post still arrives.
+						local convFloorCandidate=""
+						if [ -n "$waitOwnPost" ] && [ "$checkSource" = "slack:${waitOwnPost%% *}:conversation" ] ; then
+							convFloorCandidate="${waitOwnPost##* }"
+						fi
+						if [ -n "$waitSessionStart" ] && [ "$waitSessionStart" -lt "$waitStart" ] ; then
+							if [ -z "$convFloorCandidate" ] || AgentsWaitTsNewer "$convFloorCandidate" "$waitSessionStart" ; then
+								convFloorCandidate="$waitSessionStart"
+							fi
+						fi
+						if [ -n "$convFloorCandidate" ] && ! AgentsWaitTsNewer "$convFloorCandidate" "$waitStart" ; then
+							waitFloorOf[$floorIndex]="$convFloorCandidate"
+						fi
+					;;
+				esac
+			fi
+			case "$checkSource" in
+				slack:*)
+					waitFloorsUsed="$waitFloorsUsed$checkSource=${waitFloorOf[$floorIndex]} "
+					AgentsWaitEmpty "$waitDir/base.$floorIndex"
+				;;
+				*)
+					if [ "$waitMode" = "continue" ] ; then
+						[ ! -f "$waitStateDir/base.$floorIndex" ] || AgentsWaitCopy "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
+						## An inbox renders from its floor, continued from when the stored wait ended, so what came between two calls is new.
+						case "$checkSource" in
+							inbox:*) [ ! -f "$waitStateDir/base.$floorIndex" ] || waitFloorOf[$floorIndex]="$( date -r "$waitStateDir/base.$floorIndex" +%s 2> /dev/null || printf '%s' "${waitFloorOf[$floorIndex]}" )" ;;
+						esac
+					elif [ "$waitMode" = "default" ] ; then
+						## A since is a Slack-source floor and says nothing about a non-Slack source's stored baseline, which a held source carries forward.
+						floorStoredIndex=0
+						for floorStoredSource in $waitStoredSources ; do
+							floorStoredIndex=$(( floorStoredIndex + 1 ))
+							[ "$floorStoredSource" = "$checkSource" ] || continue
+							[ ! -f "$waitStateDir/base.$floorStoredIndex" ] || AgentsWaitCopy "$waitStateDir/base.$floorStoredIndex" "$waitDir/base.$floorIndex"
+							break
+						done
+					fi
+				;;
+			esac
+		done
+		## The stored baselines are taken over above; what is stored again is this wait's own.
+		[ "$waitMode" != "default" ] || rm -f "$waitStateDir"/base.* 2>/dev/null || true
+
+		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
+		local waitProbeFailures="" waitReadSources="" waitRemindNext=0 waitProbedAt=() waitDeferred="" waitReturned="" waitPermissionErrors="" waitDetachedTask=""
+		## The TTL holds across Waits. A source is checked only once its TTL has passed since any Wait of the session last checked it.
+		local waitProbedFile="" probedSource probedAt probedIndex=0
+		if [ -n "$waitStateDir" ] ; then
+			waitProbedFile="$waitStateDir/probed"
+			for probedSource in $waitSources ; do
+				probedIndex=$(( probedIndex + 1 ))
+				case "${probedSource%%:*}" in tagged|scan|mentions|dms|slack) ;; *) continue ;; esac
+				probedAt="$( LC_ALL=C awk -F'\t' -v want="$probedSource" '$1 == want { at = $2 } END { print at + 0 }' "$waitProbedFile" 2> /dev/null )" || probedAt=0
+				[ "${probedAt:-0}" = 0 ] || waitProbedAt[$probedIndex]="$probedAt"
+			done
+		fi
+		## What the other sources of this wait read, for the floor to leave to them (AgentsWaitCoveredSet).
+		agentsWaitCovered="?" ; agentsWaitCoverSources="$waitSources"
+		## The probe function of each source is resolved once, because it cannot change while this wait runs.
+		local waitRoundFn=() waitRoundIndex=0 waitRoundSource
+		for waitRoundSource in $waitSources ; do
+			waitRoundIndex=$(( waitRoundIndex + 1 ))
+			waitRoundFn[$waitRoundIndex]="$( AgentsWaitProbeFunctionName "${waitRoundSource%%:*}" )"
+		done
+		## A Slack look is served from the comms cache at the age waitCacheTtl, so a Wait never re-reads a long thread whole.
+		local waitCacheTtl=1
+		case "${MDAT_SLACK_THREAD_CACHE_SECONDS:-1}" in 0) waitCacheTtl=0 ;; esac
+		while : ; do
+			waitRound=$(( waitRound + 1 ))
+			## A caller that is gone takes its wait with it: signal 0 asks about the starting process and forks nothing.
+			case "$waitCallerPid" in
+				''|*[!0-9]*) ;;
+				*)
+					if ! kill -0 "$waitCallerPid" 2> /dev/null ; then
+						AgentsWaitFolderEnd
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the process that started this wait is gone, so nothing is waiting for its result. The wait ended at once." >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			## A wait whose directory was taken from under it reads nothing any more: it ends here (AgentsWaitLost).
+			if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
+			local roundSource roundKind roundTarget roundFn roundQuietFrom roundQuiet roundStaleOk roundIndex=0 roundRc roundEvery roundNow roundTtl roundSlowGap="" roundProbeTimeout=""
+			roundNow=$(( waitStart + SECONDS - waitSecs0 ))
+			for roundSource in $waitSources ; do
+				roundIndex=$(( roundIndex + 1 ))
+				roundKind="${roundSource%%:*}"
+				roundTarget="${roundSource#*:}"
+				roundFn="${waitRoundFn[$roundIndex]}"
+				roundEvery="${agentsWaitKindEvery#*"$roundKind:"}"
+				roundEvery="${roundEvery%% *}"
+				## A kind the list does not name is read every round.
+				case "$roundEvery" in ''|*[!0-9]*) roundEvery=1 ;; esac
+				[ "$waitRound" = "1" ] || [ $(( ( waitRound - 1 ) % roundEvery )) = "0" ] || continue
+				## While the previous check of a source is inside its TTL the source is skipped, and a source skipped so is not one never read.
+				case "$roundKind" in
+					tagged|scan|mentions|dms)
+						roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
+						## A duty's DMs, mentions and tags are due at the poll, never at their own TTL.
+						[ -z "${waitDutyRun:-}" ] || ! AgentsWaitImmediateKind "$roundKind" || roundTtl="$agentsWaitImmediateGap"
+						## The TTL the caller gave the source when it added it, where it gave one (AgentsWaitTtlOwn).
+						case "$waitTtls" in *" $roundSource="*) roundTtl="${waitTtls#* $roundSource=}" ; roundTtl="${roundTtl%% *}" ;; esac
+						if [ "$roundTtl" != "0" ] && [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -lt "$roundTtl" ] ; then
+							case "$waitReadSources" in *"[$roundSource]"*) ;; *) waitReadSources="$waitReadSources[$roundSource] " ;; esac
+							continue
+						fi
+					;;
+				esac
+				## The tick and the slow look: a local source is read every tick, a costly one only once the slow gap has passed.
+				if [ "$waitBackoff" = "true" ] ; then
+					case " $agentsWaitKindLocal " in
+						*" $roundKind "*) ;;
+						*)
+							## A named Slack source has its own TTL floor too, kept inside this backoff-only branch, so a named poll interval still reads every round.
+							if [ "$roundKind" = "slack" ] ; then
+								roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
+								## The TTL the caller gave the source when it added it, where it gave one (AgentsWaitTtlOwn).
+								case "$waitTtls" in *" $roundSource="*) roundTtl="${waitTtls#* $roundSource=}" ; roundTtl="${roundTtl%% *}" ;; esac
+								## The source backs off while it brings nothing, from its TTL to twenty times it, counted from its floor.
+								roundQuietFrom="${waitFloorOf[$roundIndex]%%.*}"
+								case "$roundQuietFrom" in ''|*[!0-9]*) roundQuietFrom="$waitStart" ;; esac
+								roundQuiet=$(( roundNow - roundQuietFrom ))
+								[ "$roundQuiet" -ge 0 ] || roundQuiet=0
+								[ "$roundQuiet" -le $(( roundTtl * 200 )) ] || roundQuiet=$(( roundTtl * 200 ))
+								roundTtl=$(( roundTtl + 19 * roundQuiet / 200 ))
+								if [ "$roundTtl" != "0" ] && [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -lt "$roundTtl" ] ; then
+									case "$waitReadSources" in *"[$roundSource]"*) ;; *) waitReadSources="$waitReadSources[$roundSource] " ;; esac
+									continue
+								fi
+							fi
+							[ -n "$roundSlowGap" ] || { waitActivity="$( AgentsWaitNewestActivity "$waitStart" "$waitSessionId" "$waitSources" "$waitFloorsUsed" )" ; roundSlowGap="$( AgentsWaitBackoffNap "$roundNow" "${waitActivity%%$'\t'*}" )" ; }
+							## A source skipped here was read within its own slow gap, so it is not one never read. A duty's immediate source is never left to it.
+							if [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -lt "$roundSlowGap" ] \
+								&& { [ -z "${waitDutyRun:-}" ] || ! AgentsWaitImmediateKind "$roundKind" ; } ; then
+								case "$waitReadSources" in *"[$roundSource]"*) ;; *) waitReadSources="$waitReadSources[$roundSource] " ;; esac
+								continue
+							fi
+						;;
+					esac
+				fi
+				## A round reads every source it holds. A scan not yet begun stays unbegun once something has arrived or the bound has passed.
+				if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $(( waitStart + SECONDS - waitSecs0 )) -ge "$waitDeadline" ] ; } ; } ; then
+					continue
+				fi
+				waitProbedAt[$roundIndex]="$roundNow"
+				## The check is kept for the next Wait of the session. It is written with the others at most every 30 seconds and when the state is stored.
+				if [ -n "$waitProbedFile" ] ; then
+					case "$roundKind" in
+						tagged|scan|mentions|dms|slack)
+							waitProbedDirty="yes"
+							[ $(( SECONDS - ${waitProbedFlushedAt:--100} )) -lt 30 ] || AgentsWaitProbedFlush
+						;;
+					esac
+				fi
+
+				roundRc=0
+				## A round takes the cache's look, and a round with under two seconds left is served what the cache holds, its refresh detached.
+				roundStaleOk=""
+				[ "$roundKind" != "slack" ] || [ -z "$waitDeadline" ] || [ $(( waitDeadline - roundNow )) -ge 2 ] || roundStaleOk="true"
+				## A probe past the bound is never cut short, but it no longer holds the call: a costly probe is handed to the task wrapper.
+				roundProbeTimeout=""
+				## Chat and replies are excluded here, because each makes a real Slack call and must not be exempt from the bound wrapper.
+				case " $agentsWaitKindUnbounded " in
+					*" $roundKind "*) ;;
+					## A zero bound is one pass and no wait, so the probe is read in line and finishes.
+					*) [ -z "$waitDeadline" ] || [ "${waitTimeout:-0}" = "0" ] || roundProbeTimeout=$(( waitDeadline - roundNow )) ;;
+				esac
+				## A wrapper is never given the last second, because below two seconds the round reads that source in line instead.
+				case "$roundProbeTimeout" in
+					''|*[!0-9]*) roundProbeTimeout="" ;;
+					*) [ "$roundProbeTimeout" -ge 2 ] || roundProbeTimeout="" ;;
+				esac
+				if [ -n "$roundProbeTimeout" ] ; then
+					type AgentsToolsTaskCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include" 2> /dev/null || :
+					## With no session id set, the task call runs the probe in line with no bound, so this wait passes its own session id.
+					MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" \
+						MDAT_SPAWN_SESSION_ID="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-$waitSessionId}}}" \
+						AgentsToolsTaskCall "wait probe $roundSource" "" "$roundProbeTimeout" return "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" \
+						|| roundRc=$?
+					if [ "$agentsTaskDetached" = yes ] ; then
+						## A detached probe ends no round: it is named as unread, and the round goes on to its remaining sources.
+						waitDetachedTask="$agentsTaskHandle ($roundSource)"
+						[ "$waitOutcome" = "RECEIVED" ] || waitOutcome="TIMEOUT"
+						continue
+					fi
+					[ "$agentsTaskRc" = 0 ] || roundRc="$agentsTaskRc"
+				else
+					MDAT_COMMS_CACHE_STALE_OK="$roundStaleOk" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" || roundRc=$?
+				fi
+				## A source denied by a permission is an error of its own, said in the header, and is not a source never read.
+				if [ "$roundRc" = "4" ] ; then
+					## A probe whose own files went with the wait's directory is no denial: the wait ends on it.
+					if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
+					case "$waitPermissionErrors" in
+						*"[$roundSource]"*) ;;
+						*) waitPermissionErrors="$waitPermissionErrors[$roundSource] $( head -1 "$waitDir/now.$roundIndex.permission" 2> /dev/null )"$'\n' ;;
+					esac
+					case "$waitReadSources" in *"[$roundSource]"*) ;; *) waitReadSources="$waitReadSources[$roundSource] " ;; esac
+					: > "$waitDir/now.$roundIndex"
+					continue
+				fi
+				if [ "$roundRc" != "0" ] ; then
+					## A probe that missed what this wait itself wrote is no unreachable source: the wait ends on it.
+					if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
+					## A probe that cannot run is reported and the wait carries on over the sources that can.
+					case "$waitProbeFailures" in
+						*"[$roundSource]"*) ;;
+						*) waitProbeFailures="$waitProbeFailures[$roundSource] " ;;
+					esac
+					continue
+				fi
+				## Which sources were read at least once, so the TIMEOUT text claims a read only for those.
+				case "$waitReadSources" in
+					*"[$roundSource]"*) ;;
+					*) waitReadSources="$waitReadSources[$roundSource] " ;;
+				esac
+
+				## A rendering that is not there differs from every baseline, and is no arrival.
+				AgentsWaitOwnFile "$waitDir/now.$roundIndex" || { waitOutcome="LOST" ; break ; }
+				## What a look at the posts found nothing to return is stored at once, and what it found once it is said.
+				if [ "$roundKind" = "replies" ] && [ ! -s "$waitDir/now.$roundIndex" ] ; then
+					AgentsWaitRepliesCommit "$roundTarget" "$waitDir/now.$roundIndex.advance"
+				fi
+				## The same for the session chat file: a look that found nothing to return moved past what it read (the covered, the not its own).
+				if [ "$roundKind" = "chat" ] && [ ! -s "$waitDir/now.$roundIndex" ] ; then
+					AgentsWaitChatCommit "$roundTarget" "$memberName" "$waitDir/now.$roundIndex.newest"
+				fi
+				if [ ! -f "$waitDir/base.$roundIndex" ] ; then
+					if [ "$waitBaselineMode" = "empty" ] || case " $agentsWaitKindEmptyBaseline " in *" $roundKind "*) true ;; *) false ;; esac ; then
+						: > "$waitDir/base.$roundIndex"
+					else
+						cp "$waitDir/now.$roundIndex" "$waitDir/base.$roundIndex" 2>/dev/null || : > "$waitDir/base.$roundIndex"
+						continue
+					fi
+				fi
+
+				## The wake marker is no arrival of its own: it is taken as read and every source is read again at once.
+				if [ "$roundKind" = "wake" ] ; then
+					if ! AgentsWaitSameFile "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ; then
+						cp "$waitDir/now.$roundIndex" "$waitDir/base.$roundIndex" 2>/dev/null || : > "$waitDir/base.$roundIndex"
+						waitWakeSeen=1
+					fi
+					continue
+				fi
+
+				## Every source is scanned and every changed one is returned. An empty rendering of an arrivals-only or Slack source is no arrival.
+				if ! AgentsWaitSameFile "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \
+					&& { LC_ALL=C grep -q '[^[:space:]]' "$waitDir/now.$roundIndex" 2> /dev/null || case " $agentsWaitKindEmptyBaseline slack " in *" $roundKind "*) false ;; *) true ;; esac ; } \
+					&& case " $agentsWaitKindArrivalsOnly " in
+						*" $roundKind "*) LC_ALL=C awk 'FILENAME == ARGV[1] { seen[$0] = 1 ; next } !( $0 in seen ) { added = 1 ; exit } END { exit !added }' "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ;;
+						*) true ;;
+					esac \
+					&& { [ "$roundKind" != "replies" ] || LC_ALL=C grep -q -E -e '^[0-9]+\.[0-9]+ \| ' -e '^reactions on your post ' "$waitDir/now.$roundIndex" 2> /dev/null ; } ; then
+					if [ -n "$waitCollect" ] && [ "$roundKind" != "tagged" ] && [ "$roundKind" != "mentions" ] && [ "$roundKind" != "dms" ] ; then
+						## In a collect only the tags are immediate: every other source accumulates until the window ends.
+						case " $waitDeferred" in *" $roundIndex=$roundSource "*) ;; *) waitDeferred="$waitDeferred$roundIndex=$roundSource " ;; esac
+					else
+						waitOutcome="RECEIVED"
+						waitHits="$waitHits$roundIndex=$roundSource "
+						[ -z "$waitCollect" ] || waitReturned="immediate"
+					fi
+				fi
+			done
+			[ "$waitOutcome" != "LOST" ] || break
+			[ "$waitOutcome" != "RECEIVED" ] || break
+			## A wait whose bound is spent returns now, its detached probe named in the header. The next call reads on.
+			[ -z "$waitDetachedTask" ] || { [ -z "$waitDeadline" ] || [ "$roundNow" -lt "$waitDeadline" ] || break ; }
+			## Unbounded, a first round that read no source at all returns TIMEOUT with WAIT-NEVER-READ at once.
+			[ -n "$waitDeadline" ] || [ -n "$waitReadSources" ] || break
+
+			## The wake marker was written, so every source, scans included, is read again now with no sleep first.
+			if [ -n "$waitWakeSeen" ] ; then
+				waitWakeSeen=""
+				local waitWakeAt=0 waitWakeSource
+				for waitWakeSource in $waitSources ; do
+					waitWakeAt=$(( waitWakeAt + 1 ))
+					waitProbedAt[$waitWakeAt]=0
+				done
+				continue
+			fi
+
+			local waitNow waitRemaining waitNap
+			waitNow=$roundNow
+			## The asks this wait stands for are reminded from here, after a round that brought nothing, at most once a minute.
+			if [ "$waitNow" -ge "$waitRemindNext" ] ; then
+				waitRemindNext=$(( waitNow + 60 ))
+				AgentsWaitRemind "$waitSessionId" "$waitSources" "$waitDir" || :
+			fi
+			if [ -n "$waitDeadline" ] && [ "$waitNow" -ge "$waitDeadline" ] ; then
+				break
+			fi
+			## The nap is the tick: a costly source waits for its own slow gap, and a caller's own interval is the nap.
+			waitNap="$waitPoll"
+			if [ -n "$waitDeadline" ] ; then
+				waitRemaining=$(( waitDeadline - waitNow ))
+				[ "$waitNap" -le "$waitRemaining" ] || waitNap="$waitRemaining"
+			fi
+			## The only thing this process does between probes. No spin, no token.
+			sleep "$waitNap"
+		done
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitResult.include"
+		return $?

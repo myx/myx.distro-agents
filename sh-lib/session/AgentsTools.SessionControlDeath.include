@@ -590,10 +590,11 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 	done
 	## A dead-run verdict on an item in processed moves it back to review first (S24 13).
 	if [ -n "$actItem" ] && [ "$actState" = "processed" ] ; then
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		( DistroAgentsTools --intern-op-board-upsert-move-edit review "$actItem.md" --from-state:processed \
+		( set -- --intern-op-board-upsert-move-edit review "$actItem.md" --from-state:processed \
 			--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"its run died, and the verdict on that run applies to it in review" \
-			--context "${MDSC_CMD:-session-control}" --log-verb:updated ) > /dev/null 2>&1 || :
+			--context "${MDSC_CMD:-session-control}" --log-verb:updated
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
+		) > /dev/null 2>&1 || :
 		actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
 	fi
 	case "$actAnswer" in
@@ -611,11 +612,11 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 				actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
 				[ -n "$actWhy" ] || [ "$actState" = "review" ] || actWhy="its item is in ${actState:-no board state}, not in review, so it could not be returned"
 				if [ -z "$actWhy" ] ; then
-					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					actOut="$(
 						[ "$actAnswer" != "fresh" ] || export MDAT_REVIEW_RESTART_FRESH=yes
 						ASKP_F_by="$actBy" ASKP_F_option="$actAnswer" AgentsToolsSessionControlDeathText again \
-							| DistroAgentsTools --intern-op-review-return "$actBy" "$actItem" --from-stdin --context "${MDSC_CMD:-session-control}" 2>&1
+							| ( set -- --intern-op-review-return "$actBy" "$actItem" --from-stdin --context "${MDSC_CMD:-session-control}"
+								. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpReview.include" ) 2>&1
 					)" || actWhy="the return of its item did not start it again"
 					actOut="$( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 -e '^RETURN: ' -e 'ERROR' )"
 					case "$actOut" in

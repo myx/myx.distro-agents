@@ -104,7 +104,11 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+
+## Harness tools
+
+- `SubagentHandback` — gives the final report to the session that started you. `outcome` is required. Add `findings`, `unfinished` and `checklist_pending_count`. Then `Wait` until dismissed.
 
 ## Tooling operations
 

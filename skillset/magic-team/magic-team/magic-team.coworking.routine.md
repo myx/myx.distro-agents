@@ -178,13 +178,22 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
 
-BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.
+## Harness tools
 
-Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts.fn.sh`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
+- `Agent` — the team tool that spawns a member, through `spawn-one-dispatch`. Never use a client's in-process subagent.
+- `Skill` — reads a skillset file. Pass `name` and `file`, and `section` for one heading.
+- `ThisSession` — acts on this session. `operation` is `post` (with `message` and `address_to`), `routine-run-inline` (with `routine`), `get-uninvited-participants`, `set-session-topic` or `set-session-chapter`.
+- `SendMessage` — posts one message. Pass `message`, `to` and `address_to`. A sentence over 25 words or a semicolon returns a CORRECTION: shorten it and send again. The result gives the ts to `Wait` on.
+- `SubagentHandback` — gives the final report to the session that started you. `outcome` is required. Add `findings`, `unfinished` and `checklist_pending_count`. Then `Wait` until dismissed.
+- `SessionTranscriptAppend` — appends one line, `note`, to this session's transcript. It names no file. The verbatim record stays `--append-transcript`.
+- `BatchTools` — several tool calls in one round, much quicker for calls that do not depend on each other.
+- `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
 
 ## Tooling operations
+
+Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts.fn.sh`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
 
 - `--slack-send-message <target> [text...]`
 - `--slack-react <channel>:<ts> <emoji-name>`

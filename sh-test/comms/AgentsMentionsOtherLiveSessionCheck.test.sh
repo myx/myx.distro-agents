@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## AgentsMentionsOtherLiveSessionCheck -- sketch 7.4: a post addressed to a member in ANOTHER session's own
 ## thread, where that other session has its own live instance of the same member, is today returned a second
-## time by this session's own `mentions:<member>` probe (AgentsWaitProbeMentions, AgentsTools.MemberWait.include).
+## time by this session's own `mentions:<member>` probe (AgentsWaitProbeMentions, AgentsTools.MemberWaitMentions.include).
 ## That probe already excludes a mention in THIS session's own thread (probeChatThread, line ~1713) and in
 ## any source this same wait already covers (agentsWaitCovered) -- but nothing in it knows about a SIBLING
 ## session of the same member, so a mention sitting in that sibling's own thread is not excluded and is
@@ -129,7 +129,7 @@ rigProbe(){ ## session id probing
 	env -u MDAT_SESSION_THREAD -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u MDAT_CONVERSATION_THREADS -u MDAT_SPAWN_AGENT \
 		MMDAPP="$rigDir" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SESSION_ID="$1" PATH="$rigPath" \
 		RIG_MATCH_TS="$rigMatchTs" RIG_MATCH_CHANNEL="$rigMatchChannel" RIG_ROOT_TS="$rigRootTs" \
-		bash -c ". '$rigHere/member/AgentsTools.MemberWait.include' ; AgentsWaitProbeMentions rig-member rig-member $(( rigNow - 300 )) '$probeFile'" > "$probeFile.log" 2>&1
+		bash -c ". '$rigHere/member/AgentsTools.MemberWaitMentions.include' ; AgentsWaitProbeMentions rig-member rig-member $(( rigNow - 300 )) '$probeFile'" > "$probeFile.log" 2>&1
 	cat "$probeFile" 2> /dev/null
 	rm -f "$probeFile" "$probeFile.log" "$probeFile.found" "$probeFile.err" "$probeFile.permission"
 }

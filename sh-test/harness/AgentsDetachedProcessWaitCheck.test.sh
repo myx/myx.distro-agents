@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the detached Bash of the harness and on Wait over the process it leaves running
 ## (sh-lib/harness/AgentsUniversalHarness.sh, AgentsHarnessToolBash and AgentsHarnessToolWait; the process
-## source is AgentsWaitProbeProcess, AgentsTools.MemberWait.include). Every call is a real one through the
+## source is AgentsWaitProbeProcess, AgentsTools.MemberWaitLocal.include). Every call is a real one through the
 ## harness's own served entry point -- `--intern-tool Bash`, `--intern-tool Wait` -- against this check's own
 ## rig workspace, and a real detached process that writes real files, never a stand-in. Held:
 ##   1. a detached start hands back a handle (`process-<n>`), and the Wait source of that handle resolves:

@@ -237,7 +237,7 @@ What to hand off — binds the first brief and every later message into a runnin
 ## Spawn & authority structure
 
 - The root harness session the human-owner talks to coordinates only. It spawns topic-scoped sessions directly and relays between him and them: `magic-coordinator.root-harness.routine`.
-- Real coordination work happens in spawned `magic-coordinator` instances: a one-shot `armed-mode` participation, a `coordination-session` loop, or a work-duty session.
+- Real coordination work happens in spawned `magic-coordinator` instances: a one-shot `armed-mode` participation, a supervision session, or a work-duty session.
 - A member set up only in another workspace is invited into the session exactly as "Workspace" describes, never worked around:
   - no splitting a session per workspace.
   - no having another member apply the invited member's skill file.
@@ -251,8 +251,11 @@ What to hand off — binds the first brief and every later message into a runnin
 
 ## Operating modes
 
-- **`armed-mode`** — the default. No loop: participates in whatever session it is in.
-- **`coordination-session`** — a loop, on the human-owner's request: `magic-coordinator.coordination-session.routine`.
+- **`armed-mode`** — the default. No loop: participates in whatever session it is in, and drives that session's goal.
+  - dispatch, follow through, see real changes land.
+  - ask small, minimal-assumption questions that narrow the gap to the goal. Resuming a tracked interview, this is `magic-team.interview.routine`'s **resume-review**.
+  - the gap is empty: say so, and ask for new input. On the human-owner's word to close, the session closes.
+- **`supervision-session`** — a loop, on the human-owner's request, from the rig's `supervised` flag or by manual spawn: `magic-coordinator.supervision-session.routine`.
 
 The root instance chooses its mode at `magic-coordinator.root-harness.routine`'s **select-operating-mode**.
 
@@ -261,7 +264,6 @@ The root instance chooses its mode at `magic-coordinator.root-harness.routine`'s
 - `magic-team.advance.routine` — the next iteration of each running document. `magic-coordinator.advance.routine` is a stub for manual starts.
 - `magic-coordinator.bootstrap.routine` — set up and verify this member's working identity and channels.
 - `magic-coordinator.communication-sweep.routine` — check and act on incoming comms on every live platform.
-- `magic-coordinator.coordination-session.routine` — the `coordination-session` loop.
 - `magic-coordinator.daily.routine` — the daily standup and supervised work session.
 - `magic-coordinator.external-inbox-handle-loop.routine` — follow-up on items owned by the human-owner or external contacts.
 - `magic-coordinator.ingest-task.routine` — turn a loose idea into a filed task.
@@ -269,7 +271,8 @@ The root instance chooses its mode at `magic-coordinator.root-harness.routine`'s
 - `magic-coordinator.permission-escalation.routine` — settle the permission asks addressed to `permission-escalation.routine`.
 - `magic-coordinator.retro.routine` — the team retrospective.
 - `magic-coordinator.root-harness.routine` — the root harness session and `--intern-root-harness` passes.
-- `magic-coordinator.work-duty.routine` — the coordinator's duty session: its scan, then the board round in its own steps.
+- `magic-coordinator.supervision-session.routine` — the `supervision-session` loop: it supervises the running work and the system while the human-owner is away.
+- `magic-coordinator.work-duty.routine` — the coordinator's duty session: its scan, then the board round in its own steps. The steps also answer run asks, review handbacks and release held work.
 
 The board's states and transitions: `magic-team/reference/board-model.md`.
 
