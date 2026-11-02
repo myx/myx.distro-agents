@@ -103,8 +103,10 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - A call parses and runs what its own path needs, on a small shared setup. Nothing goes upfront to serve a minority of calls.
 - No trivial variable and no trivial function goes in a common place. Repeat a few lines at each site, twenty times if that is faster for the call paths.
 - A large repeat, or a complicated gotcha, becomes an include. It is sourced only on the paths that use it, at each of them.
-- A large file is split. The parser never reads a 1000-line file for a 2-line operation.
-- One script grows to thousands of lines only when it is one piece, with the most common path threading through it.
+- A chain of five or more small includes of about 1 kB each, loaded on the path, is better than one 3000-line file loaded once and then run again in many calls inside it.
+- A file is split per source, per feature or per operation. Never into trivial tiny pieces.
+- A router, or any file of distinct parts for separate operations, stays compact. The parser never reads a 1000-line file for a 2-line operation.
+- One long algorithm may be a large file by itself, when it is one piece with the most common path threading through it. It may still be split.
 - A command script is for an external call. An internal step sources the exact include it needs, never re-enters a whole command script.
 - A review requires all of this. Code that breaks it is sent back, whatever else it fixes.
 

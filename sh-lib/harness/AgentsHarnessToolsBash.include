@@ -259,6 +259,8 @@ AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset,
 		AgentsHarnessWindowedRead "$harnessScratch/process.read" "$toolOffset" "$toolLimit"
 		return 0
 	fi
+	## No command links a sandbox into source (epic S23.11): the guard ln is first on PATH, for the command and for what it starts.
+	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
 	if [ "$toolDetach" = "true" ] || [ "$toolDetach" = "1" ] || [ "$toolDetach" = "yes" ] ; then
 		if ! AgentsHarnessCwdAllowed "$toolCwd" ; then return 0 ; fi
 		toolCwd="$harnessResolvedPath"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on S27.2's record half, as magic-architect's round-2 review required it: a
-## parked run's record reads `awaiting-review` in the view, never started or running, and the park
+## parked run's record reads `parked` in the view, never started or running, and the park
 ## mark is the one home of that fact.
 ## Red before this half landed: the proxy wrote no such word, the render derive had no branch, so a
 ## parked record rendered `unclosed`, and nothing read the mark at all.
@@ -49,20 +49,20 @@ rigStateOf(){ ## view output, spawn id -- the state column of that row
 	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '$8 == want { print $13 }' | head -1
 }
 
-echo "-- 1. a parked run's record reads awaiting-review in the view (S27.2) --"
+echo "-- 1. a parked run's record reads parked in the view (S27.2) --"
 rigRecord rig-parked rig-parked-$$ spawn-succeeded
 : > "$rigWs/.local/agents/sessions/rig-parked-$$/parked"
 rigRecord rig-done rig-done-$$ spawn-succeeded
 rigOut="$( rigView agents )"
-rigAssert "the parked row reads awaiting-review"          "$( rigStateOf "$rigOut" "rig-parked-$$" )" "awaiting-review"
+rigAssert "the parked row reads parked"                   "$( rigStateOf "$rigOut" "rig-parked-$$" )" "parked"
 rigAssert "the settled row still reads finished"          "$( rigStateOf "$rigOut" "rig-done-$$" )" "finished"
-rigAssert "the session view reads it too"                 "$( rigView sessions | LC_ALL=C awk 'index( $0, "awaiting-review" ) { found++ } END { print found + 0 }' )" 1
+rigAssert "the session view reads it too"                 "$( rigView sessions | LC_ALL=C awk 'index( $0, "parked" ) { found++ } END { print found + 0 }' )" 1
 
 echo "-- 2. a control: the mark taken away leaves it finished again --"
 rm -f "$rigWs/.local/agents/sessions/rig-parked-$$/parked"
 rigAssert "with no mark the row reads finished"           "$( rigStateOf "$( rigView agents )" "rig-parked-$$" )" "finished"
 
-## THE MARK GOES WHEN THE RECORD CLOSES (S27.2): a settled record must never read awaiting-review.
+## THE MARK GOES WHEN THE RECORD CLOSES (S27.2): a settled record must never read parked.
 echo "-- 4. a close through the proxy takes the mark away --"
 mkdir -p "$rigSpawned/rig-closing-$$"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\n---\n' \
@@ -75,17 +75,17 @@ mkdir -p "$rigWs/.local/agents/sessions/rig-closing-$$"
 	"$rigSpawned/rig-closing-$$/rig-closing-$$.spawn.md" ) > /dev/null 2>&1
 rigAssert "the record is closed"                          "$( LC_ALL=C sed -n 's/^status: //p' "$rigSpawned/rig-closing-$$/rig-closing-$$.spawn.md" | head -1 )" "spawn-succeeded"
 rigAssert "and its mark is gone"                          "$( [ -f "$rigWs/.local/agents/sessions/rig-closing-$$/parked" ] && printf present || printf gone )" "gone"
-rigAssert "so the row reads finished, not awaiting-review" "$( rigStateOf "$( rigView agents )" "rig-closing-$$" )" "finished"
+rigAssert "so the row reads finished, not parked" "$( rigStateOf "$( rigView agents )" "rig-closing-$$" )" "finished"
 
 echo "-- 3. a record whose two ids differ, its mark under the id the harness holds (S27.2) --"
 rigRecord rig-split rig-split-$$ spawn-succeeded rig-sess-split-$$
 : > "$rigWs/.local/agents/sessions/rig-split-$$/parked"
-rigAssert "the parked row reads awaiting-review though its two ids differ" "$( rigStateOf "$( rigView agents )" "rig-split-$$" )" "awaiting-review"
+rigAssert "the parked row reads parked though its two ids differ" "$( rigStateOf "$( rigView agents )" "rig-split-$$" )" "parked"
 
 ## A MARK LEFT BY A RUN THAT STARTED AGAIN IS NOT A PARKED RUN (S27.2): the liveness check comes
-## first, so a live run reads what it is doing and never awaiting-review. Read from the derive
+## first, so a live run reads what it is doing and never parked. Read from the derive
 ## itself, which is where the order lives.
-echo "-- 5. a live run carrying a stale mark reads what it is doing, not awaiting-review --"
+echo "-- 5. a live run carrying a stale mark reads what it is doing, not parked --"
 mkdir -p "$rigSpawned/rig-lively-$$" "$rigWs/.local/agents/sessions/rig-lively-$$"
 : > "$rigWs/.local/agents/sessions/rig-lively-$$/parked"
 printf '1 %s thinking\n' "$( date +%s )" > "$rigWs/.local/agents/sessions/rig-lively-$$/activity"

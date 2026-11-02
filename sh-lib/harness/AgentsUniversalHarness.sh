@@ -1045,7 +1045,16 @@ checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
 
 
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include"
+## The tools that ask, loaded on the first call that needs one: most tool calls never ask. Each name below is replaced by its real definition when the include loads.
+AgentsHarnessAskPost(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessAskPost "$@" ; }
+AgentsHarnessToolAskQuestion(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessToolAskQuestion "$@" ; }
+AgentsHarnessToolConfirmReadback(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessToolConfirmReadback "$@" ; }
+AgentsHarnessToolEscalateDecision(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessToolEscalateDecision "$@" ; }
+AgentsHarnessToolRequestPermission(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessToolRequestPermission "$@" ; }
+AgentsHarnessToolProposeApprove(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessToolProposeApprove "$@" ; }
+AgentsHarnessAskAnnounce(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessAskAnnounce "$@" ; }
+AgentsHarnessAskWaitNext(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessAskWaitNext "$@" ; }
+AgentsHarnessWaitAskResolve(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" ; AgentsHarnessWaitAskResolve "$@" ; }
 
 
 

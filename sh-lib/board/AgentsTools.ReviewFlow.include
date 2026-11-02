@@ -10,7 +10,8 @@
 ##
 ## States: `running` (in progress, asks included), `review` (a handback arrived, or the
 ## child ended with no verdict), `processed` (accepted), `pending` (rejected, for a fresh
-## session). Only an item in `running` ever enters `review`.
+## session). Only an item in `running` enters `review`, and a `processed` one on a dead run's
+## verdict, which moves it back there with its reason first.
 ## Every entry, verdict and ending is one line in the item's `## Decisions`
 ## (AgentsTools.ItemDecisions.include) and one line in its session transcript
 ## (AgentsTools.SessionTranscript.include): REVIEW, VERDICT or ENDING.

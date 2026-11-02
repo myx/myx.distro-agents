@@ -331,9 +331,13 @@ AgentsToolsSessionControlJudge(){
 			## reads spawn-succeeded, spawn-failed and spawn-ended-without-close as the one settled
 			## group (AgentsTools.Registries.include:616,1033), and this is the one place that did not.
 			failed) case "$rowStatus" in spawn-ended-without-close|spawn-failed) ;; *) controlOpen=$(( controlOpen + 1 )) ;; esac ;;
-			unknown-foreign)
-				controlForeign=$(( controlForeign + 1 ))
-				case " $controlForeignHosts " in *" $rowHost "*) ;; *) controlForeignHosts="${controlForeignHosts:+$controlForeignHosts }$rowHost" ;; esac
+			unclosed)
+				if [ "$rowLive" = "remote" ] ; then
+					controlForeign=$(( controlForeign + 1 ))
+					case " $controlForeignHosts " in *" $rowHost "*) ;; *) controlForeignHosts="${controlForeignHosts:+$controlForeignHosts }$rowHost" ;; esac
+				else
+					controlOpen=$(( controlOpen + 1 ))
+				fi
 			;;
 			*) controlOpen=$(( controlOpen + 1 )) ;;
 		esac
@@ -680,7 +684,7 @@ AgentsToolsSessionControlDeaths(){
 	case "$deathsAt" in ''|*[!0123456789]*) deathsAt="" ;; esac
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest ; do
 		[ -n "$rowTracking" ] && [ -n "$deathsAt" ] || continue
-		[ "$rowLive" = "no-process" ] && [ "$rowStatus" = "spawn-started" ] || continue
+		[ "$rowLive" = "gone" ] && [ "$rowStatus" = "spawn-started" ] || continue
 		case "$rowSpawn" in ''|-) continue ;; esac
 		## A death that is kept is judged no more.
 		case "

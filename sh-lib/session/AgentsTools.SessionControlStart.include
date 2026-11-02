@@ -143,17 +143,17 @@ AgentsToolsSessionControlLeftovers(){ ## session id
 AgentsToolsSessionControlJudged(){ ## -- stdin: measured rows
 	LC_ALL=C awk '
 		NF != 13 || $2 == "-" { next ; }
-		$13 != "running" && $13 != "waiting" && $13 != "failed" && $13 != "finished" && $13 != "unclosed" && $13 != "unknown-foreign" { next ; }
+		$13 != "thinking" && $13 != "tool" && $13 != "waiting" && $13 != "idling" && $13 != "failed" && $13 != "finished" && $13 != "unclosed" { next ; }
 		{
 			if ( ! ( $2 in judgedSeen ) ) { judgedSeen[$2] = 1 ; judgedOrder[++judgedCount] = $2 ; }
 			if ( $12 == "running" ) { judgedAlive[$2]++ ; next ; }
 			if ( $13 == "failed" || $13 == "finished" ) { next ; }
-			if ( $13 == "unknown-foreign" ) {
+			if ( $12 == "remote" ) {
 				judgedForeign[$2]++ ;
 				if ( index( "," judgedHosts[$2] ",", "," $4 "," ) == 0 ) { judgedHosts[$2] = judgedHosts[$2] ( judgedHosts[$2] == "" ? "" : "," ) $4 ; }
 				next ;
 			}
-			if ( $12 == "no-process" ) { judgedOpen[$2]++ ; next ; }
+			if ( $12 == "gone" ) { judgedOpen[$2]++ ; next ; }
 			judgedUnmeasured[$2]++ ;
 		}
 		END {

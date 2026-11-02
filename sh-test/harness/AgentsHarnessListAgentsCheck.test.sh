@@ -2,8 +2,8 @@
 ## Behavioural check on the ListAgents tool (3329): it lists from the spawn sandbox
 ## registry, not the board. An empty sandbox is a row with no session record; a record
 ## on this host is running while a process runs as it, its own --session-id word, in a process
-## list of this rig's own (a ps first on PATH lists the rig's runs only), and no-process after;
-## another host's record is other-host; no MMDAPP is a stated ERROR, never an empty list.
+## list of this rig's own (a ps first on PATH lists the rig's runs only), and gone after;
+## another host's record is remote; no MMDAPP is a stated ERROR, never an empty list.
 ## Served through --intern-tool; every run goes through one `env -i` whose child refuses
 ## to start outside this rig's mktemp tree.
 set -u
@@ -61,7 +61,7 @@ rigRecord(){ ## tracking name, session id, host, status (default started)
 	## spawn-id, not just session-id: liveness is matched on spawn-id since the
 	## id split, and a lone spawn's own spawn-id equals its session-id, the same
 	## shape this fixture already gives session-id. Missing this made every row
-	## read no-spawn-id regardless of a real live process.
+	## read unknown regardless of a real live process.
 	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: %s\n---\n' "$2" "$2" "$1" "$3" "${4:-started}" > "$rigSpawned/$1/$2.spawn.md"
 }
 rigRecord rig-local "$rigSession" "$rigThisHost"
@@ -103,11 +103,11 @@ echo "-- with a live process that runs as the session id --"
 printf '900001 rig-run --session-id %s\n' "$rigSession" > "$rigTmp/ps.list"
 rigList "$rigTmp/l1" MMDAPP="$rigWs"
 ## Full row, all thirteen fields: the empty-sandbox row's own columns, then
-	## live (no-spawn-id, since it carries no spawn-id at all) and state
-	## (unclosed: not finished, not running/other-host, no open ask to wait on).
-	rigAssert "an empty sandbox is listed with no session record" "$( LC_ALL=C grep -c -x 'rig-empty - - - - no-session-record - - - - - no-spawn-id unclosed' "$rigTmp/l1" || : )" 1
+	## live (unknown, since it carries no spawn-id at all) and state
+	## (unclosed: not finished, not running/remote, no open ask to wait on).
+	rigAssert "an empty sandbox is listed with no session record" "$( LC_ALL=C grep -c -x 'rig-empty - - - - no-session-record - - - - - unknown unclosed' "$rigTmp/l1" || : )" 1
 rigAssert "this host's record with its process is running" "$( rigRow "$rigTmp/l1" rig-local )" running
-rigAssert "another host's record is other-host"        "$( rigRow "$rigTmp/l1" rig-remote )" other-host
+rigAssert "another host's record is remote"            "$( rigRow "$rigTmp/l1" rig-remote )" remote
 rigAssert "a board item alone is not a listed session" "$( rigRow "$rigTmp/l1" dispatch-rig-board-only.md )" no-row
 
 echo "-- state filter: running keeps waiting, waiting and finished stay exact --"
@@ -118,7 +118,7 @@ rigList "$rigTmp/lWaiting" MMDAPP="$rigWs"
 rigListBody='{"state":"finished"}'
 rigList "$rigTmp/lFinished" MMDAPP="$rigWs"
 rigListBody=""
-rigAssert "running keeps the running row"                 "$( rigState "$rigTmp/lRunning" rig-local )" running
+rigAssert "running keeps the row with a process: it reads thinking" "$( rigState "$rigTmp/lRunning" rig-local )" thinking
 rigAssert "running also keeps the waiting row"             "$( rigState "$rigTmp/lRunning" rig-waiting )" waiting
 rigAssert "running drops the finished row"                 "$( rigState "$rigTmp/lRunning" rig-finished )" no-row
 rigAssert "waiting keeps only the waiting row"             "$( rigState "$rigTmp/lWaiting" rig-waiting )" waiting
@@ -163,7 +163,7 @@ rigAssert "the state filter failed keeps it, and drops a finished row" "$( rigSt
 echo "-- after the process ends --"
 : > "$rigTmp/ps.list"
 rigList "$rigTmp/l2" MMDAPP="$rigWs"
-rigAssert "the same record is no-process"              "$( rigRow "$rigTmp/l2" rig-local )" no-process
+rigAssert "the same record is gone"                    "$( rigRow "$rigTmp/l2" rig-local )" gone
 
 echo "-- control: no MMDAPP --"
 rigList "$rigTmp/l3"

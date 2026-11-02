@@ -282,8 +282,8 @@ AgentsHarnessToolListAgents(){
 		*) printf 'ERROR: view must be agents or sessions, got: %s\n' "$toolView" ; return 0 ;;
 	esac
 	case "$toolState" in
-		''|running|waiting|failed|finished) ;;
-		*) printf 'ERROR: state must be running, waiting, failed or finished, got: %s. running also includes waiting rows.\n' "$toolState" ; return 0 ;;
+		''|running|thinking|tool|waiting|idling|parked|unclosed|failed|finished) ;;
+		*) printf 'ERROR: state must be running, thinking, tool, waiting, idling, parked, unclosed, failed or finished, got: %s. running is every run with a process here, and the waiting ones too.\n' "$toolState" ; return 0 ;;
 	esac
 	## A failed run's own reason stands under its row, the first line of the marker the harness kept
 	## beside its record when it ended refused (<sandbox>/<run>.refused). Nothing where none was kept.

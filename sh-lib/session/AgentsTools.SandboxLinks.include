@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SandboxLinks.include -- no link in a sandbox, a session folder or a test tree reaches a source tree (epic S23.11).
+##
+## A sandbox that links into source is no sandbox: a write of the run goes through the link to the owner's real package, which
+## carries no backup. A link there may point inside its own folder, or outside every source tree. A sandbox tree is any path under
+## .local/agents/spawned, .local/agents/sessions, .local/agents/scratch or .local/temp of a workspace. A source tree is this
+## workspace's source and installed packages, the packages of the tooling origin, and the source of each workspace beside it,
+## where none of them lies in a sandbox tree (a rig's own copy of source is that rig's content, never a source tree).
+## Held by sh-test/common/AgentsSandboxLinkCheck.test.sh.
+##
+## Sourced, never run. Functions only.
+##
+##   AgentsToolsSandboxTree <path>                         rc 0 where the path lies in a sandbox tree
+##   AgentsToolsSourceRoots                                prints the real path of each source tree, one a line
+##   AgentsToolsLinkEnd <path>                             prints the real path a link finally ends at
+##   AgentsToolsLinkReaches <target> <slot> <symbolic|hard>  rc 0 where a link from the slot to the target is a sandbox link into source;
+##                                                         prints the real target then
+##   AgentsToolsLinkMake <target> <slot>                   `ln -sfn`, but a copy of the target in the slot where the link would reach source
+##   AgentsToolsLnGuard <ln arguments...>                  the `ln` of a run's guard folder: refuses a link into source, else runs /bin/ln
+##   AgentsToolsLnGuardMake <folder>                       writes that `ln` into the folder, where it is not there already
+##                                                         (a test run, the harness's Bash tool and the MCP execute put it first on their PATH)
+##   AgentsToolsSandboxLinkScan <roots, one a line> <folder>...
+##     prints each link under the folders whose final target lies in a root, as `<link> TAB <target as written> TAB <resolved target>`.
+##     rc 0 none, rc 1 any. A folder that is not there holds none. A link whose written target is relative and holds no `..`
+##     stays in its own folder, so it is not followed: one that reaches a root through a folder link is found by that folder link.
+##
+
+AgentsToolsSandboxTree(){ ## path
+	local treeDir="$1"
+	case "$treeDir" in /*) ;; *) treeDir="$PWD/$treeDir" ;; esac
+	while [ ! -d "$treeDir" ] && [ -n "$treeDir" ] ; do treeDir="${treeDir%/*}" ; done
+	treeDir="$( cd -P "${treeDir:-/}" && pwd -P )" || return 1
+	case "$treeDir/" in
+		*/.local/agents/spawned/*|*/.local/agents/sessions/*|*/.local/agents/scratch/*|*/.local/temp/*) return 0 ;;
+	esac
+	return 1
+}
+
+AgentsToolsSourceRoots(){
+	local rootCandidate rootReal rootBeside="${MMDAPP:+${MMDAPP%/*}}"
+	for rootCandidate in "${MMDAPP:-/nonexistent}/source" "${MDLT_ORIGIN:-/nonexistent}/myx" "${MDLT_CONSOLE_ORIGIN:-/nonexistent}/myx" "${MMDAPP:-/nonexistent}/.local/myx" "${rootBeside:-/nonexistent}"/*/source ; do
+		[ -d "$rootCandidate" ] || continue
+		rootReal="$( cd -P "$rootCandidate" && pwd -P )" || continue
+		AgentsToolsSandboxTree "$rootReal" || printf '%s\n' "$rootReal"
+	done | LC_ALL=C sort -u
+}
+
+AgentsToolsLinkEnd(){ ## path
+	local endHop="$1" endText endHops=0
+	while [ -L "$endHop" ] && [ "$endHops" -lt 40 ] ; do
+		endText="$( readlink "$endHop" )" || break
+		case "$endText" in
+			/*) endHop="$endText" ;;
+			*) endHop="${endHop%/*}/$endText" ;;
+		esac
+		[ -d "${endHop%/*}" ] && endHop="$( cd -P "${endHop%/*}" && pwd -P )/${endHop##*/}"
+		endHops=$(( endHops + 1 ))
+	done
+	printf '%s' "$endHop"
+}
+
+AgentsToolsLinkReaches(){ ## target, slot, symbolic|hard
+	local reachTarget="$1" reachSlot="$2" reachEnd reachRoot
+	case "$reachSlot" in /*) ;; *) reachSlot="$PWD/$reachSlot" ;; esac
+	AgentsToolsSandboxTree "${reachSlot%/*}" || return 1
+	case "$reachTarget" in
+		/*) ;;
+		*) if [ "$3" = hard ] ; then reachTarget="$PWD/$reachTarget" ; else reachTarget="${reachSlot%/*}/$reachTarget" ; fi ;;
+	esac
+	[ -d "${reachTarget%/*}" ] && reachTarget="$( cd -P "${reachTarget%/*}" && pwd -P )/${reachTarget##*/}"
+	reachEnd="$( AgentsToolsLinkEnd "$reachTarget" )"
+	while IFS= read -r reachRoot ; do
+		[ -n "$reachRoot" ] || continue
+		case "$reachEnd/" in "$reachRoot"/*) printf '%s\n' "$reachEnd" ; return 0 ;; esac
+	done <<< "$( AgentsToolsSourceRoots )"
+	return 1
+}
+
+AgentsToolsLinkMake(){ ## target, slot
+	local makeEnd
+	if makeEnd="$( AgentsToolsLinkReaches "$1" "$2" symbolic )" ; then
+		[ ! -d "$2" ] || [ -L "$2" ] || { echo "⛔ ERROR: $2 is a folder, so it cannot take the copy of $makeEnd in place of a link" >&2 ; return 1 ; }
+		[ -e "$makeEnd" ] || { echo "⛔ ERROR: $2 would link into source at $makeEnd, which is not there to copy" >&2 ; return 1 ; }
+		rm -f -- "$2" || return 1
+		cp -RLcp "$makeEnd" "$2" 2> /dev/null || { rm -rf -- "$2" ; cp -RLp "$makeEnd" "$2" ; } || return 1
+		echo "# $2 is a copy of $makeEnd, never a link: a link in a sandbox tree into a source tree is not made" >&2
+		return 0
+	fi
+	ln -sfn -- "$1" "$2"
+}
+
+AgentsToolsLnGuard(){ ## the arguments of ln
+	local guardArg guardKind=hard guardDest="" guardSlot guardEnd guardSources=() guardOperands=()
+	for guardArg in "$@" ; do
+		case "$guardArg" in
+			--symbolic) guardKind=symbolic ;;
+			--|--*) ;;
+			-*s*) guardKind=symbolic ;;
+			-*) ;;
+			*) guardOperands+=( "$guardArg" ) ;;
+		esac
+	done
+	if [ "${#guardOperands[@]}" -ge 2 ] ; then
+		guardDest="${guardOperands[$(( ${#guardOperands[@]} - 1 ))]}"
+		guardSources=( "${guardOperands[@]:0:$(( ${#guardOperands[@]} - 1 ))}" )
+	elif [ "${#guardOperands[@]}" = 1 ] ; then
+		guardDest="$PWD" ; guardSources=( "${guardOperands[0]}" )
+	fi
+	for guardArg in ${guardSources[@]+"${guardSources[@]}"} ; do
+		if [ -d "$guardDest" ] && [ ! -L "$guardDest" ] ; then guardSlot="$guardDest/${guardArg##*/}" ; else guardSlot="$guardDest" ; fi
+		if guardEnd="$( AgentsToolsLinkReaches "$guardArg" "$guardSlot" "$guardKind" )" ; then
+			echo "⛔ ERROR: ln: refusing a link from a sandbox into source: $guardSlot -> $guardArg ends at $guardEnd. Only a link in a sandbox tree whose target resolves inside a source tree is refused. A sandbox that needs a link makes a shadow copy of the source under .local/temp first (cp -RL) and links there." >&2
+			return 1
+		fi
+	done
+	exec /bin/ln "$@"
+}
+
+AgentsToolsLnGuardMake(){ ## folder -- writes the guard `ln` there, for a run to put first on its PATH; a guard already there is kept
+	local guardHere="$( cd -P "${BASH_SOURCE[0]%/*}" && pwd -P )/${BASH_SOURCE[0]##*/}" guardText guardTemp
+	guardText="#!/bin/bash"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
+	[ "$( cat "$1/ln" 2> /dev/null )" = "$guardText" ] && [ -x "$1/ln" ] && return 0
+	mkdir -p "$1" && guardTemp="$( mktemp "$1/ln.XXXXXX" )" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/ln"
+}
+
+AgentsToolsSandboxLinkScan(){ ## roots, folder...
+	local scanRoots="$1" scanFolder scanLink scanText scanReal scanRoot scanAny=0
+	shift
+	for scanFolder in "$@" ; do
+		[ -d "$scanFolder" ] || continue
+		while IFS=$'\t' read -r scanLink scanText ; do
+			scanReal="$( AgentsToolsLinkEnd "$scanLink" )"
+			while IFS= read -r scanRoot ; do
+				[ -n "$scanRoot" ] || continue
+				case "$scanReal/" in
+					"$scanRoot"/*)
+						printf '%s\t%s\t%s\n' "$scanLink" "$scanText" "$scanReal"
+						scanAny=1
+						break
+					;;
+				esac
+			done <<< "$scanRoots"
+		done < <( find "$scanFolder" -type l -exec sh -c 'for one ; do printf "%s\t%s\n" "$one" "$( readlink "$one" )" ; done' sh {} + 2> /dev/null | LC_ALL=C awk -F'\t' '$2 ~ /^\// || $2 ~ /(^|\/)\.\.(\/|$)/' )
+	done
+	return "$scanAny"
+}

@@ -238,27 +238,27 @@ rigWant="$( {
 	printf 'run\tsess-run2\tsess-run2\tmagic-coordinator\tspawn-started\trunning\twaiting\t2026-10-13_10:00_+0300\t-\t%s\trigws\twaiting\n' "$rigHost"
 	printf 'run\tsess-run2\trun-e\tmagic-tester\tspawn-started\trunning\tthinking\t2026-10-13_10:01_+0300\t-\t%s\trigws\tworking\n' "$rigHost"
 	printf 'run\tsess-run2\trun-d\tkeeper-rig\tspawn-started\trunning\twaiting\t2026-10-13_10:02_+0300\t-\t%s\trigws\twaiting\n' "$rigHost"
-	printf 'session\tsess-run\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\tthinking=1,in-tool=1,finished=1\n'
+	printf 'session\tsess-run\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\tthinking=1,tool=1,finished=1\n'
 	printf 'run\tsess-run\tsess-run\tmagic-coordinator\tspawn-started\trunning\tthinking\t2026-10-13_09:00_+0300\t-\t%s\trigws\tworking\n' "$rigHost"
-	printf 'run\tsess-run\trun-c\tmagic-developer\tspawn-started\trunning\tin-tool\t2026-10-13_09:05_+0300\t-\t%s\trigws\tworking\n' "$rigHost"
-	printf 'run\tsess-run\trun-b\tmagic-tester\tspawn-succeeded\tno-process\tfinished\t2026-10-13_09:10_+0300\t2026-10-13_09:40_+0300\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-run\trun-c\tmagic-developer\tspawn-started\trunning\ttool\t2026-10-13_09:05_+0300\t-\t%s\trigws\tworking\n' "$rigHost"
+	printf 'run\tsess-run\trun-b\tmagic-tester\tspawn-succeeded\tgone\tfinished\t2026-10-13_09:10_+0300\t2026-10-13_09:40_+0300\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tsess-fin\t-\tfinished\t2026-10-12_16:57_+0300\t2026-10-12_17:30_+0200\t2\tfailed=1,finished=1\n'
-	printf 'run\tsess-fin\tsess-fin\tmagic-coordinator\tspawn-succeeded\tno-process\tfinished\t2026-10-12_16:57_+0300\t2026-10-12_18:00_+0300\t%s\trigws\t-\n' "$rigHost"
-	printf 'run\tsess-fin\tfin-b\tkeeper-rig\tspawn-failed\tno-process\tfailed\t2026-10-12_16:10_+0200\t2026-10-12_17:30_+0200\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-fin\tsess-fin\tmagic-coordinator\tspawn-succeeded\tgone\tfinished\t2026-10-12_16:57_+0300\t2026-10-12_18:00_+0300\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-fin\tfin-b\tkeeper-rig\tspawn-failed\tgone\tfailed\t2026-10-12_16:10_+0200\t2026-10-12_17:30_+0200\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tsess-ask\t-\twaiting\t2026-10-11_12:00_+0300\t-\t1\twaiting=1\n'
-	printf 'run\tsess-ask\tsess-ask\tmagic-coordinator\tspawn-started\tno-process\twaiting\t2026-10-11_12:00_+0300\t-\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-ask\tsess-ask\tmagic-coordinator\tspawn-started\tgone\twaiting\t2026-10-11_12:00_+0300\t-\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tsess-askrun\t-\tfinished\t2026-10-11_11:00_+0300\t2026-10-11_11:55_+0300\t2\tfinished=2\n'
-	printf 'run\tsess-askrun\tsess-askrun\tmagic-coordinator\tspawn-succeeded\tno-process\tfinished\t2026-10-11_11:00_+0300\t2026-10-11_11:55_+0300\t%s\trigws\t-\n' "$rigHost"
-	printf 'run\tsess-askrun\trun-asker\tkeeper-rig\tspawn-succeeded\tno-process\tfinished\t2026-10-11_11:20_+0300\t2026-10-11_11:50_+0300\t%s\trigws\t-\n' "$rigHost"
-	printf 'session\tsess-foreign\t-\tunknown-foreign\t2026-10-10_10:00_+0300\t-\t2\tunknown-foreign=2\n'
-	printf 'run\tsess-foreign\tsess-foreign\tmagic-coordinator\tspawn-started\tother-host\tunknown-foreign\t2026-10-10_10:00_+0300\t-\telsewhere\trigws\t-\n'
-	printf 'run\tsess-foreign\tfor-b\tkeeper-rig\tspawn-started\tother-host\tunknown-foreign\t2026-10-10_10:05_+0300\t-\telsewhere\trigws\t-\n'
+	printf 'run\tsess-askrun\tsess-askrun\tmagic-coordinator\tspawn-succeeded\tgone\tfinished\t2026-10-11_11:00_+0300\t2026-10-11_11:55_+0300\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-askrun\trun-asker\tkeeper-rig\tspawn-succeeded\tgone\tfinished\t2026-10-11_11:20_+0300\t2026-10-11_11:50_+0300\t%s\trigws\t-\n' "$rigHost"
+	printf 'session\tsess-foreign\t-\tunknown-foreign\t2026-10-10_10:00_+0300\t-\t2\tunclosed=2\n'
+	printf 'run\tsess-foreign\tsess-foreign\tmagic-coordinator\tspawn-started\tremote\tunclosed\t2026-10-10_10:00_+0300\t-\telsewhere\trigws\t-\n'
+	printf 'run\tsess-foreign\tfor-b\tkeeper-rig\tspawn-started\tremote\tunclosed\t2026-10-10_10:05_+0300\t-\telsewhere\trigws\t-\n'
 	printf 'session\tsess-nospawn\t-\tfinished\t2026-10-09_08:00_+0300\t2026-10-09_08:30_+0300\t1\tfinished=1\n'
-	printf 'run\tsess-nospawn\t-\tmagic-librarian\tspawn-succeeded\tno-spawn-id\tfinished\t2026-10-09_08:00_+0300\t2026-10-09_08:30_+0300\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-nospawn\t-\tmagic-librarian\tspawn-succeeded\tunknown\tfinished\t2026-10-09_08:00_+0300\t2026-10-09_08:30_+0300\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tsess-unclosed\t-\tunclosed\t2026-10-08_07:00_+0300\t-\t1\tunclosed=1\n'
-	printf 'run\tsess-unclosed\tsess-unclosed\tmagic-coordinator\tspawn-started\tno-process\tunclosed\t2026-10-08_07:00_+0300\t-\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-unclosed\tsess-unclosed\tmagic-coordinator\tspawn-started\tgone\tunclosed\t2026-10-08_07:00_+0300\t-\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tbox-empty\t-\tunclosed\t-\t-\t1\tunclosed=1\n'
-	printf 'run\tbox-empty\t-\t-\tno-session-record\tno-spawn-id\tunclosed\t-\t-\t-\t-\t-\n'
+	printf 'run\tbox-empty\t-\t-\tno-session-record\tunknown\tunclosed\t-\t-\t-\t-\t-\n'
 	printf 'counters\t2\t0\t3\t2\t3\t3.25\t%s\n' "$rigFull"
 } )"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
@@ -267,21 +267,21 @@ rigStepOne(){ ## -- the last output with each `session` row cut to the eight fie
 }
 rigAssert "the fields of step one stand where they stood: the first eight fields of each session row, and every run row and the counters row, byte for byte -- each session with its runs, the sessions by start date, the newest first, and the counters last" "$( rigStepOne )" "$rigWant"
 rigAssert "each session row ends with three more fields: the stored state and its date, - in both for a session with no state file, and its control thread, none where it never had one" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 15 && $9 == "-" && $10 == "-" && $11 == "none" ) plain++ } END { print rows + 0 ":" plain + 0 }' "$rigTmp/out" )" "9:9"
-rigAssert "a session with live runs reads running: its row, with a count of 3, and its run rows read thinking, in-tool and finished, as the registry derives them" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $4, $7 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-run" { printf "%s ", $7 }' )" "running 3 thinking in-tool finished "
+rigAssert "a session with live runs reads running: its row, with a count of 3, and its run rows read thinking, tool and finished, as the registry derives them" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $4, $7 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-run" { printf "%s ", $7 }' )" "running 3 thinking tool finished "
 rigAssert "a session whose runs are all closed reads finished, an open ask of it or not (sketch 5.4, never waiting): its start is the earliest of its runs and the date of its state the latest closing, by their times and not by their text" "$( rigRowOf session sess-fin | LC_ALL=C awk '{ print $4, $5, $6 }' )" "finished 2026-10-12_16:57_+0300 2026-10-12_17:30_+0200"
 rigAssert "a session shows its name, the first session-comment among its records, and one with none shows -" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $3 }' ) $( rigRowOf session sess-fin | LC_ALL=C awk '{ print $3 }' )" "daily_of_Monday -"
 rigAssert "a session with an open ask and no live process reads waiting, and its run waiting too (MAGIC.md:3103); and one whose runs have finished reads finished" "$( rigRowOf session sess-ask | LC_ALL=C awk '{ print $4 }' ) $( rigRowOf run sess-ask | LC_ALL=C awk '{ print $7 }' ) $( rigRowOf session sess-askrun | LC_ALL=C awk '{ print $4 }' )" "waiting waiting finished"
-rigAssert "a session of another host is not called finished: it reads unknown-foreign, and so does each of its runs" "$( rigRowOf session sess-foreign | LC_ALL=C awk '{ print $4 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-foreign" { printf "%s ", $7 }' )" "unknown-foreign unknown-foreign unknown-foreign "
-rigAssert "a record with no spawn id is still a row, with no-spawn-id in live, and its session is listed" "$( rigRows run | LC_ALL=C awk '$2 == "sess-nospawn" { print $3, $6 }' ) $( rigRows session | LC_ALL=C awk '$2 == "sess-nospawn" { n++ } END { print n + 0 }' )" "- no-spawn-id 1"
+rigAssert "a session of another host is not called finished: it reads unknown-foreign, and each of its runs reads remote and unclosed" "$( rigRowOf session sess-foreign | LC_ALL=C awk '{ print $4 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-foreign" { printf "%s/%s ", $6, $7 }' )" "unknown-foreign remote/unclosed remote/unclosed "
+rigAssert "a record with no spawn id is still a row, with unknown in live, and its session is listed" "$( rigRows run | LC_ALL=C awk '$2 == "sess-nospawn" { print $3, $6 }' ) $( rigRows session | LC_ALL=C awk '$2 == "sess-nospawn" { n++ } END { print n + 0 }' )" "- unknown 1"
 rigAssert "every row has the fields of its kind: 15 of a session, 12 of a run, 8 of the counters, and no line is of another kind" "$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 15 : ( $1 == "run" ) ? 12 : ( $1 == "counters" ) ? 8 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "26:0"
 
 echo "-- 2. the counters --"
 rigAssert "the counter of running sessions agrees with the rows: two read running and three finished" "$( rigRows counters | LC_ALL=C awk '{ print $2 }' ) $( rigRows session | LC_ALL=C awk '$4 == "running" { n++ } END { print n + 0 }' ) $( rigRows session | LC_ALL=C awk '$4 == "finished" { n++ } END { print n + 0 }' )" "2 2 3"
 rigAssert "a live run that sits in a Wait counts as waiting and not as working: its activity word is a Wait" "$( rigRowOf run sess-run2 | LC_ALL=C awk '{ print $7, $NF }' )" "waiting waiting"
-rigAssert "a live run inside a tool counts as working, whatever its last milestone says: it says a wait going idle, and is not read" "$( rigRowOf run run-c | LC_ALL=C awk '{ print $7, $NF }' )" "in-tool working"
+rigAssert "a live run inside a tool counts as working, whatever its last milestone says: it says a wait going idle, and is not read" "$( rigRowOf run run-c | LC_ALL=C awk '{ print $7, $NF }' )" "tool working"
 rigAssert "a live run with no activity word counts as working, thinking" "$( [ -e "$rigStores/sess-run/activity" ] && echo has-activity || echo no-activity ) $( rigRowOf run sess-run | LC_ALL=C awk '{ print $7, $NF }' )" "no-activity thinking working"
 rigAssert "a live run inside an ask counts as waiting, though its last milestone is another line, and one that thinks counts as working" "$( rigRowOf run run-d | LC_ALL=C awk '{ print $7, $NF }' ) $( rigRowOf run run-e | LC_ALL=C awk '{ print $7, $NF }' )" "waiting waiting thinking working"
-rigAssert "the counters of working and waiting agents count the live runs, and an ended run with the store of a wait is neither" "$( rigRows counters | LC_ALL=C awk '{ print $4, $5 }' ) $( rigRowOf run run-b | LC_ALL=C awk '{ print $6, $NF }' )" "3 2 no-process -"
+rigAssert "the counters of working and waiting agents count the live runs, and an ended run with the store of a wait is neither" "$( rigRows counters | LC_ALL=C awk '{ print $4, $5 }' ) $( rigRowOf run run-b | LC_ALL=C awk '{ print $6, $NF }' )" "3 2 gone -"
 rigAssert "the counter of open asks agrees with the store: three records are reply-pending and four are closed (one is of a finished session)" "$( rigRows counters | LC_ALL=C awk '{ print $6 }' ) $( LC_ALL=C grep -l -x 'status: reply-pending' "$rigPend"/*.md | LC_ALL=C awk 'END { print NR + 0 }' ) $( ls "$rigPend" | LC_ALL=C awk 'END { print NR + 0 }' )" "3 3 7"
 ## EVERY LIVE AGENT IN A WAIT MAKES THE SESSION WAIT: the state follows the agents, not the other way.
 rigStore run-e 'tool Wait'
@@ -395,7 +395,7 @@ rm -rf "$rigHome/.agents"
 rigAssert "the dispatcher has one arm for the family, which sources the family's include, and that one sources the include of the sessions" \
 	"$( LC_ALL=C grep -c -x -e '		--manager-\*)' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.Manager.include"' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1 1"
 rigAssert "the list reads its rows from the one place a row's live and state are derived, and lists no run a second way" \
-	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionRows\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" | LC_ALL=C grep -v -e '^[[:space:]]*#' -e 'checklist' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E -e 'rowLive[[:space:]]*=[[:space:]]*"other-host"' || : )" "1 0 1"
+	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionRows\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" | LC_ALL=C grep -v -e '^[[:space:]]*#' -e 'checklist' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E -e 'rowLive[[:space:]]*=[[:space:]]*"remote"' || : )" "1 0 1"
 
 echo "-- 8. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

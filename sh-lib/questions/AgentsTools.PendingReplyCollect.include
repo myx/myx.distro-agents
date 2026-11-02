@@ -59,8 +59,8 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 }
 
 ## The sessions not known to have ended, as ` <id> <id> ... `: every session-id with a
-## spawned-sessions row in state running (its process is alive on this host) or
-## unknown-foreign (another host's, not closed, unmeasurable from here) -- the same render
+## spawned-sessions row whose process is running (alive on this host) or remote with an open
+## record (another host's, not closed, unmeasurable from here) -- the same render
 ## and states the review hand-over reads. And every asker that is itself alive, said by the
 ## one function that says it of an asker (AgentsToolsRegistryAskersLive, by the one rule a
 ## run is recognised by): an ask carries the id of the run that asked, which is a session's
@@ -74,7 +74,7 @@ AgentsToolsPendingReplySessionsRunning(){
 	local runningIds runningLine runningRoot
 	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	runningIds="$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
-		NF == 13 && $2 != "-" && ( $13 == "running" || $13 == "unknown-foreign" ) && ! seen[$2]++ { printf "%s ", $2 ; }
+		NF == 13 && $2 != "-" && ( $12 == "running" || ( $12 == "remote" && $13 == "unclosed" ) ) && ! seen[$2]++ { printf "%s ", $2 ; }
 	' )"
 	while IFS= read -r runningLine ; do
 		runningRoot="${runningLine% *}"

@@ -258,6 +258,7 @@ AgentsToolsRoutineFile(){ ## routine name
 ## there is refused rather than removed. Non-zero on a failure.
 AgentsToolsTeamMemberIndexWrite(){ ## workspace
 	local writeWs="${1%/}" writeDir writeText writeName writeTarget writeRest writeSlot writeRc=0 writeNames=$'\n' writeTemp
+	type AgentsToolsLinkMake > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" || return 1
 	writeWs="$( cd "$writeWs" && pwd )" || return 1
 	writeDir="$writeWs/.local/agents"
 	mkdir -p "$writeDir/members" || return 1
@@ -278,7 +279,7 @@ AgentsToolsTeamMemberIndexWrite(){ ## workspace
 			writeRc=1 ; continue
 		fi
 		[ -L "$writeSlot" ] && [ "$( readlink "$writeSlot" )" = "$writeTarget" ] && continue
-		ln -sfn "$writeTarget" "$writeSlot" || writeRc=1
+		AgentsToolsLinkMake "$writeTarget" "$writeSlot" || writeRc=1
 	done <<< "$writeText"
 	for writeSlot in "$writeDir/members"/* "$writeDir/members"/.[!.]* ; do
 		[ -L "$writeSlot" ] || continue

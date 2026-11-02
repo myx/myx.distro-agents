@@ -262,8 +262,8 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 				personKeyD=""
 			done < "$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt"
 			case "$personKeyD" in D[A-Z0-9]*) personKeyN=$(( personKeyN + 1 )) ;; *) continue ;; esac
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			personKeyOut="$( DistroAgentsTools --intern-op-comms-slack-read "$personMember" "$personKeyD" ${personSince:+--oldest "$personSince"} $( [ "$personKeyIdentity" = bot ] && printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || { personKey="" ; break ; }
+			type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+			personKeyOut="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$personMember" "$personKeyD" ${personSince:+--oldest "$personSince"} $( [ "$personKeyIdentity" = bot ] && printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || { personKey="" ; break ; }
 			personKeyOut="${#personKeyOut}:${personKeyOut: -120}"
 			personKey="$personKey/${personKeyOut//[[:space:]]/_}"
 		done
@@ -288,8 +288,8 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 			done < "$personDmFile"
 		fi
 		if [ -z "$personDm" ] ; then
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			personInfo="$( DistroAgentsTools --intern-op-slack-call "$personMember" --api conversations.info --resolve-dm "$personId" --identity "$personIdentity" --context "wait: the direct conversation with $personTarget" 2> "$personOut.err" )" || { personFailed=$(( personFailed + 1 )) ; continue ; }
+			type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+			personInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$personMember" --api conversations.info --resolve-dm "$personId" --identity "$personIdentity" --context "wait: the direct conversation with $personTarget" 2> "$personOut.err" )" || { personFailed=$(( personFailed + 1 )) ; continue ; }
 			personDm="$( printf '%s\n' "$personInfo" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || personDm=""
 			[ -n "$personDm" ] || { personFailed=$(( personFailed + 1 )) ; continue ; }
 			case "$personDm" in
@@ -300,8 +300,8 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 		fi
 		case "$personSeen" in *" $personDm "*) continue ;; esac
 		personSeen="$personSeen$personDm "
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-comms-slack-read "$personMember" "$personDm" ${personSince:+--oldest "$personSince"} $( [ "$personIdentity" = bot ] && printf '%s' --identity-bot ) > "$personOut.part" 2> "$personOut.err" || { personFailed=$(( personFailed + 1 )) ; cat "$personOut.err" >&2 ; continue ; }
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$personMember" "$personDm" ${personSince:+--oldest "$personSince"} $( [ "$personIdentity" = bot ] && printf '%s' --identity-bot ) > "$personOut.part" 2> "$personOut.err" || { personFailed=$(( personFailed + 1 )) ; cat "$personOut.err" >&2 ; continue ; }
 		AgentsWaitOwnFile "$personOut.part" || return 2
 		LC_ALL=C awk -v person="$personId" -v onlyPerson="$( [ "$personIdentity" = bot ] && printf 1 || printf 0 )" '
 			NR == 1 && /^## target=/ { next ; }
@@ -336,6 +336,25 @@ AgentsWaitProbedFlush(){
 			&& mv -f "$flushTmp" "$waitProbedFile" 2> /dev/null || rm -f "$flushTmp" 2> /dev/null
 	fi
 	waitProbedDirty="" waitProbedFlushedAt="$SECONDS"
+}
+## A WAIT ON ITS FLOOR ALONE IS IDLE (S27.4). The harness marks a Wait call `tool Wait`, which the registry reads as `waiting`. Where every source of
+## the wait is the floor (replies, chat, dms, mentions, wake, the scans, the session's own threads, or the two team conversations of a run with no
+## thread), the run is idle: the mark is rewritten, in the round it holds, as `idle`, which the registry reads as `idling`. A mark that is not
+## `tool Wait`, and a run with no mark (a native client's), is left alone. The harness writes `thinking` again when the run's next round begins.
+AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the floor is added
+	local idleFile="${MMDAPP:-/nonexistent}/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-/}/activity" idleLine="" idleDefaults idleOne
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$idleFile" ] || return 0
+	IFS= read -r idleLine < "$idleFile" || :
+	[ "${idleLine#* * }" = "tool Wait" ] || return 0
+	type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	idleDefaults=" slack:magic-team slack:human-owner $( AgentsToolsWaitDefaultSources 2> /dev/null | LC_ALL=C tr '\n' ' ' ) "
+	for idleOne in $1 ; do
+		case "$idleOne" in replies:*|chat:*|dms:*|mentions:*|wake:*|scan:*|tagged:*) continue ;; esac
+		case "$idleDefaults" in *" $idleOne "*) continue ;; esac
+		return 0
+	done
+	printf '%s %s idle\n' "${idleLine%% *}" "$( date +%s 2> /dev/null )" > "$idleFile.$$" 2> /dev/null && mv -f "$idleFile.$$" "$idleFile" 2> /dev/null || rm -f "$idleFile.$$" 2> /dev/null
+	return 0
 }
 AgentsWaitStateStore(){
 	AgentsWaitProbedFlush
@@ -543,8 +562,8 @@ AgentsWaitProbeSlack(){
 	local probeConvKey="" probeQuick="" probeQuickRest="" probeQuickRc=1
 	if [ "$probeThread" = "false" ] && [ "$probeCached" != "0" ] ; then
 		probeQuickRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		probeQuick="$( DistroAgentsTools --intern-op-comms-slack-read "${probeArgs[@]}" 2> /dev/null < /dev/null )" || probeQuickRc=$?
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		probeQuick="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" 2> /dev/null < /dev/null )" || probeQuickRc=$?
 		if [ "$probeQuickRc" = 0 ] ; then
 			probeQuickRest="${#probeQuick}:${probeQuick: -120}"
 			probeConvKey="$probeOut@$probeTarget/${probeAsBot:-}/${probeQuickRest//[[:space:]]/_}"
@@ -559,8 +578,8 @@ AgentsWaitProbeSlack(){
 	if [ "$probeQuickRc" = 0 ] ; then
 		printf '%s\n' "$probeQuick" > "$probeOut.read" ; : > "$probeOut.err"
 	else
-	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	DistroAgentsTools --intern-op-comms-slack-read "${probeArgs[@]}" \
+	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" \
 		> "$probeOut.read" 2> "$probeOut.err" || probeRc=$?
 	fi
 	if [ "$probeRc" != "0" ] ; then
@@ -593,8 +612,8 @@ AgentsWaitProbeSlack(){
 		probePerson="$( LC_ALL=C awk 'NR == 1 && /^## target=U[A-Z0-9]+ / { sub(/^## target=/, "") ; sub(/ .*$/, "") ; print ; } { exit ; }' "$probeOut.read" 2> /dev/null )"
 	fi
 	if [ -n "$probePerson" ] ; then
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		if DistroAgentsTools --intern-op-comms-slack-read "${probeArgs[@]}" --identity-bot > "$probeOut.bot.read" 2> "$probeOut.bot.err" ; then
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" --identity-bot > "$probeOut.bot.read" 2> "$probeOut.bot.err" ; then
 			LC_ALL=C awk -v person="$probePerson" '
 				NR == 1 && /^## target=/ { next ; }
 				/^[0-9]+\.[0-9]+ \| / { split($0, f, " \\| ") ; keep = ( f[2] == person ) ; }
@@ -612,8 +631,8 @@ AgentsWaitProbeSlack(){
 		case "$probeMember" in client-*) probeClientConvs="$( AgentsToolsConfigOption "$probeMember" --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || probeClientConvs="" ;; esac
 	fi
 	for probeClientConv in ${probeClientConvs//,/ } ; do
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		if DistroAgentsTools --intern-op-comms-slack-read "$probeMember" "client:$probeClientConv" ${probeSince:+--oldest "$probeSince"} > "$probeOut.client.read" 2> "$probeOut.client.err" ; then
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$probeMember" "client:$probeClientConv" ${probeSince:+--oldest "$probeSince"} > "$probeOut.client.read" 2> "$probeOut.client.err" ; then
 			LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print ; }' < "$probeOut.client.read" >> "$probeOut.rendered" 2>> "$probeOut.err" || return 2
 		else
 			echo "⛔ ERROR: the human-owner conversation $probeClientConv on $probeMember's other side could not be read, so what is written there is not seen:" >&2
@@ -878,8 +897,8 @@ AgentsWaitAskDirectRead(){ ## member, record file, channel, floor, addressees, a
 			return 1
 		fi
 	fi
-	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	DistroAgentsTools --intern-op-comms-slack-read "$1" "$3" --oldest "${9:-$4}" ${7:+$( [ "$7" = bot ] && printf '%s' --identity-bot )} > "$8.direct" 2> /dev/null || return 1
+	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$1" "$3" --oldest "${9:-$4}" ${7:+$( [ "$7" = bot ] && printf '%s' --identity-bot )} > "$8.direct" 2> /dev/null || return 1
 	AgentsWaitOwnFile "$8.direct" || return 1
 	LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print }' "$8.direct" \
 		| LC_ALL=C awk -v rootTs="${9:-$4}" -v askingUsers="$6" -v fromUsers="$5" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" \
@@ -1062,14 +1081,14 @@ AgentsWaitReadRendered(){ ## member, read target, thread|conversation, oldest (a
 	elif [ -n "$readOldest" ] ; then
 		readArgs=( "${readArgs[@]}" --oldest "$readOldest" )
 	fi
-	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	DistroAgentsTools --intern-op-comms-slack-read "${readArgs[@]}" > "$readOut.read" 2> "$readOut.err" || readRc=$?
+	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${readArgs[@]}" > "$readOut.read" 2> "$readOut.err" || readRc=$?
 	## A conversation the user identity cannot see, such as the bot's own DM with a person, is read again as the bot --
 	## on our own side only: a client: target is the other organisation's, where an identity of ours reads nothing.
 	if [ "$readRc" != "0" ] && [ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] && [ "${readTarget#client:}" = "$readTarget" ] && LC_ALL=C grep -q 'channel_not_found' "$readOut.err" 2> /dev/null ; then
 		readRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-comms-slack-read "${readArgs[@]}" --identity-bot > "$readOut.read" 2> "$readOut.err" || readRc=$?
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${readArgs[@]}" --identity-bot > "$readOut.read" 2> "$readOut.err" || readRc=$?
 	fi
 	if [ "$readRc" != "0" ] ; then
 		[ ! -s "$readOut.err" ] || cat "$readOut.err" >&2
@@ -1639,8 +1658,8 @@ AgentsWaitProbeDms(){
 					case "$probeKind" in im|mpim) ;; *) continue ;; esac
 					case "$probeQuickSeen" in *" $probeConv "*) continue ;; esac
 					probeQuickSeen="$probeQuickSeen$probeConv "
-					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-					probeQuickOut="$( DistroAgentsTools --intern-op-comms-slack-read "$probeMember" "$probeConv" ${probePointer:+--oldest "$probePointer"} $( [ "$probeIdentity" != "bot" ] || printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || probeQuickOut="#failed"
+					type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+					probeQuickOut="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "$probeMember" "$probeConv" ${probePointer:+--oldest "$probePointer"} $( [ "$probeIdentity" != "bot" ] || printf '%s' --identity-bot ) 2> /dev/null < /dev/null )" || probeQuickOut="#failed"
 					probeQuickOut="${#probeQuickOut}:${probeQuickOut: -120}"
 					probeQuickKey="$probeQuickKey/$probeConv=${probeQuickOut//[[:space:]]/_}"
 				done <<< "$probeRoster"
@@ -1815,8 +1834,8 @@ AgentsWaitProbeMentions(){
 	## ONE call that answers: the member's own user token, else the team identity that may search.
 	for probeAs in $probeTokens ; do
 		probeRc=0
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		probeJson="$( DistroAgentsTools --intern-op-slack-call "$probeAs" --api search.messages --identity user \
+		type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		probeJson="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$probeAs" --api search.messages --identity user \
 			--form "query=$probeQuery${probeAfter:+ after:$probeAfter}" --form sort=timestamp --form sort_dir=desc --form count=100 \
 			--context "wait: the mentions of $probeMember" 2> "$probeOut.err" )" || probeRc=$?
 		if [ "$probeRc" = 0 ] ; then
@@ -2299,20 +2318,16 @@ AgentsWaitLost(){ ## the working directory -- rc 0 once it, or a file a step not
 
 case "$1" in
 
-	## The member stub. A wait reads and reacts under the named member's own credentials, so
+	## The member stub and its implementation, one arm. A wait reads and reacts under the named member's own credentials, so
 	## a spawned session names only itself; tooling calls --intern-op-wait-for-input directly.
-	--wait-for-input)
-		if [ -n "${2:-}" ] && ! AgentsToolsActingMemberCheck "$2" wait-for-input ; then
+	--wait-for-input|--intern-op-wait-for-input)
+		if [ "$1" = --wait-for-input ] && [ -n "${2:-}" ] && ! AgentsToolsActingMemberCheck "$2" wait-for-input ; then
 			echo "WAIT-RESULT: ERROR"
 			set +e ; return 1
 		fi
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-wait-for-input "${@:2}"
-		return $?
-	;;
-
-	--intern-op-wait-for-input)
 		shift
+		## Loaded once here, so every probe of this wait, in a subshell too, calls the Slack operations without the dispatcher.
+		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
 		local memberName="$1"
 		shift || true
 		if [ -z "$memberName" ] ; then
@@ -2818,6 +2833,7 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		[ -z "$waitSessionId" ] || AgentsWaitActivityIdle "$waitSources"
 		## THE ROUND OF A SESSION'S WAIT. A wait that belongs to a session -- a mode, with its
 		## session id -- comes back, when nothing arrived, a little sooner than the prompt cache
 		## of the CLI service that session runs on expires, so the turn that goes on waiting
@@ -3149,9 +3165,9 @@ case "$1" in
 				[ "${reactWord%%=*}" = "$reactSet" ] || continue
 				reactId="${reactWord#*=}"
 				## The member's own identity first, then the bot: which one may react differs by conversation.
-				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				if DistroAgentsTools --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" > /dev/null 2>&1 \
-					|| DistroAgentsTools --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" --identity-bot > /dev/null 2>&1 ; then
+				type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+				if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" > /dev/null 2>&1 \
+					|| AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" --identity-bot > /dev/null 2>&1 ; then
 					reactOk=$(( reactOk + 1 ))
 				else
 					reactFailed="$reactFailed$reactId "

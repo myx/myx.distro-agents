@@ -28,7 +28,7 @@
 ## patched package, against it:
 ##   mkdir -p <pristine>/myx
 ##   cp -R <live>/myx.distro-agents <pristine>/myx/myx.distro-agents
-##   ln -s <live>/myx.distro-.local <live>/myx.distro-system <pristine>/myx/
+##   cp -R <live>/myx.distro-.local <live>/myx.distro-system <pristine>/myx/
 ##   MMDAPP=<scratch workspace> MDLT_ORIGIN=<pristine> \
 ##     bash <patched>/myx.distro-agents/sh-test/config/AgentsOwnerSetupCredentialScopeCheck.test.sh
 ## Expected red, 30 of 52 assertions, in four groups:

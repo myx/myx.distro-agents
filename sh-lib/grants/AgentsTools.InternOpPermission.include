@@ -582,7 +582,7 @@ AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the cowo
 	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 	## An agent-less parent runs no member: its owner is not running there by it.
 	AgentsToolsRegistryRenderSpawnedSessions agents "$runCow" 2> /dev/null | LC_ALL=C awk -v cow="$runCow" '
-		NF == 13 && $2 == cow && $13 == "running" { print $1 "\t" $8 "\t" $5 ; }' \
+		NF == 13 && $2 == cow && $12 == "running" { print $1 "\t" $8 "\t" $5 ; }' \
 	| while IFS=$'\t' read -r runTracking runSpawn runOwner ; do
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$runTracking/$runSpawn.spawn.md" agent-less )" != true ] || continue
 		printf '%s\n' "$runOwner"
@@ -1494,7 +1494,7 @@ case "$1" in
 		## rc 1 as before), so the refusal can say an ask is open and name it.
 		if [ -z "${MDAT_GRANT_READ_INNER:-}" ] ; then
 			local outerOut="" outerRc=0 outerMember="${2:-}" outerSession="" outerTool="" outerTarget="" outerAsks="" outerAsk outerPrev="" outerArg
-			outerOut="$( MDAT_GRANT_READ_INNER=1 DistroAgentsTools "$@" )" || outerRc=$?
+			outerOut="$( export MDAT_GRANT_READ_INNER=1 ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" "$@" )" || outerRc=$?
 			if [ "$outerRc" = "0" ] ; then
 				[ -z "$outerOut" ] || printf '%s\n' "$outerOut"
 				return 0
@@ -1516,7 +1516,7 @@ case "$1" in
 					[ -z "$outerAsk" ] || DistroAgentsTools --intern-op-escalation-read "$outerMember" "$outerAsk" > /dev/null 2>&1 || :
 				done <<< "$outerAsks"
 				outerRc=0
-				outerOut="$( MDAT_GRANT_READ_INNER=1 DistroAgentsTools "$@" )" || outerRc=$?
+				outerOut="$( export MDAT_GRANT_READ_INNER=1 ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" "$@" )" || outerRc=$?
 				if [ "$outerRc" = "0" ] ; then
 					[ -z "$outerOut" ] || printf '%s\n' "$outerOut"
 					return 0

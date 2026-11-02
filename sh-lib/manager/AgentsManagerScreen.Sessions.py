@@ -138,7 +138,7 @@ def tokensShort(value):
     return shortCount(value[:len(value) - len(more)]) + more
 
 
-## The state of an agent, as the registry derives it: `thinking`, `in-tool`, `waiting`, `awaiting-review` or `finished`.
+## The state of an agent, as the registry derives it: `thinking`, `tool`, `waiting`, `idling`, `parked` or `finished`.
 ## The word says what it is doing already, so nothing is added to it (S27.4).
 def runStateText(run):
     return run["state"]
@@ -1197,7 +1197,7 @@ def agentRows(state, keep):
 
 
 ## The agents that work: the runs that are not closed (finished or failed) and do not sit in a Wait. One that sits in a Wait is in `Waiting Agents`, and no run
-## is in both lists. One that handed back shows its state, awaiting-review, here.
+## is in both lists. One that handed back shows its state, parked, here.
 def activeAgentRows(state, path):
     return agentRows(state, lambda run: run["state"] not in SESSION_CLOSED_STATES and run["activity"] != "waiting")
 

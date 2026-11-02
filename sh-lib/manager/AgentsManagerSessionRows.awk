@@ -98,7 +98,7 @@ BEGIN {
 	OFS = "\t" ;
 	agentsDir = ENVIRON["MDAT_MANAGER_AGENTS"] ;
 	## The states a run is in, as the registry derives them, in the order a tally names them: those of a live run first.
-	stateTotal = split("thinking in-tool running starting waiting awaiting-review unclosed unknown-foreign failed finished", stateOrder, " ") ;
+	stateTotal = split("thinking tool idling starting waiting parked unclosed failed finished", stateOrder, " ") ;
 	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
 	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
 		if (split(controlLines[controlAt], controlWords, " ") >= 2) controlOf[controlWords[1]] = controlWords[2] ;
@@ -135,11 +135,11 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 	runStart[runTotal] = $14 ; runEnd[runTotal] = $15 ;
 	runActivity[runTotal] = "-" ;
 	## WHAT A LIVE RUN IS DOING is the registry's own word for it, field 13 (S27.4): `waiting` where it sits in a call that
-	## waits on a person, `working` for `thinking` and `in-tool`. No file of the run's store is read for it a second time.
+	## waits on a person or sits idle on its floor, `working` for `thinking` and `tool`. No file of the run's store is read for it a second time.
 	if ($12 == "running") {
 		sessionLive[sessionKey] = 1 ;
 		sessionLiveCount[sessionKey]++ ;
-		if ($13 == "waiting") { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
+		if ($13 == "waiting" || $13 == "idling") { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
 		else { runActivity[runTotal] = "working" ; agentsWorking++ ; }
 	}
 	## A RUN THAT IS STILL HERE IS RUNNING, whatever its record says (S21.4): a `spawn-failed` mark written before the run started
@@ -149,9 +149,9 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 	## A settled death and a clean advance-pass close share one status word (spawn-ended-without-close):
 	## $13 already tells them apart (S21.4), so this reads the derived word, never the raw status again.
 	else if (runStateWord == "finished") sessionEnded[sessionKey] = 1 ;
-	if (runStateWord == "unknown-foreign") sessionForeign[sessionKey] = 1 ;
-	if (runStateWord == "unclosed" || runStateWord == "waiting") sessionOpen[sessionKey] = 1 ;
-	if (runStateWord == "awaiting-review") sessionAwaiting[sessionKey] = 1 ;
+	if ($12 == "remote" && runStateWord == "unclosed") sessionForeign[sessionKey] = 1 ;
+	if ((runStateWord == "unclosed" && $12 != "remote") || runStateWord == "waiting") sessionOpen[sessionKey] = 1 ;
+	if (runStateWord == "parked") sessionAwaiting[sessionKey] = 1 ;
 	if (runStateWord == "starting") sessionStarting[sessionKey] = 1 ;
 	## AN ASK STILL WAITING IS THE SESSION'S OWN, whether its run still stands or not: it is counted by
 	## the asking id its row carries, the session's own id or the id of one of its runs.

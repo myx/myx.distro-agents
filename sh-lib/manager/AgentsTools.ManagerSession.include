@@ -514,6 +514,15 @@ AgentsToolsManagerConsoleMember(){
 	printf 'user-%s\n' "$memberAccount"
 }
 
+## The outcome word of a run the kill does not end, as the kill's own words name it (the run's `live` of the registry says gone, remote or unknown): no-process,
+## other-host, no-spawn-id or host-unrecorded. A run with a process here and one with none both say no-process, as the kill finds no process of it to signal.
+AgentsToolsManagerKillOutcome(){ ## the run's live word, its spawn id
+	case "$1" in
+		remote) printf 'other-host' ;;
+		unknown) [ "$2" = "-" ] && printf 'no-spawn-id' || printf 'host-unrecorded' ;;
+		*) printf 'no-process' ;;
+	esac
+}
 ## Says on a run's own record that it was killed, by whom and when: `killed-by` and
 ## `killed-at`, through this package's own header writer, aside and then one rename. Written
 ## before anything is signalled, so the supervising shell of the run, which closes the record
@@ -648,12 +657,12 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		[ "$killSpawn" = "-" ] || killSeen="$killSeen$killSpawn "
 		killAt="${#killSpawns[@]}"
 		killSessions[killAt]="$killSession" ; killSpawns[killAt]="$killSpawn" ; killMembers[killAt]="$killMember" ; killStatuses[killAt]="$killStatus"
-		killOutcomes[killAt]="$killLive" ; killPids[killAt]="" ; killItems[killAt]="-" ; killBegan[killAt]=""
+		killOutcomes[killAt]="$( AgentsToolsManagerKillOutcome "$killLive" "$killSpawn" )" ; killPids[killAt]="" ; killItems[killAt]="-" ; killBegan[killAt]=""
 		## A run of this host. One that was alive when it was measured: its processes are read
 		## now, and it may have ended since. And, alive or not, what an earlier stop or kill of
 		## it signalled and left, kept in its store (AgentsToolsRegistryRunLeftKept): a process
 		## the run had started, which no walk from the run finds any more.
-		case "$killLive" in running|no-process) ;; *) continue ;; esac
+		case "$killLive" in running|gone) ;; *) continue ;; esac
 		killOutcomes[killAt]="no-process"
 		killRecord="$( AgentsToolsRegistrySpawnRecord "$killSpawn" < /dev/null )"
 		killFound="$( { [ "$killLive" != "running" ] || AgentsToolsRegistryRunProcesses "$killSpawn" "$killRecord" < /dev/null ; AgentsToolsRegistryRunLeftKept "$killSpawn" < /dev/null ; } | AgentsToolsManagerKillPids )"
@@ -788,10 +797,10 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 		finishRecord="" ; finishFound=""
 		case "$finishSpawn" in ''|-) ;; *) finishRecord="$( AgentsToolsRegistrySpawnRecord "$finishSpawn" < /dev/null )" ;; esac
 		## A run with no spawn-id is the run of its own record, found by its session, closed as any other: it lives only if something runs as it.
-		if [ "$finishSpawn" = "-" ] && [ "$finishLive" = "no-spawn-id" ] && [ "$finishStatus" = "spawn-started" ] ; then
+		if [ "$finishSpawn" = "-" ] && [ "$finishLive" = "unknown" ] && [ "$finishStatus" = "spawn-started" ] ; then
 			finishRecord="$( AgentsToolsRegistrySessionOwnRecord "$finishSession" )"
 			if [ -n "$finishRecord" ] ; then
-				finishSpawn="$finishSession" ; finishLive="no-process"
+				finishSpawn="$finishSession" ; finishLive="gone"
 				[ -z "$( AgentsToolsRegistryRunProcesses "$finishSpawn" "$finishRecord" < /dev/null | AgentsToolsManagerKillPids )" ] || finishLive="running"
 			elif [ -n "$finishWhole" ] && [ -z "$finishPlan" ] ; then
 				printf 'close\t%s\t%s\t%s\tnot-closed\t-\n' "$finishSession" "$finishSession" "$finishMember"
@@ -805,11 +814,11 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 				finishEnded=$(( finishEnded + 1 ))
 				printf 'kill\t%s\t%s\t%s\twould-end\t%s\t%s\t-\n' "$finishSession" "$finishSpawn" "$finishMember" "$finishStatus" "$( printf '%s' "$finishFound" | LC_ALL=C tr ' ' ',' )"
 			else
-				printf 'kill\t%s\t%s\t%s\t%s\t%s\t-\t-\n' "$finishSession" "$finishSpawn" "$finishMember" "$( [ "$finishLive" != "running" ] && printf '%s' "$finishLive" || printf 'no-process' )" "$finishStatus"
+				printf 'kill\t%s\t%s\t%s\t%s\t%s\t-\t-\n' "$finishSession" "$finishSpawn" "$finishMember" "$( AgentsToolsManagerKillOutcome "$finishLive" "$finishSpawn" )" "$finishStatus"
 			fi
 		fi
 		case "$finishLive" in
-			no-process) ;;
+			gone) ;;
 			running) [ -n "$finishPlan" ] || continue ;;
 			*) continue ;;
 		esac

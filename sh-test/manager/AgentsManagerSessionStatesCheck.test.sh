@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 ## Behavioural check on S27.4 (console side) and S25.14 (title and chapter): the rows the console's session list prints
-## show each run's state as the registry derives it, apart: thinking, in-tool, waiting, awaiting-review, finished. Held:
+## show each run's state as the registry derives it, apart: thinking, tool, waiting, parked, finished. Held:
 ##   1. a run's state is the registry's word, and its activity is derived from that word alone: a run that thinks reads
 ##      working whatever its milestones last said, a run inside a Wait or an ask reads waiting, a run awaiting review
 ##      or ended has none (a milestone file is never the console's second opinion)
-##   2. the tally of a session names every state its runs are in, thinking, in-tool and awaiting-review among them
+##   2. the tally of a session names every state its runs are in, thinking, tool and parked among them
 ##   3. a session whose runs have all ended or handed back, one of them parked, reads awaiting-review, never finished;
 ##      the active list keeps it, and a live run (the registry says live comes first) keeps its session running
 ##   4. the counters row counts the agents that work and the agents that wait by those same words
@@ -92,13 +92,13 @@ rigAssert "the list reads the four sessions of the rig" "$rigCount" "4"
 
 echo "-- 1. a run's activity comes from the registry's state word, never from a milestone --"
 rigAssert "a thinking run reads thinking, and working: its stale milestone saying it went into a Wait is not asked"  "$( rigField "$rigOut" run think-A 7 ) $( rigField "$rigOut" run think-A 12 )" "thinking working"
-rigAssert "a run inside a tool reads in-tool and working" "$( rigField "$rigOut" run tool-A 7 ) $( rigField "$rigOut" run tool-A 12 )" "in-tool working"
+rigAssert "a run inside a tool reads tool and working" "$( rigField "$rigOut" run tool-A 7 ) $( rigField "$rigOut" run tool-A 12 )" "tool working"
 rigAssert "a run inside a Wait reads waiting, with no milestone to say so" "$( rigField "$rigOut" run wait-A 7 ) $( rigField "$rigOut" run wait-A 12 )" "waiting waiting"
-rigAssert "a run that handed back and left reads awaiting-review, with no activity" "$( rigField "$rigOut" run park-A 7 ) $( rigField "$rigOut" run park-A 12 )" "awaiting-review -"
+rigAssert "a run that handed back and left reads parked, with no activity" "$( rigField "$rigOut" run park-A 7 ) $( rigField "$rigOut" run park-A 12 )" "parked -"
 rigAssert "a run that ended reads finished, with no activity" "$( rigField "$rigOut" run done-A 7 ) $( rigField "$rigOut" run done-A 12 )" "finished -"
 
 echo "-- 2. the tally of a session names every state its runs are in --"
-rigAssert "sess-A: thinking, in-tool, waiting (two), awaiting-review and finished, in that order" "$( rigField "$rigOut" session sess-A 8 )" "thinking=1,in-tool=1,waiting=2,awaiting-review=1,finished=1"
+rigAssert "sess-A: thinking, tool, waiting (two), parked and finished, in that order" "$( rigField "$rigOut" session sess-A 8 )" "thinking=1,tool=1,waiting=2,parked=1,finished=1"
 
 echo "-- 3. the state of a session whose runs hand back --"
 rigAssert "sess-A, with runs at work, reads running" "$( rigField "$rigOut" session sess-A 4 )" "running"

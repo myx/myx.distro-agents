@@ -119,7 +119,7 @@ case "$1" in
 				;;
 				*)
 					printf '%s\n' "$mrRegistryText" | LC_ALL=C awk '
-						NF == 13 { seen[$2] = 1 ; if ($13 == "running" || $13 == "waiting") live[$2] = 1 }
+						NF == 13 { seen[$2] = 1 ; if ($12 == "running" || $13 == "waiting") live[$2] = 1 }
 						END { for (s in seen) if (!(s in live) && s != "-") print s }
 					' > "$mrEndedFile"
 				;;

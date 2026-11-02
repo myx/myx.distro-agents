@@ -13,6 +13,7 @@ $1 == "" { next ; }
 	if ( index( "," ownerSeen[sid] "," , "," owner "," ) == 0 ) {
 		ownerSeen[sid] = ( ownerSeen[sid] == "" ) ? owner : ownerSeen[sid] "," owner
 	}
+	if ( $12 == "running" ) { runningSeen[sid] = 1 ; }
 	key = sid SUBSEP state
 	stateCount[key]++
 	if ( !(state in stateSeen) ) { stateOrder[++stateTotal] = state ; stateSeen[state] = 1 ; }
@@ -22,9 +23,9 @@ END {
 	printedTotal = 0
 	for ( i = 1 ; i <= orderTotal ; i++ ) {
 		sid = order[i]
-		# running also keeps sessions with a waiting row -- a waiting agent is still in flight.
+		# running keeps the sessions with a run that has a process here, and the ones with a waiting row too -- a waiting agent is still in flight.
 		if ( filterState == "running" ) {
-			if ( !( (sid SUBSEP "running") in stateCount ) && !( (sid SUBSEP "waiting") in stateCount ) ) { continue ; }
+			if ( !( sid in runningSeen ) && !( (sid SUBSEP "waiting") in stateCount ) ) { continue ; }
 		} else if ( filterState != "" && !( (sid SUBSEP filterState) in stateCount ) ) { continue ; }
 		printedTotal++
 		tally = ""

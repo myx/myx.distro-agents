@@ -60,7 +60,7 @@
 ## check and its curl fixture added to its `sh-test`. Nothing else is changed.
 ##
 ##   cp -Rp pristine/myx.distro-agents red/origin/myx/myx.distro-agents
-##   ln -s <real myx.distro-system> red/origin/myx/myx.distro-system        # and myx.distro-.local
+##   cp -R <real myx.distro-system> red/origin/myx/myx.distro-system        # and myx.distro-.local
 ##   cp origin/.../sh-test/harness/AgentsRootHarnessVerbosityCheck.test.sh red/origin/.../sh-test/
 ##   cp origin/.../sh-test/check-fixtures/root-harness-verbosity.curl.stub.sh red/origin/.../sh-test/check-fixtures/
 ##   MDLT_ORIGIN=$PWD/red/origin MMDAPP=$PWD/workspace MDAT_SKILLSET_ROOT=<skillset> \

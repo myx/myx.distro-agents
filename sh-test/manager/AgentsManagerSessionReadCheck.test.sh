@@ -202,7 +202,7 @@ rigMemberRows="$( {
 	printf 'store\trun-b\tstore\tgrok-4\t-\t-\t-\t-\task-2,ask-3\t-\t2026-10-13T07:20:00Z\tmessage out\t-\t-\t%s\t-\n' "$rigStores/run-b/session.log"
 } )"
 rigClosedRows="$( {
-	printf 'run\tsess-a\trun-c\tmagic-tester\tspawn-succeeded\tno-process\tfinished\t2026-10-13_09:10_+0300\t2026-10-13_09:40_+0300\t%s\trigws\t-\n' "$rigHost"
+	printf 'run\tsess-a\trun-c\tmagic-tester\tspawn-succeeded\tgone\tfinished\t2026-10-13_09:10_+0300\t2026-10-13_09:40_+0300\t%s\trigws\t-\n' "$rigHost"
 	printf 'header\trun-c\tsession-id\tsess-a\nheader\trun-c\tspawn-id\trun-c\nheader\trun-c\tparent-spawn-id\tsess-a\nheader\trun-c\thost\t%s\nheader\trun-c\tworkspace\trigws\nheader\trun-c\tcli\tclaude-native\nheader\trun-c\towner\tmagic-tester\n' "$rigHost"
 	printf 'header\trun-c\tstatus\tspawn-succeeded\nheader\trun-c\texit-code\t0\nheader\trun-c\tstarted-at\t2026-10-13 09:10 +0300\nheader\trun-c\tresolved-at\t2026-10-13 09:40 +0300\n'
 	printf 'store\trun-c\tstore\t-\t-\t-\t-\t-\t-\tdismissed,dismissed.handback,ended\t2026-10-13T06:39:58Z\tend\t-\tmagic-coordinator (the daily is over)\t-\t-\n'
@@ -353,7 +353,7 @@ rigOld "$rigSp/run-b/run-b.spawn.md" "$rigSp/run-b"
 rigLive sess-a run-j
 rigAssert "control: the record is not newer than the registry, which still says the member is started" "$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp/run-b/run-b.spawn.md" "$rigSp/run-b" ) $( LC_ALL=C awk '$8 == "run-b" { print $6 }' "$rigAgents/spawned-sessions.registry" )" "none-newer spawn-started"
 rigRun "$rigOp" --session-id sess-a
-rigAssert "what a record of the session says is read from the record at every call: the member reads finished, with the date it closed, and the session's tally follows" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $4, $8 }' ) $( rigRows run | LC_ALL=C awk '$3 == "run-b" { print $5, $6, $7, $9, $NF }' )" "0 running thinking=1,waiting=1,finished=2 spawn-succeeded no-process finished 2026-10-13_09:50_+0300 -"
+rigAssert "what a record of the session says is read from the record at every call: the member reads finished, with the date it closed, and the session's tally follows" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $4, $8 }' ) $( rigRows run | LC_ALL=C awk '$3 == "run-b" { print $5, $6, $7, $9, $NF }' )" "0 running thinking=1,waiting=1,finished=2 spawn-succeeded gone finished 2026-10-13_09:50_+0300 -"
 rigAssert "and no registry is rewritten for that: the file is the one it was" "$( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "$rigRegBefore"
 ## AN ASK THAT CHANGED: the founder's is answered, its record put in place as a close puts it, and a new one is asked.
 rigAsk ask-1 sess-a reply-received
@@ -367,7 +367,7 @@ rigRun "$rigOp" --session-id sess-a
 rigAssert "and an ask asked since is one: the asks' registry is rebuilt where it does not hold an ask the store has now" "$rigRc $( rigNoneNewer "$rigAgents/pending-replies.registry" "$rigPend/ask-9.md" ) $( rigRows store | LC_ALL=C awk '$2 == "run-j" { print $9 }' )" "0 none-newer ask-9"
 : > "$rigTmp/ps.list"
 rigRun "$rigOp" --session-id sess-a
-rigAssert "with no live process the session reads waiting, on the open asks of its runs, and its founder waiting with no activity: live is measured at each call and never stored" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $4 }' ) $( rigRows run | LC_ALL=C awk '$3 == "sess-a" { print $6, $7, $NF }' )" "0 waiting no-process waiting -"
+rigAssert "with no live process the session reads waiting, on the open asks of its runs, and its founder waiting with no activity: live is measured at each call and never stored" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $4 }' ) $( rigRows run | LC_ALL=C awk '$3 == "sess-a" { print $6, $7, $NF }' )" "0 waiting gone waiting -"
 rigLive sess-a
 
 echo "-- 8. the caller rule, and the place of the operation --"

@@ -5,13 +5,13 @@
 ## (check-fixtures/manager-screen.tools.stub.sh), which prints the rows the rig keeps for each operation. The rows are those the real list
 ## prints for the registry's words (AgentsManagerSessionStatesCheck holds that side).
 ## Held:
-##   1. an agent shows the word of its state alone: thinking, in-tool, waiting, awaiting-review, finished; no second word is added to it
-##   2. each of those words has its look: the first two the look of what is well, waiting and awaiting-review the look of what to look at,
+##   1. an agent shows the word of its state alone: thinking, tool, waiting, idling, parked, finished; no second word is added to it
+##   2. each of those words has its look: the thinking, tool and idling the look of what is well, waiting and parked the look of what to look at,
 ##      finished dim
 ##   3. a session shows its title and, after it, the chapter it is in; one with no chapter shows the title alone
 ##   4. the left pane of a session names the chapter in a line of its own, and no such line stands where there is none
-##   5. a session awaiting review is among the active sessions and reads awaiting-review; a finished one is closed
-##   6. the agents that wait and those that work stay in their lists, and an agent awaiting review is one of those that are not closed
+##   5. a session awaiting review is among the active sessions and reads parked; a finished one is closed
+##   6. the agents that wait and those that work stay in their lists, and a parked agent is one of those that are not closed
 ## Red before S27.4: an agent read `thinking working` and `waiting waiting`, the new words had no look, and a chapter was shown nowhere.
 ## Offline: no operation of the real tooling is called.
 set -u
@@ -53,22 +53,24 @@ rigRow(){ ## the fields of one row, joined by TAB
 }
 rigS1=11111111-0000-4000-8000-000000000001 ; rigS2=22222222-0000-4000-8000-000000000002 ; rigS3=33333333-0000-4000-8000-000000000003
 rigA1=a1a1a1a1-0000-4000-8000-0000000000a1 ; rigA2=a2a2a2a2-0000-4000-8000-0000000000a2 ; rigA3=a3a3a3a3-0000-4000-8000-0000000000a3
+rigA4=a4a4a4a4-0000-4000-8000-0000000000a4
 rigB1=b1b1b1b1-0000-4000-8000-0000000000b1 ; rigC1=c1c1c1c1-0000-4000-8000-0000000000c1
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
-## Three sessions, the newest first. The first is named, in a chapter, and has five agents, one for each word of a state: it thinks, it is in a
-## tool, it waits in a Wait, one handed back and left, one has ended. The second has no chapter, and its one agent handed back and left. The
+## Three sessions, the newest first. The first is named, in a chapter, and has six agents, one for each word of a state: it thinks, it is in a
+## tool, it waits in a Wait, it has nothing to do, one handed back and left, one has ended. The second has no chapter, and its one agent handed back and left. The
 ## third has ended.
 {
-	rigRow session "$rigS1" Rig_work running 2026-10-12_16:57_+0300 - 5 thinking=1,in-tool=1,waiting=1,awaiting-review=1,finished=1 - - alive 1500000 - - Writing_the_dispatch
+	rigRow session "$rigS1" Rig_work running 2026-10-12_16:57_+0300 - 5 thinking=1,tool=1,waiting=1,idling=1,parked=1,finished=1 - - alive 1500000 - - Writing_the_dispatch
 	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running thinking 2026-10-12_16:57_+0300 - rig-host ws-rig working
-	rigRow run "$rigS1" "$rigA2" magic-tester spawn-started running in-tool 2026-10-12_17:05_+0300 - rig-host ws-rig working
+	rigRow run "$rigS1" "$rigA2" magic-tester spawn-started running tool 2026-10-12_17:05_+0300 - rig-host ws-rig working
 	rigRow run "$rigS1" "$rigA3" magic-librarian spawn-started running waiting 2026-10-12_17:06_+0300 - rig-host ws-rig waiting
-	rigRow run "$rigS1" - keeper-myx spawn-succeeded no-process awaiting-review 2026-10-12_17:07_+0300 2026-10-12_18:00_+0300 rig-host ws-rig -
-	rigRow run "$rigS1" - keeper-mel spawn-succeeded no-process finished 2026-10-12_17:08_+0300 2026-10-12_18:10_+0300 rig-host ws-rig -
-	rigRow session "$rigS2" Handed_back awaiting-review 2026-10-12_09:00_+0300 - 1 awaiting-review=1 - - none 40000 - - -
-	rigRow run "$rigS2" "$rigB1" magic-developer spawn-succeeded no-process awaiting-review 2026-10-12_09:00_+0300 2026-10-12_09:30_+0300 rig-host ws-rig -
+	rigRow run "$rigS1" "$rigA4" magic-architect spawn-started running idling 2026-10-12_17:07_+0300 - rig-host ws-rig -
+	rigRow run "$rigS1" - keeper-myx spawn-succeeded gone parked 2026-10-12_17:07_+0300 2026-10-12_18:00_+0300 rig-host ws-rig -
+	rigRow run "$rigS1" - keeper-mel spawn-succeeded gone finished 2026-10-12_17:08_+0300 2026-10-12_18:10_+0300 rig-host ws-rig -
+	rigRow session "$rigS2" Handed_back parked 2026-10-12_09:00_+0300 - 1 parked=1 - - none 40000 - - -
+	rigRow run "$rigS2" "$rigB1" magic-developer spawn-succeeded gone parked 2026-10-12_09:00_+0300 2026-10-12_09:30_+0300 rig-host ws-rig -
 	rigRow session "$rigS3" Ended finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 1 finished=1 - - none 9000000 - - -
-	rigRow run "$rigS3" "$rigC1" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 rig-host ws-rig -
+	rigRow run "$rigS3" "$rigC1" magic-devops spawn-succeeded gone finished 2026-10-11_14:28_+0300 2026-10-11_14:51_+0300 rig-host ws-rig -
 	rigRow counters 1 0 2 1 2 0.42
 } > "$rigF/rows.--manager-session-list"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
@@ -125,8 +127,8 @@ at @activity closed-sessions
 rowids closed
 RIGSCRIPT
 rigAssert "the active sessions: the one at work, and the one awaiting review; the finished one is closed" "$( rigVal active ) | $( rigVal closed )" ".. $rigS1 $rigS2 | .. $rigS3"
-rigAssert "a session shows its title, the chapter after it, and its state; one with no chapter shows its title alone, and its state awaiting-review" "[$( rigVal r1 )][$( rigVal r2 )]" \
-	"[ Rig work — Writ… running   1.5M ►][ Handed … awaiting-review    40K ►]"
+rigAssert "a session shows its title, the chapter after it, and its state; one with no chapter shows its title alone, and its state parked" "[$( rigVal r1 )][$( rigVal r2 )]" \
+	"[ Rig work — Writ… running   1.5M ►][ Handed back       parked    40K ►]"
 
 echo "-- 2. the left pane of a session: the chapter in a line of its own, each agent by the word of its state alone, each word in its look --"
 rigCase pane
@@ -140,10 +142,10 @@ keys DOWN
 show s2
 RIGSCRIPT
 rigAssert "the chapter has its line, in the pane of the session that has one and in none other" "$( rigPaneHolds s1 'chapter  Writing the dispatch' ) $( rigPaneHolds s2 'chapter' )" "1 0"
-rigAssert "the agents read thinking, in-tool, waiting, awaiting-review and finished, and nothing is added to a word" \
-	"$( rigPaneHolds s1 'magic-coordinator  thinking         2026-10-12 16:57' )$( rigPaneHolds s1 'magic-tester       in-tool          2026-10-12 17:05' )$( rigPaneHolds s1 'magic-librarian    waiting          2026-10-12 17:06' )$( rigPaneHolds s1 'keeper-myx         awaiting-review  until 2026-10-12 18:00' )$( rigPaneHolds s1 'keeper-mel         finished         until 2026-10-12 18:10' )" "11111"
-rigAssert "thinking and in-tool have the look of what is well, as running has" "$( rigWordLook s1 'magic-coordinator  thinking' thinking ) $( rigWordLook s1 'magic-tester       in-tool' in-tool ) $( rigWordLook s1 'state    running' running )" "k k k"
-rigAssert "waiting and awaiting-review have the look of what to look at" "$( rigWordLook s1 'magic-librarian    waiting' waiting ) $( rigWordLook s1 'keeper-myx         awaiting-review' awaiting-review )" "W W"
+rigAssert "the agents read thinking, tool, waiting, idling, parked and finished, and nothing is added to a word" \
+	"$( rigPaneHolds s1 'magic-coordinator  thinking ' )$( rigPaneHolds s1 'magic-tester       tool ' )$( rigPaneHolds s1 'magic-librarian    waiting ' )$( rigPaneHolds s1 'magic-architect    idling ' )$( rigPaneHolds s1 'keeper-myx         parked ' )$( rigPaneHolds s1 'keeper-mel         finished ' )" "111111"
+rigAssert "thinking, tool and idling have the look of what is well, as running has" "$( rigWordLook s1 'magic-coordinator  thinking' thinking ) $( rigWordLook s1 'magic-tester       tool' tool ) $( rigWordLook s1 'magic-architect    idling' idling ) $( rigWordLook s1 'state    running' running )" "k k k k"
+rigAssert "waiting and parked have the look of what to look at" "$( rigWordLook s1 'magic-librarian    waiting' waiting ) $( rigWordLook s1 'keeper-myx         parked' parked )" "W W"
 rigAssert "finished is dim" "$( rigWordLook s1 'keeper-mel         finished' finished )" "D"
 
 echo "-- 3. the lists of agents keep those that work, those that wait and those that ended, an agent awaiting review among those that are not closed --"
@@ -157,9 +159,9 @@ rowids waiting
 at @activity closed-agents
 rowids closed
 RIGSCRIPT
-rigAssert "Active Agents: the one that thinks, the one in a tool, and the two that handed back; Waiting Agents: the one in a Wait; Closed Agents: the two that ended" \
+rigAssert "Active Agents: the one that thinks, the one in a tool, the one with nothing to do, and the two that handed back; Waiting Agents: the one in a Wait; Closed Agents: the two that ended" \
 	"$( rigVal active ) | $( rigVal waiting ) | $( rigVal closed )" \
-	".. $rigA1 $rigA2 -$rigS1.3 $rigB1 | .. $rigA3 | .. -$rigS1.4 $rigC1"
+	".. $rigA1 $rigA2 $rigA4 -$rigS1.4 $rigB1 | .. $rigA3 | .. -$rigS1.5 $rigC1"
 
 echo "-- the count --"
 if [ "$rigFailCount" -eq 0 ] ; then

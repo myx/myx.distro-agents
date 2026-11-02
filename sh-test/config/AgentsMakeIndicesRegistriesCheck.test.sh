@@ -317,8 +317,8 @@ rigBuilder 1202-harness-indices.sh
 rigAssert "the other builder builds nothing: it ends 0, writes no file, and says in one line where the build is" "$rigRc $( rigChanged "$rigBefore" ) $( rigOutBytes ) $( LC_ALL=C grep -c . "$rigTmp/err" || : ) $( rigErrN '1201-agents-indices.sh' )" "0 none 0 1 1"
 
 echo "-- 6a. the integrations run, whole, in a rig: one build step, and every index current at its end --"
-## A workspace as an installed one is: its own tooling tree, every package of the origin by link, and an empty source
-## tree, so the bundled members are the ones linked. Its own HOME; every call refuses to run outside this rig's tree.
+## A workspace as an installed one is: its own tooling tree, every package of the origin by copy, and an empty source
+## tree, so the bundled members are the ones linked, from the rig's own copy and never from the real origin. Its own HOME; every call refuses to run outside this rig's tree.
 command -v myx.common > /dev/null 2>&1 || rigRefuse "myx.common is not on PATH, and the install's source scan runs it"
 rigIntWs="$rigTmp/int/ws" ; rigIntHome="$rigTmp/int/home" ; rigIntAgents="$rigIntWs/.local/agents"
 mkdir -p "$rigIntHome" "$rigIntWs/.local/myx" "$rigIntWs/source"
@@ -340,7 +340,7 @@ done >> "$rigIntWs/.local/system-index/distro-declares.txt"
 rigIntPath="$rigTmp/bin:$( dirname "$( command -v myx.common )" ):/usr/bin:/bin:/usr/sbin:/sbin"
 rigInt(){ ## tool arguments... -- in that workspace; rc in rigRc, stderr in $rigTmp/int.err
 	rigRc=0
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigIntHome" PATH="$rigIntPath" MMDAPP="$rigIntWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigIntHome" PATH="$rigIntPath" MMDAPP="$rigIntWs" MDLT_ORIGIN="$rigIntWs/.local" MDLT_OPTION="--run-from-path $rigIntWs/.local" RIG_TMP="$rigTmp" RIG_FN="$rigIntWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

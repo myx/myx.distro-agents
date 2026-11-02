@@ -197,6 +197,8 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 	## The checkpoint the run returns to, where it holds one: `opening` first, else `armed`. Taken before the wait, for an arrival and for
 	## the keepalive alike.
 	if AgentsHarnessSnapshotHeld opening ; then idleTarget=opening ; elif AgentsHarnessSnapshotHeld armed ; then idleTarget=armed ; fi
+	## An idle wait is the run idle, whatever scans it names (S27.4).
+	AgentsHarnessActivityWrite idle
 	printf '%s\n' "${harnessDim}💤 idle-wait -- waiting on $idleShown${harnessOff}" >&2
 	## A session's wait comes back quiet at the round of its service, a little before the model's prompt cache would expire, so that the
 	## model's next turn is read from the cache (AgentsTools.MemberWait.include). Where the call named no bound and none is set for the

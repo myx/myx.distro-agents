@@ -340,25 +340,25 @@ rigStateOf(){ ## tracking name -- the last column of its first row
 }
 rigAssert "a closed status is finished" "$( rigStateOf r-finished-3 )" finished
 rigAssert "a status that failed is failed, whatever its host" "$( rigStateOf r-finished-2 )" failed
-rigAssert "another host is unknown-foreign" "$( rigStateOf r-foreign )" unknown-foreign
-rigAssert "a live spawn is running" "$( rigStateOf r-running )" running
+rigAssert "a live spawn is thinking" "$( rigStateOf r-running )" thinking
 rigLiveOf(){ ## tracking name -- the live column of its first row
 	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking && NF == 13 { print $12 ; exit ; }' "$rigRenderOut"
 }
+rigAssert "another host reads remote, and unclosed" "$( rigLiveOf r-foreign ):$( rigStateOf r-foreign )" "remote:unclosed"
 rigAssert "a live run is running by its own --session-id word, whatever else is on its line" "$( rigLiveOf r-running )" running
-rigAssert "and by its own --resume word" "$( rigLiveOf r-resumed ):$( rigStateOf r-resumed )" "running:running"
-rigAssert "a run resumed from another session and forked is running under its own id, and the session it forks from is not" "$( rigLiveOf r-forked ):$( rigLiveOf r-forked-from )" "running:no-process"
+rigAssert "and by its own --resume word" "$( rigLiveOf r-resumed ):$( rigStateOf r-resumed )" "running:thinking"
+rigAssert "a run resumed from another session and forked is running under its own id, and the session it forks from is not" "$( rigLiveOf r-forked ):$( rigLiveOf r-forked-from )" "running:gone"
 rigAssert "a founding spawn whose process is gone is not running, though another participant's command line holds its session folder path, and a joiner's spawn proxy names its session" \
-	"$( rigLiveOf r-founder ):$( rigStateOf r-founder ):$( LC_ALL=C grep -c -F -- "spawned/$rigFounder/input" "$rigTmp/ps.list" ):$( LC_ALL=C grep -c -F -- "--intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --session-id $rigFounder" "$rigTmp/ps.list" )" "no-process:unclosed:1:1"
-rigAssert "an id quoted in another run's brief, even after the words --session-id, is no run" "$( rigLiveOf r-quoted )" no-process
-rigAssert "the value is matched whole: a spawn id that is only the start of a longer one is no run" "$( rigLiveOf r-run-prefix )" no-process
-rigAssert "a live run of a CLI that is given no session word is running, by the process its record names" "$( rigLiveOf r-noword-live ):$( rigStateOf r-noword-live )" "running:running"
-rigAssert "one whose recorded process is gone is not running" "$( rigLiveOf r-noword-dead ):$( rigStateOf r-noword-dead )" "no-process:unclosed"
-rigAssert "a pid taken again by another process, started at another time, is not taken for the run" "$( rigLiveOf r-noword-reused ):$( LC_ALL=C grep -c '^9000003 ' "$rigTmp/ps.list" )" "no-process:1"
+	"$( rigLiveOf r-founder ):$( rigStateOf r-founder ):$( LC_ALL=C grep -c -F -- "spawned/$rigFounder/input" "$rigTmp/ps.list" ):$( LC_ALL=C grep -c -F -- "--intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --session-id $rigFounder" "$rigTmp/ps.list" )" "gone:unclosed:1:1"
+rigAssert "an id quoted in another run's brief, even after the words --session-id, is no run" "$( rigLiveOf r-quoted )" gone
+rigAssert "the value is matched whole: a spawn id that is only the start of a longer one is no run" "$( rigLiveOf r-run-prefix )" gone
+rigAssert "a live run of a CLI that is given no session word is running, by the process its record names" "$( rigLiveOf r-noword-live ):$( rigStateOf r-noword-live )" "running:thinking"
+rigAssert "one whose recorded process is gone is not running" "$( rigLiveOf r-noword-dead ):$( rigStateOf r-noword-dead )" "gone:unclosed"
+rigAssert "a pid taken again by another process, started at another time, is not taken for the run" "$( rigLiveOf r-noword-reused ):$( LC_ALL=C grep -c '^9000003 ' "$rigTmp/ps.list" )" "gone:1"
 rigAssert "a closed record is finished, whatever process it names" "$( rigStateOf r-noword-closed )" finished
 rigAssert "a spawn id with a backslash is matched literally" "$( rigLiveOf r-run-backslash )" running
 rigAssert "a spawn id with pattern characters is matched literally" "$( rigLiveOf r-run-meta )" running
-rigAssert "a ? in a spawn id matches only itself" "$( rigLiveOf r-run-meta-miss )" no-process
+rigAssert "a ? in a spawn id matches only itself" "$( rigLiveOf r-run-meta-miss )" gone
 rigAssert "an open ask leaves the run unclosed: a run with no live process never reads waiting (sketch 5.4)" "$( rigStateOf r-open-ask )" unclosed
 rigAssert "a received ask is unclosed" "$( rigStateOf r-closed-ask )" unclosed
 rigAssert "a blocked board item leaves it unclosed too" "$( rigStateOf r-board )" unclosed
@@ -396,7 +396,7 @@ rigDatedWhole(){ ## -- the rows of the registry file as it lies, and how many of
 	LC_ALL=C awk 'NF == 17 { whole++ } END { print NR ":" whole + 0 }' "$rigDWs/.local/agents/spawned-sessions.registry" 2> /dev/null
 }
 rigAssert "the registry file the render rebuilt has its new columns: seventeen in each of its four rows" "$( rigDatedWhole )" "4:4"
-rigAssert "the render still prints thirteen columns for each of them, live and state last" "$( LC_ALL=C awk '$1 ~ /^d-/ { rows++ ; if ( NF == 13 ) thirteen++ ; } END { print rows + 0 ":" thirteen + 0 }' "$rigTmp/dated.render" ) $( LC_ALL=C awk '$1 == "d-closed" || $1 == "d-live" { printf "%s %s %s ", $11, $12, $13 }' "$rigTmp/dated.render" )" "4:4 wsd other-host finished wsd running running "
+rigAssert "the render still prints thirteen columns for each of them, live and state last" "$( LC_ALL=C awk '$1 ~ /^d-/ { rows++ ; if ( NF == 13 ) thirteen++ ; } END { print rows + 0 ":" thirteen + 0 }' "$rigTmp/dated.render" ) $( LC_ALL=C awk '$1 == "d-closed" || $1 == "d-live" { printf "%s %s %s ", $11, $12, $13 }' "$rigTmp/dated.render" )" "4:4 wsd remote finished wsd running thinking "
 rigAssert "a reader that counts thirteen columns still finds its rows: over that file, the collect of ended asks names the session of the live run as running" \
 	"$( ( MMDAPP="$rigDWs" ; unset MDAT_DATA_ROOT ; . "$rigHere/questions/AgentsTools.PendingReplyCollect.include" ; AgentsToolsPendingReplySessionsRunning ) 2> /dev/null | LC_ALL=C tr -d ' ' ) $( rigDatedWhole )" "sd-live 4:4"
 : > "$rigTmp/ps.list"
@@ -479,7 +479,7 @@ rigAssert "a reader of the measured rows that names no count still gets sixteen 
 rigAssert "and one that names sixteen stored columns gets eighteen, the stored state and its date last" "$( rigStatedMeasured 16 )" "18 18 finished 2026-10-13_10:58_+0300"
 rigRender AgentsToolsRegistryRenderSpawnedSessions "$rigSWs" "" "$rigTmp/stated.render" agents "" "" > /dev/null
 rigAssert "the render prints thirteen columns with the state stored, live and state last, as before" \
-	"$( LC_ALL=C awk '$1 ~ /^t-/ { rows++ ; if ( NF == 13 ) thirteen++ ; } END { print rows + 0 ":" thirteen + 0 }' "$rigTmp/stated.render" ) $( LC_ALL=C awk '$1 == "t-founder" || $1 == "t-member" { printf "%s %s %s ", $11, $12, $13 }' "$rigTmp/stated.render" )$( LC_ALL=C awk 'NF == 17 { whole++ } END { print NR ":" whole + 0 }' "$rigSReg" 2> /dev/null )" "9:9 wss running running wss no-process finished 9:9"
+	"$( LC_ALL=C awk '$1 ~ /^t-/ { rows++ ; if ( NF == 13 ) thirteen++ ; } END { print rows + 0 ":" thirteen + 0 }' "$rigTmp/stated.render" ) $( LC_ALL=C awk '$1 == "t-founder" || $1 == "t-member" { printf "%s %s %s ", $11, $12, $13 }' "$rigTmp/stated.render" )$( LC_ALL=C awk 'NF == 17 { whole++ } END { print NR ":" whole + 0 }' "$rigSReg" 2> /dev/null )" "9:9 wss running thinking wss gone finished 9:9"
 rigAssert "a reader that counts thirteen columns finds its rows with the state stored: over that file, the collect of ended asks names the session of the live run as running" \
 	"$( ( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$rigHere/questions/AgentsTools.PendingReplyCollect.include" ; AgentsToolsPendingReplySessionsRunning ) 2> /dev/null | LC_ALL=C tr -s ' ' '\n' | LC_ALL=C grep -c -x -F -- 'st-run' ) $( rigStatedOf st-run )" "1 finished 2026-10-13_10:58_+0300 | finished 2026-10-13_10:58_+0300"
 : > "$rigTmp/ps.list"

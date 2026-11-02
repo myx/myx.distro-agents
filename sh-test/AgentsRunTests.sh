@@ -338,6 +338,10 @@ runDir="$runRoot/$( date -u +%Y%m%dT%H%M%SZ )"
 mkdir -p "$runRoot" 2>/dev/null
 mkdir "$runDir" 2>/dev/null || { runDir="$runDir-$$" ; mkdir -p "$runDir" ; } || { echo "⛔ ERROR: AgentsRunTests.sh: cannot create $runDir" >&2 ; exit 1 ; }
 ln -sfn "$runDir" "$runRoot/latest" 2>/dev/null || :
+## No test links a rig into source (epic S23.11): each finds a guard `ln` first on its PATH. A runner copied alone into a rig cannot reach sh-lib and runs with none.
+if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" ] ; then
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$runDir/guard-bin" && PATH="$runDir/guard-bin:$PATH"
+fi
 
 runList="$runDir/tests.list"
 AgentsRunNames "$@" | while IFS= read -r runName ; do

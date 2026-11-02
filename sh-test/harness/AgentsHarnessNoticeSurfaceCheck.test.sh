@@ -44,7 +44,7 @@
 ## check added to its `sh-test`. Nothing else is changed.
 ##
 ##   cp -Rp pristine/myx.distro-agents red/origin/myx/myx.distro-agents
-##   ln -s <real myx.distro-system> red/origin/myx/myx.distro-system        # and myx.distro-.local
+##   cp -R <real myx.distro-system> red/origin/myx/myx.distro-system        # and myx.distro-.local
 ##   cp origin/.../sh-test/harness/AgentsHarnessNoticeSurfaceCheck.test.sh red/origin/.../sh-test/
 ##   MDLT_ORIGIN=$PWD/red/origin MMDAPP=$PWD/workspace MDAT_SKILLSET_ROOT=<skillset> \
 ##     bash red/origin/myx/myx.distro-agents/sh-test/harness/AgentsHarnessNoticeSurfaceCheck.test.sh

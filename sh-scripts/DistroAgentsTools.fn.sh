@@ -575,6 +575,8 @@ DistroAgentsTools(){
 			for execFile in $( printf '%s\n' "$agentsFrontTable" | LC_ALL=C awk -F'\t' 'NF == 3 && $1 !~ /^--/ { print $1 }' | LC_ALL=C sort -u ) ; do
 				type "$execFile" > /dev/null 2>&1 || eval "$execFile(){ unset -f $execFile ; . \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$execFile.fn.sh\" ; $execFile \"\$@\" ; }"
 			done
+			## No call links a sandbox into source (epic S23.11): the guard ln is first on the call's PATH. Without a guard folder the call runs as before.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH"
 			## tested, not bare: set -e would kill the process instead of returning the status
 			( set -e ; eval "$( cat )" ) || execStatus=$?
 			if [ "$execStatus" != "0" ] ; then

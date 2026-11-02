@@ -28,6 +28,7 @@ rigRefuse(){
 mkdir -p "$MMDAPP/.local/temp" || exit 1
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsHarnessAskFormsCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-copy.include.sh" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
 cp "$rigTest/check-fixtures/harness-ask-forms.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
@@ -980,22 +981,13 @@ rigAssert "the verdict reader says RETURNED where a reply names none of the answ
 	"$( printf '1700000001.000200 | URIGOWNER | maybe\n' | MDAT_VERDICT_KIND=decision MDAT_VERDICT_OPTIONS=$'alpha\nbeta' MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | cut -f1 )" "RETURNED"
 ## A read that still answers with the word before it (UNCLASSIFIED), as a tools copy from
 ## before the change prints it: the harness takes it as RETURNED. The read is the real one,
-## reached through an origin of links whose one own file gives its verdict line the old word.
+## reached through an origin of copies whose one own file gives its verdict line the old word.
 rigOldOrigin="$rigTmp/origin-old-word"
 rigOldPackage="$rigOldOrigin/myx/myx.distro-agents"
-mkdir -p "$rigOldPackage/sh-scripts" || rigRefuse "the rig origin could not be made"
-rigLinkAll(){ ## from directory, to directory, the one name left out
-	local linkEntry
-	for linkEntry in "$1"/* ; do
-		[ -e "$linkEntry" ] || continue
-		[ "${linkEntry##*/}" != "$3" ] || continue
-		ln -s "$linkEntry" "$2/${linkEntry##*/}" || rigRefuse "the rig origin could not link ${linkEntry##*/}"
-	done
-}
-rigLinkAll "$MDLT_ORIGIN" "$rigOldOrigin" myx
-rigLinkAll "$MDLT_ORIGIN/myx" "$rigOldOrigin/myx" myx.distro-agents
-rigLinkAll "$MDLT_ORIGIN/myx/myx.distro-agents" "$rigOldPackage" sh-scripts
-rigLinkAll "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts" "$rigOldPackage/sh-scripts" DistroAgentsTools.fn.sh
+mkdir -p "$rigOldOrigin/myx" || rigRefuse "the rig origin could not be made"
+for rigOldEntry in "$MDLT_ORIGIN/myx"/myx.* ; do
+	rigCopyTree "$rigOldEntry" "$rigOldOrigin/myx/${rigOldEntry##*/}" || rigRefuse "the rig origin could not copy ${rigOldEntry##*/}"
+done
 {
 	printf '#!/usr/bin/env bash\n'
 	printf 'export MDLT_ORIGIN=%q\n' "$MDLT_ORIGIN"

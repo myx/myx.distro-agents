@@ -107,7 +107,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 		[ -f "$recordPath" ] || continue
 		case "$rowLive" in
 			running) continue ;;
-			no-process)
+			gone)
 				[ "$rowState" != waiting ] || continue
 				## A death that the control thread of its session keeps and has not settled is that thread's while it lives: it tells it and asks about it, and this pass
 				## neither closes nor tells that run (AgentsToolsSessionControlDeathHeld). With no thread alive the run is closed here as before.

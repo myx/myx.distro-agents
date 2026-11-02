@@ -287,7 +287,7 @@ printf '%s %s\n' "$rigA" "$rigALine" >> "$rigTmp/ps.list"
 rigAssert "control: the rig's process list holds the thread's own command line, with --session-id and the id of its session" "$( LC_ALL=C grep -c -F -- "$rigOp --run --session-id sess-quiet" "$rigTmp/ps.list" )" "1"
 rigRun --manager-session-list
 rigAssert "with its thread in the process list, the list of sessions shows no run of that session as running" \
-	"$rigRc:$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-quiet" { print $4 } $1 == "run" && $2 == "sess-quiet" { print $6 }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0:unclosed no-process "
+	"$rigRc:$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-quiet" { print $4 } $1 == "run" && $2 == "sess-quiet" { print $6 }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0:unclosed gone "
 rigAssert "the one rule of a live run reads nothing from the thread's command line" \
 	"$( printf '%s %s\n' "$rigQ" "$rigQLine" | ( PATH="$rigProcPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryRunWords ) | LC_ALL=C grep -c . )" "0"
 sleep 3

@@ -217,24 +217,24 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 		case "$rowAppended" in *' '*' '*' '*' '*' '*' '*) rowWorkspace="$rowWorkspace $rowAppended" ;; esac
 		if [ "$rowSpawn" = "-" ] ; then
 			## No spawn id, so there is no handle to ask about on any machine.
-			rowLive="no-spawn-id"
+			rowLive="unknown"
 		elif [ "$rowHost" = "-" ] ; then
 			## Written before the host was recorded, or by hand. Not claimed as
 			## either local or foreign, because nothing here knows which it is.
-			rowLive="host-unrecorded"
+			rowLive="unknown"
 		elif [ "$rowHost" != "$thisHost" ] ; then
 			## Another machine's session. Its process list is not reachable from
 			## here, so this is UNKNOWN and is never reported as a dead session.
-			rowLive="other-host"
+			rowLive="remote"
 		else
-			rowLive="no-process"
+			rowLive="gone"
 			! AgentsToolsRegistryLegacyRunsAs "$psText" "$rowSpawn" || rowLive="running"
 			case "$rowLive:$rowStatus" in
 				running:*|*:spawn-succeeded|*:spawn-failed|*:spawn-ended-without-close) ;;
 				*) ! AgentsToolsRegistryLegacyRecordedRun "$rowSpawn" || rowLive="running" ;;
 			esac
 		fi
-		rowState="$( AgentsToolsRegistryDeriveState "$rowStatus" "$rowLive" "$rowSession" )"
+		rowState="$( AgentsToolsRegistryDeriveState "$rowStatus" "$rowLive" "$rowSession" "$rowSpawn" )"
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
 		extendedRows="$extendedRows$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $rowState
 "
@@ -244,14 +244,14 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-spawn-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
-	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. state is running/waiting/failed/finished/unclosed/unknown-foreign -- failed and finished are read straight from status and stand regardless of live."
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. live reads running, gone (no such process here), remote (the record names another host) or unknown (it names no host or no run). state is thinking/tool/waiting/idling for a run whose live is running, else parked/failed/finished/unclosed (starting, and waiting for a gone run with an open ask, as before) -- failed and finished are read straight from status and stand regardless of live."
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
-		rowState="${registryRow##* }"
-		## running also keeps waiting rows -- a waiting agent is still in flight.
+		rowState="${registryRow##* }" ; rowLive="${registryRow% *}" ; rowLive="${rowLive##* }"
+		## running keeps the rows with a process here, and the waiting ones too -- a waiting agent is still in flight.
 		case "$filterState" in
 			"") ;;
-			running) [ "$rowState" = "running" ] || [ "$rowState" = "waiting" ] || continue ;;
+			running) [ "$rowLive" = "running" ] || [ "$rowState" = "waiting" ] || continue ;;
 			*) [ "$rowState" = "$filterState" ] || continue ;;
 		esac
 		sawRow="true"
@@ -267,6 +267,6 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 	printf '\n'
 	## Stated for the pass that reads this, because a row alone does not say what to
 	## do with it.
-	printf '%s\n\n' "Compare these rows against the board \`running/\` items before acting on either: a row whose status is still started with no live process and no open ask is state unclosed, a row running now is busy, a row on another host is unknown-foreign, and a \`running/\` item whose session appears in no row has no spawn record behind it at all."
+	printf '%s\n\n' "Compare these rows against the board \`running/\` items before acting on either: a row whose status is still started with no live process and no open ask is state unclosed, a row whose live is running is busy, a row on another host reads live remote, and a \`running/\` item whose session appears in no row has no spawn record behind it at all."
 	return 0
 }
