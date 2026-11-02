@@ -18,7 +18,8 @@
 ##      process runs as the run it would replace. `close`: the record closed, the item processed, nothing started.
 ##      `kill`: every live run of the session ended, the record of the dead run closed. What was done is told once,
 ##      to the one who answered and to the session that requested the run, and the state is what the runs say
-##      again.
+##      again. And an answer given to a run whose item already sits in processed works on it: the item goes back
+##      to review, with its reason, and the answer goes on as for review.
 ##   4. AN ANSWER THAT COULD NOT BE CARRIED OUT IS THE REVIEWER'S AGAIN: the death stays unsettled, the line of the
 ##      death keeps the failed answer with its moment and its reason, and the same reviewer is asked again, once
 ##      for each failure, with what was not carried out and why and the same four options. Nothing is tried again
@@ -592,6 +593,14 @@ mv "$rigData/board/running/item-d-done.md" "$rigData/board/processed/item-d-done
 rigAnswer d-done d-done close ; rigCarry d-done d-done
 rigAssert "close on a death whose item already sits in processed settles the death, leaves the item in processed, and names it as accepted" \
 	"$( rigHeader d-done status ):$( rigDeadSettled d-done d-done && echo settled || echo unsettled ):$( rigItemIn item-d-done ):$( rigLines 'and its item `item-d-done` is accepted' d-done )" "spawn-ended-without-close:settled:processed:DRIG00001 thread human-owner;"
+## A verdict that starts the member again on an item already accepted: the item goes back to review
+## with its reason, and the answer goes on as for review -- the return of an item in review.
+rigDeath d-proc d-proc keeper-rig human-owner
+mv "$rigData/board/running/item-d-proc.md" "$rigData/board/processed/item-d-proc.md"
+rigAnswer d-proc d-proc fresh ; rigCarry d-proc d-proc
+rigProcNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-proc.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
+rigAssert "a dead-run verdict works on an item in processed: it goes back to review with its reason, and the member is started again on it" \
+	"$( rigItemIn item-d-proc ):$( [ -n "$rigProcNew" ] && [ "$rigProcNew" != "d-proc" ] && echo new-run ):$( LC_ALL=C grep -c -F -- 'restart: new-process (a fresh start was asked for)' "$rigData/board/running/item-d-proc.md" ):$( rigDeadSettled d-proc d-proc && echo settled || echo unsettled ):$( rigDeadLine d-proc d-proc | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=fresh' )" "running:new-run:1:settled:1"
 ## The fourth answer, which ends the session: the executor is dead, two participants live. Its word is the note
 ## template's own, the first word of the fourth line of the options of the question.
 rigFourth="$( LC_ALL=C awk '$0 == "## options" { inBlock = 1 ; next } inBlock && substr( $0, 1, 3 ) == "```" { if ( ++fenceCount == 2 ) { exit } next } inBlock && fenceCount == 1 { if ( ++optionCount == 4 ) { sub( /:.*$/, "" ) ; print ; exit } }' "$rigPackage/sh-lib/templates/tooling-note.post.format.md" )"
