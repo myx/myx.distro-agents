@@ -1335,7 +1335,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   a session started and the date a state was recorded. Liveness itself is
   still measured live, never stored. Beside them are `live` (checked during
   the call, this host only) and `state`
-  (`running`/`waiting`/`finished`/`unclosed`/`unknown-foreign`). `ListAgents`
+  (`thinking`/`tool`/`waiting`/`idling` for a run with a process here, else `parked`/`finished`/`failed`/`unclosed`). `ListAgents`
   itself still prints exactly what it printed before. `live` is
   told by the spawn id. `waiting` reads the pending-replies registry instead, told by the session. An
   ask counts for the session of the run that asked it, not necessarily the
@@ -2229,7 +2229,8 @@ contracts are here.
   `groomed-from`. `--grooming-to-backlog` clears `approved-by`/`approved-at`. `processed-at`, not
   `groomed-at`, answers how long an item has been processed.
 - **`board-review` is entered only by the spawn proxy** (`AgentsToolsSpawnProxyCloseDispatch` create mode
-  passes `review`, with `review-by` only from an explicit `--review-by`). An item's reviewer is its
+  passes `review`, with `review-by` only from an explicit `--review-by`), and by a dead run's `resume` or
+  `fresh` on an item in `processed`, which moves it back to `review` with its reason first. An item's reviewer is its
   `review-by`. Unset, it is its run's `reports-to` (`AgentsToolsItemReviewer`). A reviewer of `none`,
   given or by default, means no review: the item closes straight to `processed`, with `review: none`
   in its Decisions. Entering review, where the reviewer is `human-owner` or `user-<account>`,
@@ -3599,3 +3600,4 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **A context refusal withholds tool results.** The harness records each tool result of a leg. A refusal for length withholds the results of the round that overflowed, and a refused summarise round is asked again once with every result withheld. A withheld result is a notice that the call ran.
 - **A duty's start does not wait for Slack news.** The spawner marks its real run of a scan `MDAT_SCAN_AT_START=1`, and the duty scan then reads Slack once with a one-second window. A Wait's own scan keeps `WAIT_COLLECT_SECONDS`.
 - **The coordinator reads epics through the tooling.** `AgentDispatcherTools --epic-read <file> [--feature <id>]` and `--epic-list <folder>` serve a path under a `todo-sketchpad` folder, with no `..` part, to the coordinator or to no member.
+- **A run's words are one word each (S27.4).** The `live` column reads `running`, `gone`, `remote` (the record names another host) or `unknown` (it names no host or no run). The `state` column reads `thinking`, `tool`, `waiting`, `idling`, `parked`, `finished`, `failed` or `unclosed`, plus `starting` for a run its start has not yet shown. A run on another host with an open record reads `unclosed`. `AgentsToolsRegistryMeasureRows` derives both, and `AgentsToolsRegistryDeriveState`, `AgentsToolsRegistryDeriveStateFromSet` and the legacy fixture of the diff check must give the same words. `idling` is a Wait whose sources are all the floor: `AgentsWaitActivityIdle` rewrites the run's `tool Wait` mark as `idle`, and the harness's idle-wait writes `idle`. A session's own state words (`running`, `waiting`, `awaiting-review`, `unknown-foreign`) are the console's and stay. The `ListAgents` filter `running` keeps every row whose `live` is `running`, and the `waiting` ones.
