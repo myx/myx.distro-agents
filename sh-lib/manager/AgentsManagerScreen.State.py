@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.State.py -- the declaration of the dialogs and of the actions, and the state of the screen (ManagerState).
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -28,174 +28,6 @@ CONTROL_KINDS = {
     ## a button of the dialog
     "button": {"focus": True, "keys": (("LEFT/RIGHT", "Buttons"),)},
 }
-## The dialogs, each declared once by its name. "title": what stands in its top border,
-## where the one that opens it gives no other. "controls": its controls from the top, each
-## with its name, its kind of CONTROL_KINDS and, for one that is not a text, its "label",
-## the line above it. "buttons": its buttons, the name of each and what it shows as between
-## brackets; the first is the one Enter presses, and one named "cancel" does what Esc does.
-## "feeds": the command of COMMANDS it asks for, or the commands, whose operations its
-## handler calls (DIALOG_HANDLERS); a dialog with none only says something. "first": the
-## control the keys are on when it opens, where that is not its first one. "reads": the entries of
-## READS that are read while it is open, since it offers what they give (DIALOG_FILLS); a
-## name there that holds {kind} is the entry of the kind of what the dialog was opened on,
-## its "target", and that one is asked by the id of the target (dialogReads).
-## A control may be declared "required": what the dialog says, and does not do, while that
-## control holds nothing, a field only blanks, boxes none checked, or, with "exactly", while
-## a field does not hold that very word. The engine holds it for every dialog (dialogMissing):
-## no handler is called, the buttons that would act are greyed, and Enter presses none.
-## A control of options may say under "empty" what stands in it while it has none, and
-## under "digits" that a digit typed while the keys are on it picks the option whose id is
-## that digit. What a
-## dialog cannot know before it is opened, a text, the options of a list, comes from the
-## one that opens it (openDialog). One engine draws them all and gives them the keys, in every style: adding
-## a dialog is adding an entry here and, where it does something, its handler.
-DIALOGS = {
-    ## what the screen refuses, and what an operation answered when it failed, whole; "level":
-    ## what it is of, which a style may draw it by (STYLES "levels"), "bad" what was refused
-    ## or failed, and the one who opens it may say another (tell)
-    "message": {"title": "Message", "controls": ({"name": "text", "kind": "text"},),
-                "buttons": (("ok", "OK"),), "level": "bad"},
-    ## why something cannot be done with what is selected, set out by its facts
-    "information": {"title": "Information", "controls": ({"name": "text", "kind": "text"},),
-                    "buttons": (("ok", "OK"),), "level": "bad"},
-    ## the members a routine that any member executes is started with, in one session, and
-    ## what that session is to work on
-    "members": {"title": "Start the routine with members", "feeds": "launch", "reads": ("list:team",),
-                "controls": ({"name": "about", "kind": "text"},
-                             {"name": "members", "kind": "checks", "label": "Members",
-                              "empty": "the members are being read",
-                              "required": "no member is checked: check one at least, with Space"},
-                             {"name": "task", "kind": "input", "label": "Comments/Scope"}),
-                "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## the confirmation of a kill: exactly what will be killed, dismissed and closed, as
-    ## the plan of that kill gives it, and the word that confirms it, typed whole
-    "kill": {"title": "Kill", "feeds": "kill", "reads": ("plan:kill:{kind}",),
-             "controls": ({"name": "about", "kind": "text"},
-                          {"name": "word", "kind": "input", "label": "Type %s to kill" % KILL_WORD, "exactly": KILL_WORD,
-                           "required": "nothing is killed: the word typed is not %s" % KILL_WORD}),
-             "buttons": (("kill", "Kill"), ("cancel", "Cancel"))},
-    ## the same confirmation where nothing of the session lives: it is closed, and its
-    ## title, its button and its word say so (fillKill)
-    "close": {"title": "Close", "feeds": "kill", "reads": ("plan:kill:{kind}",),
-              "controls": ({"name": "about", "kind": "text"},
-                           {"name": "word", "kind": "input", "label": "Type %s to close" % KILL_WORD, "exactly": KILL_WORD,
-                            "required": "nothing is closed: the word typed is not %s" % KILL_WORD}),
-              "buttons": (("kill", "Close"), ("cancel", "Cancel"))},
-    ## the start of a routine the spawner starts as its executors: what its session is to
-    ## work on, and the name of that session
-    "routine": {"title": "Start the routine", "feeds": "launch",
-                "controls": ({"name": "about", "kind": "text"},
-                             {"name": "task", "kind": "input", "label": "Comments/Scope"},
-                             {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
-                "buttons": (("start", "Start"), ("cancel", "Cancel"))},
-    ## a prompt and who runs it: the free prompt of `Launchpad`, and the start of one
-    ## member; the keys are on the prompt first
-    "prompt": {"title": "Free prompt", "feeds": ("prompt", "start"), "reads": ("list:team",), "first": "prompt",
-               "controls": ({"name": "about", "kind": "text"},
-                            {"name": "who", "kind": "list", "label": "Who runs it"},
-                            {"name": "prompt", "kind": "area", "label": "Prompt",
-                             "required": "nothing is started: the prompt is empty"},
-                            {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
-               "buttons": (("start", "Start"), ("cancel", "Cancel"))},
-    ## the answer to a pending question that has answers of its own: the question as it was
-    ## posted, its answers with what each does, and words to go with the one picked
-    "answer": {"title": "Answer", "feeds": "answer", "first": "answers",
-               "controls": ({"name": "about", "kind": "text"},
-                            {"name": "answers", "kind": "list", "label": "Answers", "digits": True},
-                            {"name": "words", "kind": "input", "label": "Words to go with it, or none"}),
-               "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
-    ## the answer to a question that takes several of its answers (its form `many`): the same, with
-    ## boxes in place of the list, and at least one checked
-    "answer-many": {"title": "Answer", "feeds": "answer", "first": "answers",
-                    "controls": ({"name": "about", "kind": "text"},
-                                 {"name": "answers", "kind": "checks", "label": "Answers",
-                                  "required": "nothing is answered: no answer is checked: check one at least, with Space"},
-                                 {"name": "words", "kind": "input", "label": "Words to go with them, or none"}),
-                    "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
-    ## the answer to a plain question: the words typed are its answer
-    "reply": {"title": "Answer", "feeds": "answer",
-              "controls": ({"name": "about", "kind": "text"},
-                           {"name": "words", "kind": "input", "label": "The answer",
-                            "required": "nothing is answered: the answer is empty"}),
-              "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
-    ## the confirmation of a reject, and of a dismissal, of a pending question
-    "reject": {"title": "Reject", "feeds": "reject",
-               "controls": ({"name": "about", "kind": "text"},
-                            {"name": "words", "kind": "input", "label": "Words to go with it, or none"}),
-               "buttons": (("reject", "Reject"), ("cancel", "Cancel"))},
-    "dismiss": {"title": "Dismiss", "feeds": "dismiss",
-                "controls": ({"name": "about", "kind": "text"},
-                             {"name": "words", "kind": "input", "label": "Reason, or none"}),
-                "buttons": (("dismiss", "Dismiss"), ("cancel", "Cancel"))},
-    ## the confirmation of an approving answer (F6.10): an allow of a permission, the yes of a
-    ## confirmation; only its OK gives the answer
-    "confirm": {"title": "Confirm", "feeds": "answer",
-                "controls": ({"name": "about", "kind": "text"},),
-                "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## an operation refused for the authority it needs (F6.10): the same operation again, asking
-    ## the one who holds it, and waiting for the answer, or returning at once with the request made
-    "escalate": {"title": "Authority", "feeds": ("answer", "reject", "dismiss", "kill"),
-                 "controls": ({"name": "about", "kind": "text"},),
-                 "buttons": (("wait", "Request and wait"), ("enqueue", "Enqueue"), ("cancel", "Cancel"))},
-    ## a public key of this server whole, to copy: its line, read while the box is open
-    "keyline": {"title": "Public key", "reads": ("full:{kind}",),
-                "controls": ({"name": "text", "kind": "text"},),
-                "buttons": (("ok", "OK"),)},
-    ## the confirmation of a cleanup of `Team Data`: what will run, and that it runs at once
-    "cleanup": {"title": "Run", "feeds": "cleanup",
-                "controls": ({"name": "about", "kind": "text"},),
-                "buttons": (("run", "Run"), ("cancel", "Cancel"))},
-    ## the confirmation of a command of a workspace: what will run, where, and how
-    "placecommand": {"title": "Run", "feeds": "placecommand",
-                     "controls": ({"name": "about", "kind": "text"},),
-                     "buttons": (("run", "Run"), ("cancel", "Cancel"))},
-    ## the big dialog that runs an operation and follows what it writes, both its streams
-    ## in the order they came, to the end unless it is scrolled up ("follow": its lines are
-    ## the end of the text while nothing scrolled them, "raw": each line as it was written);
-    ## then the result in a line of its own. "big": it takes most of the screen, and its
-    ## first text the room the rest leaves. The one way for any command whose output is to
-    ## be watched (runFollowed); its buttons are its handler's while it runs (OUTPUT_SAYS).
-    "output": {"title": "Output", "big": True,
-               "controls": ({"name": "output", "kind": "text", "raw": True, "follow": True},
-                            {"name": "result", "kind": "text"}),
-               "buttons": (("stop", "Stop"),)},
-    ## a setting that offers choices: what it is now, and its choices, one of them chosen
-    "setting": {"title": "Setting", "feeds": "setting", "first": "choice",
-                "controls": ({"name": "about", "kind": "text"},
-                             {"name": "choice", "kind": "radios", "label": "Choices"}),
-                "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## a tier of the team or of a member: the preset and the effort, one of each chosen, saved as one value, `<preset>[:<effort>]`
-    "setting-tier": {"title": "Setting", "feeds": "setting", "first": "preset",
-                     "controls": ({"name": "about", "kind": "text"},
-                                  {"name": "preset", "kind": "radios", "label": "Preset"},
-                                  {"name": "effort", "kind": "radios", "label": "Effort"}),
-                     "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## the style of the interface: what it is now, the style and the colours, one of each chosen
-    "setting-style": {"title": "Setting", "feeds": "setting", "first": "style",
-                      "controls": ({"name": "about", "kind": "text"},
-                                   {"name": "style", "kind": "radios", "label": "Style"},
-                                   {"name": "colours", "kind": "radios", "label": "Colours"}),
-                      "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## a setting that is a number: what it is now, and the number typed, which the one
-    ## that opens it labels with the range of the row (askSetting)
-    "setting-number": {"title": "Setting", "feeds": "setting", "first": "number",
-                       "controls": ({"name": "about", "kind": "text"},
-                                    {"name": "number", "kind": "input", "label": "A whole number",
-                                     "required": "nothing is saved: no number is typed"}),
-                       "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## a setting of any other kind: a short text, typed
-    "setting-text": {"title": "Setting", "feeds": "setting", "first": "words",
-                     "controls": ({"name": "about", "kind": "text"},
-                                  {"name": "words", "kind": "input", "label": "Its value",
-                                   "required": "nothing is saved: nothing is typed"}),
-                     "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## a credential: what it is, its value in the form of a credential in a field of a short text, and the
-    ## button that reads it whole, which Ctrl-R presses (DIALOG_KEYS), for as long as the dialog is open
-    "setting-credential": {"title": "Setting", "feeds": "setting", "first": "words", "reads": ("full:{kind}",),
-                           "controls": ({"name": "about", "kind": "text"},
-                                        {"name": "words", "kind": "input", "label": "Its value"}),
-                           "buttons": (("ok", "OK"), ("reveal", "Reveal"), ("cancel", "Cancel"))},
-}
 ## The handler of each dialog that does something: handler(state, dialog, button) is called
 ## when a button other than "cancel" is pressed. It gives nothing, and the dialog closes;
 ## or it gives what it refuses, which then stands in the dialog, and the dialog stays open.
@@ -210,10 +42,6 @@ def readingDialogs(*names):
     READING_DIALOGS = READING_DIALOGS + tuple(names)
 
 
-DIALOG_HANDLERS = {}
-## What fills a dialog from what was read, while it is open: fill(state, dialog), called at
-## every turn of the screen. Set where each is defined.
-DIALOG_FILLS = {}
 ## What Esc does in a dialog where it does more than close it: escape(state, dialog) gives
 ## True where it did what Esc does there, and the dialog stays. Set where each is defined.
 DIALOG_ESCAPES = {}
@@ -239,52 +67,11 @@ DIALOG_TAIL = 1
 ## a row its command applies to (commandRefusal): what does not apply says its one line in
 ## the status line and reaches no handler. None here: the task of
 ## that action has not built it.
-ACTION_HANDLERS = {
-    ## asks for the typed word, then kills the selected session or agent: askKill, set where it is defined
-    "kill": None,
-    ## starts the control thread of the selected session again, asking nothing first: askControl, set where it is defined
-    "control": None,
-    "pause": None,
-    "resume": None,
-    "stop": None,
-    "restart": None,
-    ## Enter on a routine of `Launchpad`, and on its free prompt: askLaunch and askPrompt, set where they are defined
-    "launch": None,
-    "prompt": None,
-    ## Enter and Right on a routine of `Launchpad` that cannot be started: askUnstarted, set where it is defined
-    "unstarted": None,
-    ## starts the selected team member with a prompt: askStart, set where it is defined
-    "start": None,
-    ## shows the keys of the screen, from COMMANDS: askHelp, set where it is defined
-    "help": None,
-    ## a pending question: its answer, its reject, its dismissal, each asked in a dialog, and
-    ## the link of its message in a box: askAnswer, askReject, askDismiss, askLink, set where they are defined
-    "answer": None,
-    "reject": None,
-    "dismiss": None,
-    "link": None,
-    ## Enter on a setting, inside a subject: the dialog of its kind: askSetting, set where it is defined
-    "setting": None,
-    ## Enter on a row of `Consoles`: it is started with the whole terminal: askRun, set where it is defined
-    "run": None,
-    ## the whole public line of the selected key of the server, in a box: askKeyLine, set where it is defined
-    "line": None,
-    ## Enter on a cleanup of `Team Data`: asked first, then run in the big output dialog: askCleanup, set where it is defined
-    "cleanup": None,
-    ## Enter on a command of a workspace in `Locations (Places)`: asked first, then run in the big output dialog,
-    ## or with the whole terminal where it runs so: askPlaceCommand, set where it is defined
-    "placecommand": None,
-}
-## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
-## An action with no entry acts on every row COMMANDS gives it.
 ACTION_FITS = {}
 ## Why an action does not act on a row ACTION_FITS refuses: refusal(state, row) gives the
 ## words, set where it is defined. They stand in the status line, after the name of the
 ## command, when it is tried there. An action with no entry has the engine's own words.
 ACTION_REFUSALS = {}
-## What an action answered, for the actions an app feature adds: answer(text, about, width) gives what the call was (for its failure's title), the lines of
-## the left pane and the line of the status line. Set where each is defined.
-ACTION_ANSWERS = {}
 
 
 ## Everything the screen knows between two keys. Nothing here is the terminal's.

@@ -100,6 +100,12 @@ AgentDispatcherToolsMoved(){
 
 AgentDispatcherTools(){
 	local MDSC_CMD='AgentDispatcherTools'
+	## The family's context, here and in this file's arm, for a console that calls this function.
+	if [ -z "$MDLT_ORIGIN" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
+		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext --run-from-detect
+		DistroAgentsContext --distro-path-auto
+	fi
 	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	## A spawn names its place before the common options take --select-workspace out and run the call again in it.
@@ -167,8 +173,17 @@ AgentDispatcherTools(){
 			return $?
 		;;
 
-		## The epic file's own edit (W1): --set-status and --add-settled, so no routine edits an epic by hand.
-		--epic-update)
+		## [--workspace <path>]...: the supervisor's scan, one line a finding: open asks to the coordinator or the owner, dead records, finished runs, runs with no plan.
+		--supervise-scan)
+			shift
+			AgentsToolsSurfaceCaller --supervise-scan read || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseScan.include"
+			AgentsToolsSuperviseScan "$@"
+			return $?
+		;;
+
+		## The epic file's own edit (W1): --set-status and --add-settled, so no routine edits an epic by hand; and its two reads (S23.8), --epic-read and --epic-list.
+		--epic-update|--epic-read|--epic-list)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
 			return $?
 		;;

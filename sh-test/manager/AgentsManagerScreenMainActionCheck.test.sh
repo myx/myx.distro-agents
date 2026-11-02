@@ -7,7 +7,7 @@
 ## their own checks (Git Settings in AgentsManagerScreenWizardsCheck). Offline.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 [ -f "$rigScreen" ] || { echo "⛔ ERROR: the screen is not at the origin: $rigScreen -- refusing to report a result" >&2 ; exit 1 ; }
 rigPython="$( command -v python3 )" || { echo "⛔ ERROR: no python3 on PATH -- refusing to report a result" >&2 ; exit 1 ; }
 rigPassCount=0

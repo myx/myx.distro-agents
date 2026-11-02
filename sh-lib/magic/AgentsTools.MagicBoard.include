@@ -13,14 +13,14 @@
 ## Moves one board item to processed with its receipt and processed-at stamps, then releases
 ## its spawned child. Acts on the board of the context it is called in: the caller's own
 ## workspace, never the member's -- the review accept moves the spawner's item.
-AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <v>] [--upsert-from-stdin|--edit-script-from-stdin:<x>|--edit-patch-from-stdin]
+AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <v>] [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<x>|--edit-patch-from-stdin]
 	local MDSC_CMD='DistroAgentsTools'
 	local callingMember="$1"
 	shift || true
 	local itemName="$1"
 	shift || true
 	if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --move-to-processed: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+		echo "⛔ ERROR: $MDSC_CMD --move-to-processed: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 		set +e ; return 1
 	fi
 	local fromStateArg=""
@@ -29,7 +29,7 @@ AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<st
 		case "$1" in
 			--from-state:*) fromStateArg="$1" ; shift ;;
 			--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-			--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+			--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 				passthrough+=( "$1" ) ; shift
 			;;
 			*)
@@ -109,7 +109,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --move-to-pending: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --move-to-pending: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -118,7 +118,7 @@ case "$1" in
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
@@ -152,7 +152,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --move-to-blocked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --move-to-blocked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -161,7 +161,7 @@ case "$1" in
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
@@ -205,7 +205,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --move-to-backlog: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --move-to-backlog: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -214,7 +214,7 @@ case "$1" in
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
@@ -248,7 +248,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --move-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --move-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -257,7 +257,7 @@ case "$1" in
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
@@ -296,7 +296,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --create-running: syntax is <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			echo "⛔ ERROR: $MDSC_CMD --create-running: syntax is <team-member> <item-filename> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 			set +e ; return 1
 		fi
 		local bodyMode=""
@@ -307,7 +307,7 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD --create-running: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --move-to-* to move an item that already exists." >&2
 					set +e ; return 1
 				;;
-				--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					bodyMode="$1"
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -322,7 +322,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$bodyMode" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --create-running: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward" >&2
+			echo "⛔ ERROR: $MDSC_CMD --create-running: one body-input mode is required on create (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward" >&2
 			set +e ; return 1
 		fi
 		mkdir -p "$MDAT_DATA_ROOT/board/running" || {

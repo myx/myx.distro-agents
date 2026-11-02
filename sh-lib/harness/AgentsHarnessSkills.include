@@ -193,7 +193,7 @@ AgentsHarnessPrefetchBuild(){
 	## The routine's text too, where the spawn record asks for the prefix of the routine (`cache-prefix: routine`,
 	## F10.7). A subtask that inherits the parent's prefix names the routine the prefix mixes as `prefix-routine`, not
 	## `routine` -- the two keep a run's own routine apart from the one its cached prefix was built of. A work-duty is
-	## `cache-prefix: armed` and carries its routine in its dispatch instead (AgentsTools.WorkDutyDispatch.include).
+	## `cache-prefix: extended` and carries its routine in its dispatch instead (AgentsTools.WorkDutyDispatch.include).
 	pfRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$MDAT_SPAWN_SESSION_ID.spawn.md"
 	if [ -f "$pfRecord" ] ; then
 		pfPolicy="$( AgentsHarnessPrefetchRecordKey "$pfRecord" cache-prefix )" ; pfRoutine="$( AgentsHarnessPrefetchRecordKey "$pfRecord" prefix-routine )"

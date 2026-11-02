@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on Markdown in the left window of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather
+## Behavioural check on Markdown in the left window of the manager screen (sh-lib/manager/LocalManagerScreen.py), run rather
 ## than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture.
@@ -19,7 +19,7 @@
 ## Reconciled for F11.5: Team Members and Team Data are put at with `at @team` and `at @teamdata`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -180,7 +180,7 @@ rigAssert "a text that is no Markdown shows as it is" "$( rigHolds txt '│# not
 rigAssert "a text longer than the bound is rendered that far, the rest as it is under a line that says so" "$( rigHolds big '│The first 2000 lines are rendered; the 2 after them' ) $( rigHolds big '│follow as they are.' ) $( rigHolds big '│# after the bound' ) $( rigHolds big '│**raw**' )" "1 1 1 1"
 rigOne="$( "$rigPython" -I -B - "$rigScreen" "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common" "$rigTmp/files/rows.--manager-team-member-files keeper-rig SKILL.md" <<'RIGPY' 2>&1
 import importlib.util, os, subprocess, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.setStyle("tv-system")

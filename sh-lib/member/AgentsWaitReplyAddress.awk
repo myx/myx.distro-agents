@@ -35,6 +35,8 @@ function serviceOf(kind,   word) {
 }
 
 # A source named as a target, `<channel>:<ts>`, with the `:conversation` form and a `client:` marker taken off first.
+# A source that names a bare channel -- `<channel>`, or an alias the caller resolved and gave as `-v conv=` -- is that
+# conversation for every message in it: each answers at its own ts there, a reply in the thread it names.
 function fromTarget(target,   rest, at) {
 	rest = target ;
 	if (index(rest, kind ":") == 1) { rest = substr(rest, length(kind) + 2) ; }
@@ -42,7 +44,7 @@ function fromTarget(target,   rest, at) {
 	if (rest ~ /^client:/) { rest = substr(rest, 8) ; }
 	at = 0 ;
 	for (i = length(rest) ; i >= 1 ; i--) { if (substr(rest, i, 1) == ":") { at = i ; break ; } }
-	if (at == 0) { conv = "" ; thread = "" ; return ; }
+	if (at == 0) { if (conv == "" && rest ~ /^[CDG][A-Z0-9]+$/) { conv = rest ; } thread = "" ; return ; }
 	conv = substr(rest, 1, at - 1) ;
 	thread = (kind == "slack") ? substr(rest, at + 1) : "" ;
 }

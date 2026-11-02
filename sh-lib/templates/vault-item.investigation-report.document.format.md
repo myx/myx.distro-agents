@@ -3,11 +3,11 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # vault-item.investigation-report document — the shape of one investigation report
 
-Normative contract: `vault-item.investigation-report.contract.format.md` (the skillset). Where it and this skeleton disagree, the contract wins. This file carries the skeleton and states the slots; no writer fills it yet.
+Normative contract: `vault-item.investigation-report.contract.format.md` (the skillset). Where it and this skeleton disagree, the contract wins. This file carries the skeleton and states the slots; `--upsert-vault-investigation-report` writes the document.
 
 # Summary
 
-An investigation report (IVR): the result of one investigation, kept as a standing document. The running investigation is its board item; this is what it established.
+An investigation report: the result of one investigation, kept as a standing document. The running investigation is its board item; this is what it established.
 
 # Skeleton
 
@@ -15,7 +15,7 @@ An investigation report (IVR): the result of one investigation, kept as a standi
 ```
 ---
 document-contract: vault-item.investigation-report
-type: ivr
+type: investigation
 from: {{from}}
 date: {{date}}
 status: {{status}}

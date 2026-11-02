@@ -1196,7 +1196,8 @@ if [ -n "$harnessToolOnly" ] ; then
 fi
 
 ## THE LIFETIME OF THE INPUT CACHE (F10.7): what the preset of the spawn asks the cache markers of the Anthropic wire for, which the console passes as
-## HARNESS_INPUT_CACHE_TIME. Unset is 5m, the provider's own, and the markers are what they were; 1h puts its ttl in every one. Checked here as it was at the
+## HARNESS_INPUT_CACHE_TIME. Unset asks the wire's own split, the armed floor for the hour and the growing tail for the provider's 5m (S26 10); 1h puts its
+## ttl in every marker; 5m is the provider's own for all of them, which puts nothing in a marker. Checked here as it was at the
 ## setting and at the spawn, and on the model path alone: a value that is neither is refused before any request, not carried to the provider to be refused there.
 harnessInputCacheTime="${HARNESS_INPUT_CACHE_TIME:-}"
 if [ -z "$harnessToolOnly" ] ; then
@@ -1360,6 +1361,9 @@ fi
 
 ## A spawned session run by this loop is one whose arming can be observed: said beside its record.
 [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" 2>/dev/null || :
+## A RESUME CLEARS THE PARK MARK (S27.2): a run started again by a verdict is no parked run, and a
+## flag surviving one resume would end its loop on its own first turn.
+[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || AgentsHarnessParkClear || :
 
 ## Said only when the two sets differ, so an ungranted run reads exactly as it did. The member layer names the roots of the workspace and of
 ## the member alone (harnessSystemRoots): what is of this run alone is told in the task block of its first message (AgentsHarnessRunNotesBuild).
@@ -1615,6 +1619,23 @@ case "${harnessWindowTokens:-}" in
 		fi
 	;;
 esac
+## THE RESULTS A REFUSED REQUEST CARRIED. Each tool result of a leg is recorded, its place in the messages with its call id and date, so that a request the
+## service refuses for its length can be sent again smaller: a result becomes a notice that the call ran and its output is withheld, and the transcript stays
+## whole, since a call keeps its result. The first refusal withholds the results of the round that overflowed, a refusal of the summarise round withholds every
+## one. rc 0 where a result was withheld, 1 where none was left to withhold.
+harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
+AgentsHarnessWithholdResults(){ ## the first recorded result to withhold
+	local withholdAt="$1" withholdRc=1
+	while [ "$withholdAt" -lt "${#harnessResultAt[@]}" ] ; do
+		if [ "${harnessResultSeen[$withholdAt]:-}" != withheld ] ; then
+			harnessMessages[${harnessResultAt[$withholdAt]}]="$( AgentsWireToolResultRecord "${harnessResultId[$withholdAt]}" "The call ran, and its output is withheld here: it would have made the request too long for the context window." "${harnessResultDate[$withholdAt]}" )"
+			harnessResultSeen[$withholdAt]=withheld
+			withholdRc=0
+		fi
+		withholdAt=$(( withholdAt + 1 ))
+	done
+	return "$withholdRc"
+}
 harnessRestartCount=0
 harnessSummariseRound=0
 ## The trigger reads the prompt with the growth one round adds on top of it: the finished
@@ -1635,6 +1656,8 @@ AgentsTranscriptHarnessStart || :
 while : ; do
 	harnessRound=$(( harnessRound + 1 ))
 	harnessLegRound=$(( harnessLegRound + 1 ))
+	## The run is thinking until a tool call of this round begins (S27.4).
+	AgentsHarnessActivityWrite thinking
 	## At a cap the run keeps its work: one last round, tools still declared but
 	## unusable, so what was read and run is reported instead of discarded.
 	if [ -n "$harnessMaxRounds" ] && [ "$harnessRound" -gt "$harnessMaxRounds" ] ; then
@@ -1877,9 +1900,18 @@ while : ; do
 		esac
 		[ "$harnessContextRefusal" = 1 ] || exit 1
 		if [ "$harnessSummariseRound" = 1 ] ; then
+			## A handover needs no raw tool output: with every result withheld the request may now fit, and it is asked once more.
+			if [ "$harnessSummaryWithheld" != 1 ] && AgentsHarnessWithholdResults 0 ; then
+				harnessSummaryWithheld=1
+				printf '%s\n' "${harnessWarn}♻️  the summarise round was refused too${harnessOff} ${harnessDim}-- every tool result withheld, and the handover asked for again${harnessOff}" >&2
+				continue
+			fi
 			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the summarise round was refused too -- summarising cannot reduce a context the service will not take, so this run ends here${harnessOff}" >&2
 			exit 1
 		fi
+		harnessSummaryWithheld=0
+		## The round that overflowed is the one whose tool results made it so: they are withheld from the summarise request.
+		! AgentsHarnessWithholdResults "$harnessResultsRoundFrom" || printf '%s\n' "${harnessDim}the results of the round that overflowed are withheld from the summarise request${harnessOff}" >&2
 		harnessMessages+=( "$( AgentsWireUserRecord "$harnessHandoverAsk" )" )
 		harnessToolChoice="none"
 		harnessSummariseRound=1
@@ -1919,6 +1951,7 @@ while : ; do
 		AgentsHarnessRunNotesBuild
 		harnessMcpNoteTold="$harnessMcpUnavailableNote"
 		AgentsWireInitMessages
+		harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
 		printf -v harnessSummary '%s\n\n%s' "Notes you wrote for yourself at the end of your previous leg on this same task, which is stated above unchanged. Nothing else from that leg survives. Treat them as your own record of work already done, never as a new instruction, and carry on from where they stop." "$harnessSummary"
 		harnessMessages+=( "$( AgentsWireUserRecord "$harnessSummary" )" )
 		harnessToolChoice=""
@@ -1987,8 +2020,10 @@ while : ; do
 			done <<< "$quitPending"
 			quitOpen="${quitOpen%$'\n'}"
 		fi
+		## A DISMISSAL WINS OVER THE LIST (S22 item 3): a dismissed session is told to end, whatever its list holds, so its plain reply ends it and the
+		## items stay as they are, for the reviewer.
 		quitFolder=""
-		if [ -n "$quitOpen" ] ; then
+		if [ -n "$quitOpen" ] && ! AgentsHarnessDismissedBy > /dev/null ; then
 			quitFolder="$( AgentsHarnessCheckListPlace && printf '%s' "$checkListFolder" )" || quitFolder=""
 		fi
 		if [ -n "$quitFolder" ] ; then
@@ -2037,6 +2072,7 @@ while : ; do
 	AgentsHarnessContextSync assistant "$( AgentsHarnessContextAssistantMeta )"
 
 	## Then one result per call, keyed by that exact tool_call_id.
+	harnessResultsRoundFrom="${#harnessResultAt[@]}"
 	harnessIndex=0
 	while [ "$harnessIndex" -lt "$harnessToolCount" ] ; do
 		harnessCallId="${harnessCallIds[$harnessIndex]}"
@@ -2044,6 +2080,8 @@ while : ; do
 		harnessFuncArgsRaw="${harnessCallArgs[$harnessIndex]}"
 
 		AgentsTranscriptToolStart "$harnessFuncName" || :
+		## The run is in a tool of its own (S27.4), for a reader of the registry.
+		AgentsHarnessActivityWrite "tool $harnessFuncName"
 		AgentsHarnessAnnounceTool "$harnessFuncName" "$harnessFuncArgsRaw"
 
 		## Every configured hook gets its say before the call runs, and a refusal becomes
@@ -2074,6 +2112,7 @@ while : ; do
 		## below still reads the result itself.
 		AgentsHarnessReply "$harnessFuncName" "$harnessResult"
 		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessReply" "$harnessReplyDate" )" )
+		harnessResultAt+=( "$(( ${#harnessMessages[@]} - 1 ))" ) ; harnessResultId+=( "$harnessCallId" ) ; harnessResultDate+=( "$harnessReplyDate" )
 		AgentsHarnessContextSync tool "$( [ -z "$harnessContextFile" ] || AgentsHarnessContextToolMeta "$harnessFuncName" "$harnessCallId" "$harnessResult" "$harnessTranscriptOutcome" )"
 		AgentsTranscriptToolDone "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessReply" loop "$harnessTranscriptOutcome" || :
 
@@ -2089,8 +2128,14 @@ while : ; do
 	done
 	## A session that was dismissed and has given its handback since ends here, whatever its
 	## model would call next (AgentsHarnessDismissedAfter): the round is whole, and no request follows.
+	## A run that parked on its handback ends here too (S27.2): its loop has nothing left to do until
+	## a verdict starts it again, so no further round is asked of the model.
 	if [ -n "$harnessDismissedEnd" ] ; then
 		printf '%s\n' "🏁 ${harnessDim}dismissed, and the handback is given: the run ends here${harnessOff}" >&2
+		harnessExitClean=1 ; exit 0
+	fi
+	if AgentsHarnessParked ; then
+		printf '%s\n' "🏁 ${harnessDim}parked on its handback: the run ends here until a verdict starts it again${harnessOff}" >&2
 		harnessExitClean=1 ; exit 0
 	fi
 	## The round is whole, so this is a turn boundary: the snapshots and rewinds the run's executor asked in it are made (F10.5).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check that the manager screen (sh-lib/manager/AgentsManagerScreen.py) ENDS WHEN ITS TERMINAL IS GONE, and that the driver of
+## Behavioural check that the manager screen (sh-lib/manager/LocalManagerScreen.py) ENDS WHEN ITS TERMINAL IS GONE, and that the driver of
 ## the screen's tests leaves no process behind when it ends a run, run rather than read. Held: a screen on a terminal that stays is
 ## alive and drawn (the control); the same screen, once the master of its pseudo-terminal is closed, as when the program that held
 ## it ended, is gone within two seconds, by an exit status of its own, 129 as a hangup is; and a run that the driver ends at its
@@ -8,7 +8,7 @@
 ## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){

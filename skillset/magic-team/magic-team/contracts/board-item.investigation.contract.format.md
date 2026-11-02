@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-A running investigation: the process document `magic-team.investigate.routine` works on, round by round. Its result is a `vault-item.investigation-report` (`ivr-*`), which this item names in `references` when it closes.
+A running investigation: the process document `magic-team.investigate.routine` works on, round by round. Its result is a `vault-item.investigation-report` (a vault `investigation-*`), which this item names in `references` when it closes.
 
 # Contract
 
@@ -103,7 +103,7 @@ A running investigation: the process document `magic-team.investigate.routine` w
   - `# Question` — the question, the thing it is about, and what the answer is for.
   - `# Goal` — the exit conditions, each able to pass or fail; the round limit or time box; the walk-away point.
   - `# Current` — what is established so far: each finding labelled shown, inferred or assumed, with its evidence. Regenerated in place each round.
-  - `# Settled` — each settled part as one present-tense statement, with who settled it and when.
+  - `# Settled` — each settled part as one present-tense statement. Who settled it and when goes in `# Log`.
   - `# Open` — the open parts, nearest to closing first. `none` when nothing is open.
   - `# Log` — one line per round: what moved, what closed, what stays open. History lives only here.
 - A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--record-decision`, never by hand.
@@ -111,7 +111,7 @@ A running investigation: the process document `magic-team.investigate.routine` w
 ## Rules
 
 - `type` equals the type word in the filename (`investigation`).
-- [store] A closed investigation names its `ivr-*` report in `references`.
+- [store] A closed investigation names its vault `investigation-*` report in `references`.
 - `approved-by` and `approved-at` appear together.
 - `recheck-date` and `condition` appear together.
 - [store] Only `magic-coordinator` creates or moves a board item.

@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
 # vault-item.decision-record — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.decision-record.document.format.md`, and no writer fills it yet. Read by the document validator, `--intern-doc-validate vault-item.decision-record <file>`.
+Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.decision-record.document.format.md`, and `--upsert-vault-decision-record` writes it. Read by the document validator, `--intern-doc-validate vault-item.decision-record <file>`.
 
 ## Contents
 
@@ -41,7 +41,7 @@ A decision record, in the manner of an architecture decision record (ADR): one t
 | `approved-by` | optional | member | `approval-ref` | Who accepted the decision, with the session and the time. |
 | `supersedes` | optional | member | `item-names` | Earlier records this one replaces. |
 | `superseded-by` | optional | member | `item-names` | The record that replaces this one. |
-| `references` | optional | member | `item-names` | Vault and audit items this one cites, such as an `ivr-*`. A vault item never cites a board item. |
+| `references` | optional | member | `item-names` | Vault and audit items this one cites, such as an `investigation-*`. A vault item never cites a board item. |
 
 ## Value forms
 
@@ -64,6 +64,6 @@ A decision record, in the manner of an architecture decision record (ADR): one t
 
 - `type` equals the type word in the filename (`adr`).
 - [judged] One record, one question. A second question gets its own record.
-- `references` never names a board item.
+- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-` or `warning-`. A name starting with `investigation-` names a vault report.
 - [judged] `status` is `proposed`, `accepted`, `superseded` or `deprecated`, and `superseded-by` is present exactly when it is `superseded`.
 - [judged] Before a new record is written, the existing records are searched for the same question. A record found is updated or superseded, never duplicated.

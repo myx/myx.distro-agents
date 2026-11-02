@@ -34,14 +34,39 @@ function flush(   chatFrom, chatTo, chatText) {
 		sub(/ -> .*$/, "", chatFrom) ;
 		sub(/^.* -> /, "", chatTo) ;
 		sub(/:$/, "", chatTo) ;
+		## S27.8: the tags come off BOTH sides before either is read as a name, so the author's own
+		## run and the addressee's own run are two facts, not one read twice.
+		chatTags = chatFrom ;
+		if (match(chatTo, /\[[^]]*\]/)) { chatTags = chatTags " " substr(chatTo, RSTART + 1, RLENGTH - 2) ; } ;
+		chatAuthorRun = "" ; chatAddresseeRun = "" ;
+		if (match(chatTags, /(^|[^a-z-])author-run=[^] ,]+/)) { chatAuthorRun = substr(chatTags, RSTART, RLENGTH) ; sub(/^.*author-run=/, "", chatAuthorRun) ; } ;
+		if (match(chatTags, /(^|[^a-z-])addressee-run=[^] ,]+/)) { chatAddresseeRun = substr(chatTags, RSTART, RLENGTH) ; sub(/^.*addressee-run=/, "", chatAddresseeRun) ; } ;
+		sub(/ ?\[[^]]*\]/, "", chatFrom) ;
+		sub(/ ?\[[^]]*\]/, "", chatTo) ;
 		chatText = chatBody ;
 		gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", chatText) ;
-		if (chatFrom != agent && ((chatText ~ /^DISMISSED[.!]?$/ && (("," chatTo ",") ~ ("," agent ","))) || chatText ~ ("^DISMISSED " agent "[.!]?$"))) {
-			head = chatHead ;
-			sub(/ .*$/, "", head) ;
-			print head " | " chatFrom ;
-			found = 1 ;
-			exit 0 ;
+		## S27.8: the chat entry is written by the tooling, so it carries both runs. A run is no
+		## dismissal of itself, and one run of a member does dismiss another run of that member.
+		if (chatText ~ /^DISMISSED /) {
+			chatTarget = chatText ;
+			sub(/^DISMISSED /, "", chatTarget) ;
+			sub(/[.!]?$/, "", chatTarget) ;
+			if (chatTarget == agent && ! (chatAuthorRun != "" && chatAuthorRun == chatAddresseeRun)) {
+				head = chatHead ;
+				sub(/ .*$/, "", head) ;
+				print head " | " chatFrom ;
+				found = 1 ;
+				exit 0 ;
+			} ;
+		} ;
+		if (chatFrom != agent || (chatAuthorRun != "" && chatAddresseeRun != "" && chatAuthorRun != chatAddresseeRun)) {
+			if ((chatText ~ /^DISMISSED[.!]?$/ && (("," chatTo ",") ~ ("," agent ","))) || chatText ~ ("^DISMISSED " agent "[.!]?$")) {
+				head = chatHead ;
+				sub(/ .*$/, "", head) ;
+				print head " | " chatFrom ;
+				found = 1 ;
+				exit 0 ;
+			} ;
 		} ;
 	} ;
 	chatHead = "" ;

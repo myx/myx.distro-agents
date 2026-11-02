@@ -2,7 +2,7 @@
 ## AgentsManagerScreen.Tokens.py -- the tokens views of the Dashboard (F11.4): under `Agents: Tokens`, `Tokens By Day`, `Tokens By Preset`, `Tokens By Credential`,
 ## `Tokens By Agent` and `Tokens By Routine`, each the tokens summed by one key, with a switch between their sum and their average per run, and a switch
 ## between the data table and a chart of the distribution and the trend of the tokens.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 ## The screen renders what the Dispatcher gives and computes nothing: the average of a run and the shares come from `--manager-stats-tokens --average --share` (the switch only asks for the one or the other); `--manager-stats-tokens` is the
@@ -80,7 +80,7 @@ def parseTokenRows(readKey, level, text):
     return {level: rows}
 
 
-ROW_FORMS["tokens"] = parseTokenRows
+ROW_FORMS["tokens"] = {"parse": parseTokenRows}
 
 
 ## The one value a chart draws of a row, the `in` tokens, summed or, with the switch on, the average of a run (whole tokens), as the table shows them.

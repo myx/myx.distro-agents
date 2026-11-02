@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Output.py -- the big output dialog: a command that is followed to its end.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 

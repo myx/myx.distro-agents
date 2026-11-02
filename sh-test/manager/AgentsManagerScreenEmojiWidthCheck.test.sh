@@ -9,7 +9,7 @@
 ## The stand-in terminal measures by itself (check-fixtures/manager-screen.driver.py), not by the screen's count. Offline.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

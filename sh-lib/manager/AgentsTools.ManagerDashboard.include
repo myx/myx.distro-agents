@@ -83,7 +83,7 @@ agentsManagerDashboardBoardStates="running review blocked pending backlog parked
 ## row's live is derived and nowhere in this family, and that place gives the runs of a
 ## registry file only together with the walk of every row.
 AgentsToolsManagerDashboardSessionMeasured(){
-	local rowsFile rowsPending rowsSpawn rowsWaiting=" " rowsStat="" rowsControl="" rowsNarrow="" rowsMeasure
+	local rowsFile rowsPending rowsControl="" rowsNarrow="" rowsMeasure
 	local measuredRows="" measuredDated="" measuredAny="false"
 	rowsFile="$( AgentsToolsRegistryFile spawned-sessions )"
 	[ -f "$rowsFile" ] || return 0
@@ -115,17 +115,8 @@ AgentsToolsManagerDashboardSessionMeasured(){
 	fi
 	AgentsToolsRegistryMeasureRows "$rowsMeasure" "" "" 17
 	[ -z "$rowsNarrow" ] || rm -f "$rowsNarrow" 2> /dev/null || :
-	if stat -f '%m' / > /dev/null 2>&1 ; then
-		rowsStat="bsd"
-	elif stat -c '%Y' / > /dev/null 2>&1 ; then
-		rowsStat="gnu"
-	fi
-	while IFS= read -r rowsSpawn ; do
-		[ -n "$rowsSpawn" ] || continue
-		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
-	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 19 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$rowsControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_CONTROL="$rowsControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C cut -f6-
 	return 0
 }

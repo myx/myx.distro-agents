@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Looks.py -- the looks: the numbers and the colours of a cell, the sets of them each style names, the marks and the looks of a state.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -425,9 +425,9 @@ LIST_PAD = 1
 ## drawn as the text around it. STATE_RANKS: the order of those looks, the worst last,
 ## which the worst word of a text gives it.
 STATE_LOOKS = {
-    "running": LEVEL_OK, "working": LEVEL_OK, "alive": LEVEL_OK, "present": LEVEL_OK, "ok": LEVEL_OK, "startable": LEVEL_OK,
+    "running": LEVEL_OK, "working": LEVEL_OK, "thinking": LEVEL_OK, "in-tool": LEVEL_OK, "alive": LEVEL_OK, "present": LEVEL_OK, "ok": LEVEL_OK, "startable": LEVEL_OK,
     "set": LEVEL_OK, "secret-set": LEVEL_OK, "succeeded": LEVEL_OK,
-    "waiting": LEVEL_WARN, "unclosed": LEVEL_WARN, "paused": LEVEL_WARN, "warn": LEVEL_WARN, "missing": LEVEL_WARN,
+    "waiting": LEVEL_WARN, "awaiting-review": LEVEL_WARN, "unclosed": LEVEL_WARN, "paused": LEVEL_WARN, "warn": LEVEL_WARN, "missing": LEVEL_WARN,
     "secret-missing": LEVEL_WARN, "members": LEVEL_WARN, "not-in-registry": LEVEL_WARN,
     "fail": LEVEL_BAD, "failed": LEVEL_BAD, "gone": LEVEL_BAD, "broken": LEVEL_BAD, "not-startable": LEVEL_BAD,
     "no-process": LEVEL_BAD, "session-ended": LEVEL_BAD, "not-present": LEVEL_BAD, "x": LEVEL_BAD,

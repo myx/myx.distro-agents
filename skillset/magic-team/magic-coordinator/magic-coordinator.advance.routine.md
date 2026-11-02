@@ -4,7 +4,7 @@ executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 skips-inherited: fold-in-learned-lessons, dismiss-participants
-routine-lock-document: inbox:{{team-member}}:note-20260809T154715Z-advance-state-and-lock.md
+routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: work-duty --session-id {{session-id}} --wait 300
 wait-sources: inbox:{{team-member}} board:pending board:running board:review board:blocked board:parked
 review-by: inherit

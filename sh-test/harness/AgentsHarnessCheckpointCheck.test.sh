@@ -163,7 +163,7 @@ rigToolStream "$rigDir/res.1" Write "$( rigWorkJson one.txt )"
 rigToolStream "$rigDir/res.2" Bash "$( rigOp --executor-checkpoint-rewind armed )"
 rigTextStream "$rigDir/res.3" RIG-DONE ; rigRun
 rigAssert "the request after the rewind to armed is the first request, byte for byte"    "$( rigSame "$rigDir/req.1" "$rigDir/req.3" )" same
-rigAssert "so the prefetch block, and the cache marker at its end, are in it as they were"  "$( rigCount "$rigDir/req.3" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.3" '"cache_control":{"type":"ephemeral"}' )" 1:3
+rigAssert "so the prefetch block, and the cache marker at its end, are in it as they were"  "$( rigCount "$rigDir/req.3" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.3" '"cache_control":{"type":"ephemeral"' )" 1:3
 rigAssert "the work is gone from it"                                                     "$( rigCount "$rigDir/req.3" 'RIG-WORK' ):$( rigCount "$rigDir/req.3" 'toolu_RIG' )" 0:0
 
 echo "-- 3. a run that was not prefetched is armed by its read --"

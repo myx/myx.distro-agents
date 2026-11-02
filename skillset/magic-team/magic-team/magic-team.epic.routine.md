@@ -3,6 +3,7 @@ type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
+tracking-item: required
 reports-to: none
 review-by: none
 runs-at: none

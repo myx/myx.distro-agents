@@ -23,11 +23,11 @@ Always written `board-<state>`.
 - **Triage** is a process, not a state: `magic-coordinator` turns inbox content into a board item in `board-backlog`. During grooming it decides with `magic-librarian` and `magic-architect` (the authority group). A small, obvious item it triages alone.
 - **`board-backlog`** — newly created, not yet assessed.
 - **`board-pending`** — `approved-by`/`approved-at` recorded, not yet dispatched.
-  - Deferred, not built: a `magic-coordinator` work-duty session may move a backlog item straight to `board-running` when its restart is trivial.
+  - A `magic-coordinator` work-duty round moves a child of an approved parent from `board-backlog` to here, with the parent's approval. It moves a blocked parent here once its last blocker closes (`check-process-board`).
 - **`board-running`** — dispatched and in progress, including its testing round and while waiting on an ask. An item reaches it only through dispatch, or by creation for `approval-*`, `dispatch-*` and `interview-*`.
   - When implementation is claimed complete, `magic-coordinator` dispatches `magic-tester` for a testing round, in place.
   - Clean → `board-processed`. Or `board-blocked`, awaiting the human-owner's sign-off where the work needs it. That is where "The ladder: one rung at a time" climbs that far, not by default.
-  - Concerns → an investigation `task-*`, `spawned-by` the parent, ending as **escalate** or **solve**; after a fix the round repeats.
+  - Concerns → an investigation `task-*`, `spawned-by` the parent, ending as **escalate** or **solve**. After a fix the round repeats.
 - **`board-review`** — a handback arrived, or the child ended with no verdict. It awaits its reviewer, named in `review-by`: `human-owner`, a member, a session, `<session-id>:<member>`, or a routine such as `grooming.routine`. The reviewer applies `magic-team.handback-review.routine`: accept (→ `board-processed`), return (→ `board-running`, the same session), reject (→ `board-pending`, for a fresh session), follow-up, or a combination. An unset `review-by` means the run's `reports-to`. `magic-coordinator` reviews when it is the one named, or when the item has neither a `review-by` nor a run of its own. `none`, given or by default, means no review: the item closes straight to `board-processed`, with `review: none` in its Decisions.
   - Built for `human-owner`, given or by default: entering this state posts him one review prompt, once. 👍 accepts, ↩️ returns, ❌ rejects. A reply whose first line is just `accept`, `return` or `reject` does the same. So does that word followed by a mark and his comment. A return or a reject carries his words on what to change. A review settled another way closes the open prompt. Every other `review-by` still posts no prompt.
   - The tooling also posts a fact-only note of how the run ended, in the thread of the session that requested it. The endings are:
@@ -38,36 +38,37 @@ Always written `board-<state>`.
     - ended at the bound of a wait.
     - died: its process gone, nothing closed its record.
 
-    The note decides nothing; the reviewer's own verdict does. For a death, the control thread of the session instead asks the item's own reviewer a decision: `resume`, `fresh`, `close` or `kill`. With no reviewer set, no question is asked, and the record is simply closed. The reviewer answers in the question's own thread. The tooling then starts the member again, closes, or kills, and says what it did there and in the requesting session's thread. While that question is open, the review limit does not dismiss any run of that session. An answer that could not be carried out asks the reviewer again, once for each failure, saying why. Nothing is tried a second time without a fresh answer. An item a failed restart left running with no run goes back to review.
+    The note decides nothing. The reviewer's own verdict does. For a death, the control thread of the session instead asks the item's own reviewer a decision: `resume`, `fresh`, `close` or `kill`. With no reviewer set, no question is asked, and the record is simply closed. The reviewer answers in the question's own thread. The tooling then starts the member again, closes, or kills, and says what it did there and in the requesting session's thread. While that question is open, the review limit does not dismiss any run of that session. An answer that could not be carried out asks the reviewer again, once for each failure, saying why. Nothing is tried a second time without a fresh answer. An item a failed restart left running with no run goes back to review.
 - **`board-blocked`** — could not proceed: a human-owner decision, an external dependency, or another item. Every review attempts something: a request, a chase, an alternative. An item needing the human-owner's go waits here, gated by an `approval-*` item, per "The ladder: one rung at a time".
-- **`board-parked`** — deliberately deferred until a condition arrives. Nothing is done; a recheck only asks whether the condition has arrived.
+- **`board-parked`** — deliberately deferred until a condition arrives. Nothing is done. A recheck only asks whether the condition has arrived.
 - **`board-processed`** — resolved: completed or denied. The resolution is written into the item. An ignored item is removed instead.
 - **`board-archived`** — abandoned for good, or a processed item marked `archive: true`.
-- **`board-retained`** — concluded, but a live item (backlog, pending, running, review, blocked, parked, or archived) still points at it by `blocked-by` or `spawned-by`. Rechecked by `recheck-date`; once nothing live points at it, it returns to `board-processed`.
+- **`board-retained`** — concluded, but a live item (backlog, pending, running, review, blocked, parked, or archived) still points at it by `blocked-by` or `spawned-by`. Rechecked by `recheck-date`. Once nothing live points at it, it returns to `board-processed`.
 
 Every move into `board-blocked` carries an `execution-receipt`.
 
 **Uncommitted work never blocks.** Waiting for the human-owner's commit is a `board-blocked` reason only once the whole project is finished and verified.
 
-**A Slack-originated item's message gets its outcome reaction** once the item resolves: ✅ for a positive outcome, a fitting negative emoji otherwise. The resolving step writes a clear resolution; `magic-coordinator`'s `check-pending-comms-actions` procedure reacts later.
+**A Slack-originated item's message gets its outcome reaction** once the item resolves: ✅ for a positive outcome, a fitting negative emoji otherwise. The resolving step writes a clear resolution. `magic-coordinator`'s `check-pending-comms-actions` procedure reacts later.
 
 ## General item lifecycle
 
 - An item is filed, routed to the inbox or board where it belongs, and processed when its holder's rules say so.
-- Processing either finishes it in one step, or moves it and splits it into subtasks routed the same way. A parent is reprocessed once its subtasks are done. A subtask's own result stays with that parent; only an escalation climbs further, per "The ladder: one rung at a time".
+- Processing either finishes it in one step, or moves it and splits it into subtasks routed the same way. A parent is reprocessed once its subtasks are done. A subtask's own result stays with that parent. Only an escalation climbs further, per "The ladder: one rung at a time".
 - One-step finish only when no subtask and no hand-off is needed.
 - Denial can come at any stage: quickly, by an obvious rule, or after a full discussion.
-- New follow-on work is a new item linked by `spawned-by` or `blocked-by`; it never reopens a processed item. A processed item reopens only on an explicit new signal, back to `board-backlog`.
+- New follow-on work is a new item linked by `spawned-by` or `blocked-by`. It never reopens a processed item. A processed item reopens only on an explicit new signal, back to `board-backlog`.
 
 ## GC (garbage collection)
 
-The tooling removes processed board and inbox items after a retention period; `archive: true` and retained items are kept. An item still wanted is not moved or marked processed.
+The tooling removes processed board and inbox items after a retention period. `archive: true` and retained items are kept. An item still wanted is not moved or marked processed.
 
 # Process-Flow, the board dynamics
 
 - `magic-team.grooming.routine` decides and applies: triage, RICE scoring, backlog readiness and promotion (approved backlog → pending included), recall to backlog. Once per workday or on request.
 - The coordinator's board round applies decided moves only. They are dispatch →
   running, review and unblock handling, signalled reopens, the judgement left
-  of the dependencies, and deferred comms actions. It runs at each wake of `magic-coordinator.work-duty.routine`, or on a manual start of `magic-coordinator.advance.routine`. It never makes a go decision.
+  of the dependencies, and deferred comms actions. It also promotes the children
+  of an approved parent to `board-pending`. It runs at each wake of `magic-coordinator.work-duty.routine`, or on a manual start of `magic-coordinator.advance.routine`. It never makes a go decision.
 - `magic-team.advance.routine` picks each running document's next iteration: its gate row, else its `handler-routine:`, else its type's default.
 - `handler-routine: <routine>` — an optional item header naming the routine that runs the item's next iteration, over its type's default. It never overrides a gate row. Only grooming or `magic-coordinator` sets it, with its reason in the item's `## Decisions`. A value naming no routine that accepts the item's type is flagged, and nothing runs.

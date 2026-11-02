@@ -16,9 +16,16 @@
 ## this wire's envelope differs from that only in the schema key's spelling.
 ## The rename is sed, not ${var//}: bash 3.2 substitutes over a string this long slowly
 ## enough to stall the start by minutes.
-## THE CACHE MARKER of every breakpoint of this wire (F10.7): the lifetime the preset of the spawn asks for, passed in as harnessInputCacheTime. Unset or 5m is
-## the provider's own, which a marker asks for by saying nothing: the bytes are what they were. 1h says its ttl in each of them, all alike, as the provider takes
-## a longer lifetime ahead of a shorter and never after it.
+## THE CACHE MARKERS, IN TWO LIFETIMES (S26 10, the owner's ruling): the armed floor takes the hour and the growing tail keeps the provider's own five
+## minutes. The floor's two markers are the tool floor's end, which every member shares, and the member block's end, which closes the member's own layer
+## (the prefetch behind it where one is carried); each asks the hour. The top-level marker travels with the tail, so it stays plain, which is how this wire
+## asks for the five minutes. Measured on api.anthropic.com: the two counters split the request at the last hourly marker, the floor under
+## ephemeral_1h_input_tokens and the tail under ephemeral_5m_input_tokens; a five-minute marker that no hourly one follows carries its whole prefix down to
+## five minutes, which is why the member block's marker asks the hour too. A ttl 1h block after a 5m one is refused outright: "a ttl='1h' cache_control block
+## must not come after a ttl='5m' cache_control block". The preset keeps the say it had: 1h puts the hour on the moving marker too, and 5m -- the provider's
+## own -- puts nothing in any marker, exactly as this wire sent all of them before the ruling.
+agentsWireCacheControlFloor='{"type":"ephemeral","ttl":"1h"}'
+[ "${harnessInputCacheTime:-}" != 5m ] || agentsWireCacheControlFloor='{"type":"ephemeral"}'
 agentsWireCacheControl='{"type":"ephemeral"}'
 [ "${harnessInputCacheTime:-}" != 1h ] || agentsWireCacheControl='{"type":"ephemeral","ttl":"1h"}'
 
@@ -34,7 +41,7 @@ agentsWireToolsJson="$( printf '%s\n' "$agentsWireToolsJson" | sed 's/"inputSche
 agentsWireToolsSorted="$( printf '%s\n' "$agentsWireToolsJson" | LC_ALL=C awk -v shape=array -f "$harnessHere/harness/AgentsHarnessToolsSort.awk" )"
 [ "${#agentsWireToolsSorted}" -ne "${#agentsWireToolsJson}" ] || agentsWireToolsJson="$agentsWireToolsSorted"
 case "$agentsWireToolsJson" in
-	*"}]") agentsWireToolsJson="${agentsWireToolsJson%\}\]}"',"cache_control":'"$agentsWireCacheControl"'}]' ;;
+	*"}]") agentsWireToolsJson="${agentsWireToolsJson%\}\]}"',"cache_control":'"$agentsWireCacheControlFloor"'}]' ;;
 esac
 agentsWireSystemJson=""
 agentsWireSystemBlocks=""
@@ -91,7 +98,7 @@ AgentsWireInitMessages(){
 	fi
 	if [ -n "$initMember" ] ; then
 		harnessMessages=(
-			'{"role":"user","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$initMember" )"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initTask" )"'"}]}'
+			'{"role":"user","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$initMember" )"'","cache_control":'"$agentsWireCacheControlFloor"'},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initTask" )"'"}]}'
 		)
 		return 0
 	fi
@@ -112,7 +119,7 @@ AgentsWireSystemReplay(){ ## escaped system text, bytes of its escaped first blo
 	replayJoin="$( printf '%s' "$1" | LC_ALL=C cut -c "$(( $2 + 1 ))-$(( $2 + 4 ))" )"
 	replaySecond="$( printf '%s' "$1" | LC_ALL=C cut -c "$(( $2 + 5 ))-" )"
 	[ "$replayJoin" = '\n\n' ] && [ -n "$replaySecond" ] || return 0
-	agentsWireSystemBlocks='[{"type":"text","text":"'"$replayFirst"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$replaySecond"'"}]'
+	agentsWireSystemBlocks='[{"type":"text","text":"'"$replayFirst"'","cache_control":'"$agentsWireCacheControlFloor"'},{"type":"text","text":"'"$replaySecond"'"}]'
 	agentsWireSystemSharedBytes="$2"
 }
 

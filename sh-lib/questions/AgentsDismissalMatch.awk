@@ -17,21 +17,25 @@
 ##     its author is AgentsSessionContextCommsItems.awk's readHeader author: the
 ##     first `*_<name>_*` before the arrow, with nothing but a mark before it;
 ##   - no header, the text `DISMISSED <member>` (a person typing it in the thread).
-## Only a dismissal authored by <member> itself is ignored: the header naming <member>
-## as author, or, with no header author, a `[sender: <member>]`. A DISMISSED addressed
-## to someone else, or to @here, dismisses no one.
+## S27.8: THE TWO RUNS, NOT THE TWO MEMBERS, DECIDE THE AUTHOR'S OWN CASE. A run cannot dismiss
+## itself, which is the rule above kept exactly. One run of a member CAN dismiss another run of
+## that same member, and that is what `[author-run: <id>]` and `[addressee-run: <id>]` say where
+## they are present. With neither, only a different member is a dismissal, as it always was.
 ##
 ## Every closing `}` is preceded by a `;` (reference/shell.md's awk axiom).
 ##
-function dismissalOf(msg, member,   rest, ann, sender, arrow, fromPart, author, toPart, endPos, body) {
+function dismissalOf(msg, member,   rest, ann, sender, arrow, fromPart, author, toPart, endPos, body, authorRun, addresseeRun) {
 	gsub(/[\r\n\t]+/, " ", msg) ;
 	rest = msg ;
 	sub(/^[0-9]+\.[0-9]+ \| [^|]* \|/, "", rest) ;
 	sender = "" ;
+	authorRun = "" ; addresseeRun = "" ;
 	while (match(rest, /^ \[[^]]*\]/)) {
 		ann = substr(rest, RSTART + 1, RLENGTH - 1) ;
 		rest = substr(rest, RSTART + RLENGTH) ;
 		if (ann ~ /^\[sender: /) { sender = ann ; sub(/^\[sender: /, "", sender) ; sub(/\]$/, "", sender) ; } ;
+		if (ann ~ /^\[author-run: /) { authorRun = ann ; sub(/^\[author-run: /, "", authorRun) ; sub(/\]$/, "", authorRun) ; } ;
+		if (ann ~ /^\[addressee-run: /) { addresseeRun = ann ; sub(/^\[addressee-run: /, "", addresseeRun) ; sub(/\]$/, "", addresseeRun) ; } ;
 	} ;
 	sub(/^[ ]+/, "", rest) ;
 	sub(/[ ]+$/, "", rest) ;
@@ -41,7 +45,8 @@ function dismissalOf(msg, member,   rest, ann, sender, arrow, fromPart, author, 
 	fromPart = substr(rest, 1, arrow - 1) ;
 	author = "" ;
 	if (match(fromPart, /\*_[^*]+_\*/) && !(RSTART > 1 && substr(fromPart, 1, RSTART - 1) ~ /[^ ]+ [^ ]/)) { author = substr(fromPart, RSTART + 2, RLENGTH - 4) ; } ;
-	if (author == member || (author == "" && sender == member)) { return 0 ; } ;
+	if (author == member && ! (authorRun != "" && addresseeRun != "" && authorRun != addresseeRun)) { return 0 ; } ;
+	if (author == "" && sender == member) { return 0 ; } ;
 	toPart = substr(rest, arrow + length(" → ")) ;
 	endPos = index(toPart, ". ") ;
 	if (endPos == 0) { return 0 ; } ;

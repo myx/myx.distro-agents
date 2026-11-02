@@ -1,7 +1,7 @@
 ##
 ## AgentsManagerScreen.Talk.py -- what the console says to a session: a message to it or to a participant (`M`), and magic-coordinator joined into
 ## a session that has finished, waits or is stuck (`J`) (F11.6 of the refactorings epic).
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ##
 
@@ -14,7 +14,7 @@
 CALLS["talk"] = ["--manager-session-message", "--session-id", "{id}"]
 CALLS["join"] = ["--manager-session-join", "--session-id", "{id}"]
 ## The states of a session the join is offered for, and what the key says at a row where it is not.
-JOIN_STATES = ("finished", "waiting", "unclosed", "running", "starting", "failed")
+JOIN_STATES = ("finished", "waiting", "awaiting-review", "unclosed", "running", "starting", "failed")
 JOIN_SAYS = {
     "unknown-foreign": "it is another host's: nothing can be done with it from here",
 }

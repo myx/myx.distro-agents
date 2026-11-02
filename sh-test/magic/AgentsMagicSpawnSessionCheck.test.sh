@@ -498,6 +498,37 @@ rigAssert "is read once, and the session lands"          "$( printf '%s\n' "$rig
 sleep 3
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
+echo "-- S23.1: a start at the limit of runs is queued, never made, and a limit not reached starts as ever --"
+## The rig's process list for this section alone: `ps -A` answers from ps.list, anything else is the real ps.
+mkdir -p "$rigTmp/psbin"
+printf '#!/bin/sh\ncase " $* " in\n\t*" -A "*) cat "%s/ps.list" ; exit 0 ;;\nesac\nexec "%s" "$@"\n' "$rigTmp" "$( command -v ps )" > "$rigTmp/psbin/ps"
+chmod +x "$rigTmp/psbin/ps"
+printf '1001 claude --session-id rig-run-one\n' > "$rigTmp/ps.list"
+mkdir -p "$rigData/inboxes/magic-coordinator/incoming"
+rm -f "$rigTmp/brief.rig-member-a"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_LIMIT=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+rigOut="$( PATH="$rigTmp/psbin:$PATH" rigRun "RIG-QUEUED-TASK" --routine-default rig-member-a )"
+sleep 2
+rigAssert "at the limit: the start is answered as queued, with its inquiry named, and no session id" \
+	"$( printf '%s\n' "$rigOut" | grep -c -x 'SPAWN_QUEUED=true' ):$( printf '%s\n' "$rigOut" | grep -c '^SPAWN_QUEUE_ITEM=inquiry-' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" "1:1:0"
+rigAssert "and nobody was started: the member's console never received a brief" "$( [ -e "$rigTmp/brief.rig-member-a" ] && printf started || printf none )" "none"
+rigAssert "the request waits in the coordinator's inbox, with its task in it" "$( LC_ALL=C grep -l -F 'RIG-QUEUED-TASK' "$rigData/inboxes/magic-coordinator/incoming"/inquiry-*-queued-spawn-*.md 2> /dev/null | LC_ALL=C grep -c . )" "1"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_LIMIT=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+rigOut="$( PATH="$rigTmp/psbin:$PATH" rigRun "RIG-TASK-TEXT" --routine-default rig-member-a )"
+rigAssert "a limit not reached: the session starts, nothing is queued" "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c '^SPAWN_QUEUED=' )" "1:0"
+sleep 3
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+
+echo "-- S24 item 4: the run whose handback started a session is named on the session's record --"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --handed-over-by rig-run-one rig-member-a )"
+sleep 2
+rigAssert "the session starts, and its record names the run that handed over" "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( rigRecordValues handed-over-by )" "1:rig-run-one"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --handed-over-by 'rig run' rig-member-a )"
+rigAssert "a name that is no bare name is refused, and no session starts" "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" "0"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MAGIC SPAWN SESSION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

@@ -1,17 +1,11 @@
 ##
 ## AgentsManagerScreen.TeamData.py -- the root Team Data: its board, its audit and its vault, its figures and its cleanups.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
 ## ---- the items of the team data: its board, its audit and its vault ----
 
-## Where what a read of a store says of the store itself is kept, and the whole help of a
-## member, beside the rows of their level: under the level, behind these words.
-STORE_OF = "store:"
-WHOLE_OF = "whole:"
-## Where the chapters of the help are kept, by the level whose read gave them (parseHelpChapters).
-CHAPTERS_OF = "chapters:"
 
 
 ## What `--manager-team-data-read <store>` printed: the rows of its folders, each a folder
@@ -147,7 +141,7 @@ def parseTeamDataHere(readKey, level, text):
     return {level: parseBlockRows(text)}
 
 
-ROW_FORMS["team-data-here"] = parseTeamDataHere
+ROW_FORMS["team-data-here"] = {"parse": parseTeamDataHere}
 
 
 ## Team data is configured for this workspace: this is a team rig and its root is set and is there, as the read of the dashboard says (the
@@ -407,3 +401,33 @@ registerPlugin({
         },
     },
 })
+
+
+## The levels of the `data-items` read: registered with the list, so the list asks the form rather than naming this parser.
+def dataItemsLevels(readKey, level, text):
+    return {level: parseItemRows(text)}
+
+
+ROW_FORMS["data-items"] = {"parse": dataItemsLevels}
+
+
+## The levels of the `blocks` read: registered with the list, so the list asks the form rather than naming this parser.
+## The blocks the root `Team Data` holds come with the same read, so this row is the one that carries them.
+def blocksLevels(readKey, level, text):
+    rows = parseBlockRows(text)
+    levels = {level: rows}
+    if level != pluginLevel("teamdata"):
+        levels[pluginLevel("teamdata")] = [dict(row) for row in rows if row["id"] in TEAM_DATA["blocks"]]
+    return levels
+
+
+ROW_FORMS["blocks"] = {"parse": blocksLevels}
+
+
+## The levels of the `data-store` read: its rows, and the store it names beside them.
+def dataStoreLevels(readKey, level, text):
+    rows, store = parseStoreRows(text)
+    return {level: rows, STORE_OF + level: store}
+
+
+ROW_FORMS["data-store"] = {"parse": dataStoreLevels}

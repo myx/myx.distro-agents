@@ -208,10 +208,18 @@ END {
 		}
 		else if (oneRule ~ /^`[a-z-]+` never names a board item/) {
 			handled = 1 ; keyName = ruleKey(oneRule) ;
+			## The board prefixes are those the rule lists (`project-`, ...), else every board type: a vault contract whose type word is
+			## also a board prefix (`investigation`) leaves it out of its list.
+			boardPrefixes = "" ; prefixText = oneRule ;
+			while (match(prefixText, /`[a-z]+-`/)) {
+				boardPrefixes = boardPrefixes (boardPrefixes == "" ? "" : "|") substr(prefixText, RSTART + 1, RLENGTH - 3) ;
+				prefixText = substr(prefixText, RSTART + RLENGTH) ;
+			}
+			if (boardPrefixes == "") boardPrefixes = "project|task|change|idea|proposal|interview|investigation|approval|dispatch|warning" ;
 			if (keyName in docHas) {
 				partN = split(docVal[keyName], parts, ",") ;
 				for (partIdx = 1 ; partIdx <= partN ; partIdx++) {
-					if (trimText(parts[partIdx]) ~ /^(project|task|change|idea|proposal|interview|investigation|approval|dispatch|warning)-/) {
+					if (trimText(parts[partIdx]) ~ ("^(" boardPrefixes ")-")) {
 						emitRow(docLine[keyName], "contract-references", "the key " keyName " names a board item", trimText(parts[partIdx])) ;
 					}
 				}

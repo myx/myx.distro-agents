@@ -194,7 +194,7 @@ AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
 AgentsHarnessContextAssistantRecord(){
 	case "$harnessWire" in
 		AnthropicMessages) AgentsWireAssistantToolCallsRecord "" ;;
-		*) printf '{"role":"assistant","content":"%s"}' "$( AgentsHarnessContextEscape "$( AgentsWireFinalContent )" )" ;;
+		*) printf '{"role":"assistant","content":"%s"%s}' "$( AgentsHarnessContextEscape "$( AgentsWireFinalContent )" )" "$( AgentsWireReasoningField )" ;;
 	esac
 }
 

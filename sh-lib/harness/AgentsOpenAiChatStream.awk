@@ -23,6 +23,9 @@
 #   C content       a content delta: close thinking, echo it
 #   X count index   bash's arithmetic stops here: the shell repeats that step
 #
+# stream.reasoning is the one accumulator the loop this replaces never wrote: every raw
+# reasoning delta, because a thinking-mode turn has to carry that text back to the API.
+#
 # The tool-call count is decided as bash decided it, by `[ index -ge seen ]` and
 # `$(( index + 1 ))`. A plain decimal index is decided here; any other spelling is
 # handed to one `bash -c` running that same test and arithmetic, and where bash's
@@ -184,6 +187,7 @@ function wireData(payload,   errorText, usagePrompt, usageCompletion, usageTotal
 
 	reasoningText = wireLeaf("choices.0.delta.reasoning")
 	if (reasoningText != "") {
+		wireAppend("stream.reasoning", reasoningText)
 		print "O"
 		## Split on real newlines, each segment sanitised on its own, exactly as the
 		## shell's feed loop split and sanitised them.

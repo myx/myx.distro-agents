@@ -348,7 +348,9 @@ rigAssert "the asking coordinator cannot approve its own set" "$( rigHas "$rigTm
 RIG_OP_SESSION=rig-human rigOp --answer-escalation --team-member human-owner "$rigSetId" allow-set
 rigAssert "the human-owner's allow-set is applied"         "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigSetId answered" ):$( rigHas "$rigTmp/op.out" 'GRANT: set ' )" "yes:yes"
 rigAssert "the set is recorded on the item's Decisions"    "$( rigHas "$rigData/board/running/task-rig.md" 'permission set approved for the task' )" yes
-rigAssert "and as its access-control row, for a later dispatch"        "$( rigHas "$rigData/board/running/task-rig.md" 'access-control: participants:allow-tool:WebFetch::human-owner:' )" yes
+## The row is one of several, comma-separated with a space after each comma, so the assertion
+## names the row itself rather than the key that leads the list.
+rigAssert "and as its access-control row, for a later dispatch"        "$( rigHas "$rigData/board/running/task-rig.md" 'participants:allow-tool:WebFetch:-:human-owner:' )" yes
 rigAssert "every participant holds the extras now"         "$( rigGrantRead magic-tester rig-tester WebFetch https://api.rig.example/v1 ):$( rigGrantRead magic-developer rig-dev cred rig-api-token )" "task:task"
 rigAssert "the held entry was not granted to others"       "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/q.txt" )" ""
 

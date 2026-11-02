@@ -159,12 +159,13 @@ AgentsToolsThisSessionWait(){ ## the operation's arguments
 }
 
 ## --get-dispatch-text: the dispatch of the session as the run was given it, from the sandbox's input/ (MDAT_SPAWN_SANDBOX_ROOT, else the
-## sandbox of the spawn id): dispatch.md, the copy of the board item, and input-scan.md, each a section of its own through the markdown
-## merge (--intern-merge-md-files, F2.1), in that order. Alone, dispatch.md is printed as it is. conversation.md is the thread, which
+## sandbox of the spawn id): dispatch.md, the copy of the board item, and the run's own input scan, each a section of its own through
+## the markdown merge (--intern-merge-md-files, F2.1), in that order. The scan is THIS member's (input-scan.<member>.md), else the
+## session's input-scan.md. Alone, dispatch.md is printed as it is. conversation.md is the thread, which
 ## --get-session-thread serves; pointers.md and the MAGIC copies are references the dispatch names, and the scans of routines run inline
 ## (input-scan.<routine>.md) are those calls' own.
 AgentsToolsThisSessionDispatchText(){ ## the operation's arguments (none)
-	local dispatchRoot="${MDAT_SPAWN_SANDBOX_ROOT:-}" dispatchInput dispatchFile dispatchItems=() dispatchItem dispatchMixins=()
+	local dispatchRoot="${MDAT_SPAWN_SANDBOX_ROOT:-}" dispatchInput dispatchFile dispatchItems=() dispatchItem dispatchMixins=() dispatchScan=""
 	if [ $# -gt 0 ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: --get-dispatch-text: syntax is --get-dispatch-text, and takes no argument" >&2
 		return 1
@@ -194,7 +195,9 @@ AgentsToolsThisSessionDispatchText(){ ## the operation's arguments (none)
 			dispatchMixins+=( --mixin "$dispatchItem" "Board item" )
 		fi
 	done
-	[ ! -f "$dispatchInput/input-scan.md" ] || dispatchMixins+=( --mixin "$dispatchInput/input-scan.md" "Input scan" )
+	[ ! -f "$dispatchInput/input-scan.${MDAT_SPAWN_AGENT:-}.md" ] || dispatchScan="$dispatchInput/input-scan.$MDAT_SPAWN_AGENT.md"
+	[ -n "$dispatchScan" ] || [ ! -f "$dispatchInput/input-scan.md" ] || dispatchScan="$dispatchInput/input-scan.md"
+	[ -z "$dispatchScan" ] || dispatchMixins+=( --mixin "$dispatchScan" "Input scan" )
 	if [ "${#dispatchMixins[@]}" -eq 3 ] ; then
 		cat "$dispatchInput/dispatch.md"
 		return $?

@@ -51,7 +51,8 @@ AgentsToolsRoutineRunInline(){ ## routine selector
 			return 1
 		fi
 		inlineNames="$( AgentsToolsInputScanDefNames "$inlineScans" )"
-		if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -d "$MDAT_SPAWN_SANDBOX_ROOT/input" ] ; then
+		## A spawn makes input/ read-only (SpawnSandbox), so the result goes there only where it can be written; else it follows the steps.
+		if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -d "$MDAT_SPAWN_SANDBOX_ROOT/input" ] && [ -w "$MDAT_SPAWN_SANDBOX_ROOT/input" ] ; then
 			inlineResult="$MDAT_SPAWN_SANDBOX_ROOT/input/input-scan.${inlineName%.routine.md}.md"
 		else
 			mkdir -p "${MMDAPP:-.}/.local/temp" 2> /dev/null

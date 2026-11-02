@@ -7,7 +7,7 @@ Normative contract: `board-item.investigation.contract.format.md` (the skillset)
 
 # Summary
 
-A running investigation: the process document `magic-team.investigate.routine` works on, round by round. Its result is a `vault-item.investigation-report` (`ivr-*`), which this item names in `references` when it closes.
+A running investigation: the process document `magic-team.investigate.routine` works on, round by round. Its result is a `vault-item.investigation-report` (a vault `investigation-*`), which this item names in `references` when it closes.
 
 # Skeleton
 

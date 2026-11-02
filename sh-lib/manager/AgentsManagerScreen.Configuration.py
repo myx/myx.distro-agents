@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Configuration.py -- the folders of the root Configuration: the Config Checker, the Server Keys and the Tooling Commands.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -170,6 +170,10 @@ def parseKeyRead(text):
         elif name == "register" and rest:
             read["registers"].append(tuple((rest.split("\t") + [""])[:2]))
     return read
+
+
+## A key's whole is taken as it arrives, with no dialog open.
+PLAN_FORMS["key-read"] = formRow("key-read", parseKeyRead, "always")
 
 
 ## The whole public line of a key, where it is to be registered, and what stands for the
@@ -472,7 +476,7 @@ def parseContextLevels(readKey, level, text):
     return {level: rows}
 
 
-ROW_FORMS["context"] = parseContextLevels
+ROW_FORMS["context"] = {"parse": parseContextLevels}
 
 
 ## The folder for the left pane: every name and its value as a table. None until the read has answered.
@@ -510,7 +514,7 @@ def parseCheckoutRows(readKey, level, text):
     return {level: rows}
 
 
-ROW_FORMS["checkout"] = parseCheckoutRows
+ROW_FORMS["checkout"] = {"parse": parseCheckoutRows}
 
 
 ## The folder for the left pane: every line as the operation printed it. None until the read has answered.
@@ -573,3 +577,27 @@ def registerDiagnostics():
              "does": ("action", "checkoutrun")},
         ),
     })
+
+
+## The levels of the `checks` read: registered with the list, so the list asks the read’s form rather than naming this parser.
+def checksLevels(readKey, level, text):
+    return {level: parseCheckRows(text)}
+
+
+ROW_FORMS["checks"] = {"parse": checksLevels}
+
+
+## The levels of the `keys` read: registered with the list, so the list asks the form rather than naming this parser.
+def keysLevels(readKey, level, text):
+    return {level: parseKeyRows(text)}
+
+
+ROW_FORMS["keys"] = {"parse": keysLevels}
+
+
+## The levels of the `commands` read: registered with the list, so the list asks the form rather than naming this parser.
+def commandsLevels(readKey, level, text):
+    return {level: parseCommandRows(text)}
+
+
+ROW_FORMS["commands"] = {"parse": commandsLevels}

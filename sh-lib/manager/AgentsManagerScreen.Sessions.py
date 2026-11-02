@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Sessions.py -- the root Sessions (Activity): the sessions, their agents, Launchpad, and the kill, the control and the start.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -42,6 +42,11 @@ MARK_LIMIT = "⏳"
 MARK_REFUSED = "⛔"
 
 
+## The label of a session's row: its title, and after it the chapter it is in where it has one.
+def titledLabel(title, chapter):
+    return title + " — " + chapter if chapter else title
+
+
 ## What `--manager-session-list` printed, as the rows of its sessions: rows of TAB-separated
 ## fields, the first naming the row. A `session` row is followed by its `run` rows, which are
 ## the runs of that session, its agents, and the one `counters` row is the last line
@@ -58,9 +63,11 @@ MARK_REFUSED = "⛔"
 ## one: the mark of it (MARK_LIMIT) stands ahead of the state, so the session list shows that
 ## a run stopped on the provider usage limit; the wording with the date it reopens is kept in
 ## the session (usageLimit) for the pane and for whoever asks.
-## The last field is every refusal of every run of the session added, not only the one that
+## The last field but one is every refusal of every run of the session added, not only the one that
 ## stopped a run (sketch 3.6): the mark of it (MARK_REFUSED) stands ahead of MARK_LIMIT where
 ## both apply, and the count itself is kept in the session (refused) for whoever asks.
+## The last field is its chapter, the line its executor set for the stage it is in (S25.14): it stands after the title
+## in the label of the row, and in its own line of the left pane, and the session keeps it (chapter).
 def parseSessionRows(text):
     rows = []
     sessions = {}
@@ -70,9 +77,10 @@ def parseSessionRows(text):
             session = {"id": fields[1], "name": unspaced(fields[2]), "state": fields[3], "started": fields[4],
                        "stateAt": fields[5], "count": fields[6], "tally": fields[7], "runs": [], "lone": False,
                        "usageLimit": fields[12] if len(fields) >= 13 else "-",
-                       "refused": fields[13] if len(fields) >= 14 else "-"}
+                       "refused": fields[13] if len(fields) >= 14 else "-",
+                       "chapter": unspaced(fields[14]) if len(fields) >= 15 else ""}
             session["stored"], session["storedAt"], session["control"] = fields[8:11] if len(fields) >= 11 else ("-", "-", "-")
-            row = newRow(fields[1], session["name"] or fields[1], "record", True, fields)
+            row = newRow(fields[1], titledLabel(session["name"] or fields[1], session["chapter"]), "record", True, fields)
             row["session"] = session
             limitMark = MARK_LIMIT + " " if session["usageLimit"] != "-" else ""
             refusedMark = MARK_REFUSED + " " if session["refused"] != "-" else ""
@@ -93,16 +101,12 @@ def parseSessionRows(text):
         session = row["session"]
         if not session["name"] and len(session["runs"]) == 1:
             session["lone"] = True
-            row["label"] = "%s %s" % (session["runs"][0]["member"], session["id"][:8])
+            row["label"] = titledLabel("%s %s" % (session["runs"][0]["member"], session["id"][:8]), session["chapter"])
             if row["look"] == PLAIN:
                 row["look"] = DIM
     return rows
 
 
-## The private place of the rows of the sessions of the last read of the list, among the rows the screen holds (state.rows):
-## no level of the list is its own. Every list of `Activity` is made from these rows, and so is every list of the
-## sessions of a member (the lists of ACTIVITY_LISTS, derivedRows).
-SESSIONS_OF = "store:sessions"
 
 
 ## What `--manager-session-list` printed, as what the screen keeps of it (SESSIONS_OF).
@@ -134,21 +138,12 @@ def tokensShort(value):
     return shortCount(value[:len(value) - len(more)]) + more
 
 
-## The state of an agent, and its activity where it is alive: `running working`.
+## The state of an agent, as the registry derives it: `thinking`, `in-tool`, `waiting`, `awaiting-review` or `finished`.
+## The word says what it is doing already, so nothing is added to it (S27.4).
 def runStateText(run):
-    return run["state"] + (" " + run["activity"] if run["activity"] != "-" else "")
+    return run["state"]
 
 
-## Lines `<name> <value>` for the left pane, a value broken to the width of the pane; an
-## empty value is left out.
-def fieldLines(pairs, width):
-    lines = []
-    for name, value in pairs:
-        if value:
-            parts = wrapToCells(value, max(10, width - 11))
-            lines.append("%-9s %s" % (name, parts[0]))
-            lines.extend(" " * 10 + part for part in parts[1:])
-    return lines
 
 
 ## The line `control` of the left pane of a session: whether its control thread lives, with
@@ -180,6 +175,7 @@ def sessionLines(session, width, info=None, limit=0, wrap=True):
     lines = [looked(session["name"] or ("one lone run with no name" if session["lone"] else session["id"]), BOLD)]
     pairs = [
         ("state", session["state"], stateLook(session["state"])),
+        ("chapter", session.get("chapter", "")),
         ("control", control, stateLook(control.partition(";")[0])),
         ("started", registryDate(session["started"])),
         ("ended", registryDate(session["stateAt"])),
@@ -1136,9 +1132,13 @@ def launchFocus(state, row):
 ## ---- the lists of `Activity`: made from the rows of the sessions the list read gave ----
 
 ## The sessions that are not closed, in the order of the list: every one that is not finished.
+## A session is closed when it is finished, or failed with every run of it settled: a failed session is ended, not active.
+SESSION_CLOSED_STATES = (SESSION_FINISHED, "failed")
+
+
 def activeSessionRows(state, path):
     held = sessionRowsHeld(state)
-    return None if held is None else [lingering(one) for one in held if one["session"]["state"] != SESSION_FINISHED or lingers(one)]
+    return None if held is None else [lingering(one) for one in held if one["session"]["state"] not in SESSION_CLOSED_STATES or lingers(one)]
 
 
 ## How long, in seconds, a session that has just ended stays among the active ones, drawn dim, so that it does not vanish at once.
@@ -1147,7 +1147,7 @@ LINGER_SECONDS = 30
 
 ## Whether a finished session ended less than LINGER_SECONDS ago, by the end time its row of the list gives (the registry keeps it to the minute).
 def lingers(row):
-    if row["session"]["state"] != SESSION_FINISHED:
+    if row["session"]["state"] not in SESSION_CLOSED_STATES:
         return False
     ended = registryEpoch(row["session"]["stateAt"])
     return ended is not None and 0 <= nowEpoch() - ended < LINGER_SECONDS
@@ -1155,13 +1155,13 @@ def lingers(row):
 
 ## The row as the active list draws it: a session that has ended is dim, the list's own row untouched.
 def lingering(row):
-    return dict(row, look=DIM) if row["session"]["state"] == SESSION_FINISHED else row
+    return dict(row, look=DIM) if row["session"]["state"] in SESSION_CLOSED_STATES else row
 
 
-## The sessions that are closed: those that are finished.
+## The sessions that are closed: those that are finished or failed.
 def closedSessionRows(state, path):
     held = sessionRowsHeld(state)
-    return None if held is None else [one for one in held if one["session"]["state"] == SESSION_FINISHED]
+    return None if held is None else [one for one in held if one["session"]["state"] in SESSION_CLOSED_STATES]
 
 
 ## The tokens of a session as a number, from its row of the list: the sum it gives, the `+` that ends it where some of its runs
@@ -1196,10 +1196,10 @@ def agentRows(state, keep):
     return rows
 
 
-## The agents that work: the runs that are not finished and do not sit in a Wait. One that sits in a Wait is in `Waiting Agents`, and no run
-## is in both lists.
+## The agents that work: the runs that are not closed (finished or failed) and do not sit in a Wait. One that sits in a Wait is in `Waiting Agents`, and no run
+## is in both lists. One that handed back shows its state, awaiting-review, here.
 def activeAgentRows(state, path):
-    return agentRows(state, lambda run: run["state"] != SESSION_FINISHED and run["activity"] != "waiting")
+    return agentRows(state, lambda run: run["state"] not in SESSION_CLOSED_STATES and run["activity"] != "waiting")
 
 
 ## The agents that sit in a Wait now: the runs that are alive and wait.
@@ -1207,9 +1207,9 @@ def waitingAgentRows(state, path):
     return agentRows(state, lambda run: run["activity"] == "waiting")
 
 
-## The agents that are closed: the runs that are finished.
+## The agents that are closed: the runs that are finished or failed.
 def closedAgentRows(state, path):
-    return agentRows(state, lambda run: run["state"] == SESSION_FINISHED)
+    return agentRows(state, lambda run: run["state"] in SESSION_CLOSED_STATES)
 
 
 ## The participants of the session the level at that path is: its agents, in the order of its runs. The session is found among
@@ -1417,3 +1417,19 @@ registerPlugin({
     "integrates": {"markdown": {"on": tuple(ACTIVITY_TREE["markdown"])},
                    "list": {"unfiltered": tuple("activity/" + name for name, label, function in ACTIVITY_SESSION_LISTS + ACTIVITY_AGENT_LISTS)}},
 })
+
+
+## The levels of the `routines` read: registered with the list, so the list asks the read’s form rather than naming this parser.
+def routinesLevels(readKey, level, text):
+    return {level: parseRoutineRows(text)}
+
+
+ROW_FORMS["routines"] = {"parse": routinesLevels}
+
+
+## The levels of the `sessions` read: registered with the list, so the list asks the form rather than naming this parser.
+def sessionsLevels(readKey, level, text):
+    return parseSessionLevels(text)
+
+
+ROW_FORMS["sessions"] = {"parse": sessionsLevels}

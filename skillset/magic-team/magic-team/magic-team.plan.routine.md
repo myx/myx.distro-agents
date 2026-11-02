@@ -89,7 +89,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a plan that binds the team, or needs the human-owner's go, goes through `magic-team.proposal.routine`.
    - otherwise the session's own parent approves it, per "The ladder: one rung at a time".
    - the next flow step, by outcome:
-     - **approved** — each piece goes to the board for its implementation dispatch, then `magic-team.verify.routine` on each piece claimed complete.
+     - **approved** — each piece is handed to `magic-coordinator` for the board, per Closure step 2. The duty's start moves it from `board-pending` to `board-running`. Then `magic-team.verify.routine` on each piece claimed complete.
      - **returned with a choice to make** — `magic-team.discuss.routine`.
      - **returned because the ask is unclear** — `magic-team.interview.routine`.
      - **a fact missing** — `magic-team.investigate.routine` for the thing itself, `magic-team.research.routine` for outside sources.
@@ -97,7 +97,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **closing-reflection**: reflect on how the planning went: a piece that would not split, a dependency found late, a risk nobody named. A pattern with no written rule behind it becomes a `reflection-*`.
-2. **hand-off-approved-pieces**: each approved piece is handed to `magic-coordinator` with `post-inquiry`, for the board. Approving a plan is not a go to start it.
+2. **hand-off-approved-pieces**: each approved piece is handed to `magic-coordinator` with `post-inquiry`, for the plan's own item where the plan has one, else for the board. `magic-coordinator` creates it with `--grooming-create-pending`, as a `task-*` item in `board-pending` carrying `approved-by`/`approved-at` and `spawned-by` the plan's item. Approving a plan is not a go to start it.
 
 # Routine's local procedures
 
@@ -128,6 +128,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
+- `--grooming-create-pending <item-filename> --owner-header-value <value>`
 - `--get-board-item <item-filename>`
 - `--routine-run-inline <routine>`
 

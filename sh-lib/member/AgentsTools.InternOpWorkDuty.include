@@ -28,7 +28,7 @@ case "$1" in
 
 	--intern-op-work-duty-input-scan)
 		shift
-		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workWindow workWork workOut workInboxRc=0 workSeed
+		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workWindow workWork workOut workInboxRc=0 workBoardRc=0 workState workSeed workReady
 		if [ -z "$workMember" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: syntax is <team-member> [--session-id <id>]" >&2
 			set +e ; return 1
@@ -59,6 +59,8 @@ case "$1" in
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 		workWindow="$( AgentsToolsConfigOption magic-team --select WAIT_COLLECT_SECONDS 2> /dev/null )" || workWindow=""
 		case "$workWindow" in ''|0|*[!0123456789]*) workWindow=60 ;; esac
+		## A START (MDAT_SCAN_AT_START, set by the spawner for the scan it runs for a start) reads Slack once and waits no window: the duty is not running while its start waits for a minute of news, and the pointers this one second sets are the floors its own Wait resumes from.
+		[ -z "${MDAT_SCAN_AT_START:-}" ] || workWindow=1
 
 		mkdir -p "$MMDAPP/.local/agents/scratch" 2> /dev/null || true
 		workWork="$( mktemp -d "$MMDAPP/.local/agents/scratch/work-duty-scan.XXXXXXXX" 2> /dev/null )" || {
@@ -95,6 +97,13 @@ case "$1" in
 		fi
 		workTrace inbox
 
+		## The handbacks addressed to this member's duty (`review-by: <member>.work-duty.routine`) are ready inputs (S23.5): listed with a `# ready: <N>` line, which a Wait on
+		## this scan reads, so its next Wait returns at once while one is left. The duty takes one by moving it out of review.
+		type AgentsReviewItemsForRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || :
+		printf '\n## Handbacks ready for the duty\n\n'
+		workReady="$( AgentsReviewItemsForRoutine "$workMember.work-duty" 2> /dev/null )" || workReady="(none)"
+		printf '%s\n# ready: %s\n' "$workReady" "$( printf '%s\n' "$workReady" | LC_ALL=C grep -c '^- ' || : )"
+
 		## What only magic-coordinator's duty carries (F7.12): the items of the human-owner and the external contacts that are due, and
 		## the permission asks, each found by script. The wait of the duty watches this scan, so a new ask or a due item wakes it, and none starts a session.
 		if [ "$workMember" = "magic-coordinator" ] ; then
@@ -112,7 +121,22 @@ case "$1" in
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardRoundScan.include"
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"
-			AgentsToolsBoardRoundSections "$workMember" --intern-op-work-duty-input-scan || printf '\n(the board could not be read)\n'
+			## A board read that fails is an error in this scan's result, never a board with nothing due. The digest below
+			## hands an unlistable state folder back as an empty one, so each folder that exists is tested here; the scan then
+			## exits non-zero, and the spawner writes that failure into input/input-scan.md in place of a digest. A folder the
+			## board does not have is no failure: a fresh board holds only the states it uses.
+			for workState in pending running review blocked parked ; do
+				[ -e "$MDAT_DATA_ROOT/board/$workState" ] || continue
+				if [ -d "$MDAT_DATA_ROOT/board/$workState" ] && [ -r "$MDAT_DATA_ROOT/board/$workState" ] ; then continue ; fi
+				printf '\n(the board could not be read: board/%s is not a readable folder)\n' "$workState" >&2
+				workBoardRc=1
+				break
+			done
+			if [ "$workBoardRc" != "0" ] ; then
+				printf '\n(the board could not be read)\n'
+			else
+				AgentsToolsBoardRoundSections "$workMember" --intern-op-work-duty-input-scan || { printf '\n(the board could not be read)\n' ; workBoardRc=1 ; }
+			fi
 			workTrace board-digest-review-and-registries
 			AgentsToolsBoardRecheckDueSection
 			workTrace recheck-dates
@@ -148,7 +172,8 @@ case "$1" in
 			: > "$workWork/collect.out" ; : > "$workWork/collect.err"
 		else
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source "mentions:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
+			## Bounded by the window: a quiet Slack returns when the window ends, never at the Wait's own long bound.
+			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-timeout "$workWindow" --wait-source "tagged:$workMember" --wait-source "mentions:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
 		fi
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then
 			## A message of the team channel that names someone (`<@id>`) and not this member is kept, for the member to know of it, and labelled by the
@@ -172,7 +197,7 @@ case "$1" in
 		[ ! -s "$workWork/collect.err" ] || LC_ALL=C grep -i -E 'error|could not|not read' "$workWork/collect.err" | head -5 >&2 || :
 		if [ -n "${MDAT_SCAN_SEED_QUIET:-}" ] ; then workTrace slack-skipped ; else workTrace slack-collect ; fi
 		rm -rf "$workWork"
-		return 0
+		return "$workBoardRc"
 	;;
 
 	*)

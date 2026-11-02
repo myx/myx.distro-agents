@@ -14,4 +14,4 @@ Steps:
    - **Grant surface**: an operation is granted by the team floor and its prefix grant. It is also granted by the member's own tooling list, or a routine it takes part in. A missing grant is real only once all three were read.
 4. Check self-sufficiency: could a fresh instance with no memory do correct teamwork from these files alone?
 5. Check clarity and compactness.
-6. Report each finding. A fix to a skillset file is proposed for the skillset change rule; a board item is requested from `magic-coordinator` with `post-inquiry`.
+6. Report each finding. A fix to a skillset file is proposed for the skillset change rule. A board item is requested from `magic-coordinator` with `post-inquiry`.

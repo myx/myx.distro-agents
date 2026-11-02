@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.ViewTable.py -- a kind of view: the one table of the left window, its columns, its wrapping, its rows apart.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 

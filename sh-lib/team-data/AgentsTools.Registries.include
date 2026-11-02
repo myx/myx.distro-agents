@@ -372,7 +372,31 @@ AgentsToolsRegistrySpawnedSessionsRows(){
 }
 
 AgentsToolsRegistrySpawnedSessionsRebuild(){
+	AgentsToolsRegistryHousekeepingDue
 	AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows
+}
+
+## The registry is a cache with a TTL: at most every 5 minutes a read of it starts the housekeeping that closes
+## what a dead spawn left open (AgentsToolsAdvanceSpawnHousekeeping), detached, so the read never waits on it.
+AgentsToolsRegistryHousekeepingDue(){
+	[ -z "${AGENTS_REGISTRY_HOUSEKEEPING:-}" ] || return 0
+	local dueStamp="$MMDAPP/.local/agents/spawned/.housekeeping.txt"
+	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
+	[ ! -f "$dueStamp" ] || [ -n "$( find "$dueStamp" -mmin +5 2> /dev/null )" ] || return 0
+	: > "$dueStamp" 2> /dev/null || return 0
+	( export AGENTS_REGISTRY_HOUSEKEEPING=1
+		type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.SpawnHousekeeping.include" && AgentsToolsAdvanceSpawnHousekeeping 24 magic-coordinator no-threads
+		## The main loop's collect, for a rig with no main loop running: an answer standing in an ask's thread
+		## closes its record within minutes, whether or not its asker's Wait names it (InternMainLoop.include).
+		MDAT_PENDING_COLLECT_STALE_MINUTES="${MDAT_PENDING_COLLECT_STALE_MINUTES:-10}" \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect --ended --context registry-housekeeping \
+				> "$MMDAPP/.local/agents/pending-collect.last.$$" 2> /dev/null \
+			&& mv -f "$MMDAPP/.local/agents/pending-collect.last.$$" "$MMDAPP/.local/agents/pending-collect.last" \
+			|| rm -f "$MMDAPP/.local/agents/pending-collect.last.$$"
+	) < /dev/null > /dev/null 2>&1 &
+	return 0
 }
 
 ## Whether a session still has a genuinely open ask against it -- read straight from
@@ -426,8 +450,53 @@ AgentsToolsRegistryRunDead(){ ## session id, run id
 ## authoritative once the spawn has closed itself, regardless of what live measured -- but a
 ## run still here is running (S21.4): a mark written before its own start cannot end it, and a
 ## run the session's control/dead names is failed, whatever its record came to carry.
+## THE MARK A PARKED RUN LEAVES (S27.2) is the one home of that fact. The harness writes it under
+## the id it holds (`MDAT_SPAWN_SESSION_ID`), and a run's record carries two ids: that one, and its
+## `session-id`, which is the coworking session it joined. So the mark is looked for at both, and
+## the run is parked where either holds it.
+AgentsToolsRegistryRunParked(){ ## run id, session id (may be empty)
+	local parkedRun="${1:-}" parkedSession="${2:-}"
+	[ -d "${MMDAPP:-/nonexistent}/.local/agents/sessions" ] || return 1
+	case "$parkedRun" in ''|-|.|..|*/*) parkedRun="" ;; esac
+	case "$parkedSession" in ''|-|.|..|*/*) parkedSession="" ;; esac
+	[ -n "$parkedRun$parkedSession" ] || return 1
+	[ -z "$parkedRun" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$parkedRun/parked" ] || return 0
+	[ -z "$parkedSession" ] || [ "$parkedSession" = "$parkedRun" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$parkedSession/parked" ] || return 0
+	return 1
+}
+
+## THE ACTIVITY WORD A RUN LEFT (S27.4): `sessions/<spawn-id>/activity` holds `<round> <epoch> <word>`.
+## It is read only after the run is told alive, so a word left by a dead process is never the answer;
+## a word dated before the run's own record is stale too, and is no answer either. Prints one of
+## `thinking`, `in-tool`, or `waiting` where the word is a Wait call.
+AgentsToolsRegistryRunActivity(){ ## spawn id, live word
+	local actSpawn="$1" actLive="${2:-}" actPath actRound actAt actWord actLine=""
+	case "$actSpawn" in ''|-|.|..|*/*) return 1 ;; esac
+	[ "$actLive" = running ] || return 1
+	actPath="${MMDAPP:-/nonexistent}/.local/agents/sessions/$actSpawn/activity"
+	[ -f "$actPath" ] || { printf 'thinking\n' ; return 0 ; }
+	IFS= read -r actLine < "$actPath" || :
+	actRound="${actLine%% *}" ; actLine="${actLine#* }"
+	actAt="${actLine%% *}" ; actWord="${actLine#* }"
+	case "$actRound:$actAt" in *[!0123456789:]*|:*) printf 'thinking\n' ; return 0 ;; esac
+	case "$actWord" in
+		thinking) printf 'thinking\n' ;;
+		"tool Wait"|"tool AskQuestion"|"tool ConfirmReadback"|"tool EscalateDecision"|"tool RequestPermission"|"tool ProposeApprove") printf 'waiting\n' ;;
+		tool\ *) printf 'in-tool\n' ;;
+		*) printf 'thinking\n' ;;
+	esac
+	return 0
+}
+
 AgentsToolsRegistryDeriveState(){ ## status, live, session-id, run id
 	local dsStatus="$1" dsLive="$2" dsSession="$3" dsSpawn="${4:-}"
+	## A PARKED RUN IS NEITHER RUNNING NOR FINISHED, BUT A LIVE RUN IS RUNNING (S27.2): the liveness
+	## check comes first, so a mark left by a run that started again is never the answer.
+	if [ "$dsLive" != running ] ; then
+		AgentsToolsRegistryRunParked "$dsSpawn" "$dsSession" && { printf 'awaiting-review\n' ; return 0 ; }
+	fi
+	## A LIVE RUN SAYS WHAT IT IS DOING (S27.4): thinking, inside a tool, or in a call that waits.
+	[ "$dsLive" != running ] || { AgentsToolsRegistryRunActivity "$dsSpawn" "$dsLive" ; return 0 ; }
 	case "$dsStatus" in
 		spawn-failed|spawn-succeeded)
 			[ "$dsLive" != "running" ] || { printf 'running\n' ; return 0 ; }
@@ -435,7 +504,12 @@ AgentsToolsRegistryDeriveState(){ ## status, live, session-id, run id
 			case "$dsStatus" in spawn-failed) printf 'failed\n' ;; *) printf 'finished\n' ;; esac
 			return 0
 		;;
-		spawn-ended-without-close)
+		## A RUN PARKED ON ITS HANDBACK (S27.2) is neither running nor finished: it waits for a
+		## verdict, and only that verdict starts it again.
+		spawn-awaiting-review)
+			printf 'awaiting-review\n'
+			return 0
+		;;		spawn-ended-without-close)
 			## The advance pass closes a clean handback this way, and settles a death the same way
 			## (control/dead): the one tells the other apart (S21.4), never guessed from status alone.
 			if [ -n "$dsSpawn" ] && [ -n "$dsSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$dsSession/control/dead" ] \
@@ -705,6 +779,53 @@ AgentsToolsRegistrySpawnRuns(){ ## spawn id, its record file (may be empty)
 		! AgentsToolsRegistryRecordedRunAlive "$runsRecord" || return 0
 	done
 	return 1
+}
+
+## THE LIVENESS OF ONE SPAWN, A CACHED READING (S23.6): one word, `alive`, `gone` or `unknown`; rc 0 for alive and gone, 2 for unknown. A run is alive while a process
+## of this host runs as it (AgentsToolsRegistrySpawnRuns); gone when none does and its record, of this host, names the process its launch started (`run-process:`);
+## unknown where nothing here can tell: no record, a record of another host, one that names no process. Unknown is never read as gone, so nothing is closed or
+## restarted on it, and never as alive, so nothing shows it running; it is not cached. alive and gone are kept in .local/agents/liveness/<spawn id> as
+## `<word> <epoch>` and served as measured for AGENTS_LIVENESS_TTL seconds (30), after which the next ask measures again. The status a record carries answers
+## one question only: whether the record is open.
+AgentsToolsLivenessOf(){ ## spawn id, its record file (may be empty)
+	local liveId="${1:-}" liveRecord="${2:-}" liveFile liveWord="" liveAt="" liveAge liveTtl liveNow liveHost liveNamed liveTemp
+	case "$liveId" in ''|-|*/*|.|..) printf 'unknown\n' ; return 2 ;; esac
+	liveTtl="${AGENTS_LIVENESS_TTL:-30}"
+	case "$liveTtl" in ''|*[!0123456789]*) liveTtl=30 ;; esac
+	liveNow="$( date +%s )"
+	liveFile="${MMDAPP:-/nonexistent}/.local/agents/liveness/$liveId"
+	if [ -f "$liveFile" ] ; then
+		read -r liveWord liveAt < "$liveFile" || :
+		case "$liveAt" in ''|*[!0123456789]*) liveWord="" ;; esac
+		case "$liveWord" in
+			alive|gone)
+				liveAge=$(( liveNow - liveAt ))
+				if [ "$liveAge" -ge 0 ] && [ "$liveAge" -lt "$liveTtl" ] ; then printf '%s\n' "$liveWord" ; return 0 ; fi
+			;;
+		esac
+	fi
+	if AgentsToolsRegistrySpawnRuns "$liveId" "$liveRecord" ; then
+		liveWord=alive
+	else
+		[ -n "$liveRecord" ] && [ -f "$liveRecord" ] || liveRecord="$( AgentsToolsRegistrySpawnRecord "$liveId" )"
+		liveHost="$( hostname -s 2> /dev/null )" || liveHost=""
+		[ -n "$liveHost" ] || liveHost="unknown"
+		liveNamed=""
+		[ -z "$liveRecord" ] || liveNamed="$( MDAT_LIVE_HOST="$liveHost" LC_ALL=C awk '
+			$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
+			fenceCount != 1 { next ; }
+			index( $0, "host: " ) == 1 && ! hostSeen++ { hostNamed = substr( $0, 7 ) ; next ; }
+			index( $0, "run-process: " ) == 1 && ! runSeen++ { runNamed = substr( $0, 14 ) ; }
+			END { if ( fenceCount > 1 && hostSeen && hostNamed == ENVIRON["MDAT_LIVE_HOST"] && runNamed ~ /^[0-9]+ [^ ]+$/ ) { print "named" ; } }
+		' "$liveRecord" 2> /dev/null )" || liveNamed=""
+		[ "$liveNamed" = named ] || { printf 'unknown\n' ; return 2 ; }
+		liveWord=gone
+	fi
+	if mkdir -p "${liveFile%/*}" 2> /dev/null && liveTemp="$( mktemp "$liveFile.XXXXXX" 2> /dev/null )" ; then
+		printf '%s %s\n' "$liveWord" "$liveNow" > "$liveTemp" && mv -f "$liveTemp" "$liveFile" || rm -f "$liveTemp"
+	fi
+	printf '%s\n' "$liveWord"
+	return 0
 }
 
 ## The record of one spawn in this workspace's sandbox roots, by the spawn's own id: the file
@@ -981,6 +1102,13 @@ AgentsToolsRegistryRunLeftKeep(){ ## spawn id, the process ids still there (a sp
 ## AgentsToolsRegistryDeriveState without a fork: the same answer, into derivedState of the
 ## caller, the open asks read from AgentsToolsRegistryPendingOpenSessions's set.
 AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-session set, run id
+	## A parked run is neither running nor finished (S27.2), unless it is live: the liveness check
+	## comes first, so a mark left by a run that started again is never the answer.
+	if [ "$2" != running ] ; then
+		AgentsToolsRegistryRunParked "${5:-}" "$3" && { derivedState="awaiting-review" ; return 0 ; }
+	fi
+	## A live run says what it is doing (S27.4), read from its own activity mark.
+	[ "$2" != running ] || { derivedState="$( AgentsToolsRegistryRunActivity "${5:-}" running )" || derivedState="thinking" ; return 0 ; }
 	case "$1" in
 		spawn-failed|spawn-succeeded)
 			## A run still here is running, and a run its session records as dead is failed (S21.4): the same two readings the
@@ -1238,10 +1366,43 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 				}
 				return index( deadRuns[session], " " runId " " ) > 0 ;
 			}
+			## WHAT A LIVE RUN IS DOING (S27.4), from its own mark: `thinking`, `in-tool`, or `waiting`.
+			## A run whose mark is missing or unreadable is thinking, never a stale word.
+			function activityOf( rowSpawn,   actPath, actLine, actWord ) {
+				if ( rowSpawn == "" || rowSpawn == "-" || rowSpawn ~ /\// ) return "thinking" ;
+				actPath = agentsDir "/sessions/" rowSpawn "/activity" ;
+				actLine = "" ;
+				if ( ( getline actLine < actPath ) < 0 ) { close( actPath ) ; return "thinking" ; }
+				close( actPath ) ;
+				actWord = actLine ;
+				sub( /^[^ ]* [^ ]* /, "", actWord ) ;
+				if ( actWord ~ /^tool (Wait|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove)$/ ) return "waiting" ;
+				if ( actWord ~ /^tool / ) return "in-tool" ;
+				return "thinking" ;
+			}
+			## WHETHER A RUN IS PARKED (S27.2), by the file the harness left under the id it holds, and by
+			## the same file under the session id the record also carries, which a coworking member differs in.
+			function parkedOf( rowSpawn, rowSession,   parkedAt, parkedKey, parkedLine ) {
+				for ( parkedAt = 1 ; parkedAt <= 2 ; parkedAt++ ) {
+					parkedKey = ( parkedAt == 1 ) ? rowSpawn : rowSession ;
+					if ( parkedKey == "" || parkedKey == "-" || parkedKey ~ /\// ) continue ;
+					if ( ! ( parkedKey in parkedSeen ) ) {
+						parkedSeen[parkedKey] = "no" ;
+						parkedLine = "" ;
+						if ( ( getline parkedLine < ( agentsDir "/sessions/" parkedKey "/parked" ) ) >= 0 ) { parkedSeen[parkedKey] = "yes" ; }
+						close( agentsDir "/sessions/" parkedKey "/parked" ) ;
+					}
+					if ( parkedSeen[parkedKey] == "yes" ) return 1 ;
+				}
+				return 0 ;
+			}
 			## The state a row comes to, exactly as AgentsToolsRegistryDeriveStateFromSet gives it.
 			function derivedOf( rowStatus, rowLive, rowSession, rowSpawn ) {
+				## A parked run is neither running nor finished (S27.2), unless it is live: the liveness
+				## check comes first, and the mark is looked for at both of the two ids the run carries.
+				if ( rowLive != "running" && parkedOf( rowSpawn, rowSession ) ) { return "awaiting-review" ; }
 				if ( rowStatus == "spawn-failed" || rowStatus == "spawn-succeeded" ) {
-					if ( rowLive == "running" ) return "running" ;
+					if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
 					if ( deadNames( rowSession, rowSpawn ) ) return "failed" ;
 					return ( rowStatus == "spawn-failed" ) ? "failed" : "finished" ;
 				}
@@ -1249,7 +1410,7 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 					return deadNames( rowSession, rowSpawn ) ? "failed" : "finished" ;
 				}
 				if ( rowLive == "other-host" ) return "unknown-foreign" ;
-				if ( rowLive == "running" ) return "running" ;
+				if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
 				if ( rowSession == "" || rowSession == "-" ) return "unclosed" ;
 				if ( index( rowSession, "\\" ) > 0 ) { return ( index( backslashSet, "\n" rowSession "\n" ) > 0 ) ? "waiting" : "unclosed" ; }
 				return ( index( openSet, "\n" rowSession "\n" ) > 0 ) ? "waiting" : "unclosed" ;

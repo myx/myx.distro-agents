@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the list of the manager screen and on what a key does (sh-lib/manager/AgentsManagerScreen.py), run
+## Behavioural check on the list of the manager screen and on what a key does (sh-lib/manager/LocalManagerScreen.py), run
 ## rather than read, through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py): each
 ## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions (Activity)`,
 ## `Pending Questions`, `Team Members`, `Consoles`, `Settings` and `Configuration` in that order, the first one selected; Enter
@@ -25,7 +25,7 @@
 ## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

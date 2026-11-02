@@ -6,7 +6,7 @@ the conventions that govern how the team reaches him and how it composes message
 
 This module carries the **evidence and reasoning**. The **operative rules** members follow are **message-shape-is-correctness** and
 **one-message-one-speech-act**, written platform-neutrally on
-purpose, and self-sufficient on their own. Read those for what to do; read this for why it is true and
+purpose, and self-sufficient on their own. Read those for what to do. Read this for why it is true and
 what was actually measured. Keep the two layers cross-referenced, never duplicated: a rule stated twice
 drifts.
 
@@ -39,7 +39,7 @@ reason this module exists as a separate layer.
 ## Why an ask leads its own message
 
 - **Bundling unrelated topics is the fault, not a shape to be tested for.** The split tests decide when
-  a related, decomposable message needs splitting; unrelated matters never reach a test.
+  a related, decomposable message needs splitting. Unrelated matters never reach a test.
 - **The ask leads, and the work that produced it is not sent with it.** A one-line question inside a
   screen of status and findings has not been asked. He had to do the finding, which is the work the
   message existed to save him.
@@ -82,15 +82,15 @@ messages reasonably short" is not a sufficient mitigation: no feedback channel t
 crossed the line.
 
 Truncation keeps the tail: an over-long post is stored as its last paragraphs only, with `rc=0` and a
-success status returned. Reading back is the only detection; splitting the post into parts is the
+success status returned. Reading back is the only detection. Splitting the post into parts is the
 only fix.
 
-**Do not put the constant into the conventions file.** It is a vendor detail with a shelf life; the
+**Do not put the constant into the conventions file.** It is a vendor detail with a shelf life. The
 rule that survives is "platforms impose limits and may truncate silently".
 
 ## Slack layout and dates
 
-- **A message sets no font size of its own; the block carries it.** `header` renders large,
+- **A message sets no font size of its own. The block carries it.** `header` renders large,
   `section`/`rich_text` render normal, `context` renders small and grey, and no block mixes two
   sizes on one line. Blocks stack top to bottom only — two never sit side by side. A wish for a
   visibly smaller date beside a normal-size name, on the same line, cannot be met on this platform.
@@ -135,4 +135,4 @@ rule that survives is "platforms impose limits and may truncate silently".
 ## Reading list
 
 - `magic-librarian/magic-librarian.armed.md` — this module's owner and the reference-module role generally.
-- `reference/mcp.md` — the sibling protocol module; same axis, different protocol.
+- `reference/mcp.md` — the sibling protocol module. Same axis, different protocol.

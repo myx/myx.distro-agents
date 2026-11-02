@@ -626,7 +626,7 @@ def runSteps(arguments):
 ## another wiping it whole as a terminal does; the places that can be clicked; the frames drawn and the time
 ## the drawing took up to the terminal's refresh, in milliseconds, all frames together.
 def innerRun(screenFile, dumpPath, arguments):
-    spec = importlib.util.spec_from_file_location("AgentsManagerScreen", screenFile)
+    spec = importlib.util.spec_from_file_location("LocalManagerScreen", screenFile)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     surfaceOf = module.CursesSurface

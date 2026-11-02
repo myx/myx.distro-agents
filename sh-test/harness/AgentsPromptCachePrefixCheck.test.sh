@@ -109,11 +109,30 @@ rigEndsWith(){ ## text, tail -- yes where the text ends with the tail
 		*) printf 'no' ;;
 	esac
 }
-rigMarkers(){ ## file -- how many cache markers the request carries
-	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$1" | wc -l | tr -d ' '
+rigMarkers(){ ## file -- how many cache markers the request carries, plain and hourly alike
+	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"' "$1" | wc -l | tr -d ' '
 }
 rigToolNames(){ ## file -- the names of the declared tools in the order of the request
 	LC_ALL=C sed -e 's/.*"tools":\[//' -e 's/\],"tool_choice".*//' "$1" | LC_ALL=C grep -o '{"name":"[A-Za-z0-9_]*","description"' | LC_ALL=C sed -e 's/{"name":"//' -e 's/","description"//'
+}
+rigHourlyTool(){ ## file -- the tool whose marker asks the hour, in the tools array alone
+	LC_ALL=C awk '
+		{ text = text $0 }
+		END {
+			mark = "\"cache_control\":{\"type\":\"ephemeral\",\"ttl\":\"1h\"}"
+			from = index( text, "\"tools\":[" )
+			stop = index( text, "\"tool_choice\"" )
+			if ( from == 0 || stop == 0 || stop <= from ) { print "no-tools" ; exit }
+			at = index( substr( text, from, stop - from ), mark )
+			if ( at == 0 ) { print "no-hourly-marker" ; exit }
+			head = substr( text, from, at - 1 )
+			nameAt = 0 ; cursor = 1
+			while ( ( step = index( substr( head, cursor ), "{\"name\":\"" ) ) > 0 ) { nameAt = cursor + step - 1 ; cursor = nameAt + 1 }
+			if ( nameAt == 0 ) { print "no-name" ; exit }
+			rest = substr( head, nameAt + 9 )
+			print substr( rest, 1, index( rest, "\"" ) - 1 )
+		}
+	' "$1"
 }
 rigPassCount=0
 rigFailCount=0
@@ -135,7 +154,13 @@ rigAssert "the team's armed floor is in the system text, once, and no team+ laye
 rigAssert "the member layer is the first block of the first user message, with its own marker"  "$( rigHolds "$rigA/req.1" '"role":"user","content":[{"type":"text","text":"## Your role -- the same for every session of rig-a\n\nRIG-A-BASIC own words' )" yes
 rigAssert "the other member's label and own words are the same block, after the same system and tools"  "$( rigHolds "$rigB/req.1" '"role":"user","content":[{"type":"text","text":"## Your role -- the same for every session of rig-b\n\nRIG-B-BASIC own words' )" yes
 rigAssert "three markers a request: the moving one, the end of the floor, the end of the member block" "$( rigMarkers "$rigA/req.1" )" 3
-rigAssert "the marker of the floor ends its tools (no MCP tool follows here)"      "$( rigHolds "$rigA/req.1" '"cache_control":{"type":"ephemeral"}}],"tool_choice"' )" yes
+rigFloorMarked(){ ## file -- floor where the hour stands on one of the floor's own tools, wrong where it is MCP's or absent
+	case "$( rigHourlyTool "$1" )" in
+		mcp__*|no-*) printf 'wrong' ;;
+		*) printf 'floor' ;;
+	esac
+}
+rigAssert "the floor's own tool carries the hour, never one the workspace's MCP server adds"  "$( rigFloorMarked "$rigA/req.1" )" floor
 rigAssert "one marker stands in the messages: the member's own block"               "$( LC_ALL=C sed 's/.*"messages":\[//' "$rigA/req.1" | LC_ALL=C grep -c 'cache_control' )" 1
 rigToolNames "$rigA/req.1" > "$rigTmp/names.a" ; rigToolNames "$rigB/req.1" > "$rigTmp/names.b"
 rigAssert "the floor's tools are in the order of their names"                       "$( LC_ALL=C sort -c "$rigTmp/names.a" 2>&1 && printf sorted )" sorted

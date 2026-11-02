@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on when the root `Team Data` of the manager screen (sh-lib/manager/AgentsManagerScreen.py) stands in the list, run rather than
+## Behavioural check on when the root `Team Data` of the manager screen (sh-lib/manager/LocalManagerScreen.py) stands in the list, run rather than
 ## read. The screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), started where the real
 ## screen starts (Manuals, never the Dashboard), and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh).
 ## Held: the root stands there at the start, with no visit to the Dashboard, where the workspace is a team rig whose team data is there, as the block of
@@ -9,7 +9,7 @@
 ## does, so a workspace set to a team rig shows it with no restart, and one cleared hides it. Offline: no operation of the real tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

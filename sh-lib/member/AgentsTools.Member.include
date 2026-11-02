@@ -360,6 +360,28 @@ case "$1" in
 		return $?
 	;;
 
+	## The vault write, the sibling of the read above. A stub: it checks the two names, and
+	## --intern-op-vault-item-write does the writing (AgentsTools.InternOpVaultAudit.include).
+	## The three typed siblings, one for each vault contract, write only a name of that contract's type word, and check the item against it.
+	--upsert-vault-item|--upsert-vault-investigation-report|--upsert-vault-decision-record|--upsert-vault-verbatim)
+		local vaultOp="${1#--}" vaultTyped=()
+		[ "$vaultOp" = "upsert-vault-item" ] || vaultTyped=( --typed "vault-item.${vaultOp#upsert-vault-}" )
+		shift
+		local vaultMember="${1:-}"
+		shift || true
+		local vaultItem="${1:-}"
+		shift || true
+		if [ -z "$vaultMember" ] || [ -z "$vaultItem" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --$vaultOp: syntax is <team-member> <item-name> $( [ "$vaultOp" = "upsert-vault-item" ] && printf '%s' '[--header:<upsert|append|remove>:name[:value]]... ' )[--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$vaultMember" "<team-member>" "$vaultOp" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$vaultItem" "<item-name>" "$vaultOp" || { set +e ; return 1 ; }
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-vault-item-write "$vaultMember" "$vaultItem" ${vaultTyped[@]+"${vaultTyped[@]}"} "$@" || return 1
+		return 0
+	;;
+
 	## Read one board item by filename and optional state restrictions, with
 	## optional line range. Path lookup remains inside AgentsToolsDataRead.
 	--get-board-item)

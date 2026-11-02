@@ -7,15 +7,15 @@
 ## (measuredDated of AgentsToolsRegistryMeasureRows: eleven stored columns, live, state,
 ## started-at, resolved-at, session-comment, session-state, session-state-at). -v activeOnly=1
 ## keeps the sessions that are not finished and can be acted on from this host, those that
-## read running, waiting, unclosed or failed (activeState); -v loadAverage is the figure of the counters row, and
+## read running, waiting, awaiting-review, unclosed or failed (activeState); -v loadAverage is the figure of the counters row, and
 ## -v hostName the name of this host, which stands last in that row, `-` where none is given. In
-## the environment, MDAT_MANAGER_WAITING is ` <spawn-id> <spawn-id> ... `: the live runs that
-## sit inside a Wait; and MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
+## the environment, MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
 ## each session whose control thread left a pid file or a lock, as it was measured for this
 ## call (AgentsToolsManagerSessionControls): a session with no line there has none. And
 ## MDAT_MANAGER_AGENTS is the workspace's agents folder, $MMDAPP/.local/agents, where the
 ## store of each run lies: its tokens are read there, by the one reading the read of a session
-## has too (tokensOfRun, AgentsManagerSessionTokens.awk, loaded with -f before this file). The
+## has too (tokensOfRun, AgentsManagerSessionTokens.awk, loaded with -f before this file), and its
+## chapter, the one line of sessions/<session-id>/chapter. The
 ## minutes of a date are dateMinutes of AgentsManagerDateMinutes.awk, loaded with -f before this file too.
 ##
 ## A session is the rows that carry one session-id; a row with none (an empty sandbox, a
@@ -32,14 +32,16 @@
 ## are not known is left out, and the number then ends with `+`: it is not the whole. `-` where
 ## no run of the session has known figures. One small file of a run's store is read for it,
 ## where the run has one; a spawn id that two records carry is one run.
-## THE USAGE-LIMIT FLAG of a session, the second-last field of its row, is the one wording
+## THE USAGE-LIMIT FLAG of a session, the third-last field of its row, is the one wording
 ## the run's own store keeps when the provider refused it for its API usage limit -- that it
 ## stopped on the provider usage limit and the date it reopens (usageLimitOfRun, one more
 ## small file of a run's store), `-` where no run of the session was refused. The last of its
 ## refused runs wins, since a later refusal is the one that still holds.
-## THE REFUSED COUNT of a session, the last field of its row, is every one of its runs' own
+## THE REFUSED COUNT of a session, the second-last field of its row, is every one of its runs' own
 ## `refused` count added (sketch 3.6): not only the refusal that stopped a run, every one a
 ## run's harness loop hit. `-` where none of the session's runs ever carried one.
+## THE CHAPTER of a session, the last field of its row, is the one line its executor set with --set-session-chapter, read
+## from the session's store; `-` where there is none, or where the row is no session of its own.
 ##
 ## Every line goes out behind five sort keys and a TAB each, for
 ## `sort -t <TAB> -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n` and a cut of them: the session's
@@ -53,11 +55,12 @@
 ## of it waiting on an answer, which can be answered or dismissed, or every live run of it in a
 ## wait on a person, which is what it is doing. `unclosed`, no live process
 ## and a record still open: the record can be closed, the run started again. `failed`, every run of it
-## died on its start: a joined coordinator takes it up. Not `finished`;
+## died on its start: a joined coordinator takes it up. `awaiting-review`, every run of it ended or handed back and one
+## parked: its handback waits for a verdict. Not `finished`;
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
 function activeState(stateWord) {
-	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "unclosed" || stateWord == "failed" ) ;
+	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "awaiting-review" || stateWord == "unclosed" || stateWord == "failed" ) ;
 }
 
 ## The usage-limit flag of one run, from its store: the first line of
@@ -76,11 +79,26 @@ function usageLimitOfRun(agentsDir, spawnId,    limitPath, limitText) {
 	return limitText ;
 }
 
+## The chapter of one session, from its store: the one line of sessions/<session id>/chapter that the executor sets
+## (--set-session-chapter), its whitespace written as `_` as the registry writes a name; `-` where it has none. A session
+## with no id of its own opens nothing.
+function chapterOfSession(agentsDir, sessionId,    chapterPath, chapterText) {
+	chapterText = "" ;
+	if (sessionId != "" && sessionId != "-" && sessionId != "." && sessionId != ".." && index(sessionId, "/") == 0) {
+		chapterPath = agentsDir "/sessions/" sessionId "/chapter" ;
+		if (( getline chapterText < chapterPath ) < 1) chapterText = "" ;
+		close(chapterPath) ;
+	}
+	gsub(/[ \t]+/, "_", chapterText) ;
+	sub(/^_+/, "", chapterText) ; sub(/_+$/, "", chapterText) ;
+	return ( chapterText == "" ? "-" : chapterText ) ;
+}
+
 BEGIN {
 	OFS = "\t" ;
-	waitingSet = ENVIRON["MDAT_MANAGER_WAITING"] ;
 	agentsDir = ENVIRON["MDAT_MANAGER_AGENTS"] ;
-	stateTotal = split("running starting waiting unclosed unknown-foreign failed finished", stateOrder, " ") ;
+	## The states a run is in, as the registry derives them, in the order a tally names them: those of a live run first.
+	stateTotal = split("thinking in-tool running starting waiting awaiting-review unclosed unknown-foreign failed finished", stateOrder, " ") ;
 	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
 	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
 		if (split(controlLines[controlAt], controlWords, " ") >= 2) controlOf[controlWords[1]] = controlWords[2] ;
@@ -116,10 +134,12 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 	runSession[runTotal] = sessionKey ;
 	runStart[runTotal] = $14 ; runEnd[runTotal] = $15 ;
 	runActivity[runTotal] = "-" ;
+	## WHAT A LIVE RUN IS DOING is the registry's own word for it, field 13 (S27.4): `waiting` where it sits in a call that
+	## waits on a person, `working` for `thinking` and `in-tool`. No file of the run's store is read for it a second time.
 	if ($12 == "running") {
 		sessionLive[sessionKey] = 1 ;
 		sessionLiveCount[sessionKey]++ ;
-		if (index(waitingSet, " " $8 " ") > 0) { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
+		if ($13 == "waiting") { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
 		else { runActivity[runTotal] = "working" ; agentsWorking++ ; }
 	}
 	## A RUN THAT IS STILL HERE IS RUNNING, whatever its record says (S21.4): a `spawn-failed` mark written before the run started
@@ -131,6 +151,7 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 	else if (runStateWord == "finished") sessionEnded[sessionKey] = 1 ;
 	if (runStateWord == "unknown-foreign") sessionForeign[sessionKey] = 1 ;
 	if (runStateWord == "unclosed" || runStateWord == "waiting") sessionOpen[sessionKey] = 1 ;
+	if (runStateWord == "awaiting-review") sessionAwaiting[sessionKey] = 1 ;
 	if (runStateWord == "starting") sessionStarting[sessionKey] = 1 ;
 	## AN ASK STILL WAITING IS THE SESSION'S OWN, whether its run still stands or not: it is counted by
 	## the asking id its row carries, the session's own id or the id of one of its runs.
@@ -169,7 +190,8 @@ END {
 		sessionKey = sessionOf[sessionAt] ;
 		## THE STATE OF THE SESSION IS THE STATE OF ITS AGENTS AND OF ITS QUESTIONS: live runs make it running, or
 		## waiting where every one of them sits in a wait on a person; with none live, waiting where a run of it waits
-		## on an answer, then an open record of another host's, else one still open, else every run of it failed on its
+		## on an answer, then an open record of another host's, else one still open, else one handed back and parked, awaiting
+		## its verdict, else every run of it failed on its
 		## start, else finished. ALL AGENTS FINISHED MAKE THE SESSION FINISHED, NEVER WAITING (sketch 5.4): a question
 		## still open does not hold a session whose runs have all ended -- it is counted in the counters row.
 		if (sessionKey in sessionLive) {
@@ -179,6 +201,7 @@ END {
 		else if ((sessionKey, "waiting") in sessionStates) sessionState[sessionKey] = "waiting" ;
 		else if (sessionKey in sessionForeign) sessionState[sessionKey] = "unknown-foreign" ;
 		else if (sessionKey in sessionOpen) sessionState[sessionKey] = "unclosed" ;
+		else if (sessionKey in sessionAwaiting) sessionState[sessionKey] = "awaiting-review" ;
 		else if ((sessionKey in sessionFailed) && !( sessionKey in sessionEnded )) sessionState[sessionKey] = "failed" ;
 		else sessionState[sessionKey] = "finished" ;
 		if (sessionState[sessionKey] == "running") sessionsRunning++ ;
@@ -194,7 +217,8 @@ END {
 		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally, sessionStored[sessionKey], sessionStoredAt[sessionKey], ( ( sessionKey in sessionById ) && ( sessionKey in controlOf ) ? controlOf[sessionKey] : "none" ), \
 			( ( sessionKey in sessionTokenRuns ) ? tokensFigure(sessionTokens[sessionKey]) ( ( sessionKey in sessionTokenUnknown ) ? "+" : "" ) : "-" ), \
 			( ( sessionKey in sessionUsageLimit ) ? sessionUsageLimit[sessionKey] : "-" ), \
-			( ( sessionKey in sessionRefused ) && sessionRefused[sessionKey] > 0 ? sessionRefused[sessionKey] : "-" ) ;
+			( ( sessionKey in sessionRefused ) && sessionRefused[sessionKey] > 0 ? sessionRefused[sessionKey] : "-" ), \
+			( ( sessionKey in sessionById ) ? chapterOfSession(agentsDir, sessionKey) : "-" ) ;
 	}
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		sessionKey = runSession[runAt] ;

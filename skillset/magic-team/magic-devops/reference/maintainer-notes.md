@@ -42,8 +42,8 @@ The body of this member's armed `# Maintainer Notes`. Read it when that file is 
 ### Reference
 
 - `reference/*.md` — indexed under Domain knowledge.
-- `magic-coordinator/magic-coordinator.armed.md` — who may ask for a destructive action; it defers the definition of what counts to this file.
-- The owning `keeper-*` — source authoring; the owning `partner-*` — namespace inventory.
+- `magic-coordinator/magic-coordinator.armed.md` — who may ask for a destructive action. It defers the definition of what counts to this file.
+- The owning `keeper-*` — source authoring. The owning `partner-*` — namespace inventory.
 
 ### Conventions
 

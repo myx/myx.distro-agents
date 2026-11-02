@@ -70,7 +70,7 @@ owning namespace `keeper-*`'s domain knowledge, or in the relevant repo's own
   --distro-from-source` first, before deploying. It switches lookups to the
   live `source/` tree directly, so a same-session edit deploys without the
   separate cache-rebuild step at all.
-- `--prepare-full` = `--prepare-sync` (upload files) + `--prepare-exec` (prepare the exec script) together; `--deploy-full` runs both stages against the real target. Real success looks like `>>> script end: ...` then `>>> script done: ...` with
+- `--prepare-full` = `--prepare-sync` (upload files) + `--prepare-exec` (prepare the exec script) together. `--deploy-full` runs both stages against the real target. Real success looks like `>>> script end: ...` then `>>> script done: ...` with
   no `⛔ ERROR:` line anywhere, followed by `ImageDeploy: 🏁 task finished.` The
   `⛔ ERROR:` clause is the whole of that test. A failed fragment prints `⛔
   ERROR: deploy fragment failed: <fragment>` from its own return-code test and

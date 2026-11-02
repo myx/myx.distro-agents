@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Actions.py -- what every action shares: its call to the tooling, its answer, the escalation.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -30,6 +30,31 @@ def askCall(state, actionName, callId, words, inputText, about=None):
     state.answer = None
 
 
+## The answer of a kill, a control start, a start and a save, in the one shape ACTION_ANSWERS takes: the words of the call,
+## for the title of its failure, the lines of the left pane and the line of the status line.
+def killAnswered(text, about, width):
+    lines, summary = killAnswer(text)
+    return "the kill", lines, "kill: " + (summary or "the operation named no run")
+
+
+def controlAnswered(text, about, width):
+    return ("the control start",) + controlAnswer(text, width)
+
+
+def startAnswered(text, about, width):
+    return ("the start",) + spawnAnswer(text, width)
+
+
+def settingAnswered(text, about, width):
+    return ("the save",) + settingAnswer(text, about.get("says", ""), width)
+
+
+ACTION_ANSWERS["kill"] = killAnswered
+ACTION_ANSWERS["control"] = controlAnswered
+ACTION_ANSWERS["start"] = startAnswered
+ACTION_ANSWERS["setting"] = settingAnswered
+
+
 ## The answer of an action, taken into the state. What the operation printed is set out
 ## for the left pane, where it stands while the item it was asked on stays selected; one
 ## line of it stands in the status line; and what is shown is read again, the list of the
@@ -45,19 +70,6 @@ def applyCall(state, result):
         what = "the request"
         lines = [line for line in result["text"].splitlines() if line.strip()]
         summary = lines[0] if lines else ""
-    elif about["action"] == "kill":
-        what = "the kill"
-        lines, summary = killAnswer(result["text"])
-        summary = "kill: " + (summary or "the operation named no run")
-    elif about["action"] == "control":
-        what = "the control start"
-        lines, summary = controlAnswer(result["text"], state.viewWidth)
-    elif about["action"] == "start":
-        what = "the start"
-        lines, summary = spawnAnswer(result["text"], state.viewWidth)
-    elif about["action"] == "setting":
-        what = "the save"
-        lines, summary = settingAnswer(result["text"], about.get("says", ""), state.viewWidth)
     elif about["action"] in ACTION_ANSWERS:
         what, lines, summary = ACTION_ANSWERS[about["action"]](result["text"], about, state.viewWidth)
     elif about["action"] in ASK_ACT_WORDS:
@@ -68,7 +80,7 @@ def applyCall(state, result):
         lines, summary = startAnswer(result["text"], about.get("name", ""), state.viewWidth)
     if result["status"] != 0:
         what += " failed"
-        tell(state, what[0].upper() + what[1:], ([summary] if about["action"] == "control" and lines else []) + failureLines(result))
+        tell(state, what[0].upper() + what[1:], ([summary] if lines else []) + failureLines(result))
         summary = ""
         lines = lines + wrapToCells(result["error"], max(10, state.viewWidth - 1))
     title = "%s, answered %s:" % (what, time.strftime("%H:%M:%S", time.localtime(nowEpoch())))

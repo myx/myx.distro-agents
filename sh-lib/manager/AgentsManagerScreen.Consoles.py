@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Consoles.py -- the root Consoles: what is started with the whole terminal.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -25,6 +25,14 @@ def parseStartRows(text):
         row["tail"] = unspaced(start["group"])
         rows.append(row)
     return rows
+
+
+## The levels of the `starts` read: registered with the list, so the list asks the read's form rather than naming this parser.
+def startsLevels(readKey, level, text):
+    return {level: parseStartRows(text)}
+
+
+ROW_FORMS["starts"] = {"parse": startsLevels}
 
 
 ## A command for the eye, word by word: a word that holds a blank, or anything a shell

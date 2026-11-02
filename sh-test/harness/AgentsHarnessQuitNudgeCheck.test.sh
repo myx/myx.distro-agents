@@ -9,6 +9,7 @@
 ##   5. a changed set resets the counter, and the first instruction after it says 1 of 5
 ##   6. an item in progress never raises the count, and neither does one naming the handback
 ##   7. a list whose only open item names the handback ends the run, as a member finishing
+##   8. a dismissed session's plain reply ends the run at once with items still open, and the list is as it was (S22 item 3)
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -154,6 +155,16 @@ rigPlainRounds 1
 rigLoop
 rigAssert "the run ended at once"                               "$rigLoopRc:$( cat "$rigDir/round" )" "0:1"
 rigAssert "and no instruction was given"                        "$( rigInstructions )" "0"
+
+echo "-- 8. a dismissed session ends on its plain reply, whatever its list holds, and keeps the list --"
+rigScene dismissed $'- [ ] Fix the index\n- [ ] Run the suite'
+mkdir -p "$rigDir/ws/.local/agents/sessions/$rigSpawn" && printf 'rig-boss\n' > "$rigDir/ws/.local/agents/sessions/$rigSpawn/dismissed"
+rigListBefore="$( cksum < "$rigList" )"
+rigPlainRounds 6
+rigLoop
+rigAssert "the run ended at once"                               "$rigLoopRc:$( cat "$rigDir/round" )" "0:1"
+rigAssert "and no instruction was given"                        "$( rigInstructions )" "0"
+rigAssert "the open items stay as they were, for the reviewer"   "$( cksum < "$rigList" )" "$rigListBefore"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ QUIT NUDGE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

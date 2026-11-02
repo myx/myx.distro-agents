@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # vault-item.verbatim — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.verbatim.document.format.md`; no writer fills it yet. Read by the document validator, `--intern-doc-validate vault-item.verbatim <file>`.
+Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.verbatim.document.format.md`; `--upsert-vault-verbatim` writes it. Read by the document validator, `--intern-doc-validate vault-item.verbatim <file>`.
 
 ## Contents
 
@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-A verbatim document or fact: a standing statement kept word for word. Thin until a writer exists: the team's model defines this type in one line. So this contract carries the common keys, and the body is free.
+A verbatim document or fact: a standing statement kept word for word. Thin: the team's model defines this type in one line. So this contract carries the common keys, and the body is free.
 
 # Contract
 
@@ -54,5 +54,5 @@ A verbatim document or fact: a standing statement kept word for word. Thin until
 ## Rules
 
 - `type` equals the type word in the filename (`verbatim`).
-- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-`, `warning-` or `investigation-`.
+- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-` or `warning-`. A name starting with `investigation-` names a vault report.
 - [judged] The text is word for word, never paraphrased.

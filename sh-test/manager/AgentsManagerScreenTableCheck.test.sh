@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the table lines of F11.0 (the refactorings epic), in the one table renderer of the manager
-## screen (sh-lib/manager/AgentsManagerScreen.py, paneTable), so in every table of its left window. Run rather than read: the
+## screen (sh-lib/manager/LocalManagerScreen.py, paneTable), so in every table of its left window. Run rather than read: the
 ## renderer is called by the screen module itself, and the real screen is driven through the stand-in terminal of
 ## check-fixtures/manager-screen.driver.py, where it would call the dispatcher it calls the stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
@@ -46,7 +46,7 @@ set -u
 ## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -76,7 +76,7 @@ rigAssert(){ ## what is asserted, got, want
 ## What the renderer and the full-view wrappers give, by the screen module itself: `<name>=<value>` a line.
 cat > "$rigTmp/probe.py" <<'RIGPROBE'
 import importlib.util, sys, textwrap
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec) ; spec.loader.exec_module(screen)
 
 

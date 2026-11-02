@@ -7,8 +7,8 @@
 ##   2. so does a wait that delivers an arrival
 ##   3. a list with every item closed says so, and a session with no list says to write one
 ##   4. an idle Wait -- no source named, and a handback given -- returns at once with the open items
-##   5. and it does so once per change of the list: unchanged, the same call waits as it always did
-##   6. closing the in-progress item leaves what is pending untouched, so it waits as before
+##   5. and it does so again on the very next call, unchanged list and all (S22 item 6: the list is the queue)
+##   6. mode continue is waiting on purpose, so it makes the ordinary wait and carries the count alone
 ##   7. an idle Wait with nothing open waits as it always did
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -89,16 +89,16 @@ rigAssert "the pending item is carried" "$( rigLines '^- \[ \] ' )" "1"
 rigAssert "the in-progress item is never carried as a line" "$( rigLines '^- \[~\] ' )" "0"
 rigAssert "nothing was waited on" "$( rigLines '^WAIT-RESULT' )" "0"
 
-echo "-- 5. the same call again, with the list unchanged, waits --"
+echo "-- 5. the same call again, with the list unchanged, returns them again --"
 rigCall '{"timeout":2}'
-rigAssert "the wait is the ordinary one now" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
-rigAssert "and it carries the count alone" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress$' )" "1"
+rigAssert "the list is the queue, so it returns again, not a wait" "$( LC_ALL=C head -1 "$rigWs/out" )" "CHECKLIST: 1 pending, 1 in progress. Finish or close them before you wait for DISMISSED."
+rigAssert "the pending item is carried again" "$( rigLines '^- \[ \] ' )" "1"
+rigAssert "and still no wait" "$( rigLines '^WAIT-RESULT' )" "0"
 
-echo "-- 6. closing the in-progress item leaves what is pending untouched --"
-printf -- '- [x] Read the plan\n- [x] Fix the index\n- [ ] Run the suite\n' > "$rigList"
-rigCall '{"timeout":2}'
-rigAssert "the pending set is unchanged, so it waits as before" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
-rigAssert "in progress dropped out of the count" "$( rigLines '^CHECKLIST: 1 pending$' )" "1"
+echo "-- 6. mode continue is waiting on purpose, and checks nothing --"
+rigCall '{"mode":"continue","timeout":2}'
+rigAssert "it makes the ordinary wait" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
+rigAssert "and carries the count alone" "$( rigLines '^CHECKLIST: 1 pending, 1 in progress$' )" "1"
 
 echo "-- 7. an idle Wait with nothing open waits --"
 printf -- '- [x] Read the plan\n- [x] Fix the index\n- [x] Run the suite\n' > "$rigList"

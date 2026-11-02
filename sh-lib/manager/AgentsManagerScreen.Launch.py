@@ -204,7 +204,7 @@ registerPlugin({
 ## <member>...`, and `slot <side> <entry> none` for an entry nothing can fill. A `<type>-?` (`choose`) is a required select of its candidates, with no choice made for the user even where one candidate
 ## stands; a `<type>-*` (`all`) is shown, read only, as the members it expands to. The members chosen go to `--spawn-session` after the routine. The console sorts none of it out: the rows are drawn.
 ROUTINE_SLOTS_READ = "full:routine-slots"
-PLAN_FORMS["routine-slots"] = lambda text: text
+PLAN_FORMS["routine-slots"] = formRow("routine-slots", lambda text: text, "reading-dialog")
 DIALOGS["routine-slots-wait"] = {"title": "Start the routine", "reads": ("full:{kind}",),
                                  "controls": ({"name": "about", "kind": "text"},),
                                  "buttons": (("cancel", "Cancel"),)}

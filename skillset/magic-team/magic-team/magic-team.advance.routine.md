@@ -3,6 +3,7 @@ type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
+routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: none
 review-by: inherit
 runs-at: none

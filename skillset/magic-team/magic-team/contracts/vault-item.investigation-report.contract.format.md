@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # vault-item.investigation-report — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.investigation-report.document.format.md`, and no writer fills it yet. Read by the document validator, `--intern-doc-validate vault-item.investigation-report <file>`.
+Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.investigation-report.document.format.md`, and `--upsert-vault-investigation-report` writes it. Read by the document validator, `--intern-doc-validate vault-item.investigation-report <file>`.
 
 ## Contents
 
@@ -16,12 +16,12 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-An investigation report (IVR): the result of one investigation, kept as a standing document. The running investigation is its board item; this is what it established.
+An investigation report: the result of one investigation, kept as a standing document. The running investigation is its board item; this is what it established. Its type word is `investigation`, as the board item's is: the store tells them apart, and `ivr` is the Confluence page template, never this type word.
 
 # Contract
 
-- Kind `vault-item.investigation-report`: store vault, type word `ivr`.
-- Filename: `ivr-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per Terminology.
+- Kind `vault-item.investigation-report`: store vault, type word `investigation`.
+- Filename: `investigation-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per Terminology.
 - A document names this contract in `document-contract`, with the value `vault-item.investigation-report`. The writer fills it where missing.
 - A key the Keys table does not name is not part of this contract. How a stored document that does not match is treated is set by the validator's per-rule disposition, not here.
 - The validator reads the Keys table, the Body and the unmarked Rules. A rule marked `[store]` needs more than the file to check. A rule marked `[judged]` is for a reader to judge.
@@ -33,7 +33,7 @@ An investigation report (IVR): the result of one investigation, kept as a standi
 | key | presence | writer | value form | rule |
 |---|---|---|---|---|
 | `document-contract` | required | either | `literal vault-item.investigation-report` | Names this contract. The writer fills it where missing. |
-| `type` | required | either | `literal ivr` | The filename's type word, never a genre. |
+| `type` | required | either | `literal investigation` | The filename's type word, never a genre. |
 | `from` | required | member | `member` | The investigating member. |
 | `date` | required | member | `date-time` | When the report was settled. |
 | `owner` | optional | member | `owner-name` | The current holder, where one is named. |
@@ -62,8 +62,8 @@ An investigation report (IVR): the result of one investigation, kept as a standi
 
 ## Rules
 
-- `type` equals the type word in the filename (`ivr`).
-- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-`, `warning-` or `investigation-`.
+- `type` equals the type word in the filename (`investigation`).
+- `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-` or `warning-`. A name starting with `investigation-` names a vault report.
 - [judged] `status` is `final` or `superseded`, and `superseded-by` is present exactly when it is `superseded`.
 - [judged] A finding labelled shown carries the check that showed it.
 - [store] The investigation board item that produced this report names it in its own `references`.

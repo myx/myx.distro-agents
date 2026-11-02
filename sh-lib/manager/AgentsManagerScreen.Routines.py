@@ -2,7 +2,7 @@
 ## AgentsManagerScreen.Routines.py -- `Routines` under `Magic-Team (Agents)` (F11.11): the standing picture of the routines the members carry, each with its executors, the kind of
 ## its session, its state, when it last ran, what its autorun declares, and whether it is valid. Stage one gave what the listing gives and what
 ## the Dispatcher's runs give; stage two (F7.5, F6.1) gives the autorun (`auto`, `runs-at`, `runs-after`) and the verdict of the validator (`valid`).
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 ## IT RENDERS AND DOES NOT COMPUTE. `--manager-routine-list` prints the rows (AgentsTools.ManagerRoutine.include), the state and the last run of which are the Dispatcher's own (`--routine-stats`),
@@ -34,7 +34,7 @@ def parseRoutineStateRows(readKey, level, text):
     return {level: rows}
 
 
-ROW_FORMS["routines-state"] = parseRoutineStateRows
+ROW_FORMS["routines-state"] = {"parse": parseRoutineStateRows}
 
 
 ## The times of a routine in the table: its autorun as it declares it, `daily 09:00`, with `after <routine>` where it follows one; `-` where it declares none.

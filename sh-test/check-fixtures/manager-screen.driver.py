@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ##
 ## manager-screen.driver.py -- the driver of the manager screen's tests. It loads
-## sh-lib/manager/AgentsManagerScreen.py as a module and stands in for the terminal, so a test
+## sh-lib/manager/LocalManagerScreen.py as a module and stands in for the terminal, so a test
 ## reads the screen back as text and needs no real terminal. Run with `python3 -I -B`.
 ##
 ##   <driver> <screen file> script
@@ -38,7 +38,7 @@ sys.dont_write_bytecode = True
 
 
 def loadScreen(screenFile):
-    spec = importlib.util.spec_from_file_location("AgentsManagerScreen", screenFile)
+    spec = importlib.util.spec_from_file_location("LocalManagerScreen", screenFile)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

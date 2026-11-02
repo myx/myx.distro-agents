@@ -339,7 +339,7 @@ that the code and docs do not readily tell you.
   script's path alone nor a fixed path to bash.
   Where `command -v bash` finds none, the tool, the harness and the generated console put the directory
   of the running bash at the end of `PATH`. The tool's entry exports `MDAT_BASH`, the running bash, which
-  the Python starters (`AgentsManagerScreen.py`, `AgentsSlackSocketMode.py`) start the tool with.
+  the Python starters (`LocalManagerScreen.py` of `myx.distro-.local`, `AgentsSlackSocketMode.py` here) start the tool with.
   `AgentsBashPathGuardCheck` lists the places left, each with its reason; `AgentsBashPathProofCheck`
   runs them on a `PATH` whose bash is a recording stand-in.
 - **Severity marks**: `⛔ ERROR` for a fault, `🙋 WARNING` for a designed refusal. Keep the asymmetry. A
@@ -827,7 +827,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   It takes nothing after it, and is refused together with `--non-interactive`.
 - **`DistroAgentsTools.fn.sh --manager [--style <name>]`** is what the console's `--manager` runs, and
   has help. It is no `--manager-*` operation: its own arm of the caller check admits every caller. It
-  runs `sh-lib/manager/AgentsManagerScreen.py` with Python. The style is, in this order: `--style`, the environment's `MDLT_MANAGER_STYLE`, the
+  runs `sh-lib/manager/LocalManagerScreen.py` of `myx.distro-.local` with Python. The style is, in this order: `--style`, the environment's `MDLT_MANAGER_STYLE`, the
   user's saved `MDLT_MANAGER_STYLE` (`<workspace>/.local/home/<user>/MDLT.settings.env`), the screen's
   default. It ends with status 1 and one plain line where Python, its `curses` module, or
   a terminal is missing. It ends with status 0 on Ctrl-X (or Alt-X). `AgentsManagerStartStyleCheck` is its test.
@@ -1050,9 +1050,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
     `maintainer` those with a MAGIC.md, in the order
     `ListDistroProjects --select-all` gives. A row is `<project> TAB <file>`.
     With a project, it lists that file.
-- **The manager screen is the entry `sh-lib/manager/AgentsManagerScreen.py` plus its parts**, the files
-  `AgentsManagerScreen.<Part>.py` beside it. The entry holds the start, the list `PARTS` (the files, in the order they
-  load) and `loadParts()`. The entry runs each part in its own namespace, so
+- **The manager screen is the entry `sh-lib/manager/LocalManagerScreen.py` of `myx.distro-.local` plus its parts**, the files
+  `AgentsManagerScreen.<Part>.py` here beside this package's own list. The entry holds the start, the list of parts each package
+  declares in its `sh-lib/config/screen-parts.list`, and `loadParts()`. The entry runs each part in its own namespace, so
   the screen stays one module whatever its files are. A declaration names a
   function by its name (`globals()[name]`), and a test replaces a function of
   the screen by assigning it to the module. A part is plain text of the screen and is
@@ -3492,7 +3492,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   `AgentsOwnerSetupCheck`.
 - **`AgentsHarnessContainmentCheck.test.sh` is wired into nothing** and runs only by hand. It tests
   `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` together, in both polarities.
-- **The manager screen's tests** are every `sh-test/AgentsManagerScreen*Check.test.sh`, 31 of them, all
+- **The manager screen's tests** here are every `sh-test/AgentsManagerScreen*Check.test.sh`, 31 of them, all
   through the driver `check-fixtures/manager-screen.driver.py` and the stand-in dispatcher
   `check-fixtures/manager-screen.tools.stub.sh`.
   `AgentsManagerSessionListCheck`, `AgentsManagerSessionReadCheck`
@@ -3583,3 +3583,19 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - Each member under `.local/agents/members/` is a link into its skillset, made by `--install-skillset-symlinks`. These are installation links, not sandboxes.
 - A sweep that removes every link under `.local/agents` removes every member install with it. No member can then be started in that workspace.
 - Put them back with the installer, never by hand: `Distro DistroAgentsTools --install-skillset-symlinks --workspace <workspace>`. That was verified on 2026-11-01 in all four workspaces.
+
+## The CheckList gate (S22 items 3, 4 and 7)
+
+- **A spawn seeds its executor's CheckList.** The spawn proxy writes the list once, after it fills the sandbox and before the member's first turn. The items, in this order, are: the `- ` lines under `## Formal task` in the text the spawner gave (the brief, or the tracked item); the numbered items of the one epic feature that text names, by an epic file it names and the feature id after the word `feature` (S24.19), which seeds nothing when either is absent; the duties of its routine, one for each step of its Opening steps, Steps and Closure steps in the order the routine is read (a numbered `**name**` line, or the deepest heading of a group); and one for each `--checklist-item <text>` argument. A work-duty's routine gives none, because a duty is a loop that no list can finish. Every item is pending. The seed adds an item whose text the list does not hold. It never closes, rewords or moves a line it finds, so a second spawn in the session adds nothing. `sh-lib/session/AgentsTools.CheckListSeed.include` holds it. The heading and the `--checklist-item` argument are names the owner has not yet approved. A tracking document's own contract section joins when a contract declares one.
+- **A dismissal wins over the list.** A dismissed session ends on its plain reply, whatever its CheckList holds. The quit nudge is for a session that is not dismissed. The items stay beside the session as its state, for the reviewer.
+- **A long tool returns a handle at its own window.** The table is `sh-lib/harness/AgentsHarnessToolWindow.include`. `sync` and `async` override it. A tool that blocks by design carries no row.
+
+## The queue, the liveness and the duty's inputs (S23, S4)
+
+- **The CheckList is also the queue.** With `SPAWN_LIMIT` of the team scope above 0, or `MDAT_SPAWN_LIMIT`, a `--spawn-session` that finds that many runs of this host alive makes no spawn. `AgentsToolsSpawnQueue` files the request as an inquiry in magic-coordinator's inbox and adds an item naming it to the CheckList of the coordinator's running work-duty. The call prints `SPAWN_QUEUED=true`, `SPAWN_QUEUE_ITEM` and `SPAWN_QUEUE_CHECKLIST`, and exits 0. A work-duty's own start and a start that joins a session are never queued. Unset or 0 is no limit.
+- **A parent adds to its executor's CheckList.** The CheckList tool takes `append` (item texts), `member` and `session`. The caller's session must be the `parent-session-id` of the named session, and `member` its executor. With no `session` the items go to the caller's own list. They are written pending, under a lock, to the end of `<member>.checklist.md`, and noted in `<member>.checklist.md.added`. The owner's next whole-list write keeps any of them it was not shown, and its next read clears the note.
+- **Liveness is a cached reading.** `AgentsToolsLivenessOf <spawn id> [<record>]` prints `alive`, `gone` or `unknown`, rc 2 for unknown. `alive` and `gone` are kept in `.local/agents/liveness/<spawn id>` for `AGENTS_LIVENESS_TTL` seconds (30). Unknown is never read as gone, so nothing closes or restarts on it, and never as alive. The duty scan, the stale close of a duty record and the board item holders ask it. A holder whose run is gone holds nothing. The loop's work-duty step closes a duty record whose run and supervising shell are both gone, so the restart rule reads an end.
+- **A handback addressed to the duty is a ready input.** The work-duty scan lists the review items with `review-by: <member>.work-duty.routine` under `## Handbacks ready for the duty` and a `# ready: <N>` line. A Wait on `scan:work-duty` returns with the report again while N is above 0, until the duty takes the item out of review.
+- **A context refusal withholds tool results.** The harness records each tool result of a leg. A refusal for length withholds the results of the round that overflowed, and a refused summarise round is asked again once with every result withheld. A withheld result is a notice that the call ran.
+- **A duty's start does not wait for Slack news.** The spawner marks its real run of a scan `MDAT_SCAN_AT_START=1`, and the duty scan then reads Slack once with a one-second window. A Wait's own scan keeps `WAIT_COLLECT_SECONDS`.
+- **The coordinator reads epics through the tooling.** `AgentDispatcherTools --epic-read <file> [--feature <id>]` and `--epic-list <folder>` serve a path under a `todo-sketchpad` folder, with no `..` part, to the coordinator or to no member.

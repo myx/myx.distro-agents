@@ -127,8 +127,8 @@ echo "-- 4. a top-level message of the owner is the reply of the latest post abo
 : > "$rigScenario/is-im"
 rigSessionDir="$rigWs/.local/agents/sessions/rig-miss-posts"
 mkdir -p "$rigSessionDir"
-## THE POSTS ARE RECENT ON PURPOSE: a post quiet for an hour is no longer read (agentsWaitRepliesQuietMax), so a
-## fixed ts from years back is never looked at and the case would prove nothing.
+## THE POSTS ARE RECENT ON PURPOSE: a post quiet for long enough is looked at only every 100 seconds (the replies TTL's
+## ceiling, AgentsWaitRepliesLook), so a fixed ts from years back is never looked at in time and the case would prove nothing.
 nowPost="$( date +%s )"
 p1="$(( nowPost - 60 )).000101" p2="$(( nowPost - 40 )).000101" p3="$(( nowPost - 20 )).000101"
 m1="$(( nowPost - 55 )).000101" m2="$(( nowPost - 35 )).000101" m3="$(( nowPost - 15 )).000101"

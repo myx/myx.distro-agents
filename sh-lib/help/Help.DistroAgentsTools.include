@@ -197,7 +197,7 @@ echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <t
 echo "📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --retro-lock-refresh [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-advance [--team-member <team-member>] <ts>" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-read [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
@@ -443,7 +443,9 @@ echo "📘 syntax: AgentDispatcherTools.fn.sh --contact [--team-member <team-mem
 echo "📘 syntax: AgentDispatcherTools.fn.sh --standing-directives [--team-member <team-member>] [--all]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]" >&2
-echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>)" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-read [--team-member <team-member>] <epic-file> [--feature <feature-id>]" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-list [--team-member <team-member>] <folder>" >&2
 echo "📘 syntax: DistroAgentsKnowledge.fn.sh [--mdat-output-format json] [<project selector: --select-*|--filter-*|--remove-*>] (--add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items)... (--query-keyword <text>|--query-pattern <regex>|--query-glob <glob>|--query-open-and|--query-open-or|--query-close)..." >&2
 		return 0
 	;;

@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Members.py -- the root Team Members: a member as a folder, its grants and its files, and to start one.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -19,9 +19,6 @@ GRANT_COLUMNS = (
 GRANT_COVERS_CELLS = 40
 
 
-## What the read of a member printed of its grants, as kept: the grants, which the folder of `Permissions` makes its rows of
-## (memberGrantRows) each time it is drawn, since what a grant shows of its session is what that session is now.
-GRANTS_OF = "store:grants:"
 
 
 def parseGrants(text):
@@ -495,3 +492,61 @@ registerPlugin({
         "settings": {"lines": ("team/*/settings:record",)},
     },
 })
+
+
+## The levels of the `members` read: registered with the list, so the list asks the read’s form rather than naming this parser.
+def membersLevels(readKey, level, text):
+    return {level: parseMemberRows(text)}
+
+
+ROW_FORMS["members"] = {"parse": membersLevels}
+
+
+## The levels of the `member-grants` read: registered with the list, so the list asks the form rather than naming this parser.
+def memberGrantsLevels(readKey, level, text):
+    return {GRANTS_OF + level: parseGrants(text)}
+
+
+ROW_FORMS["member-grants"] = {"parse": memberGrantsLevels}
+
+
+## The levels of the `session-grants` read: registered with the list, so the list asks the form rather than naming this parser.
+def sessionGrantsLevels(readKey, level, text):
+    return {GRANTS_OF + level: parsePermissionList(text)}
+
+
+ROW_FORMS["session-grants"] = {"parse": sessionGrantsLevels}
+
+
+## The levels of the `member-files` read: registered with the list, so the list asks the form rather than naming this parser.
+def memberFilesLevels(readKey, level, text):
+    return {level: parseFileRows(text)}
+
+
+ROW_FORMS["member-files"] = {"parse": memberFilesLevels}
+
+
+## The levels of the `member-sessions` read: registered with the list, so the list asks the form rather than naming this parser.
+def memberSessionsLevels(readKey, level, text):
+    return {level: parseSessionRows(text)}
+
+
+ROW_FORMS["member-sessions"] = {"parse": memberSessionsLevels}
+
+
+## The levels of the `member-help` read: the help rows, and the whole document they came from.
+def memberHelpLevels(readKey, level, text):
+    rows, whole = parseHelpRows(text)
+    return {level: rows, WHOLE_OF + level: whole}
+
+
+ROW_FORMS["member-help"] = {"parse": memberHelpLevels}
+
+
+## The levels of the `chapters` read: none of its own, and the chapters of the help beside them.
+def chaptersLevels(readKey, level, text):
+    text, chapters = parseHelpChapters(text)
+    return {level: [], CHAPTERS_OF + level: chapters}
+
+
+ROW_FORMS["chapters"] = {"parse": chaptersLevels}

@@ -20,6 +20,34 @@ AgentsHarnessDismissedKeep(){ ## who dismissed it (the WAIT-DISMISSED-BY value)
 	return 0
 }
 
+## THE PARK MARK (S27.2), the same marker convention as the dismissal's: the file that says this
+## run handed back with nothing pending and waits for a verdict. It is the one home of the fact,
+## so the registry derives `awaiting review` from it rather than from a field set beside it.
+AgentsHarnessParkedFile(){
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$MDAT_SPAWN_SESSION_ID" || return 1
+	case "$MDAT_SPAWN_SESSION_ID" in .|..) return 1 ;; esac
+	printf '%s' "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/parked"
+}
+
+## Whether this run is parked: rc 0 where the mark stands, rc 1 where it does not.
+AgentsHarnessParked(){
+	local parkedPath
+	parkedPath="$( AgentsHarnessParkedFile )" || return 1
+	[ -f "$parkedPath" ]
+}
+
+## THE ACTIVITY WORD OF A RUN (S27.4): `sessions/<spawn-id>/activity`, one line, overwritten, the
+## same one-writer marker convention as `dismissed` and `.armed`. It says what the run is doing,
+## never what it achieved. The round and the time travel beside the word, so a reader compares it
+## against the run instead of trusting it, and a word left by a dead process is never the answer.
+AgentsHarnessActivityWrite(){ ## the word: `thinking`, or `tool <name>`
+	local actFile
+	actFile="$( AgentsHarnessDismissedFile )" || return 0
+	actFile="${actFile%/dismissed}/activity"
+	mkdir -p "${actFile%/*}" 2> /dev/null || return 0
+	printf '%s %s %s\n' "${harnessRound:-0}" "$( date +%s 2> /dev/null )" "$1" > "$actFile" 2> /dev/null || :
+}
+
 ## Who dismissed this session, printed. rc 1 for a session that was not dismissed.
 AgentsHarnessDismissedBy(){
 	local byFile byLine=""
@@ -217,15 +245,16 @@ AgentsHarnessWaitCheckListLine(){
 ## returned an arrival, or that is a work duty's own quiet loop, is that member asking for more work, a review or DISMISSED. Its open
 ## items are returned at once then, before any probe and any wait, so it finishes or closes them first; what the floor already holds
 ## comes with this return, from the reply layer every tool result carries, so nothing is probed for it and no network is read.
-## ONCE PER CHANGE OF THE LIST. An immediate return costs a whole model round, so a member that does not touch its list gets the
-## ordinary wait: `checklist.nudged` keeps the checksum of the items the last immediate return named.
+## EVERY SUCH CALL, WHILE ANY ITEM IS PENDING (S22 item 6): the list is the queue, so a member that has handed back is given its
+## open items on each idle call, not once and then left to wait. A call that names a source of its own, and `mode continue`, are
+## waiting on purpose and check nothing.
 ## The mark `handback.given`, in the same folder, is written by a delivered handback and cleared by a Wait that delivers an arrival:
 ## it is the whole of "has handed back since its last arrival", one local file, and a work duty needs none of it.
 AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
-	local idleOwn="$1" idleModeArg="$2" idleOpen="" idleRc=0 idleCount=0 idleItem="" idleSum="" idleStored=""
+	local idleOwn="$1" idleModeArg="$2" idleOpen="" idleRc=0 idleCount=0 idleItem=""
 	local idleFolder="" idleGiven="" idleActive=0
 	[ -z "$idleOwn" ] || return 0
-	case "$idleModeArg" in default|continue) ;; *) return 0 ;; esac
+	case "$idleModeArg" in default) ;; *) return 0 ;; esac
 	idleOpen="$( AgentsHarnessCheckListOpenItems )" ; idleRc=$?
 	[ "$idleRc" = "0" ] || return 0
 	while IFS= read -r idleItem ; do
@@ -239,10 +268,6 @@ AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
 		IFS= read -r idleGiven < "$idleFolder/handback.given" || :
 		case "$idleGiven" in ''|*[!0123456789]*) return 0 ;; esac
 	fi
-	idleSum="$( printf '%s' "$idleOpen" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 }' )"
-	[ ! -f "$idleFolder/checklist.nudged" ] || IFS= read -r idleStored < "$idleFolder/checklist.nudged" || :
-	[ "$idleStored" != "$idleSum" ] || return 0
-	printf '%s\n' "$idleSum" > "$idleFolder/checklist.nudged" 2> /dev/null || :
 	idleActive="$( AgentsHarnessCheckListCounts )" ; idleActive="${idleActive##* }"
 	case "$idleActive" in ''|*[!0123456789]*) idleActive=0 ;; esac
 	if [ "$idleActive" != "0" ] ; then
@@ -275,7 +300,8 @@ AgentsHarnessWaitCheckListAnswered(){
 ## the operation's own WAIT-RESULT line is passed through untouched, so the model
 ## reads TIMEOUT and ERROR as the different things they are.
 ## A call naming a mode (arguments 7 to 11: mode, seen, note, done, wait) is a stateful wait kept per
-## session; an internal caller passing six arguments or fewer gets today's stateless wait.
+## session; an internal caller passing six arguments or fewer gets today's stateless wait. The mode
+## `once` is the exception: it reads one named source in one round and keeps nothing (S22 item 8).
 AgentsHarnessToolWait(){
 	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread waitOwnSources="$1" waitIdleReturn=""
 	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
@@ -294,7 +320,20 @@ AgentsHarnessToolWait(){
 		[ -n "$toolMode" ] || toolMode="default"
 		case "$toolMode" in
 			default|continue|close) ;;
-			*) printf 'ERROR: mode must be default, continue or close, got: %s\n' "$toolMode" ; return 0 ;;
+			once)
+				## The one-off read (S22 item 8): one named source, one round, and the registered sources left as
+				## they were. The operation's own stateless call is the whole of it, so nothing is stored and no
+				## mode reaches the operation.
+				[ -z "$toolUnwait" ] || { printf 'ERROR: mode once reads a source and unwait drops one, so they are not named in one call. Nothing was read.\n' ; return 0 ; }
+				case "$toolSources" in
+					'') printf 'ERROR: mode once reads exactly one named source, and none was named. Nothing was read.\n' ; return 0 ;;
+					*[[:space:]]*) printf 'ERROR: mode once reads exactly one named source, and several were named: %s. Nothing was read.\n' "$toolSources" ; return 0 ;;
+				esac
+				waitStateful="false"
+				## One round, so a bound the caller names never turns the read into a wait.
+				toolTimeout=0
+			;;
+			*) printf 'ERROR: mode must be default, continue, close or once, got: %s\n' "$toolMode" ; return 0 ;;
 		esac
 	fi
 	## An asking call waits on this session's stored wait too (a twelfth argument, `ask`): the

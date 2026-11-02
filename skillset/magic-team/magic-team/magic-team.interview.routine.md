@@ -60,34 +60,36 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`).
-2. **open-channel-and-create-item**: on opening or resuming, steps:
+1. **investigation-round**: before the first question, run `investigation-round` (`magic-team.armed.md`'s "Conversations") over every source the task names. A task naming no source records that, and goes on.
+2. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`).
+3. **open-channel-and-create-item**: on opening or resuming, steps:
    - rule: one topic, one thread. An unrelated topic surfacing mid-interview is forked into its own thread.
    - open or continue the channel: a Slack thread by default; email for slow or unusually complex matters.
    - create the `interview-*` tracking item now, in `board-running` with `--create-running`, unless it already exists. Never deferred.
    - a live interactive session sets `owner-session: interactive` and `owner-session-since: <now>` on the item, and refreshes them at each **resume-review**.
-3. **name-the-interview-on-resume**: with more than one interview open, a resume names which one. A bare "continue" is an assumption gap: ask which, per **readback-on-suspected-assumption-gap**.
-4. **resume-review**: on every pickup, before any new question, steps:
+4. **name-the-interview-on-resume**: with more than one interview open, a resume names which one. A bare "continue" is an assumption gap: ask which, per **readback-on-suspected-assumption-gap**.
+5. **resume-review**: on every pickup, before any new question, steps:
    - mark the item `resume-review in progress` so a second pickup does not collide.
    - find the pieces already settled and not yet dispatched.
    - for each: formulate the dispatch, get it approved in this continuation, dispatch it, shrink the open scope.
    - never block the pass that triggered the pickup.
-5. **reassess-before-next-message**: on every pickup, before writing the next message, steps:
+6. **reassess-before-next-message**: on every pickup, before writing the next message, steps:
    - work from this interview's item only, re-read fresh: board changes, incoming messages, and any new message in this thread.
    - a new message conflicting with the gathered state: resolve the conflict first. An approval: act on it and close the round. New content: collect it.
    - gather the initial ask, approved parts, collected material (summary, verbatim-intents, verbatim-benchmarks, notes) and session state (goal, scope, open questions, open conflicts).
    - check the gathered material for internal conflicts, even with no new message. Conflict: resolve it before drafting.
    - draft fresh each round. Where wording matters, compare several phrasings, per **wording-and-substance-are-separate-checks**.
    - check the draft keeps every verbatim-intent, verbatim-benchmark and stated goal.
+   - check each question against the settled points, the dispatched pieces and the task's text. A question they answer is dropped, never asked.
    - a corrected draft shows what changed against the prior one.
    - prefer small steps gathering exact wording bit by bit over showing the whole draft.
-6. **inherit-check-restart**: on any resume, apply **check-restart**. A nudge restates the current open topic.
-7. **collect-dont-converge**: ask small, minimal-assumption questions, one at a time; never bundle decisions. Once a point is clear and agreed, move on. Rules:
+7. **inherit-check-restart**: on any resume, apply **check-restart**. A nudge restates the current open topic.
+8. **collect-dont-converge**: ask small, minimal-assumption questions, one at a time; never bundle decisions. Once a point is clear and agreed, move on. Rules:
    - in an interactive chat, small structured questions (`AskQuestion`) are the default, one topic each.
    - **open-before-closed**: a design point new to this session opens with one open question in the party's own terms. A closed option list follows in a later round, once that framing is on record. Every option list carries a literal `none of these — my own:` choice.
    - switch from asking to proposing only once a piece is verified settled: a plain one-line restatement the party did not correct.
    - a piece not yet settled stays in full live context, never summarised.
-8. **dispatch-settled-points**: dispatch each piece the moment it settles and is approved, steps:
+9. **dispatch-settled-points**: dispatch each piece the moment it settles and is approved, steps:
    - send it where it belongs. That is a board item in `board-backlog` with `--grooming-create-backlog`, carrying `approved-by`/`approved-at` and `spawned-by` the interview item. Or it is an `inquiry-*` to the member who owns it.
    - compact it into one present-tense block: the resulting rule, fact or decision, never the question-and-answer history. Keep every distinct settled point. The wording is simple and drops no intent, detail or benchmark.
    - give each settled design point two fields:
@@ -96,23 +98,23 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - remove it from the open scope. Context changes may still reopen it.
    - keep the categories separate: plan, verbatim-intents, verbatim-benchmarks, corrections, settled facts, sub-parts.
    - periodically compact already-resolved material even before it is dispatched.
-9. **run-minimal-step-cycle**: for a small agreed step, inline, repeated per step until nothing is left to focus on, steps:
+10. **run-minimal-step-cycle**: for a small agreed step, inline, repeated per step until nothing is left to focus on, steps:
    - assess it with `magic-architect`, live.
    - turn it into a proposal.
    - present it to the human-owner in this interview for approval.
    - a disagreement between `magic-architect` and the executor becomes the no-quorum document before it reaches him, per "The ladder: one rung at a time".
    - approved: dispatch it per **dispatch-settled-points**.
-10. **run-bigger-mechanism-cycle**: for a mechanism or design, driven by this same session, steps:
+11. **run-bigger-mechanism-cycle**: for a mechanism or design, driven by this same session, steps:
     - once its shape settles, spawn a coworking sub-session (for example `magic-librarian`, `magic-architect`, `magic-tester`) to produce a tested work plan grounded in real files.
     - collect the plan in this session and dispatch its pieces, asking small questions only where something is still ambiguous. The sub-session's own result climbs back by "The ladder: one rung at a time": agreed, or the no-quorum document where it is not.
     - queue what the plan defers as board items, with `restart-session:` naming the same members.
     - a sub-session not yet finished keeps its piece open on the item; **resume-review** picks it up on the next pickup.
-11. **record-two-verbatim-kinds**: keep two separate lists, bullets, never paraphrased:
+12. **record-two-verbatim-kinds**: keep two separate lists, bullets, never paraphrased:
     - **verbatim-benchmarks**: scenario → expected outcome. A growing, non-exhaustive checklist: "the proper solution will have/allow: ...".
     - **verbatim-intents**: purpose statements and invariants ("this exists so that ...").
     - both are a floor, never a ceiling, unless the party states a ceiling.
     - a session's own rephrasing is labelled as a derivative. The party's original wording stays retrievable and controlling.
-12. **keep-tracking-item-current**: keep the item's "settled so far" and "still open" sections current as **dispatch-settled-points** narrows the scope, with same-state `--advance-to-running` calls.
+13. **keep-tracking-item-current**: keep the item's "settled so far" and "still open" sections current as **dispatch-settled-points** narrows the scope, with same-state `--advance-to-running` calls.
 
 # Closure steps
 

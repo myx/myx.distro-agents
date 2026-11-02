@@ -147,7 +147,7 @@ rigErrors(){ ## how many lines the console wrote to its error output, and how ma
 ## makes: once the text was drawn the keys are written. What the driver says of the run is kept in rigPty.
 rigEntryPty(){ ## the text to wait for, the keys, console args...
 	local ptyWait="$1" ptyKeys="$2" ; shift 2
-	rigPty="$( python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py" pty 100 30 "$ptyWait" "$ptyKeys" 90 -- \
+	rigPty="$( python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py" pty 100 30 "$ptyWait" "$ptyKeys" 90 -- \
 		env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" TERM=xterm RIG_TMP="$rigTmp" RIG_CONSOLE="$rigDir/ws/DistroAgentsConsole.sh" \
 		bash -c '
 			case "$RIG_CONSOLE" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: console outside the rig tree" >&2 ; exit 99 ;; esac
@@ -173,7 +173,7 @@ rigAssert "no vendor binary is started"                     "$( rigStarted claud
 rigAssert "claude-native appears nowhere in what it prints" "$( rigNative )" 0
 echo "-- that run had no terminal (its output is a file): the screen says so, and nothing starts in its place --"
 rigAssert "it ends with status 1"                           "$( cat "$rigDir/rc" )" 1
-rigAssert "the screen says so in one line of its own, the last one written" "$( LC_ALL=C grep -c 'AgentsManagerScreen: ' "$rigDir/err" || : ) $( LC_ALL=C tail -1 "$rigDir/err" | LC_ALL=C grep -c 'ERROR: AgentsManagerScreen: the manager screen needs a terminal' || : )" "1 1"
+rigAssert "the screen says so in one line of its own, the last one written" "$( LC_ALL=C grep -c 'LocalManagerScreen: ' "$rigDir/err" || : ) $( LC_ALL=C tail -1 "$rigDir/err" | LC_ALL=C grep -c 'ERROR: LocalManagerScreen: the manager screen needs a terminal' || : )" "1 1"
 echo "-- sibling: the same plain start on a pseudo-terminal --"
 rigEntryPty "Magic-Team (Agents)" '\x18'
 rigAssert "the screen comes up"                             "$( rigPtyVal frame )" yes
@@ -214,7 +214,7 @@ rigAssert "no bash console opens"                           "$( rigBashConsole )
 rigAssert "the root harness is not called"                  "$( rigRootCalls )" 0
 rigAssert "no vendor binary is started"                     "$( rigStarted claude )" 0
 rigAssert "it never says claude-native"                     "$( rigNative )" 0
-rigAssert "with no terminal it ends with status 1, on the one line of the screen" "$( cat "$rigDir/rc" ) $( LC_ALL=C grep -c 'ERROR: AgentsManagerScreen: the manager screen needs a terminal' "$rigDir/err" || : )" "1 1"
+rigAssert "with no terminal it ends with status 1, on the one line of the screen" "$( cat "$rigDir/rc" ) $( LC_ALL=C grep -c 'ERROR: LocalManagerScreen: the manager screen needs a terminal' "$rigDir/err" || : )" "1 1"
 
 echo "-- an explicit --cli naming the leg, the setting naming the vendor CLI: the screen starts, as for any leg --"
 rigScenario explicit-leg claude-native "" claude
@@ -256,7 +256,7 @@ rigAssert "no bash console opens"                             "$( rigBashConsole
 rigAssert "no CLI is announced as started"                    "$( rigHolds "$rigDir/out" 'DISTRO_CONSOLE_EXEC=' )" no
 echo "-- that run had no terminal (its output is a file): the screen is refused --"
 rigAssert "it ends with a status that is not 0"               "$( cat "$rigDir/rc" )" 1
-rigAssert "the screen says so in one line of its own, the last one written" "$( LC_ALL=C grep -c 'AgentsManagerScreen: ' "$rigDir/err" || : ) $( LC_ALL=C tail -1 "$rigDir/err" | LC_ALL=C grep -c 'ERROR: AgentsManagerScreen: the manager screen needs a terminal' || : )" "1 1"
+rigAssert "the screen says so in one line of its own, the last one written" "$( LC_ALL=C grep -c 'LocalManagerScreen: ' "$rigDir/err" || : ) $( LC_ALL=C tail -1 "$rigDir/err" | LC_ALL=C grep -c 'ERROR: LocalManagerScreen: the manager screen needs a terminal' || : )" "1 1"
 echo "-- sibling: the same console on a pseudo-terminal --"
 rigEntryPty "Magic-Team (Agents)" '\x18' --manager
 rigAssert "the screen comes up"                               "$( rigPtyVal frame )" yes

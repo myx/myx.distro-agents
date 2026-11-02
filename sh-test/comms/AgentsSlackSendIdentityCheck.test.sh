@@ -140,8 +140,8 @@ rigAssert "it says Slack answered and names its error, and no mail says comms ar
 rigAnswered ratelimited ok
 rigAssert "a rate limit is the one answer tried again: the second post goes out" "$( rigPostCount ):$rigSendRc" "2:0"
 
-## AN ADDRESS NAMES A CONVERSATION BY ITS SLACK ID AND A MESSAGE BY ITS TS. The live fault: a
-## Wait source given as an address, slack:<channel>:<ts>, was read as the conversation `slack`.
+## AN ADDRESS NAMES A CONVERSATION BY ITS SLACK ID AND A MESSAGE BY ITS TS. The live fault: a Wait source given as an address,
+## slack:<channel>:<ts>, was read as the conversation `slack`. The full pointer itself is accepted (AgentsSlackPointerTargetCheck).
 rigAddressed(){ ## address -- "<rc>:<posts>:<lines of the refusal that hold the text given>"
 	local addressOut="" addressRc=0
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
@@ -149,8 +149,8 @@ rigAddressed(){ ## address -- "<rc>:<posts>:<lines of the refusal that hold the 
 		bash "$rigTool" --slack-send-message keeper-myx "$1" --identity-bot RIG-BODY-MARKER 2>&1 )" || addressRc=$?
 	printf '%s:%s:%s' "$addressRc" "$( rigPostCount )" "$( printf '%s\n' "$addressOut" | LC_ALL=C grep -c -F -- "$2" )"
 }
-rigAssert "a word in front of the conversation is refused, with one line that says what to pass, and no call to Slack" \
-	"$( rigAddressed slack:DRIG00001:1700000000.000100 "'slack:DRIG00001:1700000000.000100' names no conversation: 'slack' is not a Slack id. Pass the id of the conversation and the ts of the message, <channel>:<ts>, with no other word in front of them. Nothing was sent." )" "1:0:1"
+rigAssert "a word in front of the conversation that is no driver is refused, with one line that says what to pass, and no call to Slack" \
+	"$( rigAddressed rig:DRIG00001:1700000000.000100 "'rig:DRIG00001:1700000000.000100' names no conversation: 'rig' is not a Slack id. Pass the id of the conversation and the ts of the message, <channel>:<ts>, with no other word in front of them. Nothing was sent." )" "1:0:1"
 rigAssert "a ts that is no ts is refused the same way" \
 	"$( rigAddressed DRIG00001:1700000000.000100:conversation "'DRIG00001:1700000000.000100:conversation' names no message: '1700000000.000100:conversation' is not a message ts. Pass the ts of the message as Slack gives it, such as 1700000000.000100, after the conversation: <channel>:<ts>. Nothing was sent." )" "1:0:1"
 rigAssert "after a named conversation too" \

@@ -22,7 +22,8 @@
 ##   PRESET_EFFORT            optional: unset, none, low, normal or high. unset sends no effort (the model's default); none is a
 ##                            level of its own, no reasoning, sent as each service expresses it (the wrapper's family table).
 ##   PRESET_INPUT_CACHE_TIME  optional, one of agentsPresetCacheTimes (5m or 1h): the lifetime the cache markers of a harness run on the
-##                            Anthropic wire ask for (F10.7). Unset is 5m, the provider's own, which puts nothing in a marker.
+##                            Anthropic wire ask for (F10.7). Unset takes the wire's split, the armed floor for the hour and the growing tail for
+##                            the provider's 5m; 5m puts nothing in a marker, and 1h puts the hour in every one.
 ##   PRESET_CONTEXT_MAX_SIZE  optional, whole tokens: the restart threshold. A harness leg whose last round
 ##                            reaches this many tokens has the model write a handover and starts a fresh leg
 ##                            from the original task plus that handover. Unset is the service's own window

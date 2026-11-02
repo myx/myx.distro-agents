@@ -94,7 +94,7 @@ rigStringTask(){ ## messages text -- yes where the first message is one string t
 }
 rigTwoBlockTask(){ ## request file -- yes where the first user record is two blocks and the task block is last
 	case "$( cat "$1" )" in
-		*'{"role":"user","content":[{"type":"text","text":"'*'","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'*'RIG-TASK-MARKER"}]}'*) printf 'yes' ;;
+		*'{"role":"user","content":[{"type":"text","text":"'*'","cache_control":{"type":"ephemeral"'*'}},{"type":"text","text":"'*'RIG-TASK-MARKER"}]}'*) printf 'yes' ;;
 		*) printf 'no' ;;
 	esac
 }
@@ -104,8 +104,27 @@ rigFirstUserBlock(){ ## request file -- the escaped text of the first user conte
 rigMemberLayer(){ ## request file -- the member layer at the start of the first user block, before the prefetch block; rig path neutralised
 	rigFirstUserBlock "$1" | LC_ALL=C awk '{ at = index( $0, "\\n\\n## Your role" ) ; if ( at > 0 ) $0 = substr( $0, 1, at - 1 ) ; print }' | LC_ALL=C sed -e "s#$rigTmp#<rig>#g"
 }
-rigMarkers(){ ## file -- how many cache markers the request carries
-	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$1" | wc -l | tr -d ' '
+rigMarkers(){ ## file -- how many cache markers the request carries, plain and hourly alike
+	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"' "$1" | wc -l | tr -d ' '
+}
+rigHourlyTool(){ ## file -- the tool whose marker asks the hour, in the tools array alone
+	LC_ALL=C awk '
+		{ text = text $0 }
+		END {
+			mark = "\"cache_control\":{\"type\":\"ephemeral\",\"ttl\":\"1h\"}"
+			from = index( text, "\"tools\":[" )
+			stop = index( text, "\"tool_choice\"" )
+			if ( from == 0 || stop == 0 || stop <= from ) { print "no-tools" ; exit }
+			at = index( substr( text, from, stop - from ), mark )
+			if ( at == 0 ) { print "no-hourly-marker" ; exit }
+			head = substr( text, from, at - 1 )
+			nameAt = 0 ; cursor = 1
+			while ( ( step = index( substr( head, cursor ), "{\"name\":\"" ) ) > 0 ) { nameAt = cursor + step - 1 ; cursor = nameAt + 1 }
+			if ( nameAt == 0 ) { print "no-name" ; exit }
+			rest = substr( head, nameAt + 9 )
+			print substr( rest, 1, index( rest, "\"" ) - 1 )
+		}
+	' "$1"
 }
 
 ## The skillset of a scene: the team's files, a kind routine and a routine of this check, a member with all of its files, and a
@@ -254,7 +273,7 @@ rigScene served shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DON
 rigServedDir="$rigDir"
 rigAssert "the run ends normally"                                                         "$rigRunStatus" 0
 rigAssert "the first message is two text blocks, the read with a marker at its end and the task block after it, the task its last words" \
-	"$( rigIn "$( rigReq 1 )" '{"role":"user","content":[{"type":"text","text":"' ):$( rigIn "$( rigReq 1 )" '","cache_control":{"type":"ephemeral"}},{"type":"text","text":"' ):$( rigEndsWith "$( rigReq 1 )" 'RIG-TASK-MARKER"}]}]}' )" yes:yes:yes
+	"$( rigIn "$( rigReq 1 )" '{"role":"user","content":[{"type":"text","text":"' ):$( rigIn "$( rigReq 1 )" '","cache_control":{"type":"ephemeral"' ):$( rigEndsWith "$( rigReq 1 )" 'RIG-TASK-MARKER"}]}]}' )" yes:yes:yes
 rigAssert "three markers a request: the moving one, the floor, the member+prefetch block"  "$( rigMarkers "$rigDir/req.1" )" 3
 rigAssert "the read is the member's armed file, as the Skill tool serves it, front matter and all"  "$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 1 )" 'status: rig' )" yes:yes
 rigAssert "and nothing else: no basic file again, no team file, no tool index"             "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.1" 'RIG-A-BASIC own words' ):$( rigIn "$( rigReq 1 )" 'RIG-TEAM-' ):$( rigIn "$( rigReq 1 )" 'Tool index' )" 1:1:no:no
@@ -453,7 +472,7 @@ echo "-- 8. two spawns of one member: the same bytes through the prefetch marker
 ## What is of one run alone -- its sandbox and results roots, the sentence of a spawned session, the MCP note -- is not in the system text: it is
 ## the task block's, after the marker, so the system text and the prefetch block are the same for every spawn of a member (the input token cache).
 rigPfEnd(){ ## request file -- the byte at which the marker that ends the prefetch block ends
-	LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"}}" } { m = index( $0, "\"messages\":[" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$1"
+	LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"" } { m = index( $0, "\"messages\":[" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$1"
 }
 rigTask="$rigBrief"$'\n'"RIG-TASK-ONE"
 rigSpawn="rig-spawn-two" rigSession="rig-session-two" rigTz="Pacific/Kiritimati"
@@ -491,12 +510,26 @@ rigTtl ttl-five 5m ; rigTtlFive="$rigDir"
 rigTtl ttl-hour 1h ; rigTtlHour="$rigDir"
 rigPlain='"cache_control":{"type":"ephemeral"}'
 rigHourly='"cache_control":{"type":"ephemeral","ttl":"1h"}'
-rigAssert "unset: three markers, each the plain one, and no ttl anywhere in the request"  "$( rigCount "$rigTtlNone/req.1" "$rigPlain" ):$( rigCount "$rigTtlNone/req.1" '"ttl"' )" 3:0
-rigAssert "5m is the provider's own and says nothing: the request is the unset one's through the prefetch marker, byte for byte"  "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum ):$( head -c "$( rigPfEnd "$rigTtlFive/req.1" )" "$rigTtlFive/req.1" | cksum )" "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum ):$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum )"
-rigAssert "and has no ttl either"                                                         "$( rigCount "$rigTtlFive/req.1" '"ttl"' ):$( rigCount "$rigTtlFive/req.1" "$rigPlain" )" 0:3
+## The ruling (S26 10): the armed floor's two markers ask the hour and the growing tail's moving marker keeps the
+## provider's own five minutes, which it asks for by saying nothing. Asking 5m drops the floor to the provider's own
+## too, and 1h puts the hour on every marker, as the preset always did.
+rigAssert "unset: the floor's two markers ask the hour and the moving one stays plain"  "$( rigMarkers "$rigTtlNone/req.1" ):$( rigCount "$rigTtlNone/req.1" "$rigHourly" ):$( rigCount "$rigTtlNone/req.1" "$rigPlain" ):$( rigCount "$rigTtlNone/req.1" '"ttl"' )" 3:2:1:2
+rigFloorMarked(){ ## file -- floor where the hour stands on one of the floor's own tools, wrong where it is MCP's or absent
+	case "$( rigHourlyTool "$1" )" in
+		mcp__*|no-*) printf 'wrong' ;;
+		*) printf 'floor' ;;
+	esac
+}
+rigAssert "the floor's own tool carries the hour, never one the workspace's MCP server adds"  "$( rigFloorMarked "$rigTtlNone/req.1" )" floor
+rigAssert "5m is the provider's own and says nothing: no marker of the request carries a ttl"  "$( rigCount "$rigTtlFive/req.1" '"ttl"' ):$( rigMarkers "$rigTtlFive/req.1" )" 0:3
+rigAssert "asked for 5m, every marker is plain and no ttl is anywhere in the request"    "$( rigCount "$rigTtlFive/req.1" '"ttl"' ):$( rigCount "$rigTtlFive/req.1" "$rigPlain" ):$( rigMarkers "$rigTtlFive/req.1" )" 0:3:3
 rigAssert "1h: all three markers of the run carry the ttl -- the moving one, the end of the floor, the end of the member+prefetch block -- and none is plain"  "$( rigCount "$rigTtlHour/req.1" "$rigHourly" ):$( rigCount "$rigTtlHour/req.1" "$rigPlain" ):$( rigCount "$rigTtlHour/req.1" '"cache_control":{' )" 3:0:3
-rigAssert "the end of the floor's tools is one of them"                                   "$( rigHolds "$rigTtlHour/req.1" "$rigHourly"'}],"tool_choice"' )" yes
-rigAssert "nothing else of the request changes: without the ttl it is the unset request through the prefetch marker"  "$( LC_ALL=C sed 's/,"ttl":"1h"//g' "$rigTtlHour/req.1" | head -c "$( rigPfEnd "$rigTtlNone/req.1" )" | cksum )" "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum )"
+## The moving marker is the only marker the lifetime still reaches: with it set back to the provider's own 5m, the hour-asked
+## request is the unset one through the prefetch marker, byte for byte.
+rigMoved(){ ## request file -- the request through its prefetch marker, the body's moving marker normalised to the plain one
+	head -c "$( rigPfEnd "$1" )" "$1" | LC_ALL=C sed 's/"stream":true,"cache_control":{"type":"ephemeral","ttl":"1h"}/"stream":true,"cache_control":{"type":"ephemeral"}/'
+}
+rigAssert "nothing else of the request changes: the hour asked, only the moving marker differs from the unset request"  "$( rigMoved "$rigTtlHour/req.1" | cksum )" "$( rigMoved "$rigTtlNone/req.1" | cksum )"
 rigNoRequest="yes" ; rigTtl ttl-bad 2h ; rigNoRequest=""
 rigAssert "another lifetime is refused before any request: the harness ends non-zero, sends none, and says what it takes"  "$( [ "$rigRunStatus" != 0 ] && printf refused ):$( cat "$rigTmp/ttl-bad/round" ):$( rigIn "$( cat "$rigTmp/ttl-bad/err" )" 'HARNESS_INPUT_CACHE_TIME is none of 5m, 1h' )" refused:0:yes
 rigAssert "and prints no value of it"                                                     "$( LC_ALL=C grep -c -F -e '2h' "$rigTmp/ttl-bad/err" )" 0

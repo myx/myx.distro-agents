@@ -68,6 +68,6 @@ The body of this member's armed `# Maintainer Notes`. Read it when that file is 
 ### Conventions
 
 - The language-craft/project-convention split is this member's organising principle.
-- `reference/code-craft.md` is not a per-language module; language-specific instances of it live in the language modules.
+- `reference/code-craft.md` is not a per-language module. Language-specific instances of it live in the language modules.
 - The bash exclusion list is derived from the 3.2 baseline, never kept as a flat list beside it.
 - Comment limits are pointed at, never restated: one wording in `magic-team/magic-team.armed.md`.

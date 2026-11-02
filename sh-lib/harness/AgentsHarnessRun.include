@@ -136,6 +136,33 @@ AgentsHarnessTruncateArg(){
 ## Announced immediately before the call executes, so a Bash call that might hang is
 ## visible. Every value here is model output and passes AgentsHarnessTruncateArg first,
 ## so the only escapes reaching the terminal are the $harness* literals placed around them.
+## A DISMISSED IS PUT INTO THE SESSION CHAT FILE FIRST (S27.8), before it is posted: the chat entry is
+## written by the tooling, which knows both runs, so another run of the dismissing member's own can
+## tell it from one it wrote itself. The chat source of a Wait is read every second, so the dismissal
+## lands within the wait's own check interval. Never fails the send.
+AgentsHarnessDismissalChatRecord(){
+	local chatTo chatSession chatName chatMine chatTheirs chatRecord
+	chatSession="${MDAT_SESSION_ID:-}"
+	chatTo="${harnessArgV_address_to:-}"
+	[ -n "$chatSession" ] && [ -n "$chatTo" ] || return 0
+	chatMine="${MDAT_SPAWN_SESSION_ID:-none}"
+	for chatName in $chatTo ; do
+		[ "$chatName" = "$harnessAgent" ] || continue
+		chatTheirs="none"
+		for chatRecord in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+			[ -f "$chatRecord" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" session-id )" = "$chatSession" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" owner )" = "$chatName" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" status )" = spawn-started ] || continue
+			chatTheirs="${chatRecord##*/}" ; chatTheirs="${chatTheirs%.spawn.md}"
+			done
+		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+		printf 'DISMISSED\n' | AgentsToolsSessionChatAppend "$chatSession" "$harnessAgent [author-run=$chatMine]" "$chatName [addressee-run=$chatTheirs]" - chat own > /dev/null 2>&1 || :
+		return 0
+	done
+	return 0
+}
+
 AgentsHarnessAnnounceTool(){
 	local announceFuncName="$1" announceArgsRaw="$2" announceIcon="❓" announceDetail="" announcePath=""
 	## Parsed once here; the dispatch that follows reads the same table.
@@ -198,9 +225,14 @@ AgentsHarnessAnnounceTool(){
 			announceIcon="🌐"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_url}" )$harnessOff"
 		;;
-		SendMessage)
+		[Ss]endMessage)
 			announceIcon="✉️"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_to}" )$harnessOff"
+			## A DISMISSED is recorded in the session chat file FIRST (S27.8), with both runs in it, so a
+			## run of the dismissing member's own can tell it from one it wrote itself.
+			case "${harnessArgV_message:-}" in
+				DISMISSED) AgentsHarnessDismissalChatRecord || : ;;
+			esac
 		;;
 		ListAgents)
 			announceIcon="👥"

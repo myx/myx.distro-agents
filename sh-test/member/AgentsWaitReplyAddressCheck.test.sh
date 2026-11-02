@@ -8,6 +8,9 @@
 ##   3. A reply to one of the session's own posts (`# replies to your post <conversation>:<ts>`): the address is that thread.
 ##   4. A reply that names its thread (`[thread-reply of <ts>]`) answers there, and a top-level message at its own ts.
 ##   5. A source whose conversation is unknown: no address is invented, and the line is printed as it stands.
+##   6. A source that names a bare channel -- the commonest one, the team channel or the owner's DM -- answers each message at
+##      its own ts there, so a reply typed from the wait lands in the thread of the message it answers (epic S11 item 1).
+##   7. An alias the caller resolved and handed in as `-v conv=` is that conversation too, the rendering naming none.
 ## Offline: the renderings are made here, and only the addressing awk is run.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -49,6 +52,17 @@ rigAssert "and a top-level message answers at its own ts" "$( printf '%s\n' "$ri
 echo "-- 5. control: a source whose conversation is unknown invents no address --"
 rigOut="$( printf '%s\n' '1793000031.000100 | U5 | a line with no conversation' | rigAddressed file "file:/tmp/rig-drop" )"
 rigAssert "the line is printed as it stands" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to' )" "0"
+
+echo "-- 6. a source that names a bare channel: each message answers at its own ts there --"
+rigOut="$( printf '%s\n' '1793000041.000100 | U1 | a message at the top of the channel' '1793000042.000100 | U2 | [thread-reply of 1793000041.000100] a reply in that thread' \
+	| rigAddressed slack "slack:C0BJ49W7ZCM" )"
+rigAssert "the top-level message answers at its own ts" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^1793000041.000100 | U1 | \[reply-to: slack:C0BJ49W7ZCM:1793000041.000100\]' )" "1"
+rigAssert "and a reply in a thread answers in that thread" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^1793000042.000100 | U2 | \[reply-to: slack:C0BJ49W7ZCM:1793000041.000100\] \[thread-reply' )" "1"
+
+echo "-- 7. an alias the caller resolved is that conversation, the rendering naming none --"
+rigOut="$( printf '%s\n' '1793000051.000100 | U3 | a message in the team channel' \
+	| LC_ALL=C awk -v kind=slack -v source='slack:magic-team' -v conv='C0BJ49W7ZCM' -f "$rigAwk" )"
+rigAssert "the alias's conversation is the address's" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'reply-to: slack:C0BJ49W7ZCM:1793000051.000100' )" "1"
 
 printf '\n%d passed, %d failed\n' "$rigPasses" "$rigFails"
 [ "$rigFails" = 0 ]

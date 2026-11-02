@@ -84,6 +84,12 @@ DistroAgentsSessionMoved(){
 
 DistroAgentsSession(){
 	local MDSC_CMD='DistroAgentsSession'
+	## The family's context, here and in this file's arm, for a console that calls this function.
+	if [ -z "$MDLT_ORIGIN" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
+		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext --run-from-detect
+		DistroAgentsContext --distro-path-auto
+	fi
 	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontKnows DistroAgentsSession "$@" ; then

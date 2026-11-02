@@ -19,7 +19,7 @@ case "$1" in
 		shift
 		local routineSelector="" routineDefault="false" sessionNameOrComment="" sessionDescription=""
 		local sessionCliService="" sessionSettingsWorkspace=""
-		local spawnMembers=() sessionJoinId=""
+		local spawnMembers=() sessionJoinId="" sessionHandedOverBy=""
 		## THE PARTICIPANTS and what the work likely needs, as whoever prepares the dispatch guesses them: validated before
 		## anything starts and recorded on the spawn records, never started here -- the executor invites each participant.
 		local participantsValue="" participantsGiven="false" likelyPermissions=() likelyTools=()
@@ -45,6 +45,16 @@ case "$1" in
 					fi
 					AgentsToolsAssertBareName "$2" "<session-id>" spawn-session || { set +e ; return 1 ; }
 					sessionJoinId="$2"
+					shift 2
+				;;
+				## The run whose handback started this session (AgentsTools.HandbackNext.include): kept on the session's records as `handed-over-by:`.
+				--handed-over-by)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --handed-over-by requires <spawn-id>" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "<spawn-id>" spawn-session || { set +e ; return 1 ; }
+					sessionHandedOverBy="$2"
 					shift 2
 				;;
 				--routine)
@@ -149,7 +159,7 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -330,6 +340,7 @@ case "$1" in
 		[ "$participantsGiven" != "true" ] || recordNotes="${recordNotes}participants"$'\t'"${participantsList:-none}"$'\n'
 		[ -z "$likelyPermissionsLine" ] || recordNotes="${recordNotes}likely-permissions"$'\t'"$likelyPermissionsLine"$'\n'
 		[ -z "$likelyToolsLine" ] || recordNotes="${recordNotes}likely-tools"$'\t'"$likelyToolsLine"$'\n'
+		[ -z "$sessionHandedOverBy" ] || recordNotes="${recordNotes}handed-over-by"$'\t'"$sessionHandedOverBy"$'\n'
 
 		## A `<type>-*` among the routine's own executors or the caller's, and two or more members the
 		## caller names, partition the run: one session per member, under one agent-less parent session
@@ -348,6 +359,15 @@ case "$1" in
 		if [ -n "$partitionWorkers" ] && [ "$partitionRoster" != "true" ] ; then
 			echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --workers applies to a partitioned run only (a <type>-* or two or more members) -- nothing was started" >&2
 			set +e ; return 1
+		fi
+
+		## THE SPAWN LIMIT (S23.1): a start made while the limit of runs is reached is queued, never refused: filed as an inquiry for the coordinator and added to the CheckList of its
+		## running work-duty (AgentsToolsSpawnQueue). A work-duty's own start and a start that joins a session are never turned away.
+		local spawnLimitLine=""
+		if [ -z "$sessionJoinId" ] && case "$resolvedRoutineName" in *.work-duty.routine.md) false ;; *) true ;; esac && spawnLimitLine="$( AgentsToolsSpawnLimitReached )" ; then
+			echo "$MDSC_CMD: spawn-session: the limit of ${spawnLimitLine#* } runs at once is reached (${spawnLimitLine%% *} running): nothing was started, and the request is queued" >&2
+			AgentsToolsSpawnQueue "$spawnLimitLine" "$resolvedRoutineName" "${spawnMembers[*]}" "$sessionDescription" "$spawnTaskText" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: the request could not be queued, and nothing was started" >&2 ; set +e ; return 1 ; }
+			set +e ; return 0
 		fi
 
 		## The first spawn starts the session; every further one joins it by the

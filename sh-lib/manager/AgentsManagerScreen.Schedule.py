@@ -1,7 +1,7 @@
 ##
 ## AgentsManagerScreen.Schedule.py -- `Schedule` under `Magic-Team (Agents)` (sketch 14.5): the flags of the schedule now, how long to the next switch, the week as a grid of its flags by day and
 ## hour, and the table of the routines that start by themselves.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ##
 ## IT RENDERS AND DECIDES NOTHING. `--manager-schedule-read` (AgentsTools.ManagerSchedule.include) prints the rows: `now`, a `flag` row for each of the six flags with its answer and what the
@@ -42,7 +42,7 @@ def parseScheduleRows(readKey, level, text):
     return {level: rows}
 
 
-ROW_FORMS["schedule"] = parseScheduleRows
+ROW_FORMS["schedule"] = {"parse": parseScheduleRows}
 
 
 ## A cell may hold several flags (`worktime,learning`): the one drawn is the first of SCHEDULE_ORDER that it holds, else the first it names.

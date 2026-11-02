@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on `Magic-Team (Agents)` and the Activity reorganisation of the console app (F11.5 of the refactorings epic), run rather than read.
-## The screen's own code (sh-lib/manager/AgentsManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py)
+## The screen's own code (sh-lib/manager/LocalManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py)
 ## and the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh), which prints the rows the rig keeps for each operation.
 ## Held (F11.5, and the rulings of 2026-10-19 on it):
 ##   1. `Magic-Team (Agents)` is a root, after the Dashboard and `Pending Questions`, which stands second after the Dashboard; it holds `Activity`,
@@ -29,7 +29,8 @@ set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigScreen="$rigPackage/sh-lib/manager/AgentsManagerScreen.py"
+rigCorePackage="$MDLT_ORIGIN/myx/myx.distro-.local"
+rigScreen="$rigCorePackage/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$rigPackage/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -71,8 +72,8 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 ## finished, 9000000 tokens; one of another host, named, with no figure; one lone run with no name whose record is still open, 500 tokens.
 {
 	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 3 running=2,finished=1 - - alive 1500000
-	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
-	rigRow run "$rigS1" "$rigA2" magic-tester spawn-started running running 2026-10-12_17:05_+0300 - rig-host ws-rig working
+	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
+	rigRow run "$rigS1" "$rigA2" magic-tester spawn-started running thinking 2026-10-12_17:05_+0300 - rig-host ws-rig working
 	rigRow run "$rigS1" - keeper-myx spawn-succeeded no-spawn-id finished 2026-10-12_17:06_+0300 2026-10-12_18:00_+0300 rig-host ws-rig -
 	rigRow session "$rigS2" - waiting 2026-10-12_09:00_+0300 - 2 finished=2 - - none 40000+
 	rigRow run "$rigS2" "$rigB1" magic-librarian spawn-succeeded no-process finished 2026-10-12_09:00_+0300 2026-10-12_09:30_+0300 rig-host ws-rig -
@@ -88,7 +89,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 ## The read of one run of the session that sits in a Wait: the run, and the store of it; it waits on an ask, since its last milestone at 21:00 UTC,
 ## an hour and a half before the time of the rig.
 {
-	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
+	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
 	rigRow store "$rigA1" store claude 10 20 30 40 - - 2026-10-12T21:00:00Z wait-going-idle ask-7-of-keeper-myx - - -
 	rigRow checklist "$rigS1" magic-coordinator '- [x] the first thing is done'
 	rigRow checklist "$rigS1" magic-coordinator '- [ ] the second thing is not'
@@ -105,7 +106,7 @@ printf '# Check list\n\n- [x] the first thing is done\n- [ ] the second thing is
 {
 	rigRow member magic-coordinator - - - - - here here active - 
 	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 1 running=1
-	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
+	rigRow run "$rigS1" "$rigA1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
 	rigRow grant standing read /rig/ws_rig/docs docs:. standing_by_owner none
 	rigRow grant session read /rig/ws_rig/a - "ref-1_by_magic-coordinator" "until_session_${rigS1}_ends"
 	rigRow grant session write /rig/ws_rig/b - "ref-2_by_magic-coordinator" "until_session_${rigS3}_ends"
@@ -245,7 +246,7 @@ rigAssert "Waiting Agents are the ones that sit in a Wait" "$( rigVal waiting )"
 rigAssert "Closed Agents are the ones whose run is finished, one with no id of its own by the session it is in and its place there" \
 	"$( rigVal closed )" ".. -$rigS1.2 $rigB1 $rigB2 $rigS3"
 rigAssert "an agent shows by its member and the session it works in, with its state" "[$( rigVal r1 )][$( rigVal r2 )]" \
-	"[ magic-tester  … running working ►][ keeper-mel  fa… unknown-foreign ►]"
+	"[ magic-tester  daily o… thinking ►][ keeper-mel  fa… unknown-foreign ►]"
 rigAssert "the left pane shows the table of the agents of that list" "[$( rigVal head )]" "[ AGENT         STATE            SESSION              AGE]"
 
 echo "-- 5. diving into a session: its participants, each with a Summary; one in a Wait says what it waits on, and for how long --"

@@ -34,12 +34,13 @@ cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
-rigAdvance="note-20260809T154715Z-advance-state-and-lock.md"
+rigStanding="note-20260809T154715Z-advance-state-and-lock.md"
+rigAdvance="note-20261020T000000Z-work-duty-state-and-lock.md"
 ## The console stand-in: while the run is live it copies the brief and the run's own lock note.
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
-	'cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/incoming/note-20260809T154715Z-advance-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/processed/note-20260809T154715Z-advance-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || :' \
+	'cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/incoming/note-20261020T000000Z-work-duty-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/processed/note-20261020T000000Z-work-duty-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || :' \
 	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
@@ -48,9 +49,9 @@ for rigMember in magic-coordinator rig-keeper ; do
 	printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 done
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-rigNote(){ ## inbox dir, member, state, body word
+rigNote(){ ## inbox dir, member, state, body word, [note name: the standing lock's own, where the lock ops are used]
 	mkdir -p "$1"
-	printf -- '---\ntype: note\nfrom: %s\nowner: %s\nstate: %s\n---\n\n%s\n' "$2" "$2" "$3" "$4" > "$1/$rigAdvance"
+	printf -- '---\ntype: note\nfrom: %s\nowner: %s\nstate: %s\n---\n\n%s\n' "$2" "$2" "$3" "$4" > "$1/${5:-$rigAdvance}"
 }
 rigRoutine(){ ## owner member, the lock document
 	{
@@ -122,15 +123,15 @@ rigAssert "the brief names the keeper's document, never the macro" "$( LC_ALL=C 
 rigAssert "the run's record keeps the filled document" "$( LC_ALL=C grep -h -x "routine-lock: inbox:rig-keeper:$rigAdvance" "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )" "1"
 
 echo "-- 4. the two locks are independent --"
-rigNote "$rigCoordInbox" magic-coordinator advance-finished "COORDINATOR-NOTE"
-rigNote "$rigKeeperInbox" rig-keeper advance-finished "KEEPER-NOTE"
+rigNote "$rigCoordInbox" magic-coordinator advance-finished "COORDINATOR-NOTE" "$rigStanding"
+rigNote "$rigKeeperInbox" rig-keeper advance-finished "KEEPER-NOTE" "$rigStanding"
 rigTool2 --intern-op-routine-lock-take advance magic-coordinator rig-session-one > "$rigTmp/take1.out"; rigTake1=$?
 rigTool2 --intern-op-routine-lock-take advance rig-keeper rig-session-two > "$rigTmp/take2.out"; rigTake2=$?
 rigTool2 --intern-op-routine-lock-take advance rig-keeper rig-session-three > "$rigTmp/take3.out"; rigTake3=$?
 rigTool2 --intern-op-routine-lock-take advance magic-coordinator rig-session-four > "$rigTmp/take4.out"; rigTake4=$?
 rigAssert "the coordinator takes its note, the keeper takes its own while that is held" "$rigTake1:$rigTake2" "0:0"
 rigAssert "a second take of either held note refuses" "$rigTake3:$rigTake4" "1:1"
-rigAssert "each note holds its own session" "$( rigField "$rigCoordInbox/$rigAdvance" session-id ):$( rigField "$rigKeeperInbox/$rigAdvance" session-id )" "rig-session-one:rig-session-two"
+rigAssert "each note holds its own session" "$( rigField "$rigCoordInbox/$rigStanding" session-id ):$( rigField "$rigKeeperInbox/$rigStanding" session-id )" "rig-session-one:rig-session-two"
 
 echo "-- 6. the contract's scan list and lock form --"
 rigContract="$rigPackage/skillset/magic-team/magic-team/contracts/routine.contract.format.md"

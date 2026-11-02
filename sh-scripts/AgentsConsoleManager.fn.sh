@@ -7,7 +7,7 @@
 ## --view list|view gives one window the keys; --filter <text> narrows the table of the left window and gives
 ## it the keys; --dialog <name> shows that one dialog and ends when it is closed (single-dialog mode), --text
 ## <text> the words it holds. --style <name> is the interface style of the start, as --manager takes it.
-## The screen itself is sh-lib/manager/AgentsManagerScreen.py, started by Python; --manager is unchanged.
+## The screen itself is sh-lib/manager/LocalManagerScreen.py, started by Python; --manager is unchanged.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context.
@@ -39,7 +39,7 @@ esac
 AgentsConsoleManager(){
 	local MDSC_CMD='AgentsConsoleManager'
 	local managerStyle="" managerComponent="" managerView="" managerFilter="" managerDialog="" managerText=""
-	local managerScreenFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+	local managerScreenFile="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 	local managerToolsFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 	while [ $# -gt 0 ] ; do

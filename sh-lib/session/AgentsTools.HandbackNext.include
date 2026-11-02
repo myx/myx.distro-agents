@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.HandbackNext.include -- the start of the next routine from a handback (S24 item 4). AgentsToolsHandbackNext runs where a handback has been
+## delivered and reviewed (--intern-op-review-next, called by the SubagentHandback tool after --intern-op-review-handback), and never changes that handback.
+## The fact that one routine hands over to another is the predecessor routine's own frontmatter key `hands-over-to: <routine file>`: one successor, no cycle.
+## Where the run is the executor of the routine its spawn record names, that routine declares a successor, and the outcome carries exactly one line
+## `next-routine: <successor file> <absolute input path>`, one session of the successor is started as magic-coordinator, detached, with the input as its task and
+## `handed-over-by: <run id>` on its record. Every doubt ends in no start: no line, two lines, another routine, a run that is not the executor, an input that is no
+## plain file of a todo-sketchpad backlog or of the run's own sandbox, and, for a wave, an epic its validator refuses. A refusal is said in the session thread of the run.
+## A run starts a successor once per input: the marker is the successor and the real input, taken before the spawn, kept when it started, given back when it refused.
+## MDAT_HANDBACK_NEXT_SPAWNER is the seam of the check of this file: a program run for the spawner, with the spawner's arguments.
+## Sourced for the functions only.
+##
+
+type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+
+## One frontmatter value of a file, trimmed, empty where absent.
+AgentsToolsHandbackNextKey(){ ## file, key
+	LC_ALL=C awk -v wantKey="$2" '
+		NR == 1 && $0 != "---" { exit ; }
+		$0 == "---" { fmCount++ ; if ( fmCount > 1 ) { exit ; } next ; }
+		fmCount == 1 && index( $0, wantKey ": " ) == 1 { value = substr( $0, length( wantKey ) + 3 ) ; gsub( /^[ \t]+|[ \t]+$/, "", value ) ; print value ; exit ; }
+	' "$1" 2> /dev/null || :
+}
+
+## The file of a routine, by its exact file name: the skillset of the run, then the package's own. Nothing where there is none.
+AgentsToolsHandbackNextRoutineFile(){ ## routine file name
+	local routineCandidate
+	case "$1" in ''|*/*|*' '*) return 0 ;; esac
+	for routineCandidate in "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"/*/"$1" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"/*/"$1" ; do
+		[ -f "$routineCandidate" ] || continue
+		printf '%s' "$routineCandidate"
+		return 0
+	done
+}
+
+## Whether a routine's chain of successors reaches the routine itself (rc 0), in at most ten steps.
+AgentsToolsHandbackNextCycle(){ ## routine file name, the successor it declares
+	local cycleAt="$2" cycleFile cycleHops=0
+	while [ -n "$cycleAt" ] && [ "$cycleHops" -lt 10 ] ; do
+		[ "$cycleAt" != "$1" ] || return 0
+		cycleFile="$( AgentsToolsHandbackNextRoutineFile "$cycleAt" )"
+		[ -n "$cycleFile" ] || return 1
+		cycleAt="$( AgentsToolsHandbackNextKey "$cycleFile" hands-over-to )"
+		cycleHops=$(( cycleHops + 1 ))
+	done
+	[ "$cycleHops" -lt 10 ] || return 0
+	return 1
+}
+
+## Said in the session thread of the run, addressed to the member given. Never fails its caller.
+AgentsToolsHandbackNextSay(){ ## addressee, text
+	type AgentsToolsThisSessionPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
+	AgentsToolsThisSessionPost --address-to "$1" "$2" > /dev/null 2>&1 || :
+}
+
+## A refusal: said to the coordinator, with the manual start where there is one to give, and printed.
+AgentsToolsHandbackNextRefuse(){ ## why, manual start command (may be empty)
+	AgentsToolsHandbackNextSay magic-coordinator "The next-routine line of this handback started nothing: $1${2:+$'\n\n'"Start it by hand, when it is right to:"$'\n\n```\n'"$2"$'\n```'}"
+	printf 'HANDBACK-NEXT: refused: %s\n' "$1"
+}
+
+AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handback
+	local nextMember="$1" nextSession="$2" nextOutcome="$3" nextRecord nextRoutine nextRoutineFile nextWant nextExecutors nextOwner nextLines nextLineCount nextLine nextNamed nextInput="" nextReal nextDir nextTop
+	local nextMarker nextName nextTask nextManual nextWhy="" nextExecutorOk="no" nextAllowed nextEntry nextArgs=() nextGateRows nextGateRc=0
+	nextRecord="$( AgentsToolsSpawnRecordPath "$nextSession" )"
+	[ -n "$nextRecord" ] || return 0
+	nextRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$nextRecord" routine )"
+	nextRoutineFile="$( AgentsToolsHandbackNextRoutineFile "$nextRoutine" )"
+	[ -n "$nextRoutineFile" ] || return 0
+	nextWant="$( AgentsToolsHandbackNextKey "$nextRoutineFile" hands-over-to )"
+	[ -n "$nextWant" ] || return 0
+	## Only the executor of the routine hands it over: a worker run that writes the line starts nothing.
+	nextOwner="$( AgentsToolsSpawnSandboxRecordHeader "$nextRecord" owner )"
+	nextExecutors="$( AgentsToolsHandbackNextKey "$nextRoutineFile" executors )"
+	for nextEntry in ${nextExecutors//,/ } ; do
+		[ "$nextEntry" != "$nextOwner" ] || nextExecutorOk="yes"
+	done
+	[ "$nextExecutorOk" = "yes" ] || return 0
+	## The line: in the outcome field only, at the start of a line, once.
+	nextLines="$( printf '%s\n' "$nextOutcome" | LC_ALL=C awk 'index( $0, "next-routine: " ) == 1 { print substr( $0, 15 ) ; }' )"
+	[ -n "$nextLines" ] || return 0
+	nextLineCount="$( printf '%s\n' "$nextLines" | LC_ALL=C awk 'END { print NR ; }' )"
+	nextLine="$nextLines"
+	nextNamed="${nextLine%% *}"
+	case "$nextLine" in *" "*) nextInput="${nextLine#* }" ;; esac
+	nextName="${nextWant%.routine.md}: ${nextInput##*/}"
+	nextTask="Handed over by the handback of run $nextSession ($nextRoutine). Input: $nextInput"
+	nextArgs=( --routine "$nextWant" --session-name-or-comment "$nextName" --description "$nextTask" --handed-over-by "$nextSession" magic-coordinator )
+	nextManual="DistroAgentsDispatcher.fn.sh --spawn-session$( printf ' %q' "${nextArgs[@]}" )"
+	if [ "$nextLineCount" -gt 1 ] ; then
+		nextWhy="the outcome holds $nextLineCount next-routine lines, and one is allowed."
+	elif [ "$nextNamed" != "$nextWant" ] ; then
+		nextWhy="$nextRoutine hands over to $nextWant, and the line names $nextNamed."
+	elif [ -z "$nextInput" ] ; then
+		nextWhy="the line names no input."
+	elif [ -z "$( AgentsToolsHandbackNextRoutineFile "$nextWant" )" ] ; then
+		nextWhy="$nextWant is no routine of the skillset."
+	elif AgentsToolsHandbackNextCycle "$nextRoutine" "$nextWant" ; then
+		nextWhy="the chain of hands-over-to from $nextWant comes back to $nextRoutine."
+	else
+		## The input: a real file, with no symlink and no `..` part, in a todo-sketchpad backlog or in the sandbox of this run.
+		case "$nextInput" in
+			/*[!A-Za-z0-9._/@+-]*|[!/]*|*'/../'*|*'/..'|*'/./'*|*'//'*) nextWhy="the input is not an absolute path of plain characters with no . or .. part: $nextInput." ;;
+			*)
+				nextDir="$( cd "${nextInput%/*}" 2> /dev/null && pwd -P )" || nextDir=""
+				nextReal="$nextDir/${nextInput##*/}"
+				nextTop="$( cd "${nextRecord%/*}" 2> /dev/null && pwd -P )" || nextTop=""
+				if [ "$nextReal" != "$nextInput" ] || [ -L "$nextInput" ] || [ ! -f "$nextInput" ] ; then
+					nextWhy="the input is no plain file, or a link stands in its path: $nextInput."
+				else
+					nextAllowed="no"
+					case "$nextReal" in */todo-sketchpad/*/backlog/*) nextAllowed="yes" ;; esac
+					[ -z "$nextTop" ] || case "$nextReal" in "$nextTop"/*) nextAllowed="yes" ;; esac
+					[ "$nextAllowed" = "yes" ] || nextWhy="the input is neither in a todo-sketchpad backlog nor in the sandbox of this run: $nextInput."
+				fi
+			;;
+		esac
+	fi
+	## The epic gate: no wave starts on an epic its validator refuses.
+	if [ -z "$nextWhy" ] && [ "$nextWant" = "magic-team.epic-wave.routine.md" ] ; then
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		nextGateRows="$( DistroAgentsTools --intern-doc-validate epic "$nextInput" 2>&1 )" || nextGateRc=$?
+		[ "$nextGateRc" = 0 ] || nextWhy="the epic validator refuses the input, so no wave starts."$'\n\n```\n'"$( printf '%s\n' "$nextGateRows" | LC_ALL=C cut -c1-200 | head -8 )"$'\n```'
+	fi
+	if [ -n "$nextWhy" ] ; then
+		AgentsToolsHandbackNextRefuse "$nextWhy" "$nextManual"
+		return 0
+	fi
+	## Once per successor and input, whoever hands back: taken before the spawn, kept where it started, given back where it was refused.
+	nextDir="$MMDAPP/.local/agents/handback-next"
+	mkdir -p "$nextDir" 2> /dev/null || return 0
+	nextMarker="$nextDir/${nextWant%.routine.md}.$( printf '%s\n%s\n' "$nextWant" "$nextReal" | cksum | LC_ALL=C awk '{ print $1 ; }' )"
+	( set -C ; printf '%s\n' "$nextSession" > "$nextMarker" ) 2> /dev/null || return 0
+	## The start is made apart: the spawner runs the input scans of the routine before its member begins, which the handback must not wait for.
+	(
+		if [ -n "${MDAT_HANDBACK_NEXT_SPAWNER:-}" ] ; then
+			nextOut="$( "$MDAT_HANDBACK_NEXT_SPAWNER" --spawn-session "${nextArgs[@]}" 2>&1 < /dev/null )" ; nextRc=$?
+		else
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			nextOut="$( DistroAgentsTools --spawn-session "${nextArgs[@]}" 2>&1 < /dev/null )" ; nextRc=$?
+		fi
+		printf '%s\n' "$nextOut" > "$nextMarker.out"
+		if [ "$nextRc" != 0 ] ; then
+			rm -f "$nextMarker"
+			AgentsToolsHandbackNextRefuse "the start of $nextWant failed: $( printf '%s\n' "$nextOut" | LC_ALL=C grep -m 1 'ERROR' | LC_ALL=C cut -c1-200 )" "$nextManual"
+		else
+			AgentsToolsHandbackNextSay "$nextMember" "The next-routine line of this handback started $nextWant as session $( printf '%s\n' "$nextOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )."
+		fi
+		printf '%s\n' "$nextRc" > "$nextMarker.rc"
+	) > /dev/null 2>&1 < /dev/null &
+	disown "$!" 2> /dev/null || :
+	printf 'HANDBACK-NEXT: starting %s for %s\n' "$nextWant" "$nextInput"
+	return 0
+}

@@ -429,8 +429,11 @@ AgentsToolsPermissionEntryPlace(){ ## entry, session id
 	AgentsToolsPermissionEntrySplit "$1" permission-set-request || return 1
 	## `<place>:<relative>` is the form a member is asked to write, and the same entry as
 	## `@<place>:<relative>`: normalised here, so one arm reads both and a display keeps the
-	## name the member wrote. A path in no place is written as it is, absolute.
+	## name the member wrote. A path in no place is written as it is, absolute. A URL is no
+	## path and names no place: WebFetch's target is a URL prefix, `https://host/**` included,
+	## and it is kept as written.
 	case "$permEntryTarget" in
+		http://*|https://*) ;;
 		/*|@*) ;;
 		*:*) permEntryTarget="@$permEntryTarget" ;;
 	esac
@@ -871,7 +874,13 @@ AgentsToolsPermissionItemRow(){ ## tool, %-escaped target, granted-by, stamp
 	case "$1" in
 		Read) rowVerb=allow-read ; rowValue="$2" ;;
 		Edit|Write) rowVerb=allow-write ; rowValue="$2" ;;
-		*) rowVerb=allow-tool ; rowValue="$1:$2" ;;
+		*)
+			rowVerb=allow-tool ; rowValue="$1:$2"
+			## A tool with no target is written with `-`, which AgentsToolsPermissionItemEntries reads
+			## back as that very tool: the item's contract wants six `:`-separated fields, and a tool
+			## whose target is empty (WebFetch, cred:) would give five, so the whole write is refused.
+			[ -n "$2" ] || rowValue="$1:-"
+		;;
 	esac
 	printf 'participants:%s:%s:%s:%s' "$rowVerb" "$rowValue" "$3" "$4"
 }
@@ -2128,10 +2137,8 @@ case "$1" in
 		while IFS= read -r setOne ; do
 			[ -n "$setOne" ] || continue
 			AgentsToolsPermissionEntryPlace "$setOne" "$setSession" || { set +e ; return 1 ; }
-			## The entry as it is asked and stored: its tool with its place resolved to a path, in
-			## whichever form the member wrote it. `<place>:<relative>` is the same entry as
-			## `@<place>:<relative>` (AgentsToolsPermissionEntryPlace), so a text left unresolved
-			## could never cover the refused call, whatever the member wrote.
+			## The entry as it is asked and stored: its tool with its place resolved to a path, whichever
+			## form was written (AgentsToolsPermissionEntryPlace), so it covers the refused call.
 			setResolved="${setResolved}${permEntryTool}${permEntryTarget:+:$permEntryTarget}"$'\n'
 			## A purpose is its place's: kept with the exact target, one for a place.
 			setPurposeText="$( AgentsToolsPermissionSetLookup "$setPurposeOf" "$setOne" )"
@@ -2274,6 +2281,8 @@ case "$1" in
 		setChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' <<< "$setOut" | head -1 )"
 		setTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' <<< "$setOut" | head -1 )"
 		setAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' <<< "$setOut" | head -1 )"
+		## An addressee with no Slack account of its own stands among the addressees by its member name (S21.20).
+		[ -n "$setAddressees" ] || setAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' <<< "$setOut" | head -1 )"
 		setAsking="$( printf '%s\n' "$setOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || setAsking=""
 		if [ -z "$setChannel" ] || [ -z "$setTs" ] || [ -z "$setAddressees" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask was posted but its thread or addressee could not be named, so its answer could not be recognised" >&2

@@ -31,7 +31,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Analyze: coverage gaps — what is implemented against what real tests exercise, never assumed from naming.
   - Plan: for a proposed change, what to test and how, in the style the suite already uses.
   - Test changes: run the existing suite, or add a narrow test in its conventions. Report the real result: pass, fail, or "no suite exists for this, here is what I found".
-- It brings the testing lens; the relevant `keeper-*`/`partner-*` brings the domain lens.
+- It brings the testing lens. The relevant `keeper-*`/`partner-*` brings the domain lens.
 - Security/CRA (Cyber Resilience Act) due diligence is part of this scope — see Domain knowledge.
 
 ## Scope
@@ -90,7 +90,7 @@ The evidence-discipline module carries the reasoning and the worked cases. These
 
 **The failing case comes first**
 
-- Construct the input the defect makes fail; watch it fail against the code as it stands; apply the fix; watch the same input pass.
+- Construct the input the defect makes fail. Watch it fail against the code as it stands. Apply the fix. Watch the same input pass.
 - A pass seen only after the fix is equally consistent with a check that cannot fail. A clean comparison becomes a result once the same comparison has been seen to come out dirty.
 - Where the defect predates the session, reconstruct the prior state and run against that. This is the highest-value single step in a verification round.
 - A planted positive is verified as planted before the sweep's result is read.
@@ -109,7 +109,7 @@ The evidence-discipline module carries the reasoning and the worked cases. These
 - Build the candidate population by a method that does not presuppose the rule.
 - A measurement's scope and the claim's scope are one sentence, or the number is wrong.
 - A measurement carries its timestamp, and a contradiction is re-measured before either side is called wrong.
-- A guard that fires is evidence; a guard that stays silent carries none. Check the postcondition, not the command's status.
+- A guard that fires is evidence. A guard that stays silent carries none. Check the postcondition, not the command's status.
 - A pipeline's exit status is the last command's. Capture the status of the command whose success is claimed, ahead of any pipe.
 - A clean exit and an empty answer share one status. Assert both the status and a non-empty result.
 - A probe answers its own predicate, not the question it was asked. State the claim, read the predicate, and compare the two sentences.
@@ -140,7 +140,7 @@ The evidence-discipline module carries the reasoning and the worked cases. These
 The live-side-effect module carries the detail. The rules to carry into the run:
 
 - Preview before execution: use the tool's `--print-*` twin before its `--execute-*`. A static grep of the declares is not the tool's resolved task list.
-- Timeout-guard every reproduction attempt. Check for `timeout`/`gtimeout`; with neither, use the hand-rolled wall-clock pattern in `magic-developer/reference/shell.md`.
+- Timeout-guard every reproduction attempt. Check for `timeout`/`gtimeout`. With neither, use the hand-rolled wall-clock pattern in `magic-developer/reference/shell.md`.
 - Know the codebase's tracing lever before adding ad-hoc debugging. In `myx.distro-*`, `MDSC_DETAIL=full` gates verbose tracing.
 - Stale background state is a false-positive class for "hang": orphaned SSH control masters, stale sockets, kept pids. Check those before diagnosing a code bug.
 - A clean diff and a static audit are necessary, not sufficient. A real end-to-end run is part of "done", not an optional extra.
@@ -154,7 +154,7 @@ The live-side-effect module carries the detail. The rules to carry into the run:
 - Every assertion has a self-test mode: one input that must trip it and one that must not.
 - Assertions read the produced output, not reachability.
 - Each case is named and carries a written reason it exists.
-- Fixtures are added beside the real assets; the originals are never edited.
+- Fixtures are added beside the real assets. The originals are never edited.
 - Each run is isolated: loopback only, an unprivileged port, fresh working directories, a real copy of the tree in the run's own `output/` folder.
 - A finding is recorded with its date and marked stale when its premise stops holding.
 - For a transformation with no suite: build a corpus over the input grammar. Run the pre-change implementation, run the post-change implementation, and diff byte for byte.
@@ -183,7 +183,7 @@ Small, incremental steps grown out of review and idle work, not a compliance pro
 4. **Failure behaviour.** What the change leaves behind on partial failure or interruption, what it can destroy unintentionally, and whether it is safe to re-run.
 5. **Dependency surface.** Anything newly pulled in or newly reachable — a dependency, a network destination, a privilege or file mode — and whether it was needed.
 6. **Update and regression path.** Whether the change can be reverted or superseded without manual repair, and whether an existing test would have caught any failure mode found here.
-7. **Report.** Each check above as checked-clean, concern-raised or not-applicable, with the reason. "Not applicable" is a real outcome; silence is not.
+7. **Report.** Each check above as checked-clean, concern-raised or not-applicable, with the reason. "Not applicable" is a real outcome. Silence is not.
 
 ## Idle-Tasks
 
@@ -199,6 +199,6 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested. It is resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

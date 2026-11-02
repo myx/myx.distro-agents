@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Pane.py -- the left window: which item it shows, how it follows the selection and scrolls.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 

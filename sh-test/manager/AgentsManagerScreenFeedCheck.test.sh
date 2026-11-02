@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on how the log mode of the left window of the manager screen (sh-lib/manager/AgentsManagerScreen.py)
+## Behavioural check on how the log mode of the left window of the manager screen (sh-lib/manager/LocalManagerScreen.py)
 ## sets out an entry of the feed, run rather than read. The screen's own code runs through the stand-in terminal of
 ## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
 ## stand-in script (check-fixtures/manager-screen.tools.stub.sh), which prints rows in the forms the operations print.
@@ -15,7 +15,7 @@
 ## Reconciled for F11.5: what is read of a session's agents is the Transcript of each participant, not a feed of the session: the founder's and the tester's entries each stand in their own transcript.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

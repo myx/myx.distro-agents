@@ -1,7 +1,7 @@
 ##
 ## AgentsManagerScreen.Wizards.py -- the configuration wizards: a form of one step or of several, answered in dialogs, and then applied by the tooling (F11.7 of
 ## the refactorings epic).
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ##
 
@@ -25,7 +25,7 @@ DIALOGS["wizard-wait"] = {"title": "Wizard", "reads": ("full:{kind}",),
                           "controls": ({"name": "about", "kind": "text"},),
                           "buttons": (("cancel", "Cancel"),)}
 readingDialogs("wizard-wait")
-PLAN_FORMS["wizard-read"] = lambda text: text
+PLAN_FORMS["wizard-read"] = formRow("wizard-read", lambda text: text, "reading-dialog")
 
 
 ## The wizard of that name, as a plugin declared it, or None.
@@ -560,7 +560,7 @@ def parseGitLevels(readKey, level, text):
     return {level: rows}
 
 
-ROW_FORMS["git-settings"] = parseGitLevels
+ROW_FORMS["git-settings"] = {"parse": parseGitLevels}
 
 
 ## The folder for the left pane: the settings and what they are, as a table; and the line that says how to change them. None until its read has answered.
@@ -620,7 +620,7 @@ def parseHarnessForms(readKey, level, text):
     return {level: rows}
 
 
-ROW_FORMS["harness-forms"] = parseHarnessForms
+ROW_FORMS["harness-forms"] = {"parse": parseHarnessForms}
 
 
 def harnessFocus(state, row):

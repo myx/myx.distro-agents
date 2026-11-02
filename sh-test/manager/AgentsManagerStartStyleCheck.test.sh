@@ -21,7 +21,8 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigScreen="$rigHere/manager/AgentsManagerScreen.py"
+rigCoreHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-.local/sh-lib"
+rigScreen="$rigCoreHere/manager/LocalManagerScreen.py"
 rigOp="--manager"
 rigKey="MDLT_MANAGER_STYLE"
 

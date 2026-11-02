@@ -17,7 +17,7 @@ managing blast radius when the run itself has real consequences.
 - A refusal for want of privilege reads exactly like an empty result
 - A probe answers its own predicate, not the question it was asked
 - A measurement carries its timestamp
-- A guard that fires is evidence; a guard that stays silent carries none
+- A guard that fires is evidence. A guard that stays silent carries none
 - A check that leaves a process running signals it only while it is still that process
 - A check compares a tool's own result, not its whole reply
 - A check makes its rig under the workspace, never in the system's temp folder
@@ -43,15 +43,15 @@ like a result.
 Worked evidence: five premises held as fact and falsified the same day, each by
 a single read:
 
-- that the garbage collector retires inbox items;
-- that a stalled lock protected anything;
-- that the lock was held at all;
-- that the `archive:` escape did not run;
+- that the garbage collector retires inbox items.
+- that a stalled lock protected anything.
+- that the lock was held at all.
+- that the `archive:` escape did not run.
 - that deletion was permanent.
 
 None of the five was checked, and one read overturned each. **A premise
 load-bearing enough to act on is cheap enough to check.** The five are reported
-rather than measured here; the rule stands independently of the count.
+rather than measured here. The rule stands independently of the count.
 
 ## Establish the failing case before the passing one
 
@@ -71,7 +71,7 @@ does not reach.
 **A clean comparison becomes a result once the same comparison has been seen to
 come out dirty.** Where the defect predates the session, the failing case already
 exists: check out or reconstruct the prior state and run against that. This is
-the highest-value single step in a verification round; spend the time there
+the highest-value single step in a verification round. Spend the time there
 before spending it anywhere else.
 
 **A planted positive is verified as planted before the sweep's result is read.**
@@ -136,7 +136,7 @@ supposed to be additive and turned out not to be.
 
 ## Read the instrument before trusting the measurement
 
-A count's name is a label someone chose; its definition is the code that produced
+A count's name is a label someone chose. Its definition is the code that produced
 it. Before a number is quoted as evidence, establish what the tool actually
 counted. Which unit is it: a thread against a conversation, a file against a
 record, a row against an entity? Over which population, and after which
@@ -204,7 +204,7 @@ and check the reporting surfaces before generalising to the system. Where a
 pre-flight check does exist, it is usually cheaper than the failure it prevents.
 
 A second worked case, same shape. A resolver's hardcoded scope name says what
-that resolver uses; it says nothing about what the estate defines. A session read one scope and found no channel key under it. It concluded the
+that resolver uses. It says nothing about what the estate defines. A session read one scope and found no channel key under it. It concluded the
 channel role was missing. The proposal built on that reading was refused. The read was correct about
 the resolver and wrong about every other surface that holds configuration. Name
 the scope actually read in the sentence stating the result, and check the other
@@ -269,15 +269,15 @@ called wrong. Where the conclusion matters, capture the evidence with its instan
 command output plus the commit or mtime it was taken at. A disagreement then
 resolves by ordering, rather than by argument.
 
-## A guard that fires is evidence; a guard that stays silent carries none
+## A guard that fires is evidence. A guard that stays silent carries none
 
 Several common mechanisms succeed by doing nothing, and that success is shaped
 exactly like the work having been done:
 
-- `mv -n` skips an existing destination and exits 0; `cp -n`, `ln` against an
-  existing name, and similar refusals behave the same way;
+- `mv -n` skips an existing destination and exits 0. `cp -n`, `ln` against an
+  existing name, and similar refusals behave the same way.
 - a limit or cap that truncates a result set without reporting the truncation
-  returns a partial answer indistinguishable from a complete one;
+  returns a partial answer indistinguishable from a complete one.
 - a conditional whose branch was taken silently, where only the other branch
   logs.
 
@@ -322,7 +322,7 @@ on stderr and returns 1, for the check to end on before it reports a result.
 
 ## Establish which way a check errs before deciding whether it needs a fallback
 
-A pre-check wrong in one direction only is adoptable on its own; one that can be
+A pre-check wrong in one direction only is adoptable on its own. One that can be
 wrong in either direction needs something behind it. Which of the two it is gets
 measured before the design is settled, not assumed from how accurate it feels.
 
@@ -362,11 +362,11 @@ the shapes it did not mention. Those are enumerable up front for any input
 type:
 
 - **empty** — zero rows, an empty string, an empty variable used to build a path
-  or an argument list;
+  or an argument list.
 - **one element** — where separators, headers, and pluralization logic have
-  nothing to separate;
-- **ragged** — rows of differing widths, a table whose header and body disagree;
-- **absent** — an unset variable, a missing file, an option with no value;
+  nothing to separate.
+- **ragged** — rows of differing widths, a table whose header and body disagree.
+- **absent** — an unset variable, a missing file, an option with no value.
 - **extreme** — one very large element, a very long line, deep nesting.
 
 Empty earns first attention, because empty tends to expand rather than fail.
@@ -381,7 +381,7 @@ than the absence of a crash.
 `env -i` strips `PATH` and `HOME` along with everything else. A probe run
 under it reports a tool as absent, and a home-rooted path as missing, whatever
 the real state is. The verdict looks decisive — "CLI NOT INSTALLED" — and it conceals
-the blocker that actually exists. Nothing is learned about the subject; the
+the blocker that actually exists. Nothing is learned about the subject. The
 measurement describes the harness.
 
 Sanitise named variables, never the whole environment. Where a clean

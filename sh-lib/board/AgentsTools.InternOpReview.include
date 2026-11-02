@@ -14,7 +14,7 @@
 
 case "$1" in
 
-	--intern-op-review-handback|--intern-op-review-request|--intern-op-review-accept|--intern-op-review-return|--intern-op-review-reject|--intern-op-review-follow-up|--intern-op-review-end|--intern-op-review-shutdown|\
+	--intern-op-review-handback|--intern-op-review-request|--intern-op-review-accept|--intern-op-review-return|--intern-op-review-reject|--intern-op-review-follow-up|--intern-op-review-end|--intern-op-review-shutdown|--intern-op-review-next|\
 	--request-review|--accept-review|--return-review|--reject-review|--follow-up-review|--shutdown-runs)
 		local reviewOp="$1" reviewVerb
 		case "$reviewOp" in
@@ -27,7 +27,7 @@ case "$1" in
 		local reviewWho="${1:-}" reviewItem="" reviewNew="" reviewText="" reviewReason="" reviewSession="" reviewDismiss=yes reviewStdin=""
 		[ $# -eq 0 ] || shift
 		case "$reviewVerb" in
-			handback|shutdown) ;;
+			handback|shutdown|next) ;;
 			follow-up) reviewItem="${1:-}" ; reviewNew="${2:-}" ; shift 2 2> /dev/null || shift $# ;;
 			*) reviewItem="${1:-}" ; [ $# -eq 0 ] || shift ;;
 		esac
@@ -56,7 +56,7 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$reviewWho" "<team-member>" review || { set +e ; return 1 ; }
 		case "$reviewVerb" in
-			handback|shutdown) ;;
+			handback|shutdown|next) ;;
 			*)
 				[ -n "$reviewItem" ] || { echo "$MDSC_CMD: ⛔ ERROR: <item-filename> is required" >&2 ; set +e ; return 1 ; }
 				AgentsToolsAssertBareName "$reviewItem" "<item-filename>" review || { set +e ; return 1 ; }

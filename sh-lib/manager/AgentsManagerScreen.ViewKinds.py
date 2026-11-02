@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.ViewKinds.py -- the kinds of view the left window shows: table, panels, Markdown, parameter and sequence.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ##
 ## What the left window shows of the row selected in the list is given by the focus handler of the plugin whose level the list is at (the

@@ -50,11 +50,16 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 		fi
 		return 0
 	fi
-	local todoCount todoIndex=0 todoField todoWhere todoPending=0 todoActive=0 todoDone=0 todoFile todoText="" todoLine todoContent todoPathNo=0 todoTmp=""
+	local todoCount todoIndex=0 todoField todoWhere todoPending=0 todoActive=0 todoDone=0 todoFile todoText="" todoLine todoContent todoPathNo=0 todoTmp="" todoAdded=0
 	AgentsHarnessArgParse "$1"
 	## No pre-requisites, no tool: a session whose member or place the harness does not know has none.
 	if ! AgentsHarnessCheckListPlace ; then
 		printf 'ERROR: %s Nothing was written.\n' "$checkListWhy" ; return 0
+	fi
+	## Items added to a list by another session (S23.2).
+	if AgentsHarnessArgFind append.__count ; then
+		AgentsHarnessCheckListAppend
+		return 0
 	fi
 	if ! AgentsHarnessArgFind todos.__count ; then
 		## A value that is there and is no list is told apart from no value at all, which reads.
@@ -103,15 +108,29 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 		todoIndex=$(( todoIndex + 1 ))
 	done
 	todoFile="$checkListFolder/$checkListMember.checklist.md"
-	if ! { mkdir -p "$checkListFolder" 2>/dev/null && todoTmp="$( mktemp "$todoFile.XXXXXX" 2>/dev/null )" \
+	## What another session added since this member last read or wrote its list (<member>.checklist.md.added) is kept whatever list is given: a whole-list write never drops an item it was not shown.
+	mkdir -p "$checkListFolder" 2>/dev/null || :
+	AgentsHarnessCheckListLock "$todoFile" || { printf 'ERROR: the checklist of %s in session %s is being written by another call and could not be taken in five seconds. Nothing was written.\n' "$checkListMember" "$checkListSession" ; return 0 ; }
+	if [ -s "$todoFile.added" ] ; then
+		while IFS= read -r todoLine || [ -n "$todoLine" ] ; do
+			case "$todoText" in
+				*"${todoLine#- \[ \] }"*) ;;
+				*) todoText="$todoText$todoLine"$'\n' ; todoPending=$(( todoPending + 1 )) ; todoCount=$(( todoCount + 1 )) ; todoAdded=$(( todoAdded + 1 )) ;;
+			esac
+		done < "$todoFile.added"
+	fi
+	if ! { todoTmp="$( mktemp "$todoFile.XXXXXX" 2>/dev/null )" \
 		&& printf '%s' "$todoText" > "$todoTmp" 2>/dev/null && mv -f "$todoTmp" "$todoFile" 2>/dev/null ; } ; then
 		[ -z "$todoTmp" ] || rm -f "$todoTmp" 2>/dev/null || :
+		AgentsHarnessCheckListUnlock "$todoFile"
 		printf 'ERROR: the checklist of %s in session %s could not be written. Nothing was written.\n' "$checkListMember" "$checkListSession" ; return 0
 	fi
+	rm -f "$todoFile.added" 2>/dev/null || :
+	AgentsHarnessCheckListUnlock "$todoFile"
 	## The result names the member and the session it belongs to and gives no path: where the list is kept is the tooling's business, and
 	## a path in the result is one a member reads as something it may touch (the checklist is the tool's, written here, never edited there).
-	printf 'OK: the checklist of %s in session %s now holds %s item(s): %s pending, %s in progress, %s completed.\n' \
-		"$checkListMember" "$checkListSession" "$todoCount" "$todoPending" "$todoActive" "$todoDone"
+	printf 'OK: the checklist of %s in session %s now holds %s item(s): %s pending, %s in progress, %s completed.%s\n' \
+		"$checkListMember" "$checkListSession" "$todoCount" "$todoPending" "$todoActive" "$todoDone" "$( [ "$todoAdded" -eq 0 ] || printf ' %s item(s) another session had added to it were kept, as pending.' "$todoAdded" )"
 }
 
 AgentsHarnessCheckListPlace(){
@@ -170,6 +189,8 @@ AgentsHarnessCheckListMembers(){
 ## participant's, each under its member name, an empty one shown as empty. Writes nothing.
 AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 	local readWant="${1:-$checkListMember}" readMembers readName readCount=0 readOut=""
+	## A read of the caller's own list shows it whole, what another session added included: nothing is left to be kept for it (AgentsHarnessCheckListAppendLines).
+	[ "$readWant" != "*" ] && [ "$readWant" != "$checkListMember" ] || rm -f "$checkListFolder/$checkListMember.checklist.md.added" 2>/dev/null || :
 	readMembers="$( AgentsHarnessCheckListMembers )"
 	if [ "$readWant" = "*" ] ; then
 		while IFS= read -r readName ; do
@@ -277,4 +298,81 @@ AgentsHarnessCheckListCloseHandback(){
 	closeTmp="$( mktemp "$closeFile.XXXXXX" 2> /dev/null )" || return 1
 	{ printf '%s' "$closeOut" > "$closeTmp" && mv -f "$closeTmp" "$closeFile" ; } 2> /dev/null || { rm -f "$closeTmp" ; return 1 ; }
 	return 0
+}
+
+## THE LIST'S LOCK, a folder beside it, taken by mkdir and given back by rmdir, so an append and a whole-list write never interleave. rc 1 where it stays taken for five seconds.
+AgentsHarnessCheckListLock(){ ## the list file
+	local lockLeft=50
+	until mkdir "$1.lock" 2> /dev/null ; do
+		lockLeft=$(( lockLeft - 1 ))
+		[ "$lockLeft" -gt 0 ] || return 1
+		sleep 0.1
+	done
+	return 0
+}
+AgentsHarnessCheckListUnlock(){ ## the list file
+	rmdir "$1.lock" 2> /dev/null || :
+}
+
+## ITEMS ADDED TO A MEMBER'S LIST BY SOMEONE ELSE (S23.2, and the spawn queue of S23.1): each stdin line becomes a pending item at the end of <member>.checklist.md in the folder, and is
+## noted in <member>.checklist.md.added, which the owner's next whole-list write keeps and its next read clears. Prints how many were added; rc 1 where the list could not be locked or written.
+AgentsHarnessCheckListAppendLines(){ ## folder, member -- stdin: the item texts, a line each
+	local appendFile="$1/$2.checklist.md" appendLine appendCount=0
+	mkdir -p "$1" 2> /dev/null || return 1
+	AgentsHarnessCheckListLock "$appendFile" || return 1
+	while IFS= read -r appendLine || [ -n "$appendLine" ] ; do
+		appendLine="${appendLine//[$'\n\r\t']/ }"
+		[ -n "$appendLine" ] || continue
+		if ! { printf -- '- [ ] %s\n' "$appendLine" >> "$appendFile" && printf -- '- [ ] %s\n' "$appendLine" >> "$appendFile.added" ; } 2> /dev/null ; then
+			AgentsHarnessCheckListUnlock "$appendFile"
+			return 1
+		fi
+		appendCount=$(( appendCount + 1 ))
+	done
+	AgentsHarnessCheckListUnlock "$appendFile"
+	printf '%s\n' "$appendCount"
+}
+
+## The CheckList tool's append: the items of append go, pending, to the list of the participant named by member in the session named by session -- a session the caller is the PARENT of
+## (the target's record names the caller's session as `parent-session-id`) and the participant its executor (the record's owner) -- or, with no session, to the caller's own list. Nothing
+## already on a list is changed. The result names the member and the session and gives no path.
+AgentsHarnessCheckListAppend(){
+	local appendMember="${harnessArgV_member:-}" appendSession="${harnessArgV_session:-}" appendCount appendIndex=0 appendItems="" appendRecord appendFolder appendAdded
+	if AgentsHarnessArgFind todos.__count ; then
+		printf 'ERROR: append adds to a list and takes no todos, which replace your own: give one or the other. Nothing was written.\n' ; return 0
+	fi
+	[ -n "$appendMember" ] || { printf 'ERROR: append needs member, the participant whose list the items go to. Nothing was written.\n' ; return 0 ; }
+	AgentsHarnessArgFind append.__count || :
+	appendCount="$harnessArgFound"
+	case "$appendCount" in ''|0|*[!0123456789]*) printf 'ERROR: append must be an array of one or more item texts. Nothing was written.\n' ; return 0 ;; esac
+	while [ "$appendIndex" -lt "$appendCount" ] ; do
+		if ! AgentsHarnessArgFind "append.$appendIndex" || [ -z "$harnessArgFound" ] ; then
+			printf 'ERROR: append item %s of %s is empty or no text -- each is a text. Nothing was written.\n' "$(( appendIndex + 1 ))" "$appendCount" ; return 0
+		fi
+		appendItems="$appendItems$harnessArgFound"$'\n'
+		appendIndex=$(( appendIndex + 1 ))
+	done
+	if [ -z "$appendSession" ] || [ "$appendSession" = "$checkListSession" ] ; then
+		if [ "$appendMember" != "$checkListMember" ] ; then
+			printf 'ERROR: in your own session you append to your own list only (%s), and %s is another list: give the session of a child you started to add to its executor. Nothing was written.\n' "$checkListMember" "$( AgentsHarnessTruncateArg "$appendMember" )" ; return 0
+		fi
+		appendFolder="$checkListFolder"
+	else
+		AgentsHarnessBareName "$appendSession" || { printf 'ERROR: session is no bare session id. Nothing was written.\n' ; return 0 ; }
+		appendRecord="$( AgentsHarnessSpawnRecordPath "$appendSession" )"
+		if [ -z "$appendRecord" ] ; then
+			printf 'ERROR: no session %s is known here. Nothing was written.\n' "$( AgentsHarnessTruncateArg "$appendSession" )" ; return 0
+		fi
+		if [ "$( AgentsHarnessDispatchField "$appendRecord" parent-session-id )" != "$checkListSession" ] ; then
+			printf 'ERROR: only the parent of session %s adds items to its executor'"'"'s list, and this session (%s) is not its parent. Nothing was written.\n' "$appendSession" "$checkListSession" ; return 0
+		fi
+		if [ "$( AgentsHarnessDispatchField "$appendRecord" owner )" != "$appendMember" ] ; then
+			printf 'ERROR: %s is not the executor of session %s, whose list takes the parent'"'"'s items. Nothing was written.\n' "$( AgentsHarnessTruncateArg "$appendMember" )" "$appendSession" ; return 0
+		fi
+		appendFolder="${appendRecord%/*}"
+	fi
+	if ! appendAdded="$( printf '%s' "$appendItems" | AgentsHarnessCheckListAppendLines "$appendFolder" "$appendMember" )" ; then
+		printf 'ERROR: the checklist of %s could not be written to. Nothing was written.\n' "$appendMember" ; return 0
+	fi
+	printf 'OK: %s item(s) added, as pending, to the checklist of %s in session %s.\n' "$appendAdded" "$appendMember" "${appendSession:-$checkListSession}"
 }

@@ -750,8 +750,18 @@ case "$1" in
 		## or the standing default. Never both; neither is the default behaviour of
 		## every caller before these options existed.
 		local routineSelector="" routineDefault="false" prefixRoutineSelector=""
+		## --checklist-item: one pending item for the executor's CheckList, said by the spawner, repeatable (S22.4).
+		local checklistItemsSaid=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--checklist-item)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --checklist-item requires <text>" >&2
+						set +e ; return 1
+					fi
+					checklistItemsSaid="$checklistItemsSaid${2//[$'\n\r\t']/ }"$'\n'
+					shift 2
+				;;
 				--from-file)
 					if [ -z "$2" ] || [ ! -f "$2" ] ; then
 						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --from-file: file not found: $2" >&2
@@ -1024,7 +1034,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>|--parent-none] [--parent-member <team-member>] [--restarted-from <spawn-id>] [--start-context spawned|inline|joined] [--reports-to <address>] [--review-by <reviewer>] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>|--parent-none] [--parent-member <team-member>] [--restarted-from <spawn-id>] [--start-context spawned|inline|joined] [--reports-to <address>] [--review-by <reviewer>] [--checklist-item <text>]... [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -1081,7 +1091,11 @@ case "$1" in
 		## to this one: the console gives its leg the model of its tier, and a stub takes an exported one ahead of its own.
 		local -x MDAT_SPAWN_PRESET="" HARNESS_MODEL_LIGHT="" HARNESS_MODEL_MAIN="" HARNESS_EFFORT=""
 		type AgentsToolsPresetChosen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
-		if [ -n "$spawnCliService" ] ; then
+		## A --spawn-cli-service that names a preset of the paying workspace is that preset, not a bare CLI service.
+		if [ -n "$spawnCliService" ] && [ -f "${MDAT_SPAWN_SETTINGS_WORKSPACE:-${MMDAPP%/}}/.local/.agents/preset-${spawnCliService%%:*}.agent.env" ] ; then
+			MDAT_SPAWN_PRESET="$spawnCliService"
+			spawnCliService=""
+		elif [ -n "$spawnCliService" ] ; then
 			MDAT_SPAWN_PRESET="-$spawnCliService"
 		else
 			MDAT_SPAWN_PRESET="$( AgentsToolsPresetChosen "$callerName" )" || MDAT_SPAWN_PRESET=""
@@ -1209,6 +1223,8 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		## The text the spawner gave, before the routine's brief and the tooling's own blocks are put around it: where its `## Formal task` is read from.
+		local seedSourceText="$spawnContext"
 
 		## The brief for the resolved routine, built ahead of the spawn context in
 		## every source mode -- this is what makes the brief automatic rather than a
@@ -1907,6 +1923,9 @@ case "$1" in
 		## (AgentsToolsRootHarnessKindRead), never a caller's opinion of it.
 		type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
 		[ "$( AgentsToolsRootHarnessKindRead "$sessionId" 2> /dev/null )" = "track" ] && sessionTrack="true" || sessionTrack=""
+		## A WORK-DUTY HAS ITS TOOLING THREAD ONLY (S23.4), never a session thread: it is reached by a tag in a channel. Whatever the mode its start was given, no session thread is opened,
+		## joined or recorded for it, so a restart of the duty posts no header in the team channel either. The tooling thread is the event-track thread its start post opens.
+		[ -z "$workDutyDispatchFile" ] || sessionTrack="true"
 		if [ -n "$joinSessionId" ] ; then
 			sessionThread="$joinSessionThread"
 		elif [ "$sessionThreadMode" = "event-track" ] ; then
@@ -2360,6 +2379,20 @@ case "$1" in
 			spawnContext="$( printf '%s\n\n%s\n' "$spawnContext" "$( AgentsToolsWorkDutyDispatchVariables "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$timestamp" "$inputScanFile" )" )"
 		fi
 		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName" "$conversationThreads" "$inputScanFile"
+		## THE EXECUTOR'S CHECKLIST IS SEEDED HERE, once, before its first turn (S22.4), as pending items of the member this spawn runs, mixed from every source
+		## the spawn has: the steps of the spawner's text under `## Formal task`, the open work of the epic feature that text names (S24.19), the duties of its
+		## routine (never a work-duty's, a loop that no list can finish), then the items its arguments gave. The executor never seeds its own list.
+		type AgentsToolsCheckListSeed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+		{
+			printf '%s\n' "$seedSourceText" | AgentsToolsCheckListSectionItems
+			printf '%s\n' "$seedSourceText" | AgentsToolsCheckListEpicItems "$MMDAPP" || :
+			if [ -n "$routineFilePath" ] && [ -z "$workDutyDispatchFile" ] ; then
+				type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+				AgentsToolsSpawnRoutineMixText "$routineFilePath" | AgentsToolsCheckListRoutineSteps || :
+			fi
+			printf '%s' "$checklistItemsSaid"
+		} | AgentsToolsCheckListSeed "$sessionId" "$callerName" > /dev/null \
+			|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the CheckList of $callerName could not be seeded, so the session starts with the list it has" >&2
 
 		## Tooling's own standing text for every spawn, beside the sandbox lines: a spawned
 		## session waits with Wait and ends only on a DISMISSED -- unless its caller blocks on

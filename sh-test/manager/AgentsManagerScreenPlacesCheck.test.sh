@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the root `Locations (Places)` of the manager screen (sh-lib/manager/AgentsManagerScreen.py) and on
+## Behavioural check on the root `Locations (Places)` of the manager screen (sh-lib/manager/LocalManagerScreen.py) and on
 ## its rule that shows a path inside a registered location by the name of that location, run rather than read. The
 ## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh),
@@ -30,7 +30,7 @@
 ## Reconciled for F11.5: Locations (Places) is the fourth root, key 4, and the list a case gives a generic list is that of `Launchpad` under Activity (`at @magic-team launch`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

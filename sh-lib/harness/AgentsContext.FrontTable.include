@@ -68,6 +68,10 @@ DistroAgentsItems	--trash-inbox-item	member
 DistroAgentsItems	--upsert-inbox-inquiry	member
 DistroAgentsItems	--upsert-inbox-note	member
 DistroAgentsItems	--upsert-inbox-reflection	member
+DistroAgentsItems	--upsert-vault-decision-record	member
+DistroAgentsItems	--upsert-vault-investigation-report	member
+DistroAgentsItems	--upsert-vault-item	member
+DistroAgentsItems	--upsert-vault-verbatim	member
 DistroAgentsQuestions	--amend-pending-reply	coordinator
 DistroAgentsQuestions	--answer-escalation	member
 DistroAgentsQuestions	--forward-escalation	coordinator

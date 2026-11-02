@@ -21,7 +21,7 @@ Reconstructing "which source IP produced this payload match" by counting a fixed
 
 Two known-good fixes, either one:
 - **(a) Stateful parser**: track "current packet's source IP" as a state variable while scanning line-by-line. Report it only when a content match is found afterward, however many lines away.
-- **(b) Binary capture**: capture with `-xx` (full hex dump, no ASCII), and do binary pattern matching on the hex text itself. For example, in awk, match the hex digits of the wanted bytes; Python only where awk won't do, never Perl. It avoids the ASCII-line-count problem entirely, and also allows extracting exact binary payload fields.
+- **(b) Binary capture**: capture with `-xx` (full hex dump, no ASCII), and do binary pattern matching on the hex text itself. For example, in awk, match the hex digits of the wanted bytes. Python only where awk won't do, never Perl. It avoids the ASCII-line-count problem entirely, and also allows extracting exact binary payload fields.
 
 ## Reverse-DNS-to-known-hosting-provider is not a legitimate-traffic signal
 
@@ -29,7 +29,7 @@ Two known-good fixes, either one:
 
 Reliable signals instead:
 - **Protocol-specific content**, when the protocol is identifiable unencrypted even if the main transfer is encrypted — e.g. BitTorrent DHT's bencoded `find_node`/`get_peers`/`announce_peer` strings.
-- **Destination port pattern** — well-known service ports suggest legitimate traffic; many distinct residential/hosting IPs on essentially random ports, especially UDP, suggests P2P.
+- **Destination port pattern** — well-known service ports suggest legitimate traffic. Many distinct residential/hosting IPs on essentially random ports, especially UDP, suggests P2P.
 
 ## IPv4 packet loss on a dual-stack host says nothing about that host's IPv6 health, or vice versa
 
@@ -54,7 +54,7 @@ Reachability from a guest sharing the target's physical hypervisor (or rack/loca
 
 ## A software bridge/VLAN interface's healthy state doesn't describe the physical NIC underneath it
 
-`ifconfig <bridge-or-vlan-iface>` reports the software interface's own state. It can look fully healthy while the physical NIC underneath it is degraded, or the reverse. Check the two layers as separate steps; never infer one from the other.
+`ifconfig <bridge-or-vlan-iface>` reports the software interface's own state. It can look fully healthy while the physical NIC underneath it is degraded, or the reverse. Check the two layers as separate steps. Never infer one from the other.
 
 - Check the physical interface on its own: `ifconfig <physical-iface>` for negotiated link speed/duplex, `netstat -i` for interface error/drop counters.
 - A qualitative condition worth naming ("this interface accumulates errors/drops under load") stays useful over time. An exact counter snapshot doesn't: it will already be a different number by the time anyone reads it.

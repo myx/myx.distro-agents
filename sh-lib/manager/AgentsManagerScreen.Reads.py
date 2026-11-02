@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Reads.py -- the reads through the operations of the tooling, and their reader.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -338,6 +338,11 @@ def failureLines(result):
     return [("operation", " ".join(result["words"]))] + (said or [result["error"]])
 
 
+## Whether a form's answer counts now: always, or only while a dialog that reads is open.
+def formApplies(formFacts, state):
+    return formFacts["applies"] == "always" or (state.dialog is not None and state.dialog["name"] in READING_DIALOGS)
+
+
 ## One call that has ended, taken into the state. A good list becomes the rows of its
 ## level. A failed call leaves what the last good one gave, marks it as old, and what it
 ## wrote is shown whole in a box, once while it fails in the same words. An answer for a view that is no longer selected is dropped, and so is one
@@ -377,15 +382,12 @@ def applyResult(state, result):
                                 "error": result["error"] if result["status"] != 0 else ""}
         return
     if readEntry(key).get("rows") in PLAN_FORMS:
-        ## what an app feature's form reads, kept as the form of that feature takes it, while a dialog is open
-        if state.dialog is not None and state.dialog["name"] in READING_DIALOGS:
-            state.plans[key] = {"words": result["words"], "rows": PLAN_FORMS[readEntry(key)["rows"]](result["text"]),
+        ## what an app feature's form reads, kept as the form of that feature takes it: whether its answer
+        ## counts always or only while a reading dialog is open is the form's own fact, not this branch's.
+        planRow = PLAN_FORMS[readEntry(key)["rows"]]
+        if formApplies(planRow, state):
+            state.plans[key] = {"words": result["words"], "rows": planRow["parse"](result["text"]),
                                 "error": result["error"] if result["status"] != 0 else ""}
-        return
-    if readEntry(key).get("rows") == "key-read":
-        ## a key whole is its box's and its view's own: they show what was read, or that it could not be
-        state.plans[key] = {"words": result["words"], "rows": parseKeyRead(result["text"]),
-                            "error": result["error"] if result["status"] != 0 else ""}
         return
     if result["status"] != 0:
         ## a box says it once: a read that fails again in the same words is marked as old, no more
@@ -415,10 +417,10 @@ def applyResult(state, result):
         row, entry = shownRead(state, key[:4])
         if entry.get("rows") == "session-read":
             state.view["info"] = parseSessionRead(result["text"])
-        elif entry.get("rows") == "ask":
-            state.view["info"] = parseAskStored(result["text"])
-        elif entry.get("rows") == "ask-acts":
-            state.view["acts"] = parseAskActs(result["text"])
+        elif entry.get("rows") in VIEW_FORMS:
+            viewRow = VIEW_FORMS[entry.get("rows")]
+            if formApplies(viewRow, state):
+                state.view[viewRow["fills"]] = viewRow["parse"](result["text"])
         elif entry.get("rows") == "member-read":
             state.view["info"] = parseMemberRead(result["text"])
         elif entry.get("rows") == "place-read":

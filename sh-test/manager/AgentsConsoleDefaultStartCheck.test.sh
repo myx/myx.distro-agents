@@ -25,7 +25,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py"
-rigScreenFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreenFile="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -169,7 +169,7 @@ rigLegHas(){ ## fixed text -- whether the words it was started with hold it
 	LC_ALL=C grep -q -F -- "$1" "$rigDir/leg.log" && printf yes || printf no
 }
 rigNeedsTerminal(){ ## how many lines of the last error output are the screen's own line that it needs a terminal
-	LC_ALL=C grep -c 'ERROR: AgentsManagerScreen: the manager screen needs a terminal' "$rigDir/err" || :
+	LC_ALL=C grep -c 'ERROR: LocalManagerScreen: the manager screen needs a terminal' "$rigDir/err" || :
 }
 rigScreenOnly="1 [--manager]"
 

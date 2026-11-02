@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the mouse of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather than read. The
+## Behavioural check on the mouse of the manager screen (sh-lib/manager/LocalManagerScreen.py), run rather than read. The
 ## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## which feeds it an event of the mouse at a cell as one turn. Held: a click inside a window gives it the keys; a
 ## click on a row of the list selects that row, and a second click on the selected row, or a double click, opens it
@@ -21,7 +21,7 @@
 ## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read` (so the keys of the status line stand eleven cells further on, where this check clicks them).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){

@@ -16,7 +16,7 @@ Read this when writing or repairing a rule, an instruction, a definition or a de
 - A file that includes another may override, extend or waive the included rules, unless the included rule forbids it.
 - A term's short definition lives in one terminology list. Each consumer describes its own use of it.
 - A help entry or Operation Reference states when to call an operation and what to pass. Nothing about its internals.
-- Files following a member or routine contract carry `Verbatim-goals`/`Verbatim-tests` in `# Maintainer Notes`, as their contract states. Other shared files carry none. Inline `**intent:**`/`**test:**`/`**note:**` markers are allowed anywhere. An intent is abstract and self-contained; an entry is authored instruction text, never a quotation.
+- Files following a member or routine contract carry `Verbatim-goals`/`Verbatim-tests` in `# Maintainer Notes`, as their contract states. Other shared files carry none. Inline `**intent:**`/`**test:**`/`**note:**` markers are allowed anywhere. An intent is abstract and self-contained. An entry is authored instruction text, never a quotation.
 
 ## A rule statement stays a rule statement
 
@@ -28,4 +28,4 @@ A rule takes the most general form that still covers its intent. A test or instr
 
 ## A rule that was violated is a proven gap
 
-A broken rule is insufficient as written. Find what let it fail — what it does not say, where it is written, what leaves no trace, which rule it loses to — and fix the text or what makes it hold.
+A broken rule is insufficient as written. Find what let it fail: what it does not say, where it is written, what leaves no trace, which rule it loses to. Then fix the text or what makes it hold.

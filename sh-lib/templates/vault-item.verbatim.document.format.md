@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # vault-item.verbatim document — the shape of one verbatim
 
-Normative contract: `vault-item.verbatim.contract.format.md` (the skillset). Where it and this skeleton disagree, the contract wins. This file carries the skeleton and states the slots; no writer fills it yet.
+Normative contract: `vault-item.verbatim.contract.format.md` (the skillset). Where it and this skeleton disagree, the contract wins. This file carries the skeleton and states the slots; `--upsert-vault-verbatim` writes the document.
 
 # Summary
 

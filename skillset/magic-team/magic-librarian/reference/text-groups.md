@@ -13,4 +13,4 @@ The lists of "Text groups".
 
 - Board and inbox items — their type's frontmatter and filename shape.
 - Logs, transcripts, processed items — narrative mode.
-- Generated documents — their own format contract; never hand-authored.
+- Generated documents — their own format contract. Never hand-authored.

@@ -3,6 +3,7 @@ type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
+tracking-item: required
 runs-at: none
 review-by: inherit
 ---
@@ -53,13 +54,13 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **owner-commit**: Tell the owner a large change is about to start, and get his commit before it, so its diff stands apart.
+1. **owner-commit**: Tell the owner a large change is about to start, and get his commit before it, so its diff stands apart. Skipped for an epic that changes no code.
 2. **final-run**: Run the final run: the retests and the guards, once, late. Run
 the whole suite only before one large atomic switch, in a scratch, never on
-live.
-3. **librarian-pass**: Run the librarian pass over the builders' knowledge lines, from the librarian's queue (`AgentLibrarianTools.fn.sh --queue-take`, `--queue-done`), never a loose file.
+live. Skipped for an epic that changes no code.
+3. **librarian-pass**: Run the librarian pass over the builders' knowledge lines, from the librarian's queue (`AgentLibrarianTools.fn.sh --queue-take`, `--queue-done`), never a loose file. Skipped for an epic that changes no code.
 4. **rig-update**: The owner runs his rig update. The fixes kept under "The rigs,
-once, at the end" are then applied in place, once, after the installer update.
+once, at the end" are then applied in place, once, after the installer update. Skipped for an epic that changes no code.
 5. **pack-delete**: Pack every temporary file and scratch folder of the run into
 the next epic's input, and delete them from the workspace. That way nothing of
 the run lingers.
@@ -80,6 +81,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- An epic that changes no code skips steps 1 to 4 and runs **pack-delete**. Its handback names the skipped steps and why.
 - The owner commits what is applied; this routine tells him when, and never commits for him.
 - No production host is touched: the rigs get changes only through their installers, fixed in place once, at the epic's end.
 - The builders' knowledge lines reach the librarian through the queue (`--request-update`), never a loose file.

@@ -10,9 +10,10 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+rigCoreHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-.local/sh-lib"
 rigPackages="${rigHere%/myx.distro-agents/sh-lib}"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
-[ -f "$rigHere/manager/AgentsManagerScreen.py" ] || rigRefuse "the screen is not at the origin this workspace resolves"
+[ -f "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py" ] || rigRefuse "the screen is not at the origin this workspace resolves"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsManagerSiblingStartCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -44,7 +45,7 @@ for rigTool in "DistroDeployTools myx.distro-deploy deploy" "DistroRemoteTools m
 	rigAssert "$rigName --manager: ends 0" "${rigOut##*rc=}" 0
 	rigAssert "$rigName --manager: the shared screen is started as the $rigApp app of the rig workspace, with this tool file" \
 		"$( tr '\n' ' ' < "$rigTmp/started" 2> /dev/null )" \
-		"-I -B $rigHere/manager/AgentsManagerScreen.py --workspace $rigWs --tools $rigPackages/$rigFolder/sh-scripts/$rigName.fn.sh --app $rigApp "
+		"-I -B $rigCoreHere/manager/LocalManagerScreen.py --workspace $rigWs --tools $rigPackages/$rigFolder/sh-scripts/$rigName.fn.sh --app $rigApp "
 	rigOut="$( rigStart "$rigName" "$rigFolder" --manager rig-extra-word )"
 	rigUsage="  $rigName --manager [--style <name>]"
 	rigVerdict="$rigOut"

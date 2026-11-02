@@ -1,39 +1,9 @@
 ##
 ## AgentsManagerScreen.Roots.py -- what the roots of the list hold and what an action asks of the tooling: TEAM_DATA, CALLS, STARTS, PLACES. The roots themselves, their rows and their reads are declared by their plugins (Plugins.py).
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
-## The root the selection is on when the screen starts: the manuals, whose help is where a user starts.
-START_ROOT = "manuals"
-## The console user's own setting of .local, beside MDLT_CONSOLE_HISTORY and no setting of
-## the agents, that turns every spacer of the list off where it reads `disable`; the
-## spacers are there where it names nothing else. Read from the environment of the start,
-## where the start of the screen (`--manager`) puts what the user saved.
-SPACERS_VARIABLE = "MDLT_MANAGER_SPACERS"
-## What the root `Team Data` shows, from two reads that give it: the blocks of the
-## dashboard it holds as rows of its own, read with the dashboard ("blocks"); the block and the figure that say that its team data is there ("present",
-## with that value), and the figure of its root; the prefix of the figures that count the
-## items of the board by state ("board"); and the lines of the digest of the settings it
-## shows, each by its subject, its group (None: any) and its key: the mode of the
-## workspace, whether it is a full team rig, the remote and the branch of the team data.
-## "teamRig": the mode in which the team data is maintained here, the one mode an operation
-## that needs a rig is offered in (CLEANUPS). "data", "git", "loop": the blocks of the team
-## data, of its git state, and of the main loop; "blocks", those the dashboard's own read
-## gives the root too, so that it knows from the start whether the team data is there.
-TEAM_DATA = {
-    "blocks": ("team-data", "loop"),
-    "data": "team-data", "git": "team-data-git", "loop": "loop",
-    "present": ("team-data", "present", "yes"),
-    "root": "root",
-    "board": "board-",
-    "mode": ("workspace", "mode", "MDAT_WORKSPACE_MODE"),
-    "full": ("workspace", "mode", "full-team-rig"),
-    "remote": ("scopes", None, "TEAM_DATA_GIT_REMOTE"),
-    "branch": ("scopes", None, "TEAM_DATA_BRANCH"),
-    "teamRig": "team-rig",
-    "justAgents": "just-agents",
-}
 ## The operations of the tooling that `Team Data` holds under `Operations`, its cleanups and
 ## its sync, in their order, each by its id: "label", what it shows as; "operation", the
 ## operation exactly as it is called, with its words, never another made for the screen;
@@ -72,8 +42,6 @@ MEMBER_TEAM_KIND = "team"
 MEMBER_FOLDERS = (("permissions", "Permissions", "grants"), ("files", "Skillset Files", "files"),
                   ("sessions", "Sessions", "member-sessions"), ("settings", "Member Settings", "member-settings"),
                   ("help", "Member Help", "member-help"))
-ROOT_TITLE = "/"
-ROW_UP = ".."
 ## The scope a credential of a subject of the digest is read from, for the form of the credential: the scopes are their
 ## own (None: the group of the line is the scope), and the credentials of the CLIs are settings of the team.
 CREDENTIAL_SCOPE = {"scopes": None, "cli": "magic-team"}
@@ -98,42 +66,10 @@ FOLDER_WORDS = {
     "team": "each member of the team, its permissions, files, sessions, settings and help",
     "teamdata": "the board, the audit and the vault of the team data, and its operations",
 }
-## What each action asks the tooling for: the operation with its arguments, {id} the id of
-## what it acts on. The screen itself signals no process and starts no CLI. A session's id
-## finishes that session: every live run of it is ended, its questions that wait are
-## dismissed and its records left open are closed; `--run` takes the id as a run's own, so on the row of an
-## agent that agent alone is ended, the founder too, whose id is its session's. A start
-## names its routine by its selector, or takes the standing default routine with what was
-## typed as its task text, which goes on standard input and is never a word of the command.
-## One member is started by its name, with what was typed as its prompt, on standard input too.
-## The control thread of a session is started again by the id of that session: whether one
-## is started is the operation's to say, which starts none where one lives or none is needed.
-CALLS = {
-    "kill:session": ["--manager-session-kill", "--session-id", "{id}"],
-    "kill:run": ["--manager-session-kill", "--session-id", "{id}", "--run"],
-    "control": ["--manager-session-control-start", "--session-id", "{id}"],
-    "launch": ["--spawn-session", "--routine", "{id}"],
-    "prompt": ["--spawn-session", "--routine-default"],
-    "start": ["--manager-spawn-member", "{id}"],
-    ## a pending question is answered, rejected by the negative answer of its kind, or
-    ## dismissed, by its id; the answer chosen or typed is the word after --answer
-    "answer": ["--manager-pending-reply-answer", "--id", "{id}", "--answer"],
-    "reject": ["--manager-pending-reply-answer", "--id", "{id}", "--reject"],
-    "dismiss": ["--manager-pending-reply-dismiss", "--id", "{id}"],
-    ## a setting is saved by its key, the value chosen or typed being the word after it,
-    ## as it was chosen or typed; whom it is saved for is the operation's to say
-    "set": ["--manager-config-set", "{id}"],
-    ## clearing one key of a scope: the tier assignment of a member is a key of its own scope, and until
-    ## this existed the screen had no way to take it back -- a member pinned to a preset could not be
-    ## returned to inheriting the team's. The operation deletes the key; the caller names the scope bare.
-    "clear": ["--agents-config-option", "{id}", "--delete"],
-}
 ## What each of those is given the words typed beside it with, where any were typed.
 CALL_WORDS = {"answer": "--text", "reject": "--text", "dismiss": "--reason"}
 ## What a start names its session with, ahead of the name.
 CALL_NAME = "--session-name-or-comment"
-## The word that confirms a kill, typed whole.
-KILL_WORD = "yes"
 ## The state of a session that is finished, as its row of the list gives it: such a one
 ## takes no kill, since nothing of it is left to end, to dismiss or to close.
 SESSION_FINISHED = "finished"
@@ -171,21 +107,4 @@ PLACES = {
     "member": ("name", "kind", "home", "setup", "folder"), "unlisted": "not-in-registry",
     ## the kind of a location that is a workspace, and the folder of it that holds its projects
     "workspace": "workspace", "projects": "source",
-}
-## The rule of the locations: a path that lies in a registered location shows as the key
-## of that location, a colon and what follows it there, `<place key>:rest`, the location
-## itself as its key alone, the longest location winning, the key in the look of a folder. It is a rule of the drawing alone: what the
-## screen holds, what it sends to an operation, a link and a command are never changed by
-## it. "real": the views where a path stands as it is, each by the root it is under and,
-## where that is not the whole root, by the ids of the rows and levels under it: the table
-## of the locations and the summary of one; the subject of the workspace's paths, in the
-## settings and in the configuration; and what is started with the whole terminal, whose
-## folder and command are exact. The raw mode of a log is such a view too, wherever it
-## is. In the summary of a location, the folder of a member that lies in another location
-## takes the rule all the same (placeLines). "dialogs": the dialogs whose text takes the rule,
-## the path as it is standing under its paragraph as a line of its own: the answers to a
-## pending question.
-PLACED = {
-    "real": {"places": None, "consoles": None, "settings": ("workspace",), "configuration": ("workspace",)},
-    "dialogs": ("answer", "answer-many", "reply", "reject", "dismiss", "confirm"),
 }

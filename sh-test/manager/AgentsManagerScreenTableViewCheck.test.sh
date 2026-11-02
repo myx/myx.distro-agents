@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the full-pane table view of the console app (F11.3 of the refactorings epic), run rather than read. The screen's own code
-## (sh-lib/manager/AgentsManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py); no reader is started.
+## (sh-lib/manager/LocalManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py); no reader is started.
 ## A stand-in app feature gives each of its rows a table by its focus handler, as a real one does.
 ## Held (F11.3: "The full-pane table view, in python, has a high ceiling ... a header that stays while the rows scroll, where the viewport holds more than
 ## five rows; horizontal scrolling of a table wider than the pane, where the view allows it, as most will; the view names a usable column to pin, such as
@@ -24,7 +24,8 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigScreen="$rigPackage/sh-lib/manager/AgentsManagerScreen.py"
+rigCorePackage="$MDLT_ORIGIN/myx/myx.distro-.local"
+rigScreen="$rigCorePackage/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$rigPackage/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){

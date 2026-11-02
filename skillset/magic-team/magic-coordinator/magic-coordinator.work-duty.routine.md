@@ -36,12 +36,12 @@ None of its own: the Opening steps of its session kind run first.
    - **reconcile-finished-session**: a live session whose tracked work reports finished and which nothing else needs is dismissed (`spawn-one-dispatch`'s **spawn-dismiss**). This covers sessions an earlier round dispatched.
    - **reconcile-lost-reply**: a `board-blocked` item waiting on a reply the registry no longer holds open: read its `communication-channel-id` thread. The addressee's answer is there: apply it and continue the item. None: re-ask the same party in that thread (`AskQuestion`, `wait: false`) and keep the item blocked, outcome `nudged`. A missing record is never consent and never a deny. An open ask never expires by age: the human may be away for weeks. It is closed only when its question is no longer current, is a duplicate, was resolved another way, or its session is complete and closed.
 3. **review-items**: for each `board-review` item whose `review-by` is `magic-coordinator`, or is empty and its run reports to `magic-coordinator` (the scan's review-items section lists them), steps:
-   - trivial: apply `magic-team.handback-review.routine` to it, inline (`--routine-run-inline magic-team.handback-review.routine`).
-   - anything else: leave it in `board-review` for the item's own parent, per "The ladder: one rung at a time".
+   - apply `magic-team.handback-review.routine` to it, inline (`--routine-run-inline magic-team.handback-review.routine`). Every such item is reviewed here, whatever its size.
+   - a verdict this member cannot settle alone, such as one that binds the team, climbs by "The ladder: one rung at a time". The item stays in `board-review` meanwhile.
 4. **communication-sweep**: run `magic-coordinator.communication-sweep.routine`'s Steps inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`), against this round's board read.
 5. **check-process-board**: run `check-process-board` against this round's read.
 6. **start-pending**: start decided `board-pending` work, steps:
-   - candidates: approved `board-pending` items with no dispatch recorded. The approval is the go; the running session covers the spawn.
+   - candidates: approved `board-pending` items with no dispatch recorded, a child that `check-process-board` promoted from an approved parent included. The approval is the go; the running session covers the spawn.
    - conflict gate: any one of these keeps the item in `board-pending`, with `recheck-date` advanced:
      - package or topic overlap with a running job.
      - resource contention shown by a live signal this round: an active lock or channel.
@@ -78,10 +78,10 @@ None.
 - A task whose nature is research, requirements or epic preparation is worked in `investigation` mode from its first round (`magic-team.armed.md`'s "Conversations").
 - A round is one run through steps 1 to 9. Where a rule below says "pass" or "round", it means that.
 - The tooling does the housekeeping in the main loop, before the scan. It closes dead spawns, moves their items to review and starts missing control threads. It records the dependency edges too. The sections `## board dependencies` and `## recheck dates due` are its findings. The lock of this session is refreshed by its wait and its state writes.
-- Apply only moves already decided: an approval recorded, a review accepted, a completion recorded, a condition met. This is what makes the round safe to run unattended. Two bounded judgements are allowed:
+- Apply only moves already decided: an approval recorded, a review accepted, a completion recorded, a condition met, a blocker closed. This is what makes the round safe to run unattended. Two bounded judgements are allowed:
   - recording a dependency edge that only an item's text shows (`check-process-board`'s **board-dependencies**).
   - accepting a trivial `board-review` item reviewed by this member.
-- The board round decides no go, resolves no blocker by judgement, scores no RICE and triages nothing: those are `magic-team.grooming.routine`'s. An open design question an investigation surfaced is flagged for grooming and `magic-architect`.
+- The board round decides no go, resolves no blocker by judgement, scores no RICE and triages nothing: those are `magic-team.grooming.routine`'s. A parent's recorded approval is the go for its children, and a closed blocker is no judgement: `check-process-board` applies both. An open design question an investigation surfaced is flagged for grooming and `magic-architect`.
 - **Working an item**: decide what the item's gap needs, then act this round. Nothing left to decide: do the one concrete action (send, spawn, check) through its operation, verify it happened, and record what was done. A real choice: list the options with their outcome and risk, pick one, record the reasoning on the item, then act. Missing information: get it if one call away; otherwise flag it once, naming the missing fact. An outcome is done only when real state backs it: a message sent, a session spawned, a round run.
 - Staleness threshold: 1 hour. At most two respawns per round, oldest `date`/`owner-session-since` first. Work order: by real coverage of the item's goal, then by age; a sub-task count is never the measure.
 - Each item is a tracking document. Spawning work on it spawns the group its `participants` names, with the goal, the task, the document and its next iteration. No quorum among that group becomes the no-quorum document, carried the same way.
@@ -119,6 +119,7 @@ None.
 - `--advance-to-running <item-filename> --from-state:<state> [--header:...]...`
 - `--advance-to-parked <item-filename> --from-state:<state> [--header:...]...`
 - `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...`
+- `--move-to-pending <item-filename> --from-state:<state> [--header:...]...`
 - `--move-to-processed <item-filename> --from-state:<state> [--header:...]...`
 - `--advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]`
 - `--advance-sleep-run`

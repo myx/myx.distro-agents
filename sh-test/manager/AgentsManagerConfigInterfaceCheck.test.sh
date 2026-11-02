@@ -21,7 +21,8 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigScreen="$rigHere/manager/AgentsManagerScreen.py"
+rigCoreHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-.local/sh-lib"
+rigScreen="$rigCoreHere/manager/LocalManagerScreen.py"
 ## The interface settings are .local's own: their declaration, the rows of the labels, the settings and the other
 ## names, stands in its manager include, and the digest expands it.
 rigInterfaceInclude="${rigHere%/myx.distro-agents/sh-lib}/myx.distro-.local/sh-lib/manager/LocalTools.ManagerInterface.include"
@@ -215,14 +216,14 @@ rigAssert "and the writer makes no temp file of its own: the include names no \$
 echo "-- 9. the values offered are the styles of the screen, each in its colours --"
 rigAssert "each value and its label is a style the screen declares in its colours, by their own names, in the screen's order, and there is no other" "$( python3 -I -B -c '
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 print(",".join("%s-%s=%s - %s" % (name, scheme, style["label"], module.COLOURS[place][1])
                for name, style in module.STYLES for place, (scheme, changes) in enumerate(style["schemes"])).replace(" ", "_"))
 ' "$rigScreen" )" "$rigChoices"
 rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings, its own and the interface settings' of .local, has a row of its own in the declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; { LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" ; LC_ALL=C sed -n '/^localManagerInterfaceLabels="/,/"$/p' "$rigInterfaceInclude" ; } | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( { LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' ; LC_ALL=C sed -n '/^localManagerInterfaceSettings="/,/"$/p' "$rigInterfaceInclude" | LC_ALL=C sed -e 's/^localManagerInterfaceSettings="//' -e 's/"$//' ; } | LC_ALL=C grep -v '^\$' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "10 none-lacking"
-rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "${rigScreen%.py}.Styles.py" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "${rigScreen%.py}.Styles.py" )" "tv-system $rigKey"
+rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "$rigHere/manager/AgentsManagerScreen.Styles.py" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "$rigHere/manager/AgentsManagerScreen.Styles.py" )" "tv-system $rigKey"
 
 echo "-- 10. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseScan.include -- the supervisor's scan (next epic S13): what needs a coordinator's hand on the rigs,
+## read only, one line a finding. Sourced, never run; functions only.
+##
+
+## --supervise-scan [--workspace <path>]...: one line a finding, `<kind> <workspace> <id> <detail>`, for each workspace named, else this one.
+## Kinds: `ask` an open question to magic-coordinator or the human-owner; `unposted` an open question whose post never landed;
+## `orphan-ask` an open question to another member that has no live run to answer it; `msg` a post addressed to magic-coordinator in
+## any session chat since --since <epoch>; `dead` a record still started whose run has no process; `idle-done` a live run that handed
+## back and has nothing pending; `no-plan` a live run older than ten minutes with no CheckList of its own; `stale-plan` a run active in the last ten minutes whose CheckList is unchanged for an hour; `track` an event of a run's
+## event-track thread since --since: a failed or refused tool call, an ask, an answer, a handback, a final answer, a model change.
+AgentsToolsSuperviseScan(){
+	local scanWorkspaces=() scanWs scanAgents scanFile scanSpid scanSid scanMember scanLog scanDir scanPs scanSince="" scanTo scanTs scanChat
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--since) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --since requires an epoch" >&2 ; return 1 ; } ; scanSince="$2" ; shift 2 ;;
+			--workspace) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --workspace requires a path" >&2 ; return 1 ; } ; scanWorkspaces+=( "${2%/}" ) ; shift 2 ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-scan: invalid option: $1" >&2 ; return 1 ;;
+		esac
+	done
+	[ ${#scanWorkspaces[@]} -gt 0 ] || scanWorkspaces=( "${MMDAPP%/}" )
+	scanPs="$( ps -A -ww -o args= 2> /dev/null | LC_ALL=C grep -v -- '--intern-session-control' )"
+	for scanWs in "${scanWorkspaces[@]}" ; do
+		scanAgents="$scanWs/.local/agents"
+		[ -d "$scanAgents" ] || { printf 'error %s - no .local/agents here\n' "${scanWs##*/}" ; continue ; }
+		for scanFile in "$scanAgents"/pending/*.md ; do
+			[ -f "$scanFile" ] || continue
+			LC_ALL=C grep -q -x 'status: reply-pending' "$scanFile" || continue
+			scanTo="$( LC_ALL=C sed -n 's/^address-to: //p' "$scanFile" | head -1 )"
+			scanTs="$( LC_ALL=C sed -n 's/^question-ts: //p' "$scanFile" | head -1 )"
+			if [ -z "$scanTs" ] ; then
+				printf 'unposted %s %s %s by %s to %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" \
+					"$( LC_ALL=C sed -n 's/^kind: //p' "$scanFile" | head -1 )" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )" "$scanTo"
+				continue
+			fi
+			case "$scanTo" in
+				*magic-coordinator*|*human-owner*|U0*|'') ;;
+				*)
+					printf '%s\n' "$scanPs" | LC_ALL=C grep -q -- "--team-member $scanTo " && continue
+					printf 'orphan-ask %s %s to %s by %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" "$scanTo" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )"
+					continue
+				;;
+			esac
+			printf 'ask %s %s %s by %s at %s\n' "${scanWs##*/}" "$( basename "$scanFile" .md | cut -c1-8 )" \
+				"$( LC_ALL=C sed -n 's/^kind: //p' "$scanFile" | head -1 )" "$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )" \
+				"$( LC_ALL=C sed -n 's/^asked-at: //p' "$scanFile" | head -1 )"
+		done
+		if [ -n "$scanSince" ] ; then
+			## One post shows once: each participant's chat holds its own copy of it.
+			{
+				for scanChat in "$scanAgents"/sessions/*/session.chat ; do
+					[ -f "$scanChat" ] || continue
+					[ "$( stat -f %m "$scanChat" 2> /dev/null || echo 0 )" -ge "$scanSince" ] || continue
+					LC_ALL=C awk -v since="$( date -u -r "$scanSince" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )" -v ws="${scanWs##*/}" -v sess="$( basename "$( dirname "$scanChat" )" | cut -c1-8 )" '
+						/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [a-z-]+ -> [^:]*magic-coordinator[^:]*:/ {
+							if ($2 != "magic-coordinator" && $1 >= since) { getline body ; if (body ~ /^Process process-[0-9]+ ended with exit status/) next ; print "msg " ws " " sess " from " $2 ": " substr(body, 1, 160) ; fflush() }
+						}' "$scanChat"
+				done
+			} | LC_ALL=C awk '{ key = $0 ; sub(/^msg [^ ]+ [^ ]+ /, "", key) } !seen[key]++'
+			## The event-track thread of each run, from its local copy: what needs a look, never the routine rounds, waits or good tool calls.
+			{
+				## One event shows once: the same post lands in several runs' copies, and repeats within one.
+				for scanChat in "$scanAgents"/sessions/*/feed.posting ; do
+					[ -f "$scanChat" ] || continue
+					[ "$( stat -f %m "$scanChat" 2> /dev/null || echo 0 )" -ge "$scanSince" ] || continue
+					scanDir="${scanChat%/*}"
+					scanMember="$( ls "$scanDir" 2> /dev/null | LC_ALL=C sed -n 's/^dms-roster\.//p' | head -1 )"
+					LC_ALL=C awk -v since="$( date -u -r "$scanSince" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )" -v ws="${scanWs##*/}" -v sess="$( basename "$scanDir" | cut -c1-8 )" -v member="${scanMember:--}" '
+						/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z / && $1 >= since {
+							if ($2 == "TOOL" && $0 !~ / -> (error|refused)/) next
+							if ($2 != "TOOL" && $2 != "ASK" && $2 != "ANSWER" && $2 != "HANDBACK" && $2 != "FINAL" && $2 != "MODEL") next
+							print "track " ws " " sess " " member ": " substr($0, 1, 220) ; fflush()
+						}' "$scanChat"
+				done
+			} | LC_ALL=C awk '{ key = $0 ; sub(/^track [^ ]+ [^ ]+ [^ ]+ /, "", key) } !seen[key]++'
+		fi
+		for scanFile in "$scanAgents"/spawned/*/*.spawn.md ; do
+			[ -f "$scanFile" ] || continue
+			LC_ALL=C grep -q -x 'status: spawn-started' "$scanFile" || continue
+			scanSpid="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$scanFile" | head -1 )"
+			scanSid="$( LC_ALL=C sed -n 's/^session-id: //p' "$scanFile" | head -1 )"
+			scanMember="$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )"
+			[ -n "$scanSpid" ] || continue
+			## A record younger than five minutes may be a launch whose process has not started yet.
+			## A duty's process may carry its kept session's id rather than its own spawn id: either one is the run.
+			if ! printf '%s\n' "$scanPs" | LC_ALL=C grep -E -q -- "(--session-id|--resume)[ =]($scanSpid|${scanSid:-$scanSpid})( |\$)" && [ -n "$( find "$scanFile" -mmin +5 2> /dev/null )" ] ; then
+				[ "$( LC_ALL=C sed -n 's/^agent-less: //p' "$scanFile" | head -1 )" = true ] || printf 'dead %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+				continue
+			fi
+			scanLog="$scanAgents/sessions/$scanSpid/session.log"
+			[ -f "$scanLog" ] || scanLog="$scanAgents/sessions/$scanSid/session.log"
+			scanDir="${scanFile%/*}"
+			## Idle after its handback: no tool but Wait since the last one, so a run that took new work is not idle.
+			if LC_ALL=C grep -q '📦 SubagentHandback' "$scanLog" 2> /dev/null && ! cat "$scanDir"/*.checklist.md 2> /dev/null | LC_ALL=C grep -q '^- \[ \]' \
+				&& awk '/📦 SubagentHandback/ { busy = 0 ; next } /^   [^ ]+ +[A-Za-z]/ && !/ Wait / && !/prompt cache/ { busy = 1 } END { exit busy }' "$scanLog" ; then
+				printf 'idle-done %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+			elif [ ! -f "$scanDir/$scanMember.checklist.md" ] && [ -n "$( find "$scanFile" -mmin +10 2> /dev/null )" ] ; then
+				printf 'no-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+			## A run working for the last ten minutes whose own CheckList has not changed for an hour.
+			elif [ -n "$( find "$scanDir/$scanMember.checklist.md" -mmin +60 2> /dev/null )" ] && [ -n "$( find "$scanLog" -mmin -10 2> /dev/null )" ] ; then
+				printf 'stale-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+			fi
+		done
+	done
+	return 0
+}

@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
 # vault-item.decision-record document — the shape of one decision record
 
-Normative contract: `vault-item.decision-record.contract.format.md` (the skillset). Where it and this skeleton disagree, the contract wins. This file carries the skeleton and states the slots; no writer fills it yet.
+Normative contract: `vault-item.decision-record.contract.format.md` (the skillset). Where it and this skeleton disagree, the contract wins. This file carries the skeleton and states the slots; `--upsert-vault-decision-record` writes the document.
 
 # Summary
 

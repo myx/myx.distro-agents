@@ -27,6 +27,12 @@ esac
 
 AgentTestingTools(){
 	local MDSC_CMD='AgentTestingTools'
+	## The family's context, here and in this file's arm, for a console that calls this function.
+	if [ -z "$MDLT_ORIGIN" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
+		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext --run-from-detect
+		DistroAgentsContext --distro-path-auto
+	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in

@@ -11,6 +11,81 @@
 ## Closes what a dead spawn left open, silently on stdout, so the reads after it see the moved items: a started sandbox record whose session
 ## is dead (a local one by process list, any other by age), the dispatch item it links, a running dispatch item whose own record already ended,
 ## and a review item whose reviewer session has ended. And starts the control thread of each session that needs one and has none alive.
+## THE HANDBACK NOBODY READ (S27.3): a review item still waiting for its verdict past the review
+## limit is a problem, and the scan says it from outside, by listing and checking, so a run parked
+## on a handback nobody looked at is told to the member that should have read it. Run before the
+## reviewer fallback, so an item whose reviewer is gone is escalated to the member the fallback
+## gives it, not to one that has ended. Prints one REVIEW-UNSEEN line per item raised.
+AgentsToolsReviewUnseenEscalate(){ ## the member the scan acts as
+	local unBy="$1" unPath unItem unSince unLimit unNow unReviewer unTold unSeen unMark
+	type AgentsReviewWaitLimit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || return 0
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	unLimit="$( AgentsReviewWaitLimit )"
+	unNow="$( date +%s )"
+	for unPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
+		[ -f "$unPath" ] || continue
+		unItem="${unPath##*/}"
+		## An item already raised is left alone: one escalation per review entry, kept beside the item.
+		unSince="$( AgentsToolsSpawnSandboxRecordHeader "$unPath" review-since-epoch )"
+		case "$unSince" in ''|*[!0123456789]*) continue ;; esac
+		unSeen=$(( unNow - unSince ))
+		[ "$unSeen" -ge "$unLimit" ] || continue
+		unReviewer="$( AgentsToolsSpawnSandboxRecordHeader "$unPath" review-by )"
+		case "$unReviewer" in ''|human-owner|*.routine|*:*) unTold=magic-coordinator ;; *) unTold="$unReviewer" ;; esac
+		unMark="$MDAT_DATA_ROOT/board/review/.unseen-$unItem"
+		[ ! -f "$unMark" ] || continue
+		mkdir -p "${unMark%/*}" 2> /dev/null && : > "$unMark" 2> /dev/null || continue
+		AgentsToolsSpawnProxyStaleHandbackTell "$unBy" "$unTold" "$unItem" "$unSeen" || :
+		printf 'REVIEW-UNSEEN: %s waited %ss for a verdict, told to %s\n' "$unItem" "$unSeen" "$unTold"
+	done
+	return 0
+}
+
+## An open ask whose asking run is gone is closed as that run's record is: withdrawn, with no verdict, once nothing
+## touched it for 15 minutes. An ask whose asker cannot be measured, or that names none, goes after the stale hours. The asker-live measure is
+## the pending read's own (AgentsToolsPendingReplyAskers); only asks of this host are measured. One line per ask withdrawn.
+AgentsToolsPendingAskHousekeeping(){ ## stale hours, calling member
+	local askHours="$1" askBy askRoot="$MMDAPP/.local/agents/pending" askFile askId askSession askHost askIds="" askLive askThisHost askQuiet
+	askThisHost="$( hostname -s 2> /dev/null )"
+	for askFile in "$askRoot"/*.md ; do
+		[ -f "$askFile" ] && LC_ALL=C grep -q -x 'status: reply-pending' "$askFile" || continue
+		askSession="$( LC_ALL=C sed -n 's/^session-id: //p' "$askFile" | head -1 )"
+		[ -z "$askSession" ] || [ "$askSession" = "-" ] || askIds="${askIds}${askSession}"$'\n'
+	done
+	## The include runs its own operation when sourced, and fails it with no arguments: only the function it defines is wanted.
+	type AgentsToolsPendingReplyAskers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include" < /dev/null > /dev/null 2>&1
+	type AgentsToolsPendingReplyAskers > /dev/null 2>&1 || return 0
+	askLive="$( printf '%s' "$askIds" | LC_ALL=C sort -u | AgentsToolsPendingReplyAskers )"
+	for askFile in "$askRoot"/*.md ; do
+		[ -f "$askFile" ] && LC_ALL=C grep -q -x 'status: reply-pending' "$askFile" || continue
+		askHost="$( LC_ALL=C sed -n 's/^host: //p' "$askFile" | head -1 )"
+		[ -z "$askHost" ] || [ "$askHost" = "$askThisHost" ] || continue
+		askSession="$( LC_ALL=C sed -n 's/^session-id: //p' "$askFile" | head -1 )"
+		case "$askSession" in
+			''|-) askQuiet=$(( askHours * 60 )) ;;
+			*)
+				case "$( printf '%s\n' "$askLive" | LC_ALL=C awk -v want="$askSession" '$1 == want { print $2 ; exit }' )" in
+					no-process|session-ended) askQuiet=15 ;;
+					no-spawn-record) askQuiet=$(( askHours * 60 )) ;;
+					*) continue ;;
+				esac
+			;;
+		esac
+		[ -z "$( find "$askFile" -mmin -"$askQuiet" 2> /dev/null )" ] || continue
+		askId="${askFile##*/}" ; askId="${askId%.md}"
+		## The asker withdraws its own: the tooling acts for the ended run, as it closes that run's record.
+		askBy="$( LC_ALL=C sed -n 's/^owner: //p' "$askFile" | head -1 )"
+		[ -n "$askBy" ] || continue
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSession.fn.sh" --settle-pending-reply --team-member "$askBy" "$askId" \
+			--reason "the run that asked it has ended, so nobody is there to take the answer" --withdraw > /dev/null 2>&1 || :
+		## A post that could not be edited fails the call after the close: the record's own state says what happened.
+		if ! LC_ALL=C grep -q -x 'status: reply-pending' "$askRoot/$askId.md" 2> /dev/null ; then
+			printf 'housekeeping: withdrew ask %s, its asker %s has ended\n' "$askId" "${askSession:-unrecorded}"
+		fi
+	done
+	return 0
+}
+
 AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threads: the control threads are left to the caller's own check]
 	local staleHours="$1" spawnRoot="$MMDAPP/.local/agents/spawned"
 	local measureText startedRows rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState
@@ -116,6 +191,33 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			housekeepingLog="${housekeepingLog}housekeeping: $itemName running->review $closeOutcome"$'\n'
 		fi
 	done
+	## An open ask whose asker has ended is withdrawn, as its run's record is closed.
+	housekeepingLog="${housekeepingLog}$( AgentsToolsPendingAskHousekeeping "$staleHours" "$2" )
+"
+	## A started record that names no spawn id has no run to measure: it closes once nothing in it changed for the stale hours.
+	for recordPath in "$spawnRoot"/*/*.spawn.md ; do
+		[ -f "$recordPath" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" = spawn-started ] || continue
+		case "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" spawn-id )" in ''|-) ;; *) continue ;; esac
+		[ -z "$( find "${recordPath%/*}" -type f -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
+		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown > /dev/null 2>&1
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" != "spawn-$endedOutcome" ] || housekeepingLog="${housekeepingLog}housekeeping: closed record ${recordPath#$spawnRoot/}, which names no spawn id"$'\n'
+	done
+	## A sandbox whose launch never wrote its record is a failed launch: a launch writes it within minutes, so after an hour it gets a record saying so,
+	## so it stays listed, as every sandbox is, and reads failed rather than unclosed.
+	local emptyDir emptyName
+	for emptyDir in "$spawnRoot"/*/ ; do
+		[ -d "$emptyDir" ] || continue
+		emptyName="${emptyDir%/}" ; emptyName="${emptyName##*/}"
+		ls "$emptyDir"*.spawn.md > /dev/null 2>&1 && continue
+		[ -z "$( find "$emptyDir" "$MMDAPP/.local/agents/sessions/$emptyName" -mmin -60 2> /dev/null | head -1 )" ] || continue
+		printf -- '---\nsession-id: -\nspawn-id: -\ntracking-name: %s\nhost: %s\nstatus: spawn-failed\nexit-code: unknown\nstarted-at: %s\nsession-comment: launch never wrote its record\n---\n\nClosed by housekeeping: the launch made this sandbox and ended before writing its record.\n' \
+			"$emptyName" "$( hostname -s 2> /dev/null )" "$( date -r "$emptyDir" +"%Y-%m-%d %H:%M %z" 2> /dev/null )" > "$emptyDir$emptyName.spawn.md" 2> /dev/null \
+			&& housekeepingLog="${housekeepingLog}housekeeping: closed sandbox $emptyName as a failed launch, which wrote no record"$'\n'
+	done
+	## A review item that has waited past the limit for a verdict is raised to its reviewer (S27.3).
+	housekeepingLog="${housekeepingLog}$( AgentsToolsReviewUnseenEscalate "$2" )
+"
 	## A review item whose named reviewer session has ended goes to the coordinator. A bare member name, `human-owner`, a live session and a missing review-by stay as they are.
 	measureText="$( AgentsToolsRegistryRenderSpawnedSessions agents )"
 	for itemPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do

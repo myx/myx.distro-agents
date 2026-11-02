@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Windows.py -- the declaration of the windows, the view modes, the menus, the commands with their keys and the refusals.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 

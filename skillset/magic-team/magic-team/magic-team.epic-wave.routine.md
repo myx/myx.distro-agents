@@ -3,6 +3,7 @@ type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
+tracking-item: required
 runs-at: none
 input-scan-def: work-duty --session-id {{session-id}}
 wait-sources: inbox:{{team-member}}
@@ -40,11 +41,11 @@ keeps the epic and the state document current until the epic is done.
 - Move the epic forward by waves. Choose by the order of work, dispatch at most
   as many builders as economy allows, and check every gate before any apply.
 - Rule each gap by the spec, or ask the owner only when only he can decide.
-- Set each feature's status line through the tooling, and keep the run's state document current.
+- Move each closed item to the epic's `## Done` section through the tooling, and keep the run's state document current.
 
 ## Scope
 
-- Does: choose, dispatch, check gates, rule gaps, set status lines, remind the owner, and hand off the tail to the next epic.
+- Does: choose, dispatch, check gates, rule gaps, move closed items to `## Done`, remind the owner, and hand off the tail to the next epic.
 - Doesn't: build. A builder runs `magic-team.epic-build.routine`; this routine checks its gate and reports.
 - Doesn't: close the epic. `magic-team.epic-close.routine` does that when every feature is done or moved.
 
@@ -65,7 +66,7 @@ feature's name. Dispatch at most as many at once as economy allows.
 5. **inject-mid-run**: On a mid-run request from the owner, inject it into a
 feature in work when it is small and near. Otherwise add it to the next epic's
 input.
-6. **set-status**: After each apply, set the feature's status line, through the tooling (`--epic-update <epic-file> --set-status <feature-id> <status>`), with the live time.
+6. **set-status**: After each accepted apply, move the closed item to the epic's `## Done` section through the tooling (`--epic-update <epic-file> --set-status <feature-id> done`). There it is one line: its id and what holds now. An open item keeps only its open work and owner.
 7. **keep-state-current**: Keep the run's state document current (`--intern-op-state-note-upsert`) — the features in work, the gates open, the owner's rulings.
 8. **fresh-builder**: Start a fresh builder when the last one's context has grown large; a long builder's context is never reused for speed.
 9. **remind-owner**: Remind the owner of his own steps (a commit, a review, a rig update) by Slack DM (`--slack-send-message`) when each falls due.
@@ -89,7 +90,7 @@ All statements apply at the same time, always. These rules override a participan
 - Every gate is checked line by line before any yes. A yes that was not checked is a fault.
 - A gap is ruled by the spec alone where the spec decides it. Only a decision
   the owner alone can make reaches him, and it becomes a Settled line at once.
-- Never edit the epic by hand: the status line and the Settled line go through `--epic-update`.
+- Never edit the epic by hand: open items and rules go through `--epic-update`.
 - The tail is postponed, never dropped: what does not finish goes to the next epic's input.
 - Keep `event-track` current as the routine runs.
 
@@ -100,7 +101,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 ## Tooling operations
 
 - `--epic-update <epic-file> --set-status <feature-id> <status>`
-- `--epic-update <epic-file> --add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>`
+- `--epic-update <epic-file> --add-settled <feature-id> <text...>`
 - `--spawn-prompt <team-member> [--routine <selector>] [--from-board <item> [--board-state <state>]...] [--description <text>]`
 - `--intern-op-state-note-upsert magic-coordinator`
 - `--state-note-read magic-coordinator`

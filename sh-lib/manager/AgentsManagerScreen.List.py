@@ -1,17 +1,11 @@
 ##
 ## AgentsManagerScreen.List.py -- the list of the right window: its levels, its rows, its selection.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
 ## ---- the list: its levels, its rows, its selection ----
 
-## The forms of rows an app feature adds to those parseLevels reads: by the name an entry of READS gives under "rows", the function (readKey, level, text)
-## that gives the levels that read fills, as parseLevels returns them.
-ROW_FORMS = {}
-## The forms of what a read that is no list and no view gives, which an app feature adds (applyResult): by the name an entry of READS gives under "rows",
-## the function (text) that gives what the read printed as the screen keeps it, in the plan of the read (state.plans), with its words and its error.
-PLAN_FORMS = {}
 
 
 def levelKey(path):
@@ -141,70 +135,12 @@ def rowLinesBetween(spacers, first, last):
 
 
 ## The one place where what a list operation printed becomes rows, by level: the entry of
-## the read names the form under "rows". "sessions": the sessions, each with its runs, kept
-## where the lists of `Activity` are made from them (SESSIONS_OF). "pending": the asks. "routines": the routines to start by hand.
-## "members": the team members. "digest": the subjects of the settings and of the
-## configuration, and a level for each with its lines. "starts": what is started with the
-## whole terminal. "blocks": the blocks of the dashboard. "places": the
-## locations. A form an app feature of another part brings (ROW_FORMS) is read by the function it names, which gives the levels. No name: the stand-in below.
+## the read names the form under "rows", and that form's row in ROW_FORMS, registered by the
+## part that owns it, gives the levels. A form with no row takes the stand-in below.
 def parseLevels(readKey, form, text):
-    if form == "sessions":
-        return parseSessionLevels(text)
     level = readKey[len("list:"):]
-    if form == "pending":
-        return {level: parsePendingRows(text)}
-    if form == "routines":
-        return {level: parseRoutineRows(text)}
-    if form == "members":
-        return {level: parseMemberRows(text)}
-    if form == "digest":
-        return parseDigestLevels(readKey, text)
-    if form == "starts":
-        return {level: parseStartRows(text)}
-    if form == "checks":
-        return {level: parseCheckRows(text)}
-    if form == "keys":
-        return {level: parseKeyRows(text)}
-    if form == "commands":
-        return {level: parseCommandRows(text)}
-    if form == "blocks":
-        ## the blocks the root `Team Data` holds come with the same read (TEAM_DATA)
-        rows = parseBlockRows(text)
-        levels = {level: rows}
-        if level != pluginLevel("teamdata"):
-            levels[pluginLevel("teamdata")] = [dict(row) for row in rows if row["id"] in TEAM_DATA["blocks"]]
-        return levels
-    if form == "places":
-        return {level: parsePlaceRows(text)}
-    if form == "place-commands":
-        return {level: parsePlaceCommandRows(text)}
-    if form == "data-store":
-        rows, store = parseStoreRows(text)
-        return {level: rows, STORE_OF + level: store}
-    if form == "data-items":
-        return {level: parseItemRows(text)}
-    if form == "member-grants":
-        ## the rows of `Permissions` are made of the grants as they are drawn (memberGrantRows)
-        return {GRANTS_OF + level: parseGrants(text)}
-    if form == "session-grants":
-        ## the grants that apply to a participant in its session, as the list of permissions prints them
-        return {GRANTS_OF + level: parsePermissionList(text)}
-    if form == "member-files":
-        return {level: parseFileRows(text)}
-    if form == "member-sessions":
-        ## a session of the member opens in the tree of the member, as it is: its agents, then the folder of each
-        return {level: parseSessionRows(text)}
-    if form == "member-help":
-        rows, whole = parseHelpRows(text)
-        return {level: rows, WHOLE_OF + level: whole}
-    if form == "chapters":
-        ## the chapters of the help, rows of their own, kept for a member's `Member Help`
-        text, chapters = parseHelpChapters(text)
-        return {level: [], CHAPTERS_OF + level: chapters}
-    if form == "manuals":
-        return {level: parseManualRows(text)}
     if form in ROW_FORMS:
-        return ROW_FORMS[form](readKey, level, text)
+        return ROW_FORMS[form]["parse"](readKey, level, text)
     return {level: parseRows(readKey, text)}
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the kill key of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather than read.
+## Behavioural check on the kill key of the manager screen (sh-lib/manager/LocalManagerScreen.py), run rather than read.
 ## The screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh),
 ## which notes each start, its arguments word for word and what came on its standard input, and prints the fixture
@@ -28,7 +28,7 @@
 ## Reconciled for F11.5: a kill is asked from Active Sessions of Activity, where the first session is one row below `..`; a session that is finished stands in Closed Sessions (`at @activity closed-sessions`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -72,8 +72,8 @@ rigLone(){
 }
 {
 	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 4 running=2,finished=2
-	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
-	rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running running 2026-10-12_17:05_+0000 - rig-host ws-rig working
+	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
+	rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running thinking 2026-10-12_17:05_+0000 - rig-host ws-rig working
 	rigRow run "$rigS1" "$rigR3" keeper-myx spawn-succeeded no-process finished 2026-10-12_17:06_+0000 2026-10-12_18:00_+0000 rig-host ws-rig -
 	rigRow run "$rigS1" - magic-developer spawn-failed no-spawn-id finished 2026-10-12_17:10_+0000 2026-10-12_17:11_+0000 rig-host ws-rig -
 	rigLone
@@ -205,7 +205,7 @@ rigAssert "one default button at a time, and it follows the word typed, both way
 rigAssert "a running session is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "$rigS1 [keys: k kill]"
 rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║   Type yes to kill ' ) $( rigBoxHas b ' Kill  ▅  »Cancel« ▅' )" "[kill:word|] [Kill the session] 1 1"
 rigAssert "the dialog says what will be killed: the session by its name and its id" "$( rigBoxHas b '║   KILL the session daily of Monday ' ) $( rigBoxHas b "║   session $rigS1 " )" "1 1"
-rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxHas b '║   Its 2 live agents end the hard way: no closure runs, none is asked ' ) $( rigBoxHas b "║     magic-coordinator  running waiting  $rigS1 " ) $( rigBoxHas b "║     magic-tester       running working  $rigR2 " )" "1 1 1"
+rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxHas b '║   Its 2 live agents end the hard way: no closure runs, none is asked ' ) $( rigBoxHas b "║     magic-coordinator  waiting          $rigS1 " ) $( rigBoxHas b "║     magic-tester       thinking         $rigR2 " )" "1 1 1"
 
 rigAssert "that what it does besides is being read, and how to back out" "$( rigBoxHas b '║   What it does besides, the questions it dismisses and the records it ' ) $( rigBoxHas b '║   The word yes, typed whole, and Kill or Enter: that kills. Cancel and Esc ' )" "1 1"
 rigAssert "the plan of the kill is read while the dialog is open, once, by the id of the session, and what was typed stays" "$( rigPlans ) $( rigCalled "$rigKillSession --plan" ) [$( rigVal planned.dialog )] [$( rigVal planned.dialogTitle )]" "1 1 [kill:word|ye] [Kill the session]"
@@ -292,7 +292,7 @@ said answeredLine
 RIGSCRIPT
 rigAssert "an agent that joined the session is selected"             "$( rigVal on.path ) $( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "magic-team/activity/active-sessions/$rigS1 $rigR2 [keys: k kill]"
 rigAssert "the dialog asks for the word, naming the agent"          "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )]" "[kill:word|] [Kill the agent magic-tester]"
-rigAssert "it says: that agent alone, by its own id, and of which session" "$( rigBoxHas b '║   KILL the agent magic-tester alone ' ) $( rigBoxHas b "║   run $rigR2, running working " ) $( rigBoxHas b "║   of the session daily of Monday ($rigS1) " )" "1 1 1"
+rigAssert "it says: that agent alone, by its own id, and of which session" "$( rigBoxHas b '║   KILL the agent magic-tester alone ' ) $( rigBoxHas b "║   run $rigR2, thinking " ) $( rigBoxHas b "║   of the session daily of Monday ($rigS1) " )" "1 1 1"
 
 rigAssert "and that the others run on"                              "$( rigBoxHas b '║   It ends the hard way: no closure runs, it is asked nothing. The others ' )" "1"
 rigAssert "its plan is read once, with its own id and --run, on opening, and says which question of its own is dismissed with it" "$( rigCalled "$rigKillTester --plan" ) $( rigBoxHas p '║   It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║     $rigQ2  asked by magic-tester " )" "1 1 1"
@@ -321,7 +321,7 @@ get answered
 said answeredLine
 RIGSCRIPT
 rigAssert "the founder is selected: its id is the id of its session" "$( rigVal on.path ) $( rigVal on.selected )" "magic-team/activity/active-sessions/$rigS1 $rigS1"
-rigAssert "the dialog says that it alone is ended, not the session"  "[$( rigVal asked.dialog )] $( rigBoxHas b '║   KILL the agent magic-coordinator alone ' ) $( rigBoxHas b "║   run $rigS1, running waiting " ) $( rigBoxHas b '║   It is the founder: its id is its session' )" "[kill:word|] 1 1 1"
+rigAssert "the dialog says that it alone is ended, not the session"  "[$( rigVal asked.dialog )] $( rigBoxHas b '║   KILL the agent magic-coordinator alone ' ) $( rigBoxHas b "║   run $rigS1, waiting " ) $( rigBoxHas b '║   It is the founder: its id is its session' )" "[kill:word|] 1 1 1"
 
 rigAssert "the operation is called once, with that id and --run"     "$( rigKills ) [$( rigKillWords )]" "1 [[--manager-session-kill][--session-id][$rigS1][--run]]"
 rigAssert "never with the id alone, which would end the whole session" "$( rigCalled "$rigKillSession" ) $( rigCalled "$rigKillFounder" )" "0 1"

@@ -36,30 +36,30 @@ A member, or the team, may carry two names, and neither is corrected into the ot
 - **Identifier** — folder, member id, channel, bot handle, config scope. Mechanical, lowercase, stable.
 - **Identity** — the spoken name and mark an outsider sees.
 
-The team's identifier is `magic-team`; its identity is The Conclave. A member's persona belongs to that member, never to the group.
+The team's identifier is `magic-team`. Its identity is The Conclave. A member's persona belongs to that member, never to the group.
 
 ### Identity marks
 
-A member with a persona carries `## Identity marks` in its `.basic.md`; image files sit in its `resources/`. A member with its own mark keeps it. One with none is shown with the default icon of its prefix group instead. The rule is by group, never by one member.
+A member with a persona carries `## Identity marks` in its `.basic.md`. Image files sit in its `resources/`. A member with its own mark keeps it. One with none is shown with the default icon of its prefix group instead. The rule is by group, never by one member.
 
-- **Unicode character** — required; the fallback that works everywhere.
+- **Unicode character** — required. The fallback that works everywhere.
 - **Slack shortcode** — `:name:`, optional, only together with the image.
 - **Image file** — in the member's `resources/`.
 - **Favourites** — optional reactions and emojis.
 
-Each field is one list line; its value is the first whitespace-delimited token, ending at a closing wrapper or trailing punctuation. The rest of the line is commentary. The image and the character are one mark: a shortcode that does not match its fallback is a defect.
+Each field is one list line. Its value is the first whitespace-delimited token, ending at a closing wrapper or trailing punctuation. The rest of the line is commentary. The image and the character are one mark: a shortcode that does not match its fallback is a defect.
 
 ## Folder shape — the typed-suffix scheme
 
 An acting member's folder holds:
 
-- `SKILL.md` — the boot dispatcher. Its routine: read `<name>.basic.md` first; before any work, read `<name>.armed.md` with the skillset reader, in full, and obey it.
+- `SKILL.md` — the boot dispatcher. Its routine: read `<name>.basic.md` first. Before any work, read `<name>.armed.md` with the skillset reader, in full, and obey it.
 - `<name>.basic.md` — identity, loaded always. Never enough to work.
-- `<name>.armed.md` — work-duty content. Its `Scope`, local rules, domain knowledge, tooling list and Maintainer Notes hold everything; no `.access.md`, `.reference.md` or `.tooling.md` exists.
+- `<name>.armed.md` — work-duty content. Its `Scope`, local rules, domain knowledge, tooling list and Maintainer Notes hold everything. No `.access.md`, `.reference.md` or `.tooling.md` exists.
 - `<owning-member>.<short-name>.routine.md` — zero or more.
 - `inbox/`, `resources/`, `reference/` — as needed.
 
-A folder may be a symlink; resolve the real path before editing.
+A folder may be a symlink. Resolve the real path before editing.
 
 ### A skillset file is not automatically ours
 
@@ -124,13 +124,13 @@ Three item kinds, in this order:
 - `rule:` — in force only inside this branch.
 - `step:` — executed in written order.
 
-A list of one kind drops the prefixes and declares the kind on the parent line (`, steps:`). A mixed list prefixes every line. Top-level steps are `<N>. **name-of-meaning**: …`. Moving a nested `rule:` into Local rules widens it; that is a change of meaning.
+A list of one kind drops the prefixes and declares the kind on the parent line (`, steps:`). A mixed list prefixes every line. Top-level steps are `<N>. **name-of-meaning**: …`. Moving a nested `rule:` into Local rules widens it. That is a change of meaning.
 
 **Actor phrases**: every step is the executor's. A step naming other members is the executor commanding them, announced in the session thread. It is written inline (`- all participants: state blockers`), or as a prefix line with steps nested under it. A send a step instructs is the executor's unless the step names another actor. What a late joiner must do is a routine local rule.
 
 ## Access facts, maintainers and quorum
 
-- **Who runs it**: an acting member states it in `Scope` and Local rules; a routine in its `executors:` frontmatter. An `executors:` entry is a member name, or a team-member contract token. `<type>-*` is all members of that type, selected, failing on none. `<type>-?` is one of that type, selected or specified. `*` or `magic-team` means any member. A `<type>-*` partitions the run into one session per member under one agent-less parent session.
+- **Who runs it**: an acting member states it in `Scope` and Local rules. A routine in its `executors:` frontmatter. An `executors:` entry is a member name, or a team-member contract token. `<type>-*` is all members of that type, selected, failing on none. `<type>-?` is one of that type, selected or specified. `*` or `magic-team` means any member. A `<type>-*` partitions the run into one session per member under one agent-less parent session.
 - **Who changes it**: `maintainers:` — always a group. Default `magic-coordinator`, `magic-librarian`, `magic-architect`, adding the domain's keeper or partner where it fits. A change lands by the rule in "Rule/instruction/definition/description conventions": `quorum-all-agree`, in one coworking session.
 - **Owner-guaranteed**: a file stating a rule that protects the human-owner's identity, consent and channel, or credential boundary carries `human-owner` in `maintainers:`.
 - **Invitees**: routines with multi-member sessions declare `invitees:` — a floor, not a cap. Acting members never declare it. Its entries take the same member-name and `<type>-*`/`<type>-?` tokens as `executors:`, plus the standing-members keyword `all-present-members`. That keyword extends to every member whose `.basic.md` `attendance:` is `present`, and to every `magic-*` member where it says nothing.

@@ -3,7 +3,8 @@
 ## The schedule starts a member's duty (AgentsToolsScheduleSpawn, key `work-duty.<member>`) whenever the member has none running: on
 ## demand, on a tag, and to keep its cache warm. Each of those starts was a session of its own, and each session opened its own
 ## header in the team channel (":thread: Session Work duty · <member>") -- a new one every few minutes.
-## Held: two starts of one member's duty make ONE root post in the team channel; the second start joins the session the first made
+## S23.4: A WORK-DUTY HAS ITS TOOLING THREAD ONLY, never a session thread: no start of a duty posts a header in the team channel, and its record names an
+## agent-log-thread and no session-thread. Held: two starts of one member's duty make NO root post in the team channel; the second start joins the session the first made
 ## (the same session id on both spawn records, the first start's id kept in schedule/duty-session/<member>); the thread of the
 ## session is the same on both; the member is not announced as brought in again; and a duty of another member is its own session.
 ## Offline: the fake curl is the Slack send identity check's; the console is a stand-in that hands back. The tree is this rig's own.
@@ -76,7 +77,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 
 ## The team channel the session roots go to, and the duty routines of two members.
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 mkdir -p "$rigSkills/keeper-rig2"
 printf '# rig armed\n' > "$rigSkills/keeper-rig2/keeper-rig2.armed.md"
 for rigMember in keeper-myx keeper-rig2 ; do
@@ -92,7 +93,7 @@ rigDuty(){ ## member
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			cd "$MMDAPP" && . "$RIG_FN" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" \
-				&& AgentsToolsScheduleSpawn "work-duty.$1" --routine "$1.work-duty.routine.md" "$1"
+				&& AgentsToolsScheduleSpawn "work-duty.$1" --session-thread:event-track --routine "$1.work-duty.routine.md" "$1"
 		' rig-duty-wrapper "$1" > "$rigTmp/duty.$1.out" 2>&1 < /dev/null
 	local waited=0
 	while [ ! -f "$rigWs/.local/agents/schedule/starting/work-duty.$1.rc" ] && [ "$waited" -lt 120 ] ; do sleep 1 ; waited=$(( waited + 1 )) ; done
@@ -113,18 +114,19 @@ rigSessions(){ ## member -- the session ids of its spawn records, oldest first, 
 echo "-- two starts of one member's duty are one session with one thread --"
 rigRc1="$( rigDuty keeper-myx )"
 rigAssert "the first start ended well" "$rigRc1" "0"
-rigAssert "it opened one header in the team channel" "$( rigRoots )" "1"
+rigAssert "it opened no header in the team channel: a duty has its tooling thread only" "$( rigRoots )" "0"
 rigRc2="$( rigDuty keeper-myx )"
 rigAssert "the second start ended well" "$rigRc2" "0"
-rigAssert "it opened no second header: the team channel has one" "$( rigRoots )" "1"
+rigAssert "it opened none either: the team channel has no header of a duty" "$( rigRoots )" "0"
 rigFirst="$( rigSessions keeper-myx | sed -n 1p )"
 rigSecond="$( rigSessions keeper-myx | sed -n 2p )"
 rigAssert "both starts are in one session" "$( [ -n "$rigFirst" ] && [ "$rigFirst" = "$rigSecond" ] && echo same || echo "differ:$rigFirst:$rigSecond" )" "same"
 rigAssert "the session is kept for the next start" "$( cat "$rigWs/.local/agents/schedule/duty-session/keeper-myx" 2> /dev/null )" "$rigFirst"
+rigAssert "each record names its tooling thread and no session thread" "$( for rigRec in $( LC_ALL=C grep -l -x 'owner: keeper-myx' "$rigWs/.local/agents/spawned"/*/*.spawn.md ) ; do printf '%s/%s ' "$( LC_ALL=C grep -c '^agent-log-thread: ' "$rigRec" )" "$( LC_ALL=C grep -c '^session-thread: ' "$rigRec" || : )" ; done )" "1/0 1/0 "
 rigAssert "the member is not announced as brought in the second time: no reply says it joined" "$( LC_ALL=C grep -c -F ' joined: ' "$rigTmp/bodies" || : )" "0"
 echo "-- the duty of another member is its own session --"
 rigDuty keeper-rig2 > /dev/null
-rigAssert "a second header, for the other member" "$( rigRoots )" "2"
+rigAssert "no header for the other member either" "$( rigRoots )" "0"
 rigAssert "in a session of its own" "$( [ "$( rigSessions keeper-rig2 | sed -n 1p )" != "$rigFirst" ] && echo own || echo shared )" "own"
 
 echo "-- two starts of one member's duty at the same moment make one session --"
@@ -146,7 +148,7 @@ wait "$rigRacePid1" "$rigRacePid2" 2> /dev/null
 rigWaited=0
 while LC_ALL=C grep -l -x -F 'status: spawn-started' "$rigWs/.local/agents/spawned"/*/*.spawn.md > /dev/null 2>&1 && [ "$rigWaited" -lt 60 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "the member has duty records in one session only, however the two starts fell" "$( rigSessions keeper-rig3 | LC_ALL=C sort -u | wc -l | tr -d ' ' )" "1"
-rigAssert "one header in the team channel for the two starts" "$(( $( rigRoots ) - rigRootsBefore ))" "1"
+rigAssert "no header in the team channel for the two starts" "$(( $( rigRoots ) - rigRootsBefore ))" "0"
 rigAssert "the kept session is that session" "$( cat "$rigWs/.local/agents/schedule/duty-session/keeper-rig3" 2> /dev/null )" "$( rigSessions keeper-rig3 | sed -n 1p )"
 
 if [ "$rigFails" -ne 0 ] ; then

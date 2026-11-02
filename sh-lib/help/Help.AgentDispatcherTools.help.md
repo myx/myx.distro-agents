@@ -18,7 +18,9 @@
 📘 syntax: AgentDispatcherTools.fn.sh --standing-directives [--team-member <team-member>] [--all]
 📘 syntax: AgentDispatcherTools.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]
 📘 syntax: AgentDispatcherTools.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]
-📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>)
+📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)
+📘 syntax: AgentDispatcherTools.fn.sh --epic-read [--team-member <team-member>] <epic-file> [--feature <feature-id>]
+📘 syntax: AgentDispatcherTools.fn.sh --epic-list [--team-member <team-member>] <folder>
 📘 syntax: AgentDispatcherTools.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
 📘 syntax: AgentDispatcherTools.fn.sh [--help-syntax [<op>]]
@@ -97,11 +99,21 @@
 			Stubs of the same operations of DistroAgentsSession.fn.sh, the
 			ThisSession tool, which owns the standing directives.
 
-		--epic-update <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>)
+		--epic-update <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)
 			The epic file's own edit, so no routine edits an epic by hand: one
 			feature's status set, or one settlement added. A settlement stands
 			after the feature's `Status:` line, or before its next heading where
-			the feature has no `Status:` line.
+			the feature has no `Status:` line, as the rule alone: no date and no
+			owner. A status of `done` closes the feature: its own lines leave, and
+			one line joins `## Done`, its id and what holds now.
+
+		--epic-read <epic-file> [--feature <feature-id>]
+		--epic-list <folder>
+			The epic read through the tooling, for a session with no shell: the file
+			whole, or one feature's section down to the next heading, and the epic
+			files of a folder, a line each with its section count. A path must lie
+			under a `todo-sketchpad` folder and have no `..` part; one outside is an
+			error, never an empty result.
 
 ##  Examples:
 

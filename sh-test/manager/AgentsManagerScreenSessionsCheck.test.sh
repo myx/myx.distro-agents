@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the section `Sessions (Activity)` of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run
+## Behavioural check on the section `Sessions (Activity)` of the manager screen (sh-lib/manager/LocalManagerScreen.py), run
 ## rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the case's fixture: rows in the
@@ -32,7 +32,7 @@ set -u
 ## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -69,8 +69,8 @@ rigS4=44444444-0000-4000-8000-000000000004 ; rigS5=55555555-0000-4000-8000-00000
 ## run with no name whose record is still open. Then the row of counters.
 {
 	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0300 - 3 running=2,finished=1
-	rigRow run "$rigS1" a1a1a1a1-0000-4000-8000-0000000000a1 magic-coordinator spawn-started running running 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
-	rigRow run "$rigS1" a2a2a2a2-0000-4000-8000-0000000000a2 magic-tester spawn-started running running 2026-10-12_17:05_+0300 - rig-host ws-rig working
+	rigRow run "$rigS1" a1a1a1a1-0000-4000-8000-0000000000a1 magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0300 - rig-host ws-rig waiting
+	rigRow run "$rigS1" a2a2a2a2-0000-4000-8000-0000000000a2 magic-tester spawn-started running thinking 2026-10-12_17:05_+0300 - rig-host ws-rig working
 	rigRow run "$rigS1" - keeper-myx spawn-succeeded no-spawn-id finished 2026-10-12_17:06_+0300 2026-10-12_18:00_+0300 rig-host ws-rig -
 	rigRow session "$rigS2" - waiting 2026-10-12_09:00_+0300 - 2 finished=2
 	rigRow run "$rigS2" b1b1b1b1-0000-4000-8000-0000000000b1 magic-librarian spawn-succeeded no-process finished 2026-10-12_09:00_+0300 2026-10-12_09:30_+0300 rig-host ws-rig -
@@ -205,12 +205,12 @@ get again
 RIGSCRIPT
 rigAssert "Enter on a session shows its level, titled by the session, in the tree of Activity" "$( rigVal in.path ) [$( rigVal title )]" "magic-team/activity/active-sessions/$rigS1 [daily of Monday]"
 rigAssert "its three agents stand under the row that goes up, each by its member" "$( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row5 )]" "4 [>..][]"
-rigAssert "a live agent with its state and its activity: waiting or working" "[$( rigVal row2 )][$( rigVal row3 )]" "[ magic-coordina… running waiting ►][ magic-tester    running working ►]"
+rigAssert "a live agent with its state, the word of what it is doing: waiting or thinking" "[$( rigVal row2 )][$( rigVal row3 )]" "[ magic-coordinator       waiting ►][ magic-tester           thinking ►]"
 rigAssert "one that has ended with its state alone"                  "[$( rigVal row4 )]" "[ keeper-myx               finished]"
 rigAssert "the live ones stand out"                                  "$( rigLooks k 4 86 86 )$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )" "BB."
 rigAssert "the level has no read of its own: the list of the sessions fills it" "$( rigCalls ) $( rigVal in.reading )" "1 "
 rigAssert "the left pane shows the selected agent: state, status, process, dates" "$( rigVal agent.selected ) [$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" \
-	"a2a2a2a2-0000-4000-8000-0000000000a2 [  state      running working][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0300 (9h ago)]"
+	"a2a2a2a2-0000-4000-8000-0000000000a2 [  state      thinking][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0300 (9h ago)]"
 rigAssert "its host, its workspace and its own id; its session is the folder it stands in, and not said again" "[$( rigPane s 7 )][$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )]" \
 	"[  host       rig-host][  workspace  ws-rig][  run        a2a2a2a2-0000-4000-8000-0000000000a2][]"
 rigAssert "Backspace returns onto the session it came from"               "$( rigVal back.path ) $( rigVal back.selected )" "magic-team/activity/active-sessions $rigS1"
@@ -239,7 +239,7 @@ rigAssert "one read gave all of it"                                  "$( rigCall
 rigAssert "its name, its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ daily of Monday [wrap]][ daily of Monday][  state    running][  control  -][  started  2026-10-12 16:57 +0300 (9h ago)]"
 rigAssert "its id last, under its agents"                            "[$( rigPane s 13 )][$( rigPane s 14 )]" "[][  session  $rigS1]"
 rigAssert "each agent with its state, in a table under a heading, a column no agent has a word for left out" "[$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )][$( rigPane s 11 )][$( rigPane s 12 )]" \
-	"[ Agents][  MEMBER             STATE            SINCE][  magic-coordinator  running waiting  2026-10-12 16:57 +0300][  magic-tester       running working  2026-10-12 17:05 +0300][  keeper-myx         finished         until 2026-10-12 18:00 +0300]"
+	"[ Agents][  MEMBER             STATE     SINCE][  magic-coordinator  waiting   2026-10-12 16:57 +0300][  magic-tester       thinking  2026-10-12 17:05 +0300][  keeper-myx         finished  until 2026-10-12 18:00 +0300]"
 rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 4 )][$( rigPane t 7 )]" \
 	"[ one lone run with no name][  state    finished][  ended    2026-10-11 14:51 +0300 (35h ago)]"
 rigAssert "on the row that goes up the pane is every session of the list as a table, nothing above it, how many in the frame" "[$( rigPane u 3 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -c -F ' 1 row ' )" "[  SESSION                STATE     AGE  AGENTS  TOKENS  MEMBERS] 1"

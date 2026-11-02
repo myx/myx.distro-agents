@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the frame of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather than read. The
+## Behavioural check on the frame of the manager screen (sh-lib/manager/LocalManagerScreen.py), run rather than read. The
 ## screen's own code draws through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## which keeps the cells it is given, so each case reads the screen back as text; the cases at the end start the real
 ## screen, on a pseudo-terminal the driver makes. Held: at 120 and at 80 columns the list on the right takes a quarter
@@ -16,7 +16,7 @@
 ## Reconciled for F11.5: the sessions are no root: the cases that needed a list start at Pending Questions (`root pending`), and the list of a folder is entered with Enter from its first row.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){
@@ -210,7 +210,7 @@ rigPty 80 24 "Dashboard (Monitor)" '\r' "$rigPython" -I -B "$rigDriver" "$rigScr
 rigAssert "the screen came up, and then failed on its data"          "$( rigVal pty.frame ) $( rigVal pty.error | LC_ALL=C grep -c 'the stand-in for the data of the screen fails' )" "yes 1"
 rigAssert "its status is not 0"                                      "$( rigVal pty.rc )" 1
 rigAssert "the terminal was given back before the error was written" "$( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack )" "yes yes yes"
-rigAssert "the error is one line of the screen's own"                "$( rigVal pty.error | LC_ALL=C grep -c '^⛔ ERROR: AgentsManagerScreen: the screen failed, and the terminal was given back first: RuntimeError: ' )" 1
+rigAssert "the error is one line of the screen's own"                "$( rigVal pty.error | LC_ALL=C grep -c '^⛔ ERROR: LocalManagerScreen: the screen failed, and the terminal was given back first: RuntimeError: ' )" 1
 
 echo "-- Python without the curses module --"
 rigCallsBefore="$( LC_ALL=C grep -c '' "$rigTmp/rig/calls" )"

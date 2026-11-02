@@ -42,10 +42,24 @@ AgentsToolsDocValidateContractFile(){ ## kind
 	return 1
 }
 
-## The kinds built, one a line: routine, document, and every type that has a contract.
+## The kinds built, one a line: routine, document, epic, and every type that has a contract.
 AgentsToolsDocValidateKinds(){
-	printf '%s\n' routine document
+	printf '%s\n' routine document epic
 	ls "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/contracts" 2> /dev/null | LC_ALL=C sed -n 's/^\(.*-item\..*\)\.contract\.format\.md$/\1/p' | LC_ALL=C sort
+}
+
+## The vault's typed kinds, one a line `<type word> TAB <kind>`: what each vault-item contract says in its Kind line ("store vault, type word `X`"),
+## the skillset of the run first, then the package; a kind is listed once, by the first contract that names it.
+AgentsToolsDocValidateVaultTypes(){
+	local typesBase
+	for typesBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
+		cat "$typesBase"/contracts/vault-item.*.contract.format.md 2> /dev/null || :
+	done | LC_ALL=C sed -n -E 's/^- Kind `(vault-item\.[a-z-]+)`: store vault, type word `([a-z]+)`.*$/\2'$'\t''\1/p' | LC_ALL=C awk -F'\t' '!( $2 in kindSeen ) { kindSeen[$2] = 1 ; print ; }'
+}
+
+## The kind of a vault type word, rc 1 where no vault contract names it.
+AgentsToolsDocValidateVaultKind(){ ## type word
+	AgentsToolsDocValidateVaultTypes | LC_ALL=C awk -F'\t' -v typeWord="$1" '$1 == typeWord { print $2 ; found = 1 ; exit ; } END { exit ( found ? 0 : 1 ) ; }'
 }
 
 ## Whether the row of a rule refuses or reports at a site: `check` (the validator called) or `write` (a writer's gate). The
@@ -102,7 +116,7 @@ AgentsToolsDocValidateType(){ ## file, file as shown, kind, site (check|write)
 ## fault whose rule refuses at the `write` site; returns 0 otherwise, having said each reporting fault it introduces.
 ##   op       the operation as it names itself in its lines (board-upsert-move-edit)
 ##   label    what a line says it is about (`--create`, `new item`, or the item's name)
-##   store    board or inbox
+##   store    board, inbox or vault
 ##   name     the item's file name
 ##   before   the file the item is now, or empty where there is none
 ##   mode     create (the rules of a new item are asked too: the naming Rule, and the type for the store) or change
@@ -111,6 +125,8 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
 	local gateAfter gateKind gateContract gateAfterRows gateBeforeIds gateNew gateRule gateText gateDetail gateShown gateRefused=0 gateFault
 	gateAfter="$( cat )"
 	gateKind="$gateStore-item.$( AgentsToolsItemNameType "$gateName" )"
+	## A vault type word is not its contract's name (`investigation` is `vault-item.investigation-report`): the contracts say which is which.
+	[ "$gateStore" != vault ] || gateKind="$( AgentsToolsDocValidateVaultKind "$( AgentsToolsItemNameType "$gateName" )" )" || gateKind=""
 	## AN AUDIT SESSION LOG IS NAMED BY ITS SESSION, NOT BY THE CONTRACT (sketch 9.1, S8): `session-<ts>-<member>-<sid8>.log`
 	## and its `-part<N>` rolls are checked against `audit-item.transcript`, and the two rules the log cannot carry -- the type
 	## word, which is `session` here, and the frontmatter block, which a roll has none of -- are not asked of it. Every other

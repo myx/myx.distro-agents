@@ -89,8 +89,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **frame-the-shared-goal**: state what the session must achieve together. Once the goal names this session's tracking documents, steps:
    - read them from this run's input scan result (`input/input-scan.md`) before working from them.
    - re-read any inbox item naming the same board items.
-2. **invite-participants-visibly**: invite each participant with an `Agent` call, at the start or later in the session, steps:
-   - take the default list from `DistroAgentsSession.fn.sh --get-uninvited-participants`. Any other member may be invited as well.
+2. **invite-participants-visibly**: invite each participant with an `Agent` call, at the start or later in the session. Whoever prepares a dispatch names its task, the members likely needed, and the permissions and tools likely needed. Steps:
+   - take the default list from `ThisSession` `get-uninvited-participants`. An empty answer names no participant, and any member may be invited.
    - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information, then make the `Agent` call.
    - read the `PARTICIPANTS_UNINVITED=` line of the `Agent` result: it names the participants still left to invite.
    - the member loads its own `Skill` and posts its armed confirmation into the same thread, in its own voice.

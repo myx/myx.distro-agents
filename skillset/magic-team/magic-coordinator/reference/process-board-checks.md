@@ -9,7 +9,7 @@ The steps of two of this member's local procedures.
 
 ## `check-process-board` — board-state work, never an item's own task
 
-Moves and fields only. An item's own next iteration is `magic-team.advance.routine`'s. Any routine this member runs may call it. It applies decided moves only; it never makes a go decision.
+Moves and fields only. An item's own next iteration is `magic-team.advance.routine`'s. Any routine this member runs may call it. It applies decided moves only. It never makes a go decision.
 
 Steps:
 1. **board-read-state**: Use this pass's board read. With none loaded, call the calling routine's own scan.
@@ -17,6 +17,8 @@ Steps:
 3. **board-mechanical-moves**: Apply the decided moves. Announce each one in the session thread as it happens:
    - `board-pending` item whose content records a dispatch → `board-running` (`--advance-to-running`).
    - Never `board-backlog` straight to `board-running`.
+   - child of an approved parent in `board-backlog` → `board-pending` (`--move-to-pending`), with the parent's `approved-by` and `approved-at` written on it (`--header:upsert:`). The child is `spawned-by` a parent carrying both, was created before the parent's `approved-at`, and has no open `blocked-by` and no dispatch. The parent's approval is its go. **start-pending** then starts it.
+   - `board-blocked` parent whose every `blocked-by` item is in `board-processed`, `board-archived` or `board-retained` → `board-pending` (`--move-to-pending`) when it carries `approved-by` and `approved-at`, else `board-backlog` (`--move-to-backlog`). An item carrying a `condition` is left to **board-reassess-parked-blocked**.
 4. **board-dependencies**: The tooling keeps both directions of `blocks`/`blocked-by` whole, once for each change of the board. The scan carries `## board dependencies`: the cycles, what must happen first, what waits and on what. It also carries what is blocked with no blocker on the board, and how many items are independent. What is left to judgement:
    - Record an edge that only an item's text shows, as `blocks`/`blocked-by` on the item. An unclear edge is described in the item's body, never forced into a field.
    - A real cycle in the report is flagged to `magic-architect`.
@@ -25,7 +27,7 @@ Steps:
 5. **board-per-type-state-rules**: For each `board-running` item, by filename prefix:
    - `approval-*`: approved (`approved-by`/`approved-at`, or an explicit go recorded as them) → `board-processed`. The move carries the go to what it `blocks`.
    - `task-*`/`project-*`: a clean testing round recorded → `board-processed`, accepted by the task's own parent, per "The ladder: one rung at a time".
-   - `proposal-*`: nothing here. `magic-team.discuss.routine` (among the team) owns its state changes first; `magic-team.proposal.routine` (in front of the human-owner) takes over only where the ladder climbs that far.
+   - `proposal-*`: nothing here. `magic-team.discuss.routine` (among the team) owns its state changes first. `magic-team.proposal.routine` (in front of the human-owner) takes over only where the ladder climbs that far.
    - `interview-*`: nothing here. `magic-team.interview.routine` owns its state changes.
    - `dispatch-*`, `change-*`, `warning-*`: nothing here. `magic-team.advance.routine` handles them.
    - `idea-*`: not expected in `board-running` → flag for grooming.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on what the manager screen (sh-lib/manager/AgentsManagerScreen.py) does when the selection comes to
+## Behavioural check on what the manager screen (sh-lib/manager/LocalManagerScreen.py) does when the selection comes to
 ## stand on a folder, a row that opens a level of its own, run rather than read. The screen's own code runs through
 ## the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would call the
 ## dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each start and
@@ -28,7 +28,7 @@
 ## Reconciled for the subject `Configure Harness` of the configuration (the folder mounted after `Git Settings`): the digest of the configuration lists it among its folders, as AgentsManagerScreenConfigurationCheck does.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

@@ -16,7 +16,7 @@ When writing or reviewing XSLT:
 - Default to XSLT 1.0 unless the user confirms a newer processor/version is available
 - Prefer template-matching/recursion (the "XSLT way") over procedural-style for-each when it makes the transform clearer or more reusable
 - Use xsl:key for lookups/grouping instead of expensive nested loops (Muenchian grouping is idiomatic 1.0)
-- Keep XPath expressions as simple and readable as possible; avoid clever one-liners that sacrifice clarity
+- Keep XPath expressions as simple and readable as possible. Avoid clever one-liners that sacrifice clarity
 - Call out when a problem genuinely needs XSLT 2.0+ (rare) rather than forcing an ugly 1.0 workaround
 
 Explain the "trick" briefly when a solution is non-obvious — the goal is to make basic XSLT look magical, not to obscure how it works.

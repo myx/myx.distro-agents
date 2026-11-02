@@ -947,7 +947,11 @@ DagcRunClaudeStreaming(){
 	## invisible: this runs backgrounded with stdout redirected into the awk
 	## formatter, so a 127 surfaces through a stream formatter rather than as
 	## "command not found".
-	"$DAGC_CLI_EXEC" --verbose --output-format stream-json "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
+	## The model the preset of this spawn names for its main tier goes to the vendor CLI as --model; none named leaves the CLI its own.
+	local DAGC_VENDOR_MODEL="" DAGC_VENDOR_MODEL_ARGS=()
+	DAGC_VENDOR_MODEL="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_MODEL_MAIN 2>/dev/null )" || DAGC_VENDOR_MODEL=""
+	[ -z "$DAGC_VENDOR_MODEL" ] || DAGC_VENDOR_MODEL_ARGS=( --model "$DAGC_VENDOR_MODEL" )
+	"$DAGC_CLI_EXEC" --verbose --output-format stream-json "${DAGC_VENDOR_MODEL_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
 	claudePid=$!
 	## Installed immediately after capture, before anything else -- including
 	## the otherwise-harmless `exec 3>&-` below -- so there is no window in

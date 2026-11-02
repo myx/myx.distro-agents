@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.CheckListSeed.include: the executor's CheckList, seeded by the spawner before its first turn (S22 item 4). Definitions only.
+## A source states its steps as `- ` items under its `## Formal task` heading, an epic states a feature's open work as its numbered items, a routine states its
+## duties as its steps, and a spawn argument adds one item each. The seed adds pending items and nothing else: a line the list already holds is never closed,
+## reworded or moved, and an item whose text the list holds is not added again.
+
+## The `- ` items under the `## Formal task` heading of the text on standard input, one a line, in order. Any heading ends the section.
+AgentsToolsCheckListSectionItems(){
+	LC_ALL=C awk '
+		$0 == "## Formal task" { inSection = 1 ; next ; }
+		inSection && /^#+ / { exit ; }
+		inSection && /^- / { itemText = substr( $0, 3 ) ; sub( /^\[ \] /, "", itemText ) ; sub( /[ \t\r]+$/, "", itemText ) ; if ( itemText != "" ) print itemText ; }
+	'
+}
+
+## The open work of one feature of an epic file, one line an item, in order: the text of each numbered `N. <text>` line of
+## its `## <feature> - <title>` section, which any heading ends. Nothing where the feature stands not once in that file.
+AgentsToolsCheckListEpicFeatureItems(){ ## epic file, feature id
+	[ -f "$1" ] || return 0
+	[ "$( LC_ALL=C awk -v want="## $2 " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$1" )" -eq 1 ] || return 0
+	LC_ALL=C awk -v feat="$2" '
+		index( $0, "## " feat " " ) == 1 { inFeature = 1 ; next }
+		inFeature && /^#+/ { exit }
+		inFeature && /^[0-9]+\. / {
+			itemText = $0 ; sub( /^[0-9]+\. +/, "", itemText ) ; sub( /[ \t\r]+$/, "", itemText )
+			if ( itemText != "" ) print itemText
+		}
+	' "$1"
+}
+
+## The items a dispatch's text gives the seed through an epic: the epic file that text names, and the single feature id it
+## names after the word `feature`, as a builder's brief states it. No file, or no single feature, seeds nothing.
+AgentsToolsCheckListEpicItems(){ ## the workspace the text may name the epic file under
+	local epicText epicToken epicPath epicIds epicPlace epicRest
+	epicText="$( cat )"
+	epicToken="$( printf '%s\n' "$epicText" | LC_ALL=C awk 'match( $0, /[-A-Za-z0-9_.\/]+\.epic\.md/ ) { print substr( $0, RSTART, RLENGTH ) ; exit }' )"
+	[ -n "$epicToken" ] || return 0
+	epicPath=""
+	case "$epicToken" in
+		/*) [ ! -f "$epicToken" ] || epicPath="$epicToken" ;;
+		*/*)
+			epicPlace="${epicToken%%/*}" ; epicRest="${epicToken#*/}"
+			type LocalToolsPlacesResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" 2> /dev/null || :
+			epicPath="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$epicPlace" 2> /dev/null )" || epicPath=""
+			[ -z "$epicPath" ] || epicPath="$epicPath/$epicRest"
+			[ -n "$epicPath" ] && [ -f "$epicPath" ] || epicPath="$1/$epicToken"
+		;;
+		*) epicPath="$1/$epicToken" ;;
+	esac
+	[ -n "$epicPath" ] && [ -f "$epicPath" ] || {
+		echo "agent-spawn-proxy: ⚠️ WARNING: the epic file $epicToken this dispatch names is no file here, so its open work seeds nothing" >&2
+		return 0
+	}
+	epicIds="$( printf '%s\n' "$epicText" | LC_ALL=C awk '
+		{
+			rest = tolower( $0 )
+			while ( match( rest, /(^|[^a-z0-9_])feature +s[0-9]+(\.[0-9]+)?/ ) ) {
+				epicId = substr( rest, RSTART, RLENGTH ) ; sub( /^.*feature +/, "", epicId )
+				if ( ! seen[epicId]++ ) print toupper( epicId )
+				rest = substr( rest, RSTART + RLENGTH )
+			}
+		}
+	' )"
+	if [ "$( printf '%s\n' "$epicIds" | LC_ALL=C awk 'NF { n++ } END { print n + 0 }' )" -ne 1 ] ; then
+		[ -z "$epicIds" ] || echo "agent-spawn-proxy: ⚠️ WARNING: this dispatch names more than one epic feature, so its open work seeds nothing" >&2
+		return 0
+	fi
+	[ "$( LC_ALL=C awk -v want="## $epicIds " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$epicPath" )" -eq 1 ] || epicIds="${epicIds%.*}"
+	AgentsToolsCheckListEpicFeatureItems "$epicPath" "$epicIds"
+}
+
+## The duties of a routine, from its text as the run reads it (AgentsToolsSpawnRoutineMixText) on standard input, one name a line, in reading order: the steps of its
+## Opening steps, Steps and Closure steps. A step is a numbered `N. **name**` line, or the deepest heading of a group of headings. The mixed text puts a kind routine's
+## sections under `# Opening steps of <file>` and a heading of the section's own name, which is no step.
+AgentsToolsCheckListRoutineSteps(){
+	LC_ALL=C awk '
+		function level( headLine,   levelNo ) { levelNo = 0 ; while ( substr( headLine, levelNo + 1, 1 ) == "#" ) levelNo++ ; return levelNo ; }
+		/^#+ / {
+			headLevel = level( $0 ) ; headText = substr( $0, headLevel + 2 ) ;
+			if ( headLevel == 1 ) {
+				if ( pending != "" ) print pending ;
+				pending = "" ; inSteps = ( headText ~ /^(Opening steps|Steps|Closure steps)( of .*)?$/ ) ; stepsName = headText ; sub( / of .*$/, "", stepsName ) ;
+				next ;
+			}
+			if ( ! inSteps || headText == stepsName ) next ;
+			if ( pending != "" && headLevel <= pendingLevel ) print pending ;
+			pending = headText ; pendingLevel = headLevel ;
+			next ;
+		}
+		inSteps && /^[0-9]+\. \*\*/ { pending = "" ; stepText = $0 ; sub( /^[0-9]+\. \*\*/, "", stepText ) ; sub( /\*\*.*$/, "", stepText ) ; if ( stepText != "" ) print stepText ; }
+		END { if ( pending != "" ) print pending ; }
+	'
+}
+
+## Writes the items on standard input, a line each, as pending items of one member's list in one session, in the place the harness keeps it
+## (AgentsHarnessCheckListPlace): beside the record of the session's own spawn, else in the session's store. Prints how many it added.
+AgentsToolsCheckListSeed(){ ## session id, member name
+	local seedFolder seedTemp seedLine seedAdded=0
+	seedFolder="$( AgentsToolsSpawnRecordPath "$1" )"
+	seedFolder="${seedFolder%/*}"
+	[ -n "$seedFolder" ] || seedFolder="$MMDAPP/.local/agents/sessions/$1"
+	mkdir -p "$seedFolder" && seedTemp="$( mktemp "$seedFolder/$2.checklist.md.XXXXXX" )" || return 1
+	[ ! -f "$seedFolder/$2.checklist.md" ] || cat "$seedFolder/$2.checklist.md" > "$seedTemp"
+	[ -z "$( tail -c 1 "$seedTemp" )" ] || printf '\n' >> "$seedTemp"
+	while IFS= read -r seedLine || [ -n "$seedLine" ] ; do
+		[ -n "$seedLine" ] || continue
+		! LC_ALL=C grep -q -F -e "] $seedLine" "$seedTemp" || continue
+		printf -- '- [ ] %s\n' "$seedLine" >> "$seedTemp"
+		seedAdded=$(( seedAdded + 1 ))
+	done
+	if [ "$seedAdded" -gt 0 ] ; then
+		mv -f "$seedTemp" "$seedFolder/$2.checklist.md"
+	else
+		rm -f "$seedTemp"
+	fi
+	printf '%s\n' "$seedAdded"
+}

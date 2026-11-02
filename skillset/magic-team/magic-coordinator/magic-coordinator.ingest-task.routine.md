@@ -53,8 +53,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **process-own-inbox**: Run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so asks already queued are settled with this one rather than duplicated.
 2. **gather-and-agree**: Gather and agree with the requester, one topic at a time, with small, minimal-assumption questions, until the content is settled. Once a point is clear and agreed, move on.
 3. **epic-threshold-hand-over**: When the open and queued items reach the threshold where the change needs waves and lanes, hand over to `magic-team.epic-intake.routine` instead of filing. Waves and lanes are the ordering and grouping of many tasks across several subsystems. The hand-over reads the same inputs that routine reads, a dispatch naming a sketch or an epic draft, and is described in it. End the run with a handback naming the sketch or epic draft, and that `epic-intake` runs next. Below the threshold, file as **output**.
-4. **output**: Once settled, file it, steps:
-   - Default: a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`), or an `inquiry-*` to the member it belongs to (`post-inquiry`). Never the board. Filing does not start the work.
+4. **output**: Once settled, route it, steps:
+   - Default: the board, as a `task-*` item in `board-backlog`, written by `magic-coordinator` with `--grooming-create-backlog`. Where its pieces are already known, a `project-*` item with those pieces as children `spawned-by` it (`board-item.project`). Filing does not start the work.
+   - An inbox route where nothing is to be worked: an `inquiry-*` to the member it belongs to (`post-inquiry`). Where the owner is unclear, a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`).
    - Dispatch: only within `magic-coordinator`'s own mandate, or on a live authorisation from someone holding it — still filed first, then dispatched through `spawn-one-dispatch`.
 5. **relationship-to-grooming**: Content that needs working out rather than writing down goes to `magic-team.interview.routine`, which takes each part through propose-approve as it settles.
 
@@ -91,6 +92,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 - `--upsert-inbox-note <team-member> <item-filename>`
 - `--upsert-inbox-inquiry <member> <item-filename>`
+- `--grooming-create-backlog <item-filename> --owner-header-value <value>`
 - `--slack-send-message <target> [text...]`
 - `--routine-run-inline <routine>`
 

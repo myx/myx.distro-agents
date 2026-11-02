@@ -40,7 +40,7 @@ anything else. A real hang then fails loud and fast instead of stalling the
 session.
 
 **Gotcha: a dev box may carry no `timeout`/`gtimeout` binary at all.** Check
-for `timeout`/`gtimeout` first; with neither, use the hand-rolled wall-clock
+for `timeout`/`gtimeout` first. With neither, use the hand-rolled wall-clock
 timeout in `magic-developer/reference/shell.md`'s reusable patterns. It needs
 only the shell, where a Perl one-liner adds a dependency the team does not use.
 Open: whether the missing binary is host-specific or general across the estate's dev machines — check, never assume.

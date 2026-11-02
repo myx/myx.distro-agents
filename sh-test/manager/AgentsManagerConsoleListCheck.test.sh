@@ -25,7 +25,8 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigDriver="$rigPackage/sh-test/check-fixtures/manager-screen.driver.py"
-rigScreenFile="$rigHere/manager/AgentsManagerScreen.py"
+rigCoreHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-.local/sh-lib"
+rigScreenFile="$rigCoreHere/manager/LocalManagerScreen.py"
 rigOp="--manager-console-list"
 
 rigRefuse(){

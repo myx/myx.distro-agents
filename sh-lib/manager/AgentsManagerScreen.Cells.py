@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Cells.py -- text in cells: how many cells a text takes, cut, panned and wrapped to them.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -190,3 +190,15 @@ def plainText(text):
     return "".join(cell[0] if all(ord(character) < 128 for character in cell[0]) else "?" * cell[1]
                    for cell in textCells(text))
 
+
+
+## Lines `<name> <value>` for the left pane, a value broken to the width of the pane; an
+## empty value is left out.
+def fieldLines(pairs, width):
+    lines = []
+    for name, value in pairs:
+        if value:
+            parts = wrapToCells(value, max(10, width - 11))
+            lines.append("%-9s %s" % (name, parts[0]))
+            lines.extend(" " * 10 + part for part in parts[1:])
+    return lines

@@ -269,7 +269,7 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 		else
 			## Cached 5 minutes, per session or spawn (sketch 7.1, option A): the same words run again for the one start
 			## are served the one report, never run twice.
-			AgentsToolsInputScanCachedCall "$runWords" "${3:-$4}" "" "$runOne" "$runErr" || runRc=$?
+			MDAT_SCAN_AT_START=1 AgentsToolsInputScanCachedCall "$runWords" "${3:-$4}" "" "$runOne" "$runErr" || runRc=$?
 		fi
 		if [ "$runRc" -ne 0 ] ; then
 			{ printf '## input scan failed\n\n' ; printf 'The spawner ran `%s` for this start and it failed (exit %s). What it said:\n\n' "${runArgs[*]}" "$runRc" ; cat "$runOne" "$runErr" 2> /dev/null ; } > "$runOne.failed"

@@ -20,7 +20,9 @@ A member's duty session: it works what its work-duty scan found, then waits for 
 
 # Opening steps
 
-None of its own: the Opening steps of its session kind run first.
+The Opening steps of its session kind run first. Then:
+
+1. **greet-the-team**: on the day's first work-duty run, post one short freeform greeting to `magic-team` before any other step.
 
 # Steps
 

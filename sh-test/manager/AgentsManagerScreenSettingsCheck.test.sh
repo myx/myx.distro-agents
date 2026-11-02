@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the roots `Settings` and `Configuration` of the manager screen (sh-lib/manager/AgentsManagerScreen.py),
+## Behavioural check on the roots `Settings` and `Configuration` of the manager screen (sh-lib/manager/LocalManagerScreen.py),
 ## run rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture: rows in the form
@@ -31,7 +31,7 @@ set -u
 ## The runner gives every test a team rig as the default workspace mode (AgentsRunTests.sh); a run by hand takes the same default, so the result is the same either way.
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -482,7 +482,7 @@ echo "-- the raw value, and the place form of a path, in the table and in the de
 ## the functions of the screen over a line of the digest that offers a path as its choices, with a location registered for it
 cat > "$rigTmp/values.py" <<'RIGPY'
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec) ; spec.loader.exec_module(screen)
 state = screen.ManagerState("")
 state.rows["places"] = [{"place": {"path": "/rig/ws-myx-devops", "key": "ws-myx-devops"}}]
@@ -689,7 +689,7 @@ rigAssert "what the screen refuses or what failed stands in the looks of its lev
 rigAssert "on a terminal that is not UTF-8 Magic draws in the marks of one byte, with no mark it cannot show, as Basic B/W draws there" "$( rigScreenHolds mp '#=' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mp|' | LC_ALL=C sed -n '1,39p' | LC_ALL=C grep -c '[^ -~]' ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mp|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^bp|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo as-basic-bw || echo differs )" "2 0 as-basic-bw"
 rigColours="$( "$rigPython" -I -B - "$rigScreen" <<'RIGPY' 2>&1
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 class Curses:
@@ -772,7 +772,7 @@ rigAssert "Magic is the first of the styles wherever they are offered, and Turbo
 echo "-- the colours of a style: its value is <style>-<colours>; a style alone is the value it was before; each scheme draws and leaves nothing --"
 rigNames="$( "$rigPython" -I -B - "$rigScreen" <<'RIGPY' 2>&1
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 print("first %s %s" % (module.STYLE_FIRST, module.STYLE["value"]))

@@ -95,9 +95,14 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **act**, larger or several pieces — `magic-team.plan.routine`.
      - **act**, with a choice between options — `magic-team.discuss.routine`.
      - outside facts needed — `magic-team.research.routine`.
-   - on closing, the settled answer becomes an investigation report, an `ivr-*` vault item (`vault-item.investigation-report`), named in the item's `references`.
+   - on closing, the settled answer becomes an investigation report, a vault `investigation-*` item (`vault-item.investigation-report`, written by `--upsert-vault-investigation-report`), named in the item's `references`.
    - a technical decision the investigation took or needs is recorded as an `adr-*` vault item (`vault-item.decision-record`), by `magic-architect`, one per distinct question.
    - a handback to the session's own parent follows, carrying the decision and the next step, per "The ladder: one rung at a time".
+10. **publish-the-report**: put the `vault-item.investigation-report` where the organisation reads it, steps:
+   - the report is duplicated to Confluence, and its Jira task is created or linked, through `DistroAgentsAtlassian`.
+   - both happen in the workspace that holds that organisation's identities: `--confluence-page-create` with the report's body, then `--jira-issue-create`, or `--jira-issue-search` and a link where the task already exists.
+   - where that organisation has no Confluence or Jira configured, record that and close the investigation anyway.
+   - an identity missing, or a refusal, is escalated, never worked around.
 
 # Closure steps
 
@@ -139,7 +144,7 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-Harness tools: `ReportFindings` posts the report.
+Harness tools: `ReportFindings` posts the report, and `DistroAgentsAtlassian` duplicates it to Confluence and its Jira task.
 
 ## Tooling operations
 

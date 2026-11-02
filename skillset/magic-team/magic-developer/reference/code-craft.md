@@ -34,7 +34,7 @@ Read this before writing code in any language. It is not a per-language module, 
 - Tooling is written in bash 3.2+ where bash is efficient for the task, else awk, else Python only where awk won't do. Perl is not used: Python is the chosen one of the two, for now, and switching needs proof that the other is universally better. No choice adds a dependency. The tool fits the file it will grow into after the first MVP, complications and improvements included. Working code is kept until it is clearly a laggard or a blocker. It is never converted to follow the order by itself. `shell.md`'s "Which language a piece of tooling is written in" states it in full.
 - A failing step ends the run, so nothing that must happen is written after something that can fail. Code is written as though abort-on-first-failure is in force, whether or not the file switches it on: `set -e` in shell, a propagating exception elsewhere. A cleanup placed below the failure is skipped on exactly the runs that needed it. Work owed on the failing run belongs to the scope's own exit, a trap or a `finally`. Switching the mode off does not rescue the trailing line: it only makes the failure quiet.
 - Work the result does not need is a defect in its own right, not an optimisation to revisit later. Two operations doing what one does is the needless-name fault with the name removed. An example is `shift` then `commandName=$1 ; shift`, where `commandName=$2 ; shift 2` consumes both at once. The code reads correctly, and the run still pays for it. It binds hardest on a path taken constantly, where the cost is paid on every pass.
-- A variable holding a value used once, or trivially derived from another, produces bad, low-quality, unreadable code that hides errors. The value it holds is already available where it is needed. So the name adds a second place the reader must resolve, and a second place a wrong value can enter unnoticed. The defect is concealed behind a plausible name, instead of sitting in view at the site that uses it. Banned outright below; this is why.
+- A variable holding a value used once, or trivially derived from another, produces bad, low-quality, unreadable code that hides errors. The value it holds is already available where it is needed. So the name adds a second place the reader must resolve, and a second place a wrong value can enter unnoticed. The defect is concealed behind a plausible name, instead of sitting in view at the site that uses it. Banned outright below. This is why.
 - A declaration and its assignment are one line. The split form earns its place for one reason only. In shell, a plain assignment reports the command substitution's own status. Any declaring keyword in front of it (`local`, `export`, `readonly`) reports its own instead. So a status that is actually tested is captured on a line of its own. Where nothing tests the status, the split doubles the line count and names nothing the single line did not.
 - Banned outright:
   - a function called from one place.
@@ -67,7 +67,7 @@ What follows from them:
 A checker reports green on its own counterexample as readily as on a clean subject, and nothing in a green report tells the two apart. What settles it is the red.
 
 - **An instrument is finished once it has been watched to fail**, against a case that violates the very assertion it makes. Reasoning that it would fail is not the demonstration, and a green first run over a clean subject establishes nothing about the instrument.
-- **A stage that cannot reach its subject fails loudly; it never passes.** A rig that fails to extract the thing under test and then prints its PASS lines is reporting on nothing. Those lines read exactly like a result. Every step that loads, extracts or selects the subject is a failure branch, not a best effort.
+- **A stage that cannot reach its subject fails loudly. It never passes.** A rig that fails to extract the thing under test and then prints its PASS lines is reporting on nothing. Those lines read exactly like a result. Every step that loads, extracts or selects the subject is a failure branch, not a best effort.
 - **A control is a control only once its two directions return different values.** Run it both ways before the measurement it qualifies is trusted: one case that must pass, one that must fail. Where both come back the same, the instrument is broken, not the subject clean. The measurement is withdrawn, never reported with a caveat.
 - **A tool that prints a hard error and still exits 0 makes every caller's status check dead code.** The message is written for a person reading a terminal. The status is the only thing a caller reads. Where the two disagree, the caller is told the operation succeeded. A diagnostic is not a failure signal. Whatever prints the error exits non-zero on that same path, and every layer between it and the caller passes the status on. The caller's check is worth writing only once that chain holds. `shell.md` states the shell mechanics each layer drops it through.
 - **An axiom that keeps being violated in new code is not under-stated, it is unenforced.** Where the wording is already sound, what changes is the mechanism. The rule becomes an executable check wired into a pass that already runs, so it is met without anyone choosing to look. A stronger sentence in the same place the last violation walked past is not a fix.
@@ -77,7 +77,7 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - The limits are the team's existing ones, not a second set: "A comment is short, or it is not a comment". An internal comment is one line, and a header comment a few at most. Anything longer is documentation belonging in the package's own `MAGIC.md`. Where a package carries a `MAGIC.md`, it states the same limits for its own code.
 - **Quantity is checkable, and it is the half that gets failed.** The reviewer's question is asked of one comment at a time, against the limits above. A comment past its own limit is over it, whatever those lines say.
 - **Content is the other check**, per "Rule/instruction/definition/description conventions": state a durable fact, never narrate a past action. A comment holds a durable fact or convention, never a narration of a past action or an explanation of what changed. The two checks are independent: a comment can be entirely factual and still be forty lines that belong in `MAGIC.md`.
-- **Volume is a runtime cost too, not only a reading cost.** A file the shell reads often is lexed in full on every pass, comments included. So comment count is paid per source on a constantly-taken path. A file can sit within the per-comment limits above and still carry the cost through sheer number. This is a separate argument from the readability limits and does not replace them; `shell.md` states the measured per-source cost on bash 3.2 and dash.
+- **Volume is a runtime cost too, not only a reading cost.** A file the shell reads often is lexed in full on every pass, comments included. So comment count is paid per source on a constantly-taken path. A file can sit within the per-comment limits above and still carry the cost through sheer number. This is a separate argument from the readability limits and does not replace them. `shell.md` states the measured per-source cost on bash 3.2 and dash.
 - **A rename that makes a comment false, rather than merely stale, is reworded in the same change.** The two are different defects. A stale comment describes an older state a reader can still map onto the code. A false one asserts something the code now contradicts. Most often it is a contrast between two names that the rename has just collapsed into one. The comment then draws a distinction that no longer exists. Renaming is what produces this. So every comment naming either side of the old distinction is read as part of the rename. It is not left to a later pass that has no reason to look there.
 - Volume regenerates in new code even where an existing tree has been brought within the limit. The standard holds where it is enforced, which is why this is a review step and not a one-off sweep.
 
@@ -98,6 +98,16 @@ A checker reports green on its own counterexample as readily as on a clean subje
   - a wrapper that re-sources its own file to reach a function in it.
 - Subprocess inheritance, pipe semantics and the rest are symptoms, not the rule: write less structure and they do not arise.
 
+## Each call runs only its own path
+
+- A call parses and runs what its own path needs, on a small shared setup. Nothing goes upfront to serve a minority of calls.
+- No trivial variable and no trivial function goes in a common place. Repeat a few lines at each site, twenty times if that is faster for the call paths.
+- A large repeat, or a complicated gotcha, becomes an include. It is sourced only on the paths that use it, at each of them.
+- A large file is split. The parser never reads a 1000-line file for a 2-line operation.
+- One script grows to thousands of lines only when it is one piece, with the most common path threading through it.
+- A command script is for an external call. An internal step sources the exact include it needs, never re-enters a whole command script.
+- A review requires all of this. Code that breaks it is sent back, whatever else it fixes.
+
 ## The three costs of needless work
 
 **Readability.** Straight-line logic scattered into named fragments cannot be followed in one pass. A basic question, where does this file live, becomes a reverse-walk through four names that ends in giving up, not in an answer. Code nobody will read is code nobody reviews, and unreviewable code is rejected.
@@ -105,20 +115,20 @@ A checker reports green on its own counterexample as readily as on a clean subje
 **Performance.** Every needless name, and every needless operation, is real work at runtime. A wrapper that forks (a command substitution, a pipeline, a subshell) costs a process where an inline expansion costs nothing. A variable built from a command substitution forks to produce a value used once. Chained derivations repeat that at every call site, and in a loop or a per-request server path it multiplies. Inline straight-line code does the minimum work by construction.
 
 **Hidden problems.** Indirection conceals both the construct in use and the place it acts on. Review then passes over defects that would have been visible written out:
-- A helper is not inherited by a spawned subprocess, so code that works inline breaks silently the moment the same path is forked or exec'd.
+- A helper is not inherited by a spawned subprocess. So code that works inline breaks silently the moment the same path is forked or exec'd.
 - A capture bug survives review when the `$( ... )` sits behind a helper and a variable chain. That a server waits on a pipe's writers, not on the command, is unreadable from the call site. The defect is invisible precisely because it is named.
 - A location hidden behind a chain hides its own wrongness with it. An imported `mktemp -d "${TMPDIR:-/tmp}/..."` matching nothing in any sibling project of its family passes unnoticed behind one variable name.
 
 ## The counter-rule
 
 - A genuinely reused block stays a function, and so does one whose name carries real meaning its body does not. The test is reuse or comprehension, never tidiness.
-- Inlining is not a licence to repeat a real algorithm at three sites. The ban is on names that carry nothing, not on abstraction that earns its place.
+- Inlining is not a licence to repeat a large algorithm. A large repeat goes to an include, per "Each call runs only its own path". The ban is on names that carry nothing, not on abstraction that earns its place.
 - A convention the sibling packages of the family already follow outranks both. Where they source a dedicated include, that is the structure the code genuinely has.
 
 ## What already works is not rewritten
 
 - Working code is never rewritten for consistency alone. A difference in style, ordering, or phrasing between two correct pieces of code is not a defect, and is not fixed.
-- Only a behaviour-changing defect, or something the human-owner has explicitly asked for, justifies touching code that already works; reading differently from its neighbours is neither.
+- Only a behaviour-changing defect, or something the human-owner has explicitly asked for, justifies touching code that already works. Reading differently from its neighbours is neither.
 - The cost of a consistency rewrite is paid in full whether or not it was needed, against no behavioural gain at all. It is review effort spent, regressions introduced into code that was working, and real fixes drowned in the diff.
-- A mass cosmetic pass buries real defects: a diff of hundreds of mechanical edits cannot be reviewed, so a genuine bug inside it goes unseen. Behavioural fixes and cosmetic passes stay separate, separately-approvable pieces of work.
+- A mass cosmetic pass buries real defects. A diff of hundreds of mechanical edits cannot be reviewed, so a genuine bug inside it goes unseen. Behavioural fixes and cosmetic passes stay separate, separately-approvable pieces of work.
 - This is the sibling of the structure rule above, and it binds harder. Structure is introduced only where the code genuinely has structure. Code that already runs correctly is left where it stands.

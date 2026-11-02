@@ -1,0 +1,45 @@
+## The parts of the manager screen this package contributes, in the order they load, one file name on a line.
+## The root reads every other installed package's list first and this package's own after it, and loads each part in the
+## namespace of the screen, so the screen stays one module whatever its files are. A row may place a part of another
+## package `before` or `after` itself. A comment starts with `#`.
+
+AgentsManagerScreen.Looks.py
+AgentsManagerScreen.Plugins.py
+AgentsManagerScreen.Roots.py
+AgentsManagerScreen.Styles.py
+AgentsManagerScreen.Windows.py
+AgentsManagerScreen.State.py
+AgentsManagerScreen.Cells.py
+AgentsManagerScreen.Layout.py
+AgentsManagerScreen.List.py
+AgentsManagerScreen.Pane.py
+AgentsManagerScreen.ViewTable.py
+AgentsManagerScreen.ViewFeed.py
+AgentsManagerScreen.ViewMarkdown.py
+AgentsManagerScreen.ViewKinds.py
+AgentsManagerScreen.Pending.py before LocalManagerScreen.Dashboard.py
+AgentsManagerScreen.Sessions.py
+AgentsManagerScreen.Launch.py
+AgentsManagerScreen.MagicTeam.py
+AgentsManagerScreen.Members.py
+AgentsManagerScreen.TeamData.py
+AgentsManagerScreen.Routines.py
+AgentsManagerScreen.Schedule.py
+AgentsManagerScreen.Tokens.py before LocalManagerScreen.Places.py
+AgentsManagerScreen.Consoles.py
+AgentsManagerScreen.Settings.py before LocalManagerScreen.Workspace.py LocalManagerScreen.Machine.py
+AgentsManagerScreen.Talk.py
+AgentsManagerScreen.Configuration.py
+AgentsManagerScreen.CliPresets.py
+AgentsManagerScreen.Wizards.py
+AgentsManagerScreen.Manuals.py
+AgentsManagerScreen.Dialogs.py
+AgentsManagerScreen.Actions.py
+AgentsManagerScreen.Output.py
+AgentsManagerScreen.Keys.py
+AgentsManagerScreen.Mouse.py
+AgentsManagerScreen.Menus.py
+AgentsManagerScreen.Reads.py
+AgentsManagerScreen.Glance.py
+AgentsManagerScreen.Draw.py
+AgentsManagerScreen.Terminal.py after LocalManagerScreen.Subsystems.py LocalManagerScreen.Scopes.py LocalManagerScreen.Features.py

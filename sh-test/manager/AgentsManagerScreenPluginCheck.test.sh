@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the plugin mechanism of the console app (F11.2 of the refactorings epic), run rather than read. The screen's own
-## code (sh-lib/manager/AgentsManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py);
+## code (sh-lib/manager/LocalManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py);
 ## no reader is started, the rows are put in the state as a read would put them. A stand-in app feature, a plugin of the rig's own, is
 ## registered into the screen the way every real one registers itself.
 ## Held (F11.2: "An app feature may implement its own root selection item in the selector pane, provide sub-items under it, update the top
@@ -37,7 +37,8 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigScreen="$rigPackage/sh-lib/manager/AgentsManagerScreen.py"
+rigCorePackage="$MDLT_ORIGIN/myx/myx.distro-.local"
+rigScreen="$rigCorePackage/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$rigPackage/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){

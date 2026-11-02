@@ -536,7 +536,13 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		priorContent="$( cat "$target" ; printf x )" ; priorContent="${priorContent%x}"
 	fi
 
-	if ! printf '%s\n' "$content" > "$target" ; then
+	## Written beside the item and moved into place, so a reader in the write window sees the old
+	## item or the new one and never part of one. The beside file is this call's own, by mktemp and
+	## never by $$: two calls from subshells of one shell have one $$, so they meet on one name.
+	local writeBeside=""
+	writeBeside="$( mktemp "$target.XXXXXX" )" || writeBeside=""
+	if [ -z "$writeBeside" ] || ! printf '%s\n' "$content" > "$writeBeside" || ! mv -f "$writeBeside" "$target" ; then
+		[ -z "$writeBeside" ] || rm -f "$writeBeside"
 		if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep restore "could not write $target" ; set +e ; return 1 ; fi
 		echo "$MDSC_CMD: item-upsert: ⛔ ERROR: could not write $target" >&2
 		set +e ; return 1

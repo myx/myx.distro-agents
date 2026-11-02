@@ -149,7 +149,8 @@ AgentsToolsAuthoritySessionWords(){ ## session
 AgentsToolsAuthorityAddressHeld(){ ## address
 	local heldExecutor=""
 	if [ "$agentsAuthorityCallerKind" = person ] ; then
-		[ "$1" = "$agentsAuthorityCallerId" ]
+		## A person holds every address naming them: `user-<account>`, or `<session>:user-<account>`.
+		[ "$1" = "$agentsAuthorityCallerId" ] || [ "${1##*:}" = "$agentsAuthorityCallerId" ]
 		return
 	fi
 	[ -z "$agentsAuthorityCallerRecord" ] || ! AgentsToolsSessionRunExecutor "$agentsAuthorityCallerRecord" || heldExecutor="executor"
@@ -171,9 +172,44 @@ AgentsToolsAuthorityGranted(){ ## session
 	return 1
 }
 
+## Whether the PARENT SESSION of a run has ended, so what its holder held passes up (S27.6): rc 1 where
+## that parent session still has a live run of its own, rc 0 where it has none left.
+AgentsToolsAuthorityLadderUp(){ ## spawn record of the run whose authority is asked about
+	local ladderParent ladderRun ladderSeen=0
+	ladderParent="$( AgentsToolsAuthorityField "$1" parent-session-id )"
+	case "$ladderParent" in ''|-|.|..|*/*) return 1 ;; esac
+	for ladderRun in $( LC_ALL=C grep -l -x -F "session-id: $ladderParent" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		ladderSeen=1
+		[ "$( AgentsToolsAuthorityField "$ladderRun" status )" = spawn-started ] || continue
+		AgentsToolsSessionRecordLive "$ladderRun" && return 1
+	done
+	[ "$ladderSeen" = 1 ] || return 1
+	return 0
+}
+
+## Whether the caller is a member of the owners role (HUMAN_OWNER_MEMBERS): the last rung of the ladder
+## of authority (S27.6), where a run's own parent session has ended and nobody above it is left.
+AgentsToolsAuthorityRoleHeld(){
+	local roleCaller
+	[ "$agentsAuthorityCallerKind" = member ] || return 1
+	while IFS= read -r roleCaller ; do
+		[ "$roleCaller" = "$agentsAuthorityCallerId" ] && return 0
+	done <<< "$( AgentsToolsAuthorityOwnerMembers )"
+	return 1
+}
+
 ## Whether the caller holds the authority of a holder over a run of a session. rc 0 it does.
-AgentsToolsAuthorityHolds(){ ## holder, session of the run acted on
-	AgentsToolsAuthorityAddressHeld "$1" || AgentsToolsAuthorityGranted "$2"
+AgentsToolsAuthorityHolds(){ ## holder, session of the run acted on, the run's record (may be empty)
+	AgentsToolsAuthorityAddressHeld "$1" && return 0
+	AgentsToolsAuthorityGranted "$2" && return 0
+	## THE LADDER, WHERE THE PARENT SESSION HAS ENDED (S27.6): the holder named by a session that has
+	## ended holds nothing, so what it held passes to its own parent, and from there to the root
+	## coordinator and the owners role. Read only where the run's parent session has ended.
+	[ -z "${3:-}" ] || ! AgentsToolsAuthorityLadderUp "$3" || return 0
+	[ "$agentsAuthorityCallerId" = magic-coordinator ] && { AgentToolsAuthorityLadderSaid=1 ; return 0 ; }
+	case "$agentsAuthorityCallerKind" in person) return 0 ;; esac
+	AgentsToolsAuthorityRoleHeld && return 0
+	return 1
 }
 
 ## The account at the console that is the human-owner (HUMAN_OWNER_CONSOLE_ACCOUNT, scope

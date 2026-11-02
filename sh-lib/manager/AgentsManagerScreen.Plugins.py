@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Plugins.py -- the plugin mechanism: how an app feature of the console puts itself on the screen, and into the registries of the others.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ##
 ## An app feature (Sessions, Pending Questions, Team Members, Manuals, ...) is a plugin: one declaration, made by
@@ -90,38 +90,6 @@ DERIVED = {}
 FOCUS = {}
 ## The number the row that opens a level shows after its label, by the function that gives it (the "counted" of a plugin).
 COUNTED = {}
-## What each level of the list and each view of the left pane asks the tooling for: the operation with its arguments, as the
-## dispatcher takes them, and under "active" what the `a` filter adds. None: no operation yet, the task of that level or view
-## names it. A level below a record is named with `*` in the place of that record's id, and {level} in an argument is that id. A view
-## is named by its level and the kind of the row that is selected there, and {id} in an argument is the id of that row. An entry
-## with "always" is read whatever is shown, since a status line counts by it, and "kind" then names the kind it runs as, beside
-## the one list and the one view that are shown. "rows" names the form of what a list operation prints (parseLevels). A level with
-## "from" has no read of its own: the read named there fills it. Beside the "view" of a row, its facts, stands its "feed", its
-## lines, read as a kind of its own; "log" is what `l` adds to it. "needs" names what a row must carry for the read to be made at
-## all. "acts" is what can be done with a row, read as one more part of it (VIEW_PARTS). "once": it is read when it is asked for, and
-## never again because its period has passed (startDueReads). "seldom": a list that is read whatever is shown is read once, when
-## the screen starts; it is read again, on the period and when a read is asked for, only while it is the list shown (seldomNow).
-## "count": the name of a counter; the operation of the list with `--count` added, which prints only the number of its rows, is read whatever is
-## shown, on the period, as a read of its own, "count:<name>", and the number it printed is kept as that counter (applyResult, state.counters).
-## "peek": a list that is read also while its section is the row the root stands on, since the left window then shows that
-## section from its rows (wantedReads). "also": the reads made beside the list of a level, by their keys, while that level is
-## shown and while the folder that opens it has the focus, as a kind of their own. "recheck": a read that is forced at every readNow (an action ended, a refresh, a followed command ended), for what decides what stands in
-## the list at all, with "always" and "seldom". "demand": it is read only when its command asks
-## for it ("demand" in COMMANDS), never because it was not read yet or its period has passed, and "said" is what the status line
-## says of it then. {parent} in an argument is the id of the level above the level read: the member of a folder of a member.
-## "each": a read that is made for every row of the level it is named by that carries what it "needs", by the id of that row;
-## its key is its name and, after a `|`, that id (readEntry). The list of a level is read also while the row that opens that level
-## is the row selected, a folder that has the focus, as it would be on entering it (focusReads): once the selection has rested on
-## that row (REST_SECONDS), so a selection that runs down a list starts none, and one such read at a time, as the kind "focus",
-## beside the list shown, and once for each time the selection comes to rest there: while it stays, the period reads that list no
-## more, and coming back reads it again only when its period has passed since. "peek" is read with no rest, and on the period.
-## One that is read on "demand" alone is never started by the focus: its command asks for it there too.
-VIEW_PARTS = ("view", "feed", "acts", "fact")
-READS = {"view::section": None}
-## The commands of the engine, declared in Windows.py; COMMANDS is built from them and from every command of the plugins, in the
-## order they stand in, with a command of the Go menu for each root. The levels, besides the roots, that have a number key and a
-## command of the Go menu (the plugins' "go").
-COMMANDS = []
 GO_MORE = []
 ## The registries the engine's own features offer. `alphabetical`: the lists whose rows the user may have by name instead of in the
 ## order the operation gave them, by the key of the command "alphabetical" (orderedRows). `on` and `help` of the Markdown view: the
@@ -428,7 +396,7 @@ def registerPlugin(plugin):
         raise
 
 
-## The parts are all loaded: from here a build asks for the clash of keys, and the first one does (AgentsManagerScreen.py).
+## The parts are all loaded: from here a build asks for the clash of keys, and the first one does (LocalManagerScreen.py).
 def pluginsReady():
     global PLUGINS_READY
     PLUGINS_READY = True

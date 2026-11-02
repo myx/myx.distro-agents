@@ -9,7 +9,8 @@
 ## $1 is the operation and `local` is the operation's own; the functions below are the rule sets,
 ## one for each kind. Kinds built so far: `routine`, the contract of a `*.routine.md` skillset file
 ## (magic-team/contracts/routine.contract.format.md); and `document`, the self-check of any document
-## against itself (F5.7): what it cites, counts, adds up and says twice; and every team-data type, `<store>-item.<type>`
+## against itself (F5.7): what it cites, counts, adds up and says twice; and `epic`, an epic against its contract
+## (magic-team/contracts/epic.contract.format.md, AgentsEpicCheck.awk), whose structural rules refuse; and every team-data type, `<store>-item.<type>`
 ## (`board-item.task`), whose rule set is its contract (AgentsTools.DocValidate.include, F5.3). The rules of `routine`
 ## refuse; the rules of `document` arrive REPORTING, rows of a `report-` rule that refuse nothing; each rule of a
 ## type has its disposition in the one table, per rule and call site.
@@ -47,9 +48,10 @@ AgentsToolsDocValidateKeyLineOf(){ ## file, key, value
 ## from file to file never meet a file twice. Two routines each following the other never run, and neither file shows it; nor does a
 ## routine that follows a cycle it is no part of. A routine given on standard input has no name of its own to come back to, so only the
 ## files it leads on to can close a cycle. A fault further along the chain is that file's own row, and ends the walk here.
-AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-after value
-	local chainFile="$1" chainShown="$2" chainNext="$3" chainTrail="" chainPath chainWhy chainName chainAt
-	chainAt="$( AgentsToolsDocValidateKeyLine "$chainFile" runs-after )"
+## The same chain is the one `hands-over-to:` starts (the key given as the fourth word): the routine whose handback starts the next (AgentsTools.HandbackNext.include).
+AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-after value, the key (default runs-after)
+	local chainFile="$1" chainShown="$2" chainNext="$3" chainKey="${4:-runs-after}" chainTrail="" chainPath chainWhy chainName chainAt
+	chainAt="$( AgentsToolsDocValidateKeyLine "$chainFile" "$chainKey" )"
 	case "$chainShown" in "<stdin>") ;; *) chainTrail="${chainShown##*/}" ;; esac
 	chainWhy=""
 	while [ -n "$chainNext" ] ; do
@@ -57,9 +59,9 @@ AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-afte
 			## Only the first name is this file's to answer for.
 			if [ -z "$chainWhy" ] ; then
 				if [ "$( AgentsToolsSpawnRoutineResolve "$chainNext" 2>&1 > /dev/null | LC_ALL=C grep -c 'more than one' )" != 0 ] ; then
-					AgentsToolsDocValidateRow "$chainShown" "$chainAt" runs-after "runs-after: $chainNext names more than one routine"
+					AgentsToolsDocValidateRow "$chainShown" "$chainAt" "$chainKey" "$chainKey: $chainNext names more than one routine"
 				else
-					AgentsToolsDocValidateRow "$chainShown" "$chainAt" runs-after "runs-after: $chainNext names no routine"
+					AgentsToolsDocValidateRow "$chainShown" "$chainAt" "$chainKey" "$chainKey: $chainNext names no routine"
 				fi
 			fi
 			return 0
@@ -68,12 +70,12 @@ AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-afte
 		chainName="${chainPath##*/}"
 		case " $chainTrail " in
 			*" $chainName "*)
-				AgentsToolsDocValidateRow "$chainShown" "$chainAt" runs-after "runs-after: a cycle: ${chainTrail// / -> } -> $chainName"
+				AgentsToolsDocValidateRow "$chainShown" "$chainAt" "$chainKey" "$chainKey: a cycle: ${chainTrail// / -> } -> $chainName"
 				return 0
 			;;
 		esac
 		chainTrail="$chainTrail${chainTrail:+ }$chainName"
-		chainNext="$( AgentsToolsRoutineKeyOwn "$chainPath" runs-after )"
+		chainNext="$( AgentsToolsRoutineKeyOwn "$chainPath" "$chainKey" )"
 		case "$chainNext" in *[[:space:]]*|*,*) return 0 ;; esac
 	done
 	return 0
@@ -86,6 +88,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	local routineExecRaw routineMaintRaw routineInvRaw routineExecLine routineMaintLine
 	local routineTrack routineTrackLine routineCtx routineCtxLine routineReview routineReviewLine
 	local routineCache routineCacheLine routineAllowsLine routineOpsLine routineLockValue routineLockOne routineLockLine routineScanWhy routineScanOne routineScanAt routineScanCount
+	local routineHandsOver routineHandsOverLine
 	local routineRunsAt routineRunsAtLine routineRunsDays routineRunsTime routineRunsOk routineRunsAfter routineRunsAfterLine routineCachePrefix routineIncName routineIncSection routineIncFile routineIncWord
 	local routineOldAllowsLine routineOldDeniesLine routineAllowsWho routineAllowsVerb routineAllowsRowValue
 	local routineAllowsValue routineAllowsEntry routineAllowsTool routineAllowsNamed="" routineAllowsExecutors routineAllowsInvitees
@@ -119,6 +122,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 					routine-lock-document) routineLockValue="$scanC" ; routineLockLine="$scanD" ;;
 					runs-at) routineRunsAt="$scanC" ; routineRunsAtLine="$scanD" ;;
 					runs-after) routineRunsAfter="$scanC" ; routineRunsAfterLine="$scanD" ;;
+					hands-over-to) routineHandsOver="$scanC" ; routineHandsOverLine="$scanD" ;;
 					includes) routineIncludesLine="$scanD" ;;
 					wait-sources) routineWaitLine="$scanD" ;;
 				esac
@@ -343,6 +347,11 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		''|*[[:space:]]*|*,*) [ -z "$routineRunsAfter" ] || AgentsToolsDocValidateRow "$routineShown" "$routineRunsAfterLine" runs-after "runs-after: $routineRunsAfter is not one routine" ;;
 		*) AgentsToolsDocValidateRunsAfter "$routineFile" "$routineShown" "$routineRunsAfter" ;;
 	esac
+	## `hands-over-to: <routine>`: the one routine whose session starts from this routine's handback, a chain that never comes back (AgentsTools.HandbackNext.include).
+	case "$routineHandsOver" in
+		''|*[[:space:]]*|*,*) [ -z "$routineHandsOver" ] || AgentsToolsDocValidateRow "$routineShown" "$routineHandsOverLine" hands-over-to "hands-over-to: $routineHandsOver is not one routine" ;;
+		*) AgentsToolsDocValidateRunsAfter "$routineFile" "$routineShown" "$routineHandsOver" hands-over-to ;;
+	esac
 	## The sections: # Opening steps, # Steps and # Closure steps, each once, in that order; and the local procedures.
 	for routineHeading in "Opening steps" "Steps" "Closure steps" "Routine's local procedures" ; do
 		case "$routineHeading" in
@@ -455,6 +464,30 @@ AgentsToolsDocValidateSelfCheck(){ ## file, file as shown, the document's path (
 	return 0
 }
 
+## The rule set of the `epic` kind: the epic checked against its contract in one pass of AgentsEpicCheck.awk. A fault row refuses. A moved item whose
+## epic is not beside this one, or has no such section, is said as a `report-` row: that needs a second file, which stdin has none of.
+AgentsToolsDocValidateEpic(){ ## file, file as shown, the document's path (empty for stdin)
+	local epicOut epicKind epicLine epicRule epicText epicDir=""
+	epicOut="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsEpicCheck.awk" "$1" )" || return 1
+	[ -z "${3:-}" ] || epicDir="$( dirname "$3" )"
+	{
+		while IFS=$'\t' read -r epicKind epicLine epicRule epicText ; do
+			case "$epicKind" in
+				ROW) printf '%s\t%s\t%s\n' "$epicLine" "$epicRule" "$epicText" ;;
+				MOVED)
+					[ -n "$epicDir" ] || continue
+					if [ ! -f "$epicDir/$epicRule" ] ; then printf '%s\t%s\t%s\n' "$epicLine" report-epic-moved "the epic $epicRule is not beside this one"
+					elif ! LC_ALL=C grep -q -F "## $epicText " "$epicDir/$epicRule" ; then printf '%s\t%s\t%s\n' "$epicLine" report-epic-moved "the section $epicText is not in $epicRule"
+					fi
+				;;
+			esac
+		done <<< "$epicOut"
+	} | LC_ALL=C sort -t $'\t' -k1,1n -k2,2 -k3,3 -u | while IFS=$'\t' read -r epicLine epicRule epicText ; do
+		AgentsToolsDocValidateRow "$2" "$epicLine" "$epicRule" "$epicText"
+	done
+	return 0
+}
+
 case "$1" in
 
 	--intern-doc-validate)
@@ -483,7 +516,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		case "$validateKind" in
-			routine|document) ;;
+			routine|document|epic) ;;
 			*)
 				AgentsToolsDocValidateContractFile "$validateKind" > /dev/null || {
 					echo "$MDSC_CMD: doc-validate: ⛔ ERROR: no rule set for the kind: $validateKind -- the kinds built: $( AgentsToolsDocValidateKinds | LC_ALL=C tr '\n' ' ' )" >&2
@@ -506,6 +539,7 @@ case "$1" in
 		local validateRows
 		case "$validateKind" in
 			document) validateRows="$( AgentsToolsDocValidateSelfCheck "$validateFile" "$validateShown" "$validateDoc" )" || validateRows="$validateShown:1: validator: the rule set itself failed" ;;
+			epic) validateRows="$( AgentsToolsDocValidateEpic "$validateFile" "$validateShown" "$validateDoc" )" || validateRows="$validateShown:1: validator: the rule set itself failed" ;;
 			*-item.*) validateRows="$( AgentsToolsDocValidateType "$validateFile" "$validateShown" "$validateKind" check )" || validateRows="$validateShown:1: validator: the rule set itself failed" ;;
 			*) validateRows="$( AgentsToolsDocValidateRoutine "$validateFile" "$validateShown" )" || validateRows="$validateShown:1: validator: the rule set itself failed" ;;
 		esac

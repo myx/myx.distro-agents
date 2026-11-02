@@ -248,14 +248,14 @@ rigSysOf(){ ## request file -- the system field as sent
 	LC_ALL=C sed -e 's/.*"system"://' -e 's/,"tools":\[.*//' "$1"
 }
 rigAssert "the system field of the resumed request is the original's, byte for byte"  "$( [ "$( rigSysOf "$rigS4/req.1" )" = "$( rigSysOf "$rigS5/req.1" )" ] && echo same || echo differ )" same
-rigMarkEnd=$(( $( LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"}" } { m = index( $0, "\"role\":\"user\"" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$rigS4/req.1" ) ))
+rigMarkEnd=$(( $( LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"" } { m = index( $0, "\"role\":\"user\"" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$rigS4/req.1" ) ))
 head -c "$rigMarkEnd" "$rigS4/req.1" > "$rigTmp/orig.head" ; head -c "$rigMarkEnd" "$rigS5/req.1" > "$rigTmp/resumed.head"
 rigAssert "the resumed request is the original through the member block's marker, byte for byte (the body's opening, system, tools and member)"  "$( cmp -s "$rigTmp/orig.head" "$rigTmp/resumed.head" && [ "$rigMarkEnd" -gt 150 ] && echo same || echo differ )" same
 rigToolsOf(){ ## request file -- the tools field as sent
 	LC_ALL=C sed -e 's/.*,"tools"://' -e 's/,"tool_choice":.*//' "$1"
 }
 rigAssert "and its tools, which the API caches ahead of the system, are the original's byte for byte"  "$( [ "$( rigToolsOf "$rigS4/req.1" )" = "$( rigToolsOf "$rigS5/req.1" )" ] && echo same || echo differ )" same
-rigAssert "and has the same markers: the moving one, the end of the floor, the end of the member block"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS4/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS5/req.1" | wc -l | tr -d ' ' )" 3:3
+rigAssert "and has the same markers: the moving one, the end of the floor, the end of the member block"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"' "$rigS4/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"' "$rigS5/req.1" | wc -l | tr -d ' ' )" 3:3
 rigAssert "the context keeps no split system: system_shared is 0"  "$( head -1 "$rigSandbox/context.jsonl" | LC_ALL=C awk -v path=system_shared -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" 0
 ## The same with the hour asked of the cache (F10.7): the resumed system carries the same markers, each with its ttl.
 rigSandbox="$rigTmp/sb5" ; mkdir -p "$rigSandbox"
@@ -263,7 +263,7 @@ rigS6="$rigTmp/s5a" ; rigS7="$rigTmp/s5b" ; mkdir -p "$rigS6" "$rigS7"
 rigTextStream "$rigS6/res.1" RIG-ANSWER-ONE ; rigTextStream "$rigS7/res.1" RIG-ANSWER-TWO
 rigRun "$rigS6" "dddd4444-0000-4000-8000-0000000000b1" MDAT_SKILLSET_ROOT="$rigSk" HARNESS_INPUT_CACHE_TIME=1h -- --agent rig-a RIG-TASK-MARKER
 rigRun "$rigS7" "dddd4444-0000-4000-8000-0000000000b2" MDAT_SKILLSET_ROOT="$rigSk" HARNESS_INPUT_CACHE_TIME=1h MDAT_HARNESS_RESUME_CONTEXT="$rigSandbox/context.jsonl" MDAT_HARNESS_RESUME_MARKER="$rigTmp/resume5.mark" -- --agent rig-a RIG-CORRECTIONS
-rigAssert "asked the hour, the original and the resumed request have three markers each, every one with the ttl, none plain"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS6/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS7/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS6/req.1" "$rigS7/req.1" | wc -l | tr -d ' ' )" 3:3:0
+rigAssert "the same lifetime asked, the original and the resumed request each carry the floor's two hourly markers and one plain"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS6/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS7/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS6/req.1" "$rigS7/req.1" | wc -l | tr -d ' ' )" 3:3:0
 rigAssert "and the resumed system field is the original's, byte for byte"                    "$( [ "$( rigSysOf "$rigS6/req.1" )" = "$( rigSysOf "$rigS7/req.1" )" ] && echo same || echo differ )" same
 rigSandbox="$rigSandboxWas"
 

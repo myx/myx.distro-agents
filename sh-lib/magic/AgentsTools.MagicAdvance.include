@@ -36,7 +36,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -45,7 +45,7 @@ case "$1" in
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
@@ -84,7 +84,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -93,7 +93,7 @@ case "$1" in
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--header:*|--upsert-from-stdin|--upsert-body:*|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
@@ -149,7 +149,7 @@ case "$1" in
 		fi
 
 		local itemsRemaining="$itemsArg"
-		local spec itemName rest outcome receipt itemCount=0 failCount=0
+		local spec itemName rest outcome receipt itemCount=0 failCount=0 priorOutcome priorReceipt
 		while [ -n "$itemsRemaining" ] ; do
 			case "$itemsRemaining" in
 				*,*) spec="${itemsRemaining%%,*}" ; itemsRemaining="${itemsRemaining#*,}" ;;
@@ -180,6 +180,15 @@ case "$1" in
 			if [ -z "$receipt" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: execution-receipt required" >&2
 				set +e ; return 1
+			fi
+			## One writer for the two fields: what the first round decided is never replaced by a different
+			## value from a later one. The item this op writes is the running one, so its headers are read there.
+			priorOutcome="$( LC_ALL=C awk '/^outcome: /{ print substr($0, 10) ; exit }' "$MDAT_DATA_ROOT/board/running/$itemName" 2> /dev/null )"
+			priorReceipt="$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$MDAT_DATA_ROOT/board/running/$itemName" 2> /dev/null )"
+			if { [ -n "$priorOutcome" ] && [ "$priorOutcome" != "$outcome" ] ; } || { [ -n "$priorReceipt" ] && [ "$priorReceipt" != "$receipt" ] ; } ; then
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: the item already says outcome '$priorOutcome' and execution-receipt '$priorReceipt', so this different value is refused" >&2
+				failCount=$(( failCount + 1 ))
+				continue
 			fi
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			if ! DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \

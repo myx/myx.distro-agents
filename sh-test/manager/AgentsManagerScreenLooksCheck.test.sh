@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the small looks of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather than read. The
+## Behavioural check on the small looks of the manager screen (sh-lib/manager/LocalManagerScreen.py), run rather than read. The
 ## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), and
 ## where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh), which
 ## prints rows in the forms the operations print, at once, after a wait, or fails, as the case says.
@@ -17,7 +17,7 @@
 ## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity, put at with `at @activity active-sessions`; its first session stands in the third line.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -199,7 +199,7 @@ cells dView 1 0 1
 cells dList 1 70 71
 RIGSCRIPT
 rigColours="$( "$rigPython" -I -B -c 'import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 on, off = module.LOOKS[module.FRAME_ON], module.LOOKS[module.FRAME]

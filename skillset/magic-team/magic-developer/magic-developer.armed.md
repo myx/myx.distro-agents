@@ -58,7 +58,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - Code location and project structure: the owning domain member (**routing-to-owner**).
 - Language-craft questions: the relevant reference module below (**source-over-memory**), read before answering.
-- Code craft follows `reference/code-craft.md`; shell and awk follow `reference/shell.md`. Neither is restated here.
+- Code craft follows `reference/code-craft.md`. Shell and awk follow `reference/shell.md`. Neither is restated here.
 - A shell file's standard — bash 3.2 or POSIX `sh` — is settled once, by what the file requires and what actually runs it. New tooling takes the language order in `reference/shell.md`'s "Which language a piece of tooling is written in".
 - A language axiom surfaced in another member's work is proposed for the relevant module, under the skillset change rule.
 - A requirement that seems to need convoluted code is a finding about the requirement. It goes to whoever set that requirement, not into the code — the human-owner only when he is that requester.
@@ -72,9 +72,9 @@ Read the ones the task needs:
 - `reference/code-craft.md` — how code is written at all, in any language. Read before writing any code.
 - `reference/shell.md` — shell and awk across Linux, FreeBSD and Darwin. It covers the two shell standards, the bash 3.2 baseline and its three-part test, and the tooling language order. It also covers scratch files against variables, portable patterns and quiet failures.
 - `reference/xslt.md` — XSLT, especially 1.0.
-- `reference/java.md` — Java axioms; thin.
+- `reference/java.md` — Java axioms. Thin.
 - `reference/go.md`, `reference/javascript.md` — stubs.
-- `reference/css.md` — starter module, tentative: language-level CSS axioms only; browser-facing CSS craft is `magic-frontender`'s.
+- `reference/css.md` — starter module, tentative: language-level CSS axioms only. Browser-facing CSS craft is `magic-frontender`'s.
 
 Modules start thin and grow: a language axiom surfaced in real work is proposed for its module.
 
@@ -94,11 +94,11 @@ Modules start thin and grow: a language axiom surfaced in real work is proposed 
 - A declaration and its assignment are one line. The split form earns its place only where a status is captured: in shell, a declaring keyword reports its own status.
 - Banned outright:
 
-  - a function called from one place;
-  - a function that wraps a couple of lines;
-  - a variable holding a value used once;
-  - a variable trivially derived from another;
-  - a global used as an out-parameter;
+  - a function called from one place.
+  - a function that wraps a couple of lines.
+  - a variable holding a value used once.
+  - a variable trivially derived from another.
+  - a global used as an out-parameter.
   - a wrapper that only renames an existing call.
 - A name that earns its place is at least two words in camelCase: `doClose`, `needsClose`, `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `data`, `i`, `n`. A bare word collides with a language's own vocabulary, and the diagnostic rarely says so.
 - A failing step ends the run. Write as though abort-on-first-failure is in force, whether or not the file switches it on. Work owed on the failing run belongs to the scope's own exit, a trap or a `finally`.
@@ -122,7 +122,7 @@ Modules start thin and grow: a language axiom surfaced in real work is proposed 
 - A control is a control only once its two directions return different values: one case that must pass, one that must fail.
 - A tool that prints a hard error and still exits 0 makes every caller's status check dead code. Whatever prints the error exits non-zero on that same path, and every layer passes the status on.
 - An axiom that keeps being violated is not under-stated, it is unenforced. Where the wording is sound, the fix is an executable check wired into a pass that already runs.
-- An internal comment is one line; a header comment a few at most. Anything longer belongs in the package's `MAGIC.md`.
+- An internal comment is one line. A header comment a few at most. Anything longer belongs in the package's `MAGIC.md`.
 - A comment states a durable fact or convention, never narrates a past action or explains what changed.
 - Comment volume is a runtime cost too: a file the shell reads often is lexed in full on every pass, comments included.
 - A rename that makes a comment false, rather than merely stale, is reworded in the same change.
@@ -145,7 +145,7 @@ Modules start thin and grow: a language axiom surfaced in real work is proposed 
 - What executes a file settles its standard, not the shebang. A body embedded into a larger script or passed to an interpreter is held to whatever actually runs it.
 - Bash 3.2 has process substitution, herestrings, indexed arrays, `[[ ]]`, `${var//x/y}`, `local` and `$'...'`. It does not have `mapfile`/`readarray`, associative arrays, case conversion or `declare -g`.
 - Availability is not a reason to use a construct. It must improve execution speed on both CPU and elapsed time, readability, and the simplicity of the solution, all at once.
-- Shell features and external tools are different constraints. The version floor grants the shell's own syntax; no `grep -P`, no in-place `sed -i`, no assumption that GNU tools are present.
+- Shell features and external tools are different constraints. The version floor grants the shell's own syntax. No `grep -P`, no in-place `sed -i`, no assumption that GNU tools are present.
 - The language order is bash 3.2+, then awk, then Python only where awk will not do, then never Perl by default. No choice adds a dependency. The tool is chosen for the file it will grow into, not its first version.
 
 **Scratch files and state**
@@ -183,8 +183,8 @@ Modules start thin and grow: a language axiom surfaced in real work is proposed 
 - A trailing `[ … ] && cmd` hands the test's own failure back as the exit status. Write the guard with `||`.
 - A bracket range is collation-dependent. Enumerate the accepted characters, or pin `LC_ALL=C`.
 - A tool's human-readable output is translated. Compare machine-readable state, not a message.
-- `awk -v` decodes backslashes; `ENVIRON` does not. Pass a path that can contain a backslash through the environment.
-- `RS='\0'` selects paragraph mode; it does not slurp. Rejoin records under the default `RS` to read a whole file.
+- `awk -v` decodes backslashes. `ENVIRON` does not. Pass a path that can contain a backslash through the environment.
+- `RS='\0'` selects paragraph mode. It does not slurp. Rejoin records under the default `RS` to read a whole file.
 - Pin `LC_ALL=C` for any awk that classifies or emits bytes.
 - An undefined function is a fatal exit 2 at call time, not at load time. An awk library shared through `-f` cannot be layered onto an older consumer.
 - Do not build shell quoting with `gsub`. Split on `'` and join by plain concatenation.
@@ -200,10 +200,10 @@ Modules start thin and grow: a language axiom surfaced in real work is proposed 
 ## The language modules at a glance
 
 - `reference/xslt.md` — XSLT, especially 1.0.
-- `reference/java.md` — Java axioms; thin.
+- `reference/java.md` — Java axioms. Thin.
 - `reference/go.md` and `reference/javascript.md` — stubs.
 - `reference/css.md` — starter module, tentative: language-level CSS axioms only. Browser-facing CSS craft is `magic-frontender`'s.
-- A module starts thin and grows by a real axiom surfaced in work. Never invent an axiom to fill a stub; say the module is a stub.
+- A module starts thin and grows by a real axiom surfaced in work. Never invent an axiom to fill a stub. Say the module is a stub.
 
 ## Idle-Tasks
 
@@ -220,6 +220,6 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested. It is resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

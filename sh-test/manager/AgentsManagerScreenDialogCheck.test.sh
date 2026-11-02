@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the dialogs of the manager screen (sh-lib/manager/AgentsManagerScreen.py) and on its status line, run
+## Behavioural check on the dialogs of the manager screen (sh-lib/manager/LocalManagerScreen.py) and on its status line, run
 ## rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), which opens a dialog of the rig's own with a control of every kind.
 ## Held: a dialog is drawn from its declaration, framed, with its title, over the windows, and in the Turbo Vision
@@ -37,7 +37,7 @@
 ## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -456,7 +456,7 @@ RIGSCRIPT
 rigGround(){ ## style, letter -- the look of that letter in that style as <text>/<ground> of the eight and, where they have their own shades, of the palette; then the ground of the dialog's text the same way
 	"$rigPython" -I -B - "$rigScreen" "$1" "$2" <<'RIGPY' 2>&1
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.setStyle(sys.argv[2])
@@ -525,7 +525,7 @@ RIGSCRIPT
 rigLineOnTab(){ ## style, letter of a line, letter of a title tab -- "same" where the text of the line is the ground of the tab, on a terminal of eight colours and on one of 256, else the colours of both
 	"$rigPython" -I -B - "$rigScreen" "$1" "$2" "$3" <<'RIGPY' 2>&1
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.setStyle(sys.argv[2])
@@ -562,7 +562,7 @@ chmod +x "$rigTmp/tools"
 ## whose prompt, of several lines, has the keys first; Tab to its name, of one line; Tab to OK; Shift-Tab back to the name
 rigPrompt="$( "$rigPython" -I -B - "$rigScreen" <<'RIGPY'
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(screen)
 print(list(screen.DIALOGS).index("prompt"))

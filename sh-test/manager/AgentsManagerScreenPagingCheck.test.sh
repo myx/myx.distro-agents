@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on basic `less` paging and on the mouse setting of the manager screen (F11.0 of the refactorings epic), run rather
-## than read. The screen's own code (sh-lib/manager/AgentsManagerScreen.py) runs through the stand-in terminal of the driver
+## than read. The screen's own code (sh-lib/manager/LocalManagerScreen.py) runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls the stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
 ## Held:
@@ -20,7 +20,7 @@
 ## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity, and Team Members is put at with `at @team`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -50,7 +50,7 @@ rigAssert(){ ## what is asserted, got, want
 ## What the screen module itself says of its keys and of the mouse: `<name>=<value>` a line.
 cat > "$rigTmp/probe.py" <<'RIGPROBE'
 import curses, importlib.util, os, sys, types
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec) ; spec.loader.exec_module(screen)
 
 

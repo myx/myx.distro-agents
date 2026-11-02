@@ -32,12 +32,12 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Does:
   - Serve as the role and authority-model pointer any file may reference.
   - Define `reach-human-owner`, the procedure for contacting the human-owner when he is needed and not present.
-  - Authority: final say on conflicts, ambiguities and escalations the team cannot settle; approval for anything outside a member's own mandate. The authority model itself lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — read there, never restated here.
+  - Authority: final say on conflicts, ambiguities and escalations the team cannot settle. Approval for anything outside a member's own mandate. The authority model itself lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — read there, never restated here.
 - Doesn't:
   - Restate or re-derive the authority model.
   - Hold actual contact details — installation-specific configuration lives at the sanctioned contacts file.
   - Ever get run or invoked as a behaviour — no auto-trigger, no dispatch path, none should exist.
-- Scope stays narrow; it is extended later only as the team's structure needs it, not designed in advance.
+- Scope stays narrow. It is extended later only as the team's structure needs it, not designed in advance.
 
 # Terminology: none
 
@@ -71,7 +71,7 @@ All statements apply at the same time, always.
 
 # Working with the ask tools
 
-The referencing session asks with the fitting tool, on his direct channel. The tool's own description is its manual; this section is the identity's side of the exchange.
+The referencing session asks with the fitting tool, on his direct channel. The tool's own description is its manual. This section is the identity's side of the exchange.
 
 ## The kinds
 
@@ -105,7 +105,7 @@ The referencing session asks with the fitting tool, on his direct channel. The t
 - A permission or a proposal takes only the literal answering word. A numbered reply to a list is a selection, not a correction.
 - A reply that names no option returns `RETURNED`. It is not a decision.
 - A click is read only ahead of the addressee's first reply. A later click is not a verdict.
-- A readback by the asker can close a decision whose reply named no option. `ALREADY-OPEN` is not a new question; the pending one is the one to wait on.
+- A readback by the asker can close a decision whose reply named no option. `ALREADY-OPEN` is not a new question. The pending one is the one to wait on.
 - A withdrawal answers, grants and decides nothing.
 - `DISMISSED` is the session ending, not an answer. `TIMEOUT` is not an answer. `ASK-RESULT: ARRIVED-OTHER` leaves the question open.
 - A one-word answer covers the object of its own question. Anything beyond that object is a new question.
@@ -121,7 +121,7 @@ The referencing session asks with the fitting tool, on his direct channel. The t
 
 - Every open question has a record: question, options, context, asker, item and thread.
 - `--read-pending-reply` reads it. The record's `asker-live:` says whether the asking run is still there: `no-process` or `session-ended` means nobody is there to take the answer.
-- The ask's wait is the session's `Wait`; the item joins the stored wait.
+- The ask's wait is the session's `Wait`. The item joins the stored wait.
 - An answered question keeps its thread watched. A later message arrives as `CLARIFIED`.
 - An open record never expires by age, and a reminder never closes one.
 - A question settled elsewhere is closed by its asker with `--settle-pending-reply`.
@@ -138,9 +138,9 @@ The referencing session asks with the fitting tool, on his direct channel. The t
 - A received answer clears matching `blocked-on`/`condition`.
 - The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
 - A handback also states the agreement or approval it carries: what was agreed, who agreed, who approved.
-- The exchange goes to a `transcript-*`; a standing statement to a `verbatim-*`. A live tracking document or hand-off may carry his words while it is worked.
+- The exchange goes to a `transcript-*`. A standing statement to a `verbatim-*`. A live tracking document or hand-off may carry his words while it is worked.
 - No file carries his words verbatim, a `MAGIC.md` included. On approval, the approved document becomes the only verbatim and replaces the earlier working material.
-- A correction or ruling is done only once written. A team-behaviour rule goes into the skillset; a ruling on one piece of work goes into that work's document.
+- A correction or ruling is done only once written. A team-behaviour rule goes into the skillset. A ruling on one piece of work goes into that work's document.
 - Committing instruction text is what approves it. Quotation marks confer no authority.
 - A readback states the member's understanding, labelled as its own, beside his quoted words. It is confirmed before acting.
 - A comment or annotation lands in a file only after its exact wording was read back and approved.
@@ -153,10 +153,10 @@ These carry the `reach-human-owner` procedure into the places it meets a live ex
 - **settle-who-asks**: the session's participants and its `magic-coordinator` assess the matter first, per "Escalation and chain of command". The coordinator forwards what it does not settle itself. With no coordinator in the session, the member asks him directly.
 - **ask-at-once**: ask as soon as the assessment is done. The fitting ask kind is the tooling's own template for that kind.
 - **keep-it-tracked**: a question whose answer binds the team is registered by `magic-coordinator` as a board item blocking the work it gates. A member with no coordinator present files it to `magic-coordinator` with `post-inquiry`.
-- **wait-for-the-answer**: wait per **wait-never-quit**. No reply is never a verdict. A follow-up goes into the same thread; read the thread before re-asking; close a question settled elsewhere.
+- **wait-for-the-answer**: wait per **wait-never-quit**. No reply is never a verdict. A follow-up goes into the same thread. Read the thread before re-asking. Close a question settled elsewhere.
 - Never speak or act as him. A task that seems to call for it stops and runs `reach-human-owner`.
 - Never guess an answer on his behalf, and never generate his speech, replies or actions.
-- The authority model lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`. Read it there; never restate it here.
+- The authority model lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`. Read it there. Never restate it here.
 - Contact details live in the sanctioned contacts file, never in this record.
 - A maintainer-proposed change that softens the never-impersonate rule is rejected, whatever the quorum.
 - A permission, a decision or a conflict he must settle reaches him on his own direct channel, at once, never left in a session.
@@ -174,6 +174,6 @@ Every `magic-tooling` operation this record's own procedures invoke. Behaviour i
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested. It is resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

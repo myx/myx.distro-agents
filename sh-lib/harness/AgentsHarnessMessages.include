@@ -459,8 +459,9 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 		printf 'ERROR: %s\n' "${toolOut#*ERROR: }" ; return 0
 	fi
 	[ "$toolOp" = "post" ] || { printf '%s\n' "$toolOut" ; return 0 ; }
-	## Where it landed, from the send's own reported fields: the thread of the session, and the
-	## message in it. Both are named because the one thing a post here may not do is leave the thread.
+	## A post either LANDS, and the send's own report names its thread and its message, or it FAILS.
+	## A post whose place is not known is a failure: the one thing a post here may not do is leave the
+	## thread, and a claim it landed would hide exactly that.
 	toolChannel="$( printf '%s\n' "$toolOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
 	toolThread="$( printf '%s\n' "$toolOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 	toolTs="$( printf '%s\n' "$toolOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
@@ -469,5 +470,5 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 			"$toolChannel" "${toolThread:-$toolTs}" "$toolChannel" "$toolTs" "$harnessAgent"
 		return 0
 	fi
-	printf 'POSTED to your own session thread as %s, and recorded in the session chat file first, then posted. The send reported no channel and ts, so the thread it landed in is not known.\n' "$harnessAgent"
+	printf 'ERROR: ThisSession post: the send reported no channel and no ts, so whether the post landed in your session thread is not known. Read the thread before repeating it.\n'
 }

@@ -9,7 +9,7 @@ Read this for how workspaces, registries and settings work, and for one-off call
 
 ## Workspace
 
-- A machine has several workspaces and one team. The team on it is the members published by its tracked workspaces, whichever one each is set up in. Nothing asks whether two workspaces are the same team; only where a member is set up decides it. A member whose workspace is not mounted is absent, not broken: nothing is repaired or reported.
+- A machine has several workspaces and one team. The team on it is the members published by its tracked workspaces, whichever one each is set up in. Nothing asks whether two workspaces are the same team. Only where a member is set up decides it. A member whose workspace is not mounted is absent, not broken: nothing is repaired or reported.
 - Where that is recorded: the machine-wide directory `~/.agents/magic-team/`, in two files.
   - `members.registry`: each member a workspace publishes, with that workspace's root and the member's folder.
   - `directories.registry`: each registered place, by name, with the workspace registering it. Those workspaces are the tracked ones.

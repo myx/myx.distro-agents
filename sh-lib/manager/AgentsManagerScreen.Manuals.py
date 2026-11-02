@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Manuals.py -- the root Manuals (Help): its folders, the manuals of the projects, the help entries and chapters, and the help of a key.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -194,3 +194,11 @@ registerPlugin({
         "markdown": {"help": ("manuals/commands:help-entry", "manuals/user:help-entry", "manuals/maintainer:help-entry")},
     },
 })
+
+
+## The levels of the `manuals` read: registered with the list, so the list asks the form rather than naming this parser.
+def manualsLevels(readKey, level, text):
+    return {level: parseManualRows(text)}
+
+
+ROW_FORMS["manuals"] = {"parse": manualsLevels}

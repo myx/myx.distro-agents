@@ -39,9 +39,9 @@ Three unrelated conventions share the directory name `builders`. Anything reason
 
 ## The full stage vocabulary — what is callable, and what was only ever planned
 
-The keeper owns each stage's source-level semantics; recorded here is the operator-facing half — which stage names are callable and which are not. The designed stage list is longer than the pipeline that exists. It survives only as a design sketch in `myx.distro-source/readme.txt`, between the `----------------` markers, and most of its entries have no code behind them. Mistaking that sketch for an interface means invoking stages that do not exist, so every name below carries a status established by searching the tree.
+The keeper owns each stage's source-level semantics. Recorded here is the operator-facing half — which stage names are callable and which are not. The designed stage list is longer than the pipeline that exists. It survives only as a design sketch in `myx.distro-source/readme.txt`, between the `----------------` markers, and most of its entries have no code behind them. Mistaking that sketch for an interface means invoking stages that do not exist, so every name below carries a status established by searching the tree.
 
-**Six stages are callable.** They are exactly the set `AllBuilders.fn.sh`'s stage filter accepts (`myx.distro-system/sh-scripts/AllBuilders.fn.sh`) — the same six `myx.distro-source/sh-lib/help/HelpSelectStage.include` documents and `myx.distro-source/README.md` tabulates. The stage set is what the filter enumerates; the builders inside a stage are open-ended. Any project, in any workspace, may declare its own `builders/<stage>/<NNNN>-*.sh`, and it is discovered and run. The directories currently in this tree are what this tree happens to carry, not the definition of anything.
+**Six stages are callable.** They are exactly the set `AllBuilders.fn.sh`'s stage filter accepts (`myx.distro-system/sh-scripts/AllBuilders.fn.sh`) — the same six `myx.distro-source/sh-lib/help/HelpSelectStage.include` documents and `myx.distro-source/README.md` tabulates. The stage set is what the filter enumerates. The builders inside a stage are open-ended. Any project, in any workspace, may declare its own `builders/<stage>/<NNNN>-*.sh`, and it is discovered and run. The directories currently in this tree are what this tree happens to carry, not the definition of anything.
 
 Counts below are **builders on disk**, not mentions of the name. A mention count runs an order of magnitude higher, and says nothing about whether a stage does anything. `source-publish` is named in 7 files and has no builders at all.
 
@@ -54,13 +54,13 @@ Counts below are **builders on disk**, not mentions of the name. A mention count
 - `image-process` — builders `4???-*`. 2 builders, **both echo-only markers** — `4011-deploy-init.sh` and `4911-deploy-apply.sh`, a started/finished pair that prints and does nothing else. No runner.
 - `image-install` — builders `5???-*`. 2 builders, **both echo-only markers** — `5011-deploy-init.sh`, `5911-deploy-apply.sh`. No runner.
 
-**A stage is a runner, not a filter token plus a directory.** The runners are `myx.distro-source/sh-scripts/Build*.fn.sh`, and all three share one four-part shape. They ingest the previous tier, export the env-path contract, run that one stage's builders in sorted order, and publish the index. `BuildDistroFromSource.fn.sh` shows it whole — `DistroImagePrepare --ingest-distro-image-from-output`, then `export` of `MDSC_SOURCE`/`MDSC_CACHED`/`MDSC_OUTPUT`/`OUTPUT_PATH`/`DISTRO_PATH`/`EXPORT_PATH`, then a loop over `Distro AllBuilders --executables image-prepare`, then `DistroImagePrepare --ingest-distro-index-from-processed`. Those variables are rebound per stage, and are the contract builders read. `image-prepare/3000-env-from-output.sh` hard-asserts each one against its expected path. It `return 1`s the whole stage on a mismatch, an unset `EXPORT_PATH` included. Three of the six stages have a runner; three do not, which is what makes a stage selectable but inert rather than merely empty.
+**A stage is a runner, not a filter token plus a directory.** The runners are `myx.distro-source/sh-scripts/Build*.fn.sh`, and all three share one four-part shape. They ingest the previous tier, export the env-path contract, run that one stage's builders in sorted order, and publish the index. `BuildDistroFromSource.fn.sh` shows it whole — `DistroImagePrepare --ingest-distro-image-from-output`, then `export` of `MDSC_SOURCE`/`MDSC_CACHED`/`MDSC_OUTPUT`/`OUTPUT_PATH`/`DISTRO_PATH`/`EXPORT_PATH`, then a loop over `Distro AllBuilders --executables image-prepare`, then `DistroImagePrepare --ingest-distro-index-from-processed`. Those variables are rebound per stage, and are the contract builders read. `image-prepare/3000-env-from-output.sh` hard-asserts each one against its expected path. It `return 1`s the whole stage on a mismatch, an unset `EXPORT_PATH` included. Three of the six stages have a runner. Three do not, which is what makes a stage selectable but inert rather than merely empty.
 
 **What "publish" currently means, concretely.** `image-prepare/3899-distro-ready.sh`, that stage's last builder, logs `distro-ready: publishing distro and export.` and `rsync -ai --delete`s `.local/output-cache/distro/` to `$MMDAPP/distro` and `.local/output-cache/export/` to `$MMDAPP/export`, the two in parallel. Both targets are local paths in the same workspace. Nothing in the pipeline carries either tree off the machine.
 
 **Nine names are planned only — never call these.** Zero files mention any of them as a stage: `image-publish`, `image-receive`, `image-upgrade`, `deploy-prepare`, `deploy-settings`, `deploy-reinstall`, `deploy-actions`, `execute-remote`, `monitor-checks`. (`deploy-settings`'s only textual hits are local, unpublished sketch notes naming an unrelated mdci hook script. A `DeploySettings.fn.sh` tool does exist, and a tool is not a pipeline stage.)
 
-**The Java tree holds none of the model.** `myx.distro-system/java/ru/myx/distro/` speaks an older, different vocabulary — `--build-distro-from-sources`, `--import-from-cached`, `--clean-cached`, `--make-packages-from-folders`. `builders/AbstractBuilder.java` declares `enum BuildStage { DONE_CLEAN_TEMP, // }`: one value and an empty comment. The intent to enumerate stages is visible; the content never existed. Do not go looking there for it.
+**The Java tree holds none of the model.** `myx.distro-system/java/ru/myx/distro/` speaks an older, different vocabulary — `--build-distro-from-sources`, `--import-from-cached`, `--clean-cached`, `--make-packages-from-folders`. `builders/AbstractBuilder.java` declares `enum BuildStage { DONE_CLEAN_TEMP, // }`: one value and an empty comment. The intent to enumerate stages is visible. The content never existed. Do not go looking there for it.
 
 ### `stage:submode` is the mechanism already in production
 
@@ -81,14 +81,14 @@ Two sketch entries are submodes rather than stages:
 
 Three artifact tiers, and the stage owning each transition:
 
-- `source` — the checked-out project sources; `source-prepare` collects and caches them, producing no further tier.
+- `source` — the checked-out project sources. `source-prepare` collects and caches them, producing no further tier.
 - `source` → `cached` — `source-process`.
 - `source` + `cached` → `distro` — `image-prepare`.
-- `distro` — the deploy-ready output. `image-process` shares repositories from it; `image-install` runs the deploy tasks off it.
+- `distro` — the deploy-ready output. `image-process` shares repositories from it. `image-install` runs the deploy tasks off it.
 
 `image-receive` is the planned counterpart to that entire left-hand side: pull a `distro` without holding any source. It has no implementation, so building from source is the only way to obtain a `distro`.
 
-The implemented pipeline names one tier more than the sketch does. `README.md`'s stage table reads `source` → `cached` → `output` → `distro`. `source-prepare` writes `cached`, `source-process` writes `output`, and `image-prepare` writes `distro`. The two vocabularies are not interchangeable; the README is what the code does.
+The implemented pipeline names one tier more than the sketch does. `README.md`'s stage table reads `source` → `cached` → `output` → `distro`. `source-prepare` writes `cached`, `source-process` writes `output`, and `image-prepare` writes `distro`. The two vocabularies are not interchangeable. The README is what the code does.
 
 ### `export/` and `distro/` are two different trees
 
@@ -105,11 +105,11 @@ What each tree is:
 - `distro/` is a single location holding prepared files. It is not external repos or places.
 - `export/` holds prepared export locations, each of which should have its own actual publish command. Git is one such command, not the only one.
 
-**This is why publish and prepare share the `3???` range.** A deploy-only machine pulls those targets into its own `export/` during `image-prepare`; a source machine publishes out. One position in the lifecycle, opposite directions depending on the machine's role.
+**This is why publish and prepare share the `3???` range.** A deploy-only machine pulls those targets into its own `export/` during `image-prepare`. A source machine publishes out. One position in the lifecycle, opposite directions depending on the machine's role.
 
 **The per-target publish commands are not implemented.** Nothing carries a prepared export target to the location its prefix names, and no mechanism selects a publish command by target type. How that mechanism should work is an open question, held as a blocked board item pending a decision. On a machine carrying both source and deploy, the `export/` folder source produces is already exactly what a pure deploy machine would pull. So deploy uses it directly. That is why publish has never been finished: the combined case never needs it.
 
-**A published output tree under git is still build output.** Where a publish target is a git checkout, its history, remote and README make it read as hand-maintained; it is not. Every file in it is emitted by `image-prepare`. A file restored there by hand is overwritten or re-deleted by the next build touching that target. A missing or wrong file in a published tree is fixed in the source project. That is its own `project.inf` `deploy-export:` declaration, or the builder that emits it. It is never fixed in the published tree.
+**A published output tree under git is still build output.** Where a publish target is a git checkout, its history, remote and README make it read as hand-maintained. It is not. Every file in it is emitted by `image-prepare`. A file restored there by hand is overwritten or re-deleted by the next build touching that target. A missing or wrong file in a published tree is fixed in the source project. That is its own `project.inf` `deploy-export:` declaration, or the builder that emits it. It is never fixed in the published tree.
 
 **Its history is a read source, though.** A published tree records what was exported, not what was deployed. It can hold content the source repo never tracked: an artifact assembled from the cached tier, or an export whose declaration has since been removed. Recovering such content from that history is legitimate. The recovered content goes back into the source project, and the published tree is left to the next build.
 
@@ -123,7 +123,7 @@ The sketch marks three stages with a `?` against a submode alternative. All thre
 
 Neither `source-process:publish` nor `image-process:publish` exists — their only occurrences anywhere are the `?` annotation lines in the sketch itself. Neither does `image-publish` or `execute-remote`. Nothing in the tree answers any of the three questions.
 
-`source-publish` is the one of the three that has been given a stage name. It is in the `AllBuilders` filter, in `HelpSelectStage.include`, and in `README.md`'s stage table. It also has no builders and no runner, per the stage list above. Both halves are present fact; neither is a decision, and the question stands open exactly as the other two do.
+`source-publish` is the one of the three that has been given a stage name. It is in the `AllBuilders` filter, in `HelpSelectStage.include`, and in `README.md`'s stage table. It also has no builders and no runner, per the stage list above. Both halves are present fact. Neither is a decision, and the question stands open exactly as the other two do.
 
 Mention counts above are files under `ws-myx-devops/source/`, excluding `.git`, compiled `bin/`, and `readme.txt` itself. Builder counts are the files in the builder directories themselves.
 
@@ -132,7 +132,7 @@ Mention counts above are files under `ws-myx-devops/source/`, excluding `.git`, 
 Before invoking any `sh-scripts/*.fn.sh` command you haven't run this session, get its documented interface first:
   - `Help` inside the relevant console, for the roster.
   - `<Verb> <Name> --help`, for one command's short syntax.
-  - its `Help.<Name>.help.md` full manual, in the same `sh-lib/help/` pair convention as myx.common. Check the owning package's `README.md` too when one exists. Only fall back to reading the `.fn.sh` source itself when the help/README genuinely doesn't answer the question. The other case is a task that *is* modifying the tool, which is the owning `keeper-*`'s territory anyway. Treat source-reading as the fallback, not the default first move. `ShellTo.fn.sh` takes any `--ssh-*` options first, then a positional `<project-keyword>`, not `--select-projects` (that is `ExecuteParallel`'s shape). After the keyword it takes one of `--execute-command <command>`, `--execute-script <path under source/>` or `--execute-stdin`; with none of them, the words after the keyword run as the remote command. Guessing its shape from a source skim instead of checking `--help` risks a live SSH-target lookup error against a real host.
+  - its `Help.<Name>.help.md` full manual, in the same `sh-lib/help/` pair convention as myx.common. Check the owning package's `README.md` too when one exists. Only fall back to reading the `.fn.sh` source itself when the help/README genuinely doesn't answer the question. The other case is a task that *is* modifying the tool, which is the owning `keeper-*`'s territory anyway. Treat source-reading as the fallback, not the default first move. `ShellTo.fn.sh` takes any `--ssh-*` options first, then a positional `<project-keyword>`, not `--select-projects` (that is `ExecuteParallel`'s shape). After the keyword it takes one of `--execute-command <command>`, `--execute-script <path under source/>` or `--execute-stdin`. With none of them, the words after the keyword run as the remote command. Guessing its shape from a source skim instead of checking `--help` risks a live SSH-target lookup error against a real host.
 
 ## The console entry points — one tool family, every non-Eclipse workspace
 
@@ -162,9 +162,9 @@ Which subset exists tracks the workspace's purpose. A personal/refactor-only wor
 
 ### Console `PATH` is hand-authored — the templating layer stops one layer short of it
 
-**`console-*-bashrc.rc` files are hand-authored, not generated.** No `console-<name>-bashrc.rc` carries a "generated by"/"DO NOT EDIT" marker anywhere in it; each instead carries an editor-hint header, `# ^^^ for syntax checking in the editor only`. The family `PATH` lists inside them are asymmetric and hand-varied per file, not the output of one shared template. Each console's rc lists its own family first, then differs in what it appends after.
+**`console-*-bashrc.rc` files are hand-authored, not generated.** No `console-<name>-bashrc.rc` carries a "generated by"/"DO NOT EDIT" marker anywhere in it. Each instead carries an editor-hint header, `# ^^^ for syntax checking in the editor only`. The family `PATH` lists inside them are asymmetric and hand-varied per file, not the output of one shared template. Each console's rc lists its own family first, then differs in what it appends after.
 
-**The real templating layer stops one layer short of that content.** `--make-console-command`/`--make-console-script` (`SourceTools.Make.include` and its per-family siblings) regenerate only the thin launcher wrapper — `DistroSourceConsole.sh` etc., a `cat <<-'DISTROCONSOLE'` heredoc whose entire body is `bash --rcfile <the-hand-authored-rc> -i`. Nothing in that op touches the rc file's own `PATH`-building content; the wrapper is regenerated, the rc it invokes stays hand-authored.
+**The real templating layer stops one layer short of that content.** `--make-console-command`/`--make-console-script` (`SourceTools.Make.include` and its per-family siblings) regenerate only the thin launcher wrapper — `DistroSourceConsole.sh` etc., a `cat <<-'DISTROCONSOLE'` heredoc whose entire body is `bash --rcfile <the-hand-authored-rc> -i`. Nothing in that op touches the rc file's own `PATH`-building content. The wrapper is regenerated, the rc it invokes stays hand-authored.
 
 **Project-declared commands reach console `PATH` through the source-prepare stage, not a `--make-*` op.** `source-prepare/1901-make-commands-no-delete.sh` writes `$MMDAPP/.local/distro-commands.txt` from the projects' `custom-commands-path` declares. `Distro --shell-path-append` reads it and appends each scripts directory not yet on `PATH`. The Source and Deploy console rcs call it at start and in `PROMPT_COMMAND`.
 
@@ -178,7 +178,7 @@ Which subset exists tracks the workspace's purpose. A personal/refactor-only wor
 
 **`custom-commands-path:sh-scripts`, implemented.** The tag a user-added custom project would declare via `Declares:` to contribute its own `sh-scripts/` to console `PATH`. `Declares:` is self-only and non-inherited, per `Man.Project.Inf.file.help.md`'s own schema. It is additive only, never touching the existing hardcoded embedded-family `PATH` lists.
 
-**Per-workspace `.local/` is the installed tool release** — `myx/` holds the installed `myx.common`/`myx.distro-*` packages themselves, alongside `roots/`, `assets/`, `home/`, `lib/`, `agents/`, plus `MDLT.settings.env`/`MDSC.source.settings.env`. Written by the console commands above through their own install/upgrade path; never hand-edited. Not a generated tree, not a cache, not regenerable by us — see this member's own `$MMDAPP/.local/` rules for why. Exceptions, genuinely generated and still Tier 1: the regenerable subtrees under it — `source-cache/`, `system-index/`, `temp/`, and `.cleanup/` (`--owner-cleanup-purge`'s own target). The release-version rule above is about `.local/` as a whole, not about those.
+**Per-workspace `.local/` is the installed tool release** — `myx/` holds the installed `myx.common`/`myx.distro-*` packages themselves, alongside `roots/`, `assets/`, `home/`, `lib/`, `agents/`, plus `MDLT.settings.env`/`MDSC.source.settings.env`. Written by the console commands above through their own install/upgrade path. Never hand-edited. Not a generated tree, not a cache, not regenerable by us — see this member's own `$MMDAPP/.local/` rules for why. Exceptions, genuinely generated and still Tier 1: the regenerable subtrees under it — `source-cache/`, `system-index/`, `temp/`, and `.cleanup/` (`--owner-cleanup-purge`'s own target). The release-version rule above is about `.local/` as a whole, not about those.
 
 **Three owners meet here:**
   - `magic-devops` knows how to operate the tool: consoles, sync/index/build machinery, task wiring.
@@ -193,7 +193,7 @@ Which subset exists tracks the workspace's purpose. A personal/refactor-only wor
 
 **`mcp__myx_distro__execute` stays pinned to its own workspace — a `cd` inside the command string does not move it.** The tool exports its own `MMDAPP`. So a console of another workspace run through it resolves projects against the wrong tree, and reports "No matching projects found". Pass the other workspace in the call's `workspace` argument instead ("Execution mechanisms").
 
-**`ScreenTo.fn.sh` needs a real TTY.** It resolves the project and builds a valid SSH connect command, and SSH auth itself can succeed. It then fails with "Must be connected to a terminal" when the caller has no pty, such as a non-interactive agent sandbox. Use `ShellTo` for a single command when no real terminal is available; reserve `ScreenTo` for genuine interactive sessions.
+**`ScreenTo.fn.sh` needs a real TTY.** It resolves the project and builds a valid SSH connect command, and SSH auth itself can succeed. It then fails with "Must be connected to a terminal" when the caller has no pty, such as a non-interactive agent sandbox. Use `ShellTo` for a single command when no real terminal is available. Reserve `ScreenTo` for genuine interactive sessions.
 
 **Parallel-sweep unit of work, live-fleet multi-node inspection: capture AND parse entirely server-side.** One ssh session per node runs the capture/parse pipeline (e.g. `tcpdump | awk`, Python only where awk won't do, never Perl) on the remote box. Only the final reduced result is pulled back. Never stream raw capture output over SSH for many parallel probes: it is slow and wastes bandwidth/tokens. The correct unit of parallelism is one file per node/server: every interface a node needs captured, merged server-side into that one file. It is not one file per (node, interface) pair, and not one file per (node, account). Per-account fan-out causes an N-times-SSH-connections blowup.
 
@@ -211,7 +211,7 @@ Two genuinely separate mechanisms exist in the index system, feeding different c
 
 - **The live, no-cache lookup path** — `IndexNoCacheDistroProjects`, driven only by `source-cache/all-projects.index.txt` (a lightweight project-path listing). It reads each selected project's `project.inf` fresh, on every call. This is what selector-based queries (`ListDistroProvides --select-*`/`--filter-*-column`, and by extension what `DeployRouting.fn.sh`/`DeploySettings.fn.sh` read internally to build their task lists) actually consult at runtime. As long as `all-projects.index.txt` itself is current, this path is always current. It never goes stale independently, because it doesn't cache the provides data at all.
 - **`all-projects.index.txt` itself is not automatically current after a project move.** It only reflects reality as of the last time `DistroSourcePrepare --ingest-distro-index-from-source` (or equivalent) was run. A project move can land correctly on disk and be committed/pushed. `ListDistroProvides --select-projects <name>` and other selector-based resolution can still return the pre-move path and pre-move `Provides:` entries, with no error, until that command is re-run. Re-running it picks up exactly that one changed project and resolves it correctly. Practical implication: after ANY project move, re-run `DistroSourcePrepare --ingest-distro-index-from-source` before trusting a `ListDistroProvides`/selector-based resolution check. Don't assume the live-lookup path is automatically fresh just because it isn't the cached-snapshot pipeline described below.
-- **The cached-snapshot pipeline** — `DistroSourcePrepare.fn.sh`'s `--sync-cached-from-source` writes `source-cache/prepare/distro-provides.txt` (and sibling `distro-declares.txt`/`distro-keywords.txt`/`distro-requires.txt`); `--ingest-distro-index-from-prepared` publishes that into `system-index/distro-provides.txt`; `--build-project-metadata` rebuilds the same aggregate from per-project cache subdirectories. This is a separately-maintained report/aggregate artifact — nothing in the live selector-query path reads it. Staleness here does not imply staleness in the live lookup path above. It does not by itself indicate anything is broken for an actual deploy. Verify which of the two mechanisms actually feeds the operation before treating a stale file as a functional problem.
+- **The cached-snapshot pipeline** — `DistroSourcePrepare.fn.sh`'s `--sync-cached-from-source` writes `source-cache/prepare/distro-provides.txt` (and sibling `distro-declares.txt`/`distro-keywords.txt`/`distro-requires.txt`). `--ingest-distro-index-from-prepared` publishes that into `system-index/distro-provides.txt`. `--build-project-metadata` rebuilds the same aggregate from per-project cache subdirectories. This is a separately-maintained report/aggregate artifact — nothing in the live selector-query path reads it. Staleness here does not imply staleness in the live lookup path above. It does not by itself indicate anything is broken for an actual deploy. Verify which of the two mechanisms actually feeds the operation before treating a stale file as a functional problem.
 - **The index-rebuild pipeline has a required step order.** `--scan-source-changes` must run first — it's what populates `source-cache/new-changed.index.txt`, the change-delta file every later step gates on. `--sync-cached-from-source`, `--rebuild-cached-index`, and `--build-project-metadata` all need `--scan-source-changes` to have populated that delta first. Without it they silently no-op (`"no new changes"`) or produce incomplete/partial output. None of them surface an error when this happens. A partial `--build-project-metadata` run shows as `cat: ... No such file or directory` for the projects whose per-project cache subdirectories were never created. Correct full sequence when the cached-snapshot files themselves need refreshing: `--scan-source-changes` → `--sync-cached-from-source` → `--build-project-metadata` → `--ingest-distro-index-from-prepared`.
 
 ## Building blocks vs. actions — two different layers, don't conflate them
@@ -228,7 +228,7 @@ source" discipline as myx.common itself. These are what you compose when buildin
 
 `lib`, `myx`, and `acm` are namespace roots this member has at least minimal maintenance responsibility for regardless of which workspace they're checked out in. They are registered as namespace roots inside other namespace-family workspaces too, as `repository.inf` placeholders that are not populated. So a `lib`/`myx`/`acm` question doesn't become the owning `partner-*`'s just because it's asked from inside one of those workspaces.
 
-- `myx` — operating the myx.common/myx.distro-* tooling is this member's core territory everywhere; its source is the owning `keeper-*`'s.
+- `myx` — operating the myx.common/myx.distro-* tooling is this member's core territory everywhere. Its source is the owning `keeper-*`'s.
 - `lib` (vendored third-party dependencies) — general dependency/build/packaging operations are this member's baseline.
 - `acm` (AxiomCMS) — narrower: the `.tpl`/skin templating content belongs to the owning `keeper-*`, while repo-level build/package/CI plumbing falls to this member at baseline. Defer to that `keeper-*` the moment the question touches `.tpl` files, `skin.settings.xml`, or the `<% %>` template language.
 
@@ -255,7 +255,7 @@ env -u MMDAPP -u MDSC_CACHED -u MDSC_SOURCE -u MDSC_OUTPUT -u MDSC_OPTION -u MDS
   sh -c './DistroDeployConsole.sh --non-interactive'
 ```
 
-This is also what the `mcp__myx_distro__execute` pinning entry above describes; its `workspace`
+This is also what the `mcp__myx_distro__execute` pinning entry above describes. Its `workspace`
 argument is the fix there.
 
 Echo `$MMDAPP` before a bare-script measurement, and name the workspace in the finding.
@@ -276,7 +276,7 @@ byte-for-byte indistinguishable from one never regenerated. A spawn path
 guarding on a flag in the generated file then breaks.
 
 So: **compare a generated artefact's mtime against its generator's, never against the clock.** "It was
-regenerated recently" is not the question; "was the generator current when it ran" is. And state which
+regenerated recently" is not the question. "was the generator current when it ran" is. And state which
 workspace a console-behaviour claim was measured in — one workspace's console says nothing about
 another's. Generated-copy drift is real, but not a universal explanation to reach for whenever a console
 behaves unexpectedly: check it.
@@ -318,9 +318,9 @@ Real, non-`DistroAgentsTools` `myx.distro-*` shell-script command syntax this sk
 ## Reaching a tool is a fact to establish, not an assumption
 
 - **`PATH` separates *not installed* from *not exposed*.** The family's directory present on `PATH`, with the command still not found, means that package is not installed. The directory absent from `PATH` means this console does not expose that family, and another console may. The two take different fixes, and the error text alone distinguishes neither.
-- **A tab-completed name is not proof the command is reachable.** The rc registers completions for every family it knows of, including ones this console's own `PATH` does not carry. Completion is an offer; `PATH` is the authority.
+- **A tab-completed name is not proof the command is reachable.** The rc registers completions for every family it knows of, including ones this console's own `PATH` does not carry. Completion is an offer. `PATH` is the authority.
 - **`Distro <Name>` and `<Name>.fn.sh` are not the same call.** `Distro` sources `<Name>.fn.sh` into the session once, only when a function of that name is not already defined, then calls that function. So repeat calls are cheaper, and the bound definition outlives a later edit to the file. `<Name>.fn.sh` executes the file itself every time. After editing a tool's source, use the direct form or a fresh console.
-- **Bare-name reach ends at the packages.** A command is bare-name reachable exactly when it lives in an installed package's own `sh-scripts/`. A project's own script, a workspace-root console, or an `actions/` entry is called by full path, whichever console is open. `DeployRouting.fn.sh` does a job nothing else does; `DeploySettings.fn.sh` works alongside `DeployProjectSsh.fn.sh` rather than being replaced by it.
+- **Bare-name reach ends at the packages.** A command is bare-name reachable exactly when it lives in an installed package's own `sh-scripts/`. A project's own script, a workspace-root console, or an `actions/` entry is called by full path, whichever console is open. `DeployRouting.fn.sh` does a job nothing else does. `DeploySettings.fn.sh` works alongside `DeployProjectSsh.fn.sh` rather than being replaced by it.
 - **The remote family is for a remote workspace, not for remote targets.** Reaching a deploy target's host is the deploy family's own work — the single-target and fan-out execution tools all reach remote hosts.
 - **An action is a caller distinction, not a quality one.** `actions/` entries exist so a person, or a task-menu binding, can fire a prepared parameter set. This member calls the tool, because doing the work means knowing which tool ran and with which parameters. An action hides both.
 

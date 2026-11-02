@@ -125,6 +125,10 @@
 📘 syntax: DistroAgentsItems.fn.sh --mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>
@@ -278,7 +282,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -2400,6 +2404,19 @@
 			pair.
 
 		--get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
+		--upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+			Writes a vault document, creating it or overwriting it whole. It refuses a name that
+			starts with the type word of a vault contract (`investigation`, `adr`, `verbatim`):
+			that name belongs to the typed write below.
+
+		--upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-decision-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-verbatim [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+			Writes a vault document of one contract: `investigation-*` (vault-item.investigation-report),
+			`adr-*` (vault-item.decision-record) or `verbatim-*` (vault-item.verbatim). The name must
+			start with that contract's type word. A new document gets `type`, `from`, `date` and
+			`document-contract` where it names none. The document is checked against its contract, and
+			a fault the contract refuses on stops the write.
 			Read-only read of one vault item (a verbatim document or
 			fact under the team-data store's `vault/`) by bare
 			`<item-name>`; path-like names are rejected. Any bare name is
@@ -4460,7 +4477,7 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused> <chapter>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average> <host>`
 			A session row is followed by its runs, the earliest started
@@ -4472,14 +4489,19 @@
 			`running` while a run of it has a live process and not every
 			live one waits on a person; `waiting` while every live one
 			does; else `unknown-foreign` with an open record of another
-			host, else `unclosed` with any open record, else `failed`
+			host, else `unclosed` with any open record, else
+			`awaiting-review` where a run of it handed back and is parked,
+			waiting for its verdict, else `failed`
 			where every run of it died on its start, else `finished`. A
 			run with no live process is never `waiting` (sketch 5.4): an
 			ask still open, or an ask nobody answered, holds nothing open
 			and is counted in <pending-answers>. A finished session
 			reads `finished` however many of its questions are open. <state-at> is the date its last
-			run closed, for a `finished` or a `failed` session only. <state-tally> reads
-			`running=1,finished=2`. <session-state> and <session-state-at>
+			run closed, for a `finished` or a `failed` session only. <state-tally> names each
+			state the runs of the session are in, as `ListAgents` derives
+			it, in the order `thinking`, `in-tool`, `running`, `starting`,
+			`waiting`, `awaiting-review`, `unclosed`, `unknown-foreign`,
+			`failed`, `finished`: `thinking=1,waiting=1,finished=2`. <session-state> and <session-state-at>
 			are the state the control thread of the session stored for it
 			and when, as `spawned-sessions` holds them after this rebuild:
 			`-` for a session that has none. That state stands beside
@@ -4499,13 +4521,21 @@
 			<date> <time> <zone>`, the date the provider's own message
 			gave, with `-` where no run of it was refused. The last of
 			its refused runs wins. A reader takes a row that ends before
-			<usage-limit> as one of an earlier form.
+			<usage-limit> as one of an earlier form. <chapter> is the one
+			line the executor of the session set with
+			`--set-session-chapter` for the stage it is in, read from the
+			store of the session at each call, with `-` where there is none.
 			A run's <live> is what `ListAgents` shows, and <state> too,
-			but for a run that died on its start: that one reads `failed`. <activity> of a live run is `waiting`
-			inside a `Wait` call or an ask that waits on a person, and `working` otherwise. `--active` keeps
+			but for a run that died on its start: that one reads `failed`.
+			A live run's <state> is what it is doing: `thinking`, `in-tool`
+			or `waiting`, and a run that handed back and left reads
+			`awaiting-review`. <activity> of a live run is `waiting` where
+			its <state> is `waiting`, inside a `Wait` call or an ask that
+			waits on a person, and `working` otherwise: it is read from
+			<state> and from no other file. `--active` keeps
 			every session that is not finished and can be acted on from
 			this host: those whose <state> is `running`, `waiting`,
-			`unclosed` or `failed`, each with all its runs, as without it. It leaves
+			`awaiting-review`, `unclosed` or `failed`, each with all its runs, as without it. It leaves
 			out the `finished` ones, and the `unknown-foreign`, which are
 			another host's: nothing can be done with those from here. The
 			counters count the whole workspace
@@ -4550,7 +4580,7 @@
 			measured in the same call. It writes nothing else. Prints
 			rows of TAB-separated fields on stdout, the first naming the
 			row. An absent value reads `-`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> <refused> <chapter>`
 			`dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description>`
 			`control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`
 			`tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown>`
@@ -6655,7 +6685,7 @@
 			waits there and a dismissal is addressed to the member
 			it is for.
 
-		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required

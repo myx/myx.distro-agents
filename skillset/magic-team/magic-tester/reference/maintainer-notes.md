@@ -33,5 +33,5 @@ The body of this member's armed `# Maintainer Notes`. Read it when that file is 
 
 ### Conventions
 
-- The propose-don't-act discipline, including the globally-structural flag, is load-bearing; never compress it into "report findings".
+- The propose-don't-act discipline, including the globally-structural flag, is load-bearing. Never compress it into "report findings".
 - Open: the maintainer list follows the standard set by convention, not a confirmed decision for this file — reconfirm in a future authoring pass.

@@ -65,6 +65,80 @@ case "$1" in
 		return $?
 	;;
 
+	## The vault write, the sibling of the read above: any bare name, written whole or patched.
+	## The store and the commit are AgentsToolsItemUpsert's, the same as the board writer's.
+	## A name that carries the type word of a vault contract is written only by that contract's typed op: `--typed <kind>`,
+	## first after the two names, from the stubs --upsert-vault-<kind>. The generic write refuses such a name. The typed write
+	## stamps what a new item lacks, checks the item against its contract (AgentsToolsDocValidateGate), then writes it as the generic one does.
+	--intern-op-vault-item-write)
+		shift
+		local writeMember="${1:-}" writeItem="${2:-}" writeTyped="" writeWord="" writeKind=""
+		shift || true
+		shift || true
+		if [ -z "$writeMember" ] || [ -z "$writeItem" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-write: syntax is <team-member> <item-name> [--typed <kind>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		if [ "${1:-}" = "--typed" ] ; then
+			writeTyped="${2:-}"
+			[ -n "$writeTyped" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-write: --typed takes a kind -- nothing was written" >&2 ; set +e ; return 1 ; }
+			shift 2
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-write: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
+		type AgentsToolsDocValidateVaultKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+		writeWord="$( AgentsToolsItemNameType "$writeItem" )"
+		writeKind="$( AgentsToolsDocValidateVaultKind "$writeWord" )" || writeKind=""
+		if [ -z "$writeTyped" ] && [ -n "$writeKind" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --upsert-vault-item: $writeItem carries the type word $writeWord of the contract $writeKind, so it is written by --upsert-vault-${writeKind#vault-item.} -- nothing was written" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$writeTyped" ] && [ "$writeKind" != "$writeTyped" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --upsert-vault-${writeTyped#vault-item.}: $writeItem does not start with the type word of the contract $writeTyped -- nothing was written" >&2
+			set +e ; return 1
+		fi
+		mkdir -p "$MDAT_DATA_ROOT/vault" || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-write: the vault folder could not be made" >&2 ; set +e ; return 1 ; }
+		type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+		if [ -z "$writeTyped" ] ; then
+			AgentsToolsItemUpsert "$writeMember" --from-vault "$writeItem" "$@" --context --intern-op-vault-item-write
+			return $?
+		fi
+		local typedPath="$MDAT_DATA_ROOT/vault/$writeItem" typedMode="create" typedLabel="new item" typedBody="" typedOps="" typedTemp="" typedRc=0
+		[ ! -f "$typedPath" ] || { typedMode="change" ; typedLabel="$writeItem" ; }
+		case "${1:-}" in
+			--upsert-from-stdin) typedBody="$( cat )" ; shift ;;
+			--from-file)
+				[ -f "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --upsert-vault-${writeTyped#vault-item.}: --from-file: file not found: ${2:-} -- nothing was written" >&2 ; set +e ; return 1 ; }
+				typedBody="$( cat "$2" )" ; shift 2
+			;;
+			--edit-patch-from-stdin)
+				typedBody="$( printf '%s%s' "$( cat )" "$( [ ! -f "$typedPath" ] || cat "$typedPath" )" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
+				shift
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --upsert-vault-${writeTyped#vault-item.}: syntax is <team-member> <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] -- nothing was written" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ $# -gt 0 ] || [ -z "$typedBody" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --upsert-vault-${writeTyped#vault-item.}: one body, given once, and not empty -- nothing was written" >&2
+			set +e ; return 1
+		fi
+		mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
+		## The type word and the contract are the typed op's own, so they are stamped on every write; the author and the date are a new item's.
+		typedOps="$( mktemp "$MMDAPP/.local/temp/mdat-vault-typed-headers.XXXXXX" )" || { set +e ; return 1 ; }
+		printf 'default\ttype\t%s\ndefault\tdocument-contract\t%s\n' "$writeWord" "$writeTyped" > "$typedOps" || { rm -f "$typedOps" ; set +e ; return 1 ; }
+		[ "$typedMode" != "create" ] || printf 'default\tfrom\t%s\ndefault\tdate\t%s\n' "$writeMember" "$( date +"%Y-%m-%d %H:%M %z" )" >> "$typedOps" || { rm -f "$typedOps" ; set +e ; return 1 ; }
+		typedBody="$( printf '%s\n' "$typedBody" | LC_ALL=C awk -v opsFile="$typedOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" )" || typedRc=$?
+		rm -f "$typedOps"
+		[ "$typedRc" -eq 0 ] || { set +e ; return 1 ; }
+		printf '%s\n' "$typedBody" | AgentsToolsDocValidateGate "vault-${writeTyped#vault-item.}-write" "$typedLabel" vault "$writeItem" "$( [ ! -f "$typedPath" ] || printf '%s' "$typedPath" )" "$typedMode" || { set +e ; return 1 ; }
+		typedTemp="$( mktemp "$MMDAPP/.local/temp/mdat-vault-typed-body.XXXXXX" )" || { set +e ; return 1 ; }
+		printf '%s\n' "$typedBody" > "$typedTemp" || { rm -f "$typedTemp" ; set +e ; return 1 ; }
+		AgentsToolsItemUpsert "$writeMember" --from-vault "$writeItem" --from-file "$typedTemp" --context --intern-op-vault-item-write || typedRc=$?
+		rm -f "$typedTemp"
+		return $typedRc
+	;;
+
 	## One audit document by bare filename, with an optional line range. Only transcript-*
 	## names, found in its month folder first, then the audit root.
 	--intern-op-audit-item-read)

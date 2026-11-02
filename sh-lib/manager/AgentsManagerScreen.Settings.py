@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Settings.py -- the roots Settings and Configuration: the digest of the settings, one setting as a view of its own, to change one.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -524,7 +524,6 @@ for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + 
 ## value whole, by the setting reader (CREDENTIAL_READ), and puts it in that field for as long as the form is open. It saves as the dialogs
 ## of the settings do (submitSetting), where its line is changed from here; else it only closes. The value whole is held
 ## nowhere else, and the form that closes leaves nothing of it. The mask is no security boundary: a shell read shows it.
-CREDENTIAL_DIALOG = "setting-credential"
 ## The dialogs whose form reads a value whole while it is open, which an app feature adds to (LocalManagerScreen.Scopes.py of `.local`): what they read is kept for them (applyResult).
 readingDialogs(CREDENTIAL_DIALOG)
 CREDENTIAL_READ = "full:credential"
@@ -693,3 +692,11 @@ registerPlugin({
          "with": (("settings", "lines"),), "does": ("action", "setting"), "calls": ("set",)},
     ),
 })
+
+
+## The levels of the `digest` read: registered with the list, so the list asks the form rather than naming this parser.
+def digestLevels(readKey, level, text):
+    return parseDigestLevels(readKey, text)
+
+
+ROW_FORMS["digest"] = {"parse": digestLevels}

@@ -585,6 +585,13 @@ rigDeath d-last d-last keeper-rig human-owner
 rigAnswer d-last d-last close ; rigCarry d-last d-last ; rigOne d-last ; rigWaitFor 10 rigStateIs d-last finished
 rigAssert "close on the last run of a session ends it: its record is closed, its item is processed, and the state reads finished" \
 	"$( rigHeader d-last status ):$( rigItemIn item-d-last ):$( rigState d-last )" "spawn-ended-without-close:processed:finished"
+## An item already accepted before the question was answered: close settles the death where the item sits.
+rigDeath d-done d-done keeper-rig human-owner
+mkdir -p "$rigData/board/processed"
+mv "$rigData/board/running/item-d-done.md" "$rigData/board/processed/item-d-done.md"
+rigAnswer d-done d-done close ; rigCarry d-done d-done
+rigAssert "close on a death whose item already sits in processed settles the death, leaves the item in processed, and names it as accepted" \
+	"$( rigHeader d-done status ):$( rigDeadSettled d-done d-done && echo settled || echo unsettled ):$( rigItemIn item-d-done ):$( rigLines 'and its item `item-d-done` is accepted' d-done )" "spawn-ended-without-close:settled:processed:DRIG00001 thread human-owner;"
 ## The fourth answer, which ends the session: the executor is dead, two participants live. Its word is the note
 ## template's own, the first word of the fourth line of the options of the question.
 rigFourth="$( LC_ALL=C awk '$0 == "## options" { inBlock = 1 ; next } inBlock && substr( $0, 1, 3 ) == "```" { if ( ++fenceCount == 2 ) { exit } next } inBlock && fenceCount == 1 { if ( ++optionCount == 4 ) { sub( /:.*$/, "" ) ; print ; exit } }' "$rigPackage/sh-lib/templates/tooling-note.post.format.md" )"

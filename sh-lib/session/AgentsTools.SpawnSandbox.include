@@ -123,12 +123,20 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
 	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"
-	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers. A start
-	## that ran no scan keeps the one the session already had: no brief names a file this fill does not leave there.
-	if [ -n "${6:-}" ] && [ -f "$6" ] ; then
-		mv -f "$6" "$fillInput/input-scan.md" 2>/dev/null || :
-	elif [ -n "$fillScanKept" ] ; then
+	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers. It is
+	## THIS member's scan: input/input-scan.<member>.md. input/input-scan.md is the session's, the one its first start made,
+	## and it stays that scan: a member brought in later never replaces it with its own. A start that ran no scan keeps the
+	## one the session already had.
+	if [ -n "$fillScanKept" ] ; then
 		printf '%s\n' "$fillScanKept" > "$fillInput/input-scan.md" 2>/dev/null || :
+	fi
+	if [ -n "${6:-}" ] && [ -f "$6" ] ; then
+		mv -f "$6" "$fillInput/input-scan.$fillMember.md" 2>/dev/null || :
+	elif [ -n "$fillScanKept" ] ; then
+		printf '%s\n' "$fillScanKept" > "$fillInput/input-scan.$fillMember.md" 2>/dev/null || :
+	fi
+	if [ ! -f "$fillInput/input-scan.md" ] && [ -f "$fillInput/input-scan.$fillMember.md" ] ; then
+		cp -p "$fillInput/input-scan.$fillMember.md" "$fillInput/input-scan.md" 2>/dev/null || :
 	fi
 	## Read-only by mode, whatever the client's access flag can say: a flag with no verb
 	## grants input/ for writing too, so the files and the folder carry no write bit.
@@ -424,6 +432,52 @@ AgentsToolsSpawnSessionNoteSession(){ ## session id, the lines (`<header><TAB><v
 		[ -f "$noteRecord" ] && printf '%s' "$2" | AgentsToolsSpawnSessionRecordNote "$noteRecord" && return 0
 	done
 	echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: the participants and the likely needs could not be written on the record of session $1" >&2
+	return 0
+}
+
+## THE SPAWN LIMIT AND THE QUEUE (S23.1). With SPAWN_LIMIT of the team scope set above 0 (MDAT_SPAWN_LIMIT overrides it), a spawn that finds that many runs of this host
+## alive is not made: it is recorded as an inquiry in magic-coordinator's inbox and added as an item to the CheckList of the coordinator's running work-duty, so the CheckList is
+## the queue the duty works from. Unset or 0 is no limit, which is how it stands until it is set. A start of a work-duty and a start that joins a session are never queued.
+## AgentsToolsSpawnLimitReached prints `<running> <limit>` and returns 0 where the limit is reached; 1 where there is none or it is not.
+AgentsToolsSpawnLimitReached(){
+	local limitValue="${MDAT_SPAWN_LIMIT:-}" limitRunning
+	if [ -z "$limitValue" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include" 2> /dev/null || return 1
+		limitValue="$( AgentsToolsConfigOption magic-team --select SPAWN_LIMIT 2> /dev/null )" || limitValue=""
+	fi
+	case "$limitValue" in ''|0|*[!0123456789]*) return 1 ;; esac
+	type AgentsToolsRegistryRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 1
+	limitRunning="$( ps -A -ww -o pid=,args= 2> /dev/null | AgentsToolsRegistryRunWords | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )"
+	[ "$limitRunning" -ge "$limitValue" ] || return 1
+	printf '%s %s\n' "$limitRunning" "$limitValue"
+}
+
+## The queue's one entry: the request of a spawn the limit turned away, filed where the coordinator reads (an inquiry in its inbox, carrying the routine, the members and the task) and added
+## as an item to the CheckList of its running work-duty. Prints SPAWN_QUEUED=true, SPAWN_QUEUE_ITEM=<the inquiry> and SPAWN_QUEUE_CHECKLIST=<session>:magic-coordinator, or none where no work-duty
+## runs to take it, the inquiry then waiting in the inbox. rc 1 where the inquiry could not be filed.
+AgentsToolsSpawnQueue(){ ## the limit line, the routine, the members, the description, the task text
+	local queueName queueFile queueBy queueDuty queueSession="" queueCount=""
+	queueName="inquiry-$( date -u +%Y%m%dT%H%MZ )-queued-spawn-$$.md"
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+	queueFile="$( mktemp "$MMDAPP/.local/temp/spawn-queue.XXXXXX" )" || return 1
+	{
+		printf '# A spawn the limit turned away\n\n'
+		printf 'The limit of %s runs at once was reached with %s running, so this spawn was not made. Start it when a run ends.\n\n' "${1#* }" "${1%% *}"
+		printf -- '- routine: %s\n- members: %s\n- description: %s\n\n## Task\n\n%s\n' "$2" "$3" "${4:--}" "${5:--}"
+	} > "$queueFile"
+	queueBy="$( AgentsToolsActingMember 2> /dev/null )" || queueBy=""
+	[ -n "$queueBy" ] || queueBy="magic-coordinator"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	DistroAgentsTools --upsert-inbox-inquiry magic-coordinator "$queueName" --from-member "$queueBy" --from-file "$queueFile" > /dev/null 2>&1 || { rm -f "$queueFile" ; return 1 ; }
+	rm -f "$queueFile"
+	type AgentsToolsScheduleWorkDutyRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || :
+	queueDuty="$( AgentsToolsScheduleWorkDutyRecord magic-coordinator 2> /dev/null )" || queueDuty=""
+	if [ -n "$queueDuty" ] ; then
+		queueSession="$( AgentsToolsSpawnSandboxRecordHeader "$queueDuty" session-id )"
+		type AgentsHarnessCheckListAppendLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" 2> /dev/null || :
+		queueCount="$( printf 'queued spawn of %s: start it when a run ends (%s)\n' "$2" "${queueName%.md}" | AgentsHarnessCheckListAppendLines "${queueDuty%/*}" magic-coordinator 2> /dev/null )" || queueCount=""
+	fi
+	printf 'SPAWN_QUEUED=true\nSPAWN_QUEUE_ITEM=%s\nSPAWN_QUEUE_CHECKLIST=%s\n' "${queueName%.md}" "$( [ -n "$queueCount" ] && printf '%s:magic-coordinator' "$queueSession" || printf none )"
 	return 0
 }
 
@@ -1593,6 +1647,46 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 ## the run's group that took the header writer with it, a temp folder that was full. Where
 ## the second cannot either, that is said, on stderr: the record then still says what it
 ## said, and a later advance pass closes it. Never fails its caller.
+## THE HANDBACK NOBODY READ (S27.3): one message into the reviewer's own thread, naming the item
+## and how long it has waited, so a handback left unread is raised outside whatever waits on it.
+## Never fails its caller, and says nothing where the reviewer has no thread to reach.
+AgentsToolsSpawnProxyStaleHandbackTell(){ ## the member the scan acts as, the reviewer told, the item, how long it waited
+	local staleBy="$1" staleTo="$2" staleItem="$3" staleWaited="${4:-}" staleArgs staleText
+	[ -n "$staleBy" ] && [ -n "$staleTo" ] && [ -n "$staleItem" ] || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	staleArgs=( "$staleBy" "$staleTo" --identity-bot --address-to "$staleTo" --from-stdin )
+	staleText="A handback nobody read: ${staleItem%.md} has waited ${staleWaited}s for a verdict. Its run ended and its record waits in review."
+	printf '%s\n' "$staleText" | DistroAgentsTools --intern-op-comms-slack-send-message "${staleArgs[@]}" > /dev/null 2>&1 || :
+	return 0
+}
+
+## THE CHILDREN A CLOSING PARENT STILL ANSWERS FOR (S27.5), sourced where the close needs it so this
+## file keeps its own top level free of the review flow's.
+AgentsToolsSpawnProxyChildrenDismiss(){ ## tracking file of the closing run
+	local cdRecord="$1" cdSpawn cdBy
+	[ -f "$cdRecord" ] || return 0
+	cdSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$cdRecord" spawn-id )"
+	cdBy="$( AgentsToolsSpawnSandboxRecordHeader "$cdRecord" owner )"
+	[ -n "$cdSpawn" ] && [ -n "$cdBy" ] || return 0
+	type AgentsReviewChildrenDismiss > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || return 0
+	AgentsReviewChildrenDismiss "$cdSpawn" "$cdBy" 2> /dev/null || :
+	return 0
+}
+
+## The park mark of a run is taken away where its record closes (S27.2). The mark is written under
+## the id the harness holds, and a run's record carries both that one and its session-id.
+AgentsToolsSpawnProxyParkClear(){ ## tracking file of the closing run
+	local pcRecord="$1" pcSpawn pcSession
+	[ -f "$pcRecord" ] || return 0
+	pcSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$pcRecord" spawn-id )"
+	pcSession="$( AgentsToolsSpawnSandboxRecordHeader "$pcRecord" session-id )"
+	case "$pcSpawn" in ''|-|.|..|*/*) pcSpawn="" ;; esac
+	case "$pcSession" in ''|-|.|..|*/*) pcSession="" ;; esac
+	[ -z "$pcSpawn" ] || rm -f "$MMDAPP/.local/agents/sessions/$pcSpawn/parked" 2> /dev/null || :
+	[ -z "$pcSession" ] || [ "$pcSession" = "$pcSpawn" ] || rm -f "$MMDAPP/.local/agents/sessions/$pcSession/parked" 2> /dev/null || :
+	return 0
+}
+
 AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end reason (optional)
 	[ -f "$1" ] || return 0
 	## The run's own questions are settled first, while its record still says it was started: a question
@@ -1605,6 +1699,13 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end r
 	fi
 	## A run that closes holds no seat (F6.9).
 	AgentsToolsSessionSeatRelease "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )" || :
+	## THE CHILDREN A CLOSING PARENT STILL ANSWERS FOR (S27.5): each run it brought into its session and
+	## that still waits gets its DISMISSED here, so a parent's close leaves no child waiting on a run
+	## that is gone. Done before the record closes, while the parent still names its session.
+	AgentsToolsSpawnProxyChildrenDismiss "$1" || :
+	## THE PARK MARK GOES WITH THE RECORD IT BELONGED TO (S27.2): a settled record must never read
+	## awaiting-review, and a mark left behind would do exactly that.
+	AgentsToolsSpawnProxyParkClear "$1" || :
 	AgentsToolsSpawnProxyCloseSandboxOnce "$@" && return 0
 	sleep 1 || :
 	AgentsToolsSpawnProxyCloseSandboxOnce "$@" && return 0

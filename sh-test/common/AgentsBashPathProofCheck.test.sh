@@ -36,6 +36,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigHere="$rigPackage/sh-lib"
+rigCoreHere="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib"
 rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-harness-text.include.sh" || exit 1
@@ -262,7 +263,7 @@ else:
     module.fileInquiry({"channel": "CRIG00001", "ts": "1700000000.000100", "user": "URIG", "text": "RIG-MENTION"}, toolPath)
 RIGPY
 rigStarter(){ ## run folder, screen|socket, environment settings... -- one start by that starter, on the PATH without bash
-	local starterDir="$1" starterKind="$2" starterFile="$rigHere/manager/AgentsManagerScreen.py"
+	local starterDir="$1" starterKind="$2" starterFile="$rigCoreHere/manager/LocalManagerScreen.py"
 	shift 2
 	[ "$starterKind" = screen ] || starterFile="$rigHere/comms/AgentsSlackSocketMode.py"
 	mkdir -p "$starterDir"
@@ -275,7 +276,7 @@ rigCommand='
 	printf "%s\n" "$PATH" > "$RIG_OUT/path"
 	printf "%s\n" "${MDAT_BASH:-}" > "$RIG_OUT/handed"
 	"$RIG_HOOK" < "$RIG_OUT/payload" > "$RIG_OUT/hook.out" 2> "$RIG_OUT/hook.err" ; printf "%s" "$?" > "$RIG_OUT/hook.rc"
-	RIG_FILED="$RIG_OUT/screen.filed" python3 -I -B "$RIG_TMP/starters.py" screen "$RIG_LIB/manager/AgentsManagerScreen.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/screen.out" 2>&1
+	RIG_FILED="$RIG_OUT/screen.filed" python3 -I -B "$RIG_TMP/starters.py" screen "$rigCoreHere/manager/LocalManagerScreen.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/screen.out" 2>&1
 	RIG_FILED="$RIG_OUT/socket.filed" SOCKET_MODE_LOG_DIR="$RIG_OUT/log" python3 -I -B "$RIG_TMP/starters.py" socket "$RIG_LIB/comms/AgentsSlackSocketMode.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/socket.out" 2>&1
 	:
 '
@@ -317,7 +318,7 @@ rigAssert "each starter starts the tool script with the bash handed to it, a nam
 	"$( cat "$rigTmp/handed/screen.out" ) / $( LC_ALL=C grep -c -x 'RIG-MENTION' "$rigTmp/handed/socket.filed" 2> /dev/null )" "status=0 text=RIG-TOOL --rig-operation one / 1"
 rigStarter "$rigTmp/unhanded" screen
 rigAssert "control: handed none, a starter starts the script by its path as before, which on that PATH finds no bash" "$( cat "$rigTmp/unhanded/screen.out" )" "status=127 text="
-rigAssert "the screen's own start makes its reader that way" "$( LC_ALL=C grep -c -F 'reader = OperationReader(toolsCommandOf(options["--tools"]), options["--workspace"])' "$rigHere/manager/AgentsManagerScreen.py" )" 1
+rigAssert "the screen's own start makes its reader that way" "$( LC_ALL=C grep -c -F 'reader = OperationReader(toolsCommandOf(options["--tools"]), options["--workspace"])' "$rigCoreHere/manager/LocalManagerScreen.py" )" 1
 ## The harness entered with its bash given and no tool before it: a call that names `bash`, the Bash tool with a
 ## timeout of its own, which runs its command in a bash of its own.
 mkdir -p "$rigTmp/harness-call"

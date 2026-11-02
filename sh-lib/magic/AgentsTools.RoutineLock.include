@@ -399,6 +399,8 @@ AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the 
 	for relOther in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
 		[ -f "$relOther" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$relOther" session-id )" = "$relSession" ] || continue
+		## A closed record holds nothing: its run has ended, so only a record still started keeps the lock.
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$relOther" status )" = spawn-started ] || continue
 		case ",$( AgentsToolsSpawnSandboxRecordHeader "$relOther" routine-lock )," in
 			*",$relValue,"*) relHeld="$relOther" ; break ;;
 		esac
@@ -407,7 +409,7 @@ AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the 
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the holder of ${relValue#inbox:} has a record (${relHeld##*/}) -- nothing was released" >&2
 		return 1
 	fi
-	relEnded="released by the console: the holder has no record"
+	relEnded="released by the console: the holder has no open record"
 	[ -z "$relReason" ] || relEnded="$relEnded ($relReason)"
 	AgentsToolsRoutineLockUnlock "$relValue" "$relSession" "$relEnded"
 	printf '%s\n' "released: ${relValue#inbox:}"

@@ -572,8 +572,8 @@ AgentsToolsScheduleWorkDutyRecord(){ ## member
 		[ -f "$dutyRecord" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" owner )" = "$1" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" status )" = "spawn-started" ] || continue
 		dutySpawn="${dutyRecord##*/}" ; dutySpawn="${dutySpawn%.spawn.md}"
-		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-		AgentsToolsRegistrySpawnRuns "$dutySpawn" "$dutyRecord" || continue
+		type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+		[ "$( AgentsToolsLivenessOf "$dutySpawn" "$dutyRecord" )" = alive ] || continue
 		printf '%s\n' "$dutyRecord"
 		return 0
 	done <<< "$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
@@ -628,8 +628,8 @@ AgentsToolsScheduleDutyStaleClose(){ ## work-duty or spawn record
 	staleSpawn="${staleRecord##*/}" ; staleSpawn="${staleSpawn%.spawn.md}"
 	staleStatus="$( AgentsToolsSpawnSandboxRecordHeader "$staleRecord" status )"
 	[ "$staleStatus" = spawn-started ] || return 0
-	type AgentsToolsSpawnLiveness > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	staleLive="$( AgentsToolsSpawnLiveness "$staleSpawn" )"
+	type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	staleLive="$( AgentsToolsLivenessOf "$staleSpawn" "$staleRecord" )"
 	case "$staleLive" in
 		alive) return 0 ;;
 		unknown) printf 'work-duty: %s is open and its process cannot be read; it is waited for, never closed\n' "$staleSpawn" ; return 0 ;;
@@ -873,7 +873,7 @@ AgentsToolsScheduleDemand(){ ## member
 	AgentsToolsScheduleTagNews "$1"
 }
 
-## Tells a work-duty run to go, with DISMISSED in its session thread, as a dismissal is given to a run: at its idle point only (the run
+## Tells a work-duty run to go, with DISMISSED in its session thread (a duty has its tooling thread only, S23.4, so the post goes there, addressed to it), as a dismissal is given to a run: at its idle point only (the run
 ## sits in a Wait, AgentsToolsManagerRunActivity), never while it works, never twice, and not while runs that need it still run. The
 ## sender is a member other than the one dismissed, whose own Wait ignores a DISMISSED it authored.
 AgentsToolsScheduleDismiss(){ ## spawn record, why (a clause of the line printed)
@@ -890,7 +890,9 @@ AgentsToolsScheduleDismiss(){ ## spawn record, why (a clause of the line printed
 		dismissThread=""
 		[ ! -f "${dismissRecord%/*}/session.thread" ] || IFS= read -r dismissThread < "${dismissRecord%/*}/session.thread" || :
 	fi
-	AgentsToolsSpawnConversationThreadValid "$dismissThread" || { printf 'work-duty: %s of %s is not told to go: it has no session thread to post in\n' "$dismissSpawn" "$dismissMember" ; return 0 ; }
+	## A duty's record names no session thread (S23.4): its tooling thread is where it is told, by a post addressed to it, which its next Wait reads as a message to it.
+	[ -n "$dismissThread" ] || dismissThread="$( AgentsToolsSpawnSandboxRecordHeader "$dismissRecord" agent-log-thread )"
+	AgentsToolsSpawnConversationThreadValid "$dismissThread" || { printf 'work-duty: %s of %s is not told to go: it has neither a session thread nor a tooling thread to post in\n' "$dismissSpawn" "$dismissMember" ; return 0 ; }
 	dismissBy=magic-coordinator
 	[ "$dismissMember" != magic-coordinator ] || dismissBy=magic-librarian
 	mkdir -p "$dismissStore" 2> /dev/null || return 0
@@ -979,7 +981,12 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 ## not; the team channel is read once in a TTL for all of them. What the flags do to a run that stands is not a dismissal at once:
 ## AgentsToolsScheduleDutyLifetime decides, at each iteration, how long it lives (a mention newer than its idle start keeps it, out of its flags too).
 AgentsToolsScheduleWorkDuty(){
-	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt=""
+	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt="" dutyStale
+	## A duty record that says started while its run is gone is closed here, from the liveness reading, so the restart rule below reads an end and not a status (S23.6).
+	while IFS= read -r dutyStale ; do
+		[ -n "$dutyStale" ] || continue
+		AgentsToolsScheduleDutyStaleClose "$dutyStale"
+	done <<< "$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
 	dutyFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || dutyFlags=""
 	case "$dutyFlags" in *"worktime: yes"*) dutyWork=yes ; dutyCoordinator=yes ;; esac
 	case "$dutyFlags" in *"emergency: yes"*|*"overtime: yes"*) dutyCoordinator=yes ;; esac

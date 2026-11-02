@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Glance.py -- the glance list (F11.12): the list of the right window read at a glance, one identity, one state and one number a row,
-## narrowed by a `/` filter of its own, and a key that opens the full table of the level. A part of the manager screen (AgentsManagerScreen.py): that file
+## narrowed by a `/` filter of its own, and a key that opens the full table of the level. A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file
 ## executes it, in its own namespace and in the order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 ## The list already draws each row as its identity (label), its state at the end (tail), its number in a narrow column where it carries one (wide) and its
@@ -24,19 +24,7 @@ def glanceFiltered(state, rows):
     return [row for row in rows if glanceMatches(row, words)] if words else list(rows)
 
 
-## `/`: the line of the filter of the list opens, on the last line of the right window, with what is typed there already.
-def listFilterOpen(state):
-    state.listFilterOpen = True
-
-
-## Whether the line of the filter stands in the right window: open, or holding a filter that narrows the rows.
-def listFilterLineShown(state):
-    return state.listFilterOpen or bool(state.listFilter)
-
-
-## The line of the filter as the right window draws it, or "".
-def listFilterLine(state):
-    return "/" + state.listFilter if listFilterLineShown(state) else ""
+## The filter of the list is core's own: `listFilterOpen`, `listFilterLineShown` and `listFilterLine` are defined in LocalManagerScreen.Dashboard.py, beside the list machinery.
 
 
 ## One key while the line of the filter of the list is open: a character is typed into it and narrows the rows at once, Backspace takes the last one back,

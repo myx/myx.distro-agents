@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on reading a table first, in the left window of the manager screen (F11.3 of the refactorings epic: "reading first"), run
-## rather than read. The screen's own code (sh-lib/manager/AgentsManagerScreen.py) runs through the stand-in terminal of the driver
+## rather than read. The screen's own code (sh-lib/manager/LocalManagerScreen.py) runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls the stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
 ## Held, for a table that is all of the left window (the members of the team, here eighty of them):
@@ -16,7 +16,7 @@
 ## Reconciled for F11.5: the list is Active Sessions of Activity, and Team Members is put at with `at @team`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

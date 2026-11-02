@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the view kinds of the console app (F11.3 of the refactorings epic), run rather than read. The screen's own code
-## (sh-lib/manager/AgentsManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py); no reader is
+## (sh-lib/manager/LocalManagerScreen.py) runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py); no reader is
 ## started. A stand-in app feature, a plugin of the rig's own, gives each of its rows a content of one kind by its focus handler, the way every real
 ## one does.
 ## Held (F11.3: "Content pane, left, these views: table, as now, plus a dashboard-like panel set; markdown, including tables; variable or
@@ -22,7 +22,8 @@ set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigScreen="$rigPackage/sh-lib/manager/AgentsManagerScreen.py"
+rigCorePackage="$MDLT_ORIGIN/myx/myx.distro-.local"
+rigScreen="$rigCorePackage/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$rigPackage/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){

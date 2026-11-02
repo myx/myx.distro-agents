@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on what stays on a real terminal after the manager screen (sh-lib/manager/AgentsManagerScreen.py) drew on
+## Behavioural check on what stays on a real terminal after the manager screen (sh-lib/manager/LocalManagerScreen.py) drew on
 ## it, run rather than read. The real screen runs on a pseudo-terminal in front of a terminal that keeps its cells and
 ## answers where its cursor is (check-fixtures/manager-screen.vt.stub.py), and after each step every cell of that
 ## terminal is compared with what the screen drew last: nothing of an earlier frame may stand anywhere, no mark of the
@@ -26,7 +26,7 @@
 ## `--manager-session-transcript-read --session-id <run> --run`); the steps go there by keys (3, then Enter down the folders, BSP back), the start of the real screen being Magic-Team (Agents).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigVt="$rigFixtures/manager-screen.vt.stub.py"
@@ -108,7 +108,7 @@ RIGROWS
 echo "-- the count: an emoji is one character, in two cells or in its parts' where more, the same on every terminal --"
 rigOut="$( "$rigPython" -I -B - "$rigScreen" <<'RIGCOUNT'
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(screen)
 texts = (("selected", "\u2696\ufe0f"), ("keycap", "1\ufe0f\u20e3"), ("wide", "\U0001f517"), ("joined", "\U0001f9d1\u200d\U0001f4bb"),
@@ -306,7 +306,7 @@ rigAssert "a failure of the drawing, without another screen: what it says stands
 echo "-- every dialog: the button that has the keys is the only one in its look, and the one default keeps its marks --"
 rigDialogs="$( "$rigPython" -I -B - "$rigScreen" <<'RIGDIALOGS'
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(screen)
 print(len(screen.DIALOGS))

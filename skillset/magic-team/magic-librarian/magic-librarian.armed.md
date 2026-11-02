@@ -88,7 +88,7 @@ Steps:
    - fix what it found
 3. Every project with a `project.inf` carries both files: create whichever is missing. Confirm it with whoever asked for the update first, the human-owner only when he is that requester.
 4. Fix a gap or a doc bug, such as a floor violation, a below-bar entry or a stale fact. Do it once whoever asked for the update confirms it, the human-owner only when he is that requester.
-5. Edit surgically. Keep accurate wording, structure and tone; touch only what is stale, missing or wrong. A one-line fix is a one-line diff. A full rewrite is only for an empty or new file, an explicit request, or content too broken to patch. Say so first. New content is grounded in what the code shows.
+5. Edit surgically. Keep accurate wording, structure and tone. Touch only what is stale, missing or wrong. A one-line fix is a one-line diff. A full rewrite is only for an empty or new file, an explicit request, or content too broken to patch. Say so first. New content is grounded in what the code shows.
 
 ## `daily-idle-check` — idle default when nothing else is pending
 
@@ -131,7 +131,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A project's documentation references a file in another project only where it requires that project. Where it does, it states the requirement, not the path.
 - A file this member generates from other sources carries a header saying so, and that the source is what gets fixed.
 - A skill folder and its source in the bundle are one file, not two copies. Verify a skillset edit against its content (**source-over-memory**), not the two paths.
-- This member holds a standing grant to write the `.md` files of some team-member skills, with no ask needed. The skill is a real folder in the HOME skills folder (`.skillset-shared`). Or it is a link there into the source tree of the workspace this session runs from (`.skillset-.local`). A skill linked in from another workspace is not covered, and is asked for as before. A permission is decided on the real file; a link and its target get the same answer. The grant is of the `approve` kind: an `Edit` or `Write` it covers is held and shown to the human-owner as a diff. It is applied only once he approves it. A grant given for a task, session or single call instead comes ahead of the approval, and writes at once.
+- This member holds a standing grant to write the `.md` files of some team-member skills, with no ask needed. The skill is a real folder in the HOME skills folder (`.skillset-shared`). Or it is a link there into the source tree of the workspace this session runs from (`.skillset-.local`). A skill linked in from another workspace is not covered, and is asked for as before. A permission is decided on the real file. A link and its target get the same answer. The grant is of the `approve` kind: an `Edit` or `Write` it covers is held and shown to the human-owner as a diff. It is applied only once he approves it. A grant given for a task, session or single call instead comes ahead of the approval, and writes at once.
 - Content belongs in `.basic.md` only when it is identity, always true. Everything professional goes in `.armed.md`.
 
 # Domain knowledge: documentation and skillset conventions
@@ -145,7 +145,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 Each is evaluated on its own, against its own code and existing style:
 
-- a repository root;
+- a repository root.
 - a project directory (one holding `project.inf`), which always carries both a `README.md` and a `MAGIC.md`. A missing one is a gap to fill, not an absence to leave.
 
 ## Content philosophy
@@ -166,7 +166,7 @@ Every skillset file states current, settled content — never a history of edits
 - Check nothing active is lost: every rule, condition, carve-out and fact the narration anchored survives.
 - Rewrite as firm present-tense content.
 
-Genuine history lives in processed board items. Logs, transcripts and processed items are exempt; a file holding standing state, such as the `state-note`, is not. A file whose content moves elsewhere leaves a short stub with a pointer, never a copy.
+Genuine history lives in processed board items. Logs, transcripts and processed items are exempt. A file holding standing state, such as the `state-note`, is not. A file whose content moves elsewhere leaves a short stub with a pointer, never a copy.
 
 Two precision checks on any rule captured mid-correction:
 
@@ -176,7 +176,7 @@ Two precision checks on any rule captured mid-correction:
 ## Two writing modes
 
 - **Instructions mode** (rules, routines, definitions): compact, short sentences, plain words, lists for anything enumerable.
-- **Narrative mode** (logs, transcripts, dated records): narration allowed, still compact; quotes stay verbatim.
+- **Narrative mode** (logs, transcripts, dated records): narration allowed, still compact. Quotes stay verbatim.
 
 ## Text groups
 
@@ -237,6 +237,6 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested. It is resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

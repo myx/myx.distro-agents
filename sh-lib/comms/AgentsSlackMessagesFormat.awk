@@ -213,6 +213,10 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 	## back. Absent for every message that carries neither, so this adds nothing
 	## to a rendering with no such message.
 	if (afterIdx == "metadata.event_payload.sender") { senderOf[idx] = val; return; }
+	## S27.8: the run that wrote a tooling message, and the run it was for. They are what lets one run
+	## of a member dismiss another run of that member, and never itself.
+	if (afterIdx == "metadata.event_payload.author_run") { authorRunOf[idx] = val; return; }
+	if (afterIdx == "metadata.event_payload.addressee_run") { addresseeRunOf[idx] = val; return; }
 	## The tooling's own tracking posts (AgentsTools.InternOpEventTrackPost.include, the session root) carry `event_payload.tracking`, the kind of the
 	## post: a reader that decides whether something is input tells them by this annotation, `[tracking: <kind>]`, never by their text.
 	if (afterIdx == "metadata.event_payload.tracking") { trackingOf[idx] = val; return; }
@@ -366,6 +370,10 @@ END {
 		i = orderOf[emitPos]
 		annotations = ""
 
+		## S27.8: BOTH RUNS, on a message from the tooling, printed where the head's own annotations go
+		## so the dismissal matcher reads them beside the sender it already reads.
+		if (i in authorRunOf) annotations = annotations sprintf(" [author-run: %s]", authorRunOf[i])
+		if (i in addresseeRunOf) annotations = annotations sprintf(" [addressee-run: %s]", addresseeRunOf[i])
 		if (i in senderOf) annotations = annotations sprintf(" [sender: %s]", senderOf[i])
 		if (i in trackingOf) annotations = annotations sprintf(" [tracking: %s]", trackingOf[i])
 		if (i in sessionOf) annotations = annotations sprintf(" [session: %s]", sessionOf[i])

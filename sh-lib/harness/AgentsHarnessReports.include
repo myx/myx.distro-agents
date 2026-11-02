@@ -195,11 +195,13 @@ AgentsHarnessToolSubagentHandback(){
 		if AgentsHarnessDismissWaits > /dev/null ; then
 			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "tooling (this run reports to no one, and its report is given)" handback-given
 			rm -f "$harnessScratch/send.delivered"
+			AgentsHarnessHandbackNext "$toolOutcome"
 			return 0
 		fi
 		AgentsHarnessDismissedKeep "tooling (this run reports to no one, and its report is given)"
 		: > "$( AgentsHarnessDismissedFile ).handback" 2> /dev/null || :
 		rm -f "$harnessScratch/send.delivered"
+		AgentsHarnessHandbackNext "$toolOutcome"
 		return 0
 	fi
 	## A delivered handback of a session that was dismissed is the one its run ends on: marked
@@ -207,6 +209,8 @@ AgentsHarnessToolSubagentHandback(){
 	if [ -f "$harnessScratch/send.delivered" ] && AgentsHarnessDismissedBy > /dev/null ; then
 		: > "$( AgentsHarnessDismissedFile ).handback" 2> /dev/null || :
 	fi
+	## A DELIVERED HANDBACK WITH NOTHING PENDING PARKS THE RUN (S27.2), where a verdict can arrive.
+	[ ! -f "$harnessScratch/send.delivered" ] || AgentsHarnessParkOnHandback || :
 	## A delivered handback, posted to Slack or left in the caller's inbox, moves the session's
 	## own item running -> review once, recorded in its Decisions and transcript
 	## (AgentsTools.ReviewFlow.include). A failed one moves nothing. Silent, and never fails the call.
@@ -214,6 +218,58 @@ AgentsHarnessToolSubagentHandback(){
 	rm -f "$harnessScratch/send.delivered"
 	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-handback "$harnessAgent" --session-id "$toolCollectSession" \
 		--message "$( printf '%s' "$toolOutcome" | LC_ALL=C tr '\n' ' ' | cut -c1-200 )" > /dev/null 2>&1 || :
+	## After the review: where the routine of this run hands over, the next one starts (AgentsHarnessHandbackNext). It never changes the handback.
+	AgentsHarnessHandbackNext "$toolOutcome"
+}
+
+## S24 item 4: where the routine of this run hands over, the `next-routine:` line of the outcome starts the next one (AgentsTools.HandbackNext.include).
+## Run after the review of the handback, and silent: it never changes the handback and never fails the call.
+AgentsHarnessHandbackNext(){ ## the outcome field
+	[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || printf '%s\n' "$1" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-next "$harnessAgent" \
+		--session-id "$MDAT_SPAWN_SESSION_ID" --from-stdin > /dev/null 2>&1 || :
+	return 0
+}
+
+## THE PARK DECISION (S27.2), taken where a run's handback has been delivered. A run parks only
+## where a verdict can arrive and nothing is still open, and the mark it leaves is the one home
+## of that fact. Prints nothing; never fails its caller.
+AgentsHarnessParkOnHandback(){
+	local parkItem parkReviewer
+	## Nothing pending: a handback that leaves an item open is not a finished run.
+	[ -z "$( AgentsHarnessCheckListOpenItems 2> /dev/null )" ] || { AgentsHarnessParkClear ; return 0 ; }
+	## A caller blocked on this run already has its return, so the run does not hold for a verdict.
+	[ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] || { AgentsHarnessParkClear ; return 0 ; }
+	## Somebody must be able to give the verdict. `none`, and an item on no board, park nothing.
+	parkItem="$( AgentsHarnessParkItemOfRun )" || { AgentsHarnessParkClear ; return 0 ; }
+	parkReviewer="$( AgentsToolsItemReviewer "$parkItem" 2> /dev/null )" || parkReviewer=""
+	case "$parkReviewer" in ''|-|none) AgentsHarnessParkClear ; return 0 ;; esac
+	AgentsHarnessParkMark
+}
+
+## The board item this run works, as a path. rc 1 where it works none.
+AgentsHarnessParkItemOfRun(){
+	local parkRun parkLink
+	parkRun="${MDAT_SPAWN_SESSION_ID:-}"
+	case "$parkRun" in ''|-|.|..|*/*) return 1 ;; esac
+	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	type AgentsReviewItemOfSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || return 1
+	parkLink="$( AgentsReviewItemOfSession "$parkRun" 2> /dev/null )" || return 1
+	AgentsToolsDecisionsItemPath "${parkLink%.md}" 2> /dev/null
+}
+
+## The mark is written only when it should stand, and taken away whenever a resume starts the
+## run again: a parking flag surviving one resume parks the run on its own first turn.
+AgentsHarnessParkMark(){
+	local markPath
+	markPath="$( AgentsHarnessParkedFile )" || return 0
+	mkdir -p "${markPath%/*}" 2> /dev/null || return 0
+	date +%s > "$markPath" 2> /dev/null || :
+}
+
+AgentsHarnessParkClear(){
+	local markPath
+	markPath="$( AgentsHarnessParkedFile )" || return 0
+	rm -f "$markPath" 2> /dev/null || :
 }
 
 AgentsHarnessToolReportFindings(){

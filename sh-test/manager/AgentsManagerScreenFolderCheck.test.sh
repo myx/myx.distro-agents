@@ -8,8 +8,8 @@
 ##   2. no python file of the console app (AgentsManagerScreen*.py) stays at the top of sh-lib
 ##   3. run: the start of the console app (--manager, or --intern-manager before F2.5) starts python on a file in
 ##      sh-lib/manager/, handing it the workspace and the tools
-## Red before F11.1: the screen is sh-lib/AgentsManagerScreen.py, and the start names it there (every case fails).
-## Builder note: every screen check hands the driver sh-lib/AgentsManagerScreen.py (check-fixtures/
+## Red before F11.1: the screen is sh-lib/LocalManagerScreen.py, and the start names it there (every case fails).
+## Builder note: every screen check hands the driver sh-lib/LocalManagerScreen.py (check-fixtures/
 ## manager-screen.driver.py and each `rigScreen=`), and manager/AgentsManagerBareOpCheck compares the start against it;
 ## they are brought in line in the same change.
 ## Offline: a rig python3 that writes down how it was started and runs nothing.
@@ -53,11 +53,14 @@ rigAssert "the folder stands, with python files in it"        "$( [ -d "$rigLib/
 echo "-- 2. none of it stays at the top of sh-lib --"
 rigAssert "the console app's python files at the top of sh-lib" "[$( find "$rigLib" -maxdepth 1 -name 'AgentsManagerScreen*.py' -type f -exec basename {} \; | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//' )]" "[]"
 
-echo "-- 3. the start starts the screen from sh-lib/manager/ --"
+echo "-- 3. the start starts the screen from a sh-lib/manager/ of the family --"
 rigStart --manager
 LC_ALL=C grep -q -F 'invalid option: --manager' "$rigTmp/out" && rigStart --intern-manager
+## The screen's entry lives in `.local`'s sh-lib/manager since the split, so the folder asserted is that one, in
+## whichever package of the family holds it: what this check holds is that python is started on a file there, and
+## never on one at the top of a sh-lib.
 rigAssert "python is started on a file in sh-lib/manager/, with the workspace and the tools" \
-	"$( LC_ALL=C awk -F'\t' -v wantLib="$rigLib/manager/" -v wantWs="$rigWs" -v wantTool="$rigTool" '$1 == "start" { for ( f = 2 ; f <= NF ; f++ ) if ( $f ~ /\.py$/ ) script = $f ; ws = 0 ; tools = 0 ; for ( f = 2 ; f < NF ; f++ ) { if ( $f == "--workspace" && $(f+1) == wantWs ) ws = 1 ; if ( $f == "--tools" && $(f+1) == wantTool ) tools = 1 } ; print ( index( script, wantLib ) == 1 ? "manager-folder" : "elsewhere:" script ) ( ws ? " workspace" : "" ) ( tools ? " tools" : "" ) ; exit }' "$rigTmp/starts" )" "manager-folder workspace tools"
+	"$( LC_ALL=C awk -F'\t' -v wantWs="$rigWs" -v wantTool="$rigTool" '$1 == "start" { for ( f = 2 ; f <= NF ; f++ ) if ( $f ~ /\.py$/ ) script = $f ; ws = 0 ; tools = 0 ; for ( f = 2 ; f < NF ; f++ ) { if ( $f == "--workspace" && $(f+1) == wantWs ) ws = 1 ; if ( $f == "--tools" && $(f+1) == wantTool ) tools = 1 } ; print ( index( script, "/sh-lib/manager/" ) > 0 ? "manager-folder" : "elsewhere:" script ) ( ws ? " workspace" : "" ) ( tools ? " tools" : "" ) ; exit }' "$rigTmp/starts" )" "manager-folder workspace tools"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN FOLDER CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

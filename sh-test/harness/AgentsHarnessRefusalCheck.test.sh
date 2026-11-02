@@ -213,6 +213,41 @@ rigAssert "the summarise round withdrew the tools"           "$( rigHolds "$rigS
 rigAssert "the fresh leg's answer is the result"             "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "a refusal at three quarters of the window summarises, whatever its wording"
 
+## 7. The round that overflowed the window is the one whose tool results made it so. Its request is
+## not sent again whole: the results of that round are withheld from the summarise request, which
+## says the calls ran, so the repair fits and the transcript stays whole (a call keeps its result).
+rigStart refusal-withholds-last-results
+rigToolStream "$rigScenarioDir/res.1" 100 5
+rigRefusalBody "$rigScenarioDir/res.2"
+rigTextStream "$rigScenarioDir/res.3" RIG-SUMMARY-MARKER
+rigTextStream "$rigScenarioDir/res.4" RIG-FINAL-MARKER
+rigRun 1000000
+rigAssert "the run does not end on the refusal"            "$rigRunStatus" 0
+rigAssert "four rounds were requested"                     "$rigRoundCount" 4
+rigAssert "the refused request carried the tool result"    "$( rigHolds "$rigScenarioDir/req.2" 'RIG-TOOLRESULT-MARKER' )" yes
+rigAssert "the summarise request does not"                 "$( rigHolds "$rigScenarioDir/req.3" 'RIG-TOOLRESULT-MARKER' )" no
+rigAssert "it still names the call, with a notice for it"  "$( rigHolds "$rigScenarioDir/req.3" 'rig-call' ):$( rigHolds "$rigScenarioDir/req.3" 'withheld' )" yes:yes
+rigAssert "the fresh leg's answer is the result"           "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigVerdict "a refusal withholds the results of the round that overflowed, and the run carries on"
+
+## 8. A summarise round the service refuses as well, after tool rounds, is asked again with every
+## result withheld: a handover needs no raw output. The run ends only where nothing is left to withhold (scenario 2).
+rigStart summarise-refused-withholds-all
+rigToolStream "$rigScenarioDir/res.1" 100 5
+rigToolStream "$rigScenarioDir/res.2" 200 5
+rigRefusalBody "$rigScenarioDir/res.3"
+rigRefusalBody "$rigScenarioDir/res.4"
+rigTextStream "$rigScenarioDir/res.5" RIG-SUMMARY-MARKER
+rigTextStream "$rigScenarioDir/res.6" RIG-FINAL-MARKER
+rigRun 1000000
+rigAssert "the run does not end"                           "$rigRunStatus" 0
+rigAssert "six rounds were requested"                      "$rigRoundCount" 6
+rigAssert "the first summarise request still held the older result" "$( rigHolds "$rigScenarioDir/req.4" 'RIG-TOOLRESULT-MARKER' )" yes
+rigAssert "the second held none"                           "$( rigHolds "$rigScenarioDir/req.5" 'RIG-TOOLRESULT-MARKER' )" no
+rigAssert "the second refusal said every result is withheld" "$( rigHolds "$rigScenarioDir/err" 'every tool result withheld' )" yes
+rigAssert "the fresh leg's answer is the result"           "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigVerdict "a summarise round refused in turn is asked again with every result withheld"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ REFUSAL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

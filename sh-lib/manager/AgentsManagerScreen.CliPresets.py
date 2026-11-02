@@ -6,7 +6,7 @@
 ## effort, the cache and the credentials), `f` uses a preset for a member, `a` assigns a tier (who, which tier, then the two selectors, the preset and the effort), `D` deletes a preset, `s` selects
 ## the CLI the machine has. Enter on a preset edits it, as `e` does; an edit starts on the preset selected, its own name in the name field, and offers neither its CLI service nor what it extends,
 ## which an edit cannot change. The variables of a preset are Scope Settings' (LocalManagerScreen.Scopes.py of `.local`), which stays as it was.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the order of its PARTS, and it is never run by itself. The part is plain text of the screen.
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ## The screen writes no file: --manager-scope-set, --manager-preset-delete and the wizard's --manager-wizard-apply do, by the setting reader of the dispatcher.
 ##
 
@@ -100,9 +100,9 @@ def parseCliPresetsRows(readKey, level, text):
     return held
 
 
-ROW_FORMS["presets"] = parsePresetRows
-ROW_FORMS["tiers"] = parseTierRows
-ROW_FORMS["clipresets"] = parseCliPresetsRows
+ROW_FORMS["presets"] = {"parse": parsePresetRows}
+ROW_FORMS["tiers"] = {"parse": parseTierRows}
+ROW_FORMS["clipresets"] = {"parse": parseCliPresetsRows}
 
 
 ## The assigned tiers: the owners that have any of the three set (the team always, since it is the default of every member that has none).

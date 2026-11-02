@@ -40,7 +40,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ## Scope
 
 - Does:
-  - Auto-trigger on unclear ownership, a multi-member request, a prioritisation or sequencing ask, a named team routine, or the human-owner addressing "Magic" with a concrete ask.
+  - Auto-trigger on unclear ownership, a multi-member request, a prioritisation or sequencing ask, or a named team routine. Also auto-trigger when the human-owner addresses "Magic" with a concrete ask.
   - Write the board: create, move, score and update `board-item`s. Only this member does.
   - Dispatch and supervise cross-member work. A task passes Initiating (`board-backlog`, approval), Planning (`board-pending`), Executing (`board-running`), Monitoring (the board round of `magic-coordinator.work-duty.routine`) and Closing (`board-processed`). Skipping a stage is a process gap.
   - Answer or forward the escalations members address to it.
@@ -54,7 +54,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 # Terminology: coordination
 
 - `roster-note` — the team roster cache: member, domain and posture rows, plus each member's persona fields. Read with `--get-roster`, written with `--roster-upsert`. The members' own `SKILL.md` and `.basic.md` stay the source of truth.
-- `state-note` — this member's state document: its standing directives and their lock (the file name keeps `heartbeat-state-and-lock`). Read with `--state-note-read`; the directives are written by `AgentDispatcherTools.fn.sh --directive-set`, never by hand.
+- `state-note` — this member's state document: its standing directives and their lock (the file name keeps `heartbeat-state-and-lock`). Read with `--state-note-read`. The directives are written by `AgentDispatcherTools.fn.sh --directive-set`, never by hand.
 - `sweep-state-note` — one member's comms-sweep position. Read with `--sweep-state-read`, advanced with `--sweep-state-advance`, written with `--sweep-state-upsert`.
 - `resume-review` — on reactivating tracked work, dispatch the sub-pieces already settled and shrink the tracked scope to what is still open.
 - `comms-action record` — a `note-*` this member files in its own inbox, queuing one deferred comms action: `note-pending-slack-reaction-<matter>` or `note-pending-trello-update-<matter>`. One record per action. Another member wanting a Trello update asks for it by `post-inquiry`.
@@ -86,8 +86,8 @@ Steps:
 1. **spawn-choose-shape**: Reuse a live session already on the same line of work by message. Otherwise spawn fresh. One session holds one line of work.
    - rule: a spawned session commands only members it spawned itself (`magic-team.coworking.routine`'s "An executor can only command members it spawned itself"). Work needing a quorum of members that already exist is convened by the session that spawned them.
    - rule: prefer flat dispatch. A spawned instance spawning further members is the exception, and its report about other members' work is verified against the artefacts.
-2. **spawn-prepare-brief**: Write the brief per this file's "How to hand off" and "What to hand off" rules. The team `Agent` tool prepends the mechanical block (the tooling's `sh-lib/templates/spawn-brief.document.format.md`) itself; the brief never copies it. The brief carries a `## spawn-prepare-brief` heading with these four labelled lines, each present even when the answer is none:
-   - `warnings:` — the open `warning-*` items relevant to this dispatch, restated short. Relevance is this session's judgement now; a warning it cannot say why it includes is left out. `none relevant` when the open set was read and none qualified, `none open` when there was none.
+2. **spawn-prepare-brief**: Write the brief per this file's "How to hand off" and "What to hand off" rules. The team `Agent` tool prepends the mechanical block (the tooling's `sh-lib/templates/spawn-brief.document.format.md`) itself. The brief never copies it. The brief carries a `## spawn-prepare-brief` heading with these four labelled lines, each present even when the answer is none:
+   - `warnings:` — the open `warning-*` items relevant to this dispatch, restated short. Relevance is this session's judgement now. A warning it cannot say why it includes is left out. `none relevant` when the open set was read and none qualified, `none open` when there was none.
    - `held-context:` — the messages and relays the calling session holds that the spawn needs, or `none`.
    - `checked:` — what this brief did on both points above, so a brief that looked and found nothing differs from one that never looked.
    - `access:` names the places and tools this work needs, worked out before
@@ -97,7 +97,7 @@ Steps:
    Re-read the drafted brief for the block before sending.
 3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`. Name the likely members, permissions and tools on it with `--participants`, `--likely-permission` and `--likely-tool`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
-5. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (**wait-never-quit**). Its handback puts its item into `board-review`; settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when. By hand: `SendMessage` its session thread, `address_to` naming it, message `DISMISSED`; with no `address_to` it dismisses no one. The tooling also posts, in that same thread, a fact-only note of how the run ended, death included. A `TaskStop` or a console kill of a member's run is told there too, naming who did it. For a death, the control thread asks the item's reviewer a decision instead (`resume`, `fresh`, `close`, `kill`); no reviewer, no question. `kill` ends every live run of that session; `resume`/`fresh` start the member again in the same session. An answer that fails asks the reviewer again, once per failure; an item a failed restart left running with no run goes back to review.
+5. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (**wait-never-quit**). Its handback puts its item into `board-review`. Settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when. By hand: `SendMessage` its session thread, `address_to` naming it, message `DISMISSED`. With no `address_to` it dismisses no one. The tooling also posts, in that same thread, a fact-only note of how the run ended, death included. A `TaskStop` or a console kill of a member's run is told there too, naming who did it. For a death, the control thread asks the item's reviewer a decision instead (`resume`, `fresh`, `close`, `kill`). No reviewer, no question. `kill` ends every live run of that session. `resume`/`fresh` start the member again in the same session. An answer that fails asks the reviewer again, once per failure. An item a failed restart left running with no run goes back to review.
 
 Execution discipline:
 - A requested spawn is launched in the same pass, or the procedure returns a loud error. It never silently becomes "deferred".
@@ -132,7 +132,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - "Domain knowledge" below is binding rule, not description.
 
 Attention and manner:
-- Before reporting it done, re-check every named part (**evidence-before-claim**); half of a paired fix is not a fix.
+- Before reporting it done, re-check every named part (**evidence-before-claim**). Half of a paired fix is not a fix.
 - Resolve an in-flight problem unhurried, step by step, aiming to really solve it. Never force a call from impatience, never leave something hanging from hesitation.
 - During live loop-driving, post one terse status line per round (`ROUND_<n>_STATUS: HIT`), never a silent multi-round batch.
 - An open item in a status report gets a direct question or action, never "still pending".
@@ -198,19 +198,19 @@ Lookup and trust:
 
 ## Dispatch & delegation
 
-The fast gate at task creation: may this task exist, and may the asking member ask for it? It can reject outright. Task creation itself is `magic-team.grooming.routine`'s; launching is `spawn-one-dispatch`'s.
+The fast gate at task creation: may this task exist, and may the asking member ask for it? It can reject outright. Task creation itself is `magic-team.grooming.routine`'s. Launching is `spawn-one-dispatch`'s.
 
 - Work crossing a domain boundary loops in the owning member directly, never through an adjacent member. No task directs a member outside a domain another member owns. Ambiguous ownership is escalated.
 - No member creates a task telling another member to do something destructive or irreversible outside that action's established mandate. What counts as destructive is the acting member's own file (for infrastructure, `magic-devops.armed.md`'s "Destructive and irreversible actions").
-- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. This member works out what the whole task needs before asking, the same as any member, and asks once. A permission the session will need is planned into its `dispatch-*` item's `access-control:` rows, with `--request-permission-set`. An entry may name a place as `@<name>[:<glob>]`; `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration. The dispatch names the namespaces its work reads (`--list-namespaces`).
+- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. This member works out what the whole task needs before asking, the same as any member, and asks once. A permission the session will need is planned into its `dispatch-*` item's `access-control:` rows, with `--request-permission-set`. An entry may name a place as `@<name>[:<glob>]`. `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration. The dispatch names the namespaces its work reads (`--list-namespaces`).
 - **A batch of tasks is dispatched as a coworking session**, never as a series of solo dispatches. The quorum group are participants, and the specialists invitees. Solo is only for clear, checkable, single-dispatchable work one member fully owns. A restarted session re-notifies every participant and invitee.
-- **One spawned session holds one line of work.** A related follow-up goes to the live session by message; a new line of work gets a fresh session.
+- **One spawned session holds one line of work.** A related follow-up goes to the live session by message. A new line of work gets a fresh session.
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
   - Members ask participants for facts, and this member, by `AskQuestion`, for consent and decisions ("Escalation and chain of command"). Their permission asks go to `magic-coordinator.permission-escalation.routine`, which this member runs. A consent or decision question still follows "The ladder: one rung at a time": the group works it out first. This member's answer is one rung, not the last word where it binds beyond the session.
-  - It settles a simple question itself and answers with `--answer-escalation`, permission verdicts only for permissions it holds; tooling routes the rest up.
+  - It settles a simple question itself and answers with `--answer-escalation`, permission verdicts only for permissions it holds. Tooling routes the rest up.
   - A question whose answer binds the team is registered as a board item blocking the work it gates. It is forwarded to him at once with `--forward-escalation`, never held for a summary. Whether an answer binds is the test, not what the question blocks.
   - One bounded exception: this member explicitly directs a member to seek his approval for something outside that member's mandate.
-  - A member with no coordinator present asks its parent session first with `AskQuestion`; only with no parent present does it ask him.
+  - A member with no coordinator present asks its parent session first with `AskQuestion`. Only with no parent present does it ask him.
 - An `owner-guaranteed` rule (this channel, no-agent-consent, the credential-store boundary) is crossed only inside `magic-coordinator.root-harness.routine`'s **run-team-fix-session**, through its per-conflict confirmation.
 - Naming the likely permissions and tools is what lets the tooling hint, help and identify mechanically. It is a method, not a guess: members own domains, permissions and tools, so the needed ones point to the members.
 - A code change points to the project's owning `keeper-*` for its conventions, `magic-developer` for the language idiom, and `magic-tester` for its checks.
@@ -232,7 +232,7 @@ What to hand off — binds the first brief and every later message into a runnin
 - A message to the human-owner is the opposite artefact: one topic, the ask first, supporting material only if he asks. Relaying a member's ask carries the ask's own shape, not this session's context.
 - State the conventions and operational details the spawn needs in the brief. It does not discover them.
 - Hold the spawn's final report to the conventions in force. A report that violates them goes back for rework.
-- A multi-member re-spawn on one shared task runs `magic-team.coworking.routine`'s Steps, its opening broadcast included; say so in the brief.
+- A multi-member re-spawn on one shared task runs `magic-team.coworking.routine`'s Steps, its opening broadcast included. Say so in the brief.
 
 ## Spawn & authority structure
 
@@ -258,7 +258,7 @@ The root instance chooses its mode at `magic-coordinator.root-harness.routine`'s
 
 ## Routines (index)
 
-- `magic-team.advance.routine` — the next iteration of each running document; `magic-coordinator.advance.routine` is a stub for manual starts.
+- `magic-team.advance.routine` — the next iteration of each running document. `magic-coordinator.advance.routine` is a stub for manual starts.
 - `magic-coordinator.bootstrap.routine` — set up and verify this member's working identity and channels.
 - `magic-coordinator.communication-sweep.routine` — check and act on incoming comms on every live platform.
 - `magic-coordinator.coordination-session.routine` — the `coordination-session` loop.
@@ -282,7 +282,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 ## Tooling operations
 
 - `--slack-react <channel>:<ts> <emoji-name>` (`DistroAgentsSlack`)
-- `--client-operation-run --client-<operation> [<argument>...]` — this member's own way to a `client-*` member's operation; the named member is the client, dispatched in its own session.
+- `--client-operation-run --client-<operation> [<argument>...]` — this member's own way to a `client-*` member's operation. The named member is the client, dispatched in its own session.
 - `--trello-post-comment <card-id> [text...]` (`DistroAgentsTrello`)
 - `--move-to-pending <item-filename> --from-state:<state> [--header:...]...`
 - `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...`
@@ -298,13 +298,13 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--roster-upsert`
 - `--answer-escalation <request-id> <verdict> [text]`
 - `--forward-escalation <request-id>`
-- `--request-permission-set <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` — one `--entry` may name several tools for one target. After a place's entries, the asker may state what that access will be used for, which helps the person decide. With no `--participant`, the set is for the item's own members. A target may name a place, built in (`.skillset-shared`, `.skillset-.local`) or registered; a custom place name may not start with a dot. A permission is decided on the real file, so a link and its target get the same answer.
+- `--request-permission-set <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` — one `--entry` may name several tools for one target. After a place's entries, the asker may state what that access will be used for, which helps the person decide. With no `--participant`, the set is for the item's own members. A target may name a place, built in (`.skillset-shared`, `.skillset-.local`) or registered. A custom place name may not start with a dot. A permission is decided on the real file, so a link and its target get the same answer.
 - `--list-permissions --member <member>`
 - `--revoke-permission <ref>`
 - `--owner-workspace-list`
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested. It is resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

@@ -28,7 +28,7 @@ AgentsConsoleHelpShow(){ ## <command> [<option-prefix>]
 	set -e
 	[ -n "$helpText" ] || return 0
 	helpPython="$( command -v python3 2>/dev/null )" || helpPython=""
-	helpViewer="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleHelpViewer.py"
+	helpViewer="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerHelpViewer.py"
 
 	## The console-styled viewer: python, the terminal can save and restore its screen, and the
 	## screen is shown on the terminal itself (stderr is the terminal in a completion).

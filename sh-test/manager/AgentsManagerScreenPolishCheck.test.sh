@@ -3,7 +3,7 @@
 ## `Launch / Spawn` is renamed `Launchpad`, `Consoles (Tools)` is renamed `Consoles`, the obsolete pane line
 ## `keys: k kill  c control` is gone (the status line already shows those keys), and a big window showing command
 ## output has bigger margins: at least one more line top and bottom and two more characters each side than before.
-## Run rather than read: the screen's own code (sh-lib/manager/AgentsManagerScreen.py) draws through the stand-in terminal of
+## Run rather than read: the screen's own code (sh-lib/manager/LocalManagerScreen.py) draws through the stand-in terminal of
 ## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls the stand-in
 ## script (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
 ## Held:
@@ -34,7 +34,7 @@
 ## Reconciled for the groups of the roots (owner, 2026-10-20): Pending Questions stands in a group with the Dashboard, and a spacer follows it, so the root holds four spacers.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -287,7 +287,7 @@ echo "-- 4. the table colour rule: alternate rows differ only in their backgroun
 ## Read from the screen's declaration of its looks, by the screen module itself, in each style and scheme it offers:
 ## a row of a table (ROW) against every other row (ROW_ALT), as the screen resolves the two in that scheme.
 rigRowRule="$( "$rigPython" -I -B -c 'import importlib.util, sys
-spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+spec = importlib.util.spec_from_file_location("LocalManagerScreen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec) ; spec.loader.exec_module(screen)
 broken = []
 for style, entry in screen.STYLES:

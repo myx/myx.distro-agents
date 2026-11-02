@@ -236,7 +236,7 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 ## measured, then grouped, sorted and counted. Fails, printing nothing, where a registry
 ## cannot be rebuilt: a stale file is never listed as though it were fresh.
 AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for the active sessions only (may be empty)
-	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawn rowsWaiting=" " rowsStat="" rowsTab=$'\t'
+	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsTab=$'\t'
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
 	local measuredRows="" measuredDated="" measuredAny="false"
 	rowsFile="$( AgentsToolsRegistryFile spawned-sessions )"
@@ -247,20 +247,11 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	fi
 	[ -d "$MMDAPP/.local/agents/spawned" ] || echo "# $MDSC_CMD $rowsOp: no spawn sandbox root exists yet, so no session has run in this workspace" >&2
 	AgentsToolsRegistryMeasureRows "$rowsFile" "" "" 17
-	if stat -f '%m' / > /dev/null 2>&1 ; then
-		rowsStat="bsd"
-	elif stat -c '%Y' / > /dev/null 2>&1 ; then
-		rowsStat="gnu"
-	fi
-	## The store of a live run is read, never of an ended one: but for one small file of each
-	## run that has it, its tokens, which the awk of the rows reads for the total of a session
-	## (AgentsManagerSessionTokens.awk). No transcript and no record is opened for that.
-	while IFS= read -r rowsSpawn ; do
-		[ -n "$rowsSpawn" ] || continue
-		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
-	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 19 && $12 == "running" { print $8 ; }' )"
+	## What each run is doing is the state the registry derived for it, in `measuredDated`: no store of a run is read for
+	## that a second time. Of a run's store the awk reads two small files alone: its tokens, which it adds for the total of
+	## a session (AgentsManagerSessionTokens.awk), and the chapter of a session. No transcript and no record is opened.
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -324,7 +315,7 @@ AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept
 AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), what is not done on a failure (may be empty), "fresh" where the caller signals and so must read the process list now
 	local scopeOp="$1" scopeId="$2" scopeOwn="${3:-}" scopeNot="${4:-nothing is shown}" scopeNow="${5:-}" scopeFile scopePending scopeStore scopePicked="" scopeRows="" scopeAge="" scopeFresh=""
 	local scopeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" scopeIds scopeReread
-	local scopeTracking scopeSkip scopeSpawn scopeLive scopeRest scopeTemp scopeStat="" scopeWaiting=" " scopeState="" scopeTab=$'\t' scopeNl=$'\n'
+	local scopeTracking scopeSkip scopeSpawn scopeRest scopeTemp scopeState="" scopeTab=$'\t' scopeNl=$'\n'
 	local measuredRows="" measuredDated="" measuredAny="false"
 	scopeSession="" ; scopeRun="" ; scopeMeasured="" ; scopeListed="" ; scopeControl=""
 	scopeFile="$( AgentsToolsRegistryFile spawned-sessions )"
@@ -397,19 +388,11 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	AgentsToolsRegistryMeasureRows "$scopeTemp" "" "" 17 "$scopeNow"
 	rm -f "$scopeTemp"
 	scopeMeasured="$measuredDated"
-	## The store of a live run is read, never of an ended one.
-	while read -r scopeTracking scopeSkip scopeSkip scopeSkip scopeSkip scopeSkip scopeSkip scopeSpawn scopeSkip scopeSkip scopeSkip scopeLive scopeRest ; do
-		[ "$scopeLive" = "running" ] || continue
-		if [ -z "$scopeStat" ] ; then
-			if stat -f '%m' / > /dev/null 2>&1 ; then scopeStat="bsd" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then scopeStat="gnu" ; else scopeStat="none" ; fi
-		fi
-		[ "$( AgentsToolsManagerRunActivity "$scopeSpawn" "$scopeStat" )" != "waiting" ] || scopeWaiting="$scopeWaiting$scopeSpawn "
-	done <<< "$scopeMeasured"
 	## Grouped, ordered and named as the list does it, by the list's own awk; its counters row,
 	## the last, counts this session alone and is no row of a read.
 	scopeControl="$( AgentsToolsManagerSessionControls "$scopeSession" )"
 	scopeListed="$( printf '%s' "$scopeMeasured" \
-		| MDAT_MANAGER_WAITING="$scopeWaiting" MDAT_MANAGER_CONTROL="$scopeControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$scopePending" - \
+		| MDAT_MANAGER_CONTROL="$scopeControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$scopePending" - \
 		| LC_ALL=C sort -t "$scopeTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6- )"
 	scopeListed=${scopeListed%counters"$scopeTab"*}

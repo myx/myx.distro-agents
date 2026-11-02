@@ -167,6 +167,19 @@ AgentsToolsBoardHandlerSetMay(){ ## -- rc 0 may; rc 4 refused, the reason on std
 	return 4
 }
 
+## The rows of runs that are not gone (S23.6): a record that says `spawn-started` is no proof that its run lives, so a holder whose process is gone holds nothing. A run that
+## cannot be told either way (the liveness reading says unknown) still holds, since a writer must not be let in where nothing says the holder has gone.
+AgentsToolsBoardItemHoldersNotGone(){ ## stdin: `member<TAB>spawn-id<TAB>session-id` rows
+	local holdMember holdSpawn holdSession
+	type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || { cat ; return 0 ; }
+	while IFS=$'\t' read -r holdMember holdSpawn holdSession ; do
+		[ -n "$holdMember" ] || continue
+		[ "$( AgentsToolsLivenessOf "$holdSpawn" )" != gone ] || continue
+		printf '%s\t%s\t%s\n' "$holdMember" "$holdSpawn" "$holdSession"
+	done
+	return 0
+}
+
 AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and the participants: `member<TAB>spawn-id<TAB>session-id` a line
 	local holdMembers holdSession
 	holdMembers="$( AgentsToolsBoardItemKey "$1" owner ),$( AgentsToolsBoardItemKey "$1" participants )"
@@ -177,7 +190,7 @@ AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and th
 		LC_ALL=C awk -F '\t' -v members="$holdMembers" -v session="$holdSession" '
 			BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
 			($1 in want) && (session == "" || $3 == session || $2 == session) { print }
-		' <<< "$AGENTS_BOARD_LIVE_HOLDERS_CACHE"
+		' <<< "$AGENTS_BOARD_LIVE_HOLDERS_CACHE" | AgentsToolsBoardItemHoldersNotGone
 		return 0
 	fi
 	LC_ALL=C awk -v members="$holdMembers" -v session="$holdSession" '
@@ -189,7 +202,7 @@ AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and th
 		fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
 		fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
 		fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
-	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null
+	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | AgentsToolsBoardItemHoldersNotGone
 }
 
 AgentsToolsBoardItemRoundMay(){ ## item file -- rc 0 may run a round on it; rc 4 refused, the reason on stdout

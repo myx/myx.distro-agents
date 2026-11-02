@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.Pending.py -- the root Pending Questions: the asks that wait, and to answer, reject, dismiss and link them.
-## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
+## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
@@ -97,6 +97,14 @@ def parsePendingRows(text):
     return rows
 
 
+## The levels of the `pending` read: registered with the list, so the list asks the read's form rather than naming this parser.
+def pendingLevels(readKey, level, text):
+    return {level: parsePendingRows(text)}
+
+
+ROW_FORMS["pending"] = {"parse": pendingLevels}
+
+
 ## The counters a read carries, for the status lines: the last row of the list of the
 ## sessions, `counters` and then the sessions running and paused, the agents working and
 ## waiting, the asks that wait, the load average of the host and last the name of that
@@ -180,6 +188,10 @@ def parseAskStored(text):
         else:
             stored.append((name, [value]))
     return None if stored is None else {"id": askId, "stored": stored}
+
+
+## A pending question's stored reply is taken as it arrives, with no dialog open.
+VIEW_FORMS["ask"] = dict(formRow("ask", parseAskStored, "always"), fills="info")
 
 
 ## What the stores hold of an ask, set out for the left pane, each part only where it is
@@ -317,6 +329,10 @@ def parseAskActs(text):
         elif fields[0] == "answer" and len(fields) >= 5:
             acts["answers"].append({"number": absent(fields[1]), "word": fields[2], "outcome": fields[3], "label": absent(fields[4])})
     return acts
+
+
+## The answers to a pending question are taken as they arrive, with no dialog open.
+VIEW_FORMS["ask-acts"] = dict(formRow("ask-acts", parseAskActs, "always"), fills="acts")
 
 
 ## What can be done with the ask of that row, as it was read for it, or None: while it is

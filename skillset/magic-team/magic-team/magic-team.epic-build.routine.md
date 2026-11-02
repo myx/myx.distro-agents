@@ -3,6 +3,7 @@ type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
+tracking-item: required
 runs-at: none
 review-by: inherit
 ---
@@ -37,7 +38,7 @@ tool, ending with the apply report.
 
 - Deliver one feature the epic names, by the four beats: readback and gaps, sandbox, gate, apply.
 - Build and test in the builder's own scratch, red against live first for the stated reason, then green.
-- End with the apply report, so the coordinator sets the feature's status line from it.
+- End with the apply report, so the coordinator closes or narrows the feature from it.
 
 ## Scope
 
@@ -52,7 +53,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **readback-and-gaps**: Read the feature, its Settled lines, the constraints naming it, and the code it touches. Where the epic is silent, send each gap with its proposed reading, before
+1. **readback-and-gaps**: Read the feature, its Settled lines, the ground rules that name it, and the code it touches. Where the epic is silent, send each gap with its proposed reading, before
 building that part. Build only the parts the gap does not touch until it is
 answered.
 2. **sandbox**: Build and test in your own scratch, in the session sandbox. Write a test for each statement of the spec, red against live first for the stated reason, then green.

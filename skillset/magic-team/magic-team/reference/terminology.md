@@ -9,11 +9,11 @@ Terms of "Terminology: Team terminology" that a member needs only on occasion.
 - `--client-comms-slack-*` is the Slack operation family (send, read, search,
   react, edit, delete, file-info, file-fetch, file-share, profile). A
   `client-*` member uses it to reach the other organisation's Slack. `--member-comms-slack-*` reaches our own team instead, as the team bot.
-- `external-channel` — a channel outside the team's own infrastructure. `internal-channel` is its complement; messages between members of one coworking session are internal.
+- `external-channel` — a channel outside the team's own infrastructure. `internal-channel` is its complement. Messages between members of one coworking session are internal.
 - `filing` — writing one piece of live context, with its goal and references, as one inbox or board document for later pickup. It is then dropped from the live session. Filing executes nothing.
 - `harness-session` — the bootstrap state of a `magic-coordinator` instance before a mode is chosen. `harness-session-rules` — the standing rules of that state. Both live in `magic-coordinator`'s files.
 - `main-loop` — the team's continuous rhythm. It is the host loop that checks the configuration, keeps the house and starts what the schedule declares, with no agent of its own. No member calls it.
-- `next-iteration` — one whole iteration of a long process, treated as one atomic step; the safe point to restart from.
-- `quorum-majority` — more than half agree. `quorum-no-disapproval` — nobody objects; silence is "not yet spoken".
+- `next-iteration` — one whole iteration of a long process, treated as one atomic step. The safe point to restart from.
+- `quorum-majority` — more than half agree. `quorum-no-disapproval` — nobody objects. Silence is "not yet spoken".
 - `vault-item` — a document under `vault/`: verbatim documents and facts, `verbatim-*`.
 - `verbatim-intent` — a fixed statement of purpose a later edit is checked against. `verbatim-benchmark` — a fixed concrete case that tests an intent. Neither is paraphrased once written.

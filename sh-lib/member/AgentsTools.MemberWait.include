@@ -430,6 +430,20 @@ AgentsWaitFloorAdvance(){ ## session, source (slack:<channel>:<ts>:conversation)
 	return 0
 }
 
+## The conversation a message's reply address is built in (AgentsWaitReplyAddress.awk), for a source whose own name is
+## not one: a bare channel id, or an alias such as `magic-team` resolved to its channel. Empty where the source names
+## none -- a file, a process, a board -- and the address pass then invents nothing.
+AgentsWaitAddressConv(){ ## member, source
+	local addrTarget="${2#slack:}"
+	case "$2" in slack:*) ;; *) return 0 ;; esac
+	case "$addrTarget" in
+		[CDG][A-Z0-9]*:*|[CDG][A-Z0-9]*) printf '%s' "${addrTarget%%:*}" ; return 0 ;;
+		client:*) return 0 ;;
+	esac
+	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 0
+	DistroAgentsToolsResolveTarget "$addrTarget" "$1" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1
+}
+
 ## The ids (`<conversation>:<ts>`) of the messages a person wrote in the rendering of one source that a wait returned: the conversation is the one the source names, or the
 ## one the rendering names before its messages (`# in <conversation>`, `# replies to your post <conversation>:<ts>`); a source that names a team channel or the owner by
 ## name is resolved. The member's own and anything that is not a user id are left out.
@@ -979,8 +993,8 @@ AgentsWaitProbeAsk(){
 ##     of the run alone. The thread is read as ever: its watch does not end by time alone;
 ##   - the reactions to the post, and the mentions of the run, whatever else has ended.
 ## A post is looked at only when its TTL has passed since the last look (<checked>): 5 seconds, and 1 more
-## for every 20 it has been quiet, from its newest message seen, with no cap, so a quiet thread is looked
-## at ever more rarely, on some loop runs only, and is never dropped. A post whose thread another source
+## for every 20 it has been quiet, from its newest message seen, to a ceiling of 100 at 1900 quiet (S21.2), so a
+## quiet thread is looked at ever more rarely, on some loop runs only, and is never dropped. A post whose thread another source
 ## of the same Wait reads is left to that source, and so is a conversation it reads by name, so a message
 ## is returned once; a post a question (AskQuestion and its kin) opened belongs to its pending record's
 ## ask: source. What a look finds is rendered to the wait and stored only once the wait has returned it
@@ -1538,7 +1552,8 @@ AgentsWaitProbeScan(){
 		IFS= read -r probeStored < "$probeOut.stored" || :
 	fi
 	: > "$probeOut" || return 2
-	if [ "$probeSum" != "$probeStored" ] ; then
+	## A report that says `# ready: <N>` for N above 0 holds input the member has not taken (S23.5): the Wait returns with it again, whatever it last gave, until it is taken.
+	if [ "$probeSum" != "$probeStored" ] || LC_ALL=C grep -q '^# ready: [1-9]' "$probeOut.report" ; then
 		cp "$probeOut.report" "$probeOut" 2> /dev/null || return 2
 		printf '%s\n' "$probeSum" > "$probeOut.sum"
 		## With no session to keep it in, the report this call has returned is kept for its later passes.
@@ -2952,6 +2967,11 @@ case "$1" in
 						&& case " $( LC_ALL=C sed -n 's/^participants: //p' "${checkAskRecord%.md}.set" | head -1 ) " in *" $memberName "*) true ;; *) false ;; esac ; then
 						checkAskSession=""
 					fi
+					## A participant waits on its session's own questions: its spawn record names that session.
+					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] \
+						&& LC_ALL=C grep -q -x -F -- "session-id: $checkAskSession" "$MMDAPP/.local/agents/spawned"/*/"$waitSessionId.spawn.md" 2> /dev/null ; then
+						checkAskSession=""
+					fi
 					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] ; then
 						echo "WAIT-RESULT: ERROR"
 						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' is a question asked by session $checkAskSession, not $waitSessionId, so this session may not wait on it. Nothing was waited on." >&2
@@ -3510,11 +3530,12 @@ case "$1" in
 						AgentsToolsTaskCall "wait probe $roundSource" "" "$roundProbeTimeout" return "$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" "$waitDir/base.$roundIndex" \
 						|| roundRc=$?
 					if [ "$agentsTaskDetached" = yes ] ; then
+						## A DETACHED PROBE ENDS NO ROUND (S21.6, settled 2026-10-31 and again 2026-11-02). The probe itself is named,
+						## as the earlier ruling says: one past the bound is a source this round did not read. The round then goes
+						## on to its remaining sources, as S21.6 says, instead of naming every one of them unread with it.
 						waitDetachedTask="$agentsTaskHandle ($roundSource)"
-						## An arrival already in hand is this call's own, whatever ends the round (owner ruling 2026-10-31): the
-						## sources the round did not reach show in WAIT-NEVER-READ, and the next wait reads them.
 						[ "$waitOutcome" = "RECEIVED" ] || waitOutcome="TIMEOUT"
-						break
+						continue
 					fi
 					[ "$agentsTaskRc" = 0 ] || roundRc="$agentsTaskRc"
 				else
@@ -3608,7 +3629,8 @@ case "$1" in
 			done
 			[ "$waitOutcome" != "LOST" ] || break
 			[ "$waitOutcome" != "RECEIVED" ] || break
-			[ -z "$waitDetachedTask" ] || break
+			## A wait whose bound is spent returns now, its detached probe named in the header. The next call reads on.
+			[ -z "$waitDetachedTask" ] || { [ -z "$waitDeadline" ] || [ "$roundNow" -lt "$waitDeadline" ] || break ; }
 			## Unbounded, a first round that could read no source at all returns at once rather
 			## than wait forever on sources nothing is known about: TIMEOUT with WAIT-NEVER-READ.
 			[ -n "$waitDeadline" ] || [ -n "$waitReadSources" ] || break
@@ -3849,7 +3871,7 @@ case "$1" in
 				for waitHit in $waitHits ; do
 					waitHitIndex="${waitHit%%=*}"
 					waitHitKind="${waitHit#*=}" ; waitHitKind="${waitHitKind%%:*}"
-					LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -f "$waitAddrInvocation" < "$waitDir/now.$waitHitIndex" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
+					LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" -f "$waitAddrInvocation" < "$waitDir/now.$waitHitIndex" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
 					[ -f "$waitDir/addr.$waitHitIndex" ] || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex"
 				done
 				## THE FLOOR FIRST, then all the rest together in one group sorted by time, each message naming the source it
@@ -3882,7 +3904,7 @@ case "$1" in
 							waitHitFile="$waitDir/now.$waitHitIndex"
 							if [ -n "$( AgentsWaitModeOf "${waitHit#*=}" )" ] && AgentsWaitSourceModeApply "$memberName" "${waitHit#*=}" "$( AgentsWaitModeOf "${waitHit#*=}" )" "$waitHitFile" "$waitDir/mode.$waitHitIndex" ; then
 								waitHitFile="$waitDir/mode.$waitHitIndex"
-								LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -f "$waitAddrInvocation" < "$waitHitFile" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
+								LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" -f "$waitAddrInvocation" < "$waitHitFile" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
 							fi
 							printf '%s\t%s\t%s\n' "$waitHitIndex" "${waitHit#*=}" "$waitDir/addr.$waitHitIndex" >> "$waitDir/rest.manifest"
 						;;

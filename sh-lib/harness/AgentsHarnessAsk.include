@@ -183,7 +183,7 @@ AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understo
 		printf 'ERROR: %s: pending_id %s names no pending reply in this workspace. Nothing was done.\n' "$harnessAskName" "$actId" ; return 0
 	fi
 	if [ -n "$actWithdraw" ] ; then
-		actOut="$( "$BASH" "$actTools" --settle-pending-reply "$harnessAgent" "$actId" --reason "$actWithdraw" --withdraw 2>&1 )" || actRc=$?
+		actOut="$( "$BASH" "$actTools" --settle-pending-reply --team-member "$harnessAgent" "$actId" --reason "$actWithdraw" --withdraw 2>&1 )" || actRc=$?
 		if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "WITHDRAWN $actId" ; then
 			AgentsHarnessAskWaitItem drop "$actId" || :
 			printf 'ASK-RESULT: WITHDRAWN\nPending reply %s is withdrawn: closed with your reason and no verdict, so it answers, grants and decides nothing, and it is reminded no more. A note in its thread tells the person it is no longer needed, and it has left your Wait set.\n' "$actId"
@@ -195,7 +195,7 @@ AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understo
 		printf 'ERROR: %s: pending reply %s was NOT withdrawn, and stays as it was. What the operation reported follows:\n%s\n' "$harnessAskName" "$actId" "$actOut"
 		return 0
 	fi
-	actOut="$( "$BASH" "$actTools" --readback-escalation "$harnessAgent" "$actId" "$actReadback" "$actUnderstood" 2>&1 )" || actRc=$?
+	actOut="$( "$BASH" "$actTools" --readback-escalation --team-member "$harnessAgent" "$actId" "$actReadback" "$actUnderstood" 2>&1 )" || actRc=$?
 	if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "ESCALATION: $actId answered" ; then
 		## The item stays in the Wait set: a later reply there is an objection, kept on the decision.
 		AgentsHarnessAskWaitItem add "$actId" || :
@@ -1304,6 +1304,13 @@ AgentsHarnessAsk(){
 	fi
 	while : ; do
 		askRounds=$(( askRounds + 1 ))
+		## An ask closed with a verdict by another reader (the collect, the console, an escalation op) is answered:
+		## the call takes that verdict now, never waits on a thread whose answer is already taken.
+		if [ -n "$askPendingId" ] && [ ! -f "$MMDAPP/.local/agents/pending/$askPendingId.md" ] \
+			&& LC_ALL=C grep -q -x 'status: reply-received' "$MMDAPP/.local/agents/pending/closed/$askPendingId.md" 2> /dev/null ; then
+			askAnsweredElsewhere=1
+			break
+		fi
 		if [ -n "$askSessionWait" ] ; then
 			askWaitOut="$( AgentsHarnessToolWait "" "$toolTimeout" "" "" "" "" continue "" "" "" "" ask )"
 			## A stored wait that cannot be run costs the ask nothing: its own answer is waited for alone.

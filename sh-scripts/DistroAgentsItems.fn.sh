@@ -27,6 +27,12 @@ esac
 
 DistroAgentsItems(){
 	local MDSC_CMD='DistroAgentsItems' frontDone="" frontRc=0
+	## The family's context, here and in this file's arm, for a console that calls this function.
+	if [ -z "$MDLT_ORIGIN" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
+		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+		DistroAgentsContext --run-from-detect
+		DistroAgentsContext --distro-path-auto
+	fi
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
@@ -72,7 +78,7 @@ DistroAgentsItems(){
 			return $?
 		;;
 
-		--get-audit-item|--get-board-item|--get-inbox-item|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection)
+		--get-audit-item|--get-board-item|--get-inbox-item|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--upsert-vault-decision-record|--upsert-vault-investigation-report|--upsert-vault-item|--upsert-vault-verbatim)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
 			return $?
 		;;

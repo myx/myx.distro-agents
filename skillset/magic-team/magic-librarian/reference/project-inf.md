@@ -35,7 +35,7 @@ session otherwise re-derives or invents.
   appear in its own `Provides:`.
 - **What `Provides:` adds on top is the abstract capability name** — the namespace-neutral alias a
   dependant actually writes in its `Requires:`, such as `cloud.all/setup.example-machine`. That
-  alias is an arbitrary string matched byte-for-byte; it carries no relationship to where either project
+  alias is an arbitrary string matched byte-for-byte. It carries no relationship to where either project
   sits on disk.
 - **So moving a project changes its implicit path names and nothing else.** Dependants keep resolving
   through the declared alias. Only the moved project's own path-bearing values — an `--ssh-home`, an
@@ -47,7 +47,7 @@ session otherwise re-derives or invents.
 ## The key set, and which keys do anything
 
 - **The parsed key set — `Name`, `Requires`, `Provides`, `Declares`, `Keywords` — is the manual's own
-  statement.** Read it there; it is not restated here.
+  statement.** Read it there. It is not restated here.
 - **`Info:` and `Title:` are both valid, and the estate is split on which to write.** Both spellings occur
   in every workspace checked. The infra and deploy projects lean towards `Info:`. The `myx.distro-*`
   packages lean towards `Title:`, which is the one `myx.distro-source`'s own README property list names.
@@ -58,7 +58,7 @@ session otherwise re-derives or invents.
   anything.** `myx.distro-source`'s README documents `Augments:` and `Suggests:` as non-gating, and its
   shell parser `ParseSourceProjectInfToCached.fn.include` drops both. Its `MAGIC.md` records `Includes:`
   and `Builders:` as occurring in no `project.inf` in that tree. Whether anything reads any of the five
-  is not established. A project that needs to vary a base is forked or sequenced; no non-forking
+  is not established. A project that needs to vary a base is forked or sequenced. No non-forking
   specialisation mechanism was found behind any of them. A builder is discovered by its path under
   `builders/<stage>/`, never by a key.
 - **Key order in the live population is `Name`, `Requires`, `Provides`, then `Keywords` where the
@@ -72,7 +72,7 @@ carries its trailing backslash, the last one included, and the list closes with 
 follows is only the grouping convention layered on top of it.
 
 - **A line carrying only a backslash is a blank separator inside the value, and is how a long
-  `Provides:` is grouped.** The parser collapses it away; it exists for the reader.
+  `Provides:` is grouped.** The parser collapses it away. It exists for the reader.
 - **A blank line with no backslash ends the value, silently.** Every entry after it, up to the next key, is dropped with no error. Inside a value, the separator is always a backslash-only line.
 - **The established group order inside a `Provides:` is this: the abstract capability alias, the
   `exec-update-*` fragments, the `context-variable` declarations, then the paired
@@ -91,7 +91,7 @@ The single most-guessed-at property, and the one an installer's correctness rest
 - **The `exec-update-after` list is emitted reversed.** The `before` fragments run in sequence order and
   the `after` fragments unwind it, so the deepest dependency's `after` fragment runs last.
 - **The `0.`/`1.`/`2.` digits in a fragment filename are a readability convention aligned with
-  declaration order, never a sort key.** Renumbering a file changes nothing about when it runs;
+  declaration order, never a sort key.** Renumbering a file changes nothing about when it runs.
   reordering its line in `project.inf` is what does. Two files sharing a digit run in the order their
   lines appear.
 - **A dependant's fragment can therefore rely on an abstraction's fragment having already run.** That is
@@ -140,7 +140,7 @@ Both families are plain `Provides:`/`Declares:` tokens with no key of their own.
   `install-user-username:`, `install-user-fullname:` (spaces written as `+`),
   `install-user-password-hash:`, and `install-user-ssh-key:<path within the project>`. In the wider
   population they also include `install-user-email:`, `install-user-google-oauth:` and
-  `install-user-blocked:true`. One `install-user-ssh-key:` token per key file; an undeclared key file in
+  `install-user-blocked:true`. One `install-user-ssh-key:` token per key file. An undeclared key file in
   the tree is inert.
 - **Group membership is a `Requires:` token carrying a colon-modifier**, as `accounts/<user>:<role>`. The
   modifier is not part of the identity matched. The fallback strips it after an exact match fails, so the
@@ -154,12 +154,12 @@ Both families are plain `Provides:`/`Declares:` tokens with no key of their own.
   sets it. It is never reported as an exposure, moved to a secret store, or raised as a question.
 - **The handling rule binds the values, not the file.** A real account's hash, key and oauth-id values are
   not reproduced outside the project declaring them. That covers every other file, document, message,
-  report and commit message. Editing such a project in place is ordinary work; an example uses an
+  report and commit message. Editing such a project in place is ordinary work. An example uses an
   obvious placeholder.
 - **Skillset registration is three `Declares:` token families**:
   `magic-team:team-member:<path to the member's folder>:<selector>` contributes a member from that
-  project; `magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob>` and
-  `magic-team:workspace:<name>:<path>:<host-glob>` register a place, granting nothing; and
+  project. `magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob>` and
+  `magic-team:workspace:<name>:<path>:<host-glob>` register a place, granting nothing. And
   `magic-team:permissions:<namespace|workspace|directory|project>:<selector>:<allow-read|allow-write|allow-tool>:<member>[:<glob>]`
   grants. Their selectors and defaults are in `--help`, under `--owner-workspace-upsert` and
   `--make-harness-indices`. Any of them with `--` glued in front is an inert reference line.
@@ -179,14 +179,14 @@ Both families are plain `Provides:`/`Declares:` tokens with no key of their own.
 - **The aggregate carries no `set -e`.** A failing command inside a fragment does not stop the run unless
   that fragment opens with its own. A host then comes up looking installed while under-configured.
 - **A fragment runs non-interactively with stdin already consumed.** A `read` of any kind hits EOF
-  immediately; under a fragment's own `set -e` that aborts the fragment while the outer script continues.
+  immediately. Under a fragment's own `set -e` that aborts the fragment while the outer script continues.
   A guard fails closed, it does not prompt.
 
 ## Reading list
 
 - The `myx.distro-.local` package's own help pair for the `project.inf` file format covers the grammar,
   escaping, encoding and the property list. It also covers the `Requires`↔`Provides` matching rule and the
-  `--` opt-out. **The home for the file itself; read it first.**
+  `--` opt-out. **The home for the file itself. Read it first.**
 - `myx.distro-source`'s own README and `MAGIC.md` — the pipeline stages, the project and workspace
   folder layout, and the `image-prepare:*` directives.
 - `myx.distro-deploy`'s own README and `MAGIC.md` — the `image-install:*` directives, the target

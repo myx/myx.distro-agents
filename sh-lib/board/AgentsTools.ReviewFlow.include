@@ -799,6 +799,62 @@ AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|
 	return 1
 }
 
+## THE RUN AN ACCEPT SETTLES IS ENDED BY IT (S27.1): the verdict's own DISMISSED is sent by the
+## move (AgentsToolsBoardAcceptDismissChild), and the run's record is closed here, in the same
+## step, so a settled run leaves no record reading started. A run whose dismissal is held, or
+## one that runs still, keeps its record open: it has not ended. Prints one ACCEPT-CLOSE line.
+AgentsReviewCloseAccepted(){ ## who, item file name, the ACCEPT-DISMISS line the move printed
+	local acWho="$1" acItem="${2%.md}.md" acDismiss="${3:-}" acPath acRecord acSpawn
+	AgentsReviewLoad
+	acPath="$( AgentsToolsDecisionsItemPath "$acItem" )" || { printf 'ACCEPT-CLOSE: %s is on no board\n' "${acItem%.md}" ; return 0 ; }
+	acRecord="$( AgentsReviewChildRecord "$acPath" )" || acRecord=""
+	[ -n "$acRecord" ] || { printf 'ACCEPT-CLOSE: not closed: %s names no spawn record\n' "${acItem%.md}" ; return 0 ; }
+	acSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$acRecord" spawn-id )"
+	if [ "$( AgentsToolsSpawnSandboxRecordHeader "$acRecord" status )" != spawn-started ] ; then
+		printf 'ACCEPT-CLOSE: already closed: spawn %s says %s\n' "$acSpawn" "$( AgentsToolsSpawnSandboxRecordHeader "$acRecord" status )"
+		return 0
+	fi
+	## A dismissal another run holds back (F6.9) ends nothing yet, so its record stays open.
+	case "$acDismiss" in
+		sent\ DISMISSED*) ;;
+		*) AgentsReviewChildLive "$acRecord" > /dev/null && { printf 'ACCEPT-CLOSE: not closed: the run has not been dismissed yet\n' ; return 0 ; } ;;
+	esac
+	AgentsToolsSpawnProxyCloseSandbox "$acRecord" succeeded unknown "the accept of ${acItem%.md} by $acWho" || :
+	printf 'ACCEPT-CLOSE: spawn %s says %s\n' "$acSpawn" "$( AgentsToolsSpawnSandboxRecordHeader "$acRecord" status )"
+	AgentsReviewRecord "$acWho" "$acItem" dismissed "accept: the run it settles is ended" ENDING ""
+	return 0
+}
+
+## THE CHILDREN A CLOSING PARENT STILL ANSWERS FOR (S27.5): every run it brought into its session and
+## that still waits gets its DISMISSED, which is the decision the parent's close gives it. A child
+## already ended is left as it is. Prints one CHILDREN-CLOSE line per child, then a count.
+AgentsReviewChildrenDismiss(){ ## the closing run's spawn id, the member closing
+	local chParent="$1" chBy="$2" chOwn chSession="" chCandidate chChilds chChild chStatus chOut chSent=0 chSeen=0
+	AgentsReviewLoad
+	case "$chParent" in ''|-|.|..|*/*) return 0 ;; esac
+	for chCandidate in "$MMDAPP"/.local/agents/spawned/*/"$chParent.spawn.md" ; do
+		[ ! -f "$chCandidate" ] || chSession="$( AgentsToolsSpawnSandboxRecordHeader "$chCandidate" session-id )"
+	done
+	case "$chSession" in ''|-|.|..|*/*) return 0 ;; esac
+	chChilds="$( LC_ALL=C grep -l -x -F "parent-session-id: $chSession" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || chChilds=""
+	while IFS= read -r chChild ; do
+		[ -n "$chChild" ] && [ -f "$chChild" ] || continue
+		chOwn="${chChild##*/}" ; chOwn="${chOwn%.spawn.md}"
+		[ "$chOwn" != "$chParent" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$chChild" status )" = spawn-started ] || continue
+		chSeen=$(( chSeen + 1 ))
+		chOut="$( AgentsReviewSendToChild "$chBy" "$chChild" DISMISSED )" || :
+		case "$chOut" in
+			sent\ *) chSent=$(( chSent + 1 )) ; chOut="${chOut#sent }" ;;
+			*) chOut="${chOut:-not sent}" ;;
+		esac
+		printf 'CHILDREN-CLOSE: %s %s\n' "$chOwn" "$chOut"
+	done <<< "$chChilds"
+	[ "$chSeen" -gt 0 ] || { printf 'CHILDREN-CLOSE: no child waits on this session\n' ; return 0 ; }
+	printf 'CHILDREN-CLOSE: %s of %s waiting child(ren) dismissed\n' "$chSent" "$chSeen"
+	return 0
+}
+
 ## The one entry of the review ops (AgentsTools.InternOpReview.include), by verb.
 AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismiss (yes|no)
 	local opVerb="$1" opWho="$2" opItem="${3%.md}" opNew="${4%.md}" opText="$5" opReason="$6" opSession="$7" opDismiss="${8:-yes}"
@@ -822,6 +878,14 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			case "$opOut" in *' running->review '*) AgentsReviewPromptPost "$opWho" "$opItem" "$opSession" "${opText:-}" ;; esac
 			return 0
 		;;
+		## A delivered handback may name the routine that follows it: the start is AgentsToolsHandbackNext's (AgentsTools.HandbackNext.include).
+		next)
+			opSession="${opSession:-${MDAT_SPAWN_SESSION_ID:-}}"
+			[ -n "$opSession" ] || { echo "$MDSC_CMD: ⛔ ERROR: --session-id <spawn-id> is required, and this process has none" >&2 ; return 1 ; }
+			type AgentsToolsHandbackNext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.HandbackNext.include"
+			AgentsToolsHandbackNext "$opWho" "$opSession" "$opText"
+			return 0
+		;;
 		request)
 			[ -n "$opReason" ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason <text> is required" >&2 ; return 1 ; }
 			AgentsReviewToReview "$opWho" "$opItem" review review-requested "" "by $opWho: $opReason" || return 1
@@ -841,6 +905,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			opWhy="$( printf '%s\n' "$opOut" | LC_ALL=C sed -n 's/^ACCEPT-DISMISS: //p' | head -1 )"
 			AgentsReviewRecord "$opWho" "$opItem" verdict "accepted${opText:+: $opText}${opWhy:+ (child: $opWhy)}" VERDICT ""
 			AgentsReviewPromptSettle "$opWho" "$opItem" accepted
+			AgentsReviewCloseAccepted "$opWho" "$opItem" "$opWhy"
 			printf 'VERDICT: %s accepted -> processed\n' "${opItem%.md}"
 			return 0
 		;;

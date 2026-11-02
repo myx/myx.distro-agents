@@ -3,7 +3,7 @@
 
 ##
 ## The manager screen of the agents console, the console app: starts
-## sh-lib/manager/AgentsManagerScreen.py in this terminal, for this workspace, with this dispatcher
+## sh-lib/manager/LocalManagerScreen.py in this terminal, for this workspace, with this dispatcher
 ## as its one way to the tooling. Sourced from DistroAgentsTools.fn.sh's `--manager` arm;
 ## needs $1/$@/$MDSC_CMD from dot-sourcing. It is what the console's `--manager` runs: a
 ## generated console is a snapshot, so this name stays while the screen changes.
@@ -43,7 +43,7 @@ case "$1" in
 
 		set +e
 
-		local managerScreenFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
+		local managerScreenFile="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 		if [ ! -r "$managerScreenFile" ] ; then
 			echo "$MDSC_CMD --manager: ⛔ ERROR: the manager screen is missing or unreadable: $managerScreenFile" >&2
 			return 1

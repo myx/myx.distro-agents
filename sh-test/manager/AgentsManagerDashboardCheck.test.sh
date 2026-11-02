@@ -77,7 +77,7 @@ rigLimitFixture="$rigPackage/sh-test/check-fixtures/provider-usage-limit.refused
 [ -f "$rigLimitFixture" ] || rigRefuse "the usage-limit fixture is missing: $rigLimitFixture"
 ( MMDAPP="$rigWs" ; . "$rigPackage/sh-lib/session/AgentsTools.UsageLimit.include" ; AgentsToolsUsageLimitMark sp-today "$( cat "$rigLimitFixture" )" ) \
 	|| rigRefuse "the usage-limit flag could not be kept in the store of sp-today"
-printf '2026-10-13T11:00:00Z wait going idle\n' > "$rigAgents/sessions/sp-run2/milestones"
+printf '1 1792000000 tool Wait\n' > "$rigAgents/sessions/sp-run2/activity"
 printf '5151 Tue_Oct_13_10:00:00_2026\n' > "$rigAgents/sessions/s-run/control/pid"
 printf '6161 Tue_Oct_13_09:00:00_2026\n' > "$rigAgents/sessions/s-ask/control/pid"
 printf '7171 Thu_Oct__1_08:00:00_2026\n' > "$rigAgents/sessions/s-old/control/pid"
