@@ -4499,8 +4499,8 @@
 			reads `finished` however many of its questions are open. <state-at> is the date its last
 			run closed, for a `finished` or a `failed` session only. <state-tally> names each
 			state the runs of the session are in, as `ListAgents` derives
-			it, in the order `thinking`, `in-tool`, `running`, `starting`,
-			`waiting`, `awaiting-review`, `unclosed`, `unknown-foreign`,
+			it, in the order `thinking`, `tool`, `idling`, `starting`,
+			`waiting`, `parked`, `unclosed`,
 			`failed`, `finished`: `thinking=1,waiting=1,finished=2`. <session-state> and <session-state-at>
 			are the state the control thread of the session stored for it
 			and when, as `spawned-sessions` holds them after this rebuild:
@@ -4525,12 +4525,12 @@
 			line the executor of the session set with
 			`--set-session-chapter` for the stage it is in, read from the
 			store of the session at each call, with `-` where there is none.
-			A run's <live> is what `ListAgents` shows, and <state> too,
+			A run's <live> is what `ListAgents` shows: `running`, `gone`, `remote` or `unknown`. Its <state> too,
 			but for a run that died on its start: that one reads `failed`.
-			A live run's <state> is what it is doing: `thinking`, `in-tool`
+			A live run's <state> is what it is doing: `thinking`, `tool`, `idling`
 			or `waiting`, and a run that handed back and left reads
-			`awaiting-review`. <activity> of a live run is `waiting` where
-			its <state> is `waiting`, inside a `Wait` call or an ask that
+			`parked`. <activity> of a live run is `waiting` where
+			its <state> is `waiting` or `idling`, inside a `Wait` call or an ask that
 			waits on a person, and `working` otherwise: it is read from
 			<state> and from no other file. `--active` keeps
 			every session that is not finished and can be acted on from
