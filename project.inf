@@ -4,19 +4,15 @@ Augments: developer-sdk:recommended
 
 Declares: \
 	distro-image-sync:source-prepare-pull:repo:myx/myx.distro-agents:main:git@github.com:myx/myx.distro-agents.git \
+	\
 	--magic-team:permissions:workspace:*:allow-write:*:source/**/MAGIC.md \
 	--magic-team:permissions:workspace:*:allow-write:*:.local/temp/** \
+	\
 	--magic-team:permissions:workspace:*:allow-tool:*:Skill \
 	--magic-team:permissions:workspace:*:allow-tool:*:SendMessage \
 	--magic-team:permissions:workspace:*:allow-tool:*:Wait \
 	--magic-team:permissions:workspace:*:allow-tool:*:SubagentHandback \
 	--magic-team:permissions:workspace:*:allow-tool:*:AskUserQuestion \
-	--magic-team:permissions:workspace:*:allow-tool:magic-coordinator:AgentDispatcherTools \
-	--magic-team:permissions:workspace:*:allow-read:magic-coordinator:source/myx/todo-sketchpad/** \
-	--magic-team:permissions:workspace:*:deny-write:magic-coordinator:** \
-	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:Bash \
-	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:execute \
-	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:WorkspaceContextExecute \
 	--magic-team:permissions:workspace:*:allow-tool:*:AskQuestion \
 	--magic-team:permissions:workspace:*:allow-tool:*:ConfirmReadback \
 	--magic-team:permissions:workspace:*:allow-tool:*:EscalateDecision \
@@ -32,13 +28,26 @@ Declares: \
 	--magic-team:permissions:workspace:*:allow-tool:*:ListMcpResourcesTool \
 	--magic-team:permissions:workspace:*:allow-tool:*:ReadMcpResourceTool \
 	--magic-team:permissions:workspace:*:allow-tool:*:ReadMcpResourceDirTool \
+	\
+	--magic-team:permissions:workspace:*:deny-write:magic-coordinator:** \
+	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:Bash \
+	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:execute \
+	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:WorkspaceContextExecute \
+	--magic-team:permissions:workspace:*:allow-tool:magic-coordinator:AgentDispatcherTools \
+	--magic-team:permissions:workspace:*:allow-read:magic-coordinator:source/myx/todo-sketchpad/** \
+	\
 	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebFetch \
 	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebSearch \
+	\
 	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/sh-test/** \
 	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/test/** \
 	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/tests/** \
 	--magic-team:permissions:workspace:*:allow-read:magic-tester:.local/myx/** \
 	--magic-team:permissions:workspace:*-testbed:allow-write:magic-tester:** \
+	\
+	--magic-team:permissions:workspace:*-monitor:allow-write:magic-devops:** \
+	\
+	--magic-team:permissions:workspace:*:allow-read:magic-developer:source/** \
 
 Requires: \
 	myx/myx.distro-source \
