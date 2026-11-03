@@ -159,6 +159,39 @@ rigAssert "round 1 reports what it wrote to the cache"        "$( rigHolds "$rig
 rigAssert "round 2 reports the cache it read"                 "$( rigHolds "$rigScenarioDir/err" '5360 prompt tokens this round, cached: 5100' )" yes
 rigVerdict "thinking plus a tool call, then an answer -- prefix held, block replayed, cache reported"
 
+## The case S6.16 rigs on the chat-completions wire, reached through this one: a tool_use block whose
+## name the provider wrapped in its own markup. The call keeps its id, gets a refusal as its result,
+## and the run goes on to its answer. The assistant turn goes back as streamed, but for that name: the
+## API matches a tool_use name against the tools it declares, so the block is built again under the
+## name the core repaired it to, and no other block of the turn is touched.
+rigBadNameStream(){ ## canned-stream file
+	{
+		printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rig4","type":"message","role":"assistant","content":[],"usage":{"input_tokens":80,"cache_creation_input_tokens":0,"cache_read_input_tokens":5000,"output_tokens":1}}}\n\n'
+		printf 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}\n\n'
+		printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"RIG-BAD-THINK-MARKER"}}\n\n'
+		printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"RIG-BAD-SIGNATURE"}}\n\n'
+		printf 'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n'
+		printf 'event: content_block_start\ndata: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_RIGBAD","name":"Read</|DSML| parameter>\\n<|DSML| parameter name=","input":{}}}\n\n'
+		printf 'event: content_block_stop\ndata: {"type":"content_block_stop","index":1}\n\n'
+		printf 'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":9}}\n\n'
+		printf 'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+	} > "$1"
+}
+rigStart broken-tool-name
+rigBadNameStream "$rigScenarioDir/res.1"
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
+rigRun
+rigAssert "the run ends normally"                              "$rigRunStatus" 0
+rigAssert "two rounds were requested"                          "$rigRoundCount" 2
+rigAssert "the broken call gets a result, keyed by its id"     "$( rigHolds "$rigScenarioDir/req.2" '{"type":"tool_result","tool_use_id":"toolu_RIGBAD"' )" yes
+rigAssert "and that result is the refusal, not a tool's answer" "$( rigHolds "$rigScenarioDir/req.2" 'came back with a broken name from the provider' )" yes
+rigAssert "the replayed turn sends the repaired name"             "$( rigHolds "$rigScenarioDir/req.2" '{"type":"tool_use","id":"toolu_RIGBAD","name":"Read","input":{}' )" yes
+rigAssert "and no byte of the provider's markup reaches the request" "$( rigHolds "$rigScenarioDir/req.2" 'DSML' )" no
+rigAssert "the thinking block beside it is replayed exactly"      "$( rigHolds "$rigScenarioDir/req.2" '{"type":"thinking","thinking":"RIG-BAD-THINK-MARKER","signature":"RIG-BAD-SIGNATURE"},' )" yes
+rigAssert "no awk fault on the name"                           "$( rigHolds "$rigScenarioDir/err" 'newline in string' )" no
+rigAssert "the answer is the second round's text"              "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigVerdict "a tool name the provider broke -- the call keeps its id, gets a refusal, the turn goes back with the repaired name, and the run goes on"
+
 ## The negative control: a refusal body is reported as a refusal, never read as a round.
 ## It ends with no newline, the way the API sends it.
 rigStart refusal-is-reported

@@ -574,7 +574,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 
 	local gitOut="" gitRc=0
 	set +e
-	gitOut="$( git -C "$repoRoot" add -- "$target" 2>&1 )"
+	gitOut="$( AgentsToolsItemGit -C "$repoRoot" add -- "$target" )"
 	gitRc=$?
 	set -e
 	if [ "$gitRc" -ne 0 ] ; then
@@ -586,7 +586,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	local commitMessage="$MDSC_CMD: item-upsert: $itemName"
 	[ -n "$commitMessageOverride" ] && commitMessage="$commitMessageOverride"
 	set +e
-	gitOut="$( git -C "$repoRoot" commit --allow-empty -m "$commitMessage" -- "$target" 2>&1 )"
+	gitOut="$( AgentsToolsItemGit -C "$repoRoot" commit --allow-empty -m "$commitMessage" -- "$target" )"
 	gitRc=$?
 	set -e
 	if [ "$gitRc" -ne 0 ] ; then
@@ -737,6 +737,22 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 
 	echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_LOST -- the board's item note belongs to session-id '$remoteSessionId', not '$localSessionId'; another holder has the lock; this routine must not continue: $pushOut" >&2
 	set +e ; return 1
+}
+
+## One git call of AgentsToolsItemUpsert, run again while another writer's `.git/index.lock` stands, for ten seconds at most: that lock is
+## a clash, not a failure of the lock this op takes. Prints git's own output, and gives back its status.
+AgentsToolsItemGit(){ ## git arguments
+	local itemGitTry=0 itemGitOut="" itemGitRc=0
+	while : ; do
+		itemGitRc=0
+		itemGitOut="$( git "$@" 2>&1 )" || itemGitRc=$?
+		[ "$itemGitRc" != 0 ] && [ "$itemGitTry" -lt 10 ] || break
+		case "$itemGitOut" in *index.lock*) ;; *) break ;; esac
+		itemGitTry=$(( itemGitTry + 1 ))
+		sleep 1
+	done
+	printf '%s' "$itemGitOut"
+	return "$itemGitRc"
 }
 
 ## The retired operation names, still routed by a process that loaded the dispatcher before

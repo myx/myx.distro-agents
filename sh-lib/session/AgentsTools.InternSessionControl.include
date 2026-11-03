@@ -99,6 +99,10 @@
 ## and said in the log. The tick itself reads the answer from the record of the question, a
 ## file. Once no death is unsettled the state is what the runs say again.
 ##
+## A RUN THAT NO ONE ENDS IS ENDED APART FROM THE TICK TOO: one whose dispatch item is accepted or closed, or whose handback
+## waited past the review limit, by a call of its own that the thread never waits for (`--release`,
+## AgentsTools.SessionControlRelease.include).
+##
 ## A CONTROL OF THE CONSOLE REACHES IT BY A FILE AND A WAKE, and is carried out apart from
 ## the tick. The console puts its request into control/request and sends USR1, which makes
 ## the next tick come at once. A tick asks two names of its folder, the cheap tick too, and
@@ -256,13 +260,18 @@ AgentsToolsSessionControlLockTake(){
 	return 2
 }
 
-## Gives back what is this thread's own, and only that: its pid file first, then its lock.
+## Gives back what is this thread's own, and only that: its pid file first, then its lock. Its line in the reader's list goes with them, so
+## a session that has ended costs a reader nothing (S5.6).
 AgentsToolsSessionControlLeave(){
 	local leaveLine=""
 	{ IFS= read -r leaveLine < "$controlDir/pid" ; } 2> /dev/null || :
 	[ "${controlMode:-}" != "--run" ] || [ "$( AgentsToolsSessionControlLockHolder "$controlLock" )" != "$controlMe" ] || rm -f "$controlDir/takes" 2> /dev/null
 	[ "$leaveLine" != "$controlMe" ] || rm -f "$controlDir/pid" 2> /dev/null
 	[ "$( AgentsToolsSessionControlLockHolder "$controlLock" )" != "$controlMe" ] || rm -f "$controlLock" 2> /dev/null
+	if [ "${controlMode:-}" = "--run" ] && [ -n "${controlSession:-}" ] ; then
+		type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+		! type AgentsToolsSessionCommsListRemove > /dev/null 2>&1 || AgentsToolsSessionCommsListRemove "$controlSession" || :
+	fi
 	rm -f "$controlRowsFile" 2> /dev/null
 	return 0
 }
@@ -692,13 +701,18 @@ $deathsNow" in *"
 $rowSpawn "*) continue ;; esac
 		deathsRecord="$MMDAPP/.local/agents/spawned/$rowTracking/$rowSpawn.spawn.md"
 		[ -f "$deathsRecord" ] || continue
-		[ -z "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-by )$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-at )" ] || continue
 		deathsShell="$( AgentsToolsRegistryRecordedSupervisor "$deathsRecord" 2> /dev/null )" || deathsShell=""
+		## A run the console killed is an ordered end, not a death: its record is closed and nothing is asked.
+		if [ -n "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-by )$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-at )" ] ; then
+			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner was killed from the console and its record was still open: it is closed, and nothing is asked about it"
+			continue
+		fi
 		case "$deathsShell" in
 			alive) continue ;;
 			gone) ;;
 			*)
-				deathsShell="unknown" ; deathsNoted=""
+				deathsShell="unknown"
+				deathsNoted=""
 				while read -r deathsOne deathsLine ; do
 					[ "$deathsOne" != "$rowSpawn" ] || { deathsNoted="$deathsLine" ; break ; }
 				done <<< "$deathsGoneWas"
@@ -713,14 +727,23 @@ $rowSpawn "*) continue ;; esac
 		esac
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" status )" = "spawn-started" ] || continue
 		! AgentsToolsRegistrySpawnRuns "$rowSpawn" "$deathsRecord" || continue
-		[ "$( AgentsToolsRegistryRecordedSupervisor "$deathsRecord" 2> /dev/null )" != "alive" ] || continue
+		## A RUN PARKED ON ITS HANDBACK OR DISMISSED IS NOT DEAD (S6.34): the harness ends such a run
+		## on purpose, leaving its record as it was, so its handback is its result and no question is
+		## asked about it. Its mark is the answer, and its record is closed as an ordered end.
+		deathsEndedByMark="$MMDAPP/.local/agents/sessions/${rowSpawn:-none}"
+		[ "${rowSession:-}" = "${rowSpawn:-}" ] || [ -z "${rowSession:-}" ] || deathsEndedByMark="$deathsEndedByMark $MMDAPP/.local/agents/sessions/$rowSession"
+		for deathsMarkPath in $deathsEndedByMark ; do
+			[ -e "$deathsMarkPath/parked" ] || [ -e "$deathsMarkPath/dismissed" ] || continue
+			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner ended on its handback and its record was still open: it is closed, and nothing is asked about it"
+			continue 2
+		done
 		deathsRole="participant" ; [ "$rowSpawn" != "$controlSession" ] || deathsRole="executor"
 		deathsNow="$deathsNow${deathsNow:+
 }$rowSpawn member=$rowOwner role=$deathsRole found=$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 		if [ "$deathsShell" = "gone" ] ; then
 			AgentsToolsSessionControlSay event "session $controlSession: a death: run $rowSpawn of $rowOwner, the $deathsRole -- its process is gone, its supervising shell is gone, and its record is still open"
 		else
-			AgentsToolsSessionControlSay event "session $controlSession: a death: run $rowSpawn of $rowOwner, the $deathsRole -- its process is gone, its record names no supervising shell and is still open, ${controlClosing}s after that was first seen"
+			AgentsToolsSessionControlSay event "session $controlSession: a death: run $rowSpawn of $rowOwner, the $deathsRole -- its process is gone and its record is still open, ${controlClosing}s after that was first seen"
 		fi
 	done <<< "$controlRows"
 	if [ -n "$deathsAt" ] && [ "$deathsGoneNow" != "$deathsGoneWas" ] ; then
@@ -831,6 +854,28 @@ AgentsToolsSessionControlTick(){
 	## session is member-dead, whatever its other runs do, and the thread stays.
 	AgentsToolsSessionControlDeaths
 	[ "$controlDeadOpen" -eq 0 ] || controlSeen="dead"
+	## NOTHING HAS RUN FOR A LONG TIME: the thread ends itself (S5.6, item 6). A session with no run alive on this host, no death left
+	## to settle and no request of the console taken has nothing left to watch, and a thread that stayed would hold a process for
+	## the rest of the day: at 20:47Z on 2026-11-03 eight threads ran 7 to 11 hours for sessions whose agents were gone. The bound is
+	## SESSION_CONTROL_NO_RUN_END_SECONDS (3600), far past the closing time of a record and of a release, so a run being closed is
+	## never cut short by it. It is counted on the shell's own clock, so the tick asks no process what time it is.
+	if [ "$controlMode" = "--run" ] && [ -z "$controlLeave" ] ; then
+		if [ "$controlAlive" -gt 0 ] || [ "$controlDeadOpen" -gt 0 ] ; then
+			controlNoRunFrom=""
+		elif [ -z "$controlNoRunFrom" ] ; then
+			controlNoRunFrom="$SECONDS"
+		else
+			[ -n "$controlNoRunLimit" ] || controlNoRunLimit="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_NO_RUN_END_SECONDS 3600 )"
+			if [ "$(( SECONDS - controlNoRunFrom ))" -ge "$controlNoRunLimit" ] ; then
+				controlLeave="no run of it has been alive for ${controlNoRunLimit}s and nothing is left for it to watch"
+			fi
+		fi
+	fi
+	## A run its item no longer wants, or whose handback waited past the review limit, is ended here when its own Wait did not end it.
+	if [ "$controlMode" = "--run" ] ; then
+		type AgentsToolsSessionControlRelease > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlRelease.include"
+		AgentsToolsSessionControlRelease
+	fi
 	case "$controlSeen" in
 		dead)
 			tickWord="member-dead" ; tickReason="a run of the session died, and what is done about that is not settled"
@@ -893,6 +938,8 @@ case "$1" in
 			--death) controlMode='--death' ;;
 			## And its other: the carrying out of a request of the console.
 			--request) controlMode='--request' ;;
+			## And its third: the ending of one run its item no longer wants.
+			--release) controlMode='--release' ;;
 		esac
 		if [ -z "$controlMode" ] ; then
 			printf '%s\n' "$MDSC_CMD --intern-session-control -- the control thread of one coworking session: a shell process of the tooling that watches the runs of the session and keeps its state. No agent: a tick reads local files and the process list, and nothing else." >&2
@@ -913,7 +960,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--spawn-id)
-					if [ "$controlMode" != "--death" ] || [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+					if [ "$controlMode" != "--death" ] && [ "$controlMode" != "--release" ] || [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --intern-session-control: syntax is (--run|--one) --session-id <id>, got: $1" >&2
 						set +e ; return 1
 					fi
@@ -1012,6 +1059,20 @@ case "$1" in
 			return 0
 		fi
 
+		## THE ENDING OF ONE RUN: the one bounded call, in this process of its own, which the thread started and does not
+		## wait for. It ends the run the way the console's kill does, recorded under the name `session-control`, and ends.
+		if [ "$controlMode" = "--release" ] ; then
+			case "$controlDeathRun" in
+				''|.|..|*/*|*[[:space:]]*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-session-control: --release is the thread's own call and needs --session-id <id> --spawn-id <run id> -- nothing was ended" >&2
+					return 1
+				;;
+			esac
+			type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
+			AgentsToolsManagerSessionKill "--intern-session-control --release" "$controlDeathRun" run session-control
+			return 0
+		fi
+
 		## This process, with when it began: the pid of the shell that runs these lines, also
 		## where that is a subshell, whose $$ is its starter's.
 		local controlPid controlMe controlLine
@@ -1054,7 +1115,7 @@ case "$1" in
 		local controlRuns=0 controlAlive=0 controlOpen=0 controlForeign=0 controlForeignHosts=""
 		local controlDir="" controlLock="" controlHolder="" controlHolderTold=0 controlTookOver="" controlStateWord="" controlStateAt=""
 		local controlLife="event" controlSaid="" controlLeave="" controlRc=0 controlOwn="" controlWrote="" controlTicks=0 controlWaitRc=0 controlWaitFrom=0 controlWaitLeft=0 controlWaitPiece=0
-		local controlWitness="" controlFullAt=0 controlWoken="" controlEarly=0 controlSleepSaid=""
+		local controlWitness="" controlFullAt=0 controlWoken="" controlEarly=0 controlSleepSaid="" controlNoRunFrom="" controlNoRunLimit=""
 		local controlTakes="kill" controlRequestCall="" controlRequestSeen="" controlRequestBound="" controlKilled="" controlKilledAt=""
 		[ "$controlMode" != "--one" ] || controlLife="note"
 		controlHost="$( hostname -s 2> /dev/null )" || controlHost=""
@@ -1123,6 +1184,12 @@ case "$1" in
 			AgentsToolsSessionControlLeave
 			AgentsToolsSessionControlRefuse "could not write $controlDir/pid -- nothing was started"
 			return 1
+		fi
+		## ITS LINE IN THE READER'S LIST, written the moment it holds its lock (S5.6): the communications reader reads that list alone,
+		## so a session that starts is looked after at once and a session that has closed costs it nothing.
+		if [ "$controlMode" = "--run" ] ; then
+			type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+			! type AgentsToolsSessionCommsListAdd > /dev/null 2>&1 || AgentsToolsSessionCommsListAdd "$controlSession" || :
 		fi
 
 		if [ "$controlMode" = "--run" ] ; then

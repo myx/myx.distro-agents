@@ -12,6 +12,8 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-list [--team-member <team-member>] <issue-key>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
@@ -53,6 +55,15 @@
 
 		--jira-comment-add <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 			Adds one comment to that issue.
+
+		--jira-issue-link-list <issue-key>
+			Prints the remote links stored on that issue, one a line: its id, its
+			address and its title. Every member may read them, since they are
+			readable by any identity that can see the issue.
+
+		--jira-issue-link-page <issue-key> --url <page-url> --title <text>
+			Links a page, such as a Confluence page, to that issue. Runs only as
+			`magic-coordinator`. The address identifies the link, so a retry leaves one.
 
 		--jira-board-list [--start-at <n>] / --jira-board-read <board-id> / --jira-board-issue-search <board-id> [--start-at <n>]
 			The boards the member may see; one board; and the issues of one board, from the

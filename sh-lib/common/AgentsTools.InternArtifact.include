@@ -135,7 +135,7 @@ AgentsToolsArtifactClaimDrop(){ ## commit subject
 ## Under the team-data-push lock, which every push from this checkout takes, since processes
 ## sharing one checkout share one HEAD and git cannot order them. Sets artNumber, artRecord.
 AgentsToolsArtifactClaim(){
-	local claimTry=0 claimSubject="" claimOut="" claimRc=0 claimSync=""
+	local claimTry=0 claimSubject="" claimOut="" claimRc=0 claimSync="" claimSeen=""
 	if ! AgentsToolsLocalLockTake team-data-push 300 "the team-data push" ; then
 		echo "⛔ ERROR: $artCmd: the team-data push lock stayed held for 5 minutes, so no number could be secured. Nothing was published" >&2
 		return 1
@@ -150,9 +150,15 @@ AgentsToolsArtifactClaim(){
 		AgentsToolsArtifactRecordWrite reserved - || break
 		if [ -n "$artRepo" ] ; then
 			claimSubject="intern-artifact-publish: $artNumber claimed by $artMember, ${artSession:-no session} $$"
-			AgentsToolsTeamDataCommitPaths "$claimSubject" "$artRecord"
-			if [ "$( git -C "$artRepo" log -1 --format=%s 2>/dev/null )" != "* $claimSubject" ] ; then
-				echo "⛔ ERROR: $artCmd: the claim of $artNumber could not be committed to the team data, so the number is not secured. Nothing was published" >&2
+			## WHERE IT IS VERIFIED IT IS COMMITTED: the thread's queue would answer before its commit, and a number is secured only once its
+			## record is a commit. MDAT_TEAM_DATA_COMMIT_THREAD=off makes the commit here, and the commit seen is said, so a race is not a store fault.
+			MDAT_TEAM_DATA_COMMIT_THREAD=off AgentsToolsTeamDataCommitPaths "$claimSubject" "$artRecord"
+			## READ BACK BY THE RECORD, NEVER BY HEAD: another writer's commit, a thread's own among them, takes no lock
+			## against a claim, so HEAD may be somebody else's by the time this reads. The claim's commit is the newest one
+			## that touched its record, and that is what a secured number means.
+			claimSeen="$( git -C "$artRepo" log -1 --format=%s -- "$artRecord" 2>/dev/null )" || claimSeen=""
+			if [ "$claimSeen" != "* $claimSubject" ] ; then
+				echo "⛔ ERROR: $artCmd: the claim of $artNumber could not be committed to the team data, so the number is not secured. Nothing was published. The last commit seen was: ${claimSeen:-none}" >&2
 				rm -f "$artRecord"
 				break
 			fi
@@ -192,14 +198,15 @@ AgentsToolsArtifactClaim(){
 	return 1
 }
 
-## The record completed, or released when nothing was published, then committed and pushed.
+## The record completed, or released when nothing was published, and committed and pushed before the caller is told:
+## a record still in the thread's queue is in no clone, so a caller that reads the store back would not find it.
 AgentsToolsArtifactRecordClose(){ ## published|released
 	if [ "$1" = released ] ; then
 		rm -f "$artRecord"
-		AgentsToolsTeamDataCommitPaths "intern-artifact-publish: $artNumber released, nothing was published, $artMember" "$artRecord"
+		MDAT_TEAM_DATA_COMMIT_WAIT=yes AgentsToolsTeamDataCommitPaths "intern-artifact-publish: $artNumber released, nothing was published, $artMember" "$artRecord"
 	else
 		AgentsToolsArtifactRecordWrite published "$artUrl" || return 1
-		AgentsToolsTeamDataCommitPaths "intern-artifact-publish: ${artNumber:-$artTitle} published, $artMember" "$artRecord"
+		MDAT_TEAM_DATA_COMMIT_WAIT=yes AgentsToolsTeamDataCommitPaths "intern-artifact-publish: ${artNumber:-$artTitle} published, $artMember" "$artRecord"
 	fi
 	AgentsToolsTeamDataPushIfAhead intern-artifact-publish
 }

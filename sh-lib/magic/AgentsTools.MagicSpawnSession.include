@@ -18,7 +18,7 @@ case "$1" in
 	--spawn-session)
 		shift
 		local routineSelector="" routineDefault="false" sessionNameOrComment="" sessionDescription=""
-		local sessionCliService="" sessionSettingsWorkspace=""
+		local sessionCliService="" sessionSettingsWorkspace="" sessionThreadMode=""
 		local spawnMembers=() sessionJoinId="" sessionHandedOverBy=""
 		## THE PARTICIPANTS and what the work likely needs, as whoever prepares the dispatch guesses them: validated before
 		## anything starts and recorded on the spawn records, never started here -- the executor invites each participant.
@@ -67,6 +67,19 @@ case "$1" in
 				;;
 				--routine-default)
 					routineDefault="true"
+					shift
+				;;
+				## The thread this call's session opens: event-track starts it alone, with no session thread
+				## until it brings a member in (AgentsToolsScheduleSpawn's duty start). Passed to every spawn.
+				--session-thread:*)
+					sessionThreadMode="${1#--session-thread:}"
+					case "$sessionThreadMode" in
+						event-track|magic-team) ;;
+						*)
+							echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --session-thread: the mode is event-track or magic-team: '$sessionThreadMode'" >&2
+							set +e ; return 1
+						;;
+					esac
 					shift
 				;;
 				--session-name-or-comment)
@@ -159,7 +172,7 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -320,6 +333,9 @@ case "$1" in
 				case " $participantsList " in *" $participantOne "*) ;; *) participantsList="$participantsList${participantsList:+ }$participantOne" ;; esac
 			done <<< "$participantsWhy"
 		fi
+		## The participants reach each start as MDAT_SPAWN_PARTICIPANTS, spaced, empty for none: the console makes each an agent type of its
+		## session, so the executor's `Agent` call can bring them in (AgentsConsoleShellScript.template.sh). Never one a caller's own environment held.
+		local -x MDAT_SPAWN_PARTICIPANTS="$participantsList"
 		## What the work likely needs, recorded for a later hint: a permission entry <tool>:<target>, a tool by its name.
 		local likelyOne likelyPermissionsLine="" likelyToolsLine=""
 		for likelyOne in ${likelyPermissions[@]+"${likelyPermissions[@]}"} ; do
@@ -448,6 +464,7 @@ case "$1" in
 			## What every start of the queue is given, kept beside the record for its watcher (AgentsToolsSpawnSessionParentStart).
 			local partitionArgs=( --dispatch-doc:create )
 			if [ "$routineDefault" = "true" ] ; then partitionArgs+=( --routine-default ) ; else partitionArgs+=( --routine "$routineSelector" ) ; fi
+			[ -z "$sessionThreadMode" ] || partitionArgs+=( --session-thread:"$sessionThreadMode" )
 			[ -z "$sessionNameOrComment" ] || partitionArgs+=( --session-name-or-comment "$sessionNameOrComment" )
 			[ -z "$sessionDescription" ] || partitionArgs+=( --description "$sessionDescription" )
 			[ -z "$sessionCliService" ] || partitionArgs+=( --spawn-cli-service "$sessionCliService" )
@@ -465,6 +482,7 @@ case "$1" in
 			else
 				spawnArgs+=( --routine "$routineSelector" )
 			fi
+			[ -z "$sessionThreadMode" ] || spawnArgs+=( --session-thread:"$sessionThreadMode" )
 			[ -z "$sessionNameOrComment" ] || spawnArgs+=( --session-name-or-comment "$sessionNameOrComment" )
 			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )
 			[ -z "$sessionCliService" ] || spawnArgs+=( --spawn-cli-service "$sessionCliService" )

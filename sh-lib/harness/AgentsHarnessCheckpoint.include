@@ -183,10 +183,42 @@ AgentsHarnessIdleSeedSum(){ ## the messages text
 ## round while nothing arrives, never a full history paid again after it expired. A bound named by the call, a run's own wait timeout, an
 ## error and a source never read return as they did, with the conversation kept; an arrival returns to the checkpoint with the arrival
 ## (F10.5).
-AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
-	local idleTimeout="${1:--}" idleSources idleShown idleOut idleHead idleTarget="" idleArrival idleText idleWaitSources idleKey idleKeepalive=0
+## The sources an idle wait of this run watches besides its floor: the scans the routine declares (`input-scan-def:`, by name) and its
+## `wait-sources:` words. The one reader of both keys on the harness side, so a wait the harness makes for a plain reply watches the very
+## sources the run's own `--idle-wait` would (AgentsTools.ThisSession.include). One source a line, in that order.
+## A Wait result with its own last line left off, where that line is a NEXT: one: the idle wait is not a Wait that goes on here, and its
+## own next step is the caller's to say. One reader of the shape, so the arrival and the quiet texts drop the same line.
+AgentsHarnessIdleDropNext(){ ## the Wait result
+	printf '%s\n' "$1" | LC_ALL=C awk '
+		{ idleLine[NR] = $0 }
+		END {
+			idleLast = NR ;
+			if ( idleLast == 0 ) exit ;
+			if ( idleLine[idleLast] ~ /^NEXT: / ) { idleLast-- ; }
+			else if ( idleLine[idleLast] ~ / NEXT: / ) { sub( / NEXT: .*$/, "", idleLine[idleLast] ) ; }
+			for ( idleAt = 1 ; idleAt <= idleLast ; idleAt++ ) print idleLine[idleAt] ;
+		}
+	'
+}
+
+AgentsHarnessIdleRoutineSources(){
+	local sourcesFile="" sourcesLine sourcesOne
+	type AgentsToolsSessionRoutineFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include" 2> /dev/null || return 0
+	sourcesFile="$( AgentsToolsSessionRoutineFile "$( AgentsHarnessSessionKey )" 2> /dev/null )" || sourcesFile=""
+	[ -n "$sourcesFile" ] && [ -f "$sourcesFile" ] || return 0
+	while IFS= read -r sourcesLine ; do
+		sourcesOne="${sourcesLine%%[[:space:]]*}"
+		case "$sourcesOne" in ''|none) continue ;; esac
+		printf 'scan:%s\n' "$sourcesOne"
+	done <<< "$( AgentsToolsRoutineKeyLines "$sourcesFile" input-scan-def )"
+	AgentsToolsRoutineWaitWords "$sourcesFile" "$harnessAgent"
+}
+
+AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading `signal` asking for no return
+	local idleTimeout="${1:--}" idleSources idleShown idleOut idleHead idleTarget="" idleArrival idleText idleWaitSources idleKey idleKeepalive=0 idleSignal=""
 	[ $# -eq 0 ] || shift
 	idleSources="$*"
+	case "$idleSources" in 'signal'|'signal '*) idleSignal=1 ; idleSources="${idleSources#signal}" ; idleSources="${idleSources# }" ;; esac
 	[ "$idleTimeout" != "-" ] || idleTimeout=""
 	idleShown="the floor${idleSources:+ and ${idleSources// /, }}"
 	idleWaitSources="$idleSources"
@@ -195,8 +227,8 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 		[ -z "$idleKey" ] || idleWaitSources="chat:$idleKey"
 	fi
 	## The checkpoint the run returns to, where it holds one: `opening` first, else `armed`. Taken before the wait, for an arrival and for
-	## the keepalive alike.
-	if AgentsHarnessSnapshotHeld opening ; then idleTarget=opening ; elif AgentsHarnessSnapshotHeld armed ; then idleTarget=armed ; fi
+	## the keepalive alike. A run that asked for the signal alone returns nowhere: the return for its kind of session is not decided yet.
+	if [ -n "$idleSignal" ] ; then : ; elif AgentsHarnessSnapshotHeld opening ; then idleTarget=opening ; elif AgentsHarnessSnapshotHeld armed ; then idleTarget=armed ; fi
 	## An idle wait is the run idle, whatever scans it names (S27.4).
 	AgentsHarnessActivityWrite idle
 	printf '%s\n' "${harnessDim}💤 idle-wait -- waiting on $idleShown${harnessOff}" >&2
@@ -210,7 +242,8 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 		idleHead="$( printf '%s\n' "$idleOut" | head -1 )"
 		case "$idleHead" in
 			"WAIT-RESULT: TIMEOUT"*)
-				if [ -z "$idleTimeout" ] && [ -z "${harnessWaitTimeout:-}" ] && ! printf '%s\n' "$idleOut" | LC_ALL=C grep -q '^WAIT-NEVER-READ: ' ; then
+				## A run that only signals is not woken to refresh a cache it never returns to: it waits on, spending nothing.
+				if [ -z "$idleSignal" ] && [ -z "$idleTimeout" ] && [ -z "${harnessWaitTimeout:-}" ] && ! printf '%s\n' "$idleOut" | LC_ALL=C grep -q '^WAIT-NEVER-READ: ' ; then
 					idleKeepalive=1
 					printf '%s\n' "${harnessDim}💤 idle-wait -- the quiet round of the service, before the input cache expires: waking the model with a keepalive${harnessOff}" >&2
 					break
@@ -222,19 +255,23 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 	case "$idleHead" in
 		"WAIT-RESULT: RECEIVED")
 			## The Wait tool's own last line says to go on with Wait: not a Wait that goes on here, so that line is left off.
-			idleArrival="$( printf '%s\n' "$idleOut" | LC_ALL=C awk '{ idleLine[NR] = $0 } END { idleLast = NR ; if ( idleLine[idleLast] ~ /^NEXT: / ) { idleLast-- } ; for ( idleAt = 1 ; idleAt <= idleLast ; idleAt++ ) { print idleLine[idleAt] } }' )"
+			idleArrival="$( AgentsHarnessIdleDropNext "$idleOut" )"
 			## What arrived is given as a Wait result is: a long report is kept in the session's results/ and named (the one reply layer).
 			AgentsHarnessReply Wait "$idleArrival"
 			idleArrival="$harnessReply"
 			if [ -n "$idleTarget" ] ; then
-				printf -v idleText '%s\n\n%s' "Your --idle-wait returned: something arrived while this run was idle. The conversation is returned to its checkpoint $idleTarget, so none of the work after it is in front of you; the files, and everything outside the conversation, are as that work left them. What arrived:" "$idleArrival"
+				printf -v idleText '%s\n\n%s' "Your --idle-wait returned: a message arrived while this run was idle, and it may be new work, an ask or news. The conversation is returned to its checkpoint $idleTarget, so none of the work after it is in front of you; the files are as that work left them. What arrived:" "$idleArrival"
 				if AgentsHarnessRewindTo "$idleTarget" "$idleText" ; then
 					return 0
 				fi
 			fi
 			## An arrival that returned no conversation is a wake all the same: the next model call is round 1 of it, and says what the cache did.
 			harnessLegRound=0
-			printf -v idleText '%s\n\n%s' "Something arrived while this run was idle, and no snapshot is held, so your conversation was not returned. What arrived:" "$idleArrival"
+			if [ -n "$idleSignal" ] ; then
+				printf -v idleText '%s\n\n%s' "Your --idle-wait returned: a message arrived while this run was idle, and it may be new work, an ask or news. The conversation is kept, since a return is not what this session's kind of run asks for yet. What arrived:" "$idleArrival"
+			else
+				printf -v idleText '%s\n\n%s' "Something arrived while this run was idle, and no snapshot is held, so your conversation was not returned. What arrived:" "$idleArrival"
+			fi
 		;;
 		"WAIT-RESULT: TIMEOUT"*)
 			if [ "$idleKeepalive" = 1 ] ; then
@@ -249,7 +286,7 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 				harnessLegRound=0
 				printf -v idleText '%s' "Your --idle-wait made its keepalive round before the input cache expired: nothing arrived. The task above is the one you already worked; no snapshot is held, so your conversation was not returned. Do not redo that work: call --idle-wait again to keep waiting."
 			else
-				printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival, and your conversation was not returned. Call --idle-wait again to keep waiting." "${idleOut/ NEXT: Wait mode=continue/}"
+				printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival, and your conversation was not returned. Call --idle-wait again to keep waiting." "$( AgentsHarnessIdleDropNext "$idleOut" )"
 			fi
 		;;
 		"WAIT-RESULT: DISMISSED")
@@ -263,7 +300,7 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 	## (harnessIdleForce, AgentsUniversalHarness.sh) returns the conversation to the held checkpoint whatever the wait came to, a bound the run
 	## named or an error included, so every loop ends on the same cached prefix. A dismissal alone is the end and is not returned.
 	if [ -n "${harnessIdleForce:-}" ] && [ -n "$idleTarget" ] && [ "$idleHead" != "WAIT-RESULT: DISMISSED" ] ; then
-		printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival. The conversation is returned to its checkpoint $idleTarget, so the next turn is read from the cache and none of the work after it is in front of you. Call --idle-wait again to keep waiting." "${idleOut/ NEXT: Wait mode=continue/}"
+		printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival. The conversation is returned to its checkpoint $idleTarget, so the next turn is read from the cache and none of the work after it is in front of you. Call --idle-wait again to keep waiting." "$( AgentsHarnessIdleDropNext "$idleOut" )"
 		if AgentsHarnessRewindTo "$idleTarget" "$idleText" ; then
 			return 0
 		fi

@@ -499,6 +499,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The one thread that commits and pushes the team data: the writers write their files and leave an entry, and no agent calls it.
+		--intern-team-data-commit)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternTeamDataCommit.include"
+			return $?
+		;;
+
 		## Registered places: their registration and the tooling's resolvers.
 		--intern-directory-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternDirectory.include"

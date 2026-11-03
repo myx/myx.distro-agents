@@ -78,8 +78,10 @@ for rigSession in a b c n ; do rigPackage "$rigSession" ; done
 rigPackage p 3 ; rigPackage q 3 ; rigPackage live
 
 rigHold=""
+rigQueueLimit=""
 rigRun(){ ## session, runner args... -- that session's runner, started in the background from its own copy; its output in <session>.out. With rigHold set, its test ends only at rigLet <session>
 	( cd "$rigWs" && exec env -i HOME="${rigHomeFor:-$rigHome}" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$( rigRoot "$1" )" MYXROOT="${MYXROOT:-}" RIG_SHARED="$rigTmp" RIG_SUITE="$1" RIG_HOLD="$rigHold" \
+		MDAT_SUITE_QUEUE_LIMIT="${rigQueueLimit:-}" \
 		bash "$( rigRoot "$1" )/myx/myx.distro-agents/sh-test/AgentsRunTests.sh" "${@:2}" ) > "$rigTmp/$1.out" 2>&1 &
 	rigLast=$!
 	rigStarted="$rigStarted $rigLast" ; rigProcNote "$rigLast"
@@ -247,6 +249,31 @@ rigAssert "it left the line, the two ahead of it still stand there, and the lock
 rm -rf "$rigLock"
 rigEnd "$rigPidA" ; rigRcA=$rigRc ; rigEnd "$rigPidB"
 rigAssert "accepted sibling: with that lock removed, the two that waited run in the order they arrived" "$rigRcA $rigRc $( rigOrder )" "0 0 BEGIN a END a BEGIN b END b"
+
+echo "-- 5a. a run never waits past its bound: it says whom it waits behind, refuses, and holds nobody --"
+## Two runs waited half an hour on 2026-11-03 before a person ended them. A ticket is honoured only while its holder is a
+## live run, so the one this section waits behind is a real run, held until the rig lets it go. A run that waits
+## MDAT_SUITE_QUEUE_LIMIT seconds refuses, names the run in front of it, and gives its own ticket back, so nothing behind
+## it waits on a run that will never start. The control is the same wait with a bound longer than it.
+rigFresh ; rigHold=1
+rigRun a RigTiny ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the run ahead never began, so the bound below would be measured on nothing"
+rigQueueLimit=3
+rigRun b RigTiny ; rigEnd "$rigLast"
+rigAssert "a run whose turn has not come within its bound is refused, and runs nothing" "$rigRc [$( rigOrder )]" "1 [BEGIN a]"
+rigAssert "its one line names the run it waited behind, its copy and when it joined the line, and says nothing was run" \
+	"$( LC_ALL=C grep -c -F -- "⛔ ERROR: AgentsRunTests.sh: not started: its turn in the machine's line had not come within 3s. It waited behind the run of pid $rigPidA from $( rigRoot a ), in line since " "$rigTmp/b.out" || : )" 1
+rigAssert "and it gave its own ticket back: the run it waited behind is the only one still in the line" "$( rigTickets )" 1
+rigQueueLimit=""
+rigRun c RigTiny ; rigPidC=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/c.out" || rigRefuse "the third run never said it waits, so the control below would be nobody's"
+rigLet a
+rigUntil 'BEGIN c' "$rigTmp/log" || rigRefuse "the third run never began once the first let go, so the control below would measure nothing"
+rigEnd "$rigPidA"
+rigEnd "$rigPidC"
+rigAssert "control: the same wait with a bound longer than it lets a run through, so the refusal above is the bound and not the line" \
+	"$rigRc $( LC_ALL=C grep -c -x -F 'BEGIN c' "$rigTmp/log" || : )" "0 1"
+rigHold="" ; rigQueueLimit=""
 
 echo "-- 6. no line, no run --"
 rigFresh

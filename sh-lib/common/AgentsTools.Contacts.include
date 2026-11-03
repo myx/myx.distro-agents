@@ -104,12 +104,12 @@ AgentsToolsContactsCoordinateCheck(){ ## kind (slack-id|slack-handle|slack-conve
 
 ## ---- the record: read into variables, written whole ----
 
-## A person's record read into crId, crName, crOrg, crRole, crRel, crOwner, crReached, crSlackId, crSlackHandle, crSlackConv, crEmail, crHow,
+## A person's record read into crId, crName, crOrg, crRole, crRel, crOwner, crTier, crReached, crSlackId, crSlackHandle, crSlackConv, crEmail, crHow,
 ## crAllows; crExtra holds the front matter lines this file does not know (kept as they stand), crLog the log lines. rc 1 for no file.
-crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
+crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
 AgentsToolsContactsPersonRead(){ ## file
 	local readLine readState="" readKey readValue
-	crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
+	crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
 	[ -f "$1" ] || return 1
 	while IFS= read -r readLine || [ -n "$readLine" ] ; do
 		case "$readState:$readLine" in
@@ -126,6 +126,7 @@ AgentsToolsContactsPersonRead(){ ## file
 					role) crRole="$readValue" ;;
 					relationship) crRel="$readValue" ;;
 					is-owner) crOwner="$readValue" ;;
+					tier) crTier="$readValue" ;;
 					reached-by) crReached="$readValue" ;;
 					slack-id) crSlackId="$readValue" ;;
 					slack-handle) crSlackHandle="$readValue" ;;
@@ -151,6 +152,7 @@ AgentsToolsContactsPersonText(){
 	[ -z "$crRole" ] || printf 'role: %s\n' "$crRole"
 	[ -z "$crRel" ] || printf 'relationship: %s\n' "$crRel"
 	[ -z "$crOwner" ] || printf 'is-owner: %s\n' "$crOwner"
+	[ -z "$crTier" ] || printf 'tier: %s\n' "$crTier"
 	[ -z "$crReached" ] || printf 'reached-by: %s\n' "$crReached"
 	[ -z "$crSlackId" ] || printf 'slack-id: %s\n' "$crSlackId"
 	[ -z "$crSlackHandle" ] || printf 'slack-handle: %s\n' "$crSlackHandle"
@@ -302,14 +304,14 @@ AgentsToolsContactsCollectOrganisation(){ ## the operation, its arguments...
 ##   [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
 ## Adds the calling member to `reached-by`; --reached-by names the member only for a call from no member's session (the console, a migration).
 AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
-	local colOp="$1" colId="" colName="" colOrg="" colRole="" colRel="" colHow="" colOwner="" colNote="" colCorrect="" colMember="" colSlack="" colHandle="" colConv="" colMail="" colDrop=""
-	local colBy colFile colNew=no colStamp colNow colItem colKeptLine colSyntax
-	colSyntax="syntax is --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]"
+	local colOp="$1" colId="" colName="" colOrg="" colRole="" colRel="" colHow="" colOwner="" colTier="" colNote="" colCorrect="" colMember="" colSlack="" colHandle="" colConv="" colMail="" colDrop=""
+	local colBy colFile colNew=no colStamp colNow colItem colKeptLine colSyntax colTierBy
+	colSyntax="syntax is --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]"
 	shift
 	AgentsToolsContactsLoad
 	while [ $# -gt 0 ] ; do
 		case "$1" in
-			--id|--name|--organisation|--role|--relationship|--how-to-meet|--owner|--slack|--slack-handle|--slack-conversation|--email|--drop|--note|--reached-by)
+			--id|--name|--organisation|--role|--relationship|--how-to-meet|--owner|--tier|--slack|--slack-handle|--slack-conversation|--email|--drop|--note|--reached-by)
 				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $1 takes a value" >&2 ; return 1 ; }
 				case "$1" in
 					--id) colId="$2" ;;
@@ -319,6 +321,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 					--relationship) colRel="$( AgentsToolsContactsOneLine "$2" )" ;;
 					--how-to-meet) colHow="$( AgentsToolsContactsOneLine "$2" )" ;;
 					--owner) colOwner="$2" ;;
+					--tier) colTier="$2" ;;
 					--slack) AgentsToolsContactsCoordinateCheck slack-id "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colSlack="$( AgentsToolsContactsListAdd "$colSlack" "$2" )" ;;
 					--slack-handle) AgentsToolsContactsCoordinateCheck slack-handle "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colHandle="$( AgentsToolsContactsListAdd "$colHandle" "$2" )" ;;
 					--slack-conversation) AgentsToolsContactsCoordinateCheck slack-conversation "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colConv="$( AgentsToolsContactsListAdd "$colConv" "$2" )" ;;
@@ -335,12 +338,26 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	done
 	AgentsToolsContactsSlug "$colId" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --id is the contact's id, lowercase letters, digits and hyphens (at most 64): ${colId:-<nothing>}" >&2 ; return 1 ; }
 	case "$colOwner" in ''|yes|no) ;; *) echo "$MDSC_CMD: ⛔ ERROR: $colOp: --owner is yes or no: $colOwner" >&2 ; return 1 ;; esac
+	## A contact's tier is the human-owner's to set (epic S6.17), whoever else holds the record: his own member name, or the console account mapped to him.
+	if [ -n "$colTier" ] ; then
+		case "$colTier" in
+			partner|recorded) ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $colOp: --tier is partner or recorded: $colTier" >&2 ; return 1 ;;
+		esac
+		colTierBy="$( AgentsToolsActingMember )"
+		if [ -z "$colTierBy" ] ; then
+			type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			colTierBy="user-$( AgentsToolsConsoleAccount )"
+		fi
+		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+		AgentsToolsPermissionIsHumanOwner "$colTierBy" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --tier is the human-owner's to set, and this call is $colTierBy: $colTier" >&2 ; return 1 ; }
+	fi
 	[ -z "$colOrg" ] || AgentsToolsContactsSlug "$colOrg" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --organisation is an organisation's id: $colOrg" >&2 ; return 1 ; }
 	if [ "${#colName}" -gt 200 ] || [ "${#colRole}" -gt 200 ] || [ "${#colRel}" -gt 300 ] || [ "${#colHow}" -gt 500 ] || [ "${#colNote}" -gt 500 ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $colOp: --name and --role are at most 200 characters, --relationship 300, --how-to-meet and --note 500" >&2
 		return 1
 	fi
-	[ -z "$colSlack$colHandle$colConv$colMail$colDrop$colName$colOrg$colRole$colRel$colHow$colOwner$colNote" ] \
+	[ -z "$colSlack$colHandle$colConv$colMail$colDrop$colName$colOrg$colRole$colRel$colHow$colOwner$colTier$colNote" ] \
 		&& { echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing is given to record -- $colSyntax" >&2 ; return 1 ; }
 	colBy="$( AgentsToolsActingMember )"
 	if [ -n "$colBy" ] ; then
@@ -372,6 +389,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	AgentsToolsContactsMerge crRole "role" "$colRole" "$colCorrect"
 	AgentsToolsContactsMerge crRel "relationship" "$colRel" "$colCorrect"
 	AgentsToolsContactsMerge crOwner "is-owner" "$colOwner" "$colCorrect"
+	AgentsToolsContactsMerge crTier "tier" "$colTier" "$colCorrect"
 	AgentsToolsContactsMerge crHow "how-to-meet" "$colHow" "$colCorrect"
 	## the lists add what is new
 	local colBefore
@@ -548,11 +566,16 @@ AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log lin
 	AgentsToolsContactsUnlock
 }
 
-## What the chain says a contact holds standing, one line a grant: `ALLOW <tool> <target> <granted by> <time>`, or the words that there is none.
+## What the chain says a contact holds standing, one line a grant: `ALLOW <tool> <target> <granted by> <time>`, or the words that there is none, naming
+## the tiers the record's `tier:` adds to Ingest and Basic. An unknown value on a record hand-edited is read as no tier, so it adds nothing.
 AgentsToolsContactsAccessText(){ ## id
-	local accessRows
+	local accessRows accessTiers="Ingest and Basic only"
 	accessRows="$( AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$1" 2> /dev/null | LC_ALL=C awk -F'\t' 'NF >= 5 { printf "%s%s on %s (allowed by %s)", sep, $2, $3, $4 ; sep = ", " ; }' )" || accessRows=""
-	printf '%s' "${accessRows:-nothing standing, so Ingest and Basic only}"
+	case "$( AgentsToolsContactsKey "$contactsPersons/$1.md" tier )" in
+		partner) accessTiers="Ingest, Basic and Partner only" ;;
+		recorded) accessTiers="Ingest, Basic, Partner and Recorded only" ;;
+	esac
+	printf '%s' "${accessRows:-nothing standing, so $accessTiers}"
 }
 
 ## --contact-access <id> [--tool <tool> --target <target>] [--session-id <id>]: with a call, the permission model's answer to whether the contact may
@@ -687,7 +710,7 @@ AgentsToolsContactsAllow(){ ## the operation, its arguments...
 ## --contacted-by <value> [--team <scope>]: being contacted. The sender looked up: the record, then what it holds and the tiers and next step of the
 ## template. A sender nobody has recorded is said so, with the next step; rc 1 then, and where the value names more than one contact (rows, narrow it).
 AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
-	local byOp="$1" byValue="" byTeam="" byRows byCount byId
+	local byOp="$1" byValue="" byTeam="" byRows byCount byId byTier
 	shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
@@ -719,7 +742,10 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 	byId="$( printf '%s\n' "$byRows" | LC_ALL=C cut -f2 )"
 	cat "$contactsPersons/$byId.md"
 	printf '\n'
-	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" AgentsToolsEscalationNote "Contacts/contacted-known"
+	## The tier's own rules, whole: the record's `tier:`, and every tier below it. No tier, or a value that is none, reads as `none`.
+	byTier="$( AgentsToolsContactsKey "$contactsPersons/$byId.md" tier )"
+	case "$byTier" in partner|recorded) ;; *) byTier=none ;; esac
+	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" ASKP_F_tiers="$( AgentsToolsEscalationNote "Contacts/tier-$byTier" )" AgentsToolsEscalationNote "Contacts/contacted-known"
 }
 
 ## --reach-contact <id>: reaching one. The coordinates by channel, how to meet it, the send lines of the template.

@@ -73,24 +73,29 @@ AgentsToolsCheckListEpicItems(){ ## the workspace the text may name the epic fil
 
 ## The duties of a routine, from its text as the run reads it (AgentsToolsSpawnRoutineMixText) on standard input, one name a line, in reading order: the steps of its
 ## Opening steps, Steps and Closure steps. A step is a numbered `N. **name**` line, or the deepest heading of a group of headings. The mixed text puts a kind routine's
-## sections under `# Opening steps of <file>` and a heading of the section's own name, which is no step.
-AgentsToolsCheckListRoutineSteps(){
-	LC_ALL=C awk '
+## sections under `# Opening steps of <file>` and a heading of the section's own name, which is no step. A run that joins a session (session id other than its own spawn id,
+## the two arguments) lists only the steps whose text begins `All participants`.
+AgentsToolsCheckListRoutineSteps(){ ## session id, spawn id
+	LC_ALL=C awk -v sessionId="$1" -v spawnId="$2" '
 		function level( headLine,   levelNo ) { levelNo = 0 ; while ( substr( headLine, levelNo + 1, 1 ) == "#" ) levelNo++ ; return levelNo ; }
 		/^#+ / {
 			headLevel = level( $0 ) ; headText = substr( $0, headLevel + 2 ) ;
 			if ( headLevel == 1 ) {
-				if ( pending != "" ) print pending ;
+				if ( pending != "" && ( sessionId == spawnId || pendingAll ) ) print pending ;
 				pending = "" ; inSteps = ( headText ~ /^(Opening steps|Steps|Closure steps)( of .*)?$/ ) ; stepsName = headText ; sub( / of .*$/, "", stepsName ) ;
 				next ;
 			}
 			if ( ! inSteps || headText == stepsName ) next ;
-			if ( pending != "" && headLevel <= pendingLevel ) print pending ;
-			pending = headText ; pendingLevel = headLevel ;
+			if ( pending != "" && headLevel <= pendingLevel && ( sessionId == spawnId || pendingAll ) ) print pending ;
+			pending = headText ; pendingLevel = headLevel ; pendingAll = 0 ; pendingBody = 0 ;
 			next ;
 		}
-		inSteps && /^[0-9]+\. \*\*/ { pending = "" ; stepText = $0 ; sub( /^[0-9]+\. \*\*/, "", stepText ) ; sub( /\*\*.*$/, "", stepText ) ; if ( stepText != "" ) print stepText ; }
-		END { if ( pending != "" ) print pending ; }
+		inSteps && /^[0-9]+\. \*\*/ {
+			pending = "" ; stepText = $0 ; sub( /^[0-9]+\. \*\*/, "", stepText ) ; sub( /\*\*.*$/, "", stepText ) ;
+			if ( stepText != "" && ( sessionId == spawnId || $0 ~ /^[0-9]+\. \*\*[^*]*\*\*:? *All participants/ ) ) print stepText ;
+		}
+		inSteps && pending != "" && ! pendingBody && NF { pendingBody = 1 ; pendingAll = ( $0 ~ /^All participants/ ) ; }
+		END { if ( pending != "" && ( sessionId == spawnId || pendingAll ) ) print pending ; }
 	'
 }
 

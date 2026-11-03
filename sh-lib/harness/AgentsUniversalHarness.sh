@@ -1555,6 +1555,29 @@ AgentsHarnessCacheWatch(){
 ## No round ceiling by default: a round is one model turn, which tracks neither
 ## cost nor progress, and a task is not finished by being cut off at one.
 ## MDAT_HARNESS_MAX_ROUNDS sets one where a caller wants it; unset means none.
+## One line in the run's own session thread, that a busy or empty provider has paused it (S6.18). Never fails the run:
+## a thread it cannot reach, or a post that will not go, is said on stderr and the pause goes on.
+AgentsHarnessBusySay(){ ## the words
+	local sayThread=""
+	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	sayThread="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || sayThread=""
+	if [ -z "$sayThread" ] ; then
+		printf '%s\n' "${harnessDim}this run has no session thread, so the pause is not posted there${harnessOff}" >&2
+		return 0
+	fi
+	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSlack.fn.sh" --slack-send-message --team-member "${MDAT_SPAWN_AGENT:-}" "$sayThread" "$1" > /dev/null 2>&1 \
+		|| printf '%s\n' "${harnessWarn}⚠️  the pause could not be posted to $sayThread${harnessOff}" >&2
+}
+
+## A BUSY OR EMPTY PROVIDER PAUSES THE RUN, NEVER ONE ROUND: the budget and what has been spent of it stand here, outside the
+## round loop, so a round that ends hands nothing back and an empty answer waits on what the busy one left (S6.18).
+## HARNESS_BUSY_BUDGET seconds, 6 hours unless the preset says otherwise; anything but a whole number of seconds is that default.
+harnessBusyBudget="${HARNESS_BUSY_BUDGET:-21600}"
+case "$harnessBusyBudget" in ''|*[!0123456789]*) harnessBusyBudget=21600 ;; esac
+harnessBusyWaited=0
+harnessBusyWait=0
+harnessBusySaid=""
+
 harnessRound=0
 ## The rounds of the leg being run: back to 0 where the conversation is replaced (a restart, a rewind) and where a wait ends in an arrival, so that
 ## round 1 of a leg is the first model call of a wake, whose prompt-cache line (AgentsAnthropicMessagesWire) is the figure of that wake.
@@ -1809,8 +1832,9 @@ while : ; do
 
 		## The status line, when the transport gave one: a body alone cannot say whether a
 		## refusal is temporary. A leg whose transport writes no headers reads an empty one.
+		## The number after the protocol is the status: a carriage return after it is the transport's line ending, never part of it.
 		harnessStatus=""
-		[ ! -s "$harnessScratch/stream.headers" ] || harnessStatus="$( LC_ALL=C awk 'NR == 1 { print $2 }' "$harnessScratch/stream.headers" 2>/dev/null )" || harnessStatus=""
+		[ ! -s "$harnessScratch/stream.headers" ] || harnessStatus="$( LC_ALL=C awk 'NR == 1 { sub( /\r$/, "", $2 ) ; print $2 }' "$harnessScratch/stream.headers" 2>/dev/null )" || harnessStatus=""
 
 		## A complete, non-streaming error body is a refusal, not a disconnect. Two things
 		## can make it worth another attempt: an auth-class refusal on a leg that exchanges
@@ -1821,7 +1845,8 @@ while : ; do
 			case "$harnessStatus" in
 				429|500|502|503|504|529) harnessRetryable=1 ;;
 			esac
-			if [ "$harnessRetryable" = 0 ] ; then
+			## A status of its own settles it: only a refusal with no status is read by its words (S6.18).
+			if [ "$harnessRetryable" = 0 ] && [ -z "$harnessStatus" ] ; then
 				case "$( cat "$harnessScratch/stream.rawother" )" in
 					*rate_limit*|*overloaded*|*server_error*|*api_error*|*timeout*|*unavailable*) harnessRetryable=1 ;;
 				esac
@@ -1834,6 +1859,20 @@ while : ; do
 			fi
 			if [ "$harnessRetryable" = 0 ] && [ "$harnessAuthRefusal" = 0 ] ; then
 				break
+			fi
+			## A busy provider ends no run: it waits as a paused run does, on a budget of its own, HARNESS_BUSY_BUDGET seconds, and uses up no attempt (S6.18).
+			if [ "$harnessRetryable" = 1 ] && [ "$harnessAuthRefusal" = 0 ] && [ "$harnessBusyWaited" -lt "$harnessBusyBudget" ] ; then
+				if [ -z "$harnessBusySaid" ] ; then
+					harnessBusySaid=1
+					echo "${harnessWarn}⏸ BUSY:${harnessOff} $harnessHost is busy${harnessStatus:+ (HTTP $harnessStatus)} -- this run waits with its context and asks again, up to ${harnessBusyBudget}s" >&2
+					AgentsHarnessBusySay "$harnessHost is busy${harnessStatus:+ (HTTP $harnessStatus)}: this run is paused with its context and asks again."
+				fi
+				harnessBusyWait=$(( harnessBusyWait > 0 ? harnessBusyWait * 2 : ( harnessRetryDelay > 0 ? harnessRetryDelay : 0 ) ))
+				[ "$harnessBusyWait" -le 300 ] || harnessBusyWait=300
+				[ "$harnessBusyWait" -eq 0 ] || sleep "$harnessBusyWait" 2>/dev/null || :
+				harnessBusyWaited=$(( harnessBusyWaited + ( harnessBusyWait > 0 ? harnessBusyWait : 1 ) ))
+				harnessStreamAttempt=$(( harnessStreamAttempt - 1 ))
+				continue
 			fi
 			if [ "$harnessStreamAttempt" -ge "$harnessStreamMaxAttempts" ] ; then
 				break
@@ -1949,6 +1988,10 @@ while : ; do
 			exit 1
 		fi
 		harnessSummaryWithheld=0
+		## THE MARKER IS THE ENDING, NOT A MOMENT ON THE WAY (S6.26): a run that goes on after a context refusal has not
+		## ended refused, and the marker the closer reads says it did. It is taken away here, once the run is going on,
+		## and the count of every refusal keeps its own line beside it.
+		rm -f "${MDAT_SPAWN_SANDBOX_ROOT:-/nonexistent}/${MDAT_SPAWN_SESSION_ID:-none}.refused" 2> /dev/null || :
 		## The round that overflowed is the one whose tool results made it so: they are withheld from the summarise request.
 		! AgentsHarnessWithholdResults "$harnessResultsRoundFrom" || printf '%s\n' "${harnessDim}the results of the round that overflowed are withheld from the summarise request${harnessOff}" >&2
 		harnessMessages+=( "$( AgentsWireUserRecord "$harnessHandoverAsk" )" )
@@ -2016,6 +2059,20 @@ while : ; do
 		harnessFinal="$( AgentsWireFinalContent )"
 		if [ -z "$harnessFinal" ] ; then
 			harnessFinishReason="$( AgentsWireFinishReason )"
+			## An empty stop is a provider's hiccup: the same request goes again, on the budget a busy provider spends,
+			## and nothing is added to the history (S6.18).
+			if [ "$harnessFinishReason" = "stop" ] && [ "$harnessBusyWaited" -lt "$harnessBusyBudget" ] ; then
+				if [ -z "$harnessBusySaid" ] ; then
+					harnessBusySaid=1
+					echo "${harnessWarn}⏸ EMPTY:${harnessOff} $harnessHost ended the answer empty -- this run waits with its context and asks again, up to ${harnessBusyBudget}s" >&2
+					AgentsHarnessBusySay "$harnessHost ended the answer empty: this run is paused with its context and asks again."
+				fi
+				harnessBusyWait=$(( harnessBusyWait > 0 ? harnessBusyWait * 2 : ( harnessRetryDelay > 0 ? harnessRetryDelay : 0 ) ))
+				[ "$harnessBusyWait" -le 300 ] || harnessBusyWait=300
+				[ "$harnessBusyWait" -eq 0 ] || sleep "$harnessBusyWait" 2>/dev/null || :
+				harnessBusyWaited=$(( harnessBusyWaited + ( harnessBusyWait > 0 ? harnessBusyWait : 1 ) ))
+				continue
+			fi
 			## an answer the provider ended empty (a content filter, a refusal stop and the like) is a block that ends the run: kept with its finish reason (sketch 3.6)
 			AgentsHarnessRefusalKeep "$harnessHost ended the answer empty -- finish_reason ${harnessFinishReason:-<none>}"
 			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no tool call and no final content came back (finish_reason=${harnessFinishReason:-<none>}) -- refusing to print an empty answer as if it were one" >&2
@@ -2039,7 +2096,7 @@ while : ; do
 			&& [ ! -e "$MMDAPP/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-/}/dismissed" ] ; then
 			harnessDutyPlainRuns=$(( ${harnessDutyPlainRuns:-0} + 1 ))
 			harnessIdleForce=1
-			AgentsHarnessIdleWait -
+			AgentsHarnessIdleWait - $( AgentsHarnessIdleRoutineSources | LC_ALL=C tr '\n' ' ' )
 			harnessIdleForce=""
 			continue
 		fi
@@ -2099,15 +2156,32 @@ while : ; do
 	## Every call's fields are read once, here, and both loops below take them from there.
 	AgentsHarnessToolCallsRead "$harnessToolCount"
 	harnessToolCallsJson=""
+	## The calls whose name the provider broke, as `<id><TAB><the name it was repaired to>`: the Messages wire sends them
+	## back under the repaired name, since the API matches a tool_use name against the tools it declares (S6.16).
+	harnessToolCallRepairs=""
 	harnessIndex=0
+	## A tool name the API and the tools both take: ASCII letters, digits, dot, underscore and hyphen, enumerated.
+	## A bracket range answers by this machine's collation, which folds a letter like `é` into `[A-Za-z]` on a UTF-8 host.
+	harnessToolNameChars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
 	while [ "$harnessIndex" -lt "$harnessToolCount" ] ; do
+		## A name the provider broke with its own markup never reaches a tool: the call keeps its id and gets a refusal as its result (S6.16).
+		harnessCallBad[$harnessIndex]=""
+		case "${harnessCallNames[$harnessIndex]}" in
+			*[!"$harnessToolNameChars"]*|'')
+				harnessCallBad[$harnessIndex]=1
+				harnessCallNames[$harnessIndex]="${harnessCallNames[$harnessIndex]%%[!"$harnessToolNameChars"]*}"
+				[ -n "${harnessCallNames[$harnessIndex]}" ] || harnessCallNames[$harnessIndex]="malformed"
+				harnessCallArgs[$harnessIndex]="{}"
+			;;
+		esac
 		harnessCallId="${harnessCallIds[$harnessIndex]}"
 		harnessFuncName="${harnessCallNames[$harnessIndex]}"
 		harnessFuncArgsRaw="${harnessCallArgs[$harnessIndex]}"
+		[ -z "${harnessCallBad[$harnessIndex]}" ] || harnessToolCallRepairs="${harnessToolCallRepairs}${harnessToolCallRepairs:+$'\n'}$harnessCallId"$'\t'"$harnessFuncName"
 		harnessToolCallsJson="${harnessToolCallsJson}${harnessToolCallsJson:+,}$( AgentsWireToolCallEntry "$harnessCallId" "$harnessFuncName" "$harnessFuncArgsRaw" )"
 		harnessIndex=$(( harnessIndex + 1 ))
 	done
-	harnessMessages+=( "$( AgentsWireAssistantToolCallsRecord "$harnessToolCallsJson" )" )
+	harnessMessages+=( "$( AgentsWireAssistantToolCallsRecord "$harnessToolCallsJson" "$harnessToolCallRepairs" )" )
 	AgentsHarnessContextSync assistant "$( AgentsHarnessContextAssistantMeta )"
 
 	## Then one result per call, keyed by that exact tool_call_id.
@@ -2124,9 +2198,14 @@ while : ; do
 		AgentsHarnessAnnounceTool "$harnessFuncName" "$harnessFuncArgsRaw"
 
 		## Every configured hook gets its say before the call runs, and a refusal becomes
-		## the result the model reads, so the tool never executes.
+		## the result the model reads, so the tool never executes. A broken name is refused
+		## after both layers, never in their place: an unarmed run's call is redirected as any
+		## other is, and a hook's refusal stands over the broken-name one (S6.16).
 		harnessResult="$( AgentsHarnessHooksRefusal "$harnessFuncName" "$harnessFuncArgsRaw" )"
 		[ -n "$harnessResult" ] || harnessResult="$( AgentsHarnessArmGate "$harnessFuncName" )"
+		if [ -z "$harnessResult" ] && [ -n "${harnessCallBad[$harnessIndex]}" ] ; then
+			harnessResult="ERROR: this tool call came back with a broken name from the provider, so it did not run. Make the call again."
+		fi
 		if [ -n "$harnessResult" ] && [ -z "$harnessArmRedirectLogged" ] && [ "${harnessResult#ERROR: read your duty file first}" != "$harnessResult" ] ; then
 			harnessArmRedirectLogged=1
 			## A tracking post of this run, so it goes into the tracking thread of its coworking

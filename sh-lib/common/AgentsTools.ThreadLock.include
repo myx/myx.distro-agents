@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ThreadLock.include -- the lock a background thread of the tooling holds for the life of its process, and the bound of its
+## log. Sourced, never run. Functions only. The three older threads (the control thread, the communications reader, the source collector)
+## each carry a copy of this, after AgentsTools.CollectThread.include; the team-data thread is the first to use this one.
+##
+## A lock is a file holding `<pid> <start>`, as a spawn record names a process. `set -C` makes it and never writes over one that stands.
+## A holder that is gone, or whose number another process has, is taken over by a rename only one breaker can make.
+##
+
+type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+
+## Whether the process a lock names, `<pid> <start>`, is still that process. rc 0 it is. rc 1 it is not: no process has the number, or the one
+## that has it began at another time, or it has ended and is only not collected yet. rc 2 it cannot be told: such a lock is left alone.
+AgentsToolsThreadLockHolderLives(){ ## `<pid> <start>`
+	local holderPid="${1%% *}" holderStart="${1#* }" holderNow
+	case "$holderPid" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$holderStart" != "$1" ] && [ -n "$holderStart" ] || return 1
+	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRegistryProcessesBegan )" || holderNow=""
+	[ "$holderNow" != "$1" ] || return 0
+	[ -z "$holderNow" ] || return 1
+	kill -0 "$holderPid" 2> /dev/null || return 1
+	case "$( LC_ALL=C ps -o stat= -p "$holderPid" 2> /dev/null )" in *Z*) return 1 ;; esac
+	return 2
+}
+
+## Takes the lock for the process that is `<pid> <start>`. rc 0 held. rc 1 another process holds it, and its `<pid> <start>` is printed.
+## rc 2 the lock could not be made. A holder that is gone is taken over, claimed by a rename; a fresh lock moved by mistake is put back.
+AgentsToolsThreadLockTake(){ ## lock path, `<pid> <start>` of this process
+	local takeTries=0 takeHolder takeStale takeMoved takeTold
+	while [ "$takeTries" -lt 5 ] ; do
+		takeTries=$(( takeTries + 1 ))
+		if ( set -C ; printf '%s' "$2" > "$1" ) 2> /dev/null ; then
+			return 0
+		fi
+		takeHolder="$( cat "$1" 2> /dev/null )" || takeHolder=""
+		[ -n "$takeHolder" ] || continue
+		[ "$takeHolder" != "$2" ] || return 0
+		AgentsToolsThreadLockHolderLives "$takeHolder" ; takeTold=$?
+		[ "$takeTold" = 1 ] || { printf '%s' "$takeHolder" ; return 1 ; }
+		takeStale="$( mktemp "$1.stale.XXXXXX" 2> /dev/null )" || continue
+		if mv -f "$1" "$takeStale" 2> /dev/null ; then
+			takeMoved="$( cat "$takeStale" 2> /dev/null )" || takeMoved=""
+			rm -f "$takeStale"
+			[ "$takeMoved" != "$takeHolder" ] || continue
+			[ -z "$takeMoved" ] || ( set -C ; printf '%s' "$takeMoved" > "$1" ) 2> /dev/null || :
+		else
+			rm -f "$takeStale"
+		fi
+	done
+	return 2
+}
+
+## Gives back what is this process's own, and only that.
+AgentsToolsThreadLockGive(){ ## lock path, `<pid> <start>` of this process
+	local giveHolder=""
+	{ IFS= read -r giveHolder < "$1" || [ -n "$giveHolder" ] ; } 2> /dev/null || giveHolder=""
+	[ "$giveHolder" != "$2" ] || rm -f "$1" 2> /dev/null
+	return 0
+}
+
+## The log is bounded so the process never fills a disk with it: over 128 KiB it is cut back to its last 64, from the first whole line, by one
+## rename. rc 0 it was cut, and the process points its own descriptors at the new file; rc 1 nothing was done.
+AgentsToolsThreadLogBound(){ ## log path
+	local boundSize
+	boundSize="$( { LC_ALL=C wc -c < "$1" ; } 2> /dev/null )" || return 1
+	boundSize="${boundSize//[!0123456789]/}"
+	[ -n "$boundSize" ] && [ "$boundSize" -gt 131072 ] || return 1
+	{ LC_ALL=C tail -c 65536 "$1" | LC_ALL=C sed 1d > "$1.aside" && mv -f "$1.aside" "$1" ; } 2> /dev/null || { rm -f "$1.aside" 2> /dev/null ; return 1 ; }
+	return 0
+}

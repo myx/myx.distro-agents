@@ -1,0 +1,408 @@
+#!/usr/bin/env awk
+
+# Parses one single-line Slack conversations.history/conversations.replies
+# JSON response (stdin, LC_ALL=C for byte safety) and prints one clean
+# "ts | user | text" line per message to stdout.
+#
+# A message's `reactions` array and its `reply_count`/`latest_reply` fields
+# sit directly on the message object in both APIs. When present they go on
+# that message's HEAD line, BEFORE the text, as "[reactions: NAME xCOUNT
+# (USERS)]" (one bracket per distinct reaction) and "[thread: N replies,
+# latest at TS]". Before and not after because message text can carry an
+# embedded newline: appended, the annotation stranded itself on a trailing
+# physical line, where the fan-out tagger read it as a continuation. The
+# thread annotation names no author -- conversations.history has no field
+# naming the latest reply's author, and `reply_users` is not parsed at all.
+#
+# Lives here (myx.distro-agents/sh-lib, not myx.common) because it's
+# Slack/DistroAgentsTools-specific. Consumers, by call site: the two
+# `AgentsToolsSlackCheck` reads in sh-lib/comms/AgentsTools.CommsSlack.include
+# (per-DM fan-out leg, single-conversation path), the escalation-thread
+# read in sh-lib/questions/AgentsTools.MemberEscalation.include, and the Wait thread
+# probe in sh-lib/member/AgentsTools.MemberWait.include. NOT --intern-op-sweep-input-scan,
+# which never invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
+#
+# Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/
+# parseObject/parseArray) is copied verbatim from myx.common's
+# agentMcpJsonParseRequest.awk; only the leaf-emission logic differs. Not a
+# general-purpose formatter: only understands the flat messages[] array
+# shape Slack's own API actually returns.
+
+BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; }
+
+## THIS PAGE IS TAKEN FROM THE FRONT. `substr(s, p, k)` copies from `p` on, so a page read a character
+## or a token at a time from an ever-growing position is quadratic: 1 MB that way is 88 s on this
+## machine's awk, and a 258-message thread took 145 s. So what is left of the page is re-sliced once
+## every few KB, and every step after that is taken near its start.
+function rebase() {
+	if (p <= 4096) return
+	s = substr(s, p)
+	p = 1
+	n = length(s)
+}
+
+function skipws(   c) {
+	rebase()
+	while (p <= n) {
+		c = substr(s, p, 1)
+		if (c == " " || c == "\t" || c == "\n" || c == "\r") p++
+		else break
+	}
+}
+
+function hex2dec(h,   i, c, v, r) {
+	r = 0
+	for (i = 1; i <= length(h); i++) {
+		c = tolower(substr(h, i, 1))
+		v = index("0123456789abcdef", c) - 1
+		r = r * 16 + v
+	}
+	return r
+}
+
+function utf8enc(cp,   c1, c2, c3, c4) {
+	if (cp < 128) {
+		return sprintf("%c", cp)
+	} else if (cp < 2048) {
+		c1 = 192 + int(cp / 64)
+		c2 = 128 + (cp % 64)
+		return sprintf("%c%c", c1, c2)
+	} else if (cp < 65536) {
+		c1 = 224 + int(cp / 4096)
+		c2 = 128 + int(cp / 64) % 64
+		c3 = 128 + (cp % 64)
+		return sprintf("%c%c%c", c1, c2, c3)
+	} else {
+		c1 = 240 + int(cp / 262144)
+		c2 = 128 + int(cp / 4096) % 64
+		c3 = 128 + int(cp / 64) % 64
+		c4 = 128 + (cp % 64)
+		return sprintf("%c%c%c%c", c1, c2, c3, c4)
+	}
+}
+
+## A string is taken a run at a time: the text to the next escape or the closing quote is appended
+## whole from one window, so a page of a megabyte costs a pass and not a copy of the page for every
+## character of it.
+function parseString(   c, out, hex, code, hex2, code2, cp, tail, at, quoteAt) {
+	rebase()
+	p++ # skip opening quote
+	out = ""
+	while (p <= n) {
+		tail = substr(s, p, 8192)
+		at = index(tail, "\\")
+		quoteAt = index(tail, "\"")
+		if (at == 0 && quoteAt == 0) {
+			out = out tail
+			p += length(tail)
+			continue
+		}
+		if (quoteAt > 0 && (at == 0 || quoteAt < at)) {
+			out = out substr(tail, 1, quoteAt - 1)
+			p += quoteAt
+			return out
+		}
+		out = out substr(tail, 1, at - 1)
+		p += at - 1
+		{
+			p++
+			c = substr(s, p, 1)
+			if (c == "\"") out = out "\""
+			else if (c == "\\") out = out "\\"
+			else if (c == "/") out = out "/"
+			else if (c == "b") out = out "\b"
+			else if (c == "f") out = out "\f"
+			else if (c == "n") out = out "\n"
+			else if (c == "r") out = out "\r"
+			else if (c == "t") out = out "\t"
+			else if (c == "u") {
+				hex = substr(s, p + 1, 4)
+				code = hex2dec(hex)
+				p += 4
+				if (code >= 55296 && code <= 56319 && substr(s, p + 1, 2) == "\\u") {
+					hex2 = substr(s, p + 3, 4)
+					code2 = hex2dec(hex2)
+					if (code2 >= 56320 && code2 <= 57343) {
+						cp = 65536 + (code - 55296) * 1024 + (code2 - 56320)
+						out = out utf8enc(cp)
+						p += 6
+					} else {
+						out = out utf8enc(code)
+					}
+				} else {
+					out = out utf8enc(code)
+				}
+			}
+			else out = out c
+			p++
+		}
+	}
+	return out
+}
+
+## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
+## as its fallback text: what a reader of this rendering can use, where the raw control
+## string is noise. The tooling's own posts carry them (sh-lib/comms/AgentsSlackDate.awk, whose
+## sldFallbacks this is, word for word; a copy, because this file runs with no other
+## loaded, as it carries its JSON engine).
+function dateFallbacks(textValue,   outText, tokenText, barAt) {
+	outText = ""
+	while (match(textValue, /<!date\^[0-9]+\^[^|>]*\|[^>]*>/)) {
+		tokenText = substr(textValue, RSTART, RLENGTH)
+		outText = outText substr(textValue, 1, RSTART - 1)
+		textValue = substr(textValue, RSTART + RLENGTH)
+		barAt = index(tokenText, "|")
+		outText = outText substr(tokenText, barAt + 1, length(tokenText) - barAt - 1)
+	}
+	return outText textValue
+}
+
+## A text with no line of it reading as a message head. Message text carries embedded
+## newlines, and every reader of this rendering knows a message by its head line,
+## "<ts> | <user> |": a line of text shaped like one was read as a message of its own, by
+## whoever it named and at the ts it named. So anyone who could post in a thread could put
+## a reply there in another's name -- an owner's verdict on a permission -- and an asker could
+## in its own question's words. Such a line is printed one space in, where no reader takes
+## it for a head; nothing else of the text changes.
+## A text that itself STARTS as one of this formatter's own annotations is printed one
+## space in. A reader tells who sent a post, and what was clicked under it, by the
+## annotation that stands ahead of the text -- AgentsSlackThreadAnswers.awk takes the
+## answer of a member with no account of its own by `[sender: X]` -- so that place holds
+## the formatter's word only, never what somebody typed.
+function ownStart(textValue) {
+	return (textValue ~ /^\[(sender|tracking|session|reactions|thread|file|voice): /) ? " " textValue : textValue
+}
+
+function ownLines(textValue,   outText) {
+	outText = ""
+	while (match(textValue, /\n[0-9]+\.[0-9]+ \| /)) {
+		outText = outText substr(textValue, 1, RSTART) " "
+		textValue = substr(textValue, RSTART + 1)
+	}
+	return outText textValue
+}
+
+## Slack-specific: track ts/user/bot_id/text plus each message's own
+## reactions[] array and reply_count/latest_reply fields, per
+## message index; print in END once every field has been seen -- field
+## order in Slack's real API responses isn't something to depend on.
+function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afterJ, jNum) {
+	if (path == "ok") { apiOk = val; apiOkSeen = 1; return; }
+	if (path == "error") { apiError = val; return; }
+	if (index(path, "messages.") != 1) return
+	rest = substr(path, length("messages.") + 1)
+	idx = rest
+	sub(/\..*/, "", idx)
+	if (idx !~ /^[0-9]+$/) return
+	if (idx + 1 > msgCount) msgCount = idx + 1
+
+	if (rest == idx ".ts") { tsOf[idx] = val; return; }
+	if (rest == idx ".user") { userOf[idx] = val; return; }
+	if (rest == idx ".bot_id" && !(idx in userOf)) { userOf[idx] = val; return; }
+	if (rest == idx ".text") { textOf[idx] = val; return; }
+
+	## Everything below is nested under messages.<idx>. -- pull off that
+	## prefix once, then match the remaining sub-path.
+	if (index(rest, idx ".") != 1) return
+	afterIdx = substr(rest, length(idx) + 2)
+
+	if (afterIdx == "reply_count") { replyCountOf[idx] = val; return; }
+	if (afterIdx == "latest_reply") { latestReplyOf[idx] = val; return; }
+	## `chat.postMessage`'s own `metadata.event_payload.sender` field, present
+	## only when the sender asked for it and the read asked `include_all_metadata`
+	## back. Absent for every message that carries neither, so this adds nothing
+	## to a rendering with no such message.
+	if (afterIdx == "metadata.event_payload.sender") { senderOf[idx] = val; return; }
+	## S27.8: the run that wrote a tooling message, and the run it was for. They are what lets one run
+	## of a member dismiss another run of that member, and never itself.
+	if (afterIdx == "metadata.event_payload.author_run") { authorRunOf[idx] = val; return; }
+	if (afterIdx == "metadata.event_payload.addressee_run") { addresseeRunOf[idx] = val; return; }
+	## The tooling's own tracking posts (AgentsTools.InternOpEventTrackPost.include, the session root) carry `event_payload.tracking`, the kind of the
+	## post: a reader that decides whether something is input tells them by this annotation, `[tracking: <kind>]`, never by their text.
+	if (afterIdx == "metadata.event_payload.tracking") { trackingOf[idx] = val; return; }
+	## and the spawn id of the session it belongs to, `[session: <id>]`, which says whose launch it is (AgentsTools.TrackingDrop.include).
+	if (afterIdx == "metadata.event_payload.session") { sessionOf[idx] = val; return; }
+	## The body of an event-track post is in its blocks, its `text` only the line a notification shows: the text leaves of its blocks are
+	## kept, a block to a line, and stand in for its text (below), so a read of a tooling thread carries what it says. A `tooling` send keeps
+	## its own text, whole, with the header `→ *_member_*.` the readers parse (AgentsTrackingDrop.awk, AgentsSessionChatImport.awk).
+	if (index(afterIdx, "blocks.") == 1 && afterIdx ~ /\.text$/) {
+		j = substr(afterIdx, length("blocks.") + 1)
+		sub(/\..*/, "", j)
+		if (j !~ /^[0-9]+$/) return
+		if (idx in blockTextOf) blockTextOf[idx] = blockTextOf[idx] ((blockLastOf[idx] != j) ? "\n" : " ")
+		blockTextOf[idx] = blockTextOf[idx] val
+		blockLastOf[idx] = j
+		return
+	}
+	## A message's files (Slack's files[]): each said on the head line as `[file: <id> <name> (<size> bytes, <type>)]`, so a reader and
+	## the comms cache know it carried one; the id is what --slack-file-info takes.
+	if (index(afterIdx, "files.") == 1) {
+		afterReactions = substr(afterIdx, length("files.") + 1)
+		j = afterReactions
+		sub(/\..*/, "", j)
+		if (j !~ /^[0-9]+$/) return
+		jNum = j + 0
+		if (!(idx in fileCountPerMsg) || jNum + 1 > fileCountPerMsg[idx]) fileCountPerMsg[idx] = jNum + 1
+		afterJ = substr(afterReactions, length(j) + 2)
+		if (afterJ == "id") fileIdOf[idx, j] = val
+		else if (afterJ == "name") fileNameOf[idx, j] = val
+		else if (afterJ == "size") fileSizeOf[idx, j] = val
+		else if (afterJ == "mimetype") fileTypeOf[idx, j] = val
+		return
+	}
+	if (index(afterIdx, "reactions.") == 1) {
+		afterReactions = substr(afterIdx, length("reactions.") + 1)
+		j = afterReactions
+		sub(/\..*/, "", j)
+		if (j !~ /^[0-9]+$/) return
+		jNum = j + 0
+		if (!(idx in reactionCountPerMsg) || jNum + 1 > reactionCountPerMsg[idx]) reactionCountPerMsg[idx] = jNum + 1
+		afterJ = substr(afterReactions, length(j) + 2)
+		if (afterJ == "name") reactionNameOf[idx, j] = val
+		else if (afterJ == "count") reactionCountOf[idx, j] = val
+		else if (index(afterJ, "users.") == 1) {
+			if ((idx, j) in reactionUsersOf) reactionUsersOf[idx, j] = reactionUsersOf[idx, j] "," val
+			else reactionUsersOf[idx, j] = val
+		}
+		return
+	}
+}
+
+function parseValue(path,   c, startp, val, raw) {
+	skipws()
+	c = substr(s, p, 1)
+	if (c == "\"") {
+		## No raw text is kept for a string: emitLeaf reads its value only, and the position before the
+		## string no longer survives parseString's own re-slice.
+		emitLeaf(path, "", parseString())
+	} else if (c == "{") {
+		parseObject(path)
+	} else if (c == "[") {
+		parseArray(path)
+	} else if (c == "t") {
+		p += 4
+		emitLeaf(path, "true", "true")
+	} else if (c == "f") {
+		p += 5
+		emitLeaf(path, "false", "false")
+	} else if (c == "n") {
+		p += 4
+		emitLeaf(path, "null", "")
+	} else {
+		startp = p
+		while (p <= n) {
+			c = substr(s, p, 1)
+			if (c == "-" || c == "+" || c == "." || c == "e" || c == "E" || (c >= "0" && c <= "9")) p++
+			else break
+		}
+		raw = substr(s, startp, p - startp)
+		emitLeaf(path, raw, raw)
+	}
+}
+
+function parseObject(path,   key, keypath, c) {
+	p++ # skip {
+	skipws()
+	if (substr(s, p, 1) == "}") { p++; return; }
+	while (1) {
+		skipws()
+		key = parseString()
+		skipws()
+		p++ # skip :
+		keypath = (path == "") ? key : path "." key
+		parseValue(keypath)
+		skipws()
+		c = substr(s, p, 1)
+		if (c == ",") { p++; continue; }
+		else if (c == "}") { p++; break; }
+		else break
+	}
+}
+
+function parseArray(path,   idx, c) {
+	p++ # skip [
+	skipws()
+	idx = 0
+	if (substr(s, p, 1) == "]") { p++; return; }
+	while (1) {
+		parseValue(path "." idx)
+		idx++
+		skipws()
+		c = substr(s, p, 1)
+		if (c == ",") { p++; continue; }
+		else if (c == "]") { p++; break; }
+		else break
+	}
+}
+
+{ s = $0; n = length(s); p = 1; parseValue(""); }
+
+## Prints oldest-first (chronological), sorted on ts rather than taken from
+## the body's own order: conversations.history returns newest-first and
+## conversations.replies oldest-first. Reaction/thread annotations are
+## appended to the same line, never a separate output line, so a
+## "ts | user | text" parser downstream keeps working unchanged.
+END {
+	if (apiOkSeen && apiOk == "false") {
+		printf("⛔ ERROR: Slack API call failed: ok:false%s\n", (apiError != "" ? " error=" apiError : "")) > "/dev/stderr"
+		exit 1
+	}
+
+	## Fixed-width seconds then microseconds: the sort compares bytes, never a float, which at 1.8e9 cannot separate two ts a microsecond apart.
+	for (keyPos = 0; keyPos < msgCount; keyPos++) {
+		tsSeconds = tsOf[keyPos]
+		tsFraction = tsOf[keyPos]
+		sub(/\..*$/, "", tsSeconds)
+		sub(/^[0-9]*\.?/, "", tsFraction)
+		sortKeyOf[keyPos] = sprintf("%016d", tsSeconds) substr(tsFraction "000000", 1, 6)
+		orderOf[keyPos] = keyPos
+	}
+	for (sortPos = 1; sortPos < msgCount; sortPos++) {
+		sortIdx = orderOf[sortPos]
+		sortScan = sortPos - 1
+		while (sortScan >= 0 && sortKeyOf[orderOf[sortScan]] > sortKeyOf[sortIdx]) {
+			orderOf[sortScan + 1] = orderOf[sortScan]
+			sortScan--
+		}
+		orderOf[sortScan + 1] = sortIdx
+	}
+
+	for (emitPos = 0; emitPos < msgCount; emitPos++) {
+		i = orderOf[emitPos]
+		annotations = ""
+
+		## S27.8: BOTH RUNS, on a message from the tooling, printed where the head's own annotations go
+		## so the dismissal matcher reads them beside the sender it already reads.
+		if (i in authorRunOf) annotations = annotations sprintf(" [author-run: %s]", authorRunOf[i])
+		if (i in addresseeRunOf) annotations = annotations sprintf(" [addressee-run: %s]", addresseeRunOf[i])
+		if (i in senderOf) annotations = annotations sprintf(" [sender: %s]", senderOf[i])
+		if (i in trackingOf) annotations = annotations sprintf(" [tracking: %s]", trackingOf[i])
+		if (i in sessionOf) annotations = annotations sprintf(" [session: %s]", sessionOf[i])
+
+		if (i in reactionCountPerMsg) {
+			for (j = 0; j < reactionCountPerMsg[i]; j++) {
+				rName = ((i, j) in reactionNameOf) ? reactionNameOf[i, j] : "?"
+				rCount = ((i, j) in reactionCountOf) ? reactionCountOf[i, j] : "?"
+				rUsers = ((i, j) in reactionUsersOf) ? reactionUsersOf[i, j] : "?"
+				annotations = annotations sprintf(" [reactions: %s x%s (%s)]", rName, rCount, rUsers)
+			}
+		}
+
+		if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) {
+			annotations = annotations sprintf(" [thread: %s replies, latest at %s]", \
+				replyCountOf[i], (i in latestReplyOf ? latestReplyOf[i] : "?"))
+		}
+
+		if (i in fileCountPerMsg) {
+			for (j = 0; j < fileCountPerMsg[i]; j++) {
+				if (!((i, j) in fileIdOf)) continue
+				fName = ((i, j) in fileNameOf) ? fileNameOf[i, j] : "?"
+				gsub(/[\]\n]/, "_", fName)
+				annotations = annotations sprintf(" [file: %s %s (%s bytes, %s)]", fileIdOf[i, j], fName, \
+					(((i, j) in fileSizeOf) ? fileSizeOf[i, j] : "?"), (((i, j) in fileTypeOf) ? fileTypeOf[i, j] : "?"))
+			}
+		}
+
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownStart(ownLines(dateFallbacks(((i in trackingOf) && trackingOf[i] != "tooling" && blockTextOf[i] != "") ? blockTextOf[i] : textOf[i]))))
+	}
+}

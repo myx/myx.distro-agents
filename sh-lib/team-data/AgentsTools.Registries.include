@@ -187,7 +187,8 @@ AgentsToolsRegistryMemberNamesRead(){ ## member
 			family-name) readValue="$readFamily" ;;
 			alias) readValue="$readAlias" ;;
 		esac
-		readOverride="$( DistroAgentsTools --agents-config-option "$readMember" --select "$readScopeKey" 2>/dev/null )" || readOverride=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		readOverride="$( AgentsToolsConfigOption "$readMember" --select "$readScopeKey" 2>/dev/null )" || readOverride=""
 		[ -z "$readOverride" ] || readValue="$readOverride"
 		[ "$readValue" != "not decided yet" ] || readValue=""
 		readReason=""

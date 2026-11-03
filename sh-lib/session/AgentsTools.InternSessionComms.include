@@ -181,8 +181,30 @@ case "$1" in
 		[ "$commsMode" != "--run" ] || AgentsToolsSessionCommsSay "the communications reader runs as pid $commsPid: it looks after the sessions of $MMDAPP, and TERM ends it in order"
 
 		local commsList="" commsListAt=-100 commsIdleFrom="$SECONDS" commsIdleLimit commsLoops=0 commsAny commsOne commsThread commsForce="" commsFrom2 commsLeave=""
+		local commsBase commsNow commsMark commsRows commsRow commsCount commsIdx commsBest commsBestAt commsBestIdx commsAt commsPick="" commsHeld commsSaidWait=""
+		local commsBeatDir="" commsBeatSlot=0
 		commsIdleLimit="${MDAT_COMMS_IDLE_SECONDS:-600}"
 		case "$commsIdleLimit" in ''|*[!0123456789]*|0) commsIdleLimit=600 ;; esac
+		## ONE READING OF THE CLOCK for the whole process, taken here with one process and read by the shell alone after
+		## (S5.6): a pass asks no process what time it is. A counter that went backwards is read again.
+		commsBase="$( date +%s )" || commsBase=0
+		commsNow="$commsBase"
+		## The ring of beats a pass touches, made here with the one process this start already spends, and filled at once: every beat
+		## exists from this moment, so a session is measured against a real moment and not against a file still to be written. It is
+		## the running reader's alone: a call of `--one` reads no beat, and measures as it always did.
+		## The list the sessions keep is built once where it is not there yet, so a release that adds it is not a blind reader.
+		[ "$commsMode" != "--run" ] || AgentsToolsSessionCommsListBootstrap || :
+		commsBeatDir=""
+		if [ "$commsMode" = "--run" ] ; then
+			commsBeatDir="$commsDir/beat"
+			{ [ -d "$commsBeatDir" ] || mkdir -p "$commsBeatDir" ; } 2> /dev/null || commsBeatDir=""
+		fi
+		if [ -n "$commsBeatDir" ] ; then
+			for commsBeatSlot in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 ; do
+				: > "$commsBeatDir/$commsBeatSlot" 2> /dev/null || :
+			done
+			commsBeatSlot=0
+		fi
 		if [ "$commsMode" = "--one" ] ; then
 			commsForce="force"
 			if [ -n "$commsSession" ] ; then
@@ -195,20 +217,85 @@ case "$1" in
 
 		while : ; do
 			commsWoken=""
-			if [ "$commsMode" = "--run" ] && [ $(( SECONDS - commsListAt )) -ge 10 ] ; then
-				commsList="$( AgentsToolsSessionCommsPlan )"
-				commsListAt="$SECONDS"
+			commsNow=$(( commsBase + SECONDS ))
+			[ "$commsNow" -ge "$commsBase" ] || { commsBase="$( date +%s )" || commsBase=0 ; commsNow="$commsBase" ; }
+			## One moment for the whole pass (AgentsToolsSessionCommsTick reads it), by the shell's own clock.
+			commsPassNow="$commsNow"
+			## THE BEAT of this pass, written by the shell's own redirection and by nothing else: a ring of 61 empty files, one a pass,
+			## so the beat of fifteen passes ago and the one of sixty are the two moments a session's activity is measured against,
+			## by the shell alone (AgentsToolsSessionCommsActive). No stat, and no process, per pass or per session (S5.6).
+			commsBeatSlot=$(( commsLoops % 61 ))
+			if [ -n "${commsBeatDir:-}" ] ; then
+				: > "$commsBeatDir/$commsBeatSlot" 2> /dev/null || :
+				agentsCommsBeat15="$commsBeatDir/$(( ( commsLoops + 61 - 15 ) % 61 ))"
+				agentsCommsBeat60="$commsBeatDir/$(( ( commsLoops + 61 - 60 ) % 61 ))"
 			fi
 			commsAny=""
-			## One moment for the whole pass (AgentsToolsSessionCommsTick reads it).
-			commsPassNow="$( date +%s )"
-			while read -r commsOne commsThread ; do
-				[ -n "$commsOne" ] || continue
-				commsAny="yes"
-				[ "$commsThread" != "-" ] || commsThread=""
-				AgentsToolsSessionCommsTick "$commsOne" "$commsThread" $commsForce
-				[ -z "$commsEnd" ] || break
-			done <<< "$( printf '%s\n' "$commsList" | AgentsToolsSessionCommsOrder )"
+			commsPick=""
+			if [ "$commsMode" = "--one" ] ; then
+				while read -r commsOne commsThread ; do
+					[ -n "$commsOne" ] || continue
+					commsAny="yes"
+					[ "$commsThread" != "-" ] || commsThread=""
+					AgentsToolsSessionCommsTick "$commsOne" "$commsThread" $commsForce
+					[ -z "$commsEnd" ] || break
+				done <<< "$commsList"
+			else
+				## THE SESSIONS THE LIST NAMES, and those a writer marked, both read by the shell: no walk over the session
+				## folders, no process list, and no pipeline, so a pass with nothing to do starts no process at all (S5.6).
+				commsRows=() ; commsCount=0
+				commsList="$( AgentsToolsSessionCommsListPath )" || commsList=""
+				if [ -n "$commsList" ] && [ -f "$commsList" ] ; then
+					while IFS= read -r commsOne commsThread ; do
+						case "$commsOne" in ''|-|*/*) continue ;; esac
+						commsRows[commsCount]="$commsOne ${commsThread:--}" ; commsCount=$(( commsCount + 1 ))
+					done < "$commsList"
+				fi
+				for commsMark in "$commsDir"/work/* ; do
+					[ -f "$commsMark" ] || continue
+					commsOne="${commsMark##*/}"
+					case "$commsOne" in ''|-|*/*) continue ;; esac
+					commsHeld=""
+					for (( commsIdx = 0 ; commsIdx < commsCount ; commsIdx++ )) ; do
+						case "${commsRows[$commsIdx]}" in "$commsOne "*) commsHeld="yes" ; break ;; esac
+					done
+					[ -z "$commsHeld" ] || continue
+					commsRows[commsCount]="$commsOne -" ; commsCount=$(( commsCount + 1 ))
+				done
+				## THE FAIR TURN, in the shell, and only where more than one session is due: the one the reader looked at
+				## longest ago goes first, and one it never read before them all, so a short budget goes round.
+				if [ "$commsCount" -gt 1 ] ; then
+					for (( commsIdx = 0 ; commsIdx < commsCount ; commsIdx++ )) ; do
+						AgentsToolsSessionCommsLastLook "${commsRows[$commsIdx]%% *}"
+						case "$agentsCommsLastLook" in ''|*[!0123456789]*) agentsCommsLastLook=0 ;; esac
+						commsRows[$commsIdx]="${commsRows[$commsIdx]} $agentsCommsLastLook"
+					done
+					commsHeld=" "
+					while : ; do
+						commsBestAt="" ; commsBestIdx=""
+						for (( commsIdx = 0 ; commsIdx < commsCount ; commsIdx++ )) ; do
+							case "$commsHeld" in *" $commsIdx "*) continue ;; esac
+							commsAt="${commsRows[$commsIdx]##* }"
+							[ -z "$commsBestAt" ] || [ "$commsAt" -lt "$commsBestAt" ] || continue
+							commsBestAt="$commsAt" ; commsBestIdx="$commsIdx"
+						done
+						[ -n "$commsBestIdx" ] || break
+						commsHeld="$commsHeld$commsBestIdx "
+						commsPick="$commsPick$commsBestIdx "
+					done
+				else
+					commsPick="0 "
+				fi
+				for commsIdx in $commsPick ; do
+					commsRow="${commsRows[$commsIdx]}"
+					commsOne="${commsRow%% *}" ; commsRow="${commsRow#* }" ; commsThread="${commsRow%% *}"
+					[ -n "$commsOne" ] || continue
+					commsAny="yes"
+					[ "$commsThread" != "-" ] || commsThread=""
+					AgentsToolsSessionCommsTick "$commsOne" "$commsThread" $commsForce
+					[ -z "$commsEnd" ] || break
+				done
+			fi
 			[ -z "$commsAny" ] || commsIdleFrom="$SECONDS"
 			## What waits in the outboxes of the comms cache, pushed every pass: a pass with none starts no process (AgentsToolsCommsCachePushAll).
 			if [ -z "$commsEnd" ] ; then
@@ -219,10 +306,10 @@ case "$1" in
 			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ $(( SECONDS - ${commsPullAt:--100} )) -ge 5 ] ; then
 				commsPullAt="$SECONDS"
 				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
-				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$( date +%s )"
+				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow"
 			fi
 			commsLoops=$(( commsLoops + 1 ))
-			[ "$(( commsLoops % 60 ))" != 0 ] || AgentsToolsSessionCommsLogBound
+			[ "$(( commsLoops % 60 ))" != 0 ] || { AgentsToolsSessionCommsLogBound ; AgentsToolsSessionCommsListSweep ; }
 			[ "$commsMode" != "--one" ] || break
 			[ -z "$commsEnd" ] || break
 			## The ends of its own: nothing to do for the time set; its folder, or its lock, gone.
@@ -230,17 +317,35 @@ case "$1" in
 				commsLeave="no live session had anything for it to do for ${commsIdleLimit}s"
 				break
 			fi
-			if [ ! -d "$commsDir" ] || [ "$( AgentsToolsSessionCommsLockHolder "$commsLock" )" != "$commsMe" ] ; then
+			## THE LOCK'S IDENTITY, read by the shell: the file's own text, or the target of a link an older release made. It starts
+			## no process, where asking the lock with readlink or cat did on every pass.
+			if [ ! -d "$commsDir" ] ; then
 				commsLeave="its folder or its lock is gone"
 				commsLock=""
 				break
 			fi
-			## The wait between two passes is waited for and never slept through: TERM ends it at once, and so does a signal that asks
-			## for a pass. A sleep that cannot be made would spin, so the second is waited out by the shell itself.
-			commsFrom2="$SECONDS"
-			sleep 1 &
-			{ wait "$!" ; } 2> /dev/null || :
-			while [ "$SECONDS" = "$commsFrom2" ] && [ -z "$commsEnd" ] && [ -z "$commsWoken" ] ; do if [ -n "${commsPipeOpen:-}" ] ; then read -t 1 -u 9 2> /dev/null || : ; else sleep 1 2> /dev/null || break ; fi ; done
+			commsHeld=""
+			if [ -L "$commsLock" ] ; then
+				commsHeld="$( readlink "$commsLock" 2> /dev/null )" || commsHeld=""
+			else
+				IFS= read -r commsHeld < "$commsLock" 2> /dev/null || :
+			fi
+			if [ "$commsHeld" != "$commsMe" ] ; then
+				commsLeave="its folder or its lock is gone"
+				commsLock=""
+				break
+			fi
+			## The wait between two passes is the pipe the shell already has open, read with its own timeout: TERM ends it at once,
+			## and so does a signal that asks for a pass, and it starts no process. Only a shell that could not open the pipe waits
+			## with a sleep, and says so once, because there a spinning loop would cost the machine far more than the sleep.
+			if [ -n "${commsPipeOpen:-}" ] ; then
+				read -t 1 -u 9 2> /dev/null || :
+			else
+				[ -n "$commsSaidWait" ] || { commsSaidWait="yes" ; AgentsToolsSessionCommsSay "the pipe of its own could not be opened, so the wait between two passes is a sleep: one process a pass" ; }
+				commsFrom2="$SECONDS"
+				sleep 1 2> /dev/null || :
+				while [ "$SECONDS" = "$commsFrom2" ] && [ -z "$commsEnd" ] && [ -z "$commsWoken" ] ; do sleep 1 2> /dev/null || break ; done
+			fi
 		done
 
 		if [ "$commsMode" = "--run" ] ; then

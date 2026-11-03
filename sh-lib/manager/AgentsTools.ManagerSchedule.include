@@ -3,11 +3,12 @@
 
 ##
 ## AgentsTools.ManagerSchedule.include -- the --manager-schedule-* operations: the console's own view of the
-## scheduler's flags. Sourced from the `--manager-schedule-*)` arm of AgentsTools.Manager.include; who may call
+## scheduler's flags, and the console's own way to set them. Sourced from the `--manager-schedule-*)` arm of AgentsTools.Manager.include; who may call
 ## was asked where the family is dispatched.
 ##
-## The flags are derived, never stored (AgentsTools.DispatcherSchedule.include); this operation reads them
-## through that file's own functions and computes no flag a second way. It writes nothing.
+## The flags are derived, never stored (AgentsTools.DispatcherSchedule.include); the read below takes them from that file's own functions and computes
+## no flag a second way. The write arms hold no rule of their own either: each hands its words to the dispatcher's own function, so a value that
+## function refuses is refused here, and nothing is stored.
 ##
 
 type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
@@ -64,6 +65,29 @@ case "$1" in
 			SCH_OVERTIME="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_OVERTIME )" SCH_LEARNING="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_LEARNING )" \
 			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScheduleGrid.awk" < /dev/null
 		return 0
+	;;
+
+	## An override of a flag, and the two settings a person sets: each is the dispatcher's own function, and it prints the flag's line as the read gives it.
+	--manager-schedule-override-flag)
+		local scheduleOverrideOp="$1"
+		shift
+		AgentsToolsScheduleTools || { set +e ; return 1 ; }
+		AgentsToolsScheduleOverride "$scheduleOverrideOp" "$@"
+		return $?
+	;;
+
+	--manager-schedule-set-worktime)
+		shift
+		AgentsToolsScheduleTools || { set +e ; return 1 ; }
+		AgentsToolsScheduleSet --set-worktime "$@"
+		return $?
+	;;
+
+	--manager-schedule-set-weekend)
+		shift
+		AgentsToolsScheduleTools || { set +e ; return 1 ; }
+		AgentsToolsScheduleSet --set-weekend "$@"
+		return $?
 	;;
 
 	*)

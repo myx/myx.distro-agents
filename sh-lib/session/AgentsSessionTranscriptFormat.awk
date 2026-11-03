@@ -315,7 +315,7 @@ function stlDurMs(durMs) {
 function stlToolLine(tsText, toolName, jsonText, outcomeText, firstText, sizeBytes, sizeLines, durText, commentText,   lineText, argComment) {
 	argComment = stlArgComment(jsonText, toolName)
 	if (argComment != "") commentText = argComment
-	lineText = tsText " TOOL " stlOneLine(toolName, 120) stlToolArgs(toolName, jsonText) " -> " outcomeText
+	lineText = tsText " TOOL " stlOneLine(stlBaseTool(toolName), 120) stlToolArgs(toolName, jsonText) " -> " outcomeText
 	if (outcomeText != "ok" && firstText != "") lineText = lineText " " stlQuote(firstText, 240)
 	if (sizeBytes != "") lineText = lineText " " sizeBytes "B" (sizeLines != "" ? "/" sizeLines "L" : "")
 	if (durText != "") lineText = lineText " " durText

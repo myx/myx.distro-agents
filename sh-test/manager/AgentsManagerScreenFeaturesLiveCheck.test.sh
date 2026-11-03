@@ -60,7 +60,9 @@ rigLiveWhere command
 
 ## The case magic-developer raised: a feature row that offers no command. The tooling gives `setup.feature-local-ai` no
 ## install, update or uninstall of its own (its parts carry them), so Enter on that row must call nothing and open no
-## dialog. The known positive beside it is `i` on the same row, which is the agreed set's own key and must still work.
+## dialog. The known positive beside it is `i` on the same row in a drive of its own, which is the agreed set's own key and
+## must still work. The two are separate drives on purpose: the screen swallows a key pressed while its refusal notice
+## stands, so a sequence of two keys in one drive would measure that hold, not the key.
 rigLiveWhere nocommand
 {
 	printf 'at @features\n'
@@ -69,7 +71,13 @@ rigLiveWhere nocommand
 	printf 'keys ENTER\n'
 	printf 'wait list 60\nwait full 60\nwait action 60\nturn 4\n'
 	printf 'get FEATURE\n'
-	printf 'keys ESC\nturn 2\n'
+} | rigLiveDrive
+
+rigLiveWhere agreedset
+{
+	printf 'at @features\n'
+	printf 'wait list 120\nturn 3\n'
+	printf 'select setup.feature-local-ai\nturn 2\n'
 	printf 'keys i\n'
 	printf 'wait list 60\nwait full 60\nwait action 60\nturn 4\n'
 	printf 'get AGREEDSET\n'
@@ -87,10 +95,12 @@ rigAssert "the plan read that reached the dispatcher is that part's own" \
 	"$( rigLiveCalls '^--manager-feature-part install setup[.]feature-local-ai qwen3[.]5-4b-q8_0$' part )" "1"
 rigAssert "Enter on a feature row that offers no command calls nothing" \
 	"$( rigLiveCalls '^--manager-feature-(part|models)' nocommand )" "0"
-rigAssert "and opens no dialog" \
-	"$( rigLiveVal FEATURE dialog nocommand )" ""
+## What the item holds is that the agreed set is not what Enter opens here. How the screen then says there is nothing to
+## run is its own to choose: a status line or a box are both honest, and neither is a call.
+rigDialog nocommand FEATURE
+rigAssert "and the agreed set's dialog does not open on it" "$rigDialogKind" "not-opened"
 rigAssert "the agreed set is still its own key on that row, so the probe can see one" \
-	"$( rigLiveVal AGREEDSET dialog nocommand )" "feature-set:profile|"
+	"$( rigLiveVal AGREEDSET dialog agreedset )" "feature-set:profile|"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN FEATURES LIVE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -11,7 +11,9 @@ case "$1" in
 		--confluence-space-list|--confluence-page-read)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
-			DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}"
+			## The stub reaches its implementation in this same file (S6.24): an include never re-enters
+			## the tool through DistroAgentsTools, which is no command in every context this file runs in.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsConfluence.include" "--intern-op-comms-${1#--}" "${@:2}"
 			return $?
 		;;
 
@@ -25,8 +27,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-space-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --intern-op-atlassian-confluence-space-list --member "$actingMember" --context confluence-space-list "$@" || opRc=$?
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-confluence-space-list --member "$actingMember" --context confluence-space-list "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;

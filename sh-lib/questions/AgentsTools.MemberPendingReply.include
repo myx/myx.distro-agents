@@ -17,8 +17,9 @@
 ## each of the caller's own open asks the same way a live Wait would (AgentsWaitProbeAsk), through
 ## the same comms cache a thread read already uses there (AgentsWaitThreadCached): no reminder for
 ## one already answered, and no extra network call once the cache covers it.
+## A reply is taken into its record by that record's collect (AgentsTools.PendingReplyCollect.include), because the harness resolve needs `harnessAgent`.
 AgentsToolsPendingReplyPollOwn(){ ## <team-member>
-	local pollMember="$1" pollFile pollId pollStatus pollOwner pollOut pollRc
+	local pollMember="$1" pollFile pollId pollStatus pollOwner pollOut pollRc pollTs
 	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" 2> /dev/null || return 0
 	type AgentsWaitProbeAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitAsk.include" 2> /dev/null || return 0
 	type AgentsHarnessAskResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessAsk.include" 2> /dev/null || return 0
@@ -33,8 +34,11 @@ AgentsToolsPendingReplyPollOwn(){ ## <team-member>
 		pollRc=0
 		AgentsWaitProbeAsk "$pollMember" "$pollId" "" "$pollOut" > /dev/null 2>&1 || pollRc=$?
 		if [ "$pollRc" = "0" ] && LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' "$pollOut" 2>/dev/null ; then
-			AgentsHarnessAskResolve "$pollId" "$( AgentsHarnessAskRecordField "$pollId" kind )" "$( AgentsHarnessAskRecordField "$pollId" question-tag )" \
-				"WAIT-RESULT: RECEIVED"$'\n'"# --- what that source holds now follows ---"$'\n'"$( cat "$pollOut" 2> /dev/null )"$'\n'"# --- end ---" "" "" wait "" > /dev/null 2>&1 || :
+			## A reply whose ts the record keeps already, as a clarification, is taken: only a newer one, or a click, is collected.
+			pollTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' "$pollOut" 2> /dev/null )" || pollTs=""
+			if [ -z "$pollTs" ] || ! LC_ALL=C grep -q -F -- "- $pollTs " "$pollFile" 2> /dev/null ; then
+				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect --id "$pollId" > /dev/null 2>&1 || :
+			fi
 		fi
 		rm -f "$pollOut" "$pollOut".* 2> /dev/null
 	done

@@ -64,7 +64,22 @@ case "$1" in
 		## read, the sender recorded and every refusal are the operation's own, and so are its
 		## stdin, its output and its exit status.
 		local -x MDAT_SPAWN_AGENT="$clientMember"
-		DistroAgentsTools "${@:2}"
+		## Where this process defines the dispatcher, the call is the dispatcher's own, as it always
+		## was. Where it does not, as on a console, the client family's own include runs: the
+		## dispatcher is no command there (S6.24).
+		if type DistroAgentsTools > /dev/null 2>&1 ; then
+			DistroAgentsTools "${@:2}"
+			return $?
+		fi
+		local -x MDAT_COMMS_SIDE=client MDAT_COMMS_OP="$clientOperation"
+		case "$clientOperation" in
+			--client-comms-slack-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" "${@:2}" ;;
+			--client-comms-email-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include" "${@:2}" ;;
+			--client-comms-trello-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include" "${@:2}" ;;
+			--client-comms-google-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include" "${@:2}" ;;
+			--client-comms-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientComms.include" "${@:2}" ;;
+			--client-sweep-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientSweep.include" "${@:2}" ;;
+		esac
 		return $?
 	;;
 

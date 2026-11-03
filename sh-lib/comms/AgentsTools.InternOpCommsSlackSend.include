@@ -711,7 +711,8 @@ blocks|verbatim|caller|stdin file"
 					[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
 					dmArgs+=( --context "--slack-send-message" )
 					dmInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
-					dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" )" || dmParty=""
+					dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" )" || dmParty=""
 					if [ -n "$dmParty" ] ; then
 						dmParties=" $dmParty"
 					else

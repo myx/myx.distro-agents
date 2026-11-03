@@ -319,7 +319,8 @@ rigDismissed(){ ## member -- yes when the rendered thread dismisses it
 		dismissNo=$(( dismissNo + 1 ))
 		dismissList="$dismissList${dismissList:+,}{\"ts\":\"1700000009.00000$dismissNo\",\"user\":\"URIGBOT01\",\"text\":$( LC_ALL=C awk -v path=text -v mode=raw -f "$rigHere/harness/AgentsHarnessJsonField.awk" < "$dismissPost" ),\"metadata\":$( LC_ALL=C awk -v path=metadata -v mode=raw -f "$rigHere/harness/AgentsHarnessJsonField.awk" < "$dismissPost" )}"
 	done
-	printf '{"ok":true,"messages":[%s]}\n' "$dismissList" | LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" > "$rigScenarioDir/thread.fmt" 2> "$rigScenarioDir/thread.err" || { printf 'unreadable' ; return 0 ; }
+	printf '{"ok":true,"messages":[%s]}\n' "$dismissList" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+	-f "$rigHere/comms/AgentsSlackMessagesFormat.awk" > "$rigScenarioDir/thread.fmt" 2> "$rigScenarioDir/thread.err" || { printf 'unreadable' ; return 0 ; }
 	[ "$( LC_ALL=C grep -c '^[0-9]*\.[0-9]* | ' "$rigScenarioDir/thread.fmt" )" = "$dismissNo" ] || { printf 'misrendered' ; return 0 ; }
 	dismissalMember="$1" LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/harness/AgentsHarnessWaitDismissed.awk" "$rigScenarioDir/thread.fmt" > /dev/null && printf yes || printf no
 }

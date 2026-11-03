@@ -83,11 +83,14 @@ rigAssert "its session id is the test-only one the runner gives it, never its ca
 rigAssert "its waits remind no ask" "$( rigFound runner MDAT_WAIT_REMIND )" "off"
 rigAssert "the member set and the team data root reach it as the environment gave them" "$( rigFound runner MDAT_SKILLSET_ROOT ) $( rigFound runner MDAT_DATA_ROOT )" "$rigMembers $rigData"
 
-echo "-- 3. nothing a test starts outlives it: what it leaves in its process group ends with it --"
-## A tiny test that starts a loop beside itself, named by a mark, and ends; held, it waits past its time limit instead.
+echo "-- 3. nothing a test starts outlives it: what it leaves running ends with it, and the test fails for it --"
+## A tiny test that starts a process beside itself, named by a mark, and ends without ending it; held, it waits past
+## its time limit instead. The stand-in blocks on a pipe of its own that nobody writes, so it costs no wake-up a
+## second: a rig makes no load, and this one is waiting to be caught, not busy.
 cat > "$rigTests/RigLeak.test.sh" <<'RIGLEAK'
 #!/usr/bin/env bash
-bash -c 'while : ; do sleep 1 ; done' "rig-leak-$RIG_LEAK" > /dev/null 2>&1 < /dev/null &
+mkfifo "$RIG_SHARED/leak.$RIG_LEAK.fifo" 2> /dev/null
+bash -c 'exec 0<"$1" ; IFS= read -r rigLeakLine' "rig-leak-$RIG_LEAK" "$RIG_SHARED/leak.$RIG_LEAK.fifo" > /dev/null 2>&1 < /dev/null &
 [ -z "${RIG_LEAK_HOLD:-}" ] || sleep 30
 echo "RIG_LEAK: OK"
 RIGLEAK
@@ -97,13 +100,21 @@ rigLeft(){ ## mark -- the pids of the processes with that mark in their command 
 rigLeakRun(){ ## mark, hold (empty, or 1 to wait past the time limit), the runner's own options...
 	local leakMark="$1" leakHold="$2" ; shift 2
 	( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigWs/.local/temp/rig-scratch-a/source" MYXROOT="${MYXROOT:-}" \
-		RIG_LEAK="$leakMark-$$" RIG_LEAK_HOLD="$leakHold" bash "$rigTests/AgentsRunTests.sh" "$@" RigLeak ) > "$rigTmp/leak.$leakMark.out" 2>&1
+		RIG_SHARED="$rigTmp" RIG_LEAK="$leakMark-$$" RIG_LEAK_HOLD="$leakHold" bash "$rigTests/AgentsRunTests.sh" "$@" RigLeak ) > "$rigTmp/leak.$leakMark.out" 2>&1
 	sleep 1
 }
+rigLeakLog(){ ## session -- the log of the test of that run, its folder read from the run's own first line
+	local leakFolder
+	leakFolder="$( LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' "$rigTmp/leak.$1.out" | LC_ALL=C sed -n 1p )"
+	[ -n "$leakFolder" ] || return 0
+	LC_ALL=C grep -h . "$leakFolder/RigLeak.log" 2> /dev/null
+}
 rigLeakRun ended "" -w 1 -t 60
-rigAssert "a test that leaves a loop running and ends: the loop ends with it" "$( LC_ALL=C grep -c '^PASS  RigLeak ' "$rigTmp/leak.ended.out" ):$( rigLeft "ended-$$" )" "1:"
+rigAssert "a test that leaves a process running and ends: the process ends with it, and the test fails for it" \
+	"$( LC_ALL=C grep -c '^FAIL  RigLeak ' "$rigTmp/leak.ended.out" ):$( rigLeft "ended-$$" )" "1:"
+rigAssert "and the run names it, the process's own command line with its mark" "$( rigLeakLog ended | LC_ALL=C grep -c -E '^leak-pid: [0-9]+ .*rig-leak-ended' )" 1
 rigLeakRun timed 1 -w 1 -t 3
-rigAssert "a test ended at its time limit: the loop it started ends with it" "$( LC_ALL=C grep -c '^FAIL  RigLeak ' "$rigTmp/leak.timed.out" ):$( rigLeft "timed-$$" )" "1:"
+rigAssert "a test ended at its time limit: the process it started ends with it" "$( LC_ALL=C grep -c '^FAIL  RigLeak ' "$rigTmp/leak.timed.out" ):$( rigLeft "timed-$$" )" "1:"
 ## What a red run of this section left is ended here, the pids read at this very moment.
 for rigMark in ended timed ; do rigStray="$( rigLeft "$rigMark-$$" )" ; [ -z "$rigStray" ] || kill -KILL $rigStray 2> /dev/null ; done
 

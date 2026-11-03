@@ -19,7 +19,8 @@
 ##      `kill`: every live run of the session ended, the record of the dead run closed. What was done is told once,
 ##      to the one who answered and to the session that requested the run, and the state is what the runs say
 ##      again. And an answer given to a run whose item already sits in processed works on it: the item goes back
-##      to review, with its reason, and the answer goes on as for review.
+##      to review, with its reason, and the answer goes on as for review; and so does one whose item a
+##      close left in running or in processed, which is where a run its close did not reach is found (S6.34).
 ##   4. AN ANSWER THAT COULD NOT BE CARRIED OUT IS THE REVIEWER'S AGAIN: the death stays unsettled, the line of the
 ##      death keeps the failed answer with its moment and its reason, and the same reviewer is asked again, once
 ##      for each failure, with what was not carried out and why and the same four options. Nothing is tried again
@@ -601,6 +602,16 @@ rigAnswer d-proc d-proc fresh ; rigCarry d-proc d-proc
 rigProcNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-proc.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigAssert "a dead-run verdict works on an item in processed: it goes back to review with its reason, and the member is started again on it" \
 	"$( rigItemIn item-d-proc ):$( [ -n "$rigProcNew" ] && [ "$rigProcNew" != "d-proc" ] && echo new-run ):$( LC_ALL=C grep -c -F -- 'restart: new-process (a fresh start was asked for)' "$rigData/board/running/item-d-proc.md" ):$( rigDeadSettled d-proc d-proc && echo settled || echo unsettled ):$( rigDeadLine d-proc d-proc | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=fresh' )" "running:new-run:1:settled:1"
+## S6.34, case 1: an item nobody reviews (`review-by: none`) whose run died. The close of the dead run
+## takes such an item from running straight into processed, which is where run df5e26e2's item was found
+## when the human-owner answered `resume`: the verdict is carried out from that state as from review,
+## never said to be impossible for a state the tooling itself put the item in.
+rigDeath d-run d-run keeper-rig none
+rigAnswer d-run d-run resume ; rigCarry d-run d-run
+rigRunNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-run.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
+rigAssert "case 1: a resume on an item its run left in processed is carried out, and is never reported as not-in-review: the member is started again on it, under a new run, and the death is settled" \
+	"$( rigItemIn item-d-run ):$( [ -n "$rigRunNew" ] && [ "$rigRunNew" != "d-run" ] && echo new-run ):$( rigDeadSettled d-run d-run && echo settled || echo unsettled ):$( rigMarks d-run d-run not )" \
+	"running:new-run:settled:0"
 ## The fourth answer, which ends the session: the executor is dead, two participants live. Its word is the note
 ## template's own, the first word of the fourth line of the options of the question.
 rigFourth="$( LC_ALL=C awk '$0 == "## options" { inBlock = 1 ; next } inBlock && substr( $0, 1, 3 ) == "```" { if ( ++fenceCount == 2 ) { exit } next } inBlock && fenceCount == 1 { if ( ++optionCount == 4 ) { sub( /:.*$/, "" ) ; print ; exit } }' "$rigPackage/sh-lib/templates/tooling-note.post.format.md" )"

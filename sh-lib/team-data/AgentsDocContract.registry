@@ -1,0 +1,14 @@
+# AgentsDocContract.registry -- the document-contract guard's registry.
+# One row per registered document extension, four TAB-separated columns.
+#   kind      the validator kind of a document with this extension (routine, epic, ...)
+#   extension the file-name ending that selects the row, with its leading dot (.routine.md)
+#   state     refusing | reporting | absent
+#               refusing   a refusing fault the write introduces refuses the write
+#               reporting  the fault is said and the write goes on
+#               absent     the type is declared and its contract is not written yet: allow
+#   contract  the kind's contract file, a bare name under magic-team/contracts, or - for absent
+# An extension not named here is not a document type: the guard's default allows the write and
+# decides nothing.
+#
+# Slice 1: the routine kind is registered, refusing.
+routine	.routine.md	refusing	routine.contract.format.md

@@ -77,14 +77,16 @@ AgentsToolsWorkDutyDispatchHead(){ ## routine file path, skillset root, member
 	printf '%s\n' "$dutyHead"
 }
 
-## 4. The variables of this run, last: session id, spawn id, started-at and the input scan's result. A scan result is
-## named by its file, its size and its line count -- never by its content, which the run reads by line range itself.
+## 4. The variables of this run, last: session id, spawn id, started-at, the day-first mark the schedule
+## set for it, and the input scan's result. A scan result is named by its file, its size and its line count
+## -- never by its content, which the run reads by line range itself.
 AgentsToolsWorkDutyDispatchVariables(){ ## session id, spawn id, started-at, scan file (may be empty)
 	local dutySession="$1" dutySpawn="$2" dutyStarted="$3" dutyScan="${4:-}" dutyBytes="" dutyLines=""
 	printf '## This run -- its own variables\n\n'
 	printf 'session-id: %s\n' "$dutySession"
 	printf 'spawn-id: %s\n' "$dutySpawn"
 	printf 'started-at: %s\n' "$dutyStarted"
+	printf 'day-first: %s\n' "${MDAT_SPAWN_DAY_FIRST:-no}"
 	if [ -n "$dutyScan" ] && [ -f "$dutyScan" ] ; then
 		dutyBytes="$( wc -c < "$dutyScan" | tr -d ' ' )" ; dutyLines="$( wc -l < "$dutyScan" | tr -d ' ' )"
 		printf 'scan-result: input/input-scan.md (%s bytes, %s lines)\n' "$dutyBytes" "$dutyLines"

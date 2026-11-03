@@ -41,17 +41,15 @@ rigRefuse(){
 }
 [ -f "$rigSpawn" ] || rigRefuse "the spawn include is not at the origin this workspace resolves: $rigSpawn"
 [ -x "$rigTool" ] || rigRefuse "the team tooling is not at the origin this workspace resolves: $rigTool"
+. "$rigFixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package"
+. "$rigFixtures/rig-blocking-stand-in.include.sh" || rigRefuse "the rig's blocking stand-in is missing from the package"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWaitChildSourcesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigChildPids=""
 rigEnd(){
-	local endOne
-	for endOne in $rigChildPids ; do
-		kill -TERM "$endOne" 2>/dev/null ; wait "$endOne" 2>/dev/null
-	done
-	## an ended child's own sleep may outlive it by the tick it was in
-	sleep 2
+	## every child of this check, and what it started, ended at once, and only while it is still that same process
+	rigProcSignalWithChildren KILL $rigChildPids
 	rm -rf -- "$rigTmp"
 }
 trap 'rigEnd' EXIT
@@ -83,16 +81,16 @@ rigKidsData="$rigKidsAt/data"
 rigParent="rig-parent-0001"
 rigParentThread="CRIGPAR01:100.000001"
 mkdir -p "$rigKidsWs/.local/agents/children" "$rigKidsWs/.local/agents/spawned" "$rigKidsWs/.local/agents/sessions" "$rigKidsData"
-rigChildRun(){ ## spawn id -- a process that runs as that spawn, by the one rule a run is recognised by
-	"$rigBash" -c 'while : ; do sleep 1 ; done' rig-child --session-id "$1" &
-	printf '%s\n' "$!" > "$rigKidsAt/$1.pid"
-	rigChildPids="$rigChildPids $!"
+rigChildRun(){ ## spawn id -- a process that runs as that spawn, by the one rule a run is recognised by; it blocks on a
+	## pipe this check holds, so it costs no wake-up a second and ends by itself when the check does
+	rigBlockingStandIn "$1" || rigRefuse "the child run stand-in for $1 could not be started"
+	printf '%s\n' "$rigStandPid" > "$rigKidsAt/$1.pid"
+	rigChildPids="$rigChildPids $rigStandPid"
 }
 rigChildStop(){ ## spawn id
 	[ -f "$rigKidsAt/$1.pid" ] || return 0
-	kill -TERM "$( cat "$rigKidsAt/$1.pid" )" 2>/dev/null || :
+	rigProcSignal KILL "$( cat "$rigKidsAt/$1.pid" )" 2>/dev/null || :
 	wait "$( cat "$rigKidsAt/$1.pid" )" 2>/dev/null || :
-	sleep 1
 }
 rigChildRecord(){ ## spawn id, session id, thread, status
 	local recDir="$rigKidsWs/.local/agents/spawned/$1"

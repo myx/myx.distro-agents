@@ -7,7 +7,6 @@
 ## The one alias -> channel-setting map (F7.1): every channel alias resolves through it, so no
 ## channel-setting literal stands in these files.
 ##
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
 ## This file's one case, as a function of its own: an operation dispatched here, and the intern arm behind it,
 ## run in the process that already sourced this file. Calling the dispatcher again would parse the kernel, the
 ## front door and this file a second time for one operation (MAGIC.md, section 1).
@@ -131,6 +130,5 @@ case "$1" in
 		;;
 esac
 }
+## The file ends on the call, so the status the sourcer reads is the status of the operation.
 AgentsToolsMemberCommsSlackRun "$@"
-## What this file leaves its sourcer has always been 0, whatever the operation returned. Passing the status on is a change of its own.
-return 0

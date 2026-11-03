@@ -22,19 +22,21 @@ A member's duty session: it works what its work-duty scan found, then waits for 
 
 The Opening steps of its session kind run first. Then:
 
-1. **greet-the-team**: on the day's first work-duty run, post one short freeform greeting to `magic-team` before any other step.
+1. **greet-the-team**: where this run's dispatch carries `day-first: yes`, post one short freeform greeting to `magic-team` before any other step: one message of one line. Where it carries `day-first: no`, post none.
 2. **write-the-duty-list**: write these recurring duties to your `CheckList`, one item each:
    - work the input.
    - decide each item.
-   - wait for more.
+   - drain the inbox.
+   - wait for more: run `--idle-wait`.
 
    Every cycle starts from that list.
 
 # Steps
 
 1. **work-the-input**: set each recurring duty on your `CheckList` to pending, and mark each done as this cycle finishes it. The input the spawner gave you is `input/input-scan.md`. Work it as your duty instructions (your `.armed.md`) say.
+   Each inbox item a cycle works ends marked processed with `--mark-inbox-processed`, or stays with a stated reason. A stale item is closed.
 2. **decide-inline**: for each item, decide inline which it is, and move on. Work it at once in this session. Or, for anything larger, prepare its brief, record it and spawn a sub-task (the Agent tool). The sub-task reuses this session's cached prefix, so its first round is cheap.
-3. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. A keepalive round comes back before the input cache expires with nothing arrived: run it again, so the cache stays alive. On an arrival, go to step 1. A `DISMISSED` ends the duty.
+3. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. Your list's `wait for more` item is this call: making it does that item. A keepalive round comes back before the input cache expires with nothing arrived: run it again, so the cache stays alive. An arrival is any message addressed to you: new work, an ask or news. Go to step 1 on one, and a `DISMISSED` ends the duty.
 
 # Closure steps
 

@@ -51,7 +51,12 @@ Handles: task, project
 
 # Opening steps
 
-None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+The Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline). Then:
+
+1. **read-code-craft**: read both code references before a check is designed or run, steps:
+   - `magic-developer/reference/code-craft.md`, whole.
+   - `magic-developer/reference/shell.md`, where the code is shell or awk.
+   - rule: both stand read on every run, a round that checks no code included. **software-checks** is run against them.
 
 # Steps
 

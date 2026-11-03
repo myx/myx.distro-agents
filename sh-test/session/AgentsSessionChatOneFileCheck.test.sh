@@ -326,7 +326,7 @@ rigAssert "the next Wait returns TIMEOUT: the record is delivered once, never tw
 
 ## S2: the same session, the member's own Slack send -- the other kind.
 rigPre=( "MDAT_SESSION_ID=$rigS2Session" )
-rigDirect "$rigS2Sc" --slack-send-message magic-coordinator magic-team "$rigS2Slack" > "$rigS2/slack.out" 2> "$rigS2/slack.err"
+rigDirect "$rigS2Sc" --slack-send-message --team-member magic-coordinator magic-team "$rigS2Slack" > "$rigS2/slack.out" 2> "$rigS2/slack.err"
 rigS2SlackRc=$?
 rigPre=()
 rigAssert "the member's Slack send succeeds" "$rigS2SlackRc" 0

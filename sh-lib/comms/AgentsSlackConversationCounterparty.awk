@@ -38,102 +38,15 @@
 # by construction, not by anchoring luck. Do not "simplify" this back into a
 # one-liner.
 #
-# Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/
-# parseObject/parseArray) is copied verbatim from AgentsSlackMessagesFormat.awk
-# in this same directory (which in turn copied it from myx.common's
-# agentMcpJsonParseRequest.awk) -- same recursive-descent JSON parser, only
-# the leaf-emission logic differs.
 
 BEGIN {
+	jfLibrary = 1
+	jfLax = 1
 	apiOk = "true"
 	apiOkSeen = 0
 	channelSeen = 0
 	isIm = ""
 	counterparty = ""
-}
-
-function skipws(   c) {
-	while (p <= n) {
-		c = substr(s, p, 1)
-		if (c == " " || c == "\t" || c == "\n" || c == "\r") p++
-		else break
-	}
-}
-
-function hex2dec(h,   i, c, v, r) {
-	r = 0
-	for (i = 1; i <= length(h); i++) {
-		c = tolower(substr(h, i, 1))
-		v = index("0123456789abcdef", c) - 1
-		r = r * 16 + v
-	}
-	return r
-}
-
-function utf8enc(cp,   c1, c2, c3, c4) {
-	if (cp < 128) {
-		return sprintf("%c", cp)
-	} else if (cp < 2048) {
-		c1 = 192 + int(cp / 64)
-		c2 = 128 + (cp % 64)
-		return sprintf("%c%c", c1, c2)
-	} else if (cp < 65536) {
-		c1 = 224 + int(cp / 4096)
-		c2 = 128 + int(cp / 64) % 64
-		c3 = 128 + (cp % 64)
-		return sprintf("%c%c%c", c1, c2, c3)
-	} else {
-		c1 = 240 + int(cp / 262144)
-		c2 = 128 + int(cp / 4096) % 64
-		c3 = 128 + int(cp / 64) % 64
-		c4 = 128 + (cp % 64)
-		return sprintf("%c%c%c%c", c1, c2, c3, c4)
-	}
-}
-
-function parseString(   c, out, hex, code, hex2, code2, cp) {
-	p++
-	out = ""
-	while (p <= n) {
-		c = substr(s, p, 1)
-		if (c == "\"") { p++; break; }
-		if (c == "\\") {
-			p++
-			c = substr(s, p, 1)
-			if (c == "\"") out = out "\""
-			else if (c == "\\") out = out "\\"
-			else if (c == "/") out = out "/"
-			else if (c == "b") out = out "\b"
-			else if (c == "f") out = out "\f"
-			else if (c == "n") out = out "\n"
-			else if (c == "r") out = out "\r"
-			else if (c == "t") out = out "\t"
-			else if (c == "u") {
-				hex = substr(s, p + 1, 4)
-				code = hex2dec(hex)
-				p += 4
-				if (code >= 55296 && code <= 56319 && substr(s, p + 1, 2) == "\\u") {
-					hex2 = substr(s, p + 3, 4)
-					code2 = hex2dec(hex2)
-					if (code2 >= 56320 && code2 <= 57343) {
-						cp = 65536 + (code - 55296) * 1024 + (code2 - 56320)
-						out = out utf8enc(cp)
-						p += 6
-					} else {
-						out = out utf8enc(code)
-					}
-				} else {
-					out = out utf8enc(code)
-				}
-			}
-			else out = out c
-			p++
-		} else {
-			out = out c
-			p++
-		}
-	}
-	return out
 }
 
 ## Full-path equality only -- never a substring/prefix test. `channel.user`
@@ -143,83 +56,15 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 ## matching. Fields are recorded here and judged in END: Slack's own field
 ## order is not something to depend on, so `is_im` may well arrive after
 ## `user`.
-function emitLeaf(path, raw, val) {
-	if (path == "ok") { apiOk = val; apiOkSeen = 1; return; }
-	if (path == "error") { apiError = val; return; }
+function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos) {
+	if (path == "ok") { apiOk = nodeValue; apiOkSeen = 1; return; }
+	if (path == "error") { apiError = nodeValue; return; }
 	if (path == "channel.id") { channelSeen = 1; return; }
-	if (path == "channel.is_im") { isIm = val; return; }
-	if (path == "channel.user") { counterparty = val; return; }
+	if (path == "channel.is_im") { isIm = nodeValue; return; }
+	if (path == "channel.user") { counterparty = nodeValue; return; }
 }
 
-function parseValue(path,   c, startp, val, raw) {
-	skipws()
-	c = substr(s, p, 1)
-	if (c == "\"") {
-		startp = p
-		val = parseString()
-		raw = substr(s, startp, p - startp)
-		emitLeaf(path, raw, val)
-	} else if (c == "{") {
-		parseObject(path)
-	} else if (c == "[") {
-		parseArray(path)
-	} else if (c == "t") {
-		p += 4
-		emitLeaf(path, "true", "true")
-	} else if (c == "f") {
-		p += 5
-		emitLeaf(path, "false", "false")
-	} else if (c == "n") {
-		p += 4
-		emitLeaf(path, "null", "")
-	} else {
-		startp = p
-		while (p <= n) {
-			c = substr(s, p, 1)
-			if (c == "-" || c == "+" || c == "." || c == "e" || c == "E" || (c >= "0" && c <= "9")) p++
-			else break
-		}
-		raw = substr(s, startp, p - startp)
-		emitLeaf(path, raw, raw)
-	}
-}
-
-function parseObject(path,   key, keypath, c) {
-	p++
-	skipws()
-	if (substr(s, p, 1) == "}") { p++; return; }
-	while (1) {
-		skipws()
-		key = parseString()
-		skipws()
-		p++
-		keypath = (path == "") ? key : path "." key
-		parseValue(keypath)
-		skipws()
-		c = substr(s, p, 1)
-		if (c == ",") { p++; continue; }
-		else if (c == "}") { p++; break; }
-		else break
-	}
-}
-
-function parseArray(path,   idx, c) {
-	p++
-	skipws()
-	idx = 0
-	if (substr(s, p, 1) == "]") { p++; return; }
-	while (1) {
-		parseValue(path "." idx)
-		idx++
-		skipws()
-		c = substr(s, p, 1)
-		if (c == ",") { p++; continue; }
-		else if (c == "]") { p++; break; }
-		else break
-	}
-}
-
-{ s = $0; n = length(s); p = 1; parseValue(""); }
+{ jfConsumeText($0) }
 
 END {
 	if (apiOkSeen && apiOk == "false") {

@@ -262,7 +262,7 @@ registerPlugin({
         "list:routines": {"operation": ["--manager-routine-list", "--facts-only"], "rows": "routines-state"},
         ## the routine's own text, its frontmatter beside it (`--with-verdict` adds the verdicts of the one
         ## routine selected), read on selection and for the `text` action.
-        "view:routines:record": {"operation": ["--manager-routine-text", "{routine}", "--with-verdict"]},
+        "view:routines:record": {"operation": ["--manager-routine-text", "--with-verdict", "{routine}"]},
         ## the routine's frontmatter, as the tooling prints it (`fm<TAB>key<TAB>value`), read for the routine selected by its id: the facts of the routine come from the
         ## tooling, and the screen parses no text of the routine's file
         "fact:routines:record": {"operation": ["--manager-routine-frontmatter", "{id}"], "rows": "routine-frontmatter"},

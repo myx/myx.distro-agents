@@ -435,6 +435,56 @@ AgentsToolsAtlassianJiraIssueRead() { ## --member <team-member> --issue-key <iss
 	return 0
 }
 
+## The remote links an issue holds, read as the acting member: in-context helper, no
+## operation of its own (MAGIC.md, section 1). The site answers one bare array, and the
+## package's reader takes one object, so the body is wrapped under one key before it is
+## read; a body that is no array then reads as UNKNOWN rather than as no links.
+AgentsToolsAtlassianJiraIssueLinkList() { ## --member <team-member> --issue-key <issue-key> [--context <caller>]
+	local MDSC_CMD='DistroAgentsTools'
+	AgentsToolsAtlassianArgsOnce "$@" || { set +e ; return 1 ; }
+	local jiraLLMember="" jiraLLKeyArg="" jiraLLContext="atlassian-jira-issue-link-list"
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--issue-key|--context)
+				if [ -z "${2:-}" ] ; then
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLLContext: $1 value missing" >&2
+					set +e ; return 1
+				fi
+				case "$1" in
+					--member)    jiraLLMember="$2" ;;
+					--issue-key) jiraLLKeyArg="$2" ;;
+					--context)   jiraLLContext="$2" ;;
+				esac
+				shift 2
+			;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLLContext: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$jiraLLMember" ] || [ -z "$jiraLLKeyArg" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLLContext: syntax is --member <team-member> --issue-key <issue-key> [--context <caller>] -- the acting member is required, since an issue is readable only by identities its project is shared with" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$jiraLLKeyArg" "<issue-key>" "$jiraLLContext" || { set +e ; return 1 ; }
+	local jiraLLBody jiraLLRc=0
+	jiraLLBody="$( AgentsToolsAtlassianCall "$jiraLLMember" jira GET "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraLLKeyArg" )/remotelink" "$jiraLLContext" "" )" || jiraLLRc=$?
+	if [ "$jiraLLRc" -ne 0 ] ; then
+		set +e ; return "$jiraLLRc"
+	fi
+	local jiraLLRows jiraLLRowsRc=0
+	jiraLLRows="$( printf '{"links":%s}\n' "$jiraLLBody" | LC_ALL=C awk -v array=links -v want='id,object.url,object.title' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || jiraLLRowsRc=$?
+	if [ "$jiraLLRowsRc" -ne 0 ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLLContext: the remote links of issue $jiraLLKeyArg are UNKNOWN, not empty -- the answer was not the array of links this operation reads" >&2
+		set +e ; return 3
+	fi
+	printf 'LINK_ID\tURL\tTITLE\n'
+	[ -z "$jiraLLRows" ] || printf '%s\n' "$jiraLLRows"
+	printf '%s\n' "# $jiraLLContext: more: unknown -- this endpoint's answer carries no total and no paging field, so it cannot say whether it holds every link the issue has" >&2
+	return 0
+}
+
 ## One Confluence page body, read as the acting member: in-context helper, no operation of
 ## its own (MAGIC.md, section 1). Diagnostics on stderr, the body on stdout.
 AgentsToolsAtlassianConfluencePageRead() { ## --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--version <n>] [--context <caller>]
@@ -1333,6 +1383,45 @@ case "$1" in
 		AgentsToolsAtlassianCall "$jiraCAMember" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraCAKey" )/comment" "$jiraCAContext" "{\"body\":$jiraCABodyAdf}" || jiraCARc=$?
 		if [ "$jiraCARc" -ne 0 ] ; then
 			set +e ; return "$jiraCARc"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-issue-link-page)
+		shift
+		local jiraLPMember="" jiraLPKey="" jiraLPUrl="" jiraLPTitle="" jiraLPContext="intern-op-atlassian-jira-issue-link-page"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraLPMember="$1" ; shift ;;
+				--issue-key) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraLPKey="$1" ; shift ;;
+				--url)       shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --url value missing" >&2 ; set +e ; return 1 ; } ; jiraLPUrl="$1" ; shift ;;
+				--title)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --title value missing" >&2 ; set +e ; return 1 ; } ; jiraLPTitle="$1" ; shift ;;
+				--context)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraLPContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraLPMember" ] || [ -z "$jiraLPKey" ] || [ -z "$jiraLPUrl" ] || [ -z "$jiraLPTitle" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: syntax is --member <team-member> --issue-key <issue-key> --url <page-url> --title <text> [--context <caller>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraLPKey" "<issue-key>" "$jiraLPContext" || { set +e ; return 1 ; }
+		case "$jiraLPUrl" in
+			https://*) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraLPContext: --url is not an https address: $jiraLPUrl" >&2
+				set +e ; return 1
+			;;
+		esac
+		## The page's address is the link's global id, and the site replaces a link whose id it already holds: a retry leaves one link.
+		local jiraLPUrlEsc jiraLPTitleEsc jiraLPRc=0
+		jiraLPUrlEsc="$( printf '%s' "$jiraLPUrl" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		jiraLPTitleEsc="$( printf '%s' "$jiraLPTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		AgentsToolsAtlassianCall "$jiraLPMember" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraLPKey" )/remotelink" "$jiraLPContext" "{\"globalId\":\"$jiraLPUrlEsc\",\"object\":{\"url\":\"$jiraLPUrlEsc\",\"title\":\"$jiraLPTitleEsc\"}}" || jiraLPRc=$?
+		if [ "$jiraLPRc" -ne 0 ] ; then
+			set +e ; return "$jiraLPRc"
 		fi
 		return 0
 	;;

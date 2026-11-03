@@ -57,8 +57,8 @@ rigCase(){ ## name -- a fresh rig whose listing holds four routines
 		rigRoutineRow keeper-myx.fresh.routine.md keeper-myx startable keeper-myx - Not_yet_run - - never - no none - yes yes
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-routine-list"
 	## the frontmatter of the daily routine, as `--manager-routine-frontmatter` prints it: a value is kept as printed (an underscore in it is no space)
-	## the routine's own text, with the verdicts after the marker, as `--manager-routine-text <selector> --with-verdict` prints it
-	printf '%s\n' '# Daily meeting' '' 'The team meets and a **bold** step comes first.' '' '- first item' '- second item' '' '# --- verdicts of the routine ---' 'valid	yes' > "$MANAGER_SCREEN_RIG/rows.--manager-routine-text magic-coordinator.daily.routine.md --with-verdict"
+	## the routine's own text, with the verdicts after the marker, as `--manager-routine-text --with-verdict <selector>` prints it
+	printf '%s\n' '# Daily meeting' '' 'The team meets and a **bold** step comes first.' '' '- first item' '- second item' '' '# --- verdicts of the routine ---' 'valid	yes' > "$MANAGER_SCREEN_RIG/rows.--manager-routine-text --with-verdict magic-coordinator.daily.routine.md"
 	mkdir -p "$MANAGER_SCREEN_RIG/rows.--manager-routine-frontmatter magic-coordinator"
 	printf 'fm\ttype\troutine\nfm\truns-at\tworkdays 10:00\nfm\tinput-scan-def\twork_duty_def\n' > "$MANAGER_SCREEN_RIG/rows.--manager-routine-frontmatter magic-coordinator/magic-coordinator.daily.routine.md"
 	: > "$MANAGER_SCREEN_RIG/calls" ; : > "$MANAGER_SCREEN_RIG/words" ; echo rows > "$MANAGER_SCREEN_RIG/mode"

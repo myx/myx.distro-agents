@@ -90,9 +90,9 @@ DistroAgentsContacts(){
 	case "$1" in
 
 		## --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no]
-		## [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]...
-		## [--drop <coordinate>]... [--note <text>] [--correct]: a contact recorded, or filled where it is recorded already; the calling member
-		## is added to who holds it.
+		## [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]...
+		## [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]: a contact recorded, or filled where it is recorded
+		## already; the calling member is added to who holds it, and --tier, the human-owner's alone, is the record's tier.
 		--collect-contact)
 			AgentsToolsContactsCollectContact "$@"
 			return $?

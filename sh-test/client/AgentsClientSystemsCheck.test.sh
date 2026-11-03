@@ -78,13 +78,25 @@ rigMemberAt(){ ## workspace, member -- that member set up in that workspace, lin
 	ln -sfn "$atHome" "$( rigView "$1" )/$2"
 	printf '%s\t%s\tsource-symlink\tmyx/pkg/skillset/%s\t%s\n' "$2" "$rigWork/$1" "$2" "$atHome" >> "$rigIndexFile"
 }
-rigSystems(){ ## whose, mail domain -- the settings of all five systems, each named after whose they are
+rigSystems(){ ## whose, mail domain -- what a member of our own team holds for all five systems, each named after whose they are
 	printf '%s\n' \
 		"EMAIL_IMAP_HOST=imap-$2" "EMAIL_SMTP_HOST=smtp-$2" 'EMAIL_SMTP_PORT=587' "EMAIL_USER=us@$2" "EMAIL_APP_PASSWORD=rig-mail-secret-$1" \
 		"TRELLO_KEY=rig-trello-key-$1" "TRELLO_TOKEN=rig-trello-secret-$1" \
 		"GOOGLE_CLIENT_ID=rig-google-client-$1" "GOOGLE_CLIENT_SECRET=rig-google-secret-$1" "GOOGLE_REFRESH_TOKEN=rig-google-refresh-$1" \
 		"JIRA_SITE=jira-$2" "JIRA_USER=us@$2" "JIRA_API_TOKEN=rig-jira-secret-$1" \
 		"CONFLUENCE_SITE=confluence-$2" "CONFLUENCE_USER=us@$2" "CONFLUENCE_API_TOKEN=rig-confluence-secret-$1"
+}
+## What a client-* member holds for the other organisation: the same five systems under the
+## names the client side reads (AgentsToolsCommsClientKey). Mail and Trello hold their plain
+## names on that side too, so they are given here as they are; Google, Jira and Confluence
+## read the CLIENT_-prefixed name there, and only that one.
+rigSystemsClient(){ ## whose, mail domain
+	printf '%s\n' \
+		"EMAIL_IMAP_HOST=imap-$2" "EMAIL_SMTP_HOST=smtp-$2" 'EMAIL_SMTP_PORT=587' "EMAIL_USER=us@$2" "EMAIL_APP_PASSWORD=rig-mail-secret-$1" \
+		"TRELLO_KEY=rig-trello-key-$1" "TRELLO_TOKEN=rig-trello-secret-$1" \
+		"CLIENT_GOOGLE_CLIENT_ID=rig-google-client-$1" "CLIENT_GOOGLE_CLIENT_SECRET=rig-google-secret-$1" "CLIENT_GOOGLE_REFRESH_TOKEN=rig-google-refresh-$1" \
+		"CLIENT_JIRA_SITE=jira-$2" "CLIENT_JIRA_USER=us@$2" "CLIENT_JIRA_API_TOKEN=rig-jira-secret-$1" \
+		"CLIENT_CONFLUENCE_SITE=confluence-$2" "CLIENT_CONFLUENCE_USER=us@$2" "CLIENT_CONFLUENCE_API_TOKEN=rig-confluence-secret-$1"
 }
 rigScopeOf(){ ## workspace, member -- that member's scope file in that workspace, its lines on stdin
 	mkdir -p "$rigWork/$1/.local/.agents"
@@ -94,18 +106,18 @@ rigWorld(){ ## -- a fresh machine
 	rm -rf "$rigWork" "$rigHome"
 	mkdir -p "${rigIndexFile%/*}" ; : > "$rigIndexFile"
 	local wsName memberName
-	for wsName in ws-here ws-there ; do mkdir -p "$rigWork/$wsName/.local/.agents" "$rigWork/$wsName/.local/agents/members" ; done
+	for wsName in ws-here ws-there ; do mkdir -p "$rigWork/$wsName/.local/.agents" "$rigWork/$wsName/.local/agents/members" "$rigWork/$wsName/.local/temp" ; done
 	for memberName in magic-team human-owner magic-coordinator keeper-here keeper-none client-mel ; do rigMemberAt ws-here "$memberName" ; done
 	for memberName in magic-team client-ndm ; do rigMemberAt ws-there "$memberName" ; done
 	printf '%s\n' "$rigWork/ws-here" "$rigWork/ws-there" > "$rigListFile"
 	rigSystems TEAM team.here.invalid | rigScopeOf ws-here magic-team
 	rigSystems KHERE keeper.here.invalid | rigScopeOf ws-here keeper-here
-	rigSystems NDM ndm.invalid | rigScopeOf ws-here client-ndm
+	rigSystemsClient NDM ndm.invalid | rigScopeOf ws-here client-ndm
 	## client-mel and keeper-none hold nothing of their own for any of the five systems
 	: | rigScopeOf ws-here client-mel
 	: | rigScopeOf ws-here keeper-none
 	rigSystems TEAMTHERE team.THERE.invalid | rigScopeOf ws-there magic-team
-	rigSystems NDMTHERE ndm.THERE.invalid | rigScopeOf ws-there client-ndm
+	rigSystemsClient NDMTHERE ndm.THERE.invalid | rigScopeOf ws-there client-ndm
 	## the client's own contacts: a mail into the other organisation passes the outbound contact gate
 	## (AgentsToolsContactAssertKnown) only for a recipient that is a coordinate of a contact it holds
 	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1

@@ -76,7 +76,7 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 			done < "$personDmFile"
 		fi
 		if [ -z "$personDm" ] ; then
-			type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+			type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
 			personInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$personMember" --api conversations.info --resolve-dm "$personId" --identity "$personIdentity" --context "wait: the direct conversation with $personTarget" 2> "$personOut.err" )" || { personFailed=$(( personFailed + 1 )) ; continue ; }
 			personDm="$( printf '%s\n' "$personInfo" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || personDm=""
 			[ -n "$personDm" ] || { personFailed=$(( personFailed + 1 )) ; continue ; }

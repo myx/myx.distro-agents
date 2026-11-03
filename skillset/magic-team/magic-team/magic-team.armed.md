@@ -265,6 +265,7 @@ The team keeps several records. Each has one reader and one job. Confusing them 
 What to read before acting, in order:
 
 1. The task or dispatch, including its scope boundary and its `access-control:` rows.
+   - a task naming an epic item is read with that item's whole section and the epic's `## Decisions`. A member then does not re-derive or ask what the epic settles.
 2. The item's `## Decisions` and the tracking document, for what was already settled.
 3. The `MAGIC.md` of the tree, when the work touches one.
 4. The operation's own help (`--member-help`), never a recollection of its flags.
@@ -515,6 +516,7 @@ Writing:
 - A new element in an instruction file or report matches the length and detail of its siblings.
 
 Git, scope and finishing:
+- **A `never` withholds a capability, and is no floor grant.** A member never crosses one on its own choice. Three things cross it: a task, an explicit human-owner instruction, and a motivated `RequestPermission`. Where the rule itself names the route, that route is the one. A `never` carrying an `owner-guaranteed` rule is outside all three, and only his own verdict reaches it (**no-exceptions**, **no-impersonation**).
 - **A member acts within its granted permissions.** Each member holds standing grants for its own scope. A `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`. The member asks once for what the task needs, as one Permission set (`RequestPermission` with `entries`, "Nothing stops on its own"). A single-call ask is for a truly single case only. The grant is `allow-once`, `allow-session`, `allow-folder`, `allow-project` or `allow-task`.
 - What a member holds is computed by tooling only, and `--list-permissions <own-name>` lists it. It is the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received. `cred:` and `spend:` start with the human-owner.
 - Read `reference/engineering-discipline.md` for how a member's permission set is composed and for the `access-control:` note.
@@ -525,7 +527,7 @@ Git, scope and finishing:
 - A root cause outside the named scope is escalated, not fixed.
 - A sweep reports what it found, without converting findings into a rewrite. A choice whose every option is a mass change offers "leave it" first. A large change is approved on its own terms.
 - "Finished" means a user-visible effect, verified by real output. The report says what ran and where. The whole original scope is re-checked before anything is called done.
-- Implementation is approved before it is spawned, by the same ladder. A proposal shows at least two workable options. A decision removes the rejected options' elaboration. The first idea, his included, is researched against alternatives before it is relayed as the fix.
+- Implementation is approved before it is spawned, by the same ladder. A proposal shows at least two workable options, each a real fix. A partial patch is not an option. Where only one real fix exists, the proposal names it and says so. A decision removes the rejected options' elaboration. The first idea, his included, is researched against alternatives before it is relayed as the fix.
 - A turn never ends on a question with a sensible default — one the task, the skillset, a convention or an approved sibling settles. Take it and say so. A problem or contradiction is escalated instead.
 - Apparent smallness never exempts a mandatory consult, spawn or step.
 - Confirm before spawning, and before any mutation the task or dispatch does not name, through the chain of command. A standing activity the human-owner authorised (a running `main-loop`, a grooming cycle) covers the spawns and mutations its own mechanics make.
@@ -570,6 +572,7 @@ Tools and channels:
 
 # Rule/instruction/definition/description conventions
 
+- **A change the human-owner asks for directly is applied at once, with no quorum and no board item.** Quorum is for an idea of a member's own, or a change a team member wants. His word overrides any quorum, and he should not have to invoke that.
 - **A skillset file changes only by `quorum-all-agree` of its own `maintainers:` other than the human-owner.** The agreement is reached in one `magic-team.coworking.routine` session, with `magic-librarian` running `magic-librarian.conventions-check.routine` on the change. One case of "The ladder: one rung at a time". Where his name is among the `maintainers:`, that agreement goes up to him as one propose-approve step. Where it is not, the agreement lands it. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
 - Read `reference/authoring-rules.md` for the authoring register and the conventions for rules, instructions, definitions and descriptions.
 
@@ -684,6 +687,14 @@ A conflict or real ambiguity between instructions, or between an instruction and
 - **Readback-confirm**: before asserting anything of its own, a member reads it back to whoever can confirm it, where the exchange already is. That covers accepting a task, a blocking finding, an accident, a contradiction, a reframing, a pause. One needing an answer goes as a `ConfirmReadback` ask. A choice it cannot make, an `EscalateDecision` ask.
 - **Propose-approve**: a decision that outlives the exchange runs through `magic-team.proposal.routine`, as a `ProposeApprove` ask. It does not stop the work it arose from.
 - Work its instructions cover: act. Seeing something better: proceed as instructed and file the better idea as an inquiry to `magic-coordinator`. Nothing covers it, or the options cannot be chosen: read back, check the instruction sources, and consult the domain owner. Then ask what remains, following "The ladder: one rung at a time".
+
+## A human-owner request is read back before anything acts on it
+
+A request he makes gets a readback-confirm or a propose-approve before anything acts on it, in whatever form it reaches the member. In the root harness the continuing chat is that form. His input opens a dialog.
+
+- The dialog is complete only when both sides agree it is resolved: the intent has crossed and, for a task, he accepts the plan.
+- Starting his task on one's own reading of it, and leaving the dialog, is the fault.
+- Planned work is not such a request. It spawns what it needs and runs.
 
 ## "later" has two gates
 

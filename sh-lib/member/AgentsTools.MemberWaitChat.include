@@ -109,10 +109,23 @@ AgentsWaitProbeScan(){
 	local probeMember="$1" probeScan="$2" probeOut="$4" probeKept probeSum probeKey probeStored=""
 	type AgentsToolsInputScanNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include" 2> /dev/null || return 2
 	AgentsToolsInputScanNames | LC_ALL=C grep -q -x -- "$probeScan" || return 2
-	DistroAgentsTools "--intern-op-$probeScan-input-scan" "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || {
+	## The scan's own include, never the dispatcher, which is no command on a console (S6.24).
+	local probeScanRc=0
+	case "$probeScan" in
+		grooming) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicGrooming.include" --intern-op-grooming-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		sweep) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include" --intern-op-sweep-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		client-sweep) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientSweep.include" --intern-op-client-sweep-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		member-work-session) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include" --intern-op-member-work-session-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		morning-review) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpMorningReview.include" --intern-op-morning-review-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		permission-escalation) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-escalation-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		routine-coworking-session) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineCoworking.include" --intern-op-routine-coworking-session-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		work-duty) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpWorkDuty.include" --intern-op-work-duty-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		*) return 2 ;;
+	esac
+	if [ "$probeScanRc" -ne 0 ] ; then
 		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
 		return 2
-	}
+	fi
 	AgentsWaitOwnFile "$probeOut.reply" || return 2
 	## MDAT_SCAN_TRACE=1 on the wait: the seconds each section of the scan took, which the scan wrote to its stderr, are said on this one.
 	[ -z "${MDAT_SCAN_TRACE:-}" ] || LC_ALL=C grep '^scan-trace: ' "$probeOut.err" >&2 || :

@@ -410,17 +410,17 @@ AgentsToolsThisSessionFloorRemove(){ ## the operation's arguments
 }
 
 ## ---- --idle-wait (F10.5 gate B) ----
-## Wait for new input and, on an arrival, return to the run's checkpoint with the arrival as the next input: the work-duty behaviour of a
-## run that stays, so that the rounds of each piece of work do not pile up in its conversation. With nothing arrived it makes a KEEPALIVE
-## round before the input cache expires: it returns to the checkpoint with a keepalive text and the model is woken, so the next turn is
-## read from the cached prefix (the work-duty's cache keepalive). It WRITES A REQUEST as the checkpoint
-## operations do (`idle <timeout or -> [<source> ...]`), and the harness makes the wait at the end of the round, because only it holds the
-## conversation (AgentsHarnessIdleWait). It waits on what the routine the session runs waits on: the floor, and the scans the routine itself
-## declares with `input-scan-def:`, by name, as `scan:` sources (F3.3), so a work-duty run wakes on its work-duty input, and the sources it declares with
-## `wait-sources:`; with none declared, on the floor alone. Who has it: a single-participant session -- a routine of kind standalone with one executor and no invitee,
-## the shape the checkpoint operations are for -- and a separate spawn, which runs no routine. For the run of a native client, and for a
-## session of several participants, it is a NOTICE that nothing was waited on, rc 0, and the way to wait there: Wait, which a call that
-## loops on this one is sent to, so that it cannot spin.
+## The way ANY participant says it has finished its batch (S18.2): it means all done, and it waits for any message addressed to the run --
+## the executor gives tasks, others give asks. It WRITES A REQUEST as the checkpoint operations do (`idle <timeout or -> [signal]
+## [<source> ...]`), and the harness makes the wait at the end of the round, because only it holds the conversation
+## (AgentsHarnessIdleWait). It waits on the floor, the scans the routine declares with `input-scan-def:`, by name, as `scan:` sources
+## (F3.3), and its `wait-sources:`; with none declared, on the floor alone.
+## IT RETURNS TO ITS CHECKPOINT only as a single-participant session -- a routine of kind standalone with one executor and no invitee, the
+## shape the checkpoint operations are for -- or a separate spawn, which runs no routine. Any other run asks for the word `signal` and
+## keeps its conversation, since a return there is not yet decided. Either way it marks itself idle, so whoever gives the next task or
+## dismisses it sees that it is waiting. A native client's run writes no request: nothing there reads one.
+## A GATE (S18.2): a run whose CheckList still holds work is given it at once and waits on nothing. The item naming --idle-wait is the
+## recurring wait-for-more item, done by this very call, so it passes the gate.
 
 ## rc 0 when a routine is a single-participant one: its kind is standalone, it has one executor (not the whole team) and no invitee.
 ## The validator holds the same shape for a routine that allows the checkpoint operations (AgentsToolsDocValidate).
@@ -442,7 +442,8 @@ AgentsToolsThisSessionSingleParticipant(){ ## routine file path
 }
 
 AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
-	local idleBound="" idleRoutine idleFile="" idleOwner idleDir idleLine idleScan idleWord idleSources="" idleStore idleHeld idleTarget="" idleShown idleTail idleQuiet=""
+	local idleBound="" idleRoutine idleFile="" idleLine idleScan idleWord idleSources="" idleStore idleHeld idleTarget="" idleShown idleTail idleQuiet=""
+	local idleRecord idleListSession idleListFolder idleBusy="" idleBusyCount idleMark idleSignal=""
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--wait-timeout)
@@ -465,8 +466,36 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 		echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: the call belongs to no spawned session -- the operation is locked to the run it is called from. Nothing was done." >&2
 		return 1
 	fi
-	if [ ! -e "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ] ; then
-		printf "NOTICE: --idle-wait: nothing was waited on and nothing returned -- this run is a native client's, whose conversation only the client keeps. Wait on the session with Wait instead.\n"
+	## THE GATE: what the run's own list still holds is work, and it is given back at once, so a list is the queue here as it is at a Wait.
+	## The item naming --idle-wait is the recurring wait-for-more one and is done by this call, so it passes.
+	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	idleRecord="$( AgentsToolsSpawnRecordPath "$MDAT_SPAWN_SESSION_ID" )"
+	idleListSession="$MDAT_SPAWN_SESSION_ID"
+	[ -z "$idleRecord" ] || idleListSession="$( LC_ALL=C sed -n 's/^session-id: //p' "$idleRecord" 2> /dev/null | head -1 )"
+	[ -n "$idleListSession" ] || idleListSession="$MDAT_SPAWN_SESSION_ID"
+	## The list is kept where the CheckList tool keeps it: the folder of the session's own record, else the session's store.
+	idleRecord="$( AgentsToolsSpawnRecordPath "$idleListSession" )"
+	idleListFolder="${idleRecord%/*}"
+	[ -n "$idleListFolder" ] || idleListFolder="$MMDAPP/.local/agents/sessions/$idleListSession"
+	if [ -f "$idleListFolder/$MDAT_SPAWN_AGENT.checklist.md" ] ; then
+		while IFS= read -r idleLine || [ -n "$idleLine" ] ; do
+			case "$idleLine" in
+				'- [ ] '*|'- [~] '*) ;;
+				*) continue ;;
+			esac
+			## The item that means this very call, by its text alone. Three forms are in use: the duty's own list item,
+			## `wait for more: run --idle-wait`; a seeded routine step, which the seed keeps as the bare `wait-for-more`;
+			## and the words a run puts on the item itself, measured on two live duties as "Wait for the next arrival".
+			case "$idleLine" in
+				*--idle-wait*|*wait-for-more*|*wait\ for\ more*) continue ;;
+				*[Ww]ait\ for\ the\ next\ arrival*) continue ;;
+			esac
+			idleBusy="$idleBusy$idleLine"$'\n'
+		done < "$idleListFolder/$MDAT_SPAWN_AGENT.checklist.md"
+	fi
+	if [ -n "$idleBusy" ] ; then
+		idleBusyCount="$( LC_ALL=C awk 'END { print NR }' <<< "${idleBusy%$'\n'}" )"
+		printf 'CHECKLIST: %s pending. Work or close them, then run --idle-wait again -- it returns at once while an item is pending.\n%s\n' "$idleBusyCount" "${idleBusy%$'\n'}"
 		return 0
 	fi
 	type AgentsToolsSessionRoutineFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
@@ -474,10 +503,7 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	type AgentsToolsPermissionSessionRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 	idleRoutine="$( AgentsToolsPermissionSessionRoutine "$MDAT_SPAWN_SESSION_ID" )"
 	if [ -n "$idleRoutine" ] ; then
-		if [ -z "$idleFile" ] || ! AgentsToolsThisSessionSingleParticipant "$idleFile" ; then
-			printf 'NOTICE: --idle-wait: nothing was waited on and nothing returned -- the routine this session runs is not a single-participant one (kind standalone, one executor, no invitee), and the return of a conversation is for those. Wait on the session with Wait instead.\n'
-			return 0
-		fi
+		if [ -z "$idleFile" ] || ! AgentsToolsThisSessionSingleParticipant "$idleFile" ; then idleSignal=yes ; fi
 		type AgentsToolsRoutineKeyLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
 		## The scans the routine declares, by name: the options of a definition are the spawner's, and a scan named twice is one source.
 		while IFS= read -r idleLine ; do
@@ -503,25 +529,38 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	esac
 	idleStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"
 	mkdir -p "$idleStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: $idleStore could not be made. Nothing was done." >&2 ; return 1 ; }
-	## The checkpoint it returns to: `opening` where the run holds it, else `armed`, else none.
-	idleHeld=" $( LC_ALL=C awk -F '\t' 'NF { print $1 }' "$idleStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
-	case "$idleHeld" in
-		*" opening "*) idleTarget=opening ;;
-		*" armed "*) idleTarget=armed ;;
-	esac
-	printf 'idle %s%s\n' "${idleBound:--}" "${idleSources:+ $idleSources}" >> "$idleStore/checkpoint.request" || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: the request could not be written. Nothing was done." >&2 ; return 1 ; }
+	## THE SIGNAL: a run that is waiting for its next message is idle, and its own mark says so to whoever reads the registry.
+	idleMark="$( LC_ALL=C sed -n '1s/ .*//p' "$idleStore/activity" 2> /dev/null )" || idleMark=""
+	case "$idleMark" in ''|*[!0123456789]*) idleMark=0 ;; esac
+	printf '%s %s idle\n' "$idleMark" "$( date +%s )" > "$idleStore/activity" 2> /dev/null || :
 	idleShown="the floor${idleSources:+ and ${idleSources// /, }}"
-	if [ -n "$idleTarget" ] ; then
-		idleTail="on an arrival this run returns to its checkpoint $idleTarget, with the arrival as the next input"
+	## A native client's run writes no request: only its own client holds its conversation, and nothing here would read one.
+	if [ ! -e "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ] ; then
+		printf 'OK: --idle-wait: this run is all done, and waits for any message addressed to it. It is marked idle, so whoever gives the next task or dismisses it sees that. Wait on the session for it: the message is not a task, and an ask is complied with, refused or escalated.\n'
+		return 0
+	fi
+	## The checkpoint it returns to, where it returns at all: `opening` where the run holds it, else `armed`.
+	if [ -z "$idleSignal" ] ; then
+		idleHeld=" $( LC_ALL=C awk -F '\t' 'NF { print $1 }' "$idleStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+		case "$idleHeld" in
+			*" opening "*) idleTarget=opening ;;
+			*" armed "*) idleTarget=armed ;;
+		esac
+	fi
+	printf 'idle %s%s%s\n' "${idleBound:--}" "${idleSignal:+ signal}" "${idleSources:+ $idleSources}" >> "$idleStore/checkpoint.request" || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: the request could not be written. Nothing was done." >&2 ; return 1 ; }
+	if [ -n "$idleSignal" ] ; then
+		idleTail="this run signals that it is all done and waits, so its conversation is kept; the message that arrives is its next turn"
+	elif [ -n "$idleTarget" ] ; then
+		idleTail="on a message this run returns to its checkpoint $idleTarget, with the message as the next input"
 	else
-		idleTail="no snapshot is held, so an arrival comes as a message and the conversation is not returned"
+		idleTail="no snapshot is held, so a message comes as a message and the conversation is not returned"
 	fi
 	if [ -n "$idleBound" ] ; then
 		idleQuiet="; with nothing in $idleBound seconds the wait ends with a TIMEOUT, and nothing is returned"
 	else
-		idleQuiet="; with nothing arrived, a keepalive round returns the conversation to its checkpoint before the input cache expires, and you call --idle-wait again to keep waiting"
+		idleQuiet="; with nothing arrived, a keepalive round wakes the run before the input cache expires, and it calls --idle-wait again"
 	fi
-	printf 'OK: --idle-wait: at the end of this round the harness waits on %s; %s%s.\n' "$idleShown" "$idleTail" "$idleQuiet"
+	printf 'OK: --idle-wait: at the end of this round the harness waits on %s for any message addressed to this run; %s%s.\n' "$idleShown" "$idleTail" "$idleQuiet"
 }
 
 ## ---- --set-session-topic / --set-session-chapter ----

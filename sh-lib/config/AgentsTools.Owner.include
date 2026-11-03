@@ -701,6 +701,21 @@ magic-team MDAT_WORKSPACE_MODE"
 						set +e ; return 1
 					fi
 				;;
+				## The reflecting domain's own, because its step 2 is a read of what the chosen
+				## halves lack -- a model that names a half keeps the wizard going only once that
+				## half can be used. For every other domain the engine's mode word stays internal.
+				--render-missing)
+					if [ "$setupDomain" != "reflection" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: unknown argument: --render-missing -- options first, then one of --check, --apply, --print-apply-command or --wizard last" >&2
+						set +e ; return 1
+					fi
+					setupOperation="$1"
+					shift
+					if [ $# -gt 0 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $setupOperation is a sub-operation and takes the LAST position -- every option and its value comes before it. Found after it: $1" >&2
+						set +e ; return 1
+					fi
+				;;
 				--all-workspaces) setupAllWorkspaces="yes" ; shift ;;
 				--set-as-default) setupSetAsDefault="yes" ; shift ;;
 				## Any other flag is one of this domain's configuration options. Its
@@ -771,6 +786,42 @@ magic-team MDAT_WORKSPACE_MODE"
 		## option MEANS lives here: the engine holds that, and refuses a name a
 		## domain has not declared, so a new domain is a new declaration and never
 		## a change to the engine. A domain's subject is its own name.
+		## The reflecting domain's step 2, a sub-operation of its own: the keys the chosen halves
+		## need and this workspace lacks, a command a key. The model is the one supplied here,
+		## else the stored one; its status is the readiness a caller reads.
+		if [ "$setupOperation" = "--render-missing" ] && [ "$setupDomain" = "reflection" ] ; then
+			local setupMissingModel="" setupMissingRc=0 setupScanI=0 setupMissingKey=""
+			while [ "$setupScanI" -lt ${#setupOptionArgs[@]} ] ; do
+				if [ "${setupOptionArgs[$setupScanI]}" = "--value" ] ; then
+					case "${setupOptionArgs[$(( setupScanI + 1 ))]}" in REFLECT_MODELS=*) setupMissingModel="${setupOptionArgs[$(( setupScanI + 1 ))]#*=}" ;; esac
+					setupScanI=$(( setupScanI + 2 )) ; continue
+				fi
+				setupScanI=$(( setupScanI + 1 ))
+			done
+			if [ -z "$setupMissingModel" ] ; then
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				setupMissingModel="$( MMDAPP="${setupWorkspaceRoot:-${MMDAPP%/}}" ; AgentsToolsConfigOption magic-team --select REFLECT_MODELS 2> /dev/null )" || setupMissingModel=""
+			fi
+			type AgentsToolsReflectHalfLacks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+			local setupMissingPair="" setupMissingLine="" setupMissingAny=""
+			setupMissingPair="$( AgentsToolsReflectModelsParse "${setupMissingModel:-none}" )" || {
+				echo "REFLECT_MODELS: FAIL"
+				echo "  fail: a model of <board>+<documents> over the two closed lists, or none"
+				return 1
+			}
+			printf 'REFLECT_MODELS: %s\n' "${setupMissingModel:-none}"
+			while IFS= read -r setupMissingLine ; do
+				[ -n "$setupMissingLine" ] || continue
+				setupMissingAny="yes"
+				for setupMissingKey in $( printf '%s' "${setupMissingLine#* }" ) ; do
+					printf 'MISSING: %s %s\n' "${setupMissingLine%% *}" "$setupMissingKey"
+				done
+			done <<< "$( AgentsToolsReflectHalfLacks "${setupMissingModel:-none}" )"
+			[ -n "$setupMissingAny" ] || printf 'MISSING: none\n'
+			[ -z "$setupMissingAny" ] || setupMissingRc=1
+			return "$setupMissingRc"
+		fi
+
 		local setupDeclareArgs=()
 		case "$setupDomain" in
 			claude|claude-native|copilot|copilot-native|grok|scaleway|deepseek)
@@ -859,6 +910,19 @@ magic-team MDAT_WORKSPACE_MODE"
 					--allow TEAM_DATA_GIT_USER_EMAIL
 				)
 			;;
+			reflection)
+				## The model and the two place keys are the workspace's own settings. The
+				## token sets of each half are not declared here: they are member-scope keys
+				## today, moved to the team scope by S20 item 3, and a domain that declared
+				## one would write it into a scope no reader names. REFLECT_MODELS is written
+				## last, on its own, after the halves are proved (a step below).
+				setupDeclareArgs=(
+					--allow REFLECT_MODELS
+					--allow REFLECT_JIRA_PROJECT
+					--allow REFLECT_TRELLO_BOARD
+					--allow CONFLUENCE_SPACE
+				)
+			;;
 		esac
 
 		## One reads the domain's declaration to carry the setup out, the other to
@@ -886,6 +950,24 @@ magic-team MDAT_WORKSPACE_MODE"
 					DistroAgentsTools --install-claude-workspace-trust --workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" || { set +e ; return 1 ; }
 				fi
 
+				## The reflecting domain's step 5 is its own, and comes last: REFLECT_MODELS is held
+				## back from the settings write below, so a half that fails its live read leaves the
+				## value unchanged. --print-apply-command still shows the whole set.
+				local setupReflectValue="" setupKeptArgs=() setupSplitI=0
+				if [ "$setupDomain" = "reflection" ] && [ "$setupOperation" = "--apply" ] ; then
+					while [ "$setupSplitI" -lt ${#setupOptionArgs[@]} ] ; do
+						if [ "${setupOptionArgs[$setupSplitI]}" = "--value" ] ; then
+							case "${setupOptionArgs[$(( setupSplitI + 1 ))]}" in
+								REFLECT_MODELS=*) setupReflectValue="${setupOptionArgs[$(( setupSplitI + 1 ))]#*=}" ;;
+								*) setupKeptArgs+=( --value "${setupOptionArgs[$(( setupSplitI + 1 ))]}" ) ;;
+							esac
+							setupSplitI=$(( setupSplitI + 2 )) ; continue
+						fi
+						setupKeptArgs+=( "${setupOptionArgs[$setupSplitI]}" )
+						setupSplitI=$(( setupSplitI + 1 ))
+					done
+					setupOptionArgs=( ${setupKeptArgs[@]+"${setupKeptArgs[@]}"} )
+				fi
 				local setupApplyRc=0
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-owner-setup "$setupDomain" "$setupEngineMode" \
@@ -947,6 +1029,23 @@ magic-team MDAT_WORKSPACE_MODE"
 							fi
 						;;
 					esac
+
+					## reflection: step 4 then step 5, one live read a half and only then the value.
+					## The place keys are already stored above, which is what the reads need beside
+					## the tokens each half's own mechanism holds where it holds them.
+					if [ "$setupDomain" = "reflection" ] && [ -n "$setupReflectValue" ] ; then
+						type AgentsToolsReflectHalvesProve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+						AgentsToolsReflectHalvesProve "$setupReflectValue" || {
+							echo "⛔ ERROR: $MDSC_CMD --owner-setup-reflection --apply: stopped at the live proof step -- the settings above are stored and REFLECT_MODELS is not written" >&2
+							exit 1
+						}
+						printf '%s' "$setupReflectValue" | ( MMDAPP="$MMDAPP" ; DistroAgentsTools --agents-config-option magic-team --upsert-from-stdin REFLECT_MODELS ) || {
+							echo "⛔ ERROR: $MDSC_CMD --owner-setup-reflection --apply: stopped at the model step -- both halves are proved, and REFLECT_MODELS could not be written" >&2
+							exit 1
+						}
+						echo "# $MDSC_CMD --owner-setup-reflection --apply: REFLECT_MODELS set in $MMDAPP, after each half it names answered a live read"
+					fi
 
 					## storage: the store is made a repository -- cloned when a remote is set, else
 					## initialised -- and the configured author identity is written into it.
@@ -1029,6 +1128,53 @@ magic-team MDAT_WORKSPACE_MODE"
 					elif [ "$setupOperation" = "--check" ] ; then
 						echo "TEAM_DATA_GIT_IDENTITY: OK"
 					fi
+				fi
+			;;
+			## The model, then a row a half it names. A bare call writes the rows a reader scans;
+			## --check writes the per-key detail behind them. Unset reads as none, and a half the
+			## model does not name is not asked about at all, so a token with no half is no fault.
+			reflection)
+				local setupReflectModel="" setupReflectPair="" setupReflectHalf="" setupReflectKey=""
+				local setupReflectShort=""
+				type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+				type AgentsToolsReflectModelsParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+				setupReflectModel="$( AgentsToolsConfigOption magic-team --select REFLECT_MODELS 2> /dev/null )" || setupReflectModel=""
+				setupReflectPair="$( AgentsToolsReflectModelsParse "$setupReflectModel" 2> /dev/null )" || setupReflectPair=""
+				if [ -z "$setupReflectPair" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "REFLECT_MODELS: FAIL"
+						echo "  fail: the stored value is neither none nor <board>+<documents> over the two closed lists: $setupReflectModel"
+						echo "  fix:  DistroAgentsTools.fn.sh --owner-setup-reflection --reflect-models none --apply"
+					}
+					AgentsToolsOwnerSetupRow "Reflection model" "NOT A MODEL"
+					setupRc=1
+				else
+					[ "$setupOperation" != "--check" ] || printf 'REFLECT_MODELS: OK\n  value: %s\n' "${setupReflectModel:-none}"
+					case "$setupReflectModel" in
+						''|none) AgentsToolsOwnerSetupRow "Reflection model" "none, both halves off" ;;
+						*) AgentsToolsOwnerSetupRow "Reflection model" "$setupReflectModel" ;;
+					esac
+					for setupReflectHalf in $setupReflectPair ; do
+						[ "$setupReflectHalf" != "none" ] || continue
+						setupReflectShort=""
+						for setupReflectKey in $( AgentsToolsReflectHalfKeys "$setupReflectHalf" ) ; do
+							[ -n "$( AgentsToolsReflectKeyValue "$setupReflectKey" )" ] && continue
+							setupReflectShort="$setupReflectShort${setupReflectShort:+, }$setupReflectKey"
+							[ "$setupOperation" != "--check" ] || printf '  lacks: %s\n' "$setupReflectKey"
+						done
+						if [ -z "$setupReflectShort" ] ; then
+							[ "$setupOperation" != "--check" ] || printf 'REFLECT_%s: OK\n' "$( printf '%s' "$setupReflectHalf" | LC_ALL=C tr 'a-z-' 'A-Z_' )"
+							AgentsToolsOwnerSetupRow "Reflection $setupReflectHalf half" "complete"
+						else
+							[ "$setupOperation" != "--check" ] || {
+								printf 'REFLECT_%s: FAIL\n' "$( printf '%s' "$setupReflectHalf" | LC_ALL=C tr 'a-z-' 'A-Z_' )"
+								echo "  fail: the half is selected and this workspace lacks: $setupReflectShort"
+								echo "  fix:  place them where that mechanism's own scope holds them, then run this domain again"
+							}
+							AgentsToolsOwnerSetupRow "Reflection $setupReflectHalf half" "INCOMPLETE ($setupReflectShort)"
+							setupRc=1
+						fi
+					done
 				fi
 			;;
 			## The scaleway arm's presence and credential halves. The harness check

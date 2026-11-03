@@ -22,123 +22,11 @@
 # probe in sh-lib/member/AgentsTools.MemberWait.include. NOT --intern-op-sweep-input-scan,
 # which never invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
 #
-# Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/
-# parseObject/parseArray) is copied verbatim from myx.common's
 # agentMcpJsonParseRequest.awk; only the leaf-emission logic differs. Not a
 # general-purpose formatter: only understands the flat messages[] array
 # shape Slack's own API actually returns.
 
-BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; }
-
-## THIS PAGE IS TAKEN FROM THE FRONT. `substr(s, p, k)` copies from `p` on, so a page read a character
-## or a token at a time from an ever-growing position is quadratic: 1 MB that way is 88 s on this
-## machine's awk, and a 258-message thread took 145 s. So what is left of the page is re-sliced once
-## every few KB, and every step after that is taken near its start.
-function rebase() {
-	if (p <= 4096) return
-	s = substr(s, p)
-	p = 1
-	n = length(s)
-}
-
-function skipws(   c) {
-	rebase()
-	while (p <= n) {
-		c = substr(s, p, 1)
-		if (c == " " || c == "\t" || c == "\n" || c == "\r") p++
-		else break
-	}
-}
-
-function hex2dec(h,   i, c, v, r) {
-	r = 0
-	for (i = 1; i <= length(h); i++) {
-		c = tolower(substr(h, i, 1))
-		v = index("0123456789abcdef", c) - 1
-		r = r * 16 + v
-	}
-	return r
-}
-
-function utf8enc(cp,   c1, c2, c3, c4) {
-	if (cp < 128) {
-		return sprintf("%c", cp)
-	} else if (cp < 2048) {
-		c1 = 192 + int(cp / 64)
-		c2 = 128 + (cp % 64)
-		return sprintf("%c%c", c1, c2)
-	} else if (cp < 65536) {
-		c1 = 224 + int(cp / 4096)
-		c2 = 128 + int(cp / 64) % 64
-		c3 = 128 + (cp % 64)
-		return sprintf("%c%c%c", c1, c2, c3)
-	} else {
-		c1 = 240 + int(cp / 262144)
-		c2 = 128 + int(cp / 4096) % 64
-		c3 = 128 + int(cp / 64) % 64
-		c4 = 128 + (cp % 64)
-		return sprintf("%c%c%c%c", c1, c2, c3, c4)
-	}
-}
-
-## A string is taken a run at a time: the text to the next escape or the closing quote is appended
-## whole from one window, so a page of a megabyte costs a pass and not a copy of the page for every
-## character of it.
-function parseString(   c, out, hex, code, hex2, code2, cp, tail, at, quoteAt) {
-	rebase()
-	p++ # skip opening quote
-	out = ""
-	while (p <= n) {
-		tail = substr(s, p, 8192)
-		at = index(tail, "\\")
-		quoteAt = index(tail, "\"")
-		if (at == 0 && quoteAt == 0) {
-			out = out tail
-			p += length(tail)
-			continue
-		}
-		if (quoteAt > 0 && (at == 0 || quoteAt < at)) {
-			out = out substr(tail, 1, quoteAt - 1)
-			p += quoteAt
-			return out
-		}
-		out = out substr(tail, 1, at - 1)
-		p += at - 1
-		{
-			p++
-			c = substr(s, p, 1)
-			if (c == "\"") out = out "\""
-			else if (c == "\\") out = out "\\"
-			else if (c == "/") out = out "/"
-			else if (c == "b") out = out "\b"
-			else if (c == "f") out = out "\f"
-			else if (c == "n") out = out "\n"
-			else if (c == "r") out = out "\r"
-			else if (c == "t") out = out "\t"
-			else if (c == "u") {
-				hex = substr(s, p + 1, 4)
-				code = hex2dec(hex)
-				p += 4
-				if (code >= 55296 && code <= 56319 && substr(s, p + 1, 2) == "\\u") {
-					hex2 = substr(s, p + 3, 4)
-					code2 = hex2dec(hex2)
-					if (code2 >= 56320 && code2 <= 57343) {
-						cp = 65536 + (code - 55296) * 1024 + (code2 - 56320)
-						out = out utf8enc(cp)
-						p += 6
-					} else {
-						out = out utf8enc(code)
-					}
-				} else {
-					out = out utf8enc(code)
-				}
-			}
-			else out = out c
-			p++
-		}
-	}
-	return out
-}
+BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; jfLibrary = 1 ; jfLax = 1 }
 
 ## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
 ## as its fallback text: what a reader of this rendering can use, where the raw control
@@ -186,9 +74,9 @@ function ownLines(textValue,   outText) {
 ## reactions[] array and reply_count/latest_reply fields, per
 ## message index; print in END once every field has been seen -- field
 ## order in Slack's real API responses isn't something to depend on.
-function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afterJ, jNum) {
-	if (path == "ok") { apiOk = val; apiOkSeen = 1; return; }
-	if (path == "error") { apiError = val; return; }
+function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, afterIdx, afterReactions, j, afterJ, jNum) {
+	if (path == "ok") { apiOk = nodeValue; apiOkSeen = 1; return; }
+	if (path == "error") { apiError = nodeValue; return; }
 	if (index(path, "messages.") != 1) return
 	rest = substr(path, length("messages.") + 1)
 	idx = rest
@@ -196,40 +84,41 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 	if (idx !~ /^[0-9]+$/) return
 	if (idx + 1 > msgCount) msgCount = idx + 1
 
-	if (rest == idx ".ts") { tsOf[idx] = val; return; }
-	if (rest == idx ".user") { userOf[idx] = val; return; }
-	if (rest == idx ".bot_id" && !(idx in userOf)) { userOf[idx] = val; return; }
-	if (rest == idx ".text") { textOf[idx] = val; return; }
+	if (rest == idx ".ts") { tsOf[idx] = nodeValue; return; }
+	if (rest == idx ".user") { userOf[idx] = nodeValue; return; }
+	if (rest == idx ".bot_id" && !(idx in userOf)) { userOf[idx] = nodeValue; return; }
+	if (rest == idx ".text") { textOf[idx] = nodeValue; return; }
 
 	## Everything below is nested under messages.<idx>. -- pull off that
 	## prefix once, then match the remaining sub-path.
 	if (index(rest, idx ".") != 1) return
 	afterIdx = substr(rest, length(idx) + 2)
 
-	if (afterIdx == "reply_count") { replyCountOf[idx] = val; return; }
-	if (afterIdx == "latest_reply") { latestReplyOf[idx] = val; return; }
+	if (afterIdx == "reply_count") { replyCountOf[idx] = nodeValue; return; }
+	if (afterIdx == "latest_reply") { latestReplyOf[idx] = nodeValue; return; }
 	## `chat.postMessage`'s own `metadata.event_payload.sender` field, present
 	## only when the sender asked for it and the read asked `include_all_metadata`
 	## back. Absent for every message that carries neither, so this adds nothing
 	## to a rendering with no such message.
-	if (afterIdx == "metadata.event_payload.sender") { senderOf[idx] = val; return; }
+	if (afterIdx == "metadata.event_payload.sender") { senderOf[idx] = nodeValue; return; }
 	## S27.8: the run that wrote a tooling message, and the run it was for. They are what lets one run
 	## of a member dismiss another run of that member, and never itself.
-	if (afterIdx == "metadata.event_payload.author_run") { authorRunOf[idx] = val; return; }
-	if (afterIdx == "metadata.event_payload.addressee_run") { addresseeRunOf[idx] = val; return; }
+	if (afterIdx == "metadata.event_payload.author_run") { authorRunOf[idx] = nodeValue; return; }
+	if (afterIdx == "metadata.event_payload.addressee_run") { addresseeRunOf[idx] = nodeValue; return; }
 	## The tooling's own tracking posts (AgentsTools.InternOpEventTrackPost.include, the session root) carry `event_payload.tracking`, the kind of the
 	## post: a reader that decides whether something is input tells them by this annotation, `[tracking: <kind>]`, never by their text.
-	if (afterIdx == "metadata.event_payload.tracking") { trackingOf[idx] = val; return; }
+	if (afterIdx == "metadata.event_payload.tracking") { trackingOf[idx] = nodeValue; return; }
 	## and the spawn id of the session it belongs to, `[session: <id>]`, which says whose launch it is (AgentsTools.TrackingDrop.include).
-	if (afterIdx == "metadata.event_payload.session") { sessionOf[idx] = val; return; }
-	## The body of a tracking post is in its blocks, its `text` only the line a notification shows: the text leaves of its blocks are
-	## kept, a block to a line, and stand in for the text of a tracking post (below), so a read of a tooling thread carries what it says.
+	if (afterIdx == "metadata.event_payload.session") { sessionOf[idx] = nodeValue; return; }
+	## The body of an event-track post is in its blocks, its `text` only the line a notification shows: the text leaves of its blocks are
+	## kept, a block to a line, and stand in for its text (below), so a read of a tooling thread carries what it says. A `tooling` send keeps
+	## its own text, whole, with the header `→ *_member_*.` the readers parse (AgentsTrackingDrop.awk, AgentsSessionChatImport.awk).
 	if (index(afterIdx, "blocks.") == 1 && afterIdx ~ /\.text$/) {
 		j = substr(afterIdx, length("blocks.") + 1)
 		sub(/\..*/, "", j)
 		if (j !~ /^[0-9]+$/) return
 		if (idx in blockTextOf) blockTextOf[idx] = blockTextOf[idx] ((blockLastOf[idx] != j) ? "\n" : " ")
-		blockTextOf[idx] = blockTextOf[idx] val
+		blockTextOf[idx] = blockTextOf[idx] nodeValue
 		blockLastOf[idx] = j
 		return
 	}
@@ -243,10 +132,10 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 		jNum = j + 0
 		if (!(idx in fileCountPerMsg) || jNum + 1 > fileCountPerMsg[idx]) fileCountPerMsg[idx] = jNum + 1
 		afterJ = substr(afterReactions, length(j) + 2)
-		if (afterJ == "id") fileIdOf[idx, j] = val
-		else if (afterJ == "name") fileNameOf[idx, j] = val
-		else if (afterJ == "size") fileSizeOf[idx, j] = val
-		else if (afterJ == "mimetype") fileTypeOf[idx, j] = val
+		if (afterJ == "id") fileIdOf[idx, j] = nodeValue
+		else if (afterJ == "name") fileNameOf[idx, j] = nodeValue
+		else if (afterJ == "size") fileSizeOf[idx, j] = nodeValue
+		else if (afterJ == "mimetype") fileTypeOf[idx, j] = nodeValue
 		return
 	}
 	if (index(afterIdx, "reactions.") == 1) {
@@ -257,84 +146,17 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 		jNum = j + 0
 		if (!(idx in reactionCountPerMsg) || jNum + 1 > reactionCountPerMsg[idx]) reactionCountPerMsg[idx] = jNum + 1
 		afterJ = substr(afterReactions, length(j) + 2)
-		if (afterJ == "name") reactionNameOf[idx, j] = val
-		else if (afterJ == "count") reactionCountOf[idx, j] = val
+		if (afterJ == "name") reactionNameOf[idx, j] = nodeValue
+		else if (afterJ == "count") reactionCountOf[idx, j] = nodeValue
 		else if (index(afterJ, "users.") == 1) {
-			if ((idx, j) in reactionUsersOf) reactionUsersOf[idx, j] = reactionUsersOf[idx, j] "," val
-			else reactionUsersOf[idx, j] = val
+			if ((idx, j) in reactionUsersOf) reactionUsersOf[idx, j] = reactionUsersOf[idx, j] "," nodeValue
+			else reactionUsersOf[idx, j] = nodeValue
 		}
 		return
 	}
 }
 
-function parseValue(path,   c, startp, val, raw) {
-	skipws()
-	c = substr(s, p, 1)
-	if (c == "\"") {
-		## No raw text is kept for a string: emitLeaf reads its value only, and the position before the
-		## string no longer survives parseString's own re-slice.
-		emitLeaf(path, "", parseString())
-	} else if (c == "{") {
-		parseObject(path)
-	} else if (c == "[") {
-		parseArray(path)
-	} else if (c == "t") {
-		p += 4
-		emitLeaf(path, "true", "true")
-	} else if (c == "f") {
-		p += 5
-		emitLeaf(path, "false", "false")
-	} else if (c == "n") {
-		p += 4
-		emitLeaf(path, "null", "")
-	} else {
-		startp = p
-		while (p <= n) {
-			c = substr(s, p, 1)
-			if (c == "-" || c == "+" || c == "." || c == "e" || c == "E" || (c >= "0" && c <= "9")) p++
-			else break
-		}
-		raw = substr(s, startp, p - startp)
-		emitLeaf(path, raw, raw)
-	}
-}
-
-function parseObject(path,   key, keypath, c) {
-	p++ # skip {
-	skipws()
-	if (substr(s, p, 1) == "}") { p++; return; }
-	while (1) {
-		skipws()
-		key = parseString()
-		skipws()
-		p++ # skip :
-		keypath = (path == "") ? key : path "." key
-		parseValue(keypath)
-		skipws()
-		c = substr(s, p, 1)
-		if (c == ",") { p++; continue; }
-		else if (c == "}") { p++; break; }
-		else break
-	}
-}
-
-function parseArray(path,   idx, c) {
-	p++ # skip [
-	skipws()
-	idx = 0
-	if (substr(s, p, 1) == "]") { p++; return; }
-	while (1) {
-		parseValue(path "." idx)
-		idx++
-		skipws()
-		c = substr(s, p, 1)
-		if (c == ",") { p++; continue; }
-		else if (c == "]") { p++; break; }
-		else break
-	}
-}
-
-{ s = $0; n = length(s); p = 1; parseValue(""); }
+{ jfConsumeText($0) }
 
 ## Prints oldest-first (chronological), sorted on ts rather than taken from
 ## the body's own order: conversations.history returns newest-first and
@@ -402,6 +224,6 @@ END {
 			}
 		}
 
-		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownStart(ownLines(dateFallbacks(((i in trackingOf) && blockTextOf[i] != "") ? blockTextOf[i] : textOf[i]))))
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownStart(ownLines(dateFallbacks(((i in trackingOf) && trackingOf[i] != "tooling" && blockTextOf[i] != "") ? blockTextOf[i] : textOf[i]))))
 	}
 }

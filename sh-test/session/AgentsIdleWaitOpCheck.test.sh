@@ -6,9 +6,9 @@
 ## What the call knows here it settles here, in its own answer. Held:
 ##   1. the syntax: one option, `--wait-timeout`, whole seconds; nothing else
 ##   2. locked to the session: from no member's session, and from a call that belongs to no spawned session, refused
-##   3. who has it: only a single-participant session (a routine of kind standalone with one executor and no invitee) and a separate
-##      spawn (no routine). A native client's run, and a routine of several participants, get a NOTICE, exit 0, no request, and are told
-##      to Wait, so a loop on the call cannot spin
+##   3. who has it: every participant. A native client's run writes no request and is told a message arrives and where it waits, and
+##      its mark says idle. A single-participant session (a routine of kind standalone with one executor and no invitee) and a separate
+##      spawn (no routine) ask for the return; every other run asks for the signal alone
 ##   4. what it waits on: the floor, and the scans the routine itself declares (`input-scan-def:`), by name, as `scan:` sources; `none`
 ##      declares none, an option of a scan is not carried, a scan named twice is named once; then the sources it declares with `wait-sources:`,
 ##      the macro {{team-member}} being the member of the run, a source named twice once; and last the run's own wake marker
@@ -93,6 +93,9 @@ rigOp(){ ## operation word, then its arguments -- the call as a member's shell m
 rigRequests(){ ## the requests written, joined with ; between
 	LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = ";" }' "$rigStore/checkpoint.request" 2> /dev/null
 }
+rigMark(){ ## the activity word the run's own mark holds
+	LC_ALL=C awk '{ print $3 }' "$rigStore/activity" 2> /dev/null
+}
 
 echo "-- 1. the syntax --"
 rigBind soloduty ; rigHarnessRun yes
@@ -112,23 +115,28 @@ rigMember="rig-a" ; rigSpawnId="" ; rigOp --idle-wait
 rigAssert "from a call that belongs to no spawned session: refused, nothing written"    "$rigRc:$( rigIn "$rigErr" 'belongs to no spawned session' ):$( rigRequests )" "1:yes:"
 unset rigMember rigSpawnId
 
-echo "-- 3. who has it --"
+echo "-- 3. who has it: every participant (S18 Open item 2) --"
+## The operation is the way any participant says it has finished its batch. The run returns to its checkpoint only where it is a
+## single-participant one; every other asks for the word `signal` and keeps its conversation.
 rigBind soloduty ; rigHarnessRun no
 rigOp --idle-wait
-rigAssert "a native client's run: a NOTICE, exit 0, no request, told to Wait"           "$rigRc:$( rigIn "$rigOut" 'NOTICE: --idle-wait: nothing was waited on' ):$( rigIn "$rigOut" "native client's" ):$( rigIn "$rigOut" 'Wait' ):$( rigRequests )" "0:yes:yes:yes:"
+rigAssert "a native client's run: exit 0, no request, told a message arrives and where it waits" "$rigRc:$( rigIn "$rigOut" 'any message' ):$( rigIn "$rigOut" 'Wait' ):$( rigRequests )" "0:yes:yes:"
+rigAssert "and its own mark says it is idle, so a task giver sees it"                    "$( rigMark )" idle
 rigHarnessRun yes
 rigBind cowork ; rigOp --idle-wait
-rigAssert "a coworking routine: a NOTICE, no request"                                   "$rigRc:$( rigIn "$rigOut" 'NOTICE: --idle-wait: nothing was waited on' ):$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:yes:yes:"
+rigAssert "a coworking routine asks for the signal alone, and writes the request"       "$rigRc:$( rigRequests ):$( rigIn "$rigOut" 'signals that it is all done' )" "0:idle - signal scan:routine-coworking-session wake:rig-a:yes"
 rigBind twoexec ; rigOp --idle-wait
-rigAssert "a standalone routine of two executors"                                       "$rigRc:$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:yes:"
+rigAssert "a standalone routine of two executors signals too"                           "$rigRc:$( rigRequests )" "0:idle - signal scan:work-duty wake:rig-a"
 rigBind invited ; rigOp --idle-wait
-rigAssert "a standalone routine with an invitee"                                        "$rigRc:$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:yes:"
+rigAssert "so does a standalone routine with an invitee"                                "$rigRc:$( rigRequests )" "0:idle - signal scan:work-duty wake:rig-a"
 rigBind teamwide ; rigOp --idle-wait
-rigAssert "a routine whose executors are the whole team is not one participant, so it waits" "$rigRc:$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:no:idle - scan:work-duty wake:rig-a"
+## `executors: magic-team` names the team's own duty, one run of one member in one session: the gate reads one executor and no
+## invitee, so it returns as it always has.
+rigAssert "a routine whose executors are the whole team returns, as it did"              "$rigRc:$( rigRequests )" "0:idle - scan:work-duty wake:rig-a"
 rigBind "" ; rigOp --idle-wait
 rigAssert "a separate spawn, with no routine, has it"                                   "$rigRc:$( rigRequests )" "0:idle - wake:rig-a"
 rigBind soloquiet ; rigOp --idle-wait
-rigAssert "a single-participant routine has it"                                         "$rigRc:$( rigRequests )" "0:idle - wake:rig-a"
+rigAssert "a single-participant routine has it, and asks for the return"                "$rigRc:$( rigRequests )" "0:idle - wake:rig-a"
 
 echo "-- 4. what it waits on --"
 rigBind solonone ; rigOp --idle-wait

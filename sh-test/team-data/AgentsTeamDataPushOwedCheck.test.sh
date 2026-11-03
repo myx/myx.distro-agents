@@ -61,7 +61,7 @@ git clone -q "$rigRemoteGit" "$rigStore" 2> /dev/null || rigRefuse "could not cl
 ## Runs a piece of shell with the team-data functions at hand, as the tooling has them,
 ## under the rig's own workspace, store and myx.common. The dispatcher is the rig's own.
 rigRun(){ ## result file, shell text
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" \
+	env -i MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN="$MDLT_ORIGIN" MYXROOT="$rigMyx" \
 		GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid \
 		GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \

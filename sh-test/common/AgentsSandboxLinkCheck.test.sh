@@ -137,7 +137,12 @@ rigExec(){ ## script -- runs it through the execute operation in the rig's works
 	printf '%s\n' "$1" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_CONSOLE_ORIGIN="${MDLT_CONSOLE_ORIGIN:-}" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute > "$rigTmp/exec.out" 2> "$rigTmp/exec.err" || rigRc=$?
 }
-rigConsole="$( AgentsToolsSourceRoots | LC_ALL=C grep '/myx$' | head -1 )" ; rigConsole="${rigConsole%/myx}"
+## The console origin this run resolves is the root its own guard reads, so the rig aims at that one. A packages
+## folder is not one, and no root sorts into this choice.
+rigConsole="$MDLT_ORIGIN"
+if [ ! -d "$rigConsole/myx" ] ; then
+	rigConsole="$( AgentsToolsSourceRoots | LC_ALL=C grep '/myx$' | head -1 )" ; rigConsole="${rigConsole%/myx}"
+fi
 rigAssert "control: a source root named by its console origin is there for the rig to aim at" "$( [ -d "$rigConsole/myx" ] && printf some || printf none )" some
 rigExec "ln -s '$rigConsole/myx' '$rigTmp/guard/x1'"
 rigAssert "a command that links a sandbox into source is refused, rc 1, with the refusal said, and nothing is made" "$rigRc $( LC_ALL=C grep -c 'refusing a link from a sandbox into source' "$rigTmp/exec.err" ) $( [ -L "$rigTmp/guard/x1" ] && printf made || printf none )" "1 1 none"

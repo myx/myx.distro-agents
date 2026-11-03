@@ -24,6 +24,9 @@
 ##   8. THE TWO SCENARIOS print the record and the template's text: being contacted (the access held, the tiers, the next step; a sender nobody
 ##      recorded; a value that names two contacts), and reaching one (its coordinates by channel, how to meet it, the send lines, a line left out
 ##      where the contact has none).
+##   9. THE TIERS OF --contacted-by (epic S6.17): a record with no `tier:` gets the three tiers as they were, a `partner` gets what partner adds
+##      and every tier below it, a `recorded` gets that and the three below it, and neither names a tier the record does not give. What the contact
+##      holds standing says the same tiers.
 ## Offline, rig tree only: a fake curl answers every request, so nothing here reaches Slack or any endpoint.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -243,6 +246,25 @@ rigAssert "a contact with no Slack, no organisation and no how-to: those lines a
 rigTool "$rigTmp/b8" --reach-contact nobody-at-all
 rigTool "$rigTmp/b9" --reach-contact Bad_Id
 rigAssert "a contact not recorded, an id that is none: refused" "$( rigHas 'no contact nobody-at-all is recorded' "$rigTmp/b8.err" ) $( rigHas "lowercase letters, digits and hyphens: Bad_Id" "$rigTmp/b9.err" )" "1 1"
+
+echo "-- 9. the tiers of --contacted-by: the record's tier and every tier below it --"
+## The account at the console that is the human-owner (HUMAN_OWNER_CONSOLE_ACCOUNT): the tier is his to set, so the calls below that set one
+## come from the console he is mapped to, and not from a member's session.
+rigAcct="$( id -un 2> /dev/null )" || rigAcct="unknown"
+rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
+printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "$rigAcct" >> "$rigWs/.local/.agents/magic-team.agent.env"
+rigAs="" ; rigSid=""
+rigTool "$rigTmp/t1" --contacted-by bare@ndm.example
+rigAssert "no tier on the record: the three tiers as they were, and no word of a tier the record does not give" "$( rigHas 'A request is in one of three tiers. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Recorded access, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.' "$rigTmp/t1.out" ) $( rigHas 'This contact is a partner.' "$rigTmp/t1.out" ) $( rigHas 'nothing standing, so Ingest and Basic only' "$rigTmp/t1.out" )" "1 0 1"
+rigTool "$rigTmp/t2" --collect-contact --id bare-one --tier partner --reached-by client-ndm
+rigAssert "the owner sets partner on a contact recorded already" "$rigRc $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/bare-one.md" )" "0 partner"
+rigTool "$rigTmp/t3" --contacted-by bare@ndm.example
+rigAssert "partner: the tier's whole rules, every tier below it named, and what partner never covers" "$( rigHas 'This contact is a partner. Every tier below is open to it, and Partner besides.' "$rigTmp/t3.out" ) $( rigHas '- Ingest, always: read and understand it.' "$rigTmp/t3.out" ) $( rigHas '- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.' "$rigTmp/t3.out" ) $( rigHas '- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.' "$rigTmp/t3.out" ) $( rigHas 'Partner never covers credentials or client-confidential material. A partner changes a project, the board or the team'"'"'s work only through escalation to the human-owner.' "$rigTmp/t3.out" ) $( rigHas 'A request is in one of three tiers.' "$rigTmp/t3.out" ) $( rigHas 'nothing standing, so Ingest, Basic and Partner only' "$rigTmp/t3.out" )" "1 1 1 1 1 0 1"
+rigTool "$rigTmp/t4" --collect-contact --id bare-one --tier recorded --correct --reached-by client-ndm
+rigTool "$rigTmp/t5" --contacted-by bare@ndm.example
+rigAssert "recorded: the highest tier, the three below it, and what recorded adds" "$( rigHas 'This contact has recorded access. Every tier below is open to it, and Recorded besides.' "$rigTmp/t5.out" ) $( rigHas '- Recorded: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.' "$rigTmp/t5.out" ) $( rigHas 'nothing standing, so Ingest, Basic, Partner and Recorded only' "$rigTmp/t5.out" ) $( rigHas 'This contact is a partner.' "$rigTmp/t5.out" )" "1 1 1 0"
+rigTool "$rigTmp/t6" --collect-contact --id bare-one --tier gold --reached-by client-ndm
+rigAssert "a value that is neither: refused, and the tier it has stays" "$rigRc $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/bare-one.md" )" "1 recorded"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CONTACTS ACCESS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

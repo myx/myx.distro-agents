@@ -6,7 +6,8 @@
 ## the per-call hooks write and is merged by time with the live lines; the event-track feed
 ## collects its lines into one open post, sent 7 s after its first line with no further line, and
 ## sent early by no line (an error, a refusal or a session event waits with the rest), against a fake
-## Slack, one send at a time and in order, and keeps on disk only what is not yet posted.
+## Slack, one send at a time and in order, and keeps on disk only what is not yet posted; and a resume of a
+## run that died inside a tool round gives each call the result it never had.
 ## Offline and self-contained: MMDAPP, the team-data store (a temp git repository), HOME and
 ## the sandbox are fixtures; the model rounds come from a fake curl first on PATH; every live
 ## session id, data root and calls log is unset, so nothing reaches the real team data.
@@ -172,30 +173,6 @@ rigAssert "the final milestone committed it" "$( git -C "$rigStore" status --por
 rigAssert "the live feed got the same tool line" "$( rigHas "$rigWs/.local/agents/sessions/$rigSid1/feed" "TOOL Glob pattern=\"*.txt\" path=$rigS1 -> ok" )" 1
 rigAssert "and the round" "$( rigHas "$rigWs/.local/agents/sessions/$rigSid1/feed" 'ROUND n=1 in=100' )" 1
 
-## The merge: a hand-made log and live lines, interleaved by time, the live line first on a tie.
-rigSidM="ffff6666-0000-4000-8000-000000000001"
-rigM="$rigTmp/merge"
-mkdir -p "$rigM"
-AgentsTranscriptStart "$rigSidM" "$rigStore" "audit/2026-10/session-merge.log" magic-tester
-rigTM="$rigStore/audit/2026-10/session-merge.log"
-{
-	printf '%s\n' '{"type":"context","version":1,"session":"'"$rigSidM"'","leg":1,"from":0}'
-	printf '%s\n' '{"type":"system","text":"S"}'
-	printf '%s\n' '{"type":"tools","cksum":"1","bytes":2}'
-	printf '%s\n' '{"type":"message","n":1,"leg":1,"kind":"system","round":0,"ts":"2030-01-01T00:00:00Z","ms":0,"record":{"role":"system","content":"S"}}'
-	printf '%s\n' '{"type":"message","n":2,"leg":1,"kind":"assistant","round":1,"ts":"2030-01-01T00:00:10Z","ms":0,"in":5,"cache_read":0,"cache_write":0,"out":2,"record":{"role":"assistant","content":"Sending.","tool_calls":[{"id":"c1","type":"function","function":{"name":"SendMessage","arguments":"{\"to\":\"C1:2.3\",\"message\":\"hi there\"}"}}]}}'
-	printf '%s\n' '{"type":"message","n":3,"leg":1,"kind":"tool","round":1,"ts":"2030-01-01T00:00:30Z","ms":0,"tool":"SendMessage","id":"c1","dur_ms":1500,"outcome":"ok","record":{"role":"tool","tool_call_id":"c1","content":"Sent to C1"}}'
-	printf '%s\n' '{"type":"message","n":4,"leg":1,"kind":"tool","round":1,"ts":"2030-01-01T00:00:40Z","ms":0,"tool":"Read","id":"c9","dur_ms":5,"outcome":"error","record":{"role":"tool","tool_call_id":"c9","content":"ERROR: no such file\nsecond line"}}'
-} > "$rigM/context.jsonl"
-printf '%s\n' "$rigM/context.jsonl" > "$rigWs/.local/agents/sessions/$rigSidM/context"
-printf '2030-01-01T00:00:20Z REVIEW item=rig-item\n2030-01-01T00:00:30Z VERDICT item=rig-item\n> live body\n' >> "$rigTM"
-AgentsTranscriptMilestone "$rigSidM" "rig merge"
-rigAssert "rendered and live lines merged by time, a tie putting the rendered line first" "$( sed -n '2,$p' "$rigTM" | sed 's/^[0-9-]*T[0-9:]*Z //' | tr '\n' '|' )" \
-	'ROUND n=1 in=5 cache-read=0 cache-write=0 out=2|> Sending.|REVIEW item=rig-item|TOOL SendMessage to=C1:2.3 message="hi there" -> ok 10B/1L 1.5s | "Sending."|MSG-OUT to=C1:2.3|> hi there|VERDICT item=rig-item|> live body|TOOL Read -> error "ERROR: no such file" 31B/2L 5ms | "Sending."|> ERROR: no such file|> second line|'
-printf '2030-01-01T00:00:50Z NOTE by=rig\n' >> "$rigTM"
-AgentsTranscriptMilestone "$rigSidM" "rig again"
-rigAssert "a later milestone with nothing new in the log renders nothing again" "$( LC_ALL=C grep -c ' ROUND ' "$rigTM" ):$( tail -1 "$rigTM" | sed 's/^[0-9-]*T[0-9:]*Z //' )" "1:NOTE by=rig"
-
 echo "-- 3. a resume appends the corrections and keeps the prefix --"
 rigSid2="dddd4444-0000-4000-8000-000000000002"
 rigS2="$rigTmp/s2"
@@ -265,6 +242,68 @@ rigRun "$rigS6" "dddd4444-0000-4000-8000-0000000000b1" MDAT_SKILLSET_ROOT="$rigS
 rigRun "$rigS7" "dddd4444-0000-4000-8000-0000000000b2" MDAT_SKILLSET_ROOT="$rigSk" HARNESS_INPUT_CACHE_TIME=1h MDAT_HARNESS_RESUME_CONTEXT="$rigSandbox/context.jsonl" MDAT_HARNESS_RESUME_MARKER="$rigTmp/resume5.mark" -- --agent rig-a RIG-CORRECTIONS
 rigAssert "the same lifetime asked, the original and the resumed request each carry the floor's two hourly markers and one plain"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS6/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS7/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS6/req.1" "$rigS7/req.1" | wc -l | tr -d ' ' )" 3:3:0
 rigAssert "and the resumed system field is the original's, byte for byte"                    "$( [ "$( rigSysOf "$rigS6/req.1" )" = "$( rigSysOf "$rigS7/req.1" )" ] && echo same || echo differ )" same
+rigSandbox="$rigSandboxWas"
+
+echo "-- 3c. a resume whose kept calls have no result gives each id one --"
+## A run that died inside a tool round keeps its calls in the assistant record, and a provider
+## refuses that history for good, so the resume gives each call the result it never had (S6.16). Two
+## shapes are held: a death before any result -- the assistant record last -- and a death after the
+## first, where a result stands last and the call beside it is the one left hanging. The kept file is
+## a real one, cut from a context this package wrote.
+rigS8="$rigTmp/s8"
+mkdir -p "$rigS8"
+rigTwoCallStream(){ ## file, scenario dir
+	{
+		printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rig8","type":"message","role":"assistant","content":[],"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":5000,"output_tokens":1}}}\n\n'
+		printf 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_RIG_A","name":"Glob","input":{}}}\n\n'
+		printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"pattern\\": \\"a*\\", \\"path\\": \\"%s\\"}"}}\n\n' "$2"
+		printf 'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n'
+		printf 'event: content_block_start\ndata: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_RIG_B","name":"Glob","input":{}}}\n\n'
+		printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"pattern\\": \\"b*\\", \\"path\\": \\"%s\\"}"}}\n\n' "$2"
+		printf 'event: content_block_stop\ndata: {"type":"content_block_stop","index":1}\n\n'
+		printf 'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":40}}\n\n'
+		printf 'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+	} > "$1"
+}
+rigTwoCallStream "$rigS8/res.1" "$rigS8"
+rigTextStream "$rigS8/res.2" RIG-TWO-CALL-ANSWER
+rigSandboxWas="$rigSandbox" ; rigSandbox="$rigTmp/sb8" ; mkdir -p "$rigSandbox"
+rigRun "$rigS8" "dddd4444-0000-4000-8000-0000000000c1" -- RIG-TASK-MARKER
+rigAssert "the run that is to die writes a context, and answers" "$rigRunStatus:$rigRounds:$( ls "$rigSandbox" | LC_ALL=C grep -c -x context.jsonl )" "0:2:1"
+## The cut is the file as the dead run left it: header, system, tools, the task, and the two calls. Taken here, while the
+## sandbox is still that run's: the resume below writes over this same file.
+cp "$rigSandbox/context.jsonl" "$rigTmp/s8.full"
+head -3 "$rigTmp/s8.full" > "$rigTmp/s8.kept"
+sed -n '4,5p' "$rigTmp/s8.full" >> "$rigTmp/s8.kept"
+rigAssert "the kept file ends on the assistant's two calls, with no result for either" \
+	"$( LC_ALL=C awk -v mode=validate "${rigAwk[@]}" "$rigTmp/s8.kept" ):$( LC_ALL=C grep -c -F '"tool_use_id"' "$rigTmp/s8.kept" )" "2:0"
+rigS9="$rigTmp/s9"
+mkdir -p "$rigS9"
+rigTextStream "$rigS9/res.1" RIG-RESUMED-ANSWER
+rigSandbox="$rigTmp/sb9" ; mkdir -p "$rigSandbox"
+rigRun "$rigS9" "dddd4444-0000-4000-8000-0000000000c2" MDAT_HARNESS_RESUME_CONTEXT="$rigTmp/s8.kept" -- RIG-CORRECTIONS
+rigAssert "the resumed run ends normally, in one request" "$rigRunStatus:$rigRounds" 0:1
+rigAssert "each call the dead run never answered gets its own result" \
+	"$( LC_ALL=C grep -o -F '"tool_use_id":"toolu_RIG_' "$rigS9/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F '"tool_use_id":"toolu_RIG_A"' "$rigS9/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F '"tool_use_id":"toolu_RIG_B"' "$rigS9/req.1" | wc -l | tr -d ' ' )" "2:1:1"
+rigAssert "and each says the call did not complete" "$( LC_ALL=C grep -o -F 'the run ended before this call gave a result' "$rigS9/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 2
+rigAssert "the calls go back as they were kept, never rewritten" "$( LC_ALL=C grep -c -F '"type":"tool_use","id":"toolu_RIG_A","name":"Glob"' "$rigS9/req.1" )" 1
+rigAssert "the corrections are the last message, after the results" "$( LC_ALL=C tail -c 300 "$rigS9/req.1" | LC_ALL=C grep -c -F 'RIG-CORRECTIONS' )" 1
+
+## The same death one call later: the run got the first call's result and died before the second's. The
+## last kept record is then a tool result, and a repair reading that record alone answers neither call.
+## The kept file is the same run's context cut after the first result: messages task, calls, result A.
+head -3 "$rigTmp/s8.full" > "$rigTmp/s8a.kept"
+sed -n '4,6p' "$rigTmp/s8.full" >> "$rigTmp/s8a.kept"
+rigAssert "the kept file ends on the first call's result, the second still unanswered" \
+	"$( LC_ALL=C awk -v mode=validate "${rigAwk[@]}" "$rigTmp/s8a.kept" ):$( LC_ALL=C grep -c -F '"tool_use_id":"toolu_RIG_A"' "$rigTmp/s8a.kept" ):$( LC_ALL=C grep -c -F '"tool_use_id":"toolu_RIG_B"' "$rigTmp/s8a.kept" )" "3:1:0"
+rigS10="$rigTmp/s10"
+mkdir -p "$rigS10"
+rigTextStream "$rigS10/res.1" RIG-RESUMED-ANSWER
+rigSandbox="$rigTmp/sb10" ; mkdir -p "$rigSandbox"
+rigRun "$rigS10" "dddd4444-0000-4000-8000-0000000000c3" MDAT_HARNESS_RESUME_CONTEXT="$rigTmp/s8a.kept" -- RIG-CORRECTIONS
+rigAssert "a death after the first result: the resumed run ends normally, in one request" "$rigRunStatus:$rigRounds" 0:1
+rigAssert "the call the dead run never answered gets its result, and the one it did is not answered twice" \
+	"$( LC_ALL=C grep -o -F '"tool_use_id":"toolu_RIG_A"' "$rigS10/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F '"tool_use_id":"toolu_RIG_B"' "$rigS10/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'the run ended before this call gave a result' "$rigS10/req.1" | wc -l | tr -d ' ' )" "1:1:1"
 rigSandbox="$rigSandboxWas"
 
 echo "-- 4. an ineligible resume refuses before any request, and the proxy falls back --"

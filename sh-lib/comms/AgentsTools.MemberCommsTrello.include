@@ -136,7 +136,9 @@ case "$1" in
 				--trello-check) AgentsToolsCommsTrelloCheck "${@:2}" ; return $? ;;
 				--trello-whoami) AgentsToolsCommsTrelloWhoami "${@:2}" ; return $? ;;
 			esac
-			DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}"
+			## The stub reaches its implementation in this file, never through the dispatcher (S6.24):
+			## an include calls the include that holds the code, and DistroAgentsTools is no command here.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include" "--intern-op-comms-${1#--}" "${@:2}"
 			return $?
 		;;
 
@@ -157,7 +159,7 @@ case "$1" in
 				--client-comms-trello-check) AgentsToolsCommsTrelloCheck "${@:2}" ; return $? ;;
 				--client-comms-trello-whoami) AgentsToolsCommsTrelloWhoami "${@:2}" ; return $? ;;
 			esac
-			DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include" "--intern-op-comms-trello-${1#--client-comms-trello-}" "${@:2}"
 			return $?
 		;;
 

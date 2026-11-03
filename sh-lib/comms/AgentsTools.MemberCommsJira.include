@@ -8,10 +8,31 @@ case "$1" in
 		## --intern-op-comms-jira-* implementation below directly. A member's operation reaches
 		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
 		## member too: what such a member holds for this system is the other organisation's.
-		--jira-board-list|--jira-board-read|--jira-board-issue-search|--jira-sprint-list|--jira-sprint-issue-search|--jira-issue-read)
+		--jira-board-list|--jira-board-read|--jira-board-issue-search|--jira-issue-link-list|--jira-issue-read|--jira-sprint-issue-search|--jira-sprint-list)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
-			DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}"
+			## A stub whose implementation is an in-context helper calls it by name, as --trello-check does:
+			## the helper needs no dispatcher, and the dispatcher is no command in every context this file
+			## runs in (S6.24 of the refactoring epic).
+			case "$1" in
+				--jira-issue-link-list)
+					local linkListMember="${2:-}" linkListKey="${3:-}" linkListRc=0
+					if [ -z "$linkListMember" ] || [ -z "$linkListKey" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: syntax is [--team-member <team-member>] <issue-key> -- the issue key is required, since the links read are that issue's own" >&2
+						set +e ; return 1
+					fi
+					case "$#:${4:-}" in
+						3:) ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: not accepted: $linkListMember $linkListKey $*" >&2 ; set +e ; return 1 ;;
+					esac
+					type AgentsToolsAtlassianJiraIssueLinkList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
+					AgentsToolsAtlassianJiraIssueLinkList --member "$linkListMember" --context jira-issue-link-list --issue-key "$linkListKey" || linkListRc=$?
+					return "$linkListRc"
+				;;
+			esac
+			## The stub reaches its implementation in this file, never through the dispatcher (S6.24):
+			## an include calls the include that holds the code, and DistroAgentsTools is no command here.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsJira.include" "--intern-op-comms-${1#--}" "${@:2}"
 			return $?
 		;;
 
@@ -25,8 +46,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --intern-op-atlassian-jira-board-list --member "$actingMember" --context jira-board-list "$@" || opRc=$?
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-board-list --member "$actingMember" --context jira-board-list "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;
@@ -43,8 +63,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-read: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --intern-op-atlassian-jira-board-read --member "$actingMember" --context jira-board-read --board-id "$boardId" || opRc=$?
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-board-read --member "$actingMember" --context jira-board-read --board-id "$boardId" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;
@@ -61,8 +80,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-board-issue-search: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --intern-op-atlassian-jira-board-issue-search --member "$actingMember" --context jira-board-issue-search --board-id "$boardId" "$@" || opRc=$?
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-board-issue-search --member "$actingMember" --context jira-board-issue-search --board-id "$boardId" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;
@@ -79,8 +97,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-list: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --intern-op-atlassian-jira-sprint-list --member "$actingMember" --context jira-sprint-list --board-id "$boardId" "$@" || opRc=$?
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-sprint-list --member "$actingMember" --context jira-sprint-list --board-id "$boardId" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;
@@ -97,8 +114,7 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: not accepted: $actingMember $sprintId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --intern-op-atlassian-jira-sprint-issue-search --member "$actingMember" --context jira-sprint-issue-search --sprint-id "$sprintId" "$@" || opRc=$?
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include" --intern-op-atlassian-jira-sprint-issue-search --member "$actingMember" --context jira-sprint-issue-search --sprint-id "$sprintId" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;
@@ -122,7 +138,7 @@ case "$1" in
 		;;
 
 		--jira-*|--intern-op-comms-jira-*)
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD: unknown --jira-* operation: $1 -- the supported operations are --jira-board-list, --jira-board-read, --jira-board-issue-search, --jira-sprint-list, --jira-sprint-issue-search and --jira-issue-read" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD: unknown --jira-* operation: $1 -- the supported operations are --jira-board-list, --jira-board-read, --jira-board-issue-search, --jira-issue-link-list, --jira-issue-read, --jira-sprint-list and --jira-sprint-issue-search" >&2
 			set +e ; return 1
 		;;
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-## Behavioural check on S23.4, run rather than read: A WORK-DUTY HAS ITS TOOLING THREAD ONLY, and a tag from another run of its member wakes it.
+## Behavioural check on S23.4, run rather than read: A WORK-DUTY NAMES BOTH ITS TOOLING THREAD AND ITS SESSION THREAD, and a tag from another run of its member wakes it.
 ## The schedule starts a duty with `--spawn-session --session-thread:event-track` (AgentsToolsScheduleWork). Held here:
 ##   1. --spawn-session takes --session-thread:<event-track|magic-team> and refuses any other mode, so the schedule's own start is not turned away;
-##   2. a duty told to go has no session thread on its record, so DISMISSED goes to its tooling thread (agent-log-thread), addressed to it;
+##   2. a duty told to go with both threads is told in its session thread, and a record with no session thread falls back to its tooling thread (agent-log-thread), addressed to it;
 ##   3. a record with neither thread is not told to go, and says why.
 ## What a duty's record holds after a real start, and that no header reaches the team channel, is AgentsWorkDutySingleThreadCheck's.
 ## Offline: the fake curl is the Slack send identity check's. The tree is this rig's own.
@@ -31,7 +31,7 @@ printf '# rig armed\n' > "$rigSkills/keeper-myx/keeper-myx.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf '# rig armed\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"
 printf -- '---\nexecutors: keeper-myx\nmaintainers: keeper-myx\nrequires-session-kind: standalone\n---\n# rig work-duty routine fixture\n' > "$rigSkills/keeper-myx/keeper-myx.work-duty.routine.md"
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_CHANNEL_HUMAN_OWNER=CRIG00003\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 : > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 
 rigFails=0 rigPasses=0
@@ -56,7 +56,7 @@ rigAssert "event-track is taken: the start is made, and the option is not called
 rigWaited=0
 while LC_ALL=C grep -l -x -F 'status: spawn-started' "$rigWs/.local/agents/spawned"/*/*.spawn.md > /dev/null 2>&1 && [ "$rigWaited" -lt 60 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigRecord="$( ls "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | head -1 )"
-rigAssert "its record names a tooling thread and no session thread" "$( LC_ALL=C grep -c '^agent-log-thread: ' "$rigRecord" || : ):$( LC_ALL=C grep -c '^session-thread: ' "$rigRecord" || : )" "1:0"
+rigAssert "its record names both its tooling thread and its session thread" "$( LC_ALL=C grep -c '^agent-log-thread: ' "$rigRecord" || : ):$( LC_ALL=C grep -c '^session-thread: ' "$rigRecord" || : )" "1:1"
 
 echo "-- 2. a duty with no session thread is told to go in its tooling thread --"
 rigDutyRecord(){ ## spawn id, extra header line -- a duty's record, and the sandbox it sits in

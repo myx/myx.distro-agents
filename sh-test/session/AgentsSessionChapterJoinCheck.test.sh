@@ -102,11 +102,33 @@ rigAssert "the join writes the chapter as one line: the joining member and its d
 rigAssert "the join adds no thread post for the chapter: the one joined line stands" \
 	"$( LC_ALL=C grep -c -F 'Session chapter' "$rigTmp/bodies" ):$( rigReplies 'magic-tester joined: check the samples' )" "0:1"
 
-echo "-- 3. a join with no description writes nothing --"
+echo "-- 3. a join with neither a description nor a name writes nothing --"
 rigTwo="$( rigOpenSession 'the second rig session' )"
 [ -n "$rigTwo" ] || rigRefuse "the second opening spawn named no session"
 rigSpawn magic-tester --session-id "$rigTwo" > /dev/null
-rigAssert "a join with no description leaves the session with no chapter" "$( rigChapter "$rigTwo" )" ""
+rigAssert "a join with neither a description nor a name leaves the session with no chapter" "$( rigChapter "$rigTwo" )" ""
+
+echo "-- 3b. a join with a name and no description writes the name --"
+rigSix="$( rigOpenSession 'the sixth rig session' )"
+[ -n "$rigSix" ] || rigRefuse "the sixth opening spawn named no session"
+rigSpawn magic-tester --session-id "$rigSix" --session-name-or-comment 'the fallback stage' > /dev/null
+rigAssert "a join with a name and no description writes the member and that name" \
+	"$( rigChapter "$rigSix" )" "magic-tester: the fallback stage"
+
+echo "-- 3c. a description wins where a name is given too --"
+rigSeven="$( rigOpenSession 'the seventh rig session' )"
+[ -n "$rigSeven" ] || rigRefuse "the seventh opening spawn named no session"
+rigSpawn magic-tester --session-id "$rigSeven" --session-name-or-comment 'the name that loses' --description 'the words that win' > /dev/null
+rigAssert "a join given both writes the description, not the name" \
+	"$( rigChapter "$rigSeven" )" "magic-tester: the words that win"
+
+echo "-- 3d. an explicit chapter is kept against the fallback text too --"
+rigEight="$( rigOpenSession 'the eighth rig session' )"
+[ -n "$rigEight" ] || rigRefuse "the eighth opening spawn named no session"
+rigSetChapter "$rigEight" 'the stage the executor chose'
+rigSpawn magic-tester --session-id "$rigEight" --session-name-or-comment 'the fallback stage' > /dev/null
+rigAssert "a chapter set explicitly is kept by a join that carries only a name" \
+	"$( rigChapter "$rigEight" )" "the stage the executor chose"
 
 echo "-- 4. a chapter set explicitly before any join is kept --"
 rigThree="$( rigOpenSession 'the third rig session' )"

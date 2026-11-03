@@ -21,6 +21,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigReader="$rigHere/comms/AgentsSlackSearchMatches.awk"
+rigEngine="$rigHere/harness/AgentsHarnessJsonField.awk"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -69,7 +70,7 @@ rigMatch 1700000900.000100 URIGOTHER 'plain, outside any thread'
 printf '{"ok":true,"messages":{"total":9,"paging":{"count":100,"total":9,"page":1,"pages":1},"matches":[%s]}}\n' "$rigMatches" > "$rigTmp/search.json"
 
 echo "-- the reader alone: a reply's mark ahead of its text, and text never in the mark's place --"
-LC_ALL=C awk -v cutoff=1700000000 -f "$rigReader" < "$rigTmp/search.json" > "$rigTmp/lines" 2> "$rigTmp/lines.err" ; rigRc=$?
+LC_ALL=C awk -v cutoff=1700000000 -f "$rigEngine" -f "$rigReader" < "$rigTmp/search.json" > "$rigTmp/lines" 2> "$rigTmp/lines.err" ; rigRc=$?
 rigLine(){ ## ts -> that match's line
 	LC_ALL=C awk -v wantTs="$1" 'index( $0, wantTs " | " ) == 1 { print ; }' "$rigTmp/lines"
 }
@@ -117,7 +118,7 @@ rigAssert "control: a thread's parent is no reply, and a plain message is printe
 	"$( rigLine 1700000100.000100 ):$( rigReadsAs 1700000100.000100 ):$( rigLine 1700000900.000100 )" \
 	"1700000100.000100 | URIGOWNER | the parent of a thread:outside any thread:1700000900.000100 | URIGOTHER | plain, outside any thread"
 rigAssert "the page's own count of thread replies is the real ones'" \
-	"$( LC_ALL=C awk -v cutoff=1700000000 -v mode=meta -f "$rigReader" < "$rigTmp/search.json" | LC_ALL=C awk -F= '$1 == "PAGE_IN_RANGE_COUNT" || $1 == "PAGE_THREAD_REPLIES" { printf "%s:", $2 ; }' )" "9:3:"
+	"$( LC_ALL=C awk -v cutoff=1700000000 -v mode=meta -f "$rigEngine" -f "$rigReader" < "$rigTmp/search.json" | LC_ALL=C awk -F= '$1 == "PAGE_IN_RANGE_COUNT" || $1 == "PAGE_THREAD_REPLIES" { printf "%s:", $2 ; }' )" "9:3:"
 
 echo "-- the operation: the member is given the reader's lines as they are --"
 mkdir -p "$rigTmp/bin" "$rigTmp/ws/.local/.agents" "$rigTmp/ws/.local/agents" "$rigTmp/data"
@@ -150,7 +151,7 @@ RIG_SEARCH_PAGE="$rigTmp/search.json"
 export RIG_CURL_LOG RIG_SEARCH_PAGE
 : > "$RIG_CURL_LOG"
 ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID \
-	MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" bash "$rigTools" --slack-search-messages "$rigMember" CRIG00001 --comms-since-utime 1700000000 ) \
+	MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" bash "$rigTools" --slack-search-messages --team-member "$rigMember" CRIG00001 --comms-since-utime 1700000000 ) \
 	> "$rigTmp/op.out" 2> "$rigTmp/op.err" < /dev/null ; rigRc=$?
 rigAssert "the search is done and complete, in the conversation asked for" \
 	"$rigRc:$( LC_ALL=C sed -n '1s/ query=.*//p' "$rigTmp/op.out" )" "0:## target=CRIG00001 channel=CRIG00001"

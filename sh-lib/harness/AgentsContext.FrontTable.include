@@ -116,6 +116,8 @@ DistroAgentsAtlassian	--jira-comment-add	coordinator
 DistroAgentsAtlassian	--jira-comment-read	coordinator
 DistroAgentsAtlassian	--jira-issue-create	coordinator
 DistroAgentsAtlassian	--jira-issue-delete	coordinator
+DistroAgentsAtlassian	--jira-issue-link-list	member
+DistroAgentsAtlassian	--jira-issue-link-page	coordinator
 DistroAgentsAtlassian	--jira-issue-read	member
 DistroAgentsAtlassian	--jira-issue-search	coordinator
 DistroAgentsAtlassian	--jira-issue-transition	coordinator

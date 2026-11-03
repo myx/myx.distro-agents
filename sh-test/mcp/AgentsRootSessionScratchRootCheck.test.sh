@@ -233,6 +233,10 @@ rustRecord="$rustWs/.local/agents/spawned/$rustId/$rustId.spawn.md"
 rigAssert "a spawn record of that session is under .local/agents/spawned" "$( rigFileYes "$rustRecord" )" yes
 rigAssert "it is marked a root harness session, and started"      \
 	"$( [ -s "$rustRecord" ] && LC_ALL=C grep -c -x -e 'start-context: root-harness' -e 'status: spawn-started' "$rustRecord" | LC_ALL=C tr -d ' ' || : )" 2
+## The mark that tells this record from a console run's: a console run's record names the run it started,
+## a root-harness record names no console run at all. Read here so a later change to either is seen.
+rigAssert "and it names no console run, which is what marks it a root harness record" \
+	"$( [ -s "$rustRecord" ] && LC_ALL=C grep -c -x -e 'cli: claude-native' -e 'cli: claude' -e 'cli-setting:.*' "$rustRecord" | LC_ALL=C tr -d ' ' || : )" 0
 rigAssert "and its run-process is the server's own pid"           \
 	"$( [ -n "$rigServerPid" ] && [ -s "$rustRecord" ] && LC_ALL=C sed -n "s/^run-process: \\($rigServerPid\\) .*/\\1/p" "$rustRecord" || : )" "$rigServerPid"
 rigServerLiveEnd "$rigTmp/w1.wire" 2

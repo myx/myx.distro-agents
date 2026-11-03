@@ -189,7 +189,8 @@ AgentsToolsSlackReadPagedConversation(){
 		if [ -n "$pagedUntil" ] ; then
 			pagedPageOldest=""
 			pagedPageOldest="$( printf '%s\n' "$pagedBody" \
-				| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" 2>/dev/null \
+				| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" 2>/dev/null \
 				| LC_ALL=C awk 'NR == 1 { sub(/ .*/, "") ; print ; exit ; }' )" || pagedPageOldest=""
 			## An unreadable page ts is not treated as "covered": paging continues
 			## and the page cap stays the backstop. Guessing "covered" here would
@@ -216,6 +217,52 @@ AgentsToolsSlackReadPagedConversation(){
 AgentsToolsSlackTsNewerThan(){
 	LC_ALL=C awk -v candidate="$1" -v floorTs="$2" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolsSlackTsNewerThan.awk"
 }
+## A READ OF OURS NEVER OUTLIVES ITS READER, AND NEVER RUNS UNBOUNDED (S12). A read starts
+## its process in the background, watches it, and ends it on either event: this shell's own
+## caller has gone (our parent changed, so the run that asked is dead), or the wall-clock
+## bound passed. Both were live defects: a --slack-read ran 32 minutes at 97% CPU on a long
+## thread after its parent had gone, and nothing was left to stop it.
+##   rc 0: the read finished inside its bound. Its bytes are in the output file, its own
+##         stderr in the error file, both named by the caller.
+##   rc 1: it was ended, and why, in one line on THIS shell's stderr. Never a quiet empty
+##         result. The error file is the caller's to remove.
+## THE ERROR FILE IS A FILE OF ITS OWN, and the read's stderr goes into it, never into this
+## shell's. A caller whose own stderr is that same file would otherwise have the file copied
+## onto itself, which grows without end: measured once at about 0.7 GB a minute, from five
+## probes, and it filled 73 GB. So the caller makes both files with mktemp and this function
+## only ever writes to them.
+AgentsToolsSlackReadBounded(){ ## output file, error file, then the command and its arguments
+	local boundOut="$1" boundErr="$2" boundPid boundStart="$SECONDS" boundCaller boundNow boundRc=0
+	shift 2
+	## $PPID is this shell's parent as bash recorded it at start, and a subshell inherits
+	## it, so the read would never see it change. ps reads the real parent now.
+	boundCaller="$( ps -o ppid= -p $$ 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	## Already 1 means the read was started by a shell that has gone before it began: its
+	## answer has nobody to reach, and it is the exact incident this guard exists for.
+	if [ "${boundCaller:-1}" = "1" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: a Slack read was not started because the process that asked for it has gone, so its answer would have nobody to reach. Nothing was read." >&2
+		return 1
+	fi
+	"$@" > "$boundOut" 2> "$boundErr" &
+	boundPid=$!
+	while kill -0 "$boundPid" 2> /dev/null ; do
+		boundNow="$( ps -o ppid= -p $$ 2> /dev/null | LC_ALL=C tr -d ' ' )"
+		if [ "$boundNow" != "$boundCaller" ] ; then
+			{ kill -TERM "$boundPid" 2> /dev/null ; sleep 1 ; kill -KILL "$boundPid" 2> /dev/null ; wait "$boundPid" 2> /dev/null ; } 2> /dev/null
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: a Slack read was ended because the process that asked for it has gone, so its answer had nobody to reach. Nothing was read." >&2
+			return 1
+		fi
+		if [ $(( SECONDS - boundStart )) -ge "${MDAT_SLACK_READ_BOUND_SECONDS:-120}" ] ; then
+			{ kill -TERM "$boundPid" 2> /dev/null ; sleep 1 ; kill -KILL "$boundPid" 2> /dev/null ; wait "$boundPid" 2> /dev/null ; } 2> /dev/null
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: a Slack read was ended at its bound of ${MDAT_SLACK_READ_BOUND_SECONDS:-120} s without finishing. Nothing is known from this call: the read did not complete." >&2
+			return 1
+		fi
+		sleep 1
+	done
+	wait "$boundPid" || boundRc=$?
+	[ "$boundRc" = 0 ] || return "$boundRc"
+	return 0
+}
 ## Renders the pages AgentsToolsSlackReadPagedConversation read, passed as the
 ## arguments in arrival order, in the human-readable form.
 ##
@@ -241,7 +288,8 @@ AgentsToolsSlackFormatPagedConversation(){ ## member, the pages read, in arrival
 	formatIndex=$#
 	type AgentsToolsVoicePass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.VoiceTranscript.include"
 	while [ "$formatIndex" -ge 1 ] ; do
-		formatPage="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" \
+		formatPage="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" \
 			<<< "${!formatIndex}" )" || formatRc=$?
 		if [ "$formatRc" != "0" ] ; then
 			return "$formatRc"
@@ -1399,7 +1447,8 @@ case "$1" in
 					failMsg="counterparty control: conversations.info could not inspect conversation $resolveTarget under $sendIdentity identity -- the control reached no verdict, which is not a pass: $infoResp"
 					break
 				fi
-				actualCounterparty="$( printf '%s\n' "$infoResp" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" )"
+				actualCounterparty="$( printf '%s\n' "$infoResp" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" )"
 				if [ "$actualCounterparty" = "$expectCounterparty" ] ; then
 					echo "COUNTERPARTY_MATCH=$actualCounterparty" >&2
 				else
@@ -1606,7 +1655,8 @@ case "$1" in
 			## A source is an operation, or an in-context helper (AgentsTools*) that answers the same flag.
 			case "$srcOp" in
 				AgentsTools*) srcScopes="$( "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;
-				*) srcScopes="$( DistroAgentsTools "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;
+				*) type AgentsToolsFrontRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+				   srcScopes="$( AgentsToolsFrontRoute "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;
 			esac
 			if [ -z "$srcScopes" ] ; then
 				echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2

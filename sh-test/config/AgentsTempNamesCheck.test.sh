@@ -458,7 +458,6 @@ rigScratchList(){
 		'sh-lib/magic/AgentsTools.MagicEpic.include|epicBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|mcpScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
 		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|mcpScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
-		'sh-lib/mcp/AgentsTools.RootSession.include|rootBase="$MDAT_SPAWN_SANDBOX_ROOT/output"' \
 		'sh-test/AgentsRunTests.sh|runRoot="$MDAT_SPAWN_SANDBOX_ROOT/output/mdat-tests"'
 }
 rigScratchSaid=""

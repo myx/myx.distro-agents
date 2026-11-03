@@ -80,6 +80,26 @@ rigNow(){ date +%s ; }
 rigFieldN(){ ## the string, the field number, of a measurement line separated by |
 	printf '%s' "$1" | LC_ALL=C cut -d'|' -f"$2"
 }
+## The seconds of the tick the waited line names, taken from the line itself: the code's own
+## default is the subject here, so no check of this file holds a tick of its own.
+rigTickSeconds(){ ## waited output file
+	local tickText=""
+	tickText="$( LC_ALL=C sed -n 's/.*poll round(s) at \([0-9][0-9]*\)s tick for local sources.*/\1/p' "$1" 2> /dev/null | LC_ALL=C head -1 )"
+	case "$tickText" in ''|*[!0-9]*) printf 'no-tick-named' ; return 0 ;; esac
+	printf '%s' "$tickText"
+}
+## How many rounds a wait of N seconds must show at that tick: one a tick, one short for the round
+## already under way when it started.
+rigRoundsAtLeast(){ ## elapsed seconds, tick seconds
+	case "$1:$2" in *[!0-9:]*|:|*:) printf 'no-number' ; return 0 ;; esac
+	[ "$2" -gt 0 ] || { printf 'no-tick' ; return 0 ; }
+	printf '%s' "$(( $1 / $2 - 1 ))"
+}
+## A wake no later than one tick after the arrival, plus a second for the round that was under way.
+rigDeadline(){ ## tick seconds
+	case "$1" in ''|*[!0-9]*) printf 'no-tick' ; return 0 ;; esac
+	printf '%s' "$(( $1 + 1 ))"
+}
 
 ## The scenario's thread, its first message, the floor the wait reads from, and the message that lands later.
 rigChannel="CRIG00001"
@@ -169,21 +189,23 @@ rigStart inbox
 rigDropEarly(){ printf -- '---\ntype: inquiry\nfrom: %s\n---\n\nRIG-INBOX-EARLY\n' "$rigSender" > "$rigScenarioDir/data/inboxes/$rigMember/incoming/inquiry-rig-early.md" ; }
 rigDropLate(){ printf -- '---\ntype: inquiry\nfrom: %s\n---\n\nRIG-INBOX-LATE\n' "$rigSender" > "$rigScenarioDir/data/inboxes/$rigMember/incoming/inquiry-rig-late.md" ; }
 rigEarly="$( rigMeasure inbox-early 30 8 rigDropEarly --wait-source "inbox:$rigMember" )"
-printf '  measured: an inbox item dropped 8s into the wait, woken on in %ss (%s poll rounds)\n' "$( rigFieldN "$rigEarly" 1 )" "$( rigFieldN "$rigEarly" 2 )"
-rigAssert "an inbox item dropped 8s in is woken on within 2s"    "$( rigAtMost "$( rigFieldN "$rigEarly" 1 )" 2 )" "at-most-2"
+rigTick="$( rigTickSeconds "$rigScenarioDir/inbox-early.out" )"
+printf '  measured: an inbox item dropped 8s into the wait, woken on in %ss (%s poll rounds), the waited line naming a %s tick\n' "$( rigFieldN "$rigEarly" 1 )" "$( rigFieldN "$rigEarly" 2 )" "$rigTick"
+rigAssert "the waited line names a tick, so the cadence below is read from the code and not from this check" "$( [ "$rigTick" = no-tick-named ] && printf unnamed || printf named )" "named"
+rigAssert "an inbox item dropped 8s in is woken on within one tick"  "$( rigAtMost "$( rigFieldN "$rigEarly" 1 )" "$( rigDeadline "$rigTick" )" )" "at-most-$( rigDeadline "$rigTick" )"
 rigAssert "and the call it wakes on is the arrival"              "$( rigFieldN "$rigEarly" 4 )" "WAIT-RESULT: RECEIVED"
-rigAssert "the waited line names the tick that woke it"          "$( rigHolds "$rigScenarioDir/inbox-early.out" 'poll round(s) at 1s tick for local sources' )" "yes"
+rigAssert "the waited line names the tick that woke it"          "$( rigHolds "$rigScenarioDir/inbox-early.out" "poll round(s) at ${rigTick}s tick for local sources" )" "yes"
 rigLate="$( rigMeasure inbox-late 60 40 rigDropLate --wait-source "inbox:$rigMember" )"
 printf '  measured: an inbox item dropped 40s into the wait, woken on in %ss (%s poll rounds)\n' "$( rigFieldN "$rigLate" 1 )" "$( rigFieldN "$rigLate" 2 )"
-rigAssert "an inbox item dropped 40s in is woken on within 2s"   "$( rigAtMost "$( rigFieldN "$rigLate" 1 )" 2 )" "at-most-2"
-rigAssert "and a tick per second of waiting, not one poll per minute" "$( rigAtLeast "$( rigFieldN "$rigLate" 2 )" 35 )" "at-least-35"
+rigAssert "an inbox item dropped 40s in is woken on within one tick"   "$( rigAtMost "$( rigFieldN "$rigLate" 1 )" "$( rigDeadline "$rigTick" )" )" "at-most-$( rigDeadline "$rigTick" )"
+rigAssert "and the wait ticks right through it, at the tick the code names, not a poll a minute" "$( rigAtLeast "$( rigFieldN "$rigLate" 2 )" "$( rigRoundsAtLeast 40 "$rigTick" )" )" "at-least-$( rigRoundsAtLeast 40 "$rigTick" )"
 
 echo "-- and on an item arriving in a board state it watches --"
 rigStart board
 rigBoardDrops(){ printf 'RIG-BOARD-ARRIVAL\n' > "$rigScenarioDir/data/board/backlog/task-rig-arrival.md" ; }
 rigBoard="$( rigMeasure board-late 30 8 rigBoardDrops --wait-source "board:backlog" )"
 printf '  measured: a board item dropped 8s into the wait, woken on in %ss\n' "$( rigFieldN "$rigBoard" 1 )"
-rigAssert "a board item dropped 8s in is woken on within 2s"     "$( rigAtMost "$( rigFieldN "$rigBoard" 1 )" 2 )" "at-most-2"
+rigAssert "a board item dropped 8s in is woken on within one tick"     "$( rigAtMost "$( rigFieldN "$rigBoard" 1 )" "$( rigDeadline "$rigTick" )" )" "at-most-$( rigDeadline "$rigTick" )"
 rigAssert "and the call it wakes on is the arrival"              "$( rigFieldN "$rigBoard" 4 )" "WAIT-RESULT: RECEIVED"
 
 echo "-- a message a member sends wakes the wait on the send, not on a Slack poll --"
@@ -227,9 +249,11 @@ rigTouched="$( rigMeasure costly-touched 12 2 rigTouchMany "${rigCostlySources[@
 printf '  measured: 12 quiet seconds = %s poll rounds, %s Slack reads; the same with 8 marker touches = %s rounds, %s reads\n' \
 	"$( rigFieldN "$rigQuiet" 2 )" "$( rigFieldN "$rigQuiet" 3 )" "$( rigFieldN "$rigTouched" 2 )" "$( rigFieldN "$rigTouched" 3 )"
 rigAssert "a quiet 12s wait reads Slack no more often than the old gap" "$( rigAtMost "$( rigFieldN "$rigQuiet" 3 )" 4 )" "at-most-4"
-rigAssert "and it ticks many times more often than it reads Slack" "$( rigAtLeast "$( rigFieldN "$rigQuiet" 2 )" 8 )" "at-least-8"
-rigAssert "eight marker touches bring the costly look forward, ahead of the gap" \
-	"$( rigAtLeast "$( rigFieldN "$rigTouched" 3 )" $(( $( rigFieldN "$rigQuiet" 3 ) + 4 )) )" "at-least-$(( $( rigFieldN "$rigQuiet" 3 ) + 4 ))"
+rigAssert "and it ticks many times more often than it reads Slack" "$( rigAtLeast "$( rigFieldN "$rigQuiet" 2 )" "$( rigRoundsAtLeast 12 "$rigTick" )" )" "at-least-$( rigRoundsAtLeast 12 "$rigTick" )"
+## One look per round a marker came in, ahead of the gap: the extra rounds the touches made carry the
+## extra looks, so a marker that woke nothing shows as no extra look at all.
+rigAssert "a marker in a round brings the costly look forward, ahead of the gap" \
+	"$( rigAtLeast "$(( $( rigFieldN "$rigTouched" 3 ) - $( rigFieldN "$rigQuiet" 3 ) ))" "$(( $( rigFieldN "$rigTouched" 2 ) - $( rigFieldN "$rigQuiet" 2 ) ))" )" "at-least-$(( $( rigFieldN "$rigTouched" 2 ) - $( rigFieldN "$rigQuiet" 2 ) ))"
 rigAssert "and no more than once each: the marker is no permission to spin" \
 	"$( rigAtMost "$( rigFieldN "$rigTouched" 3 )" $(( $( rigFieldN "$rigQuiet" 3 ) + 8 )) )" "at-most-$(( $( rigFieldN "$rigQuiet" 3 ) + 8 ))"
 

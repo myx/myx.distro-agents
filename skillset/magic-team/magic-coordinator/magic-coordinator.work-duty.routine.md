@@ -29,6 +29,7 @@ The Opening steps of its session kind run first. Then:
    - the board round.
    - the run asks.
    - the held work.
+   - wait for more: run `--idle-wait`.
 
    Every round starts from that list.
 
@@ -86,7 +87,7 @@ The Opening steps of its session kind run first. Then:
    - small: work it at once here, as an inline routine (`--routine-run-inline`).
    - larger: prepare its brief, record it and spawn a sub-task (the Agent tool). The sub-task reuses this session's cached prefix, so its first round is cheap.
 11. **post-the-round**: post one line into the session thread (`--post-session-channel`): what this round started, moved or flagged, or that it found nothing. Post the round's record to `event-track` (`--slack-send-message`): the outcomes per item and their counts, the items left untouched, and what was started. It never repeats `check-process-board`'s **board-report**.
-12. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. On an arrival, go to **work-the-input**. It returns nothing until one comes; a `DISMISSED` ends the duty.
+12. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. Your list's `wait for more` item is this call: making it does that item. An arrival is any message addressed to you: new work, an ask or news. Go to **work-the-input** on one, and a `DISMISSED` ends the duty.
 
 # Closure steps
 

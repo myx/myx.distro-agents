@@ -14,8 +14,14 @@
 ##      own usage reported, and a round that produced tokens writes a number above zero.
 ##   5. The same round and the same call, written by both writers, carry the same key form: ROUND's
 ##      keys in one order, and TOOL's outcome, size and line count in one order.
-## Red before S12.5: cases 1 and 2 fail, and case 3 fails for the native writer. Cases 0, 4 and 5 are
-## the controls that keep a fix from paying for itself out of them.
+##   6. The log is append order and each line lands once. A review recorded while a round is open
+##      stands before the TOOL line of the handback it answers, and a sync with nothing new beside a
+##      second milestone adds no line a second time. This is a guard, not a red case: the pristine
+##      tree passes it too, because the merge that could reorder or repeat a line no longer runs.
+##      What proves the guard is its own instrument test -- a sample file with the two lines in the
+##      wrong order, and one holding a line twice, each read the way the case reads the audit file.
+## Red before S12.5: cases 1 and 2 fail, and case 3 fails for the native writer. Cases 0, 4, 5 and 6
+## are the controls that keep a fix from paying for itself out of them.
 ## Offline: the store, the workspace and the session are this rig's own; nothing opens a socket.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -142,6 +148,61 @@ rigToolShape(){ ## file -- the outcome, size and line count of its first TOOL li
 }
 rigAssert "5. the two TOOL lines hold the same outcome, size and line count" \
 	"$( rigToolShape "$rigT" )" "$( rigToolShape "$rigNativeT" )"
+
+echo "-- 6. append order holds, and no line is written twice (S12.5) --"
+## The review is recorded while the round is open, as the handback's own handling records it, and the
+## call's tool record is synced after it. The audit file must then hold REVIEW before TOOL, each of
+## them once, and a second sync and a second milestone must add nothing.
+rigOrderSid="eeee5555-0000-4000-8000-000000000005"
+AgentsTranscriptStart "$rigOrderSid" "$rigStore" "audit/2026-11/session-order.log" rig-member
+rigOrderT="$rigStore/audit/2026-11/session-order.log"
+export MDAT_SPAWN_SESSION_ID="$rigOrderSid"
+AgentsHarnessContextInit
+harnessMessages=( '{"role":"system","content":"RIG-ORDER-SYSTEM"}' '{"role":"user","content":"RIG-ORDER-TASK"}' )
+AgentsHarnessContextBegin 0
+AgentsTranscriptHarnessStart
+printf '10 0 0 3\n' > "$rigScratch/stream.usage.detail"
+printf 'RIG-ORDER-TEXT\n' > "$rigScratch/stream.content"
+harnessMessages+=( '{"role":"assistant","content":"RIG-ORDER-TEXT"}' )
+AgentsHarnessContextSync assistant "$( AgentsHarnessContextAssistantMeta )"
+AgentsTranscriptEvent "$rigOrderSid" REVIEW "" 0 item note-rig-order.md kind review by rig-member text "the handback's own review"
+AgentsTranscriptToolStart 'SubagentHandback'
+harnessMessages+=( '{"role":"tool","tool_call_id":"rig-order-call","content":"rig handed back"}' )
+AgentsHarnessContextSync tool "$( AgentsHarnessContextToolMeta 'SubagentHandback' 'rig-order-call' 'rig handed back' '' )"
+AgentsHarnessContextSync tool "$( AgentsHarnessContextToolMeta 'SubagentHandback' 'rig-order-call' 'rig handed back' '' )"
+AgentsTranscriptMilestone "$rigOrderSid" "rig order, nothing new"
+rigOrderOf(){ ## file, kind word -- the line number of that kind's first line, 0 for none
+	LC_ALL=C awk -v kind="$2" 'index( $0, " " kind " " ) > 0 { print NR ; found = 1 ; exit } END { if ( ! found ) print 0 }' "$1" 2> /dev/null || printf '0'
+}
+rigKindCount(){ ## file, kind word -- how many lines hold it
+	LC_ALL=C awk -v kind="$2" 'index( $0, " " kind " " ) > 0 { n++ } END { print n + 0 }' "$1" 2> /dev/null || printf '0'
+}
+rigOrderVerdict(){ ## file -- first-tool-after-review | first-review-after-tool | review-missing | tool-missing
+	local vReview vTool
+	vReview="$( rigOrderOf "$1" REVIEW )" ; vTool="$( rigOrderOf "$1" TOOL )"
+	[ "$vReview" != 0 ] || { printf 'review-missing' ; return 0 ; }
+	[ "$vTool" != 0 ] || { printf 'tool-missing' ; return 0 ; }
+	[ "$vReview" -lt "$vTool" ] && printf 'first-tool-after-review' || printf 'first-review-after-tool'
+}
+rigOnceVerdict(){ ## file, kind word -- once | twice
+	if [ "$( rigKindCount "$1" "$2" )" = 1 ] ; then printf once ; else printf twice ; fi
+}
+## The instrument's own positive and negative: samples read the way the case reads the file.
+rigOrderSample="$rigTmp/order-sample.log"
+printf '2026-11-03T00:00:00Z START session=x\n2026-11-03T00:00:01Z REVIEW item=i kind=review\n2026-11-03T00:00:02Z TOOL SubagentHandback -> ok\n' > "$rigOrderSample"
+rigAssert "6. self-test: a sample with REVIEW before TOOL reads that way" "$( rigOrderVerdict "$rigOrderSample" )" first-tool-after-review
+printf '2026-11-03T00:00:00Z START session=x\n2026-11-03T00:00:01Z TOOL SubagentHandback -> ok\n2026-11-03T00:00:02Z REVIEW item=i kind=review\n' > "$rigOrderSample"
+rigAssert "6. self-test: and a sample with the two the other way reads that way" "$( rigOrderVerdict "$rigOrderSample" )" first-review-after-tool
+printf '2026-11-03T00:00:00Z START session=x\n2026-11-03T00:00:01Z TOOL Grep -> ok\n2026-11-03T00:00:02Z TOOL Grep -> ok\n' > "$rigOrderSample"
+rigAssert "6. self-test: and a sample holding a line twice reads twice" "$( rigOnceVerdict "$rigOrderSample" TOOL )" twice
+rigAssert "6. self-test: and a sample holding it once reads once" "$( rigOnceVerdict "$rigOrderSample" START )" once
+rigAssert "6. the audit file holds a REVIEW line and a TOOL line at all" \
+	"$([ "$( rigKindCount "$rigOrderT" REVIEW )" -ge 1 ] && [ "$( rigKindCount "$rigOrderT" TOOL )" -ge 1 ] && printf both || printf missing )" both
+rigAssert "6. the REVIEW line stands before the handback's TOOL line" "$( rigOrderVerdict "$rigOrderT" )" first-tool-after-review
+rigAssert "6. the REVIEW line is written once" "$( rigOnceVerdict "$rigOrderT" REVIEW )" once
+rigAssert "6. the TOOL line is written once" "$( rigOnceVerdict "$rigOrderT" TOOL )" once
+rigAssert "6. the ROUND line is written once" "$( rigOnceVerdict "$rigOrderT" ROUND )" once
+rigAssert "6. the START line is written once" "$( rigOnceVerdict "$rigOrderT" START )" once
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf '⛔ AUDIT_LOG_ONE_FORMAT CHECK FAILED: %s of %s assertion(s)\n' "$rigFailCount" "$(( rigPassCount + rigFailCount ))" >&2

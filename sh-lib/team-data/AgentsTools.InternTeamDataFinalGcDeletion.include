@@ -625,26 +625,12 @@ case "$1" in
 		echo "$gcSummary"
 		AgentsToolsHousekeepingReport "$callingMember" "${gcSandboxLog%$'\n'}"
 
-		local gitOut="" gitRc=0
-		## Staged first, so an item the index held but HEAD never did leaves no
-		## phantom entry behind; committed second, over the narrower HEAD set,
-		## because that is the only set a commit's own pathspec can match.
-		if [ -n "$gcRepoRoot" ] && [ "${#gcAddPaths[@]}" -gt 0 ] ; then
-			gitOut="$( git -C "$gcRepoRoot" add -- "${gcAddPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: git add failed for deleted paths: $gitOut" >&2
-				set +e ; return 1
-			fi
-		fi
-		if [ -n "$gcRepoRoot" ] && [ "${#gcCommitPaths[@]}" -gt 0 ] ; then
-			gitOut="$( git -C "$gcRepoRoot" commit -m "- team-data-final-gc-deletion" -- "${gcCommitPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: git commit failed for deleted paths: $gitOut" >&2
-				set +e ; return 1
-			fi
-			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
-			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataPushIfAhead "team-data-final-gc-deletion"
+		## The deletions are committed by the team-data thread (AgentsToolsTeamDataCommitPaths): the paths the index held and the paths HEAD
+		## held, the thread staging first, so an item the index held but HEAD never did leaves no phantom entry behind, and committing
+		## the paths that changed.
+		if [ -n "$gcRepoRoot" ] && [ "$(( ${#gcAddPaths[@]} + ${#gcCommitPaths[@]} ))" -gt 0 ] ; then
+			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataCommitPaths "- team-data-final-gc-deletion" ${gcAddPaths[@]+"${gcAddPaths[@]}"} ${gcCommitPaths[@]+"${gcCommitPaths[@]}"}
 		fi
 
 		## 2 means this pass deleted nothing, and a diversion is not a deletion:

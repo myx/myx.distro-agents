@@ -73,11 +73,13 @@ case "$1" in
 		--email-check|--email-read|--email-mark-seen|--email-send)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
-			## A stub whose implementation is an in-context helper calls it by name.
+			## A stub whose implementation is an in-context helper calls it by name, as --trello-check does.
 			case "$1" in
 				--email-mark-seen) AgentsToolsCommsEmailMarkSeen "${@:2}" ; return $? ;;
 			esac
-			DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}"
+			## The stub reaches its implementation in this file, never through the dispatcher (S6.24):
+			## an include calls the include that holds the code, and DistroAgentsTools is no command here.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include" "--intern-op-comms-${1#--}" "${@:2}"
 			return $?
 		;;
 
@@ -97,7 +99,7 @@ case "$1" in
 			case "$1" in
 				--client-comms-email-mark-seen) AgentsToolsCommsEmailMarkSeen "${@:2}" ; return $? ;;
 			esac
-			DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include" "--intern-op-comms-email-${1#--client-comms-email-}" "${@:2}"
 			return $?
 		;;
 

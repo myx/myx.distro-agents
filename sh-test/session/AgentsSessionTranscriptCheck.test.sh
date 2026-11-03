@@ -63,7 +63,7 @@ rigCommits(){ git -C "$rigStore" rev-list --count HEAD ; }
 echo "-- the one formatter --"
 rigLine="$( printf '%s' '{"file_path":"/a/b c.txt","offset":10,"limit":5,"content":"SECRET-BODY"}' \
 	| STL_TS=T0 STL_TOOL=mcp__myx_distro__Read STL_OUTCOME=ok STL_BYTES=120 STL_LINES=4 STL_DUR_MS=35 STL_COMMENT='reading "it"' LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
-rigAssert "a Read line carries path, offset, limit, size, duration and the comment" "$rigLine" 'T0 TOOL mcp__myx_distro__Read path="/a/b c.txt" offset=10 limit=5 -> ok 120B/4L 35ms | "reading \"it\""'
+rigAssert "a Read line carries path, offset, limit, size, duration and the comment" "$rigLine" 'T0 TOOL Read path="/a/b c.txt" offset=10 limit=5 -> ok 120B/4L 35ms | "reading \"it\""'
 rigLine="$( printf '%s' '{"pattern":"a|b","path":"/p","glob":"*.sh","output_mode":"content"}' | STL_TS=T0 STL_TOOL=Grep STL_OUTCOME=ok LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
 rigAssert "a Grep line carries pattern, path, glob and mode" "$rigLine" 'T0 TOOL Grep pattern="a|b" path=/p glob="*.sh" mode=content -> ok'
 rigLine="$( printf '%s' '{"command":"ls -la\nrm -rf x","description":"List it"}' | STL_TS=T0 STL_TOOL=execute STL_OUTCOME=error STL_FIRST='ERROR: boom' STL_DUR_MS=2500 STL_COMMENT='model text' LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
@@ -306,7 +306,7 @@ rigStreamAwk(){
 rigOut="$( MDAT_SPAWN_SESSION_ID="$rigStreamSid" rigStreamAwk 2>/dev/null )"
 rigAssert "the progress formatter still prints the result" "$rigOut" "All done."
 rigAssert "the model" "$( rigHas "$rigStreamT" 'MODEL model=claude-opus-5-5 service=claude-native' )" 1
-rigAssert "a native tool line with its arguments, size and the text before it" "$( rigHas "$rigStreamT" 'TOOL mcp__myx_distro__Grep pattern=x path=/p -> ok 3B/2L <1s | "Let me look."' )" 1
+rigAssert "a native tool line with its arguments, size and the text before it" "$( rigHas "$rigStreamT" 'TOOL Grep pattern=x path=/p -> ok 3B/2L <1s | "Let me look."' )" 1
 rigAssert "a hook refusal is refused, kept in full" "$( rigHas "$rigStreamT" 'TOOL Bash cmd=ls -> refused "PreToolUse:Bash hook error: blocked"' )$( rigHas "$rigStreamT" '> PreToolUse:Bash hook error: blocked' )" 11
 rigAssert "a call's own description is its comment" "$( LC_ALL=C grep ' TOOL Bash cmd=ls ' "$rigStreamT" | LC_ALL=C grep -c ' | "List"$' )" 1
 rigAssert "a later turn's call with no text before it carries no earlier turn's text" "$( LC_ALL=C grep ' TOOL Read path=/q ' "$rigStreamT" | LC_ALL=C grep -c ' | "' )" 0
@@ -333,7 +333,7 @@ rigIntentT="$rigStore/audit/2026-10/session-intent.log"
 	printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"ok","session_id":"cli-5","total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":2}}'
 } > "$rigTmp/stream-intent.jsonl"
 ( MDAT_SPAWN_SESSION_ID="$rigIntentSid" LC_ALL=C awk -f "$rigHere/session/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/harness/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream-intent.jsonl" > /dev/null 2>&1 ) || :
-rigAssert "a native spawn's served call: its description, not the text before it" "$( rigHas "$rigIntentT" 'TOOL mcp__myx_distro__Glob pattern="*.md" -> ok' )$( LC_ALL=C grep ' TOOL mcp__myx_distro__Glob ' "$rigIntentT" | LC_ALL=C grep -c ' | "Find the notes"$' )" 11
+rigAssert "a native spawn's served call: its description, not the text before it" "$( rigHas "$rigIntentT" 'TOOL Glob pattern="*.md" -> ok' )$( LC_ALL=C grep ' TOOL Glob ' "$rigIntentT" | LC_ALL=C grep -c ' | "Find the notes"$' )" 11
 rigLoopSid2="ffff6666-0000-4000-8000-000000000006"
 rigLoop2="$rigTmp/loop2"
 mkdir -p "$rigLoop2"

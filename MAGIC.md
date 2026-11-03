@@ -519,7 +519,9 @@ User grammar is in [docs/commands.md](docs/commands.md); per-domain manuals are 
 - **A domain declares; `--intern-op-owner-setup` carries out.** Option handling lives in that one
   primitive, so a shared option is applied once. An option is accepted only by a domain that declares
   it; a flag accepted and then ignored is the failure this prevents. The engine's mode words
-  (`--render-full`, `--render-missing`) are internal.
+  (`--render-full`, `--render-missing`) are internal, with one exception: `reflection` takes
+  `--render-missing` as its own sub-operation, because that read is its step 2 and a reader needs it
+  before the domain will write anything. Every other domain still refuses it.
 - **A setting is judged by its value at its use site.** Unset or empty is FAIL. A config file existing is
   never the check. An installation artefact (console script, access fragment) is judged by presence.
   The fragment, a fallback, only warns when missing or stale; it fails only where grants.index cannot
@@ -1853,7 +1855,15 @@ contracts are here.
   changed set mid-leg is a 400 at replay. `stream_options.include_usage` is sent; spend is recorded, not
   enforced.
 - **`AgentsAnthropicMessagesWire.sh` replays the assistant turn byte for byte**, thinking block and
-  signature included, in stream order (GAP-2 in the Anthropic stub's record).
+  signature included, in stream order (GAP-2 in the Anthropic stub's record). The one exception is a
+  `tool_use` name the provider broke with its own markup: the API matches it against the declared tools,
+  so that block alone is built again under the name the core cut it back to, and every other block still
+  goes back as streamed. A round with no such call takes the untouched path, so the prefix and the cache
+  are unchanged.
+- **A busy or empty provider pauses the run, not the round (S6.18).** `HARNESS_BUSY_BUDGET` seconds is one
+  budget for the whole run: it stands outside the round loop, a busy answer and an empty stop spend the
+  same one, and a value that is not a whole number of seconds is 21600. A status line is read as its
+  number, with the transport's `\r` taken off, so a bare `HTTP/1.1 503` is still 503.
 - **Progress lines.** `AgentsHarnessAnnounceTool` prints before each call. Every value (tool name too) goes through `progressLineSafe` in
   `AgentsProgressLineSafe.awk`. It is one line, C0 and DEL folded to space,
   cut at 120 bytes on a UTF-8 boundary, keeping a path's end. This stops injected values forging the
@@ -1914,7 +1924,10 @@ contracts are here.
 - **Resume on review return** (`AgentsTools.HarnessResume.include`): same cli, non-native leg, same host,
   a parseable kept `context.jsonl`. `MDAT_HARNESS_RESUME_CONTEXT` checks model, service, host and wire,
   loads the array and appends the corrections, keeping the old request as a byte-exact prefix. rc 7
-  (refused before any request) falls back once to a new process.
+  (refused before any request) falls back once to a new process. **Every kept record is scanned for a call
+  with no result** (S6.16), not the last alone: a death after a result leaves that result last, and both
+  the chat wire's `tool_calls` and the Messages wire's `tool_use` blocks are read, with `tool_call_id` and
+  `tool_use_id` taken as the answers.
 - **Hook payload** is built from values already parsed; `session_id` and `cwd` are escaped once at source
   time. Decision and reason come from one read through `AgentsHarnessHookDecision.awk`. Hooks are
   fail-closed: unreadable config, a hook that does not finish, or an unreadable answer refuses.
@@ -3496,8 +3509,9 @@ flag would be a silent no-op there -- refused instead, same shape as the
   and the rewind no longer drops a scan report. A member's own incoming is cached by source instead: see the incoming-sync bullet below.
 - **A work-duty is one session with one thread (S4.6).** The schedule starts a member's duty again after a cache-keep, on demand or on a tag
   (`AgentsToolsScheduleSpawn`, key `work-duty.<member>`). The first start keeps its session id in `schedule/duty-session/<member>`, and every
-  later start brings the member into that session with `--spawn-session --join-session <session-id>`. The duty posts into its one thread, and opens no header in the team channel.
-  The thread says once that the member joined, not at each start. A join the proxy refuses ("refusing to
+  later start brings the member into that session with `--spawn-session --join-session <session-id>`. The duty's session thread is in the owner's
+  conversation, opened by its own start post, and its tooling thread stays in event-track (S23.4). The
+  thread says once that the member joined, not at each start. A join the proxy refuses ("refusing to
   join") drops the kept id, and the next start opens a session again. `AgentsWorkDutySingleThreadCheck` holds it.
   The kept id ends with worktime: out of its flags, with no duty running, the member's id goes, and its next worktime opens a session.
   A duty is also never ended to be started again. The schedule no longer
@@ -4138,9 +4152,21 @@ op's own option arm.
   `withdraw-reason`, never a verdict. So it answers, grants and decides
   nothing. Reminders stop, its Decisions line is `dismissed`, and a note goes
   into its thread. Its `ask:` item leaves the Wait set. The escalation read reports it `closed withdrawn`. The same question asked again
-  after a withdraw is a new top-level post, never that thread's own reask. **A run that ends withdraws what it still has open**, at the close of its record
+  after a withdraw is a new top-level post, never that thread's own reask. **A run that ends settles what it still has open**, at the close of its record
   and through this one operation (`AgentsToolsSpawnProxyWithdrawAsks`,
-  `AgentsTools.SpawnSandbox.include`). Nobody is left to hear the answer, so
+  `AgentsTools.SpawnSandbox.include`). AN ANSWER ALREADY GIVEN OUTLIVES THE RUN THAT ASKED (S6.33): each
+  of the run's open records is read once by the collect's own reader
+  (`AgentsToolsPendingReplyCollectOne`) before anything is taken away. An answer standing in its
+  thread closes the record `reply-received` with that answer, and goes to the asker's inbox as the
+  note of an answer that arrived after its session ended
+  (`AgentsToolsPendingReplyAnsweredNote`), where whoever runs as that member next -- its duty --
+  finds it. The question is never withdrawn over an answer nobody read, and nobody is told no answer
+  is needed. A READBACK, DECISION OR PERMISSION IS READ THE SAME WAY, by the escalation read that
+  applies a verdict (`--intern-op-escalation-read`), with the reader's typed switch on: at the close
+  of the run that asked, no other run is left to read it, and the read takes a verdict only from an
+  account that may give one. Its answer closes the record and goes to the inbox by the same note.
+  Nobody is
+  left to hear the answer of the rest, so
   the asker's own questions close as withdrawn by the member that asked. The
   reason is the note template's `Reasons/asker-ended`. A question the tooling
   asked *about* the run (a review prompt, kind `review`) is not the run's and
@@ -4514,8 +4540,43 @@ Each instrument states what it proves and its red recipe in its own header. What
   `--return-review`, `--intern-op-review-return` or `--intern-tool Agent`. A
   check that names one and does not do so fails. 35 checks carry the fixture. A thread whose rig is removed now ends at its own next tick. The fixture still
   matters, for the time until that tick and for a thread that runs older code.
-- **A test signals a process it kept only through one helper**,
-  `sh-test/check-fixtures/rig-processes.include.sh`. The helper notes a
+- **A stand-in blocks on a pipe, never spins.** A rig process that waits with
+  `while : ; do sleep 1 ; done` burns a wake-up a second for as long as it
+  lives, and it lives past its check whenever the check is killed. It blocks on
+  a read of a pipe instead, with the check holding the writing end
+  (`check-fixtures/rig-blocking-stand-in.include.sh`, `rigBlockingStandIn`): the
+  kernel closes that end when the check's process ends, however it ends, and
+  the stand-in exits by itself. No trap is relied on for it.
+- **A check run by hand stands in the machine's line of test runs.**
+  `rigTempDir` (`check-fixtures/rig-temp.include.sh`) takes a ticket in
+  `$HOME/.agents/magic-team/suite-queue` before it makes its folder, the same
+  line `AgentsRunTests.sh` stands in, so one check runs at a time however it was
+  started. Six sessions running `bash <check>.test.sh` at once, around the
+  queue, took this machine to load 133 on 2026-11-03. A ticket held by an
+  ancestor of the waiter is no ticket ahead, which is why a check may start a
+  suite and its own tests need no shared variable. **There is no switch to keep
+  a check out of the line**: one existed for an evening (`RIG_NO_QUEUE`) and was
+  used to bypass the line for real work. The check of the line runs against a
+  rig with its own `HOME`, which is another line.
+- **A run refuses rather than waits for ever in the line.** It waits
+  `MDAT_SUITE_QUEUE_LIMIT` seconds, 900 by default, then says in one line whom it
+  waited behind, runs nothing, and gives its own ticket back. Two runs waited half
+  an hour on 2026-11-03 before a person ended them.
+- **The runner fails a test that leaves a process behind, and names it.** The
+  slot keeper reads the test's tree and process group just before it ends what
+  is left, and writes `leak-pids: <pid>...` and a `leak-pid: <pid> <command
+  line>` for each, then exits 1. A rig that outlived its check therefore reports
+  red and says what it leaked, instead of passing green.
+  `AgentsRunTestsLeakCheck` holds it.
+- **The runner's keepers run on the python this machine has, not the one on
+  PATH.** `/usr/bin/python3` here is 3.9.6 and a rig may reach it first: its `os`
+  has no `waitid`, and `os.waitpid` refuses `WNOWAIT` on Darwin. The slot keeper
+  therefore reads an ended and unreaped leader from the process table (`ps -o
+  stat=`), which works on 3.9 and on 3.14, on Darwin, FreeBSD and Linux. When it
+  raised AttributeError, every test failed while its own log said OK — a green
+  suite reporting red. `AgentsRunTestsLeakCheck` section 7 holds it, with the old
+  python named as its control.
+- **A test signals a process it kept only through one helper**,  `sh-test/check-fixtures/rig-processes.include.sh`. The helper notes a
   process with when it began, and signals it later only while its pid is still
   that same process. Process ids come round within about a minute here while
   tests run, so a kept number can belong to a stranger by then. `AgentsTestSignalsCheck` holds the helper. It is also the guard that fails on
@@ -4646,3 +4707,24 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **A duty's start does not wait for Slack news.** The spawner marks its real run of a scan `MDAT_SCAN_AT_START=1`, and the duty scan then reads Slack once with a one-second window. A Wait's own scan keeps `WAIT_COLLECT_SECONDS`.
 - **The coordinator reads epics through the tooling.** `AgentDispatcherTools --epic-read <file> [--feature <id>]` and `--epic-list <folder>` serve a path under a `todo-sketchpad` folder, with no `..` part, to the coordinator or to no member.
 - **A run's words are one word each (S27.4).** The `live` column reads `running`, `gone`, `remote` (the record names another host) or `unknown` (it names no host or no run). The `state` column reads `thinking`, `tool`, `waiting`, `idling`, `parked`, `finished`, `failed` or `unclosed`, plus `starting` for a run its start has not yet shown. A run on another host with an open record reads `unclosed`. `AgentsToolsRegistryMeasureRows` derives both, and `AgentsToolsRegistryDeriveState`, `AgentsToolsRegistryDeriveStateFromSet` and the legacy fixture of the diff check must give the same words. `idling` is a Wait whose sources are all the floor: `AgentsWaitActivityIdle` rewrites the run's `tool Wait` mark as `idle`, and the harness's idle-wait writes `idle`. A session's own state words (`running`, `waiting`, `awaiting-review`, `unknown-foreign`) are the console's and stay. The `ListAgents` filter `running` keeps every row whose `live` is `running`, and the `waiting` ones.
+
+## A session's root message shows its end (S6.37)
+
+- **The marks go on the session's root post, never on a tracking post.** The root is the one `sessions/<session>/session.thread` names, and a thread of the event-track conversation is refused by `AgentsToolsSpawnProxyRootMarkTarget`. The event-track end post keeps its own `checkered_flag` and is a different fact.
+- **One close places them, and a second adds nothing.** `AgentsToolsSpawnProxyRootMarks` is called from `AgentsToolsSpawnProxyCloseSandbox` after the first close that succeeds. The settled guard at the head of that function is what makes a reopen-and-close react to nothing.
+- **`checkered_flag` when no run of the session is left, and the tick or the stop sign by its outcome.** `white_check_mark` where every record of the session closed `spawn-succeeded`, else `octagonal_sign`. A run still open withholds both.
+- **What Slack took is `root.end`; what it refused is `root.want`.** A reaction that fails leaves the want whole, and `AgentsToolsSpawnProxyRootMarkRetry` places it again from the advance pass over dead records. The session's control thread asks it at every tick, so a rate limit costs the mark a tick and never loses it.
+- **A restart or a resume clears them.** `AgentsToolsSpawnProxyRootMarkClear` runs on a start that names `restarted-from` or a resume, taking both marks off and cancelling a want nobody placed.
+- **A pause is separate state and its own reaction.** `double_vertical_bar` while `sessions/<session>/paused` stands, asked at every tick of the session's control thread, and removed once that file is gone. `root.pause` says what the message currently carries.
+- **A mark is never an arrival, and no member spends a round on one.** The root post carries `[tracking: session-root]`, so `AgentsTrackingDrop.awk` drops it whole and its marks with it, `AgentsSessionChatImport.awk` records it as `history` for every floor, and `AgentsWaitOwnPostReplies.awk` reports a reaction set only for a post the member itself made. `sh-test/session/AgentsSessionRootMarkReadsCheck.test.sh` pins the three, with controls that show each reading able to see the root when the mark is not there.
+
+## One team-data committer, runs that nobody ends, one audit log (S12.4, S5.6, S12.5)
+
+- **A writer of the team data runs no git.** `AgentsToolsTeamDataCommitPaths <context> <path>...` leaves one entry file in `team-data-commit/` of the store's git directory. It starts `--intern-team-data-commit --run` where none lives. The thread takes the entries oldest first, commits each as its own commit, and pushes once. A lock another writer holds can no longer fail a write. A thread that cannot be started leaves no entry unseen: the writer commits in its own process.
+- **The thread is one a store.** Its lock is `thread.lock`, holding `<pid> <start>` (`AgentsTools.ThreadLock.include`, which the three older threads do not use yet). It ends by itself once no entry came for `MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS` (60), and it gives the lock back first. An entry left in that moment takes the lock again. `thread.log` is cut back to 64 KiB when it passes 128 KiB. `--intern-team-data-commit --one` makes one pass, for a check.
+- **A failed commit stays owed.** `AgentsToolsTeamDataCommitPathsNow` keeps the paths in `.local/agents/team-data-commit.owed`. The thread tries them again every 30 seconds, and the debt does not keep it alive. A path that is gone and that git never knew is left out of a commit, since it fails the whole add, and so is a path that changed nothing.
+- **`MDAT_TEAM_DATA_COMMIT_THREAD=off` commits in the writer's own process.** `AgentsRunTests.sh` sets it, so no check starts a thread. The check of the thread unsets it. `MDAT_TEAM_DATA_COMMIT_WAIT=yes` before the call holds the writer until the thread has committed its entry, for at most 30 seconds. `board-trash` uses it, since the history of a file must be made before the file goes.
+- **The writers that stopped running git** are the board ops that committed in their callers: upsert, move and edit, `member-inbox-upsert`, `inbox-to-processed`, `board-rename`, `board-trash`, `item-rename` and the final GC. Three groups still run git in the caller, and the owner rules on them. `item-upsert` stays, since its commit, its push and its read back are one lock protocol: it runs its `add` and `commit` again for ten seconds while another writer's `index.lock` stands. `--commit-pending` and the pushes of the closes, the main loop, the collector and the set-up stay as they were: they serialise on the push lock.
+- **A run its item no longer wants is ended by the control thread of its session.** A tick that reads in full asks `AgentsToolsSessionControlRelease` (`AgentsTools.SessionControlRelease.include`) about each live run. A run whose dispatch item is in processed or archived, or waits in review past `REVIEW_WAIT_LIMIT`, is ended once `SESSION_CONTROL_CLOSING_SECONDS` have passed since the thread first saw it so. A run that another run needs is not ended. The thread starts `--intern-session-control --release` apart from the tick, which kills the run as the console does, under the name `session-control`.
+- **A killed run's open record is closed by the thread.** A record with `killed-by` is no death and asks nobody. A supervising shell that lives past the closing seconds without closing the record counts as none: the run is a death then, as one with no shell is.
+- **Every harness writes one audit log.** A harness that keeps its context writes the lines of each new record as the record is kept (`AgentsHarnessContextFeed`), to the transcript and to the event-track feed, from the one reader `AgentsHarnessContextTranscript.awk`. Its milestones only commit. A tool line names the tool without its `mcp__<server>__` prefix, for both writers.

@@ -802,16 +802,7 @@ case "$1" in
 						## Its session is gone, so the answer goes to whoever next runs as the asker.
 						collectOwner="$( AgentsToolsPendingReplyCollectFieldOf "$collectFile" owner )"
 						collectNoteId="${collectFile##*/}" ; collectNoteId="${collectNoteId%.md}"
-						{
-							## The keys of the inbox-item.note contract the write gate holds it to: the owner, and a date-time; the gate fills the rest.
-							printf -- '---\nowner: %s\ndate: %s\n---\n\n' "$collectOwner" "$( date +'%Y-%m-%d %H:%M %z' )"
-							printf '# Note: an answer arrived after your session ended\n\n'
-							printf 'Pending reply `%s` is answered, and its record is closed. What the tooling collected:\n\n' "$collectNoteId"
-							printf -- '- %s\n' "${collectLine#ANSWERED }"
-						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-						} | DistroAgentsTools --intern-op-member-inbox-upsert "$collectOwner" "note-$( date -u +%Y%m%dT%H%M%SZ )-answer-${collectNoteId%%-*}.md" \
-							--context "$MDSC_CMD" > /dev/null 2>&1 \
-							|| echo "⚠️ WARNING: $MDSC_CMD: $collectNoteId is answered and closed, but the note to $collectOwner's inbox was not written" >&2
+						AgentsToolsPendingReplyAnsweredNote "$collectOwner" "$collectNoteId" "$collectLine"
 					fi
 				;;
 				UNMATCHED) collectUnmatched=$(( collectUnmatched + 1 )) ;;

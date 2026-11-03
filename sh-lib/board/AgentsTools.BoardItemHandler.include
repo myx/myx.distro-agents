@@ -16,12 +16,14 @@
 ##     --for-round  the caller is about to run a round: one writer (see below), else `flag<TAB>held<TAB>text`, rc 3.
 ##     --at-gate  the caller knows the item is at its gate (a completion claimed); an approval and a proposal root are always at theirs.
 ##   AgentsToolsBoardTypeTable            the rows of the table, `type<TAB>routine file<TAB>gate`, one a line.
+##   AgentsToolsBoardLiveHolders          the spawn records' open rows, `member<TAB>spawn-id<TAB>session-id`, read in one walk.
 ##   AgentsToolsRoutineHandles <file> <type>   rc 0 where the routine's own text says it handles the type.
 ##   AgentsToolsRoutineFileOf <name>      the file of a routine named by its file name, or as `<name>.routine`; rc 1 where no routine has it.
 ##
 ## S4.5/5.5: AgentsToolsBoardTypeTable and AgentsToolsBoardItemHolders take an OPT-IN override from the environment,
 ## AGENTS_BOARD_TYPE_TABLE_CACHE and AGENTS_BOARD_LIVE_HOLDERS_CACHE -- set by a caller that already scanned once for
-## its whole round (AgentsToolsBoardRoundSections, AgentsTools.BoardRoundScan.include). Unset, both behave exactly as
+## its whole round or its whole scan (AgentsToolsBoardRoundSections in AgentsTools.BoardRoundScan.include, and the session-context
+## scan's item walk). Unset, both behave exactly as
 ## before: no caller that does not know about the override sees any different answer. A per-function self-cache was
 ## tried first and rejected: AgentsBoardItemHandlerCheck.test.sh sources this once and runs several differing
 ## scenarios in that one process, and a self-cache cannot tell those apart. An externally-supplied override has no
@@ -180,29 +182,37 @@ AgentsToolsBoardItemHoldersNotGone(){ ## stdin: `member<TAB>spawn-id<TAB>session
 	return 0
 }
 
-AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and the participants: `member<TAB>spawn-id<TAB>session-id` a line
-	local holdMembers holdSession
-	holdMembers="$( AgentsToolsBoardItemKey "$1" owner ),$( AgentsToolsBoardItemKey "$1" participants )"
-	holdSession="$( AgentsToolsBoardItemKey "$1" session-id )"
+## The rows AGENTS_BOARD_LIVE_HOLDERS_CACHE is set from, read once off the spawn records: a caller that walks the
+## whole board for one round sets that override from here, so no item re-reads the tree. A record that says
+## `spawn-started` and carries no `exit-code` is a row. `member<TAB>spawn-id<TAB>session-id`, one a line.
+AgentsToolsBoardLiveHolders(){
 	[ -n "${MMDAPP:-}" ] || return 0
-	if [ -n "${AGENTS_BOARD_LIVE_HOLDERS_CACHE+x}" ] ; then
-		[ -n "$AGENTS_BOARD_LIVE_HOLDERS_CACHE" ] || return 0
-		LC_ALL=C awk -F '\t' -v members="$holdMembers" -v session="$holdSession" '
-			BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
-			($1 in want) && (session == "" || $3 == session || $2 == session) { print }
-		' <<< "$AGENTS_BOARD_LIVE_HOLDERS_CACHE" | AgentsToolsBoardItemHoldersNotGone
-		return 0
-	fi
-	LC_ALL=C awk -v members="$holdMembers" -v session="$holdSession" '
-		BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
+	LC_ALL=C awk '
 		FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 }
-		$0 == "---" { if (++fm == 2 && (owner in want) && status == "spawn-started" && !ended && (session == "" || sid == session || spawn == session)) printf "%s\t%s\t%s\n", owner, spawn, sid ; next }
+		$0 == "---" { if (++fm == 2 && status == "spawn-started" && !ended) printf "%s\t%s\t%s\n", owner, spawn, sid ; next }
 		fm == 1 && index($0, "owner: ") == 1 { owner = substr($0, 8) }
 		fm == 1 && index($0, "session-id: ") == 1 { sid = substr($0, 13) }
 		fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
 		fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
 		fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
-	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | AgentsToolsBoardItemHoldersNotGone
+	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null
+}
+
+AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and the participants: `member<TAB>spawn-id<TAB>session-id` a line
+	local holdMembers holdSession holdRows=""
+	holdMembers="$( AgentsToolsBoardItemKey "$1" owner ),$( AgentsToolsBoardItemKey "$1" participants )"
+	holdSession="$( AgentsToolsBoardItemKey "$1" session-id )"
+	[ -n "${MMDAPP:-}" ] || return 0
+	if [ -n "${AGENTS_BOARD_LIVE_HOLDERS_CACHE+x}" ] ; then
+		holdRows="$AGENTS_BOARD_LIVE_HOLDERS_CACHE"
+	else
+		holdRows="$( AgentsToolsBoardLiveHolders )"
+	fi
+	[ -n "$holdRows" ] || return 0
+	LC_ALL=C awk -F '\t' -v members="$holdMembers" -v session="$holdSession" '
+		BEGIN { n = split(members, part, ",") ; for (i = 1 ; i <= n ; i++) { one = part[i] ; gsub(/^[ \t]+|[ \t]+$/, "", one) ; if (one != "") want[one] = 1 } }
+		($1 in want) && (session == "" || $3 == session || $2 == session) { print }
+	' <<< "$holdRows" | AgentsToolsBoardItemHoldersNotGone
 }
 
 AgentsToolsBoardItemRoundMay(){ ## item file -- rc 0 may run a round on it; rc 4 refused, the reason on stdout

@@ -1072,7 +1072,8 @@ AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-se
 			printf '\n## Thread %s\n\n' "$historyThread"
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			if DistroAgentsTools --intern-op-comms-slack-read "$historyMember" "$historyThread" --thread > "$historyRead" 2>/dev/null \
-				&& LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$historyRead" > "$historyRead.fmt" 2>/dev/null ; then
+				&& LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$historyRead" > "$historyRead.fmt" 2>/dev/null ; then
 				LC_ALL=C awk -v max="$historyMax" -v member="$historyMember" '
 					{ line[NR] = $0 ; if ( $0 ~ /^[0-9]+\.[0-9]+ \| / ) { head[++heads] = NR ; } }
 					END {
@@ -1358,15 +1359,64 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	return 0
 }
 
-## An accept releases the child: a board item moved to processed has its own spawned
-## session dismissed, through the same send an explicit spawn-dismiss uses -- a DISMISSED
-## body addressed to the child member in the child's session thread, which its Wait turns
-## into WAIT-RESULT: DISMISSED. The child is the spawn record the item's spawn-id names,
-## or, with none, the one live record whose spawns/spawned-by links the item. Never fails
-## the move it follows: prints one ACCEPT-DISMISS line, saying what was sent or why nothing was.
+## A RUN IS DISMISSED BY THE TOOLING'S OWN STATE, NOT BY A MESSAGE (S6.25). The dismissal is kept in the run's
+## own store, `sessions/<spawn id>/dismissed`, which its harness reads first thing and returns as DISMISSED
+## every time it is asked. The same act is written into the session's chat file, as a block addressed to that
+## run's member, which its Wait reads at its own tick: so a run already waiting is reached with no message
+## posted to it, and one that asks again is answered from its mark. The block's ts is `-` because nothing was
+## posted, and its `where` is the session thread, so the one matcher a harness reads a DISMISSED with
+## (AgentsDismissalMatch.awk) reads it exactly as it reads a posted message. Kept once; rc 1 where the mark
+## cannot be kept. Prints one DISMISS line.
+AgentsToolsRunDismiss(){ ## spawn id, who dismissed it
+	local disSpawn="$1" disBy="$2" disFile disTemp disRecord="" disSession="" disMember="" disThread=""
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsAssertBareName "$disSpawn" "the run" AgentsToolsRunDismiss 2> /dev/null || return 1
+	[ -n "${MMDAPP:-}" ] || return 1
+	disFile="$MMDAPP/.local/agents/sessions/$disSpawn/dismissed"
+	if [ ! -f "$disFile" ] ; then
+		mkdir -p "${disFile%/*}" 2> /dev/null || return 1
+		disTemp="$( mktemp "$disFile.tmp.XXXXXX" 2> /dev/null )" || return 1
+		{ printf '%s\n' "$disBy" > "$disTemp" 2> /dev/null && chmod 644 "$disTemp" && mv -f "$disTemp" "$disFile" ; } 2> /dev/null \
+			|| { rm -f "$disTemp" ; return 1 ; }
+	fi
+	for disRecord in "$MMDAPP"/.local/agents/spawned/*/"$disSpawn.spawn.md" ; do
+		[ ! -f "$disRecord" ] || break
+	done
+	if [ -f "$disRecord" ] ; then
+		disSession="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" session-id )"
+		disMember="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" owner )"
+	fi
+	case "$disSession" in ''|-|.|..|*/*) disSession="" ;; esac
+	printf 'DISMISS: %s dismissed by %s\n' "$disSpawn" "$disBy"
+	[ -n "$disSession" ] || return 0
+	## The block is recorded under the session's own thread, never the run's: that is the thread its floor reads.
+	[ ! -f "$MMDAPP/.local/agents/sessions/$disSession/session.thread" ] || IFS= read -r disThread < "$MMDAPP/.local/agents/sessions/$disSession/session.thread" || :
+	if [ -z "$disThread" ] ; then
+		for disRecord in "$MMDAPP"/.local/agents/spawned/*/"$disSession.spawn.md" ; do
+			[ ! -f "$disRecord" ] || break
+		done
+		[ ! -f "$disRecord" ] || disThread="$( AgentsToolsSpawnSandboxRecordHeader "$disRecord" session-thread )"
+	fi
+	case "$disThread" in ''|-) disThread="local" ;; esac
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || { printf 'DISMISS: %s marked, and no chat file could be loaded to record it\n' "$disSpawn" ; return 0 ; }
+	## THE MARK IS THE STATE AND THE BLOCK IS THE DELIVERY (S6.25): the mark is written first, so it is the answer
+	## of every later Wait, and the block tells a run that is already waiting, within its own tick. A restart takes
+	## a spawn id of its own and so carries no mark, and its floor's pointer starts where the file ended, so this
+	## block is never its dismissal.
+	if ! printf 'DISMISSED\n' | AgentsToolsSessionChatAppend "$disSession" "$disBy" "${disMember:-$disBy}" - "$disThread" own > /dev/null 2>&1 ; then
+		printf 'DISMISS: %s marked, and its chat trace was NOT written, so a run already waiting learns it at its next Wait\n' "$disSpawn"
+	fi
+	return 0
+}
+
+## An accept releases the child: a board item moved to processed has its own spawned session dismissed, by the
+## tooling's own mark and the session chat file its Wait reads (AgentsToolsRunDismiss), so its next Wait returns
+## WAIT-RESULT: DISMISSED with nothing posted to it. The child is the spawn record the item's spawn-id names, or,
+## with none, the one live record whose spawns/spawned-by links the item. Never fails the move it follows: prints
+## one ACCEPT-DISMISS line, saying what was done or why nothing was.
 AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	local sendBy="$1" itemPath="$2" itemSpawn recordPath="" recordCandidate folderName
-	local childStatus childMember childThread="" childHost thisHost sendOut
+	local childStatus childMember childHost thisHost sendOut
 	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
 	if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
 		for recordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$itemSpawn.spawn.md" ; do
@@ -1377,25 +1427,25 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 			for recordCandidate in "$MMDAPP/.local/agents/spawned/$folderName"/*.spawn.md ; do
 				[ -f "$recordCandidate" ] || continue
 				[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordCandidate" status )" = spawn-started ] || continue
-				[ -z "$recordPath" ] || { printf 'ACCEPT-DISMISS: not sent: more than one live spawn links %s, so which child to dismiss is not decided here\n' "${itemPath##*/}" ; return 0 ; }
+				[ -z "$recordPath" ] || { printf 'ACCEPT-DISMISS: not done: more than one live spawn links %s, so which child to dismiss is not decided here\n' "${itemPath##*/}" ; return 0 ; }
 				recordPath="$recordCandidate"
 			done
 		done
 	fi
-	[ -n "$recordPath" ] || { printf 'ACCEPT-DISMISS: not sent: no spawn record found for %s (spawn-id %s)\n' "${itemPath##*/}" "${itemSpawn:--}" ; return 0 ; }
+	[ -n "$recordPath" ] || { printf 'ACCEPT-DISMISS: not done: no spawn record found for %s (spawn-id %s)\n' "${itemPath##*/}" "${itemSpawn:--}" ; return 0 ; }
 	itemSpawn="${recordPath##*/}" ; itemSpawn="${itemSpawn%.spawn.md}"
 	childStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
-	[ "$childStatus" = spawn-started ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s has already ended (status %s)\n' "$itemSpawn" "${childStatus:--}" ; return 0 ; }
+	[ "$childStatus" = spawn-started ] || { printf 'ACCEPT-DISMISS: not done: spawn %s has already ended (status %s)\n' "$itemSpawn" "${childStatus:--}" ; return 0 ; }
 	childHost="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" host )"
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
 	if [ "$childHost" = "$thisHost" ] ; then
 		## Running is a process that runs as the spawn, by the one rule of the spawned-sessions render.
 		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-		AgentsToolsRegistrySpawnRuns "$itemSpawn" "$recordPath" || { printf 'ACCEPT-DISMISS: not sent: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ; }
+		AgentsToolsRegistrySpawnRuns "$itemSpawn" "$recordPath" || { printf 'ACCEPT-DISMISS: not done: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ; }
 	fi
 	childMember="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" owner )"
-	[ -n "$childMember" ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s names no owner member to address\n' "$itemSpawn" ; return 0 ; }
-	[ "$childMember" != "$sendBy" ] || { printf 'ACCEPT-DISMISS: not sent: the accepting member %s is the child member itself, and its own Wait ignores a DISMISSED it authored\n' "$sendBy" ; return 0 ; }
+	[ -n "$childMember" ] || { printf 'ACCEPT-DISMISS: not done: spawn %s names no owner member to dismiss\n' "$itemSpawn" ; return 0 ; }
+	[ "$childMember" != "$sendBy" ] || { printf 'ACCEPT-DISMISS: not done: the accepting member %s is the child member itself\n' "$sendBy" ; return 0 ; }
 	## A run is not dismissed while runs that need it still run (F6.9, AgentsToolsSessionDismissHeld):
 	## its dismissal is kept, and given at its first Wait once they have ended.
 	local childOthers=""
@@ -1405,17 +1455,10 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 			"$itemSpawn" "$( printf '%s' "$childOthers" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )"
 		return 0
 	fi
-	childThread="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" session-thread )"
-	if [ -z "$childThread" ] || [ "$childThread" = "-" ] ; then
-		childThread=""
-		[ ! -f "${recordPath%/*}/session.thread" ] || IFS= read -r childThread < "${recordPath%/*}/session.thread" || :
-	fi
-	AgentsToolsSpawnConversationThreadValid "$childThread" || { printf 'ACCEPT-DISMISS: not sent: spawn %s has no session thread to post in\n' "$itemSpawn" ; return 0 ; }
-	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	if sendOut="$( printf 'DISMISSED' | DistroAgentsTools --intern-op-comms-slack-send-message "$sendBy" "$childThread" --identity-bot --address-to "$childMember" --from-stdin 2>&1 )" ; then
-		printf 'ACCEPT-DISMISS: sent DISMISSED to %s in %s (spawn %s)\n' "$childMember" "$childThread" "$itemSpawn"
+	if sendOut="$( AgentsToolsRunDismiss "$itemSpawn" "$sendBy (the accept of ${itemPath##*/})" )" ; then
+		printf 'ACCEPT-DISMISS: sent DISMISSED to spawn %s\n' "$itemSpawn"
 	else
-		printf 'ACCEPT-DISMISS: not sent: the send to %s in %s failed: %s\n' "$childMember" "$childThread" "$( printf '%s\n' "$sendOut" | LC_ALL=C grep -m1 'ERROR' )"
+		printf 'ACCEPT-DISMISS: not done: the dismissal of spawn %s could not be kept: %s\n' "$itemSpawn" "${sendOut:-no reason given}"
 	fi
 	return 0
 }
@@ -1503,6 +1546,10 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, end reason (optional)
 	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxEndReason="${4:-}" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts="" sandboxRefused=""
 	[ -f "$sandboxFile" ] || return 1
+	## A RECORD THAT HAS SETTLED IS LEFT AS IT IS (S6.26): a close ends a run that still runs. The accept of a
+	## review settles its run, and that run's own supervising shell closes it again a moment later, with the
+	## exit code of the kill that ended it; overwriting the settlement made an accepted run read as failed.
+	AgentsToolsSpawnProxyCloseSettled "$sandboxFile" && return 0
 	mkdir -p "$MMDAPP/.local/temp" || return 1
 	## A temp file of this close's own, by mktemp and never by $$: the members one call
 	## started (--spawn-session) close in subshells of that one shell, which have its
@@ -1534,8 +1581,11 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 		## file when it ended on a refused request (an API usage cap and the like). One line,
 		## newlines and tabs already collapsed by the writer; kept so the session's own record
 		## carries the reason, never only the log. Absent for a run that ended for another
-		## reason, or one the harness could not name.
-		if [ -s "${sandboxFile%.spawn.md}.refused" ] ; then
+		## reason, or one the harness could not name. A RUN THAT WENT ON IS NOT ONE (S6.26): the
+		## marker says why a run ended refused, so it is read only where this close is closing a
+		## failure. A run that recovered from a context refusal and ended well carries a marker of
+		## its own no longer, and a copy left over is no reason it ended.
+		if [ -s "${sandboxFile%.spawn.md}.refused" ] && [ "$sandboxOutcome" = failed ] ; then
 			sandboxReason="$( head -1 "${sandboxFile%.spawn.md}.refused" | LC_ALL=C tr '\t' ' ' )"
 			printf 'upsert\tend-reason\t%s\n' "$sandboxReason"
 		elif [ -n "$sandboxEndReason" ] ; then
@@ -1572,19 +1622,28 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 		|| { rm -f "$sandboxAside" ; return 1 ; }
 	## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT is flagged in its own store, from the same
 	## reason the record keeps: the one wording the session list, the Dashboard and the end
-	## notice show, with the date the provider said it reopens. Never fails the close.
-	if [ -n "$sandboxReason" ] ; then
+	## notice show, with the date the provider said it reopens. ONLY A REFUSAL THE HARNESS KEPT IS
+	## ONE (S6.26): a reason a caller states for its own ending -- an accept's, an advance pass's --
+	## is no provider refusal, and flagging it made an accepted run read as a refused one. Never
+	## fails the close.
+	if [ -s "${sandboxFile%.spawn.md}.refused" ] && [ "$sandboxOutcome" = failed ] ; then
 		type AgentsToolsUsageLimitMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UsageLimit.include" 2> /dev/null || :
-		AgentsToolsUsageLimitMark "$( AgentsToolsSpawnSandboxRecordHeader "$sandboxFile" spawn-id )" "$sandboxReason" 2> /dev/null || :
+		AgentsToolsUsageLimitMark "$( AgentsToolsSpawnSandboxRecordHeader "$sandboxFile" spawn-id )" "$( head -1 "${sandboxFile%.spawn.md}.refused" )" 2> /dev/null || :
 	fi
 	return 0
 }
 
 ## THE QUESTIONS A RUN ASKED ARE ITS OWN TO SETTLE, AND IT SETTLES THEM WHEN IT ENDS: nobody is left
-## to hear an answer once its record closes, so the close withdraws every question that run still has
-## open, through the one withdraw an asker has (--settle-pending-reply --withdraw): the record closes
-## as withdrawn, with the reason, and the person who was asked is told in the question's own thread by
-## that same operation. THE ASKER IS READ FROM THE ASK: an ask carries the id of the run that asked it
+## to hear an answer once its record closes, so the close settles every question that run still has
+## open. AN ANSWER ALREADY GIVEN OUTLIVES THE RUN (S6.33): each record's thread is read once, as the
+## collect reads it, before anything is taken away. An answer standing there closes the record with
+## that answer and goes to the asker's inbox, where whoever runs as that member next -- its duty --
+## finds it, and the question is never withdrawn over it. Only the rest are withdrawn, through the
+## one withdraw an asker has (--settle-pending-reply --withdraw): the record closes as withdrawn,
+## with the reason, and the person who was asked is told in the question's own thread by that same
+## operation. A readback, decision or permission is read here as the main loop's own pass reads
+## it, and never withdrawn unread: at the close of the run that asked, nobody else is left to
+## read it, and the escalation read applies a verdict only from an account that may give it. THE ASKER IS READ FROM THE ASK: an ask carries the id of the run that asked it
 ## in `session-id`, which is that run's own spawn id (a run that founded its session has the two equal),
 ## and its `owner` is the member that asked. A question the TOOLING asked ABOUT a run is not the run's
 ## and is left as it is: a review prompt carries that run's id as its asking session and must still be
@@ -1592,7 +1651,10 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code, e
 ## already closed is no question of anybody's. Never fails the close: one warning at most, and the
 ## record is closed whatever came of its questions.
 AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
-	local askRun askFile askList askId askOwner askReason="" askRc=0 askWarned=""
+	local askRun askFile askList askId askOwner askReason="" askRc=0 askWarned="" askSeen=""
+	## The question's own reader takes typed records by this switch, as the main loop's pass does
+	## (AgentsTools.PendingReplyCollect.include): the run that asked is gone either way.
+	local collectTyped=1
 	[ -f "${1:-}" ] || return 0
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" = "spawn-started" ] || return 0
 	## The run's own id: its spawn-id, and for a record written without one the session it names,
@@ -1626,9 +1688,25 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	askReason="$( ASKP_BLOCK="Reasons/asker-ended" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || askReason=""
 	[ -n "$askReason" ] || echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the reason of a withdrawal could not be filled from its template (tooling-note.post.format.md, Reasons), so the questions of run $askRun are withdrawn with none" >&2
+	## The one reader of a question's thread (AgentsTools.PendingReplyCollect.include): the close
+	## looks for an answer already given before it takes anything away.
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"
 	while IFS=$'\t' read -r askId askOwner ; do
 		[ -n "$askId" ] && [ -n "$askOwner" ] && [ "$askOwner" != "-" ] || continue
 		askRc=0
+		## Read first, withdraw second: a record whose thread already holds the answer is closed
+		## with it and its asker's inbox told, and is never withdrawn over an answer nobody read.
+		askSeen="$( AgentsToolsPendingReplyCollectOne "$MMDAPP/.local/agents/pending/$askId.md" 2> /dev/null )" || askSeen=""
+		case "${askSeen%% *}" in
+			ANSWERED)
+				AgentsToolsPendingReplyAnsweredNote "$askOwner" "$askId" "${askSeen#ANSWERED }"
+				continue
+			;;
+			ALREADY-CLOSED) continue ;;
+			UNREADABLE)
+				[ -n "$askWarned" ] || { askWarned="yes" ; echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the thread of $askId could not be read, so it is withdrawn without knowing whether an answer stood in it" >&2 ; }
+			;;
+		esac
 		## The asker's own withdraw, done in the asker's name: the member that asked is what this
 		## call acts as, so the one gate every withdraw has sees the run that asked it and nobody else.
 		if type DistroAgentsTools > /dev/null 2>&1 ; then
@@ -1660,16 +1738,15 @@ AgentsToolsSpawnProxyStaleHandbackTell(){ ## the member the scan acts as, the re
 	return 0
 }
 
-## THE CHILDREN A CLOSING PARENT STILL ANSWERS FOR (S27.5), sourced where the close needs it so this
-## file keeps its own top level free of the review flow's.
+## THE RUNS A CLOSING RUN STILL ANSWERS FOR, AND NO OTHERS (S6.25), sourced where the close needs it so
+## this file keeps its own top level free of the review flow's.
 AgentsToolsSpawnProxyChildrenDismiss(){ ## tracking file of the closing run
-	local cdRecord="$1" cdSpawn cdBy
+	local cdRecord="$1" cdBy
 	[ -f "$cdRecord" ] || return 0
-	cdSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$cdRecord" spawn-id )"
 	cdBy="$( AgentsToolsSpawnSandboxRecordHeader "$cdRecord" owner )"
-	[ -n "$cdSpawn" ] && [ -n "$cdBy" ] || return 0
+	[ -n "$cdBy" ] || return 0
 	type AgentsReviewChildrenDismiss > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || return 0
-	AgentsReviewChildrenDismiss "$cdSpawn" "$cdBy" 2> /dev/null || :
+	AgentsReviewChildrenDismiss "$cdRecord" "$cdBy" 2> /dev/null || :
 	return 0
 }
 
@@ -1687,8 +1764,149 @@ AgentsToolsSpawnProxyParkClear(){ ## tracking file of the closing run
 	return 0
 }
 
+## Whether a record has settled, printed as one line and rc 0 where it has. A close ends a run that still runs.
+AgentsToolsSpawnProxyCloseSettled(){ ## tracking file
+	case "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" in
+		''|spawn-started) return 1 ;;
+	esac
+	printf 'CLOSE: %s is already settled as %s\n' "${1##*/}" "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
+	return 0
+}
+
+## THE MARKS A SESSION'S ROOT MESSAGE SHOWS (S6.37). The root post of the session's own thread -- the one
+## `session.thread` names, and never a tracking thread -- shows the session's end: `checkered_flag` once no run of the
+## session is left, with `white_check_mark` where every run of it ended well, else `octagonal_sign`. A restart or a
+## resume of the session takes them off again (AgentsToolsSpawnProxyRootMarkClear). What Slack has taken is kept in
+## `root.end` of the session's folder, and what is wanted but not yet taken in `root.want` beside it: a reaction
+## refused, or rate-limited past the shared call's own waits, is placed again by the pass over dead records
+## (AgentsToolsSpawnProxyRootMarkRetry), so the end of a session loses no mark. The event-track posts keep their own
+## flag and are never these.
+## The root post's own `<channel>:<ts>`, or nothing and rc 1 where the session has no session thread.
+AgentsToolsSpawnProxyRootMarkTarget(){ ## session id
+	local markSession="$1" markTarget=""
+	case "$markSession" in ''|-|.|..|*/*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	if [ -s "$MMDAPP/.local/agents/sessions/$markSession/session.thread" ] ; then
+		IFS= read -r markTarget < "$MMDAPP/.local/agents/sessions/$markSession/session.thread" || :
+	fi
+	AgentsToolsSpawnConversationThreadValid "$markTarget" || return 1
+	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include" 2> /dev/null || return 1
+	AgentsToolsEventTrackThreadIs "$markTarget" && return 1
+	printf '%s\n' "$markTarget"
+}
+
+## The marks `root.want` of a session holds, placed on its root message, one reaction an emoji, and the want becomes
+## `root.end`. A reaction that does not land leaves the want as it is, whole, so the next pass places the set again
+## rather than half of it. Never fails its caller.
+AgentsToolsSpawnProxyRootMarkPlace(){ ## session id
+	local placeSession="$1" placeDir placeTarget placeEmoji placeRc=0
+	case "$placeSession" in ''|-|.|..|*/*) return 0 ;; esac
+	placeDir="$MMDAPP/.local/agents/sessions/$placeSession"
+	[ -f "$placeDir/root.want" ] || return 0
+	placeTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$placeSession" )" || { rm -f "$placeDir/root.want" ; return 0 ; }
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	while IFS= read -r placeEmoji ; do
+		[ -n "$placeEmoji" ] || continue
+		DistroAgentsTools --intern-op-comms-slack-react magic-team "$placeTarget" "$placeEmoji" --identity-bot > /dev/null 2>&1 || placeRc=1
+	done < "$placeDir/root.want"
+	if [ "$placeRc" = 0 ] ; then
+		mv -f "$placeDir/root.want" "$placeDir/root.end" 2> /dev/null || rm -f "$placeDir/root.want"
+		return 0
+	fi
+	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the end marks of session $placeSession are not all on its root message $placeTarget, so $placeDir/root.want is kept, and the next pass over dead records places it again" >&2 || :
+	return 0
+}
+
+## The end marks a session is owed, once no run of it is left: written to `root.want` and placed. Nothing while a run
+## of the session still runs, and nothing for a session with no session thread. Never fails its caller.
+AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
+	local markRecord="$1" markSession markCandidate markStatus markGood="white_check_mark"
+	[ -f "$markRecord" ] || return 0
+	markSession="$( AgentsToolsSpawnSandboxRecordHeader "$markRecord" session-id )"
+	case "$markSession" in ''|-|.|..|*/*) return 0 ;; esac
+	AgentsToolsSpawnProxyRootMarkTarget "$markSession" > /dev/null || return 0
+	[ ! -f "$MMDAPP/.local/agents/sessions/$markSession/root.end" ] || return 0
+	for markCandidate in $( LC_ALL=C grep -l -x -F "session-id: $markSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		markStatus="$( AgentsToolsSpawnSandboxRecordHeader "$markCandidate" status )"
+		case "$markStatus" in
+			''|spawn-started) return 0 ;;
+			spawn-succeeded) ;;
+			*) markGood="octagonal_sign" ;;
+		esac
+	done
+	{
+		printf 'checkered_flag\n'
+		printf '%s\n' "$markGood"
+	} > "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" \
+		&& mv -f "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" "$MMDAPP/.local/agents/sessions/$markSession/root.want" \
+		|| { rm -f "$MMDAPP/.local/agents/sessions/$markSession/root.want.aside" ; return 0 ; }
+	AgentsToolsSpawnProxyRootMarkPlace "$markSession"
+}
+
+## A SESSION THAT STARTS AGAIN SHOWS NO END: a restart or a resume of it takes the end marks off its root message and
+## cancels a want Slack has not taken yet. Costless where the session carries neither, which every start that is no
+## restart finds. A removal that does not land keeps `root.end`, so the next clear takes it off. Never fails its caller.
+AgentsToolsSpawnProxyRootMarkClear(){ ## session id
+	local clearSession="$1" clearDir clearTarget clearEmoji clearRc=0
+	case "$clearSession" in ''|-|.|..|*/*) return 0 ;; esac
+	clearDir="$MMDAPP/.local/agents/sessions/$clearSession"
+	rm -f "$clearDir/root.want" 2> /dev/null
+	[ -f "$clearDir/root.end" ] || return 0
+	clearTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$clearSession" )" || { rm -f "$clearDir/root.end" ; return 0 ; }
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	while IFS= read -r clearEmoji ; do
+		[ -n "$clearEmoji" ] || continue
+		DistroAgentsTools --intern-op-comms-slack-react magic-team "$clearTarget" "$clearEmoji" --identity-bot --remove > /dev/null 2>&1 || clearRc=1
+	done < "$clearDir/root.end"
+	if [ "$clearRc" = 0 ] ; then rm -f "$clearDir/root.end" 2> /dev/null ; fi
+	return 0
+}
+
+## A PAUSED SESSION SAYS SO ON ITS ROOT MESSAGE, and a resumed one stops saying it (S19, S6.37): `double_vertical_bar`
+## while `paused` stands in the session's folder, and off again once it does not. Asked at every tick of the session's
+## control thread, which is the one reader of that flag that runs by itself. `root.pause` is what the message carries:
+## a reaction that does not land leaves that file as it was, so the next tick asks again, and a rate limit is waited
+## out by the shared call's own rule. A session with no session thread, or one whose thread is a tracking thread, is
+## left alone. Never fails its caller.
+AgentsToolsSpawnProxyRootPauseMarks(){ ## session id
+	local pauseSession="$1" pauseDir pauseTarget pauseWant="" pauseHeld="" pauseRc=0
+	case "$pauseSession" in ''|-|.|..|*/*) return 0 ;; esac
+	pauseDir="$MMDAPP/.local/agents/sessions/$pauseSession"
+	[ -f "$pauseDir/paused" ] && pauseWant="double_vertical_bar"
+	[ ! -f "$pauseDir/root.pause" ] || IFS= read -r pauseHeld < "$pauseDir/root.pause" || :
+	[ "$pauseWant" != "$pauseHeld" ] || return 0
+	pauseTarget="$( AgentsToolsSpawnProxyRootMarkTarget "$pauseSession" )" || return 0
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ -n "$pauseWant" ] ; then
+		DistroAgentsTools --intern-op-comms-slack-react magic-team "$pauseTarget" "$pauseWant" --identity-bot > /dev/null 2>&1 || pauseRc=1
+		[ "$pauseRc" = 0 ] || return 0
+		printf '%s\n' "$pauseWant" > "$pauseDir/root.pause.aside" 2> /dev/null \
+			&& mv -f "$pauseDir/root.pause.aside" "$pauseDir/root.pause" 2> /dev/null || rm -f "$pauseDir/root.pause.aside" 2> /dev/null
+		return 0
+	fi
+	DistroAgentsTools --intern-op-comms-slack-react magic-team "$pauseTarget" "$pauseHeld" --identity-bot --remove > /dev/null 2>&1 || return 0
+	rm -f "$pauseDir/root.pause" 2> /dev/null
+	return 0
+}
+
+## A WANT A REFUSAL OR A RATE LIMIT LEFT: placed again, for every session that holds one, by the pass over dead
+## records. Nothing where no session holds one. Never fails its caller.
+AgentsToolsSpawnProxyRootMarkRetry(){
+	local retryWant retrySession
+	for retryWant in "${MMDAPP:-/nonexistent}"/.local/agents/sessions/*/root.want ; do
+		[ -f "$retryWant" ] || continue
+		retrySession="${retryWant%/root.want}" ; retrySession="${retrySession##*/}"
+		AgentsToolsSpawnProxyRootMarkPlace "$retrySession"
+	done
+	return 0
+}
+
 AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end reason (optional)
 	[ -f "$1" ] || return 0
+	## A SETTLED RECORD IS CLOSED BY NOTHING (S6.26): no question of it is withdrawn, no run of its session is dismissed,
+	## and nothing is said a second time about its end. The checks below all read a record that still says it was
+	## started, and this is the guard that makes that true for a second close as well as for a first.
+	AgentsToolsSpawnProxyCloseSettled "$1" && return 0
 	## The run's own questions are settled first, while its record still says it was started: a question
 	## of a run that has ended is withdrawn by it, and never left waiting for an answer nobody hears.
 	AgentsToolsSpawnProxyWithdrawAsks "$1" || :
@@ -1699,16 +1917,25 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end r
 	fi
 	## A run that closes holds no seat (F6.9).
 	AgentsToolsSessionSeatRelease "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )" || :
-	## THE CHILDREN A CLOSING PARENT STILL ANSWERS FOR (S27.5): each run it brought into its session and
-	## that still waits gets its DISMISSED here, so a parent's close leaves no child waiting on a run
-	## that is gone. Done before the record closes, while the parent still names its session.
+	## THE RUNS A CLOSING EXECUTOR STILL ANSWERS FOR (S6.25): each run it spawned and that still waits is
+	## dismissed by the tooling's own mark here, so a chair's close leaves no participant waiting on a run
+	## that is gone. A participant's close ends itself alone. Done before the record closes, while the
+	## record still names its session.
 	AgentsToolsSpawnProxyChildrenDismiss "$1" || :
 	## THE PARK MARK GOES WITH THE RECORD IT BELONGED TO (S27.2): a settled record must never read
 	## awaiting-review, and a mark left behind would do exactly that.
 	AgentsToolsSpawnProxyParkClear "$1" || :
-	AgentsToolsSpawnProxyCloseSandboxOnce "$@" && return 0
+	## THE SESSION'S ROOT MESSAGE SHOWS ITS END (S6.37), placed here and only here: the one close a record takes, so a
+	## second close adds nothing, and the settled guard above is what makes that true.
+	if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then
+		AgentsToolsSpawnProxyRootMarks "$1" || :
+		return 0
+	fi
 	sleep 1 || :
-	AgentsToolsSpawnProxyCloseSandboxOnce "$@" && return 0
+	if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then
+		AgentsToolsSpawnProxyRootMarks "$1" || :
+		return 0
+	fi
 	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the spawn record $1 could not be closed as spawn-$2 (exit $3), tried twice: it still says what it said" >&2 || :
 	return 0
 }
@@ -1896,11 +2123,15 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 	endMember="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" owner )"
 	[ -n "$endMember" ] || return 0
 	## Whether it stopped on the provider's usage limit, and the one wording of it with the
-	## date it reopens: the run's own store first, then the reason the record keeps, for a run
-	## closed before the store held one. A run that was refused for another reason has none.
+	## date it reopens: A REFUSAL THE HARNESS KEPT is the only source (S6.26). Its own marker
+	## beside the record, and the store that marker flags, are where a refusal is read. The
+	## record's end-reason is no source: a caller states why it ended a run -- the accept of its
+	## item -- and reading that as a refusal made an accepted run read as a refused one.
 	type AgentsToolsUsageLimitRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UsageLimit.include" 2> /dev/null || :
 	endLimit="$( AgentsToolsUsageLimitRun "$endRun" 2> /dev/null )" || endLimit=""
-	[ -n "$endLimit" ] || endLimit="$( AgentsToolsUsageLimitText "$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" end-reason )" 2> /dev/null )" || endLimit=""
+	if [ -z "$endLimit" ] && [ -s "${endRecord%.spawn.md}.refused" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" status )" = spawn-failed ] ; then
+		endLimit="$( AgentsToolsUsageLimitText "$( head -1 "${endRecord%.spawn.md}.refused" )" 2> /dev/null )" || endLimit=""
+	fi
 	endOwn="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-thread )"
 	AgentsToolsSpawnConversationThreadValid "$endOwn" || endOwn=""
 	## Where it is told, and to whom: where it reports to, and where its handback went is held against that.

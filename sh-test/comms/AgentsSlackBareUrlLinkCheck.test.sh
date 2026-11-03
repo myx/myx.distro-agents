@@ -54,7 +54,7 @@ rigSend(){ ## text...
 	: > "$rigTmp/bodies"
 	local sendOut=""
 	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --slack-send-message keeper-myx magic-team --identity-bot "$@" 2>&1 )" \
+		bash "$rigTool" --slack-send-message --team-member keeper-myx magic-team --identity-bot "$@" 2>&1 )" \
 		|| { printf 'send-failed: %s' "$( printf '%s\n' "$sendOut" | grep 'ERROR' | head -1 )" ; return 0 ; }
 	cat "$rigTmp/bodies"
 }
@@ -65,7 +65,7 @@ rigSendStdin(){
 	: > "$rigTmp/bodies"
 	local sendOut=""
 	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --slack-send-message keeper-myx magic-team --identity-bot --from-stdin 2>&1 )" \
+		bash "$rigTool" --slack-send-message --team-member keeper-myx magic-team --identity-bot --from-stdin 2>&1 )" \
 		|| { printf 'send-failed: %s' "$( printf '%s\n' "$sendOut" | grep 'ERROR' | head -1 )" ; return 0 ; }
 	cat "$rigTmp/bodies"
 }

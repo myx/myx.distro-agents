@@ -100,6 +100,15 @@ Exact instructions. Execute in order, every step, literally as written — not l
 4. **sample-the-rest**: Sample the sessions that are not stuck, at random, or all of them as load allows. Read what each filed in `event-track` and the content it produced. Check its decisions and quality against the brief, the epic and the rules in force.
 5. **assess-the-system**: Assess how the whole system works: tooling, setup, processes, people and teams. Look for gaps, inefficiency and what to tune.
 6. **handle-a-problem**: Assess each problem the steps above found, before any action. Then fix it, file it, or send a request to magic.vane@meloscope.com (`--email-send`). Choose by the start mode, the install, the situation and the kind of problem.
+   - detect problems and areas to improve actively, by reading the code and the running system, not only what a run reports.
+   - classify each: simple or profitable, then offer it or do it. Complicated or a minor improvement, then discuss it or record it.
+   - each takes one of three ways, chosen by "Choosing a move" in `magic-team.basic.md`:
+     - do it inline yourself, and record the rework or finishing it still needs.
+     - dispatch it, or record it for an immediate or queued session.
+     - record it to the process flow, for planned grooming and implementation.
+   - a fault met is fixed forward in the tooling. No private script, wrapper or one-time patch stands in for the fix.
+   - use what works, and take on what is broken.
+   - study how a tool is made only when that is the task.
 7. **report-on-change**: Post one line to the human-owner's direct conversation for each change this tick. A change is a session released, a stage landed or accepted, or a fault found or fixed. Nothing changed: post nothing.
 8. **next-tick**: Decide what follows this tick, steps:
    - the stop condition given at a root or manual start is met: go to the Closure steps.
@@ -135,6 +144,27 @@ Steps:
 4. Dismiss, in its session thread, a run that a restart replaced.
 
 # Routine's local rules
+
+How a supervisor decides. It does two kinds of work, unblocking and improving, in one of two modes.
+
+Modes:
+- attended: the default in `worktime`, the human-owner is reachable.
+- unattended: the default outside `worktime`.
+
+Ways to carry a matter out (`handle-a-problem`):
+- inline by the supervisor, recording the rework or finishing still owed.
+- dispatched, or recorded for an immediate or queued session.
+- recorded to the process flow, for planned grooming and implementation.
+
+Unblocking keeps work moving:
+- it may use any of the three ways, as the situation allows, in either mode.
+- it may escalate in part, at any time: the work moves now, and the less urgent, additional actions go up as their own ask.
+
+Improving changes how the system works:
+- when the human-owner is present and available, he replaces the quorum: ask him, and his reply overrides it.
+- when he cannot be reached, a theatre, a meeting, sleep, and the matter is needed, it goes through a quorum without him: at least three members, not counting the supervisor, who takes part in the decision too. He stays a stakeholder who can give input later. Call, in order: the maintainers of the project, routine or skillset file, whose frontmatter names them. Then the team experts whose duties make them stakeholders. Then, if still fewer than three, anyone, related to the topic where possible. All stakeholders where it concerns all. A quorum ranges from the full process, to a Slack message after assessment, to a quick session.
+- with 100% of that quorum, him excepted, the supervisor judges: does this need his work and an escalation, or can it proceed on the supervisor's responsibility. A present problem with a great improvement does not wait. It acts so that he can give late input: it tells him in full, and keeps the material to undo it or redo it differently.
+- with no full quorum after every round of discussion, brainstorm, investigation and assessment, it climbs "The ladder: one rung at a time".
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 

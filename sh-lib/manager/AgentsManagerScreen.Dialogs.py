@@ -118,9 +118,11 @@ def dialogMissing(dialog):
 
 
 ## The default button of a dialog, which Enter presses and which is drawn with the marks: the first, unless it would act and a required input is not there
-## (what it would do is refused), and then the button that cancels. It follows what is typed, both ways.
+## (what it would do is refused), and then the button that cancels. It follows what is typed, both ways. A word typed whole is the exception:
+## while it is absent the first button still stands, so Enter runs the refusal and says what it waits for, never a silent cancel.
 def dialogDefaultIndex(dialog):
-    if dialog["buttons"] and dialog["buttons"][0][0] != "cancel" and DIALOG_HANDLERS.get(dialog["name"]) is not None and dialogMissing(dialog) is not None:
+    missing = dialogMissing(dialog)
+    if dialog["buttons"] and dialog["buttons"][0][0] != "cancel" and DIALOG_HANDLERS.get(dialog["name"]) is not None and missing is not None and missing.get("exactly") is None:
         return next((index for index, (name, label) in enumerate(dialog["buttons"]) if name == "cancel"), 0)
     return 0
 

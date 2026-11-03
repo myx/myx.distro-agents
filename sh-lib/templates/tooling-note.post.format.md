@@ -61,6 +61,9 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - contacted-unknown
   - reaching
   - escalation-ask
+  - tier-none
+  - tier-partner
+  - tier-recorded
 - Reasons
   - not-held
   - session-killed
@@ -191,6 +194,12 @@ What the tooling says in a session's thread about the session itself, and what i
 
 ```
 No session requested this run, so its end is told here.[[ Its session: {{session}}.]]
+```
+
+## children-closed
+
+```
+🏁 {{member}} closed this session: the {{count}} run(s) it brought in were dismissed.
 ```
 
 ## question-open
@@ -415,7 +424,7 @@ What DistroAgentsContacts.fn.sh prints where a contact is used (F7.10): the two 
 ```
 Access of {{id}}: {{access}}
 
-A request is in one of three tiers. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Recorded access, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
+{{tiers}}
 
 Next: assess the request as granted, needs escalation, or must be denied. Ask the chain about one call with `DistroAgentsContacts.fn.sh --contact-access {{id}} --tool <tool> --target <target>`. Where it does not cover the call, `DistroAgentsContacts.fn.sh --escalate-contact {{id}} --tool <tool> --target <target> --asked "<who wants what>"` asks the human-owner. Report the assessment as one digest with `--send-contact-digest`.
 ```
@@ -442,6 +451,43 @@ Reach {{id}}, {{name}}[[ of {{organisation}}]].[[ How to meet them: {{how}}.]]
 ```
 The refusal {{refusal}} is recorded for the contact {{id}}[[ ({{name}})]], in session {{session}}. Ask the human-owner with `RequestPermission refusal_id={{refusal}} reason="{{member}} asks about the contact {{id}}: {{asked}}" task_ref=<the task this serves>`.
 His click or word opens the grant: for this session, or, with 👤, for the contact whatever the session.
+```
+
+## tier-none
+
+The `{{tiers}}` of `contacted-known` for a contact whose record sets no `tier:`.
+
+```
+A request is in one of three tiers. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Recorded access, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
+```
+
+## tier-partner
+
+The same slot for a contact whose record says `tier: partner`: what partner adds, and every tier below it.
+
+```
+This contact is a partner. Every tier below is open to it, and Partner besides.
+
+- Ingest, always: read and understand it.
+- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
+- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.
+
+Partner never covers credentials or client-confidential material. A partner changes a project, the board or the team's work only through escalation to the human-owner.
+```
+
+## tier-recorded
+
+The same slot for a contact whose record says `tier: recorded`: the highest tier, with every tier below it.
+
+```
+This contact has recorded access. Every tier below is open to it, and Recorded besides.
+
+- Ingest, always: read and understand it.
+- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
+- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.
+- Recorded: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.
+
+Partner never covers credentials or client-confidential material. A partner changes a project, the board or the team's work only through escalation to the human-owner.
 ```
 
 # Reasons

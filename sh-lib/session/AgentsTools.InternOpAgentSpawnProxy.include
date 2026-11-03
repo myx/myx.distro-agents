@@ -59,20 +59,23 @@ AgentsToolsSpawnProxyAnnounceCli(){
 	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: 🤖 AI service used: ${announceCli:-none -- no agent CLI was launched}" >&2
 }
 
-## The root post of a coworking session's thread, in the team's own conversation: the
-## session's own line, seeded by the tooling, never a member's message. Its text is its own
-## template's (sh-lib/templates/session-thread.root.format.md, filled by
+## The root post of a coworking session's thread, in the conversation that thread belongs to (the
+## team's own, or the owner's for a work-duty): the session's own line, seeded by the tooling,
+## never a member's message. Its text is its own template's
+## (sh-lib/templates/session-thread.root.format.md, filled by
 ## AgentsSessionThreadRootFill.awk): the session by its name, and who started it where that
 ## is known. Posted as the bot with no author line and no addressee, under the bot token
 ## every opener has used (the member's own where it has one, else the team's); the bot not
 ## yet in the conversation joins it once, as the member send does for a top-level post. The
-## thread under it is the participants' own. Prints `<channel>:<ts>`; where nothing was
-## posted it prints nothing and says one warning on stderr, and silently nothing where no
-## bot token resolves. One line in the monthly send log, in the member send's own columns.
-AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the session's name, who started it (may be empty)
-	local rootMember="$1" rootName="$2" rootBy="${3:-}"
+## thread under it is the participants' own. A target naming a person resolves to that
+## person's id, so its DM is opened first and the thread is the conversation id Slack gives
+## back. Prints `<channel>:<ts>`; where nothing was posted it prints nothing and says one
+## warning on stderr, and silently nothing where no bot token resolves. One line in the
+## monthly send log, in the member send's own columns.
+AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the session's name, who started it (may be empty), the target (magic-team where none)
+	local rootMember="$1" rootName="$2" rootBy="${3:-}" rootTarget="${4:-magic-team}"
 	local rootLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-	local rootText="" rootChannel="" rootPayload="" rootResponse="" rootErrFile="" rootError="" rootRc=0 rootTs="" rootIn="" rootJoined="false"
+	local rootText="" rootChannel="" rootPayload="" rootResponse="" rootErrFile="" rootError="" rootRc=0 rootTs="" rootIn="" rootJoined="false" rootDmUser=""
 	local rootOutcome="failed" rootReason="not posted: session-thread root" rootStamp=""
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
 	AgentsToolsResolveSlackBotToken "$rootMember" > /dev/null 2>&1 || return 0
@@ -82,11 +85,25 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: its root post could not be filled from sh-lib/templates/session-thread.root.format.md" >&2
 		return 0
 	fi
-	rootChannel="$( DistroAgentsToolsResolveTarget magic-team 2> /dev/null | sed -n 's/^CHANNEL=//p' )" || rootChannel=""
+	rootChannel="$( DistroAgentsToolsResolveTarget "$rootTarget" 2> /dev/null | sed -n 's/^CHANNEL=//p' )" || rootChannel=""
 	if [ -z "$rootChannel" ] ; then
-		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: no conversation is set for magic-team (SLACK_CHANNEL_MAGIC_TEAM)" >&2
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: $rootTarget names no conversation this workspace sets" >&2
 		return 0
 	fi
+	## A target that names a person is their id, never a conversation: the bot opens the direct
+	## message first and the root goes to the conversation Slack answers with.
+	case "$rootChannel" in
+		U[A-Z0-9]*|W[A-Z0-9]*)
+			rootDmUser="$rootChannel"
+			rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.open --identity bot --form "users=$rootDmUser" \
+				--context --intern-op-agent-spawn-proxy 2> /dev/null )" || rootResponse=""
+			rootChannel="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel.id -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootChannel=""
+			if [ -z "$rootChannel" ] ; then
+				echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: the direct message of $rootDmUser could not be opened" >&2
+				return 0
+			fi
+		;;
+	esac
 	rootErrFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-session-root.XXXXXX" )" || rootErrFile=""
 	if [ -z "$rootErrFile" ] ; then
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: could not create a scratch file under $MMDAPP/.local/temp" >&2
@@ -117,7 +134,7 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 	rm -f "$rootErrFile"
 	[ -z "$rootTs" ] || { rootOutcome="ok" ; rootReason="session-thread root posted ts=$rootTs" ; }
 	rootStamp="$( date -u +%Y%m%dT%H%M%SZ )"
-	{ mkdir -p "$MMDAPP/.local/agents" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rootStamp" "$rootMember" magic-team "$rootChannel" bot "$rootOutcome" "$rootReason" "${MDAT_SPAWN_SESSION_ID:--}" \
+	{ mkdir -p "$MMDAPP/.local/agents" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rootStamp" "$rootMember" "$rootTarget" "$rootChannel" bot "$rootOutcome" "$rootReason" "${MDAT_SPAWN_SESSION_ID:--}" \
 		>> "$MMDAPP/.local/agents/comms-slack-send.${rootStamp:0:4}-${rootStamp:4:2}.log" ; } 2> /dev/null \
 		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not append the session thread root's outcome to the send log" >&2
 	if [ -z "$rootTs" ] ; then
@@ -1405,6 +1422,13 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates --cli-configured or MDAT_SPAWN_LAUNCH_MARKER, so a configured spawn cannot be started here, or its launch could not be told apart from a silent no-op. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
 			set +e ; return 1
 		fi
+		## The participants of a session reach its console as MDAT_SPAWN_PARTICIPANTS (--spawn-session). A console from before that
+		## ignores them and offers its executor none, with nothing to report it, so it is refused here too.
+		if [ -n "${MDAT_SPAWN_PARTICIPANTS:-}" ] && ! grep -q 'MDAT_SPAWN_PARTICIPANTS' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
+			echo "SETUP_STATUS=console-stale"
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates MDAT_SPAWN_PARTICIPANTS, so the participants of this session ($MDAT_SPAWN_PARTICIPANTS) would not be offered to its executor. Regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
+			set +e ; return 1
+		fi
 
 		local timestamp receiptId
 		## The ruled name form, seconds variant, in UTC: a dispatch item is a board item.
@@ -1940,9 +1964,11 @@ case "$1" in
 		## (AgentsToolsRootHarnessKindRead), never a caller's opinion of it.
 		type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
 		[ "$( AgentsToolsRootHarnessKindRead "$sessionId" 2> /dev/null )" = "track" ] && sessionTrack="true" || sessionTrack=""
-		## A WORK-DUTY HAS ITS TOOLING THREAD ONLY (S23.4), never a session thread: it is reached by a tag in a channel. Whatever the mode its start was given, no session thread is opened,
-		## joined or recorded for it, so a restart of the duty posts no header in the team channel either. The tooling thread is the event-track thread its start post opens.
-		[ -z "$workDutyDispatchFile" ] || sessionTrack="true"
+		## A WORK-DUTY'S SESSION THREAD IS IN THE OWNER'S CONVERSATION (S23.4), opened by its own start
+		## post, where anyone posts to it and a Wait reads it; its tooling thread stays in event-track.
+		## The duty still starts alone, and a restart joins the thread its session already has.
+		local workDutyStart=""
+		[ -z "$workDutyDispatchFile" ] || workDutyStart="true"
 		if [ -n "$joinSessionId" ] ; then
 			sessionThread="$joinSessionThread"
 		elif [ "$sessionThreadMode" = "event-track" ] ; then
@@ -1974,7 +2000,7 @@ case "$1" in
 				' "$( AgentsToolsRegistryFile spawned-sessions )"
 			)" || sessionThread=""
 		fi
-		if [ -z "$sessionThread" ] && [ -z "$sessionPrintback" ] && [ -z "$sessionTrack" ] && { [ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
+		if [ -z "$sessionThread" ] && [ -z "$sessionPrintback" ] && [ -z "$sessionTrack" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
 			## Human-owner's own correction: the team-channel root is not the tooling
 			## thread. One short human line, titled by --session-name-or-comment or
 			## else the routine's name and the member -- no id block, no host, no timestamps. That detail
@@ -1988,23 +2014,37 @@ case "$1" in
 			## Posted where this spawn runs, as its other settings are read: this workspace, so the
 			## token and the conversation are always one Slack's.
 			## The title is the session's own (S21.20): the one its opening run gave it, read off its records where this run only joins it.
+			## A work-duty's root is posted in the owner's conversation and every other session's in the team's.
 			local rootTitle="$sessionCommentKept"
 			if [ -z "$rootTitle" ] ; then
 				rootTitle="$( LC_ALL=C grep -l -x -F "session-id: $sessionId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1 )" || rootTitle=""
 				[ -z "$rootTitle" ] || rootTitle="$( AgentsToolsSpawnSandboxRecordHeader "$rootTitle" session-comment )"
 			fi
 			[ -n "$rootTitle" ] || rootTitle="$callerName"
+			local rootTarget="magic-team"
+			[ -z "$workDutyStart" ] || rootTarget="human-owner"
 			sessionThread="$(
-				AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnerMember"
+				AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnerMember" "$rootTarget"
 			)" || sessionThread=""
 			## Recorded at once as the session's, so the member brought in next finds it, and the
 			## session that brought this one in does (session-current, AgentsToolsSessionCurrentThreadFind).
-			if [ -n "$sessionJoined" ] && [ -n "$sessionThread" ] ; then
+			## A duty records it for its own session too, which it starts alone and restarts into.
+			if [ -n "$sessionThread" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] ; } ; then
 				{ mkdir -p "${sessionThreadRecord%/*}" && printf '%s\n' "$sessionThread" > "$sessionThreadRecord.$$.tmp" && mv -f "$sessionThreadRecord.$$.tmp" "$sessionThreadRecord" ; } 2> /dev/null \
 					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the session thread $sessionThread of $sessionId could not be recorded, so a member brought in before this spawn is recorded may open another" >&2
 			fi
 		fi
 		[ -z "$sessionThreadLock" ] || AgentsToolsLocalLockGive "$sessionThreadLock"
+		## What a joining run is for, its description else its own name, becomes the session's chapter, unless an executor set one: only a chapter that is empty or one of
+		## the lines of chapter.join (every text a join wrote) is replaced, so two joins at once can never make the next join keep a stale one.
+		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -n "$spawnDescriptionKept$sessionCommentKept" ] ; then
+			local joinChapterDir="$MMDAPP/.local/agents/sessions/$sessionId" joinChapterNow="" joinChapterText="$callerName: ${spawnDescriptionKept:-$sessionCommentKept}"
+			{ IFS= read -r joinChapterNow < "$joinChapterDir/chapter" ; } 2> /dev/null || joinChapterNow=""
+			if [ -z "$joinChapterNow" ] || LC_ALL=C grep -q -x -F -- "$joinChapterNow" "$joinChapterDir/chapter.join" 2> /dev/null ; then
+				{ mkdir -p "$joinChapterDir" && printf '%s\n' "$joinChapterText" >> "$joinChapterDir/chapter.join" && printf '%s\n' "$joinChapterText" > "$joinChapterDir/chapter" ; } 2> /dev/null \
+					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the chapter of $sessionId could not be written" >&2
+			fi
+		fi
 		## A member brought into a session says so in its thread, as a reply, with what it was
 		## brought in for: every spawn but the one whose own session the thread is. The result
 		## is never assigned to sessionThread. Its text is the note template's
@@ -2012,7 +2052,9 @@ case "$1" in
 		## external side is its tooling thread says nothing (F3.1). A session whose external side
 		## is its printback channel has no thread either, and what it says is RECORDED there as a
 		## notice, not posted: the next foreground call of that session surfaces the line (F3.3).
-		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -z "$sessionTrack" ] && ! { case "${routineFilePath##*/}" in *.work-duty.routine.md) AgentsToolsSessionMemberHasRecord "$sessionId" "$callerName" ;; *) false ;; esac ; } ; then
+		## A work-duty's opening start opened its session's thread itself, so it is the opener: it
+		## posts its root and no joined line, as any session's first run does.
+		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -z "$sessionTrack" ] && [ -z "$workDutyStart" ] && ! { case "${routineFilePath##*/}" in *.work-duty.routine.md) AgentsToolsSessionMemberHasRecord "$sessionId" "$callerName" ;; *) false ;; esac ; } ; then
 			## It is said to the member that makes this spawn call, where the send can address
 			## it, and to nobody where there is none: never to the member that joined.
 			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot ) joinedTo="" joinedLine=""
@@ -2307,6 +2349,11 @@ case "$1" in
 		## Its member's seat in the session, taken at its start (F6.9): where a live run took it
 		## since the check above, this run starts without it, and takes it once that one has ended.
 		AgentsToolsSessionSeatTake "$sessionId" "$callerName" "$sandboxTracking" > /dev/null 2>&1 || :
+		## A SESSION THAT STARTS AGAIN SHOWS NO END (S6.37): a run that restarts, or resumes, the session takes the
+		## end marks off its root message. A start that is neither asks nothing and reacts to nothing.
+		if [ -n "$restartedFromSaid$resumeFrom$resumeContextFile" ] ; then
+			AgentsToolsSpawnProxyRootMarkClear "$sessionId" || :
+		fi
 		## A one-line pointer file, plain text, for a reader that wants the session thread
 		## and nothing else -- no frontmatter to parse. In the sandbox root, same as the
 		## tracking file above and for the same reason. The event-track thread has no pointer
@@ -2400,7 +2447,7 @@ case "$1" in
 			printf '%s\n' "$seedSourceText" | AgentsToolsCheckListEpicItems "$MMDAPP" || :
 			if [ -n "$routineFilePath" ] && [ -z "$workDutyDispatchFile" ] ; then
 				type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
-				AgentsToolsSpawnRoutineMixText "$routineFilePath" | AgentsToolsCheckListRoutineSteps || :
+				AgentsToolsSpawnRoutineMixText "$routineFilePath" | AgentsToolsCheckListRoutineSteps "$sessionId" "$MDAT_SPAWN_SESSION_ID" || :
 			fi
 			printf '%s' "$checklistItemsSaid"
 		} | AgentsToolsCheckListSeed "$sessionId" "$callerName" > /dev/null \
@@ -2475,7 +2522,7 @@ case "$1" in
 		## A resumed session already holds its brief: its prompt is the corrections and the item's newest Decisions.
 		local resumeContext=""
 		if [ -n "$resumeFrom" ] || [ -n "$resumeContextFile" ] ; then
-			resumeContext="$( printf 'RETURNED for corrections on %s. Continue the same task, then hand back again.\n\n%s\n' "${trackedItemName%.md}" "$resumeText" )"
+			resumeContext="$( printf 'Your item %s is open again. It was RETURNED for corrections. Continue the same task, then hand back again.\n\n%s\n' "${trackedItemName%.md}" "$resumeText" )"
 			decisionsBlock=""
 			decisionsPath="$( AgentsToolsDecisionsItemPath "$trackedItemName" )" && decisionsBlock="$( AgentsToolsDecisionsBlock "$decisionsPath" 10 )" || decisionsBlock=""
 			[ -z "$decisionsBlock" ] || resumeContext="$( printf '%s\n\n%s\n' "$resumeContext" "$decisionsBlock" )"

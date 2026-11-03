@@ -29,18 +29,7 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 	local roundTypeTable roundLiveHolders
 	type AgentsToolsBoardTypeTable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
 	roundTypeTable="$( AgentsToolsBoardTypeTable )" || roundTypeTable=""
-	roundLiveHolders=""
-	[ -z "${MMDAPP:-}" ] || roundLiveHolders="$(
-		LC_ALL=C awk '
-			FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 }
-			$0 == "---" { if (++fm == 2 && status == "spawn-started" && !ended) printf "%s\t%s\t%s\n", owner, spawn, sid ; next }
-			fm == 1 && index($0, "owner: ") == 1 { owner = substr($0, 8) }
-			fm == 1 && index($0, "session-id: ") == 1 { sid = substr($0, 13) }
-			fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
-			fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
-			fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
-		' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null
-	)"
+	roundLiveHolders="$( AgentsToolsBoardLiveHolders )" || roundLiveHolders=""
 	local AGENTS_BOARD_TYPE_TABLE_CACHE="$roundTypeTable" AGENTS_BOARD_LIVE_HOLDERS_CACHE="$roundLiveHolders"
 	export AGENTS_BOARD_TYPE_TABLE_CACHE AGENTS_BOARD_LIVE_HOLDERS_CACHE
 	## Scoped to what the rules act on, per the owner's "grooming reads backlog+inquiries+notes, advance does not": no backlog (promotion is
@@ -59,10 +48,11 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 		--no-inbox-other \
 		--no-board-related \
 		--context "$2" || roundRc=$?
-	## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
+	## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include). The coordinator's
+	## work-duty reviews an item whose parent no longer runs, so its scan is the one that lists them (S24.7).
 	type AgentsReviewItemsForRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 	printf '\n%s\n\n' "## review items addressed to advance.routine"
-	AgentsReviewItemsForRoutine advance
+	AgentsReviewItemsForRoutine advance "$1"
 	## All three registries ride in the scan's output because the round that reads the board also needs to know who can be spawned, what is
 	## actually running and what is waiting on an answer. The rescan is what keeps each one a cache rather than a record anyone maintains by
 	## hand. The instruction to poll these and compare them with the board's own running items lives in magic-team.advance.routine.

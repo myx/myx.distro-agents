@@ -217,6 +217,7 @@ AgentsToolsClientToolPolicyHookRecords(){
 	recordOut="${recordOut}PreToolUse	all	.claude/hooks/deny-memory-md-read.sh Glob	Glob	deny-memory-md-read.sh	Glob"$'\n'
 	recordOut="${recordOut}PreToolUse	all	.claude/hooks/deny-memory-md-read.sh Grep	Grep	deny-memory-md-read.sh	Grep"$'\n'
 	recordOut="${recordOut}PreToolUse	all	.claude/hooks/protect-memory-md.sh	Edit|Write	protect-memory-md.sh	"$'\n'
+	recordOut="${recordOut}PreToolUse	native	.claude/hooks/document-contract-guard.sh	Edit|Write|MultiEdit	document-contract-guard.sh	"$'\n'
 	## A spawned member: allow a native file tool call its session index grants, deny a write
 	## in a read-only place, and leave anything else to the client and the PermissionRequest hook.
 	recordOut="${recordOut}PreToolUse	native	.claude/hooks/allow-granted-native-tool.sh	Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob	allow-granted-native-tool.sh	"$'\n'
@@ -266,7 +267,7 @@ AgentsToolsClientToolPolicyHookKeys(){
 		echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: the reroute tool set yielded no keys, so the verifier would assert nothing about the reroute hooks" >&2
 		return 1
 	fi
-	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ".claude/hooks/deny-memory-md-read.sh Glob" ".claude/hooks/deny-memory-md-read.sh Grep" ".claude/hooks/protect-memory-md.sh" ".claude/hooks/allow-granted-native-tool.sh" ; do
+	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ".claude/hooks/deny-memory-md-read.sh Glob" ".claude/hooks/deny-memory-md-read.sh Grep" ".claude/hooks/protect-memory-md.sh" ".claude/hooks/allow-granted-native-tool.sh" ".claude/hooks/document-contract-guard.sh" ; do
 		case "$policyHookKey" in
 			""|*$'\t'*|*$'\n'*)
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: a hook key is empty or carries a tab or a newline, which the verifier reads as an assertion it never made" >&2

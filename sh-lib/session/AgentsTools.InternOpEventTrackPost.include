@@ -241,7 +241,7 @@ AgentsEventTrackPostSend(){ ## record dir
 		for postFile in "${postPosts[@]}" ; do
 			postText="$( LC_ALL=C awk -f "$agentsEventTrackPostLib/mcp/AgentsMcpJsonEscape.awk" < "${postFile%.blocks}.text" )"
 			postPayload="{\"channel\":\"$postChannel\",\"text\":\"$postText\",\"blocks\":$( cat "$postFile" ),\"thread_ts\":\"$postThread\",\"metadata\":$postMetadata}"
-			AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "${postMetaSession:-event-track}" "$postQueueNo$postQueued" "$postMember" bot chat.postMessage "$postPayload" || {
+			AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "${postMetaSession:-event-track}" "$postQueueNo$postQueued" "$postMember" bot chat.postMessage "$postPayload" "queued for the comms reader" || {
 				rm -rf "$postDir"
 				echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the $postKind post could not be appended to the outbox in $agentsCommsCacheDir" >&2
 				return 1

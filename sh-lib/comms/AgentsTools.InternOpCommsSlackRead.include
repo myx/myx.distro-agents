@@ -7,6 +7,8 @@
 ## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
 ##
 
+type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+
 case "$1" in
 
 		--intern-op-comms-slack-read)
@@ -203,58 +205,94 @@ case "$1" in
 				## endpoint's reply unless this form field asks for it -- live-
 				## verified in this workspace: event_type alone survives without
 				## it, event_payload only with it.
-				AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+				local threadFile="" threadErrFile=""
+				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || :
+				threadFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-thread.XXXXXX" 2> /dev/null )" || threadFile=""
+				[ -z "$threadFile" ] || threadErrFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-thread-err.XXXXXX" 2> /dev/null )" || threadErrFile=""
+				[ -n "$threadErrFile" ] || { echo "⛔ ERROR: $MDSC_CMD --slack-read: could not make a scratch file for the read in $MMDAPP/.local/temp" >&2 ; [ -z "$readErrFile" ] || rm -f "$readErrFile" ; set +e ; return 1 ; }
+				AgentsToolsSlackReadBounded "$threadFile" "$threadErrFile" \
+					AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
 					--api conversations.replies \
 					--resolve-target "$channel" \
 					--form "ts=$threadTs" \
 					--form "include_all_metadata=true" \
 					${oldestArgs[@]+"${oldestArgs[@]}"} \
 					"${identityArgs[@]}" \
-					--context "--slack-read" 2> "${readErrFile:-/dev/null}" || readRc=$?
-				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$readErrFile" 2> /dev/null ; then
-					cat "$readErrFile" >&2
+					--context "--slack-read" || readRc=$?
+				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$threadErrFile" 2> /dev/null ; then
+					cat "$threadErrFile" >&2
 					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
 					readRc=0
-					AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+					AgentsToolsSlackReadBounded "$threadFile" "$threadErrFile" \
+						AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
 						--api conversations.replies \
 						--resolve-target "$channel" \
 						--form "ts=$threadTs" \
 						--form "include_all_metadata=true" \
 						${oldestArgs[@]+"${oldestArgs[@]}"} \
 						--identity bot \
-						--context "--slack-read" 2> "$readErrFile" || readRc=$?
+						--context "--slack-read" || readRc=$?
 				fi
 				[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
-				[ "$readRc" = "0" ] || { set +e ; return 1 ; }
+				if [ "$readRc" != "0" ] ; then
+					cat "$threadErrFile" >&2
+					rm -f "$threadFile" "$threadErrFile" 2> /dev/null || :
+					set +e ; return 1
+				fi
+				cat "$threadErrFile" >&2
+				cat "$threadFile"
+				rm -f "$threadFile" "$threadErrFile" 2> /dev/null || :
 			else
-				echo "# $MDSC_CMD --slack-read: GET conversations.replies channel=$channel ts=$threadTs (single message, selected by exact ts, acting member $memberName)" >&2
-				local response callRc=0
-				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+				## ONE MESSAGE IS READ AS ONE MESSAGE. conversations.replies answers for a reply's
+				## own ts, and `oldest` with `inclusive` starts its answer AT that ts, so `limit=1`
+				## makes Slack return that one message plus the thread's parent. Asking for the
+				## thread instead cost a whole event-track thread's body on every single-message
+				## read, and a 32-minute burn on one live read (S12).
+				echo "# $MDSC_CMD --slack-read: GET conversations.replies channel=$channel ts=$threadTs (single message, oldest=$threadTs inclusive limit=1, acting member $memberName)" >&2
+				local response callRc=0 responseFile="" responseErrFile=""
+				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || :
+				responseFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-one.XXXXXX" 2> /dev/null )" || responseFile=""
+				[ -z "$responseFile" ] || responseErrFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-read-one-err.XXXXXX" 2> /dev/null )" || responseErrFile=""
+				[ -n "$responseErrFile" ] || { echo "⛔ ERROR: $MDSC_CMD --slack-read: could not make a scratch file for the read in $MMDAPP/.local/temp" >&2 ; set +e ; return 1 ; }
+				AgentsToolsSlackReadBounded "$responseFile" "$responseErrFile" \
+					AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
 					--api conversations.replies \
 					--resolve-target "$channel" \
 					--form "ts=$threadTs" \
+					--form "oldest=$threadTs" \
+					--form "inclusive=true" \
+					--form "limit=1" \
 					--form "include_all_metadata=true" \
 					"${identityArgs[@]}" \
-					--context "--slack-read" 2> "${readErrFile:-/dev/null}" )" || callRc=$?
-				if [ "$callRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$readErrFile" 2> /dev/null ; then
-					cat "$readErrFile" >&2
+					--context "--slack-read" || callRc=$?
+				if [ "$callRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$responseErrFile" 2> /dev/null ; then
+					cat "$responseErrFile" >&2
 					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
 					callRc=0
-					response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
+					AgentsToolsSlackReadBounded "$responseFile" "$responseErrFile" \
+						AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" \
 						--api conversations.replies \
 						--resolve-target "$channel" \
 						--form "ts=$threadTs" \
+						--form "oldest=$threadTs" \
+						--form "inclusive=true" \
+						--form "limit=1" \
 						--form "include_all_metadata=true" \
 						--identity bot \
-						--context "--slack-read" 2> "$readErrFile" )" || callRc=$?
+						--context "--slack-read" || callRc=$?
 				fi
 				[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
 				if [ "$callRc" != "0" ] ; then
+					cat "$responseErrFile" >&2
+					rm -f "$responseFile" "$responseErrFile" 2> /dev/null || :
 					set +e ; return 1
 				fi
 				local selectStatus=0
-				printf '%s\n' "$response" | LC_ALL=C awk -v wantTs="$threadTs" \
-					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessageSelect.awk" || selectStatus=$?
+				LC_ALL=C awk -v wantTs="$threadTs" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessageSelect.awk" < "$responseFile" || selectStatus=$?
+				cat "$responseErrFile" >&2
+				rm -f "$responseFile" "$responseErrFile" 2> /dev/null || :
 				case "$selectStatus" in
 					0)
 					;;

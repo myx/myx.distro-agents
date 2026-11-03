@@ -128,7 +128,7 @@ for rigName in glob read wait ; do
 	rigAssert "$rigName: no current-date in its output"       "$( rigDates "$rigName" )" 0
 done
 rigAssert "Glob still lists the file, Read still gives its line" "$( LC_ALL=C grep -c -F "$rigFix/a.txt" "$rigTmp/glob.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' ) $( LC_ALL=C grep -c -F 'rig line' "$rigTmp/read.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' )" "1 1"
-rigAssert "the Wait's TIMEOUT is its own line, its NEXT: part last" "$( LC_ALL=C sed -n '1s/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigTmp/wait.out" )" "the-line"
+rigAssert "the Wait's TIMEOUT is its own line, its NEXT: part last" "$( LC_ALL=C sed -n '1s/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigTmp/wait.out" )" "the-line"
 
 echo "-- 6. in the harness's own model loop, the tool message holds the result and, beside it, the field --"
 rigLoopDir="$rigTmp/loop"

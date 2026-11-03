@@ -12,7 +12,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsole.HelpViewer.fn.include"
-rigViewer="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleHelpViewer.py"
+rigViewer="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalManagerHelpViewer.py"
 rigPython="$( command -v python3 )" || { echo "⛔ ERROR: no python3 on PATH, so the viewer can be shown nowhere" >&2 ; exit 1 ; }
 [ -f "$rigInclude" ] || { echo "⛔ ERROR: the help viewer's include is not at the origin: $rigInclude" >&2 ; exit 1 ; }
 [ -f "$rigViewer" ] || { echo "⛔ ERROR: the viewer script is not at the origin: $rigViewer" >&2 ; exit 1 ; }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-## Behavioural check on S27.5: a parent's close dismisses every child still waiting on it. A parent
-## that ends with a child still running leaves that child waiting on a run that is gone; its close
-## now gives each such child its DISMISSED, which is the decision the close is.
-## Red before S27.5: the child's thread receives nothing when the parent's record closes.
+## Behavioural check on S27.5, under S6.25: an executor's close dismisses every run it spawned and that still
+## waits, matched on `parent-spawn-id`. The dismissal is the tooling's own state: the run's mark is kept, the
+## session chat file records it, and one line to @here says what was ended. Nothing is posted to the run.
+## Red before S27.5: the child is left waiting on a run that is gone.
 ## Offline: a Slack-shaped fake curl logs each post and opens no socket; each run is a stand-in
 ## process carrying its own spawn id; the workspace and board are this rig's own temp tree.
 set -u
@@ -43,10 +43,18 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-rigRecord(){ ## spawn, session, owner, parent session, session thread
-	mkdir -p "$rigSpawned/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nparent-session-id: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nsession-thread: %s\n---\n' \
-		"$2" "$1" "$4" "$1" "$rigHost" "$3" "$5" > "$rigSpawned/$1/$1.spawn.md"
+rigRecord(){ ## spawn, session, owner, parent spawn, start context, session thread
+	mkdir -p "$rigSpawned/$1" "$rigWs/.local/agents/sessions/$1"
+	printf '%s\n' "$6" > "$rigWs/.local/agents/sessions/$1/session.thread"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nstart-context: %s\nparent-session-id: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nsession-thread: %s\n---\n' \
+		"$2" "$1" "$4" "$5" "$2" "$1" "$rigHost" "$3" "$6" > "$rigSpawned/$1/$1.spawn.md"
+}
+rigMark(){ ## spawn id -- what its tooling dismissal mark holds, or `none`
+	if [ -f "$rigWs/.local/agents/sessions/$1/dismissed" ] ; then
+		LC_ALL=C head -1 "$rigWs/.local/agents/sessions/$1/dismissed"
+	else
+		printf 'none'
+	fi
 }
 rigCountIn(){ ## file, text -- how many lines of the file hold the text, 0 where the file is not there
 	if [ ! -f "$1" ] ; then printf '0' ; return 0 ; fi
@@ -68,26 +76,27 @@ rigClose(){ ## record path -- the close the proxy runs when a run ends, in this 
 
 echo "-- 1. a parent's close dismisses the children still waiting on it (S27.5) --"
 : > "$rigTmp/curl.log" ; : > "$rigTmp/bodies"
-rigRecord rig-parent-$$ rig-sess-$$ magic-coordinator none CPARENT01:1700000000.000100
-rigRecord rig-child-$$ rig-sess-$$ magic-tester rig-sess-$$ CCHILD01:1700000000.000200
-rigRecord rig-stranger-$$ rig-other-$$ keeper-myx rig-other-$$ CSTRANGER01:1700000000.000300
+rigRecord rig-parent-$$ rig-parent-$$ magic-coordinator none spawned CPARENT01:1700000000.000100
+rigRecord rig-child-$$ rig-parent-$$ magic-tester rig-parent-$$ joined CCHILD01:1700000000.000200
+rigRecord rig-stranger-$$ rig-other-$$ keeper-myx none spawned CSTRANGER01:1700000000.000300
 rigLive rig-child-$$
 rigLive rig-stranger-$$
 sleep 2
 rigOut="$( rigClose "$rigSpawned/rig-parent-$$/rig-parent-$$.spawn.md" )"
 rigAssert "the parent's record closes"                 "$( rigStatus "$rigSpawned/rig-parent-$$/rig-parent-$$.spawn.md" )" "spawn-succeeded"
-rigAssert "its child is sent its DISMISSED"            "$( rigCountIn "$rigTmp/curl.log" 'chat.postMessage' ):$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'CHILDREN-CLOSE: rig-child-.* magic-tester CCHILD01:1700000000.000200' )" "1:1"
-rigAssert "and it went to the child's own thread"      "$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'CCHILD01:1700000000.000200' )" 1
-rigAssert "a run of another session is untouched"      "$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'rig-stranger-' ):$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'CSTRANGER01' )" "0:0"
+rigAssert "its child is dismissed by the tooling"      "$( rigMark rig-child-$$ ):$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'CHILDREN-CLOSE: rig-child-.* dismissed' )" "tooling (the close of rig-parent-$$):1"
+rigAssert "the session chat file records it"           "$( rigCountIn "$rigWs/.local/agents/sessions/rig-parent-$$/session.chat" 'DISMISSED' )" 1
+rigAssert "one line to @here says what was ended"      "$( rigCountIn "$rigTmp/curl.log" 'chat.postMessage' )" 1
+rigAssert "a run it never spawned is untouched"        "$( rigMark rig-stranger-$$ ):$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'rig-stranger-' )" "none:0"
 rigAssert "the child's own record is left to its run"  "$( rigStatus "$rigSpawned/rig-child-$$/rig-child-$$.spawn.md" )" "spawn-started"
 
 echo "-- 2. a control: a parent with no child waiting posts nothing --"
-rigRecord rig-lone-$$ rig-lone-$$ magic-coordinator none CLONE01:1700000000.000400
+rigRecord rig-lone-$$ rig-lone-$$ magic-coordinator none spawned CLONE01:1700000000.000400
 : > "$rigTmp/curl.log" ; : > "$rigTmp/bodies"
 rigOut2="$( rigClose "$rigSpawned/rig-lone-$$/rig-lone-$$.spawn.md" )"
 rigAssert "the lone parent closes"                     "$( rigStatus "$rigSpawned/rig-lone-$$/rig-lone-$$.spawn.md" )" "spawn-succeeded"
 rigAssert "and nothing was sent"                       "$( rigCountIn "$rigTmp/curl.log" 'chat.postMessage' )" 0
-rigAssert "it says so in its own line"                 "$( printf '%s' "$rigOut2" | LC_ALL=C grep -c 'CHILDREN-CLOSE: no child waits' )" 1
+rigAssert "it says so in its own line"                 "$( printf '%s' "$rigOut2" | LC_ALL=C grep -c 'CHILDREN-CLOSE: no run was spawned by this one' )" 1
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ CLOSE CHILDREN CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

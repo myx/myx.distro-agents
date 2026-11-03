@@ -102,6 +102,24 @@ AgentsToolsPendingReplyCollectOwnWords(){ ## stdin: the answers
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyOwnWords.awk" 2>/dev/null
 }
 
+## AN ANSWER THAT ARRIVED AFTER ITS SESSION ENDED GOES TO THE ASKER'S INBOX, where whoever runs
+## as that member next finds it: one note, whose body is the collected line itself. A failed
+## write is one warning, and never undoes the close the answer arrived with.
+AgentsToolsPendingReplyAnsweredNote(){ ## the member whose inbox it goes to, the pending id, the collected ANSWERED line
+	local notedTo="$1" notedId="$2" notedLine="${3:-}"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	{
+		## The keys of the inbox-item.note contract the write gate holds it to: the owner, and a date-time; the gate fills the rest.
+		printf -- '---\nowner: %s\ndate: %s\n---\n\n' "$notedTo" "$( date +'%Y-%m-%d %H:%M %z' )"
+		printf '# Note: an answer arrived after your session ended\n\n'
+		printf 'Pending reply `%s` is answered, and its record is closed. What the tooling collected:\n\n' "$notedId"
+		printf -- '- %s\n' "${notedLine#ANSWERED }"
+	} | DistroAgentsTools --intern-op-member-inbox-upsert "$notedTo" "note-$( date -u +%Y%m%dT%H%M%SZ )-answer-${notedId%%-*}.md" \
+		--context "${MDSC_CMD:-DistroAgentsTools}" > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: $notedId is answered and closed, but the note to $notedTo's inbox was not written" >&2
+	return 0
+}
+
 ## Collects one record. Prints its outcome line; sets collectOutcome and collectAnswer
 ## for the caller. The record is closed here only when it is answered.
 AgentsToolsPendingReplyCollectOne(){ ## record file
@@ -198,8 +216,8 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 	oneWork="$( mktemp "$MMDAPP/.local/temp/mdat-pending-collect.XXXXXX" )" || { collectOutcome="UNREADABLE" ; printf 'UNREADABLE %s %s | no work file\n' "$oneId" "${oneTag:--}" ; return 0 ; }
 	## Read with the identity the question was asked with: one the bot posted may stand where
 	## the member's own account is not (AgentsWaitProbeSlack, MDAT_WAIT_READ_AS_BOT).
-	MDAT_WAIT_READ_AS_BOT="$( [ "$oneIdentity" = "bot" ] && printf 'true' || printf 'false' )" \
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	MDAT_WAIT_READ_AS_BOT="$( [ "$oneIdentity" = "bot" ] && printf 'true' || printf 'false' )" \
 	DistroAgentsTools --intern-op-wait-for-input "$oneOwner" --wait-source "slack:$oneChannel:$oneTts" \
 		--wait-timeout 0 --wait-since-utime "$oneQts" --wait-addressee "$oneAddr" > "$oneWork" 2> "$oneWork.err" || oneRc=$?
 	if [ "$oneRc" != "0" ] || LC_ALL=C grep -q '^WAIT-NEVER-READ: ' "$oneWork" || ! LC_ALL=C grep -q -E '^WAIT-RESULT: (RECEIVED|TIMEOUT)$' "$oneWork" ; then

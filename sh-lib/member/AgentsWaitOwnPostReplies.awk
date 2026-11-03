@@ -14,9 +14,13 @@
 #                      -v siblingsMax is read: -v siblings is the count so far. Once it has reached the
 #                      maximum the siblings are no longer watched (-v mentionsOnly=1): the read goes on from the
 #                      floor, and only a message that mentions the run is printed, and nothing is counted.
+#   -v threadTs        the thread read, for a caller that gives no -v mode: thread where it is -v postTs (the post
+#                      opens it), else channel, since the post is a reply inside another's thread. Compared as text.
 #   -v callerId        the run's own Slack account, where known: a message that mentions it as <@id> mentions the run.
 #   -v postTs          the post itself. It is never printed, but its line gives the reactions it has.
 #   -v floorTs         only a message newer than this is new.
+#   -v oursReactIds    the Slack accounts of our own that react for us, spaced (the team bot, the one the tooling
+#                      reacts as): a reaction only they hold is ours, and is no input to handle.
 #   -v side            a file for what the caller stores, one line each: `newest <ts>` (the newest message
 #                      read after the floor, `-` for none), `siblings <count>`, and `reactions <annotations>`
 #                      (those of the post, `-` for none).
@@ -29,6 +33,7 @@
 # AgentsSlackThreadAnswers.awk. Every closing brace is preceded by a `;` (reference/shell.md's awk axiom).
 
 BEGIN {
+	if ( mode == "" ) { mode = ( ( threadTs "" ) == ( postTs "" ) ? "thread" : "channel" ) ; }
 	addressCount = split(addressees, addressWord, " ")
 	newest = ""
 	count = siblings + 0
@@ -111,7 +116,32 @@ function mentionsRun(line,   rest, arrow, toPart, endPos) {
 	return ( rest ~ ( "(^|[^A-Za-z0-9_-])@" callerName "([^A-Za-z0-9_-]|$)" ) )
 }
 
-## The reactions of a head line, each `[reactions: <name> x<count> (<users>)]`, spaced.
+## Whether a reaction is ours, and so no input to handle. Two are: the eyes, which nothing but the tooling gives -- it is the hand-over
+## mark a Wait or a collect puts on a message the moment it delivers it -- and any reaction every user of which is one of our own accounts
+## (-v oursReactIds, spaced, and the run's own -v callerId). The human-owner's rule (S6.38): our own reactions, like a coordinator's
+## message to a non-coordinator, are not input to handle, and the message itself still reads. Without this the mark made on delivery
+## returns as an arrival, that arrival is handled, another message is delivered and marked: measured on 2026-11-03, 100 marks from
+## 20:05Z while load reached 102.
+function reactionIsOurs(ann,   rest, name, users, userCount, userWord, idx) {
+	rest = ann
+	sub(/^\[reactions: /, "", rest)
+	name = rest
+	sub(/ x.*$/, "", name)
+	if ( name == "eyes" ) { return 1 ; }
+	if ( oursReactIds == "" && callerId == "" ) { return 0 ; }
+	users = rest
+	sub(/^.*\(/, "", users)
+	sub(/\)\]$/, "", users)
+	userCount = split(users, userWord, " ")
+	if ( userCount < 1 ) { return 0 ; }
+	for ( idx = 1 ; idx <= userCount ; idx++ ) {
+		if ( userWord[idx] == "" ) { continue ; }
+		if ( index( " " oursReactIds " " callerId " ", " " userWord[idx] " " ) == 0 ) { return 0 ; }
+	}
+	return 1 ;
+}
+
+## The reactions of a head line, each `[reactions: <name> x<count> (<users>)]`, spaced, and ours left out.
 function reactionsOf(line,   rest, ann, found) {
 	rest = line
 	sub(/^[^|]*\| [^|]*\|/, "", rest)
@@ -119,7 +149,9 @@ function reactionsOf(line,   rest, ann, found) {
 	while ( match(rest, /^ \[[^]]*\]/) ) {
 		ann = substr(rest, RSTART + 1, RLENGTH - 1)
 		rest = substr(rest, RSTART + RLENGTH)
-		if ( ann ~ /^\[reactions: / ) { found = found ( found == "" ? "" : " " ) ann ; }
+		if ( ann !~ /^\[reactions: / ) { continue ; }
+		if ( reactionIsOurs(ann) ) { continue ; }
+		found = found ( found == "" ? "" : " " ) ann ;
 	}
 	return found
 }

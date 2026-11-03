@@ -177,7 +177,8 @@ rigAssert "as a command" "$( printf '%s\n' "x $rigOwn y" | LC_ALL=C awk -v sldSt
 cat > "$rigTmp/thread.json" <<RIG_THREAD_EOF
 {"ok":true,"messages":[{"ts":"1791525800.000100","user":"U0BOT","text":":wrench: *_magic-coordinator_* @magic → *_magic-tester_* <@U0TESTER>.\n⏰ Still waiting for your answer (asked $rigOwn, reminder 1):","metadata":{"event_payload":{"sender":"magic-coordinator"}}},{"ts":"1791525810.000100","user":"U0OWNER","text":"yes, since $rigOwn | fine"},{"ts":"1791525820.000100","user":"U0BOT","text":"*_magic-coordinator_* @magic → *_magic-tester_* <@U0TESTER>. DISMISSED","metadata":{"event_payload":{"sender":"magic-coordinator"}}},{"ts":"1791525830.000100","user":"U0OWNER","text":"<@U0TESTER> see <!date^1791525750^{time}|06:02 UTC>"}]}
 RIG_THREAD_EOF
-LC_ALL=C awk -f "$rigLib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.fmt" 2> "$rigTmp/thread.err" ; rigRc=$?
+LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+-f "$rigLib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.fmt" 2> "$rigTmp/thread.err" ; rigRc=$?
 rigAssert "the formatter: four messages, no raw control string, each token its fallback" \
 	"$rigRc:$( LC_ALL=C grep -c '^[0-9]*\.[0-9]* | ' "$rigTmp/thread.fmt" ):$( LC_ALL=C grep -c -F '!date^' "$rigTmp/thread.fmt" ):$( LC_ALL=C grep -c -F '2026-10-09 06:02 UTC' "$rigTmp/thread.fmt" )" 0:4:0:2
 rigAssert "the reminder reads as it was written, the time in UTC" \
@@ -197,7 +198,8 @@ rigAssert "it still reads who a message with a token is from and for: the send h
 	'author: magic-coordinator|addressees: magic-tester|:addressees: U0TESTER (tester)'
 printf '%s\n' "{\"ok\":true,\"messages\":{\"total\":1,\"paging\":{\"count\":20,\"total\":1,\"page\":1,\"pages\":1},\"matches\":[{\"ts\":\"1791525810.000100\",\"user\":\"U0OWNER\",\"text\":\"yes, since $rigOwn\",\"permalink\":\"https://rig.slack.com/archives/CRIG/p1791525810000100\"}]}}" > "$rigTmp/search.json"
 rigAssert "a search's lines: the fallback" \
-	"$( LC_ALL=C awk -v cutoff=5 -f "$rigLib/comms/AgentsSlackSearchMatches.awk" < "$rigTmp/search.json" )" '1791525810.000100 | U0OWNER | yes, since 2026-10-09 06:02 UTC'
+	"$( LC_ALL=C awk -v cutoff=5 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+	-f "$rigLib/comms/AgentsSlackSearchMatches.awk" < "$rigTmp/search.json" )" '1791525810.000100 | U0OWNER | yes, since 2026-10-09 06:02 UTC'
 ## The three readers carry the rule as a copy, each running with no other file loaded: on one
 ## text, each must say what the helper says.
 rigReaderText="mixed ${rigOwn}–${rigOwn} and <!date^5^{date}^https://example.invalid/x|five> and <!date^x^y|z> end"
@@ -205,7 +207,8 @@ rigWant="$( rigCall fallbacks "$rigReaderText" )"
 printf '{"ok":true,"messages":[{"ts":"1.000001","user":"U1","text":"%s"}]}\n' "$rigReaderText" > "$rigTmp/one.json"
 printf '{"ok":true,"messages":{"total":1,"paging":{"count":20,"total":1,"page":1,"pages":1},"matches":[{"ts":"9.000001","user":"U1","text":"%s","permalink":"https://rig.slack.com/archives/C1/p9000001"}]}}\n' "$rigReaderText" > "$rigTmp/one.search.json"
 rigAssert "the readers' copies say what the helper says: the formatter, the session-context scan, the search" \
-	"$( LC_ALL=C awk -f "$rigLib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/one.json" )|$( LC_ALL=C awk -v kind=slack -v source=rig -v channel=C1 -f "$rigLib/session/AgentsSessionContextCommsItems.awk" < "$rigTmp/one.json" | LC_ALL=C grep '^text: ' )|$( LC_ALL=C awk -v cutoff=5 -f "$rigLib/comms/AgentsSlackSearchMatches.awk" < "$rigTmp/one.search.json" )" \
+	"$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+	-f "$rigLib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/one.json" )|$( LC_ALL=C awk -v kind=slack -v source=rig -v channel=C1 -f "$rigLib/session/AgentsSessionContextCommsItems.awk" < "$rigTmp/one.json" | LC_ALL=C grep '^text: ' )|$( LC_ALL=C awk -v cutoff=5 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" -f "$rigLib/comms/AgentsSlackSearchMatches.awk" < "$rigTmp/one.search.json" )" \
 	"1.000001 | U1 | $rigWant|text: $rigWant|9.000001 | U1 | $rigWant"
 
 ## ---------------------------------------------------------------------------

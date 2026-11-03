@@ -9,11 +9,22 @@
 ## --supervise-scan [--workspace <path>]...: one line a finding, `<kind> <workspace> <id> <detail>`, for each workspace named, else this one.
 ## Kinds: `ask` an open question to magic-coordinator or the human-owner; `unposted` an open question whose post never landed;
 ## `orphan-ask` an open question to another member that has no live run to answer it; `msg` a post addressed to magic-coordinator in
-## any session chat since --since <epoch>; `dead` a record still started whose run has no process; `idle-done` a live run that handed
-## back and has nothing pending; `no-plan` a live run older than ten minutes with no CheckList of its own; `stale-plan` a run active in the last ten minutes whose CheckList is unchanged for an hour; `track` an event of a run's
+## any session chat since --since <epoch>; `dead` a record still started whose run has no process, and is neither parked nor dismissed;
+## `run` where each live run stands, `<ws> <id> <member> <active|waiting|stuck> tool=<name> age=<n>m paused=<yes|no> asks=<n> msg <who>: <text> plan: <text>`;
+## `idle-done` a live run that handed back and has nothing pending; `no-plan` a live run older than ten minutes with no CheckList of its own;
+## `stale-plan` a run active in the last ten minutes whose CheckList is unchanged for an hour; `control-stuck` a control thread
+## whose session has no record left open at all and whose log has not been written for SESSION_CONTROL_NO_RUN_END_SECONDS plus five
+## minutes, which is a thread that should have ended itself and did not (S5.6); `track` an event of a run's
 ## event-track thread since --since: a failed or refused tool call, an ask, an answer, a handback, a final answer, a model change.
+## A `run` line reads no file's date: its age is the run's own activity mark, else the stamp of its own transcript. The transcript is
+## read for a name alone between tools, since a long call leaves no line there until it returns, and every part of it is read.
+## Liveness is the process and the record's own `run-process`, never the status word, which answers one question only: whether the
+## record is open. A record closed while its run lives still gets its line, and a closed record with no process gets none.
 AgentsToolsSuperviseScan(){
 	local scanWorkspaces=() scanWs scanAgents scanFile scanSpid scanSid scanMember scanLog scanDir scanPs scanSince="" scanTo scanTs scanChat
+	local scanCtlFile scanCtlPid scanCtlSid scanCtlRest scanNoRunMin scanOpen
+	local scanNow scanRunDir scanMark scanMarkFile scanMarkEpoch scanMarkWord scanAgeSec scanAgeText scanTool scanStamp scanName scanEpoch
+	local scanBase scanLine scanParts scanOpen scanRuns scanAsk scanAskSid scanAsks scanMsg scanPlan scanWord scanVerdict scanPaused scanSetAside
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--since) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --since requires an epoch" >&2 ; return 1 ; } ; scanSince="$2" ; shift 2 ;;
@@ -22,7 +33,11 @@ AgentsToolsSuperviseScan(){
 		esac
 	done
 	[ ${#scanWorkspaces[@]} -gt 0 ] || scanWorkspaces=( "${MMDAPP%/}" )
-	scanPs="$( ps -A -ww -o args= 2> /dev/null | LC_ALL=C grep -v -- '--intern-session-control' )"
+	scanNow="$( date -u +%s )"
+	scanPs="$( ps -A -ww -o pid=,args= 2> /dev/null | LC_ALL=C grep -v -- '--intern-session-control' )"
+	## The one reading of liveness the tooling keeps (AgentsToolsLivenessOf, S23.6): a process of this host runs as the spawn, or the
+	## process its record names as its launch still lives. Neither reading is the record's status.
+	type AgentsToolsRegistryRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	for scanWs in "${scanWorkspaces[@]}" ; do
 		scanAgents="$scanWs/.local/agents"
 		[ -d "$scanAgents" ] || { printf 'error %s - no .local/agents here\n' "${scanWs##*/}" ; continue ; }
@@ -79,30 +94,157 @@ AgentsToolsSuperviseScan(){
 		fi
 		for scanFile in "$scanAgents"/spawned/*/*.spawn.md ; do
 			[ -f "$scanFile" ] || continue
-			LC_ALL=C grep -q -x 'status: spawn-started' "$scanFile" || continue
 			scanSpid="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$scanFile" | head -1 )"
 			scanSid="$( LC_ALL=C sed -n 's/^session-id: //p' "$scanFile" | head -1 )"
 			scanMember="$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )"
 			[ -n "$scanSpid" ] || continue
+			scanOpen=no
+			LC_ALL=C grep -q -x 'status: spawn-started' "$scanFile" && scanOpen=yes
+			## Where the run stands (S13.18). A parked or a dismissed run is neither stuck nor dead, so the marks are read first.
+			scanRunDir="$scanAgents/sessions/$scanSpid"
+			[ -d "$scanRunDir" ] || scanRunDir="$scanAgents/sessions/${scanSid:-$scanSpid}"
+			scanPaused=no ; scanSetAside=no
+			## What a run held on a pause obeys: the harness holds at this very file (AgentsHarnessToolsFile.include). No tooling writes it
+			## yet, so it reads `no` on every rig until the pause operation of S19 lands and writes this file.
+			for scanMarkFile in "$scanAgents/sessions/$scanSpid/paused" "$scanAgents/sessions/${scanSid:-$scanSpid}/paused" ; do
+				[ ! -f "$scanMarkFile" ] || scanPaused=yes
+			done
+			for scanMarkFile in parked dismissed ; do
+				[ ! -f "$scanRunDir/$scanMarkFile" ] || scanSetAside=yes
+			done
+			## A run set aside on its handback waits for its verdict. It is no dead run, no stale plan and no verdict of its own.
+			[ "$scanSetAside" = no ] || continue
+			## The run's own mark: `<round> <epoch> <word>`, written by the run as it works, never a file's date.
+			scanMarkEpoch=0 ; scanMarkWord=""
+			scanMark="$scanRunDir/activity"
+			[ -f "$scanMark" ] || scanMark="$scanAgents/sessions/${scanSid:-$scanSpid}/activity"
+			if [ -f "$scanMark" ] ; then
+				read -r _ scanMarkEpoch scanMarkWord < "$scanMark" || :
+				case "$scanMarkEpoch" in ''|*[!0123456789]*) scanMarkEpoch=0 ; scanMarkWord="" ;; esac
+			fi
+			scanAgeSec=""
+			if [ "$scanMarkEpoch" != 0 ] ; then
+				scanAgeSec=$(( scanNow - scanMarkEpoch ))
+				[ "$scanAgeSec" -ge 0 ] || scanAgeSec=0
+			fi
+			case "$scanMarkWord" in
+				tool\ *) scanTool="${scanMarkWord#tool }" ;;
+				*) scanTool="" ;;
+			esac
+			## The mark names a tool only while the run is inside one. Between tools the transcript's last tool line names it,
+			## and its stamp is the age for a run that left no mark at all: a native client writes none.
+			if [ -z "$scanTool" ] || [ -z "$scanAgeSec" ] ; then
+				scanLine=""
+				if [ -f "$scanRunDir/transcript" ] ; then
+					IFS= read -r scanBase < "$scanRunDir/transcript" || scanBase=""
+					if [ -n "$scanBase" ] && [ -f "$scanBase" ] ; then
+						## A transcript rolls at its size into `-part2`, `-part3` and on, so every part is read in order.
+						scanParts=( "$scanBase" )
+						while [ -f "${scanBase%.log}-part$(( ${#scanParts[@]} + 1 )).log" ] ; do
+							scanParts+=( "${scanBase%.log}-part$(( ${#scanParts[@]} + 1 )).log" )
+						done
+						scanLine="$( LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 } END { if (at != "") print at " " name }' "${scanParts[@]}" )" || scanLine=""
+					fi
+				fi
+				scanStamp="${scanLine%% *}" ; scanName="${scanLine#* }"
+				[ -n "$scanTool" ] || scanTool="$scanName"
+				if [ -z "$scanAgeSec" ] && [ -n "$scanStamp" ] ; then
+					scanEpoch="$( printf '%s\n' "$scanStamp" | LC_ALL=C awk -f "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || scanEpoch=""
+					case "$scanEpoch" in ''|*[!0123456789]*) ;; *) scanAgeSec=$(( scanNow - scanEpoch )) ; [ "$scanAgeSec" -ge 0 ] || scanAgeSec=0 ;; esac
+				fi
+			fi
 			## A record younger than five minutes may be a launch whose process has not started yet.
-			## A duty's process may carry its kept session's id rather than its own spawn id: either one is the run.
-			if ! printf '%s\n' "$scanPs" | LC_ALL=C grep -E -q -- "(--session-id|--resume)[ =]($scanSpid|${scanSid:-$scanSpid})( |\$)" && [ -n "$( find "$scanFile" -mmin +5 2> /dev/null )" ] ; then
+			## A run of this host answers as its own process does, or as the process its record names as its launch.
+			scanRuns="$( printf '%s\n' "$scanPs" | AgentsToolsRegistryRunWords "$scanSpid" )" || scanRuns=""
+			if [ -z "$scanRuns" ] && ! AgentsToolsRegistryRecordedRunAlive "$scanFile" ; then
+				## Only an open record is a run that should have started: a closed one with no process is a finished run.
+				[ "$scanOpen" = yes ] || continue
+				[ -n "$( find "$scanFile" -mmin +5 2> /dev/null )" ] || continue
 				[ "$( LC_ALL=C sed -n 's/^agent-less: //p' "$scanFile" | head -1 )" = true ] || printf 'dead %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
 				continue
 			fi
 			scanLog="$scanAgents/sessions/$scanSpid/session.log"
 			[ -f "$scanLog" ] || scanLog="$scanAgents/sessions/$scanSid/session.log"
 			scanDir="${scanFile%/*}"
-			## Idle after its handback: no tool but Wait since the last one, so a run that took new work is not idle.
-			if LC_ALL=C grep -q '📦 SubagentHandback' "$scanLog" 2> /dev/null && ! cat "$scanDir"/*.checklist.md 2> /dev/null | LC_ALL=C grep -q '^- \[ \]' \
-				&& awk '/📦 SubagentHandback/ { busy = 0 ; next } /^   [^ ]+ +[A-Za-z]/ && !/ Wait / && !/prompt cache/ { busy = 1 } END { exit busy }' "$scanLog" ; then
-				printf 'idle-done %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
-			elif [ ! -f "$scanDir/$scanMember.checklist.md" ] && [ -n "$( find "$scanFile" -mmin +10 2> /dev/null )" ] ; then
-				printf 'no-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
-			## A run working for the last ten minutes whose own CheckList has not changed for an hour.
-			elif [ -n "$( find "$scanDir/$scanMember.checklist.md" -mmin +60 2> /dev/null )" ] && [ -n "$( find "$scanLog" -mmin -10 2> /dev/null )" ] ; then
-				printf 'stale-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+			## The three findings of before read a run whose record is open, as they always did.
+			if [ "$scanOpen" = yes ] ; then
+				## Idle after its handback: no tool but Wait since the last one, so a run that took new work is not idle.
+				if LC_ALL=C grep -q '📦 SubagentHandback' "$scanLog" 2> /dev/null && ! cat "$scanDir"/*.checklist.md 2> /dev/null | LC_ALL=C grep -q '^- \[ \]' \
+					&& awk '/📦 SubagentHandback/ { busy = 0 ; next } /^   [^ ]+ +[A-Za-z]/ && !/ Wait / && !/prompt cache/ { busy = 1 } END { exit busy }' "$scanLog" ; then
+					printf 'idle-done %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+				elif [ ! -f "$scanDir/$scanMember.checklist.md" ] && [ -n "$( find "$scanFile" -mmin +10 2> /dev/null )" ] ; then
+					printf 'no-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+				## A run working for the last ten minutes whose own CheckList has not changed for an hour.
+				elif [ -n "$( find "$scanDir/$scanMember.checklist.md" -mmin +60 2> /dev/null )" ] && [ -n "$( find "$scanLog" -mmin -10 2> /dev/null )" ] ; then
+					printf 'stale-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+				fi
 			fi
+			## Where the run stands (S13.18): its tool and its age, its latest message, its item in progress, its pause, its open asks.
+			scanAsks=0
+			for scanAsk in "$scanAgents"/pending/*.md ; do
+				[ -f "$scanAsk" ] || continue
+				LC_ALL=C grep -q -x 'status: reply-pending' "$scanAsk" || continue
+				scanAskSid="$( LC_ALL=C sed -n 's/^session-id: //p' "$scanAsk" | head -1 )"
+				case "$scanAskSid" in "$scanSpid"|"${scanSid:-$scanSpid}") scanAsks=$(( scanAsks + 1 )) ;; esac
+			done
+			scanMsg="none"
+			if [ -f "$scanRunDir/session.chat" ] ; then
+				## A chat holds every message in full, so its tail is read and never the file.
+				scanMsg="$( tail -n 40 "$scanRunDir/session.chat" 2> /dev/null | LC_ALL=C awk '
+					/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z / { who = $2 ; text = $0 ; sub(/^.*-> [^ ]*: */, "", text) ; seen = 1 ; next }
+					seen && text == "" && $0 != "" { text = $0 }
+					END { if (seen) print who ": " text }
+				' )" || scanMsg=""
+			fi
+			scanMsg="$( printf '%s' "${scanMsg:-none}" | cut -c1-140 )"
+			scanPlan="none"
+			if [ -f "$scanDir/$scanMember.checklist.md" ] ; then
+				scanPlan="$( LC_ALL=C awk '/^- \[~\] / { sub(/^- \[~\] /, "") ; sub(/ \(in progress: .*/, "") ; print ; exit }' "$scanDir/$scanMember.checklist.md" 2> /dev/null )"
+				scanPlan="${scanPlan:-none}"
+			fi
+			## The word the verdict reads: the mark's own where the run left one, else its transcript's last tool, since a native
+			## client writes no mark and a Wait of its own would otherwise read as ten minutes of silence.
+			scanWord="$scanMarkWord"
+			if [ ! -f "$scanMark" ] && [ -n "$scanTool" ] ; then scanWord="tool $scanTool" ; fi
+			## Waiting is where the run's own word holds it: a Wait, an ask it is inside, an idle wait, or a pause on its session.
+			## An open ask is counted and never a verdict of its own, since a run works on with a question standing.
+			## Stuck is ten minutes without a tool call and no other reading. A run that left no mark and no transcript
+			## has shown no evidence either way, and is taken as starting, never as stuck.
+			scanVerdict=active
+			case "$scanWord" in
+				"tool Wait"|"tool AskQuestion"|"tool ConfirmReadback"|"tool EscalateDecision"|"tool RequestPermission"|"tool ProposeApprove"|idle) scanVerdict=waiting ;;
+			esac
+			[ "$scanPaused" = no ] || scanVerdict=waiting
+			[ "$scanVerdict" = waiting ] || [ -z "$scanAgeSec" ] || [ "$scanAgeSec" -lt 600 ] || scanVerdict=stuck
+			scanAgeText="-"
+			[ -z "$scanAgeSec" ] || scanAgeText="$(( scanAgeSec / 60 ))m"
+			printf 'run %s %s %s %s tool=%s age=%s paused=%s asks=%s msg %s plan: %s\n' "${scanWs##*/}" \
+				"$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember" "$scanVerdict" "${scanTool:-none}" "$scanAgeText" \
+				"$scanPaused" "$scanAsks" "$scanMsg" "$scanPlan"
+		done
+		## A CONTROL THREAD THAT SHOULD HAVE ENDED ITSELF (S5.6, item 6). It ends by itself when no run of its session has been alive
+		## for SESSION_CONTROL_NO_RUN_END_SECONDS; one that has not ended has kept a process for hours. Read over the sessions of this
+		## workspace, which is what a scan is for: a thread whose pid still lives, whose log has said nothing for that limit and five
+		## minutes more, and whose session has no record left open at all, so nothing it watches can come back.
+		scanNoRunMin=$(( ( ${SESSION_CONTROL_NO_RUN_END_SECONDS:-3600} + 300 ) / 60 ))
+		for scanCtlFile in "$scanAgents"/sessions/*/control/pid ; do
+			[ -f "$scanCtlFile" ] || continue
+			scanCtlPid=""
+			{ IFS= read -r scanCtlPid scanCtlRest < "$scanCtlFile" ; } 2> /dev/null || continue
+			case "${scanCtlPid:-}" in ''|*[!0123456789]*) continue ;; esac
+			kill -0 "$scanCtlPid" 2> /dev/null || continue
+			scanCtlSid="${scanCtlFile%/control/pid}" ; scanCtlSid="${scanCtlSid##*/}"
+			[ -n "$( find "${scanCtlFile%/*}/log" -mmin +"$scanNoRunMin" 2> /dev/null )" ] || continue
+			scanOpen=""
+			for scanFile in "$scanAgents"/spawned/*/*.spawn.md ; do
+				[ -f "$scanFile" ] || continue
+				LC_ALL=C grep -q -x -- "session-id: $scanCtlSid" "$scanFile" 2> /dev/null || continue
+				LC_ALL=C grep -q -x 'status: spawn-started' "$scanFile" 2> /dev/null || continue
+				scanOpen="yes" ; break
+			done
+			[ -z "$scanOpen" ] || continue
+			printf 'control-stuck %s %s %s pid=%s quiet-over=%sm no-record-open\n' "${scanWs##*/}" \
+				"$( printf '%s' "$scanCtlSid" | cut -c1-8 )" "$scanCtlSid" "$scanCtlPid" "$scanNoRunMin"
 		done
 	done
 	return 0

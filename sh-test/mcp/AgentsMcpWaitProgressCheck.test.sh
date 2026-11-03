@@ -8,7 +8,7 @@
 ##   - a string or a numeric token: notifications/progress frames carrying that token,
 ##     progress strictly increasing, each one whole JSON-RPC line, none after the result,
 ##     and the Wait returns by MDAT_MCP_WAIT_BOUND_PROGRESS instead;
-##   - the TIMEOUT result is the one line `WAIT-RESULT: TIMEOUT (<s>s) NEXT: Wait mode=continue`.
+##   - the TIMEOUT result is the one line `WAIT-RESULT: TIMEOUT (<s>s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal`.
 ## Which bound a Wait returned by is read off the whole seconds that line names. A wait runs its
 ## bound, then the rest of the clock second it began in and the work of its last round, so the
 ## seconds it reports are the bound or a little more, the more the busier the host: read as
@@ -64,7 +64,7 @@ rigFrames(){ ## scenario name -- how many progress frames
 ## The rig has no Slack, so the two default sources (the team channel, the owner DM) stand in WAIT-NEVER-READ beside the one line,
 ## and the CheckList's own line may stand after them (a Wait adds it on every return).
 rigTimeoutLine(){ ## scenario name -- the result text, with its seconds masked
-	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s) NEXT: Wait mode=continue\)\(\\nWAIT-NEVER-READ: [^"]*\)*\(\\nCHECKLIST: [^"\\]*\)*\(\\n\)*".*/\1/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/'
+	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal\)\(\\nWAIT-NEVER-READ: [^"]*\)*\(\\nCHECKLIST: [^"\\]*\)*\(\\n\)*".*/\1/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/'
 }
 rigWaited(){ ## scenario name -- the seconds the TIMEOUT line names
 	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*WAIT-RESULT: TIMEOUT (\([0-9]*\)s).*/\1/p'
@@ -101,7 +101,7 @@ rigWireShape(){ ## scenario name
 echo "-- no progressToken: no frame, the safe bound --"
 rigServe none ""
 rigAssert "no progress frame is sent"                         "$( rigFrames none )" 0
-rigAssert "the TIMEOUT result is one line"                    "$( rigTimeoutLine none )" "WAIT-RESULT: TIMEOUT (Ns) NEXT: Wait mode=continue"
+rigAssert "the TIMEOUT result is one line"                    "$( rigTimeoutLine none )" "WAIT-RESULT: TIMEOUT (Ns) NEXT: run --idle-wait, if you are waiting for new work or a dismissal"
 rigAssert "it returned by MDAT_MCP_WAIT_BOUND (2s)"           "$( rigBoundOf none )" safe
 rigAssert "and says nothing of a successful wait in prose"    "$( LC_ALL=C grep -c 'COMPLETE, SUCCESSFUL' "$rigTmp/none.wire" | tr -d ' ' )" 0
 

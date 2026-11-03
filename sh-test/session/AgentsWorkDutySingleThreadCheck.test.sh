@@ -3,10 +3,10 @@
 ## The schedule starts a member's duty (AgentsToolsScheduleSpawn, key `work-duty.<member>`) whenever the member has none running: on
 ## demand, on a tag, and to keep its cache warm. Each of those starts was a session of its own, and each session opened its own
 ## header in the team channel (":thread: Session Work duty · <member>") -- a new one every few minutes.
-## S23.4: A WORK-DUTY HAS ITS TOOLING THREAD ONLY, never a session thread: no start of a duty posts a header in the team channel, and its record names an
-## agent-log-thread and no session-thread. Held: two starts of one member's duty make NO root post in the team channel; the second start joins the session the first made
+## S23.4: A WORK-DUTY NAMES ITS TOOLING THREAD AND ITS SESSION THREAD, and its session root is posted in the owner's
+## conversation, never as a header in the team channel. Held: two starts of one member's duty make NO root post in the team channel; the second start joins the session the first made
 ## (the same session id on both spawn records, the first start's id kept in schedule/duty-session/<member>); the thread of the
-## session is the same on both; the member is not announced as brought in again; and a duty of another member is its own session.
+## session is the same on both, and each record names that thread and its tooling thread; the member is not announced as brought in again; and a duty of another member is its own session.
 ## Offline: the fake curl is the Slack send identity check's; the console is a stand-in that hands back. The tree is this rig's own.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -76,8 +76,9 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## The team channel the session roots go to, and the duty routines of two members.
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+## The team channel the session roots go to, the duty's own session thread's conversation in the owner's
+## conversation (S23.4), and the duty routines of two members.
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_CHANNEL_HUMAN_OWNER=CRIG00003\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 mkdir -p "$rigSkills/keeper-rig2"
 printf '# rig armed\n' > "$rigSkills/keeper-rig2/keeper-rig2.armed.md"
 for rigMember in keeper-myx keeper-rig2 ; do
@@ -102,7 +103,9 @@ rigDuty(){ ## member
 	while LC_ALL=C grep -l -x -F 'status: spawn-started' "$rigWs/.local/agents/spawned"/*/*.spawn.md > /dev/null 2>&1 && [ "$waited" -lt 60 ] ; do sleep 1 ; waited=$(( waited + 1 )) ; done
 	cat "$rigWs/.local/agents/schedule/starting/work-duty.$1.rc" 2> /dev/null || echo norc
 }
-rigRoots(){ LC_ALL=C grep -c -F '"tracking":"session-root"' "$rigTmp/bodies" || : ; }
+## How many session roots went to the team channel. S23.4 puts a duty's own root in the owner's
+## conversation, so this reads the body's channel and counts only the team channel's.
+rigRoots(){ LC_ALL=C grep -F '"tracking":"session-root"' "$rigTmp/bodies" 2> /dev/null | LC_ALL=C grep -c -F '"channel":"CRIG00001"' || : ; }
 rigSessions(){ ## member -- the session ids of its spawn records, oldest first, one a line
 	local sessionsFile
 	for sessionsFile in $( ls -tr "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null ) ; do
@@ -122,7 +125,7 @@ rigFirst="$( rigSessions keeper-myx | sed -n 1p )"
 rigSecond="$( rigSessions keeper-myx | sed -n 2p )"
 rigAssert "both starts are in one session" "$( [ -n "$rigFirst" ] && [ "$rigFirst" = "$rigSecond" ] && echo same || echo "differ:$rigFirst:$rigSecond" )" "same"
 rigAssert "the session is kept for the next start" "$( cat "$rigWs/.local/agents/schedule/duty-session/keeper-myx" 2> /dev/null )" "$rigFirst"
-rigAssert "each record names its tooling thread and no session thread" "$( for rigRec in $( LC_ALL=C grep -l -x 'owner: keeper-myx' "$rigWs/.local/agents/spawned"/*/*.spawn.md ) ; do printf '%s/%s ' "$( LC_ALL=C grep -c '^agent-log-thread: ' "$rigRec" )" "$( LC_ALL=C grep -c '^session-thread: ' "$rigRec" || : )" ; done )" "1/0 1/0 "
+rigAssert "each record names its tooling thread and its session thread" "$( for rigRec in $( LC_ALL=C grep -l -x 'owner: keeper-myx' "$rigWs/.local/agents/spawned"/*/*.spawn.md ) ; do printf '%s/%s ' "$( LC_ALL=C grep -c '^agent-log-thread: ' "$rigRec" )" "$( LC_ALL=C grep -c '^session-thread: ' "$rigRec" || : )" ; done )" "1/1 1/1 "
 rigAssert "the member is not announced as brought in the second time: no reply says it joined" "$( LC_ALL=C grep -c -F ' joined: ' "$rigTmp/bodies" || : )" "0"
 echo "-- the duty of another member is its own session --"
 rigDuty keeper-rig2 > /dev/null

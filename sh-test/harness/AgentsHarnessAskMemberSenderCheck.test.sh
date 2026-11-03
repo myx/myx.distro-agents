@@ -100,7 +100,8 @@ rigNotHis="$( rigMessage 000200 URIGBOT1 "$( rigHeaderOf magic-architect ) alpha
 echo "-- the formatter: the place ahead of the text holds its own word only --"
 rigFormat(){ ## messages (rigMessage words) -> the rendering of those messages, its lines joined by `#`
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"the question"}%s],"has_more":false}\n' "$1" \
-		| LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C sed 1d | LC_ALL=C tr '\n' '#'
+		| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+		-f "$rigHere/comms/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C sed 1d | LC_ALL=C tr '\n' '#'
 }
 rigAssert "the sender a send recorded stands ahead of the text" \
 	"$( rigFormat "$( rigMessage 000200 URIGBOT1 'beta' magic-developer )" )" "1700000001.000200 | URIGBOT1 | [sender: magic-developer] beta#"
@@ -113,7 +114,8 @@ rigAssert "control: any other text, a bracket of its own too, is printed as it w
 echo "-- the thread-answers reader: a member name among the accounts that answer is matched by the recorded sender alone --"
 rigAnswers(){ ## the accounts that answer, messages (rigMessage words) -> the answers, lines joined by `#`
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"the question"}%s],"has_more":false}\n' "$2" \
-		| LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" \
+		| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+		-f "$rigHere/comms/AgentsSlackMessagesFormat.awk" \
 		| LC_ALL=C awk -v rootTs=1700000001.000101 -v askingUsers=URIGSELF1 -v fromUsers="$1" -v tag="" -v threadCount=1 -v others="" \
 			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/comms/AgentsSlackThreadAnswers.awk" 2>&1 | LC_ALL=C tr '\n' '#'
 }

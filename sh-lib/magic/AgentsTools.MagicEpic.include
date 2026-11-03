@@ -219,7 +219,7 @@ case "$1" in
 				settledText="$( printf '%s ' "$@" | LC_ALL=C sed 's/ $//' )"
 				[ -n "$settledText" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the settled text is needed" >&2 ; set +e ; return 1 ; }
 				[ "$( AgentsToolsMagicEpicFeatureCount "$epicFile" "$featureId" )" -eq 1 ] || {
-					echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: feature $featureId must stand exactly once in $epicFile" >&2
+					echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: feature $featureId must stand exactly once in $epicFile. A rule is added under its feature with --add-settled, and an item is closed with --set-status <feature-id>.<n> done <text...>" >&2
 					set +e ; return 1
 				}
 				settledLine="$settledText"

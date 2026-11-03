@@ -232,7 +232,7 @@ rigAssert "and none of them became required"             "$( rigPart 26 "tools.$
 echo "-- the transcript line of such a call --"
 rigLine="$( printf '%s' '{"file_path":"/x/f.sh","edits":[{"old_string":"a, [b] {c} RIG-BODY","new_string":"d\"], x"},{"old_string":"e","new_string":"f","replace_all":true}],"description":"Two fixes"}' \
 	| STL_TS=T0 STL_TOOL=mcp__myx_distro__Edit STL_OUTCOME=ok STL_BYTES=31 STL_LINES=1 STL_DUR_MS=12 LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
-rigAssert "it names the file and how many edits, and no edit's own replace_all or text" "$rigLine" 'T0 TOOL mcp__myx_distro__Edit path=/x/f.sh edits=2 -> ok 31B/1L 12ms | "Two fixes"'
+rigAssert "it names the file and how many edits, and no edit's own replace_all or text" "$rigLine" 'T0 TOOL Edit path=/x/f.sh edits=2 -> ok 31B/1L 12ms | "Two fixes"'
 rigLine="$( printf '%s' '{"path":"/x/f.sh","edits":[{"old_string":"a","new_string":"b"},{"old_string":"nope","new_string":"c"}]}' \
 	| STL_TS=T0 STL_TOOL=Edit STL_OUTCOME=error STL_FIRST='ERROR: edit 2 of 2 failed, none was applied: old_string not found in /x/f.sh -- nothing was written' LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
 rigAssert "a refused list says which edit, and why"      "$rigLine" 'T0 TOOL Edit path=/x/f.sh edits=2 -> error "ERROR: edit 2 of 2 failed, none was applied: old_string not found in /x/f.sh -- nothing was written"'

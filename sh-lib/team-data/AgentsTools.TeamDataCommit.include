@@ -2,36 +2,72 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.TeamDataCommit.include -- the one commit step for tooling writers
-## into the team-data store that are not board, inbox or item ops. Sourced, never
-## run. Functions only.
+## AgentsTools.TeamDataCommit.include -- the commit step of every writer into the team-data
+## store, and the push. Sourced, never run. Functions only.
 ##
-## Same gate as the board ops: .git presence under $MDAT_DATA_ROOT, presence only
-## and independent of TEAM_DATA_GIT_REMOTE, and it never pushes -- the board ops
-## commit locally and a later close pushes them. A failed commit warns on
-## stderr and never fails the write that came before it: the write has happened,
-## and the dirty-store warning at a spawn close names what is left.
+## A writer leaves an entry, and the one team-data thread commits it and pushes
+## (AgentsToolsTeamDataCommitPaths, AgentsTools.TeamDataThread.include). The gate is a
+## git directory under $MDAT_DATA_ROOT, independent of TEAM_DATA_GIT_REMOTE. A failed
+## commit warns on stderr and never fails the write that came before it: the write has
+## happened, and the dirty-store warning at a spawn close names what is left. The closes,
+## the main loop and the set-up push through AgentsToolsTeamDataPushIfAhead as before.
 ##
 ## With TEAM_DATA_GIT_REMOTE set, the store's step of the set-up and the close push call
 ## myx.common's git/cloneSync for a store that has a remote, as the main loop's pass does,
 ## and a store with no origin, or another one, is given the remote first.
 ##
 
-## Commits exactly the given paths, which must lie under $MDAT_DATA_ROOT.
+## Where the entries and the lock of the one thread of a store are: team-data-commit/ inside the store's own git directory, so that every
+## workspace that writes the store meets the one thread. rc 1, nothing printed, for a store that is no repository.
+AgentsToolsTeamDataThreadDir(){
+	local dirGit
+	dirGit="$( git -C "$MDAT_DATA_ROOT" rev-parse --absolute-git-dir 2> /dev/null )" || return 1
+	printf '%s' "$dirGit/team-data-commit"
+}
+
+## A write into the team data that is to be committed and pushed. The writer runs no git: the paths and what to say of them are left as
+## one entry file in the thread's folder (AgentsToolsTeamDataThreadDir), and the one thread that commits and pushes (--intern-team-data-commit,
+## AgentsTools.InternTeamDataCommit.include) is started where none lives. A lock another writer holds can no longer fail the write,
+## and the thread commits one entry after another. Never fails its caller.
+## The context is the subject of the commit, `* ` before it unless it starts with `+ `, `- ` or `* `. MDAT_TEAM_DATA_COMMIT_WAIT=yes in front
+## of the call keeps it until the thread has committed the entry, for a writer that deletes what it has just written: the history of a
+## file is made before the file goes. With MDAT_TEAM_DATA_COMMIT_THREAD=off the commit is made here, in the caller, as the rigs and the
+## checks have it.
 AgentsToolsTeamDataCommitPaths(){ ## context, path...
-	local commitContext="$1" ; shift
-	[ "$#" -gt 0 ] || return 0
-	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	local repoRoot="" gitOut="" gitRc=0 commitPath commitPaths=()
-	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
-	[ -n "$repoRoot" ] || return 0
-	for commitPath in "$@" ; do
-		case "$commitPath" in
-			*/../*|*/..) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: a path with .. is never committed: $commitPath" >&2 ;;
-			"$MDAT_DATA_ROOT"/*) commitPaths+=( "$commitPath" ) ;;
-			*) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: not under the team-data store, not committed: $commitPath" >&2 ;;
-		esac
-	done
+	local queueContext="$1" queueDir queueEntry queueMark="" queueStart queueFrom="$SECONDS"
+	shift
+	[ "$#" -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] || return 0
+	queueDir="$( AgentsToolsTeamDataThreadDir )" || return 0
+	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" = "off" ] || ! mkdir -p "$queueDir" 2> /dev/null ; then
+		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
+		return 0
+	fi
+	[ "${MDAT_TEAM_DATA_COMMIT_WAIT:-}" != "yes" ] || queueMark="$( mktemp "$queueDir/wait.XXXXXX" 2> /dev/null )" || queueMark=""
+	queueEntry="$( mktemp "$queueDir/write.XXXXXX" 2> /dev/null )" || queueEntry=""
+	if [ -z "$queueEntry" ] || ! { printf '%s\n%s\n' "${queueMark##*/}" "$queueContext" ; printf '%s\n' "$@" ; } > "$queueEntry" 2> /dev/null || ! mv -f "$queueEntry" "$queueEntry.entry" 2> /dev/null ; then
+		[ -z "$queueEntry" ] || rm -f "$queueEntry" 2> /dev/null
+		[ -z "$queueMark" ] || rm -f "$queueMark" 2> /dev/null
+		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
+		return 0
+	fi
+	type AgentsToolsTeamDataThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
+	queueStart="$( AgentsToolsTeamDataThreadStart )" || queueStart="failed - the start ended with an error"
+	case "$queueStart" in
+		failed*)
+			## No thread to take the entry: it is taken back and committed here, never left unseen.
+			rm -f "$queueEntry.entry" 2> /dev/null
+			[ -z "$queueMark" ] || rm -f "$queueMark" 2> /dev/null
+			echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: the team-data thread could not be started ($queueStart), so the commit is made here" >&2
+			AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
+			return 0
+		;;
+	esac
+	## At most half a minute: past it the entry is the thread's alone, and a file written for its history is as it would be after a failed commit.
+	while [ -n "$queueMark" ] && [ -e "$queueMark" ] && [ "$(( SECONDS - queueFrom ))" -lt 30 ] ; do sleep 0.2 ; done
+	[ -z "$queueMark" ] || rm -f "$queueMark" 2> /dev/null
+	return 0
+}
+
 ## A COMMIT THAT COULD NOT BE MADE IS OWED, LIKE A PUSH. This system runs unattended: a lock,
 ## a full disk or a concurrent writer must not leave a write that "warned" and never landed. The
 ## paths are recorded here, and the NEXT commit call of any kind picks them up and commits them
@@ -62,12 +98,36 @@ AgentsToolsTeamDataCommitOwedTake(){
 	return 0
 }
 
+## What the thread does with one entry: commits exactly the given paths, which must lie under $MDAT_DATA_ROOT.
+AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
+	local commitContext="$1" ; shift
+	[ "$#" -gt 0 ] || return 0
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	local repoRoot="" gitOut="" gitRc=0 gitDir="" commitPath commitPaths=() commitSubject=""
+	case "$commitContext" in '+ '*|'- '*|'* '*) commitSubject="$commitContext" ;; *) commitSubject="* $commitContext" ;; esac
+	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+	[ -n "$repoRoot" ] || return 0
+	for commitPath in "$@" ; do
+		case "$commitPath" in
+			*/../*|*/..) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: a path with .. is never committed: $commitPath" >&2 ;;
+			"$MDAT_DATA_ROOT"/*) commitPaths+=( "$commitPath" ) ;;
+			*) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: not under the team-data store, not committed: $commitPath" >&2 ;;
+		esac
+	done
 	## THE DEBT IS PAID FIRST: paths a previous run could not commit are carried with this one.
 	local owedPath=""
 	while IFS= read -r owedPath ; do
 		[ -n "$owedPath" ] || continue
 		case " ${commitPaths[*]} " in *" $owedPath "*) ;; *) commitPaths+=( "$owedPath" ) ;; esac
 	done <<< "$( AgentsToolsTeamDataCommitOwedTake )"
+	## A path that is gone and that git never knew fails `git add -A` for the whole commit, and its entry would then be owed for good: a moved
+	## item names both of its places, an item created and trashed before its commit names one that is no more. Git is asked for the one it knew.
+	local knownPaths=()
+	for commitPath in ${commitPaths[@]+"${commitPaths[@]}"} ; do
+		[ -e "$commitPath" ] || git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 || continue
+		knownPaths+=( "$commitPath" )
+	done
+	commitPaths=( ${knownPaths[@]+"${knownPaths[@]}"} )
 	[ "${#commitPaths[@]}" -gt 0 ] || return 0
 	## A STALE index.lock IS NOT A FAILED WRITE, IT IS A LOCK NOBODY HOLDS. An index upsert that
 	## was killed leaves one behind, and every commit after it fails "Unable to create .git/index.lock"
@@ -77,7 +137,7 @@ AgentsToolsTeamDataCommitOwedTake(){
 	## removed and the add is tried ONCE more. A live holder is never touched.
 	gitAddStale(){
 		local lockFile="$1" holder=""
-		[ -e "$lockFile" ] || return 1
+		[ -n "$lockFile" ] && [ -e "$lockFile" ] || return 1
 		holder="$( pgrep -f "git.*$( printf '%s' "$repoRoot" | sed 's/[][\.*^$/]/\\&/g' )" 2> /dev/null | head -1 )" || holder=""
 		[ -z "$holder" ] || return 1
 		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: a stale index.lock was found with no git holding it, removed: $lockFile" >&2
@@ -86,7 +146,8 @@ AgentsToolsTeamDataCommitOwedTake(){
 	}
 	gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
-		if gitAddStale "$gitDir/index.lock" ; then
+		gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2> /dev/null )" || gitDir=""
+		if gitAddStale "${gitDir:+$gitDir/index.lock}" ; then
 			gitRc=0
 			gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 		fi
@@ -96,11 +157,14 @@ AgentsToolsTeamDataCommitOwedTake(){
 		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git add failed, so the commit is OWED and the next run carries it (${commitPaths[*]}): $gitOut" >&2
 		return 0
 	fi
-	## Nothing staged for these paths -- the write changed nothing -- is not a commit.
-	if git -C "$repoRoot" diff --cached --quiet -- "${commitPaths[@]}" 2>/dev/null ; then
-		return 0
-	fi
-	gitOut="$( git -C "$repoRoot" commit -m "* $commitContext" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+	## Nothing staged for these paths -- the write changed nothing -- is not a commit. And a path that changed nothing is left out of it: a
+	## pathspec of a commit that git knows no such path for, an index entry the staging has just taken away, fails the whole commit.
+	local commitChanged=()
+	while IFS= read -r commitPath ; do
+		[ -z "$commitPath" ] || commitChanged+=( "$commitPath" )
+	done <<< "$( git -C "$repoRoot" diff --cached --no-renames --name-only -- "${commitPaths[@]}" 2>/dev/null )"
+	[ "${#commitChanged[@]}" -gt 0 ] || return 0
+	gitOut="$( git -C "$repoRoot" commit -m "$commitSubject" -- "${commitChanged[@]}" 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
 		AgentsToolsTeamDataCommitOwedAdd "${commitPaths[@]}"
 		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git commit failed, so the commit is OWED and the next run carries it (${commitPaths[*]}): $gitOut" >&2

@@ -54,7 +54,7 @@ rigWorld(){ ## -- a fresh workspace: tokens for three members, the human-owner i
 	printf 'SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_WORKSPACE_DOMAIN=%s\n' "$rigDomain" > "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-COORD\n' > "$rigWs/.local/.agents/magic-coordinator.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-MVANE\n' > "$rigWs/.local/.agents/keeper-myx.agent.env"
-	printf 'SLACK_USER_TOKEN=rig-user-token-OTHER\n' > "$rigWs/.local/.agents/client-x.agent.env"
+	printf 'CLIENT_SLACK_USER_TOKEN=rig-user-token-OTHER\n' > "$rigWs/.local/.agents/client-x.agent.env"
 	printf '{"ok":true,"user":{"name":"mvane","real_name":"Magic \\"Vane\\" a=b","profile":{"display_name":"Magic V"}}}\n' > "$rigTmp/users-info.json"
 	rm -f "$rigTmp/users-info-fail"
 	: > "$rigTmp/calls"

@@ -183,20 +183,33 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 }
 
 ## THE OUTBOX OF A CHANNEL (S21.13): <entry>/outbox.messages.txt, one record a line, appended by a send that returns at once,
-## `<session>\t<block>\t<member>\t<identity>\t<method>\t<payload>`, the payload's line ends kept as \037. The pusher takes the file
+## `<session>\t<block>\t<member>\t<identity>\t<method>\t<payload>`, the payload's line ends kept as \037. A caller that gives a reason
+## keeps it in front of the payload, inside that last column, as `why=<reason>` and then \037: so the writer prints what really happened to
+## the post, a queue for the reader or a real failure (S5.6), and a payload is never split by it, since the column count does not change and
+## a record of an older release simply carries no reason. The pusher takes the file
 ## aside as outbox.pushing.txt and keeps how far it got in .push.txt (`<sent> <retry-at> <attempts>`, its one writer). Once all of it
 ## is sent that file is gone, so the outbox is cut back to nothing; a send made meanwhile is in the next one. rc 1 not appended.
-AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, identity, method, payload
-	local appendPayload="${7//$'\n'/$'\037'}"
+AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, identity, method, payload, why (may be empty)
+	local appendPayload="${7//$'\n'/$'\037'}" appendWhy appendSep=$'\037'
+	appendWhy="$( printf '%s' "${8:-}" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C cut -c1-300 )"
+	[ -z "$appendWhy" ] || appendPayload="why=$appendWhy$appendSep$appendPayload"
 	{ [ -d "$1" ] || mkdir -p "$1" ; } 2> /dev/null || return 1
-	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$5" "$6" "$appendPayload" >> "$1/outbox.messages.txt" 2> /dev/null
+	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$5" "$6" "$appendPayload" >> "$1/outbox.messages.txt" 2> /dev/null || return 1
+	## THE SESSION IS MARKED, so the reader takes this post up without walking the folders of the sessions (S5.6). The mark is written
+	## here, by the shell alone, and not through the reader's own include: a caller that stubs the writer keeps its stub.
+	case "$2" in ''|-|.|..|*/*|*[[:space:]]*|*"$'\t'"*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	{ [ -d "$MMDAPP/.local/agents/comms/work" ] || mkdir -p "$MMDAPP/.local/agents/comms/work" ; } 2> /dev/null || return 0
+	: > "$MMDAPP/.local/agents/comms/work/$2" 2> /dev/null || :
+	return 0
 }
 
 ## ONE PUSH OF A CHANNEL'S OUTBOX, by one pusher at a time (.pushlock.txt, stale after 120 s): the records after `sent`, oldest first,
-## each posted as the session's writer posts one (AgentsToolsSessionCommsPost). Posted or given up moves `sent`. One left for later
-## keeps its place, sets `retry-at` and counts the attempt, and nothing after it overtakes it.
+## each posted as the session's writer posts one (AgentsToolsSessionCommsPost), with the record's own reason kept on line 2 so the writer
+## says what really happened to it. Posted or given up moves `sent`. One left for later keeps its place, sets `retry-at` and counts the
+## attempt, and nothing after it overtakes it.
 AgentsToolsCommsCachePush(){ ## cache folder, now
-	local pushDir="$1" pushNow="$2" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0
+	local pushDir="$1" pushNow="$2" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0 pushWhy pushSep=$'\037'
 	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload pushPauseDir pushPauseUntil
 	[ -f "$pushDir/outbox.pushing.txt" ] || [ -s "$pushDir/outbox.messages.txt" ] || return 0
 	if ! ( set -o noclobber ; printf '%s\n' "$pushNow" > "$pushDir/.pushlock.txt" ) 2> /dev/null ; then
@@ -221,7 +234,15 @@ AgentsToolsCommsCachePush(){ ## cache folder, now
 			pushNo=$(( pushNo + 1 ))
 			[ "$pushNo" -gt "$pushSent" ] || continue
 			case "$pushBlock" in ''|*[!0-9]*) pushSent="$pushNo" ; continue ;; esac
-			printf '%s\t%s\t%s\n-\n%s\n' "$pushMember" "$pushIdentity" "$pushMethod" "${pushPayload//$'\037'/$'\n'}" > "$pushWork/$pushBlock.retry"
+			## The reason a caller kept in front of the payload, where it kept one. A record of an older release has none.
+			pushWhy=""
+			case "$pushPayload" in
+				why=*"$pushSep"*)
+					pushWhy="${pushPayload#why=}" ; pushWhy="${pushWhy%%"$pushSep"*}"
+					pushPayload="${pushPayload#*"$pushSep"}"
+				;;
+			esac
+			printf '%s\t%s\t%s\n%s\n%s\n' "$pushMember" "$pushIdentity" "$pushMethod" "${pushWhy:--}" "${pushPayload//$'\037'/$'\n'}" > "$pushWork/$pushBlock.retry"
 			## Never bare: AgentsToolsSessionCommsPost returns 1 or 2 on an ordinary, expected outcome (rate-limited,
 			## refused, unreached), and a caller under set -e (DistroAgentsTools.fn.sh) is killed outright by that
 			## return unless it is the left side of ||, never just followed by `; pushRc=$?`.

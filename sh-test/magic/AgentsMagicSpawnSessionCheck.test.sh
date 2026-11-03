@@ -49,7 +49,7 @@ PATH="$rigTmp/bin:$PATH"
 ## member's own name so two members spawned in one call never overwrite each other's
 ## record. Same fixture shape as AgentsSpawnSessionThreadCheck.test.sh's.
 printf '%s\n' '#!/usr/bin/env bash' \
-	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
+	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER, takes MDAT_SPAWN_PARTICIPANTS and records the context.' \
 	'## It hands back, so the proxy never retries it and overwrites the brief it recorded.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
 	'printf "📦 SubagentHandback\n"' \

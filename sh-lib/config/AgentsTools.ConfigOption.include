@@ -28,7 +28,7 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 								case "$2:${4:-}" in
 									magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
 										type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
-										AgentsToolsConfigOptionElsewhere "$2" "${4:-}" 2> /dev/null || :
+										AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
 										presetStdinThere="$agentsConfigOptionElsewhere"
 									;;
 								esac
@@ -39,9 +39,35 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 					esac
 				;;
 			esac
+			## A value of REFLECT_MODELS is two positions of their own closed lists, and is
+			## refused at write where either is neither: a typo would otherwise name a silent
+			## third model, which nothing downstream would recognise as one. The value lives in
+			## a local of this arm, so the operation's own write below is still the one write.
+			case "$2:${3:-}:${4:-}" in
+				magic-team:--upsert:REFLECT_MODELS|magic-team:--upsert-if:REFLECT_MODELS)
+					type AgentsToolsReflectModelsWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+					AgentsToolsReflectModelsWriteCheck "${5:-}" || { set +e ; return 1 ; }
+				;;
+				magic-team:--upsert-from-stdin:REFLECT_MODELS)
+					type AgentsToolsReflectModelsWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+					local reflectStdinValue=""
+					reflectStdinValue="$( cat )" || reflectStdinValue=""
+					AgentsToolsReflectModelsWriteCheck "$reflectStdinValue" || { set +e ; return 1 ; }
+					set -- --agents-config-option "$2" --upsert "$4" "$reflectStdinValue"
+				;;
+			esac
 			## An option is this workspace's own; a read of one that is another workspace's names that workspace (AgentsToolsConfigOptionElsewhere).
 			case "${3:-}" in
 				--select|--select-default)
+					## The one key with a default of its own: REFLECT_MODELS answers `none` where the
+					## scope holds no line, so its reader is never left reading nothing as a third
+					## state. Every other key reads as it always has, nothing where it is not held.
+					if [ "$2" = "magic-team" ] && [ "${4:-}" = "REFLECT_MODELS" ] ; then
+						local defaultOut=""
+						defaultOut="$( set -- --agents-config-option magic-team "$3" REFLECT_MODELS ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )" || defaultOut=""
+						if [ -n "$defaultOut" ] ; then printf '%s\n' "$defaultOut" ; elif [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-none}" ; else printf 'none\n' ; fi
+						return 0
+					fi
 					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include).
 					if [ "$2" = "magic-team" ] ; then
 						local overlayOut overlayRc=0
@@ -74,7 +100,9 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 					## A team tier setting is the exception: it is the paying workspace's, so it is written where it is read.
 					local optionScope="$2" optionKey="${4:-}" optionThere="" optionRc=0
 					case "$optionScope:$optionKey" in
-						magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH) AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null || : ; optionThere="$agentsConfigOptionElsewhere" ;;
+						magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
+							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" || { set +e ; return 1 ; }
+							optionThere="$agentsConfigOptionElsewhere" ;;
 						magic-team:*) ;;
 						*) AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null && optionThere="$agentsConfigOptionElsewhere" ;;
 					esac
@@ -89,11 +117,11 @@ AgentsToolsConfigOption(){ ## the arguments after --agents-config-option
 				;;
 				--delete|--delete-if)
 					## The mirror: the last setting of a system deleted begins the borrowing again, said once (AgentsToolsMemberSettingsBorrowBegunSay).
-					## A team tier setting is taken out where it is read, as it is written there.
+					## A team tier setting is taken out where it is read, and a payer that names no workspace refuses it there.
 					local optionScope="$2" optionKey="${4:-}" optionPrefix="" optionRc=0
 					case "$optionScope:$optionKey" in
 						magic-team:SPAWN_TIER_LOW|magic-team:SPAWN_TIER_NORMAL|magic-team:SPAWN_TIER_HIGH)
-							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null || :
+							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" || { set +e ; return 1 ; }
 							[ -z "$agentsConfigOptionElsewhere" ] || { ( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ; return $? ; }
 						;;
 						magic-team:*) ;;

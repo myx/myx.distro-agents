@@ -120,7 +120,9 @@
 
 		--set-session-chapter <text...>
 			What the session does now, kept in its own store and announced in the
-			session thread, under the same authority as the topic.
+			session thread, under the same authority as the topic. A run that joins
+			the session with a description, or else its own name, also writes it as
+			`<member>: <text>`, and replaces only a chapter a join wrote.
 
 		--standing-directives [--all]
 			The standing directives in force: open warnings, coordinator notes, the

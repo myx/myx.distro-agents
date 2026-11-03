@@ -577,7 +577,7 @@ rigAssert "the dispatch arm did not fall through"        "$( rigHolds "$rigScena
 rigAssert "a tool result was returned at all"            "$( rigHolds "$rigScenarioDir/result" 'no-tool-result-in-this-request' )" no
 rigAssert "THE MODEL IS SHOWN TIMEOUT, AS ITS OPENING"   "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT' )" yes
 rigAssert "it is not dressed as a failed wait"           "$( rigHolds "$rigScenarioDir/result" 'the wait could not be performed' )" no
-rigAssert "THE TIMEOUT IS ONE LINE, NAMING THE NEXT CALL" "$( rigHolds "$rigScenarioDir/result" 'NEXT: Wait mode=continue' )" yes
+rigAssert "THE TIMEOUT IS ONE LINE, NAMING THE NEXT CALL" "$( rigHolds "$rigScenarioDir/result" 'NEXT: run --idle-wait, if you are waiting for new work or a dismissal' )" yes
 rigAssert "with no prose: the description says it is normal" "$( rigHolds "$rigScenarioDir/result" 'COMPLETE, SUCCESSFUL' )" no
 rigAssert "and no header lines"                          "$( rigHolds "$rigScenarioDir/result" '# sources:' )" no
 rigAssert "the round carried on to an answer"            "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
@@ -1649,7 +1649,7 @@ rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$r
 rigAssert "as the one line, without the mode header"           "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" no
 rigAssert "the session state landed in the session store"      "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigAssert "the round carried on to an answer"                  "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 's) NEXT: Wait mode=continue' )" yes
+rigAssert "a TIMEOUT names the idle wait as its next step" "$( rigHolds "$rigScenarioDir/result" 's) NEXT: run --idle-wait, if you are waiting for new work or a dismissal' )" yes
 rigAssert "and names it once"                                  "$( LC_ALL=C awk '{ hitCount += gsub( /NEXT: /, "&" ) ; } END { print hitCount + 0 ; }' "$rigScenarioDir/result" )" 1
 rigVerdict "the Wait tool declares mode and the id sets, and an explicit default stores its state"
 
@@ -1705,7 +1705,7 @@ rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
 rigRun --agent "$rigMember"
 rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
 rigAssert "an omitted mode is a wait that times out"           "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT' )" yes
-rigAssert "an omitted mode is stateful: its TIMEOUT is the one line" "$( rigHolds "$rigScenarioDir/result" 'NEXT: Wait mode=continue' )" yes
+rigAssert "an omitted mode is stateful: its TIMEOUT is the one line" "$( rigHolds "$rigScenarioDir/result" 'NEXT: run --idle-wait, if you are waiting for new work or a dismissal' )" yes
 rigAssert "and stored its state"                               "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigVerdict "the Wait tool with no mode -- the existing call shape -- is the default mode"
 

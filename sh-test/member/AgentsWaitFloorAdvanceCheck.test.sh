@@ -106,7 +106,8 @@ rigFloor(){
 rigImportThread(){
 	local importRender
 	importRender="$( mktemp "$rigDir/import.XXXXXX" )"
-	LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" < "$rigDir/replies.CRIGSES01.$(( rigNow - 400 )).000001.json" > "$importRender" 2> /dev/null
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+	-f "$rigHere/comms/AgentsSlackMessagesFormat.awk" < "$rigDir/replies.CRIGSES01.$(( rigNow - 400 )).000001.json" > "$importRender" 2> /dev/null
 	$rigEnvClean MMDAPP="$rigDir/ws" MDAT_SPAWN_LAUNCH_MARKER="$rigDir/launch.marker" bash -c \
 		". '$rigHere/session/AgentsTools.SessionChat.include' ; AgentsToolsSessionChatImport '$rigSession' '$rigThread' '$importRender' slack -"
 	rm -f "$importRender"

@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.DocGuard.include -- the one decision function of the document-contract guard, shared by the
+## harness Write and Edit tools and the native hook. Sourced, never run. Functions only.
+##
+## A write whose path ends in a registered extension is checked against that extension's contract before it
+## lands. A path with no registered extension is not a document type: the default branch allows it and the
+## write pays one `case` match, no I/O. The registry file (AgentsDocContract.registry) states, for each
+## registered extension, its kind, its state and its contract; the `case` below holds the same set on the
+## hot path, and a check pins the two together. The guard reads the registry only after a match, so an
+## unrelated write never opens it.
+##
+## The delta rule: the document as it stands and as it would be are both validated, and only a fault the
+## write introduces is charged to it. A refusing fault refuses the write; a reporting one is said and the
+## write goes on; an absent state (a type whose contract is not written yet) allows. A hook that does not
+## complete blocks the call, so the default branch above must always be reached: no network, no lock, no
+## team-data store is read here.
+##
+
+## The registry path, one declared file, versioned with the package.
+AgentsToolsDocGuardRegistry(){
+	printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsDocContract.registry"
+}
+
+## Whether the path is a document type the registry declares: rc 0 where it is. The hot path, no I/O.
+AgentsToolsDocGuardMatch(){ ## path
+	case "$1" in
+		*.routine.md) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+## The registry row of the path: kind TAB state TAB contract, rc 1 where none.
+AgentsToolsDocGuardRow(){ ## path
+	local regFile regKind regExt regState regContract
+	regFile="$( AgentsToolsDocGuardRegistry )"
+	[ -f "$regFile" ] || return 1
+	while IFS=$'\t' read -r regKind regExt regState regContract ; do
+		[ -n "$regKind" ] || continue
+		case "$regKind" in '#'*) continue ;; esac
+		case "$1" in
+			*"$regExt") printf '%s\t%s\t%s\n' "$regKind" "$regState" "$regContract" ; return 0 ;;
+		esac
+	done < "$regFile"
+	return 1
+}
+
+## The contract file the registry names, at the skillset root of the run first, then the package; rc 1 where missing.
+AgentsToolsDocGuardContractFile(){ ## contract name
+	local cBase
+	for cBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
+		[ ! -f "$cBase/contracts/$1" ] || { printf '%s\n' "$cBase/contracts/$1" ; return 0 ; }
+	done
+	return 1
+}
+
+## The rule rows of one document text against its kind, one pretty row a line. The text goes to a scratch
+## file, since the rule sets read a file path. The whole call runs in a subshell with nounset off, so the
+## rule sets' empty-array reads and the dispatcher tail of the sourced include do not fault; a scratch that
+## cannot be made yields no rows, nothing is guessed, and the write is then allowed by the default above.
+AgentsToolsDocGuardValidateText(){ ## kind, shown path, text
+	local vKind="$1" vShown="$2" vText="$3"
+	[ -n "$vText" ] || return 0
+	(
+		set +e
+		set +u
+		type AgentsToolsDocValidateRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" > /dev/null 2>&1
+		local vTemp="" vRows="" vRc=0
+		mkdir -p "${MMDAPP:-/tmp}/.local/temp" 2>/dev/null || exit 0
+		vTemp="$( mktemp "${MMDAPP:-/tmp}/.local/temp/AgentsDocGuard.XXXXXX" )" 2>/dev/null || exit 0
+		printf '%s' "$vText" > "$vTemp" || { rm -f -- "$vTemp" ; exit 0 ; }
+		case "$vKind" in
+			routine) vRows="$( AgentsToolsDocValidateRoutine "$vTemp" "$vShown" )" || vRc=$? ;;
+			epic) vRows="$( AgentsToolsDocValidateEpic "$vTemp" "$vShown" "$vShown" )" || vRc=$? ;;
+			*-item.*) vRows="$( AgentsToolsDocValidateType "$vTemp" "$vShown" "$vKind" check )" || vRc=$? ;;
+			*) vRows="" ;;
+		esac
+		rm -f -- "$vTemp"
+		printf '%s' "$vRows"
+		exit 0
+	)
+}
+
+## The identity of one pretty row is its rule and its text, since a fault is its rule and its text and a
+## line that moves is the same fault. The delta below subtracts before rows from after rows by that
+## identity and keeps each surviving full row, so the message names the rule and the line.
+AgentsToolsDocGuardDelta(){ ## before rows, after rows, path -- one `rule TAB full row` per fault the write introduces
+	GPATH="$3" LC_ALL=C awk '
+		FNR == 1 { fileNo++ }
+		{
+			id = $0
+			pathPrefix = ENVIRON["GPATH"] ":"
+			if (index(id, pathPrefix) == 1) id = substr(id, length(pathPrefix) + 1)
+			sub(/^[0-9]+: /, "", id)
+			rule = id ; sub(/:.*$/, "", rule)
+			if (fileNo == 1) { have[id]++ ; next }
+			if (have[id] > 0) { have[id]-- ; next }
+			print rule "\t" $0
+		}
+	' <( printf '%s\n' "$1" ) <( printf '%s\n' "$2" )
+}
+
+## THE DECISION: may the write of the new text to the path go on. rc 0 allow, 1 refuse. The default branch
+## -- a path with no registered extension -- allows and decides nothing.
+AgentsToolsDocGuardDecide(){ ## path, before text, after text, door (harness|hook)
+	local gPath="$1" gBefore="$2" gAfter="$3" gDoor="${4:-harness}" gRow gKind gState gContract
+	AgentsToolsDocGuardMatch "$gPath" || return 0
+	gRow="$( AgentsToolsDocGuardRow "$gPath" )" || {
+		printf '%s: the document-contract guard cannot read the registry for %s, so nothing was written\n' "$gPath" "$gPath" >&2
+		return 1
+	}
+	gKind="${gRow%%$'\t'*}" ; gRow="${gRow#*$'\t'}"
+	gState="${gRow%%$'\t'*}" ; gContract="${gRow#*$'\t'}"
+	case "$gState" in
+		absent) return 0 ;;
+		refusing|reporting) ;;
+		*)
+			printf '%s: the document-contract guard cannot read the registry state for %s, so nothing was written\n' "$gPath" "$gPath" >&2
+			return 1
+		;;
+	esac
+	if [ "$gState" = refusing ] && ! AgentsToolsDocGuardContractFile "$gContract" > /dev/null ; then
+		printf '%s: the document-contract guard refused %s: the contract %s named by the registry is missing -- nothing was written\n' "$gPath" "$gPath" "$gContract" >&2
+		return 1
+	fi
+	local gBeforeRows gAfterRows gNewFaults gNewRule gNewRow gRefused=0
+	gBeforeRows="$( AgentsToolsDocGuardValidateText "$gKind" "$gPath" "$gBefore" )"
+	gAfterRows="$( AgentsToolsDocGuardValidateText "$gKind" "$gPath" "$gAfter" )"
+	gNewFaults="$( AgentsToolsDocGuardDelta "$gBeforeRows" "$gAfterRows" "$gPath" )"
+	[ -n "$gNewFaults" ] || return 0
+	while IFS=$'\t' read -r gNewRule gNewRow ; do
+		[ -n "$gNewRule" ] || continue
+		case "$gNewRule" in
+			report-*)
+				printf '%s: the document-contract guard says, and the write goes on: %s\n' "$gPath" "$gNewRow" >&2
+			;;
+			*)
+				printf '%s: the document-contract guard refuses: %s\n' "$gPath" "$gNewRow" >&2
+				gRefused=$(( gRefused + 1 ))
+			;;
+		esac
+	done <<< "$gNewFaults"
+	[ "$gRefused" = 0 ] || {
+		printf '%s: %s breaks its contract in %s place(s) the write introduces -- nothing was written\n' "$gPath" "$gKind" "$gRefused" >&2
+		return 1
+	}
+	return 0
+}

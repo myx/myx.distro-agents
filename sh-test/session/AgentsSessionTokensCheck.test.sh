@@ -154,7 +154,7 @@ rigAssert "so does the spawn tracking file" "$( rigHeader "$rigWs/.local/agents/
 rigAssert "and sessions/<sid>/transcript" "$( cat "$rigWs/.local/agents/sessions/$rigSpawn/transcript" )" "$rigStore/$rigRel"
 rigT="$rigStore/$rigRel"
 rigAssert "START names member, service, parent and item" "$( LC_ALL=C grep -c " START session=$rigSpawn member=magic-tester service=configured parent=none item=$rigDispatch " "$rigT" )" 1
-rigAssert "the stream's lines are there" "$( LC_ALL=C grep -c 'TOOL mcp__myx_distro__Glob pattern="\*.md" path=/p -> ok 9B/2L' "$rigT" )$( LC_ALL=C grep -c ' RESULT outcome=ok' "$rigT" )" 11
+rigAssert "the stream's lines are there" "$( LC_ALL=C grep -c 'TOOL Glob pattern="\*.md" path=/p -> ok 9B/2L' "$rigT" )$( LC_ALL=C grep -c ' RESULT outcome=ok' "$rigT" )" 11
 rigAssert "END carries outcome, exit and the session's tokens" "$( LC_ALL=C grep -c ' END outcome=succeeded exit=0 tokens="in=10 cache-read=1000 cache-write=100 out=40"' "$rigT" )" 1
 rigAssert "the dispatch item's tokens header, as the CLI reported its usage" "$( rigHeader "$rigStore/board/review/$rigDispatch" tokens )" 'in=10 cache-read=1000 cache-write=100 out=40'
 rigAssert "milestones: start and end" "$( awk '{ $1 = "" ; print }' "$rigWs/.local/agents/sessions/$rigSpawn/milestones" | tr '\n' '|' )" ' start| end|'

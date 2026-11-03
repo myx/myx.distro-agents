@@ -72,8 +72,12 @@ rigAssert "no failure box opened" \
 	"$( rigLiveVal ROW dialogTitle routines )" ""
 rigAssert "and no read of the pane failed" \
 	"$( rigLiveVal ROW failed routines )" ""
+## The pane is read as it is drawn, so what is asserted is what stands above its fold: the routine's own heading, then a
+## verdict row. A body sentence further down is below the fold and would fail on how much the pane can show, not on the read.
 rigAssert "the left pane shows the routine's own text" \
-	"$( rigHas "$( cat "$rigTmp/screen-routines.out" )" "It exists so that the screen's routine read has a real routine to read." )" "yes"
+	"$( rigLiveHolds routines "A routine of the rig" )" "yes"
+rigAssert "and its verdicts stand beside it" \
+	"$( rigLiveHolds routines "valid" )" "yes"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN ROUTINES LIVE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

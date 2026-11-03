@@ -102,14 +102,22 @@ rigItem(){ ## state, item filename, spawn-id or empty
 }" > "$rigData/board/$1/$2"
 }
 rigRecord(){ ## spawn-id, status, host, session-thread or empty
-	mkdir -p "$rigSpawned/$1"
+	mkdir -p "$rigSpawned/$1" "$rigWs/.local/agents/sessions/$1"
+	[ -z "${4:-}" ] || printf '%s\n' "$4" > "$rigWs/.local/agents/sessions/$1/session.thread"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nowner: keeper-myx\nstatus: %s\n%sspawns: rig\n---\n' "$1" "$1" "$3" "$2" "${4:+session-thread: $4
 }" > "$rigSpawned/$1/$1.spawn.md"
 }
+rigMark(){ ## spawn id -- what its tooling dismissal mark holds, or `none`
+	if [ -f "$rigWs/.local/agents/sessions/$1/dismissed" ] ; then
+		LC_ALL=C head -1 "$rigWs/.local/agents/sessions/$1/dismissed"
+	else
+		printf 'none'
+	fi
+}
 rigPosts(){ LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" ; }
-rigAcceptLine(){ LC_ALL=C grep -m1 '^ACCEPT-DISMISS: ' "$1" | LC_ALL=C sed -E 's/^(ACCEPT-DISMISS: (sent DISMISSED|not sent)).*/\1/' ; }
+rigAcceptLine(){ LC_ALL=C grep -m1 '^ACCEPT-DISMISS: ' "$1" | LC_ALL=C sed -E 's/^(ACCEPT-DISMISS: (sent DISMISSED|not done)).*/\1/' ; }
 
-echo "-- live child on this host: accept sends DISMISSED into its session thread --"
+echo "-- live child on this host: accept dismisses it through the tooling's own state --"
 rigLiveSpawn="rig-live-$$-a1b2"
 ## The stand-in child: a line of the rig's process list that runs as the spawn, its own --session-id word.
 printf '900001 rig-run --session-id %s\n' "$rigLiveSpawn" > "$rigTmp/ps.list"
@@ -119,41 +127,39 @@ rigItem review dispatch-rig-live.md "$rigLiveSpawn"
 rigAccept "$rigTmp/o1" dispatch-rig-live.md review
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o1.rc" )" 0
 rigAssert "the item lands in board/processed"              "$( [ -f "$rigData/board/processed/dispatch-rig-live.md" ] && echo yes )" yes
-rigAssert "the op reports the send"                        "$( rigAcceptLine "$rigTmp/o1" )" "ACCEPT-DISMISS: sent DISMISSED"
-rigAssert "exactly one post reached Slack"                 "$( rigPosts )" 1
-rigAssert "the post went to the session thread's channel"  "$( LC_ALL=C grep -c '"channel": *"CRIGSESS1"' "$rigTmp/bodies" )" 1
-rigAssert "the post is a reply in the session thread"      "$( LC_ALL=C grep -c '"thread_ts": *"1700000000.000100"' "$rigTmp/bodies" )" 1
-## The text as the child's Wait would render it (JSON \n as a real newline), judged by the
-## one dismissal rule the Wait itself uses.
-rigText="$( LC_ALL=C sed -n -E 's/^\{"channel":"[^"]*","text":"(([^"\\]|\\.)*)".*/\1/p' "$rigTmp/bodies" | head -1 )"
-rigText="$( printf '%b' "$rigText" )"
-rigAssert "the child's Wait reads the post as its dismissal" \
-	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=keeper-myx LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
+rigAssert "the op reports the dismissal"                   "$( rigAcceptLine "$rigTmp/o1" )" "ACCEPT-DISMISS: sent DISMISSED"
+rigAssert "the run carries its dismissal mark"             "$( rigMark "$rigLiveSpawn" )" "magic-coordinator (the accept of dispatch-rig-live.md)"
+rigAssert "and nothing was posted to it"                   "$( rigPosts )" 0
+rigAssert "the session chat file records it"               "$( LC_ALL=C grep -c 'DISMISSED' "$rigWs/.local/agents/sessions/$rigLiveSpawn/session.chat" 2> /dev/null || : )" 1
+## The block as the child's Wait would read it, judged by the one dismissal rule that Wait uses.
+rigAssert "the child's Wait reads the block as its dismissal" \
+	"$( { printf 'WAIT-RESULT: RECEIVED\n' ; LC_ALL=C awk '{ if ( $0 ~ /^# via / ) { if ( open ) { print "# --- end ---" } ; print "# arrived on: " substr($0, 7) ; print "# --- what that source holds now follows ---" ; open = 1 ; next } ; print } END { if ( open ) { print "# --- end ---" } }' "$rigWs/.local/agents/sessions/$rigLiveSpawn/session.chat" ; } | dismissalMember=keeper-myx LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
 rigAssert "it dismisses no other member"                   \
-	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" ""
+	"$( { printf 'WAIT-RESULT: RECEIVED\n' ; cat "$rigWs/.local/agents/sessions/$rigLiveSpawn/session.chat" ; } | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" ""
 
-echo "-- child on another host: liveness unmeasurable here, so the dismissal is sent --"
+echo "-- child on another host: liveness unmeasurable here, so it is dismissed too --"
 rigRecord rig-foreign-c3d4 spawn-started rig-other-host CRIGSESS2:1700000000.000300
 rigItem review dispatch-rig-foreign.md rig-foreign-c3d4
 rigAccept "$rigTmp/o2" dispatch-rig-foreign.md review
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o2.rc" )" 0
-rigAssert "the op reports the send"                        "$( rigAcceptLine "$rigTmp/o2" )" "ACCEPT-DISMISS: sent DISMISSED"
+rigAssert "the op reports the dismissal"                   "$( rigAcceptLine "$rigTmp/o2" )" "ACCEPT-DISMISS: sent DISMISSED"
 
-echo "-- nothing to send: the move still succeeds and says why --"
+echo "-- nothing to do: the move still succeeds and says why --"
 rigRecord rig-ended-e5f6 spawn-succeeded "$rigHost" CRIGSESS3:1700000000.000400
 rigItem review dispatch-rig-ended.md rig-ended-e5f6
 rigAccept "$rigTmp/o3" dispatch-rig-ended.md review
 rigAssert "ended child: the move succeeds"                 "$( cat "$rigTmp/o3.rc" )" 0
 rigAssert "ended child: the item lands in processed"       "$( [ -f "$rigData/board/processed/dispatch-rig-ended.md" ] && echo yes )" yes
 rigAssert "ended child: nothing posted"                    "$( rigPosts )" 0
-rigAssert "ended child: the op says it has ended"          "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not sent: spawn rig-ended-e5f6 has already ended' "$rigTmp/o3" )" 1
+rigAssert "ended child: no mark is written"                "$( rigMark rig-ended-e5f6 )" "none"
+rigAssert "ended child: the op says it has ended"          "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not done: spawn rig-ended-e5f6 has already ended' "$rigTmp/o3" )" 1
 
 rigRecord rig-gone-a7b8 spawn-started "$rigHost" CRIGSESS4:1700000000.000500
 rigItem review dispatch-rig-gone.md rig-gone-a7b8
 rigAccept "$rigTmp/o4" dispatch-rig-gone.md review
 rigAssert "process gone: the move succeeds"                "$( cat "$rigTmp/o4.rc" )" 0
 rigAssert "process gone: nothing posted"                   "$( rigPosts )" 0
-rigAssert "process gone: the op says it is not running"    "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not sent: spawn rig-gone-a7b8 is not running on this host' "$rigTmp/o4" )" 1
+rigAssert "process gone: the op says it is not running"    "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not done: spawn rig-gone-a7b8 is not running on this host' "$rigTmp/o4" )" 1
 
 ## The same, with its spawn id still standing on another process's command line: inside the
 ## path of its folder, and quoted in that process's brief. A run is its own --session-id or
@@ -164,19 +170,19 @@ printf '900002 claude --add-dir %s/rig-held-e1f2/input --session-id rig-other-ru
 rigAccept "$rigTmp/o7" dispatch-rig-held.md review
 rigAssert "process gone, its id on another's line: the move succeeds" "$( cat "$rigTmp/o7.rc" )" 0
 rigAssert "process gone, its id on another's line: nothing posted, and the op says it is not running" \
-	"$( rigPosts ):$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not sent: spawn rig-held-e1f2 is not running on this host' "$rigTmp/o7" )" "0:1"
+	"$( rigPosts ):$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not done: spawn rig-held-e1f2 is not running on this host' "$rigTmp/o7" )" "0:1"
 
 rigRecord rig-nothread-c9d0 spawn-started rig-other-host ""
 rigItem review dispatch-rig-nothread.md rig-nothread-c9d0
 rigAccept "$rigTmp/o5" dispatch-rig-nothread.md review
 rigAssert "no thread: the move succeeds"                   "$( cat "$rigTmp/o5.rc" )" 0
 rigAssert "no thread: nothing posted"                      "$( rigPosts )" 0
-rigAssert "no thread: the op says there is no thread"      "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not sent: spawn rig-nothread-c9d0 has no session thread' "$rigTmp/o5" )" 1
+rigAssert "no thread: it is dismissed all the same"        "$( rigMark rig-nothread-c9d0 )" "magic-coordinator (the accept of dispatch-rig-nothread.md)"
 
 rigItem review dispatch-rig-unlinked.md ""
 rigAccept "$rigTmp/o6" dispatch-rig-unlinked.md review
 rigAssert "no spawn: the move succeeds"                    "$( cat "$rigTmp/o6.rc" )" 0
-rigAssert "no spawn: the op says no record was found"      "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not sent: no spawn record found' "$rigTmp/o6" )" 1
+rigAssert "no spawn: the op says no record was found"      "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not done: no spawn record found' "$rigTmp/o6" )" 1
 
 echo "-- a same-state edit of a processed item is not an accept --"
 rigAccept "$rigTmp/o7" dispatch-rig-live.md processed

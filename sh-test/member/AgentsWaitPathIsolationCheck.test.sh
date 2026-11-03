@@ -278,7 +278,8 @@ rigFloorRun(){ ## the script to run in a process of the copy, in the floor's wor
 }
 rigFloorImport(){ ## thread messages as a JSON array body -- rendered by the formatter of the copy and imported into the session's chat file
 	printf '{"ok":true,"messages":[%s],"has_more":false}\n' "$1" > "$rigTmp/thread.json"
-	LC_ALL=C awk -f "$rigOrigin/$rigPackageRel/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.rendered" 2> /dev/null
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+	-f "$rigOrigin/$rigPackageRel/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.rendered" 2> /dev/null
 	rigFloorRun ". '$rigOrigin/$rigPackageRel/sh-lib/session/AgentsTools.SessionChat.include' ; AgentsToolsSessionChatImport '$rigFloorSession' '$rigThread' '$rigTmp/thread.rendered' slack -"
 }
 rigFloorDeliver(){

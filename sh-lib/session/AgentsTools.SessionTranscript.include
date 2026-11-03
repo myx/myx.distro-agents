@@ -112,18 +112,28 @@ AgentsTranscriptPath(){ ## session id
 
 ## One block. 4 KB or less is a single O_APPEND write and takes no lock; a bigger
 ## block takes the local lock, so two big blocks never interleave.
+## THE LINE REACHES A COMMIT ON A BOUND, never on every line: an entry is left for the one team-data thread at most once per
+## MDAT_TRANSCRIPT_COMMIT_SECONDS, so the path every tool call takes gains two arithmetic tests and no fork. A milestone
+## (AgentsTranscriptMilestone) commits at the points a reader waits on, and this carries what falls between them.
 AgentsTranscriptAppend(){ ## file, text
-	local LC_ALL=C appendLock=""
+	local LC_ALL=C appendLock="" appendRoot=""
 	if [ "${#2}" -le 4096 ] ; then
 		printf '%s\n' "$2" >> "$1" 2>/dev/null || :
-		return 0
+	else
+		type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2>/dev/null || :
+		if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "transcript.${1##*/}" 10 "transcript ${1##*/}" 2>/dev/null ; then
+			appendLock="$agentsLocalLockPath"
+		fi
+		printf '%s\n' "$2" >> "$1" 2>/dev/null || :
+		[ -z "$appendLock" ] || AgentsToolsLocalLockGive "$appendLock" 2>/dev/null || :
 	fi
-	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2>/dev/null || :
-	if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "transcript.${1##*/}" 10 "transcript ${1##*/}" 2>/dev/null ; then
-		appendLock="$agentsLocalLockPath"
-	fi
-	printf '%s\n' "$2" >> "$1" 2>/dev/null || :
-	[ -z "$appendLock" ] || AgentsToolsLocalLockGive "$appendLock" 2>/dev/null || :
+	agentsTranscriptBoundAt="${agentsTranscriptBoundAt:-$SECONDS}"
+	[ "$(( SECONDS - agentsTranscriptBoundAt ))" -ge "${MDAT_TRANSCRIPT_COMMIT_SECONDS:-120}" ] || return 0
+	agentsTranscriptBoundAt="$SECONDS"
+	## The store is the transcript's own, taken from its path: a run may write a store other than its workspace's.
+	case "$1" in */audit/*) appendRoot="${1%%/audit/*}" ;; *) return 0 ;; esac
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || return 0
+	MDAT_DATA_ROOT="$appendRoot" AgentsToolsTeamDataCommitPaths "transcript ${1##*/}: the lines the bound carried" "$1" > /dev/null 2>&1 || :
 	return 0
 }
 
@@ -194,89 +204,6 @@ AgentsTranscriptOutcomeOf(){ ## result, preset outcome (optional), first line (o
 	esac
 }
 
-## The model rounds of a harness session whose context is kept, rendered from that log
-## (AgentsHarnessContextTranscript.awk) and merged by time with the lines the tooling
-## appended live since the last render. Called at every milestone, before its commit.
-## sessions/<sid>/context names the log; sessions/<sid>/context.cursor holds
-## `<leg> <last message rendered> <part> <byte offset after the last render>`. Of lines of
-## the same second the rendered one goes first: a live line the loop causes (a REVIEW from a
-## handback, the FINAL after the last round) follows the call or round that caused it -- but
-## START, MODEL and a review's RESTART (`kind=`), which open what the rounds follow, go first.
-## A part rolled since the last render merges
-## within the current part only. The tail is rewritten under the transcript's local lock;
-## a line appended meanwhile is carried over.
-AgentsTranscriptContextRender(){ ## session id
-	local LC_ALL=C
-	local renderDir renderLog="" renderPart renderLeg renderFrom renderSession renderCursor="" renderCurLeg="" renderCurN="" renderCurPart="" renderCurOffset=""
-	local renderLast renderOffset renderSize renderNew renderLock="" renderTmp renderPrevSize renderRendered renderAwkDir="$agentsTranscriptLib"
-	renderDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	[ -s "$renderDir/context" ] && [ -s "$renderDir/transcript" ] || return 0
-	IFS= read -r renderLog < "$renderDir/context" || :
-	[ -s "$renderLog" ] || return 0
-	renderSession="$( head -1 "$renderLog" | awk -v path=session -v optional=1 -f "$renderAwkDir/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || renderSession=""
-	[ "$renderSession" = "$1" ] || return 0
-	renderLeg="$( head -1 "$renderLog" | awk -v path=leg -v optional=1 -f "$renderAwkDir/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || renderLeg=""
-	renderFrom="$( head -1 "$renderLog" | awk -v path=from -v optional=1 -f "$renderAwkDir/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || renderFrom=0
-	[ ! -s "$renderDir/context.cursor" ] || read -r renderCurLeg renderCurN renderCurPart renderCurOffset < "$renderDir/context.cursor" || :
-	[ "$renderCurLeg" = "$renderLeg" ] || renderCurN="${renderFrom:-0}"
-	case "$renderCurN" in ''|*[!0123456789]*) renderCurN=0 ;; esac
-	renderLast="$( awk 'index( $0, "{\"type\":\"message\"," ) == 1 { last++ } END { print last + 0 }' "$renderLog" 2>/dev/null )"
-	[ "${renderLast:-0}" -gt "$renderCurN" ] || return 0
-	renderPart="$( AgentsTranscriptPath "$1" )" || return 0
-	renderTmp="$renderDir/context.render.$$"
-	awk -v from="$(( renderCurN + 1 ))" -f "$renderAwkDir/harness/AgentsHarnessJsonField.awk" -f "$renderAwkDir/session/AgentsSessionTranscriptFormat.awk" \
-		-f "$renderAwkDir/harness/AgentsHarnessContextTranscript.awk" "$renderLog" > "$renderTmp.rendered" 2>/dev/null || { rm -f "$renderTmp".* ; return 0 ; }
-	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2>/dev/null || :
-	if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "transcript.${renderPart##*/}" 10 "transcript ${renderPart##*/}" 2>/dev/null ; then
-		renderLock="$agentsLocalLockPath"
-	fi
-	renderOffset=0
-	[ "$renderCurPart" != "$renderPart" ] || renderOffset="${renderCurOffset:-0}"
-	case "$renderOffset" in ''|*[!0123456789]*) renderOffset=0 ;; esac
-	renderSize="$( wc -c < "$renderPart" | tr -d ' ' )"
-	[ "$renderOffset" -le "$renderSize" ] || renderOffset="$renderSize"
-	## The live tail and the rendered lines, merged block by block (a line and its `> ` body).
-	{
-		head -c "$renderOffset" "$renderPart"
-		tail -c +"$(( renderOffset + 1 ))" "$renderPart" | head -c "$(( renderSize - renderOffset ))" > "$renderTmp.live"
-		awk -v renderedFile="$renderTmp.rendered" '
-			function liveNext() { if ((getline liveLine) > 0) return 1 ; liveDone = 1 ; return 0 }
-			function rendNext() { if ((getline rendLine < renderedFile) > 0) return 1 ; rendDone = 1 ; return 0 }
-			function takeBlock(isLive,   blockText, nextLine) {
-				blockText = isLive ? liveLine : rendLine
-				while (isLive ? liveNext() : rendNext()) {
-					nextLine = isLive ? liveLine : rendLine
-					if (substr(nextLine, 1, 1) != ">") break
-					blockText = blockText "\n" nextLine
-				}
-				print blockText
-			}
-			BEGIN {
-				liveNext() ; rendNext()
-				while (!liveDone || !rendDone) {
-					if (rendDone) takeBlock(1)
-					else if (liveDone) takeBlock(0)
-					else if (substr(rendLine, 1, 20) < substr(liveLine, 1, 20)) takeBlock(0)
-					else if (substr(rendLine, 1, 20) == substr(liveLine, 1, 20) && liveLine !~ /^[^ ]+ (START|MODEL|CONTINUED|RESTART [^\n]* kind=)/) takeBlock(0)
-					else takeBlock(1)
-				}
-			}' < "$renderTmp.live"
-	} > "$renderTmp.new" 2>/dev/null || { rm -f "$renderTmp".* ; [ -z "$renderLock" ] || AgentsToolsLocalLockGive "$renderLock" 2>/dev/null ; return 0 ; }
-	## A line appended while this ran stays: its bytes past the size read are carried over.
-	ln -f "$renderPart" "$renderTmp.prev" 2>/dev/null || :
-	if mv -f "$renderTmp.new" "$renderPart" 2>/dev/null ; then
-		if [ -f "$renderTmp.prev" ] ; then
-			renderPrevSize="$( wc -c < "$renderTmp.prev" | tr -d ' ' )"
-			[ "${renderPrevSize:-0}" -le "$renderSize" ] || tail -c +"$(( renderSize + 1 ))" "$renderTmp.prev" >> "$renderPart" 2>/dev/null || :
-		fi
-		renderNew="$( wc -c < "$renderPart" | tr -d ' ' )"
-		printf '%s %s %s %s\n' "$renderLeg" "$renderLast" "$renderPart" "$renderNew" > "$renderDir/context.cursor" 2>/dev/null || :
-	fi
-	rm -f "$renderTmp".* 2>/dev/null
-	[ -z "$renderLock" ] || AgentsToolsLocalLockGive "$renderLock" 2>/dev/null || :
-	return 0
-}
-
 ## A new transcript's path under the team data root: its name, and its month folder by the one
 ## audit lookup (AgentsToolsAuditMonth, AgentsTools.InternOpDataRead.include) every reader finds it by.
 AgentsTranscriptNewRel(){ ## member, session id
@@ -327,8 +254,6 @@ AgentsTranscriptMilestone(){ ## session id, reason
 	[ ! -s "$milestoneDir/data-root" ] || IFS= read -r milestoneRoot < "$milestoneDir/data-root" || :
 	[ -n "$milestoneRoot" ] || milestoneRoot="${MDAT_DATA_ROOT:-}"
 	[ -n "$milestoneRoot" ] || return 0
-	## A harness session whose context is kept: its model rounds, from that log, first.
-	AgentsTranscriptContextRender "$milestoneSession" || :
 	MDAT_DATA_ROOT="$milestoneRoot" AgentsSessionTokensHeaderUpdate "$milestoneSession" || :
 	while IFS= read -r milestonePart ; do
 		[ -z "$milestonePart" ] || milestoneParts+=( "$milestonePart" )
@@ -365,7 +290,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	doneFirst="${7:-${doneResult%%$'\n'*}}"
 	[ -n "$doneOutcome" ] || doneOutcome="$( AgentsTranscriptOutcomeOf "$doneResult" "" "$doneFirst" )"
 	## A harness loop whose context is kept (AgentsHarnessContext.include): its tool lines and
-	## message events are rendered from that log at the milestones, so only the milestone is here.
+	## message events are written from that log as it gains records (AgentsHarnessContextFeed), so only the milestone is here.
 	if [ "$doneSource" = "loop" ] && [ -n "${agentsTranscriptFromLog:-}" ] ; then
 		case "$doneBase:$doneOutcome" in
 			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok|AskQuestion:ok|ConfirmReadback:ok|EscalateDecision:ok|RequestPermission:ok|ProposeApprove:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
@@ -485,7 +410,7 @@ AgentsTranscriptHarnessRound(){ ## round number, scratch dir
 	agentsTranscriptRoundText="$( printf '%s' "$roundText" | tr '\n\t\r' '   ' )"
 	agentsTranscriptRoundText="${agentsTranscriptRoundText:0:400}"
 	AgentsSessionTokensAdd "$roundSession" "${roundIn:-0}" "${roundCr:-0}" "${roundCw:-0}" "${roundOut:-0}"
-	## Kept context: the ROUND line is rendered from the log (AgentsTranscriptContextRender).
+	## Kept context: the ROUND line is written from the log (AgentsHarnessContextFeed).
 	[ -z "${agentsTranscriptFromLog:-}" ] || return 0
 	AgentsTranscriptEvent "$roundSession" ROUND "$roundText" 1024 n "$1" in "${roundIn:-0}" cache-read "${roundCr:-0}" cache-write "${roundCw:-0}" out "${roundOut:-0}"
 	return 0
@@ -520,6 +445,24 @@ AgentsTranscriptHarnessFinal(){ ## answer text
 AgentsTranscriptSpawnEnd(){ ## session id, outcome, exit code
 	AgentsTranscriptEvent "$1" END "" 0 outcome "$2" exit "$3" tokens "$( AgentsSessionTokensHeaderValue "$1" )"
 	AgentsTranscriptMilestone "$1" "end"
+	return 0
+}
+
+## One event written into a run's transcript AFTER that run ended -- its verdict, its return, its dismissal -- so no milestone of
+## that run will ever come to commit the line. The block is committed here instead, through the one team-data thread as every other
+## write is (AgentsToolsTeamDataCommitPaths). Only such a writer uses this one: a live run's lines are carried by its next milestone,
+## and committing each of those here would put a commit on the path every tool call takes.
+AgentsTranscriptEventAfterEnd(){ ## session id, kind, body cap, then key value pairs
+	local afterSession="$1" afterKind="$2" afterCap="$3" afterPart afterDir afterRoot=""
+	shift 3
+	afterPart="$( AgentsTranscriptPath "$afterSession" )" || return 0
+	AgentsTranscriptEvent "$afterSession" "$afterKind" "" "$afterCap" "$@"
+	afterDir="$( AgentsTranscriptSessionDir "$afterSession" )" || return 0
+	[ ! -s "$afterDir/data-root" ] || IFS= read -r afterRoot < "$afterDir/data-root" || :
+	[ -n "$afterRoot" ] || afterRoot="${MDAT_DATA_ROOT:-}"
+	[ -n "$afterRoot" ] || return 0
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || return 0
+	MDAT_DATA_ROOT="$afterRoot" AgentsToolsTeamDataCommitPaths "transcript ${afterSession:0:8} after its end: $afterKind" "$afterPart" 2> /dev/null || :
 	return 0
 }
 

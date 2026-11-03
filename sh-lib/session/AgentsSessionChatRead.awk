@@ -85,6 +85,9 @@ function isCovered(whereValue,   at) {
 # for the chat file alone (F11.6): recorded with no ts and nothing posted, and the floor of a session with no thread is that file.
 # The session's printback channel is its own in either case: the root-native kind has no thread, and a message on it is the
 # session's whatever else the session keeps (F2.2).
+# A BLOCK NOBODY POSTED IS NOBODY ELSE'S TO DELIVER (S6.25): with no ts, nothing of that conversation exists in Slack, so no other
+# source of the same Wait can carry it, and the covered set has nothing to leave to. Reading it as covered would drop the one
+# delivery a run that is already waiting has. A posted block keeps the rule as it stands.
 function ownThread(whereValue) {
 	if ( whereValue == "printback:" session ) { return 1 ; }
 	return ( thread != "" ) ? ( whereValue == thread ) : ( whereValue == "local" ) ;
@@ -166,7 +169,7 @@ END {
 			take = 1 ;
 		}
 		if ( ! take ) { continue ; }
-		if ( isCovered(idxWhere[at]) ) { continue ; }
+		if ( isCovered(idxWhere[at]) && idxTs[at] != "-" ) { continue ; }
 		## THE SESSION'S OWN THREAD'S NEWEST TS, among what this call actually delivers: a live Wait's own
 		## slack:<channel>:<ts>:conversation source keeps its floor on this same unit (AgentsWaitStateStore), never
 		## on this block's own idxNo, which is local to this chat file alone and means nothing to that source.

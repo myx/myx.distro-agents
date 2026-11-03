@@ -134,15 +134,22 @@ rigWaits(){ ## run id, member, session
 		bash "$rigHarness" --intern-tool Wait > "$waitOut" 2> "$waitOut.err" )
 	LC_ALL=C grep -q -x -F 'WAIT-RESULT: DISMISSED' "$waitOut" && printf dismissed || printf waits
 }
-## The accept of a handback by magic-coordinator, the reviewer; prints how many of the sends it made say DISMISSED.
+## The accept of a handback by magic-coordinator, the reviewer; prints 1 where the run the item names carries the
+## tooling's dismissal mark, else 0. The dismissal is the tooling's own state (S6.25): nothing is posted to it.
 rigAccepts(){ ## item
+	local accItemPath accRun accMark=0
 	rm -f "$rigDir"/post.* "$rigDir/posts"
 	( cd "$rigDir/ws" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/served:/usr/bin:/bin:/usr/sbin:/sbin" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
 		MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		MDAT_SPAWN_AGENT=magic-coordinator \
 		bash "$rigFn" --accept-review "$1" --summary "The work is good." ) > "$rigDir/accept.out" 2>&1
 	printf '%s' "$?" > "$rigDir/accept.rc"
-	cat "$rigDir"/post.* 2> /dev/null | LC_ALL=C grep -c -F 'DISMISSED' || :
+	for accItemPath in "$rigDir/data/board"/*/"$1.md" ; do
+		[ ! -f "$accItemPath" ] || accRun="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$accItemPath" | head -1 )"
+	done
+	case "$accRun" in ''|-|*/*|.|..) printf '0' ; return 0 ;; esac
+	[ ! -f "$rigDir/ws/.local/agents/sessions/$accRun/dismissed" ] || accMark=1
+	printf '%s' "$accMark"
 }
 rigDismissals(){ ## item -- its Decisions lines that record the limit's dismissal
 	LC_ALL=C grep -c -E '^- [0-9TZ:-]+ [a-z-]+ dismissed: review-wait-expired' "$rigDir/data/board/review/$1.md" 2> /dev/null || :
@@ -163,7 +170,7 @@ rigSoloB="rig-dismiss-solo-b-$rigTag"
 rigThread "$rigSoloB" ""
 rigRun rigAloneB "$rigSoloB" keeper-myx spawned none magic-coordinator
 sleep 1
-[ "$( rigAccepts "$rigAloneBItem" )" -ge 1 ] 2> /dev/null || rigRefuse "an accept of a lone run's handback sent it no DISMISSED, so nothing below would be measured: $( LC_ALL=C grep -m2 -i 'error' "$rigDir/accept.out" | LC_ALL=C tr '\n' ' ' )"
+[ "$( rigAccepts "$rigAloneBItem" )" -ge 1 ] 2> /dev/null || rigRefuse "an accept of a lone run's handback left it no dismissal mark, so nothing below would be measured: $( LC_ALL=C grep -m2 -i 'error' "$rigDir/accept.out" | LC_ALL=C tr '\n' ' ' )"
 
 echo "-- 1. past the limit, neither the coordinator nor the member it brought in is dismissed while the other runs --"
 rigScene cowork limit
@@ -184,7 +191,7 @@ rigThread "$rigRoutine" "$( rigDismissedJson magic-coordinator keeper-myx )"
 rigRun rigExec "$rigRoutine" keeper-myx spawned none magic-coordinator
 rigRun rigPart "$rigRoutine" magic-tester joined "$rigExec" keeper-myx
 sleep 1
-rigAssert "the accept sends the executor no DISMISSED"                    "$( rigAccepts "$rigExecItem" )" 0
+rigAssert "the accept leaves the executor no dismissal mark"               "$( rigAccepts "$rigExecItem" )" 0
 
 echo "-- 3. a DISMISSED from its reports-to does not dismiss the executor while that participant runs --"
 rigAssert "the executor's Wait, the DISMISSED in its thread, is no dismissal" "$( rigWaits "$rigExec" keeper-myx "$rigRoutine" )" waits
@@ -211,7 +218,7 @@ rigThread "$rigMemberSession" "$( rigDismissedJson magic-coordinator keeper-myx 
 rigRun rigLead "$rigMemberSession" magic-coordinator spawned none human-owner
 rigRun rigMember "$rigMemberSession" keeper-myx joined "$rigLead" magic-coordinator
 sleep 1
-rigAssert "the accept of the member's handback sends it its DISMISSED"   "$( rigAccepts "$rigMemberItem" )" 1
+rigAssert "the accept of the member's handback leaves it its dismissal mark" "$( rigAccepts "$rigMemberItem" )" 1
 rigAssert "and the member's Wait, the DISMISSED in its thread, is its dismissal" "$( rigWaits "$rigMember" keeper-myx "$rigMemberSession" )" dismissed
 
 echo "-- 5. once the others have ended, the last executor is dismissed at the limit, recorded once --"

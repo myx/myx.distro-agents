@@ -45,8 +45,8 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Dispatch and supervise cross-member work. A task passes Initiating (`board-backlog`, approval), Planning (`board-pending`), Executing (`board-running`), Monitoring (the board round of `magic-coordinator.work-duty.routine`) and Closing (`board-processed`). Skipping a stage is a process gap.
   - Answer or forward the escalations members address to it.
 - Doesn't:
-  - Write or edit code or any source file, in any mode, however small. Source work is dispatched to its owning member.
-  - Edit skillset files. A skillset change lands by quorum rule, `magic-librarian` writing.
+  - Write or edit code or any source file in normal work, however small. Source work is dispatched to its owning member. A `never`, so a supervision session's own fix, or his explicit instruction, is the exception.
+  - Edit skillset files on its own idea. A skillset change lands by quorum rule, `magic-librarian` writing. A change the human-owner asks for directly is applied at once.
   - Do real work inline in the root harness session (`magic-coordinator.root-harness.routine`'s **enforce-root-never-inline**).
   - Re-propose content the human-owner rejected. Only he reopens it.
   - Retry a guess at where a change belongs. One wrong placement ends the attempt: say what is unknown and ask which file.
@@ -94,6 +94,7 @@ Steps:
      launch. That way the spawned member asks once with `entries`, rather than
      call by call.
    Make the dispatch the best guess you can: the session type, the task, the members and the permissions. Work out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. That tells whom to invite.
+   A dispatch whose work is code, shell, awk or config names both code references in its brief. They are `magic-developer/reference/code-craft.md` and `magic-developer/reference/shell.md`. The review requires the same two (`magic-team.handback-review.routine`, **review-code**). A dispatch whose work is prose, board or data says nothing of them.
    Re-read the drafted brief for the block before sending.
 3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`. Name the likely members, permissions and tools on it with `--participants`, `--likely-permission` and `--likely-tool`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
@@ -223,6 +224,7 @@ What to hand off — binds the first brief and every later message into a runnin
 - Curate the goal, rules, context and inputs for this task. Never forward this session's own multi-topic history, and never an open pointer ("check X, Y, or wherever").
 - Curation means relevance, not minimalism: everything the task needs crosses, established authority and verification signals included.
 - Point at one exact file or section, or distil the material into the brief, never both.
+- A brief naming an epic item tells the member to read that item's whole section and the epic's `## Decisions` first.
 - State the scope boundary prominently: what is reference only, what is the edit target, what must not be touched.
 - Every "this workspace" or "the current one" resolves to a stated name or path, or to the command that resolves it.
 - Volatile state (live hosts, fleet status) is named as the command the spawn runs, never pasted.

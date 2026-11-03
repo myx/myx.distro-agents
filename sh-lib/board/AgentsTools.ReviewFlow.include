@@ -33,7 +33,7 @@ AgentsReviewTools(){
 AgentsReviewLoad(){
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-	type AgentsTranscriptEvent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	return 0
 }
 
@@ -65,7 +65,7 @@ AgentsReviewRecord(){ ## who, item name, decisions kind, text, transcript event,
 	[ "$recRc" = 0 ] || echo "⚠️ WARNING: ${MDSC_CMD:-review}: the $recKind of $recItem was not recorded in its Decisions" >&2
 	case "$recSpawn" in
 		''|-) ;;
-		*) AgentsTranscriptEvent "$recSpawn" "$recEvent" "" 0 item "$recItem" kind "$recKind" by "$recWho" text "$recText" 2> /dev/null || : ;;
+		*) AgentsTranscriptEventAfterEnd "$recSpawn" "$recEvent" 0 item "$recItem" kind "$recKind" by "$recWho" text "$recText" 2> /dev/null || : ;;
 	esac
 	return 0
 }
@@ -424,18 +424,73 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 
 ## Review items addressed to a routine (`review-by: <name>.routine`, or its full
 ## `<member>.<name>.routine`), one `- <item> [review-by: <value>]` line each, or `(none)`.
-AgentsReviewItemsForRoutine(){ ## routine short name, e.g. grooming or advance
-	local rfPath rfBy rfCount=0
+## With a member named, the items that are that member's to review are listed too (S24.7): one whose
+## `review-by` names it, and one that names no reviewer whose parent no longer runs. A live parent
+## keeps its item, and the person's items and another routine's stay as they were.
+AgentsReviewItemsForRoutine(){ ## routine short name, e.g. advance; the member whose duty reviews, where one is
+	local rfPath rfName rfBy rfMine rfSpawn rfRecord rfWhere rfParent rfMember rfLive=" " rfGone=" " rfCount=0
 	AgentsReviewLoad
 	for rfPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
 		[ -f "$rfPath" ] || continue
+		rfName="${rfPath##*/}" ; rfName="${rfName%.md}"
 		rfBy="$( AgentsToolsSpawnSandboxRecordHeader "$rfPath" review-by )"
+		rfMine=no
 		case "$rfBy" in
-			"$1.routine"|*".$1.routine") ;;
-			*) continue ;;
+			"$1.routine"|*".$1.routine") rfMine=yes ;;
 		esac
-		rfPath="${rfPath##*/}"
-		printf -- '- %s [review-by: %s]\n' "${rfPath%.md}" "$rfBy"
+		if [ "$rfMine" = no ] && [ -n "${2:-}" ] ; then
+			## The member's own items, and those of no reviewer whose parent has gone. The parent is the
+			## one the item names, else the one its own run reports to, read as the route reads it.
+			case "$rfBy" in
+				'') ;;
+				"$2") rfMine=yes ;;
+			esac
+			[ "$rfMine" = no ] && [ -n "$rfBy" ] && continue
+			rfSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$rfPath" spawn-id )"
+			rfRecord=""
+			for rfWhere in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$rfSpawn.spawn.md" ; do
+				[ ! -f "$rfWhere" ] || { rfRecord="$rfWhere" ; break ; }
+			done
+			rfParent="$( AgentsToolsSpawnSandboxRecordHeader "$rfPath" "$agentsRunRouteField" )"
+			[ -n "$rfParent" ] || [ -z "$rfRecord" ] || rfParent="$( AgentsToolsSpawnSandboxRecordHeader "$rfRecord" "$agentsRunRouteField" )"
+			rfMember=""
+			case "$rfParent" in
+				''|none)
+					rfParent=""
+					[ -z "$rfRecord" ] || rfParent="$( AgentsToolsSpawnSandboxRecordHeader "$rfRecord" parent-session-id )"
+					[ -z "$rfRecord" ] || rfMember="$( AgentsToolsSpawnSandboxRecordHeader "$rfRecord" parent-member )"
+				;;
+				*:*) rfMember="${rfParent#*:}" ; rfParent="${rfParent%%:*}" ;;
+			esac
+			[ -n "$rfMember" ] || [ -z "$rfRecord" ] || rfMember="$( AgentsToolsSpawnSandboxRecordHeader "$rfRecord" parent-member )"
+			case "$rfParent" in
+				'') ;; 
+				*)
+					## One answer per parent, however many items it has.
+					case "$rfLive" in
+						*" $rfParent:$rfMember "*) ;;
+						*)
+							case "$rfGone" in
+								*" $rfParent:$rfMember "*) [ -n "$rfBy" ] || rfMine=yes ;;
+								*)
+									if AgentsToolsRunRouteAvailable "$rfParent" "$rfMember" "$rfRecord" ; then
+										rfLive="$rfLive$rfParent:$rfMember "
+									else
+										rfGone="$rfGone$rfParent:$rfMember " ; [ -n "$rfBy" ] || rfMine=yes
+									fi
+								;;
+							esac
+						;;
+					esac
+				;;
+			esac
+		fi
+		[ "$rfMine" = yes ] || continue
+		if [ -n "$rfBy" ] ; then
+			printf -- '- %s [review-by: %s]\n' "$rfName" "$rfBy"
+		else
+			printf -- '- %s [no review-by, parent gone]\n' "$rfName"
+		fi
 		rfCount=$(( rfCount + 1 ))
 	done
 	[ "$rfCount" -gt 0 ] || printf '(none)\n'
@@ -584,7 +639,7 @@ AgentsReviewWaitExpire(){ ## who, spawn id
 	return 0
 }
 
-## Every live spawn dismissed with reason shutdown: DISMISSED into its session thread, and the
+## Every live spawn dismissed with reason shutdown, by the tooling's own state (AgentsToolsRunDismiss), and its
 ## ending recorded on the item it works. One SHUTDOWN line per spawn, then a count.
 AgentsReviewShutdown(){ ## sending member
 	local sdBy="$1" sdRecord sdSpawn sdItem sdWhy sdSent=0 sdSeen=0
@@ -594,7 +649,11 @@ AgentsReviewShutdown(){ ## sending member
 		sdWhy="$( AgentsReviewChildLive "$sdRecord" )" || continue
 		sdSpawn="${sdRecord##*/}" ; sdSpawn="${sdSpawn%.spawn.md}"
 		sdSeen=$(( sdSeen + 1 ))
-		sdWhy="$( AgentsReviewSendToChild "$sdBy" "$sdRecord" DISMISSED )" && sdSent=$(( sdSent + 1 ))
+		if AgentsToolsRunDismiss "$sdSpawn" "$sdBy (the shutdown)" > /dev/null ; then
+			sdSent=$(( sdSent + 1 )) ; sdWhy="dismissed by the tooling"
+		else
+			sdWhy="not dismissed: its mark could not be kept"
+		fi
 		printf 'SHUTDOWN: spawn %s: %s\n' "$sdSpawn" "$sdWhy"
 		sdItem="$( AgentsReviewItemOfSession "$sdSpawn" )" || continue
 		AgentsReviewRecord "$sdBy" "$sdItem" dismissed "shutdown: $sdWhy" ENDING "$sdSpawn"
@@ -826,33 +885,57 @@ AgentsReviewCloseAccepted(){ ## who, item file name, the ACCEPT-DISMISS line the
 	return 0
 }
 
-## THE CHILDREN A CLOSING PARENT STILL ANSWERS FOR (S27.5): every run it brought into its session and
-## that still waits gets its DISMISSED, which is the decision the parent's close gives it. A child
-## already ended is left as it is. Prints one CHILDREN-CLOSE line per child, then a count.
-AgentsReviewChildrenDismiss(){ ## the closing run's spawn id, the member closing
-	local chParent="$1" chBy="$2" chOwn chSession="" chCandidate chChilds chChild chStatus chOut chSent=0 chSeen=0
+## THE RUNS A CLOSING RUN STILL ANSWERS FOR, AND NO OTHERS (S6.25): the runs it brought in, matched on
+## `parent-spawn-id`, and only from an executor's close -- a participant's close ends that run alone. Each
+## waiting run is dismissed by the tooling's own state (AgentsToolsRunDismiss), and a child already ended is
+## left as it is. The executor then says once, in the session thread and to nobody in particular, what it
+## ended. Prints one CHILDREN-CLOSE line per run, then a count.
+AgentsReviewChildrenDismiss(){ ## the closing run's record path, the member closing
+	local chRecord="$1" chBy="$2" chParent chChilds="" chChild chOwn chSeen=0 chKept=0 chThread=""
 	AgentsReviewLoad
+	[ -n "$chRecord" ] && [ -f "$chRecord" ] || return 0
+	chParent="$( AgentsToolsSpawnSandboxRecordHeader "$chRecord" spawn-id )"
 	case "$chParent" in ''|-|.|..|*/*) return 0 ;; esac
-	for chCandidate in "$MMDAPP"/.local/agents/spawned/*/"$chParent.spawn.md" ; do
-		[ ! -f "$chCandidate" ] || chSession="$( AgentsToolsSpawnSandboxRecordHeader "$chCandidate" session-id )"
-	done
-	case "$chSession" in ''|-|.|..|*/*) return 0 ;; esac
-	chChilds="$( LC_ALL=C grep -l -x -F "parent-session-id: $chSession" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || chChilds=""
+	if ! AgentsToolsSessionRunExecutor "$chRecord" ; then
+		printf 'CHILDREN-CLOSE: no run was spawned by this one\n'
+		return 0
+	fi
+	chChilds="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $chParent" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || chChilds=""
 	while IFS= read -r chChild ; do
 		[ -n "$chChild" ] && [ -f "$chChild" ] || continue
 		chOwn="${chChild##*/}" ; chOwn="${chOwn%.spawn.md}"
 		[ "$chOwn" != "$chParent" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$chChild" status )" = spawn-started ] || continue
 		chSeen=$(( chSeen + 1 ))
-		chOut="$( AgentsReviewSendToChild "$chBy" "$chChild" DISMISSED )" || :
-		case "$chOut" in
-			sent\ *) chSent=$(( chSent + 1 )) ; chOut="${chOut#sent }" ;;
-			*) chOut="${chOut:-not sent}" ;;
-		esac
-		printf 'CHILDREN-CLOSE: %s %s\n' "$chOwn" "$chOut"
+		if AgentsToolsRunDismiss "$chOwn" "tooling (the close of $chParent)" > /dev/null ; then
+			chKept=$(( chKept + 1 ))
+			printf 'CHILDREN-CLOSE: %s dismissed\n' "$chOwn"
+		else
+			printf 'CHILDREN-CLOSE: %s not dismissed: its mark could not be kept\n' "$chOwn"
+		fi
 	done <<< "$chChilds"
-	[ "$chSeen" -gt 0 ] || { printf 'CHILDREN-CLOSE: no child waits on this session\n' ; return 0 ; }
-	printf 'CHILDREN-CLOSE: %s of %s waiting child(ren) dismissed\n' "$chSent" "$chSeen"
+	[ "$chSeen" -gt 0 ] || { printf 'CHILDREN-CLOSE: no run was spawned by this one\n' ; return 0 ; }
+	printf 'CHILDREN-CLOSE: %s of %s waiting run(s) dismissed\n' "$chKept" "$chSeen"
+	[ "$chKept" -gt 0 ] || return 0
+	## ONE LINE, TO NOBODY IN PARTICULAR, UNDER THE CLOSING MEMBER'S OWN NAME (S6.25): the participants were
+	## ended by the tooling's state, and this is the only place that says so.
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	local chText
+	chText="$( ASKP_BLOCK="Session/children-closed" ASKP_F_member="$chBy" ASKP_F_count="$chKept" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || chText=""
+	[ -n "$chText" ] || { printf 'CHILDREN-CLOSE: the closing line could not be filled from its template, so nothing was posted\n' ; return 0 ; }
+	chThread="$( AgentsToolsSpawnSandboxRecordHeader "$chRecord" session-thread )"
+	case "$chThread" in ''|-) chThread="" ;; esac
+	if [ -z "$chThread" ] ; then
+		[ ! -f "$MMDAPP/.local/agents/sessions/$( AgentsToolsSpawnSandboxRecordHeader "$chRecord" session-id )/session.thread" ] \
+			|| IFS= read -r chThread < "$MMDAPP/.local/agents/sessions/$( AgentsToolsSpawnSandboxRecordHeader "$chRecord" session-id )/session.thread" || :
+	fi
+	AgentsToolsSpawnConversationThreadValid "$chThread" || { printf 'CHILDREN-CLOSE: the session has no thread to say it in\n' ; return 0 ; }
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if printf '%s\n' "$chText" | DistroAgentsTools --intern-op-comms-slack-send-message "$chBy" "$chThread" --identity-bot --from-stdin > /dev/null 2>&1 ; then
+		printf 'CHILDREN-CLOSE: the close of %s was said once in %s\n' "$chKept" "$chThread"
+	else
+		printf 'CHILDREN-CLOSE: the close was not posted in %s\n' "$chThread"
+	fi
 	return 0
 }
 
@@ -923,7 +1006,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			opPath="$( AgentsToolsDecisionsItemPath "$opItem" )" || return 1
 			opRecord="$( AgentsReviewChildRecord "$opPath" )" || opRecord=""
 			if [ -n "$opRecord" ] && AgentsReviewChildLive "$opRecord" > /dev/null ; then
-				opWhy="$( AgentsReviewSendToChild "$opWho" "$opRecord" "$( printf 'RETURNED for corrections on %s. Continue the same task, then hand back again.\n\n%s' "${opItem%.md}" "$opText" )" )" || {
+				opWhy="$( AgentsReviewSendToChild "$opWho" "$opRecord" "$( printf 'Your item %s is open again. It was RETURNED for corrections. Continue the same task, then hand back again.\n\n%s' "${opItem%.md}" "$opText" )" )" || {
 					printf 'RETURN: not delivered: %s\n' "${opWhy#not sent: }"
 					return 1
 				}

@@ -120,12 +120,13 @@ AgentsWaitProbeMentions(){
 	## ONE call that answers: the member's own user token, else the team identity that may search.
 	for probeAs in $probeTokens ; do
 		probeRc=0
-		type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
+		type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
 		probeJson="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$probeAs" --api search.messages --identity user \
 			--form "query=$probeQuery${probeAfter:+ after:$probeAfter}" --form sort=timestamp --form sort_dir=desc --form count=100 \
 			--context "wait: the mentions of $probeMember" 2> "$probeOut.err" )" || probeRc=$?
 		if [ "$probeRc" = 0 ] ; then
 			probeFound="$( printf '%s\n' "$probeJson" | LC_ALL=C awk -v cutoff="$probePointer" -v channelMark=1 \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" 2>> "$probeOut.err" )" || probeRc=$?
 			## Kept only where it differs (AgentsWaitPut): a search that found the same messages again leaves the file alone.
 			[ "$probeRc" != 0 ] || AgentsWaitPut "$probeOut.found" "$probeFound"

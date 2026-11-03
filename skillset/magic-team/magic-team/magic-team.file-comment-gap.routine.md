@@ -50,7 +50,12 @@ An idle-run routine of a `keeper-*` member. It adds one grounded file-header com
 
 # Opening steps
 
-None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+The Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline). Then:
+
+1. **read-code-craft**: read both code references before the comment is written, steps:
+   - `magic-developer/reference/code-craft.md`, whole: its comment ceiling is the one this routine writes to.
+   - `magic-developer/reference/shell.md`, where the file is shell or awk.
+   - rule: both stand read on every run. A file whose language neither covers is still written to the ceiling `code-craft.md` sets.
 
 # Steps
 

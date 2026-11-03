@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionControlRelease.include -- ends the runs of a session that no one else ends, for the control thread of that session
+## (--intern-session-control). Sourced, never run. Functions only.
+##
+## A run that handed back waits for a DISMISSED its own Wait has to read, and one whose Wait does not lives on, and its thread with it.
+## The thread ends such a run by the kill of the console once its dispatch item asks nothing more of it: the item is in processed or
+## archived, or waits in review past REVIEW_WAIT_LIMIT (AgentsReviewWaitLeft), and SESSION_CONTROL_CLOSING_SECONDS have passed since the
+## read that first saw it so. A run another run needs is never ended here. The mark is control/release.<run id>: that read's seconds,
+## then the seconds of the call last started (`--release`, apart from the tick).
+##
+
+AgentsToolsSessionControlRelease(){
+	local releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest
+	local releaseRecord releaseField releaseStem releaseItem releaseSpawnOf releaseBoard releaseFile releaseState releaseWhy releaseNow releaseSeen releaseCalled
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	releaseNow="$( date +%s )"
+	[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
+	while read -r releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest ; do
+		case "$releaseSpawn" in ''|-|.|..|*/*) continue ;; esac
+		if [ "$releaseLive" != "running" ] ; then
+			rm -f "$controlDir/release.$releaseSpawn" 2> /dev/null
+			continue
+		fi
+		releaseRecord="$MMDAPP/.local/agents/spawned/$releaseTracking/$releaseSpawn.spawn.md"
+		[ -f "$releaseRecord" ] || continue
+		releaseWhy="" ; releaseBoard=""
+		for releaseField in spawns spawned-by ; do
+			releaseStem="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" "$releaseField" )"
+			[ -n "$releaseStem" ] || continue
+			releaseItem="${releaseStem%.md}.md"
+			for releaseFile in "$MDAT_DATA_ROOT"/board/*/"$releaseItem" ; do
+				[ ! -f "$releaseFile" ] || { releaseBoard="$releaseFile" ; break ; }
+			done
+			[ -n "$releaseBoard" ] || continue
+			## An item that names a newer spawn belongs to that one, not to this run.
+			releaseSpawnOf="$( AgentsToolsSpawnSandboxRecordHeader "$releaseBoard" spawn-id )"
+			[ -n "$releaseSpawnOf" ] && [ "$releaseSpawnOf" != "-" ] && [ "$releaseSpawnOf" != "$releaseSpawn" ] || break
+			releaseBoard=""
+		done
+		releaseState="${releaseBoard%/*}" ; releaseState="${releaseState##*/}"
+		case "$releaseState" in
+			processed|archived)
+				AgentsToolsSessionDismissHeld "$releaseRecord" > /dev/null || releaseWhy="its item ${releaseItem%.md} is in $releaseState"
+			;;
+			review)
+				type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" > /dev/null 2>&1 || :
+				[ "$( AgentsReviewWaitLeft "$releaseSpawn" 2> /dev/null )" != "expired" ] || AgentsToolsSessionLimitHeld "$releaseRecord" > /dev/null \
+					|| releaseWhy="its handback on ${releaseItem%.md} waited past the review limit for a verdict"
+			;;
+		esac
+		if [ -z "$releaseWhy" ] ; then
+			rm -f "$controlDir/release.$releaseSpawn" 2> /dev/null
+			continue
+		fi
+		[ -f "$controlDir/release.$releaseSpawn" ] || printf '%s\n0\n' "$releaseNow" > "$controlDir/release.$releaseSpawn" 2> /dev/null
+		releaseSeen="" ; releaseCalled=""
+		{ read -r releaseSeen ; read -r releaseCalled ; } 2> /dev/null < "$controlDir/release.$releaseSpawn"
+		case "$releaseSeen" in ''|*[!0123456789]*) releaseSeen="$releaseNow" ;; esac
+		case "$releaseCalled" in ''|*[!0123456789]*) releaseCalled=0 ;; esac
+		## The accept's own dismissal is given its time first: the run ends by it in seconds, where its Wait reads it.
+		[ "$(( releaseNow - releaseSeen ))" -ge "$controlClosing" ] || continue
+		[ "$(( releaseNow - releaseCalled ))" -ge "$controlClosing" ] || continue
+		printf '%s\n%s\n' "$releaseSeen" "$releaseNow" > "$controlDir/release.$releaseSpawn" 2> /dev/null
+		(
+			## A shell cannot give back a signal it inherited ignored, so the call starts through a python helper that resets them, then execs.
+			if command -v python3 > /dev/null 2>&1 ; then
+				exec python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSignalReset.py" \
+					"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --release --session-id "$controlSession" --spawn-id "$releaseSpawn"
+			fi
+			exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --release --session-id "$controlSession" --spawn-id "$releaseSpawn"
+		) < /dev/null >> "$controlDir/log" 2>&1 &
+		disown "$!" 2> /dev/null || :
+		AgentsToolsSessionControlSay event "session $controlSession: run $releaseSpawn of $releaseOwner is ended by the tooling, because $releaseWhy -- by pid $!, apart from the tick"
+	done <<< "$controlRows"
+	return 0
+}

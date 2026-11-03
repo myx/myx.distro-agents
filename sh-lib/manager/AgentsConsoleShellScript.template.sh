@@ -801,7 +801,27 @@ if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
 				if [ -n "${MMDAPP:-}" ] && [ -s "$DAGC_RESUME_CONTEXT" ] ; then
 					export MDAT_HARNESS_RESUME_CONTEXT="$DAGC_RESUME_CONTEXT"
 				else
-					echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_RESUME is true but '$DAGC_CLI' has no --resume flag and no kept context at $DAGC_RESUME_CONTEXT -- refusing rather than starting a session that would look resumed and is not one" >&2
+					## THE FIRST FAILURE IS WHAT IS SAID (S6.34): a resume is asked for after a run ended, and
+					## with no context kept the end's own reason is the fact a reader needs. It is the one the
+					## harness kept beside the sandbox (`.refused`), else the record's `end-reason`, else the
+					## last line of the run's own log that reports a fault; where none of the three exists,
+					## the refusal says it found none.
+					DagcResumeWhy=""
+					for DAGC_RESUME_REFUSED in "${MDAT_SPAWN_SANDBOX_ROOT:-${MMDAPP:-}/.local/agents/spawned}/$MDAT_SPAWN_SESSION_ID/$MDAT_SPAWN_SESSION_ID.refused" \
+						"${MDAT_SPAWN_SANDBOX_ROOT:-${MMDAPP:-}/.local/agents/spawned}/$MDAT_SPAWN_SESSION_ID.refused" ; do
+						[ ! -s "$DAGC_RESUME_REFUSED" ] || DagcResumeWhy="$( head -1 "$DAGC_RESUME_REFUSED" 2>/dev/null )"
+						[ -z "$DagcResumeWhy" ] || break
+					done
+					DAGC_RESUME_RECORD="${MDAT_SPAWN_SANDBOX_ROOT:-${MMDAPP:-}/.local/agents/spawned}/$MDAT_SPAWN_SESSION_ID/$MDAT_SPAWN_SESSION_ID.spawn.md"
+					[ -n "$DagcResumeWhy" ] || DagcResumeWhy="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) { exit } ; next } fence == 1 && index( $0, "end-reason: " ) == 1 { print substr( $0, 13 ) ; exit }' "$DAGC_RESUME_RECORD" 2>/dev/null )"
+					## A run that died before its harness kept anything has neither, and its own log does: the
+					## last line of it that reports a fault, which is the one that ended that run. The console's
+					## own refusal is written into that same log after it, and is never read as a cause.
+					if [ -z "$DagcResumeWhy" ] ; then
+						DAGC_RESUME_LOG="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) { exit } ; next } fence == 1 && index( $0, "output-file: " ) == 1 { print substr( $0, 14 ) ; exit }' "$DAGC_RESUME_RECORD" 2>/dev/null )"
+						[ ! -s "$DAGC_RESUME_LOG" ] || DagcResumeWhy="$( LC_ALL=C awk '( index( $0, "⛔ ERROR" ) > 0 || $0 ~ /: line [0-9]+: / ) && index( $0, "MDAT_SPAWN_RESUME is true" ) == 0 { fault = $0 } END { print fault }' "$DAGC_RESUME_LOG" 2>/dev/null )"
+					fi
+					echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_RESUME is true but '$DAGC_CLI' has no --resume flag and no kept context at $DAGC_RESUME_CONTEXT -- refusing rather than starting a session that would look resumed and is not one. Why the run ended: ${DagcResumeWhy:-nothing recorded a reason for its end}" >&2
 					exit 1
 				fi
 			;;
@@ -883,8 +903,27 @@ if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 			## the `*)` warning arm here, so a claude-native spawn's hooks reported
 			## the generic agent type instead of the real member name.
 			claude|claude-native)
+				DAGC_AGENTS_JSON="\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}"
+				## The participants the session names (MDAT_SPAWN_PARTICIPANTS, spaced, set by --spawn-session) are agent types too, so the
+				## executor's own `Agent` call finds each of them. Checked by the same enumerated set, as one string, before any is split or placed in JSON.
+				case "${MDAT_SPAWN_PARTICIPANTS:-}" in
+					*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.\ -]*)
+						echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_PARTICIPANTS is not a list of bare member names: $MDAT_SPAWN_PARTICIPANTS" >&2
+						exit 1
+					;;
+				esac
+				for DAGC_PARTICIPANT in ${MDAT_SPAWN_PARTICIPANTS:-} ; do
+					case "$DAGC_PARTICIPANT" in
+						.|..)
+							echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_PARTICIPANTS is not a list of bare member names: $MDAT_SPAWN_PARTICIPANTS" >&2
+							exit 1
+						;;
+						"$MDAT_SPAWN_AGENT") continue ;;
+					esac
+					DAGC_AGENTS_JSON="$DAGC_AGENTS_JSON,\"$DAGC_PARTICIPANT\":{\"description\":\"magic-team member $DAGC_PARTICIPANT\",\"prompt\":\"You are $DAGC_PARTICIPANT, a magic-team member. Read your own skill files before acting.\"}"
+				done
 				DAGC_AGENT_ARGS=(
-					--agents "{\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}}"
+					--agents "{$DAGC_AGENTS_JSON}"
 					--agent "$MDAT_SPAWN_AGENT"
 				)
 			;;
@@ -901,6 +940,8 @@ if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 		esac
 	fi
 fi
+## Taken: the session's own tools start further spawns from this environment, and none of them is for these participants.
+unset MDAT_SPAWN_PARTICIPANTS
 
 ## The vendor claude binary only: piping its own JSON-lines stream through the awk formatter is
 ## what makes -p's silent batch mode show live progress. exec'ing a pipeline

@@ -249,7 +249,7 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 			printf 'NEXT: your report is given and you report to no one -- end your run now, and call nothing more\n'
 			return 0
 		fi
-		printf 'NEXT: you are not done -- call Wait with no sources (your session thread) and obey what arrives, until it returns DISMISSED\n'
+		printf 'NEXT: you are not done -- run --idle-wait: it means all done, and waits for any message addressed to your run, until it returns DISMISSED\n'
 		return 0
 	fi
 	## A plain Wait holds the replies to the run's own posts (AgentsHarnessOwnPostRecord, the floor of
@@ -422,8 +422,9 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 ## first word is text -- and address_to names who it is for. routine-run-inline runs a routine of
 ## this session inline. get-uninvited-participants reads the participants the session's record
 ## names that have no run in it yet, one a line. set-session-topic and set-session-chapter set the
-## session's title and what it does now, from the message. Nothing here reads the thread: every
-## wait already brings its replies.
+## session's title and what it does now, from the message. idle-wait says this run is all done and
+## waits for any message addressed to it (S18.2). Nothing here reads the thread: every wait already
+## brings its replies.
 AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, routine
 	local toolOp="$1" toolMessage="$2" toolAddressTo="$3" toolRoutine="$4"
 	local toolOut="" toolRc=0 toolChannel="" toolThread="" toolTs=""
@@ -450,8 +451,11 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 			[ -n "$toolMessage" ] || { printf 'ERROR: ThisSession %s: message is required, and this call named none. Nothing was set.\n' "$toolOp" ; return 0 ; }
 			toolArgs=( "--$toolOp" "$toolMessage" )
 		;;
+		idle-wait)
+			toolArgs=( --idle-wait )
+		;;
 		*)
-			printf 'ERROR: ThisSession: unknown operation: %s -- the operations are post, which posts to your own session thread, routine-run-inline, get-uninvited-participants, which reads the participants with no run yet, and set-session-topic and set-session-chapter, which set the session title and what it does now. Nothing was done.\n' "${toolOp:-<none>}" ; return 0
+			printf 'ERROR: ThisSession: unknown operation: %s -- the operations are post, which posts to your own session thread, routine-run-inline, get-uninvited-participants, which reads the participants with no run yet, set-session-topic and set-session-chapter, which set the session title and what it does now, and idle-wait, which says this run is all done and waits for any message addressed to it. Nothing was done.\n' "${toolOp:-<none>}" ; return 0
 		;;
 	esac
 	## The member this call resolved is the member the operation acts as, and the session is the one

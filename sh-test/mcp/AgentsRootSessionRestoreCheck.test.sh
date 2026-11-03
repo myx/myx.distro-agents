@@ -215,8 +215,16 @@ rigSessionDirs(){ ## workspace -- every session folder in it, one a line
 rigTokenFiles(){ ## workspace -- its root-session token records, one a line
 	find "$1/.local/agents/sessions" -name root-session.token -type f 2> /dev/null | LC_ALL=C sort || :
 }
-rigSpawnRecords(){ ## workspace -- how many spawn records it holds
-	find "$1/.local/agents/spawned" -name '*.spawn.md' -type f 2> /dev/null | LC_ALL=C grep -c . || :
+rigSpawnRecords(){ ## workspace -- how many CONSOLE RUN records it holds
+	## A record of a console run, never a root-harness session's own: a mint writes one of those by the
+	## owner's ruling of 2026-10-29 (AgentsToolsRootSessionRecord), so counting every record would count
+	## the session this very check minted, and a row that says "no console run" would fail on its own subject.
+	local rigSpawnOne=""
+	for rigSpawnOne in "$1/.local/agents/spawned"/*/*.spawn.md ; do
+		[ -f "$rigSpawnOne" ] || continue
+		LC_ALL=C grep -q -x -F 'start-context: root-harness' "$rigSpawnOne" && continue
+		printf 'x\n'
+	done | LC_ALL=C grep -c . || :
 }
 rigCount(){ ## file, pattern -- matching lines, 0 when the file is absent
 	local rigCountText=""

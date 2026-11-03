@@ -100,7 +100,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a handback to the session's own parent follows, carrying the decision and the next step, per "The ladder: one rung at a time".
 10. **publish-the-report**: put the `vault-item.investigation-report` where the organisation reads it, steps:
    - the report is duplicated to Confluence, and its Jira task is created or linked, through `DistroAgentsAtlassian`.
-   - both happen in the workspace that holds that organisation's identities: `--confluence-page-create` with the report's body, then `--jira-issue-create`, or `--jira-issue-search` and a link where the task already exists.
+   - both happen in the workspace that holds that organisation's identities: `--confluence-page-create` with the report's body, then `--jira-issue-create`.
+   - where the task already exists, `--jira-issue-search` finds it, and `--jira-issue-link-page <issue-key> --url <page-url> --title <text>` links the page to it.
    - where that organisation has no Confluence or Jira configured, record that and close the investigation anyway.
    - an identity missing, or a refusal, is escalated, never worked around.
 

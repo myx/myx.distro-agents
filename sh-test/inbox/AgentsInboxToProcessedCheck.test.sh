@@ -54,7 +54,7 @@ rigFieldCount(){ ## file, field
 ## One team op, guarded, against the given data root (default the rig's); rc into <result>.rc.
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="${RIG_DATA:-$rigData}" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="${RIG_DATA:-$rigData}" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '

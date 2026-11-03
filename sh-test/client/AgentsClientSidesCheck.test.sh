@@ -117,11 +117,11 @@ rigWorld(){ ## -- a fresh machine
 	rigScopeOf ws-here magic-coordinator 'SLACK_USER_TOKEN=rig-user-token-COORD'
 	rigScopeOf ws-here keeper-here 'SLACK_USER_TOKEN=rig-user-token-KHERE'
 	## what each client holds for its other organisation, configured in the workspace everything is run from
-	rigScopeOf ws-here client-acme 'WHERE=ws-here' 'SLACK_USER_TOKEN=rig-user-token-ACME' 'SLACK_WORKSPACE_DOMAIN=acme.slack.invalid' 'SLACK_CONVERSATIONS=CACME00001' 'JIRA_SITE=jira-acme.invalid' 'JIRA_USER=us@acme.invalid' 'JIRA_API_TOKEN=rig-jira-token-ACME'
-	rigScopeOf ws-here client-mel 'SLACK_BOT_TOKEN=rig-bot-token-MELOWN'
+	rigScopeOf ws-here client-acme 'WHERE=ws-here' 'CLIENT_SLACK_USER_TOKEN=rig-user-token-ACME' 'CLIENT_SLACK_WORKSPACE_DOMAIN=acme.slack.invalid' 'SLACK_CONVERSATIONS=CACME00001' 'CLIENT_JIRA_SITE=jira-acme.invalid' 'CLIENT_JIRA_USER=us@acme.invalid' 'CLIENT_JIRA_API_TOKEN=rig-jira-token-ACME'
+	rigScopeOf ws-here client-mel 'CLIENT_SLACK_BOT_TOKEN=rig-bot-token-MELOWN'
 	## the other workspace's own team and its own settings for the client: never read from here
 	rigScopeOf ws-there magic-team 'SLACK_CHANNEL_MAGIC_TEAM=CTHERE0001' 'SLACK_CHANNEL_HUMAN_OWNER=UTHEREOWNER' 'SLACK_BOT_TOKEN=rig-bot-token-THERE' 'SLACK_WORKSPACE_DOMAIN=there.slack.invalid'
-	rigScopeOf ws-there client-acme 'WHERE=ws-there' 'SLACK_USER_TOKEN=rig-user-token-ACMETHERE' 'JIRA_SITE=jira-there.invalid' 'JIRA_USER=us@there.invalid' 'JIRA_API_TOKEN=rig-jira-token-THERE'
+	rigScopeOf ws-there client-acme 'WHERE=ws-there' 'CLIENT_SLACK_USER_TOKEN=rig-user-token-ACMETHERE' 'CLIENT_JIRA_SITE=jira-there.invalid' 'CLIENT_JIRA_USER=us@there.invalid' 'CLIENT_JIRA_API_TOKEN=rig-jira-token-THERE'
 	## this workspace's names registry holds its own members only: the persona member, the client set up here, the keeper.
 	## The invited client has no row in it.
 	printf '%s\n' 'magic-coordinator 🐭 Magic Vane dispatchr' 'client-mel 🐭 Magic Vane dispatchr' 'keeper-here 🔧 Hera Keeper herakeep' > "$rigWork/ws-here/.local/agents/team-members-names.registry"

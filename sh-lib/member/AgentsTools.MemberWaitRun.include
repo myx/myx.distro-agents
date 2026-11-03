@@ -181,7 +181,7 @@
 			esac
 			## A wait whose directory was taken from under it reads nothing any more: it ends here (AgentsWaitLost).
 			if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
-			local roundSource roundKind roundTarget roundFn roundQuietFrom roundQuiet roundStaleOk roundIndex=0 roundRc roundEvery roundNow roundTtl roundSlowGap="" roundProbeTimeout=""
+			local roundSource roundKind roundTarget roundFn roundQuietFrom roundQuiet roundStaleOk roundIndex=0 roundRc roundEvery roundNow sourceNow roundTtl roundSlowGap="" roundProbeTimeout=""
 			roundNow=$(( waitStart + SECONDS - waitSecs0 ))
 			for roundSource in $waitSources ; do
 				roundIndex=$(( roundIndex + 1 ))
@@ -217,9 +217,9 @@
 								roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
 								## The TTL the caller gave the source when it added it, where it gave one (AgentsWaitTtlOwn).
 								case "$waitTtls" in *" $roundSource="*) roundTtl="${waitTtls#* $roundSource=}" ; roundTtl="${roundTtl%% *}" ;; esac
-								## The source backs off while it brings nothing, from its TTL to twenty times it, counted from its floor.
+								## The source backs off while it brings nothing, from its TTL to twenty times it -- quiet from its floor, or from this wait's start where the floor is older (S27.9).
 								roundQuietFrom="${waitFloorOf[$roundIndex]%%.*}"
-								case "$roundQuietFrom" in ''|*[!0-9]*) roundQuietFrom="$waitStart" ;; esac
+								case "$roundQuietFrom" in ''|*[!0-9]*) roundQuietFrom="$waitStart" ;; *) [ "$roundQuietFrom" -ge "$waitStart" ] || roundQuietFrom="$waitStart" ;; esac
 								roundQuiet=$(( roundNow - roundQuietFrom ))
 								[ "$roundQuiet" -ge 0 ] || roundQuiet=0
 								[ "$roundQuiet" -le $(( roundTtl * 200 )) ] || roundQuiet=$(( roundTtl * 200 ))
@@ -255,16 +255,17 @@
 				fi
 
 				roundRc=0
-				## A round takes the cache's look, and a round with under two seconds left is served what the cache holds, its refresh detached.
+				## A source takes the cache's look, and one with under two seconds left is served what the cache holds, its refresh detached. Its clock is its own start, never the round's.
+				sourceNow=$(( waitStart + SECONDS - waitSecs0 ))
 				roundStaleOk=""
-				[ "$roundKind" != "slack" ] || [ -z "$waitDeadline" ] || [ $(( waitDeadline - roundNow )) -ge 2 ] || roundStaleOk="true"
+				case "$roundKind" in slack|ask|replies|dms) [ -z "$waitDeadline" ] || [ $(( waitDeadline - sourceNow )) -ge 2 ] || roundStaleOk="true" ;; esac
 				## A probe past the bound is never cut short, but it no longer holds the call: a costly probe is handed to the task wrapper.
 				roundProbeTimeout=""
 				## Chat and replies are excluded here, because each makes a real Slack call and must not be exempt from the bound wrapper.
 				case " $agentsWaitKindUnbounded " in
 					*" $roundKind "*) ;;
 					## A zero bound is one pass and no wait, so the probe is read in line and finishes.
-					*) [ -z "$waitDeadline" ] || [ "${waitTimeout:-0}" = "0" ] || roundProbeTimeout=$(( waitDeadline - roundNow )) ;;
+					*) [ -z "$waitDeadline" ] || [ "${waitTimeout:-0}" = "0" ] || roundProbeTimeout=$(( waitDeadline - sourceNow )) ;;
 				esac
 				## A wrapper is never given the last second, because below two seconds the round reads that source in line instead.
 				case "$roundProbeTimeout" in

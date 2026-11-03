@@ -3,26 +3,34 @@
 ## and its cursor, then answers deterministically from $RIG_SCENARIO. Opens no
 ## socket, and being first on PATH is the whole of this check's offline
 ## guarantee. A users.list page is read from
-## $RIG_SCENARIO/users-list-pages/<cursor>, or /page1 when there is none.
+## $RIG_SCENARIO/users-list-pages/<cursor>, or /page1 when there is none, and a
+## users.info body from $RIG_SCENARIO/users-info/<user> -- user_not_found where
+## that file is not there, which is what Slack answers for an id it cannot show.
 set -u
 rigHeader="$( cat )"
 rigToken="${rigHeader#Authorization: Bearer }"
-rigMethod="" rigCursor="" rigChannelParam=""
+rigMethod="" rigCursor="" rigChannelParam="" rigUserParam=""
 for rigArg in "$@" ; do
 	case "$rigArg" in
 		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ;;
 		cursor=*) rigCursor="${rigArg#cursor=}" ;;
 		channel=*) rigChannelParam="${rigArg#channel=}" ;;
+		user=*) rigUserParam="${rigArg#user=}" ;;
 	esac
 done
-printf '%s cursor=%s token=%s\n' "$rigMethod" "${rigCursor:--}" "$rigToken" >> "$RIG_SCENARIO/calls"
+printf '%s cursor=%s user=%s token=%s\n' "$rigMethod" "${rigCursor:--}" "${rigUserParam:--}" "$rigToken" >> "$RIG_SCENARIO/calls"
 
 case "$rigMethod" in
 	auth.test)
 		printf '{"ok":true,"user_id":"URIGSELF01"}\n'
 	;;
 	users.info)
-		printf '{"ok":false,"error":"user_not_found"}\n'
+		rigInfoFile="$RIG_SCENARIO/users-info/$rigUserParam"
+		if [ -f "$rigInfoFile" ] ; then
+			cat "$rigInfoFile"
+		else
+			printf '{"ok":false,"error":"user_not_found"}\n'
+		fi
 	;;
 	conversations.info)
 		if [ -f "$RIG_SCENARIO/conversations-info-ok/$rigChannelParam" ] ; then

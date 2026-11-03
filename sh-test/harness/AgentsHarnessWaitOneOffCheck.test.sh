@@ -54,7 +54,9 @@ rigCall(){ ## json argument object
 }
 rigHead(){ LC_ALL=C head -1 "$rigWs/out" | LC_ALL=C sed 's/ (.*//' ; }
 rigLines(){ LC_ALL=C grep -c -e "$1" "$rigWs/out" ; }
-rigOneRound(){ LC_ALL=C grep -c -e '^# waited: 0s of 0s bound' "$rigWs/out" ; }
+## The two fields the one-off's own line carries: the polls it made, and the bound it named. The seconds it took are a
+## clock, and a read that spans a second boundary on a loaded host reports them as spent; they say nothing about rounds.
+rigOneRound(){ LC_ALL=C sed -n 's/^# waited: [0-9]*s of \([^,]*\), \([0-9]*\) poll round(s) .*/\2 polls, \1/p' "$rigWs/out" ; }
 
 ## A stored wait to leave alone: one plain Wait over one file writes it.
 rigCall "{\"sources\":\"file:$rigFile\",\"timeout\":1}"
@@ -65,7 +67,7 @@ echo "-- 1. one named source, read once, and what is there comes back --"
 rigCall "{\"mode\":\"once\",\"sources\":\"file:$rigFile\",\"since_utime\":\"0\",\"timeout\":8}"
 rigAssert "the source is read and returned" "$( rigHead )" "WAIT-RESULT: RECEIVED"
 rigAssert "what it holds is carried" "$( rigLines 'on hand' )" "1"
-rigAssert "the read is one round: its own line says so" "$( rigOneRound )" "1"
+rigAssert "the read is one round: its own line says so, one poll and no bound spent" "$( rigOneRound )" "1 polls, 0s bound"
 
 echo "-- 2. the registered sources are untouched --"
 rigAssert "the stored wait is the same file, byte for byte" "$( LC_ALL=C cksum < "$rigState" )" "$rigBefore"
@@ -74,7 +76,7 @@ echo "-- 3. one round only: a source with nothing there returns at once --"
 : > "$rigWs/empty.txt"
 rigCall "{\"mode\":\"once\",\"sources\":\"file:$rigWs/empty.txt\",\"since_utime\":\"0\",\"timeout\":8}"
 rigAssert "the read comes back with nothing" "$( rigHead )" "WAIT-RESULT: TIMEOUT"
-rigAssert "and it is one round, so the bound it named was never spent" "$( rigOneRound )" "1"
+rigAssert "and it is one round, so the bound it named was never spent" "$( rigOneRound )" "1 polls, 0s bound"
 
 echo "-- 4. exactly one source, and no less --"
 rigCall '{"mode":"once","timeout":2}'

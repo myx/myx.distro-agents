@@ -506,7 +506,7 @@ mkdir -p "$rigScenarioDir/skills/magic-team" "$rigScenarioDir/skills/human-owner
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigScenarioDir/skills/client-rig/client-rig.basic.md"
 printf '# rig armed\n' > "$rigScenarioDir/skills/client-rig/client-rig.armed.md"
 printf -- '---\nname: client-rig\n---\n\n# client-rig\n' > "$rigScenarioDir/skills/client-rig/SKILL.md"
-printf 'SLACK_USER_TOKEN=rig-user-token-CLIENT\nSLACK_WORKSPACE_DOMAIN=client.slack.invalid\nSLACK_CONVERSATIONS=CRIGCLNT1\n' > "$rigScenarioDir/ws/.local/.agents/client-rig.agent.env"
+printf 'CLIENT_SLACK_USER_TOKEN=rig-user-token-CLIENT\nCLIENT_SLACK_WORKSPACE_DOMAIN=client.slack.invalid\nCLIENT_SLACK_CONVERSATIONS=CRIGCLNT1\n' > "$rigScenarioDir/ws/.local/.agents/client-rig.agent.env"
 printf '%s\n' 'client-rig 🔧 Rig Client rigclient' > "$rigScenarioDir/ws/.local/agents/team-members-names.registry"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
 rigContactSeed "$rigScenarioDir/data" client-rig rig-client-team CRIGCLNT1 -

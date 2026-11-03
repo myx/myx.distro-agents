@@ -177,7 +177,7 @@ except OSError:
     pass
 ## THE TEST'S WHOLE PROCESS GROUP ENDS WITH IT. The test runs as a child of this keeper, the leader of a group of its own;
 ## the keeper waits for it, ends it at its time limit, at a signal to the keeper, or once the runner is gone, and then ends
-## whatever the test left in its group. The leader is waited for without being reaped (WNOWAIT), so the group id stays
+## whatever the test left in its group. The leader is waited for without being reaped, so the group id stays
 ## this test's own, never another's, until the group has been signalled.
 try:
     child = os.fork()
@@ -200,6 +200,21 @@ def end_group(group_signal):
         os.killpg(child, group_signal)
     except OSError:
         pass
+
+
+## The command line of each pid given, read once: a name a reader can check, never a count.
+def command_of(pids):
+    """The command line of each pid given, read once: a name a reader can check, never a count."""
+    wanted = set(str(pid) for pid in pids)
+    found = {}
+    for line in os.popen("ps -A -o pid= -o stat= -o command=").read().splitlines():
+        parts = line.split(None, 2)
+        if len(parts) < 3 or parts[0] not in wanted:
+            continue
+        if parts[1].startswith("Z"):
+            continue
+        found[parts[0]] = parts[2].strip()
+    return found
 
 
 ## Every process whose ancestor is the test's leader: a stand-in the test gave a group of its own (`set -m`) is in no other net.
@@ -229,8 +244,25 @@ for stop_signal in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
     signal.signal(stop_signal, lambda signum, frame: stop_reason.append(signum))
 runner_pid = os.getppid()
 deadline = time.time() + timeout if timeout > 0 else None
+
+
+## Whether the leader has ended, and it is not yet reaped, so its process group id is still this test's own.
+## Three ways were tried and only this one is portable. The os module of the python 3.9 this machine runs
+## (/usr/bin/python3, 3.9.6) has no os.waitid, and it raised AttributeError on every test, so a passing test reported
+## FAIL. os.waitpid's WNOWAIT is a Linux extension: Darwin refuses it with EINVAL. A leader that has ended and is not
+## reaped is in the process table in state Z, on every one of the three systems, and that is what this reads.
+def ended_unreaped():
+    for line in os.popen("ps -A -o pid= -o stat=").read().splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == str(child):
+            return parts[1].startswith("Z")
+    return True
+
+
+## What the test left is named before it is ended: a pid written after the signal would be a number nobody can check.
+left_behind = {}
 while True:
-    if os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT | os.WNOHANG) is not None:
+    if ended_unreaped():
         break
     if stop_reason or (deadline is not None and time.time() >= deadline) or os.getppid() != runner_pid:
         if not stop_reason and deadline is not None and time.time() >= deadline:
@@ -241,30 +273,43 @@ while True:
         end_group(signal.SIGTERM)
         end_tree(signal.SIGTERM, tree_before)
         for leader_wait in range(50):
-            if os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT | os.WNOHANG) is not None:
+            if ended_unreaped():
                 break
             time.sleep(0.1)
         else:
             end_group(signal.SIGKILL)
             end_tree(signal.SIGKILL, tree_before)
-        os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT)
+        ended_unreaped()
         break
     time.sleep(0.2)
 ## The leader has ended and is not yet reaped: what is left of this test ends now -- its process group and every process whose ancestor is the
 ## leader, so a stand-in the test gave a group of its own (`set -m`) is ended too, never left to outlive it.
 left_over = [line.split()[0] for line in os.popen("ps -A -o pid= -o pgid=").read().splitlines() if line.split()[1:2] == [str(child)] and line.split()[0] != str(child)]
 left_tree = test_tree(child)
-if left_over or left_tree:
+for named_pid, named_line in command_of(left_over).items():
+    left_behind.setdefault(named_pid, named_line)
+for named_pid, named_line in command_of(left_tree).items():
+    left_behind.setdefault(named_pid, named_line)
+left_behind = {pid: line for pid, line in left_behind.items() if int(pid) != child and not line.startswith("[")}
+if left_behind or left_over or left_tree:
     end_group(signal.SIGTERM)
     end_tree(signal.SIGTERM, left_tree)
     time.sleep(1)
     end_group(signal.SIGKILL)
     end_tree(signal.SIGKILL, left_tree)
-    sys.stdout.write("# AgentsRunTests.sh: the test left %d process(es) in its process group and %d beside it, ended at its end\n" % (len(left_over), len(left_tree)))
+    if left_behind:
+        sys.stdout.write("leak-pids: %s\n" % " ".join(sorted(left_behind, key=int)))
+        for named_pid in sorted(left_behind, key=int):
+            sys.stdout.write("leak-pid: %s %s\n" % (named_pid, left_behind[named_pid]))
+        sys.stdout.write("# AgentsRunTests.sh: the test left %d process(es) running, named above, ended at its end -- the test fails for it\n" % len(left_behind))
+    else:
+        sys.stdout.write("# AgentsRunTests.sh: the test left %d process(es) in its process group and %d beside it, ended at its end\n" % (len(left_over), len(left_tree)))
     sys.stdout.flush()
 status = os.waitpid(child, 0)[1]
 if stop_reason and stop_reason[0] == signal.SIGALRM:
     sys.exit(128 + signal.SIGALRM)
+if left_behind:
+    sys.exit(1)
 if os.WIFSIGNALED(status):
     sys.exit(128 + os.WTERMSIG(status))
 sys.exit(os.WEXITSTATUS(status))

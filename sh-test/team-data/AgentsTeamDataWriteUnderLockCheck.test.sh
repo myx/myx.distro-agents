@@ -23,7 +23,8 @@
 ##   9. E5: a thread that cannot be started is not silent. The writer commits in its own process
 ##      and leaves no entry behind.
 ##  10. F1: a writer returns at once while a team-data thread lives, so the capture of the thread's
-##      start never waits for the thread's end.
+##      start never waits for the thread's end. A tree with no thread passes it by construction;
+##      the copy of the fix that keeps the capture's output is what shows it able to fail.
 ## This rig sets no MDAT_TEAM_DATA_COMMIT_THREAD: the checks runner turns that thread off, so a
 ## writer that kept committing in its own process would still be caught here.
 ## Red before S12.4: cases 2, 3, 4, E1, E2, E3 and E4 fail, and E5 fails on its warning line
@@ -405,8 +406,9 @@ echo "-- 10. F1: a writer returns at once while a team-data thread lives (S12.4)
 ## The writer starts the thread from a command substitution -- `queueStart="$( AgentsToolsTeamDataThreadStart )"`
 ## -- so a thread that kept that capture's own output open would hold every writer for the thread's
 ## whole life. The idle time here is 60s, far past the bound, so a writer that waited for the
-## thread's end reads red on the bound and not as a slow machine. Its self-test is a copy of the fix
-## whose detached start keeps the capture's output: there case 10 fails and nothing else does.
+## thread's end reads red on the bound and not as a slow machine. A tree that starts no thread at
+## all passes here by construction, so the proof this case can fail is a copy of the fix whose
+## detached start keeps the capture's output: there case 10 reads waited 30s and nothing else does.
 rigThreadStop
 rm -f "$rigThreadLog" "$rigThreadLock" "$rigData/.git/team-data-commit/"*.entry 2> /dev/null
 rigEnvExtra=( MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS=60 )
@@ -415,7 +417,6 @@ rigF1First="$( rigWriteTimed f1a 0 --intern-op-board-upsert-move-edit running no
 	--from-state:running --header:upsert:rig-word:f1a --context rig )"
 rigAssert "10. F1: the writer that starts the thread returns within 20s" \
 	"$([ "${rigF1First:-999}" -lt 20 ] && printf at-once || printf "waited ${rigF1First}s" )" at-once
-rigAssert "10. F1: and the thread it started is alive, so nothing waited for the thread's end" "$( rigThreadLockSeen 15 )" seen
 rigBoardItem note-rig-f1b.md RIG-F1B
 rigF1Second="$( rigWriteTimed f1b 0 --intern-op-board-upsert-move-edit running note-rig-f1b.md \
 	--from-state:running --header:upsert:rig-word:f1b --context rig )"

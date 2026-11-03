@@ -67,7 +67,7 @@ chmod +x "$rigTmp/bin/claude"
 ## without an install into a live workspace.
 printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$rigOrigin" > "$rigWs/.local/MDLT.settings.env"
 printf '%s\n' '#!/bin/sh' \
-	'## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli) -- the real console template, on the stand-in claude' \
+	'## cli-configured MDAT_SPAWN_LAUNCH_MARKER MDAT_SPAWN_PARTICIPANTS --cli) -- the real console template, on the stand-in claude' \
 	'exec bash "$RIG_TEMPLATE" "$@"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_TIER_NORMAL=claude-native\n' > "$rigWs/.local/.agents/magic-team.agent.env"

@@ -1,5 +1,5 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --all-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 📘 syntax: DistroAgentsDispatcher.fn.sh --active-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
@@ -39,7 +39,7 @@
 			an item of the board, the inbox or the vault. `--wait` stays until the
 			run ends and brings its notice.
 
-		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			A session of one routine's run, started for each team member named, or
 			for the caller where none is: the work-session dispatch every routine
 			runs under. The participants the executor is to invite, and what the
@@ -47,6 +47,10 @@
 			The task is read from standard input. With no task there, the whole
 			`--description` is the task. `--handed-over-by` names the run whose
 			handback started this session, kept on its records as `handed-over-by`.
+			`--session-thread:event-track` starts the session alone: its tracking
+			thread only, no session thread, and no header in the team channel.
+			`--session-thread:magic-team` is the ordinary start with a session
+			thread of its own, as no option at all gives.
 
 		--shutdown-runs [--team-member <team-member>]
 			Ends the runs that are to end now, a line each for what was ended, and

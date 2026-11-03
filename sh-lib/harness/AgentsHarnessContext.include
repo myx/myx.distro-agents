@@ -18,8 +18,8 @@
 ##
 ## Records are appended as the array grows (AgentsHarnessContextSync), so the file is
 ## always the array as last sent; a new leg (summarise-and-restart) rewrites it whole.
-## THE TRANSCRIPT reads its model rounds from here at milestones
-## (AgentsTranscriptContextRender), and the event-track feed reads the same lines live.
+## THE TRANSCRIPT and the event-track feed read the model rounds from here, live: each time the file gains records, the lines for them are
+## rendered once (AgentsHarnessContextFeed) and appended to both, so a run's audit log is as current as a native run's.
 ## THE RESUME: MDAT_HARNESS_RESUME_CONTEXT names a file to continue from. Its array is
 ## loaded as stored and the prompt this process was given -- the review corrections --
 ## is appended as a new user turn, so the request begins with the old one byte for byte. A root this leg has that the kept messages do not
@@ -75,7 +75,7 @@ AgentsHarnessContextInit(){
 	[ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] || return 0
 	[ "$( AgentsTranscriptSessionKey 2>/dev/null )" = "$MDAT_SPAWN_SESSION_ID" ] || return 0
 	harnessContextFile="$MDAT_SPAWN_SANDBOX_ROOT/context.jsonl"
-	## The transcript renders from the log from here on, not from the per-call hooks.
+	## The transcript is rendered from the log from here on, not written by the per-call hooks.
 	agentsTranscriptFromLog=1
 	if initDir="$( AgentsTranscriptSessionDir "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" && mkdir -p "$initDir" 2>/dev/null ; then
 		printf '%s\n' "$harnessContextFile" > "$initDir/context" 2>/dev/null || :
@@ -164,14 +164,16 @@ AgentsHarnessContextSync(){ ## kind (user|assistant|tool), meta fragment
 	return 0
 }
 
-## The event-track feed's live copy of the new lines, by the transcript's own reader. The
+## The new lines, by the transcript's own reader, to the session's transcript and to the event-track feed where there is one. The
 ## read starts at the latest assistant record, which the calls' arguments come from.
 AgentsHarnessContextFeed(){ ## first new message n
-	local feedStart="$1"
-	[ -n "$harnessContextFeed" ] || return 0
+	local feedStart="$1" feedLines feedPath
 	[ "$harnessContextLastAssistant" -lt 1 ] || [ "$harnessContextLastAssistant" -ge "$feedStart" ] || feedStart="$harnessContextLastAssistant"
-	tail -n +"$(( feedStart + 3 ))" "$harnessContextFile" 2>/dev/null \
-		| LC_ALL=C awk -v from="$1" "${harnessContextAwk[@]}" >> "$harnessContextFeed" 2>/dev/null || :
+	feedLines="$( tail -n +"$(( feedStart + 3 ))" "$harnessContextFile" 2>/dev/null | LC_ALL=C awk -v from="$1" "${harnessContextAwk[@]}" 2>/dev/null )" || feedLines=""
+	[ -n "$feedLines" ] || return 0
+	[ -z "$harnessContextFeed" ] || printf '%s\n' "$feedLines" >> "$harnessContextFeed" 2>/dev/null || :
+	feedPath="$( AgentsTranscriptPath "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" || return 0
+	AgentsTranscriptAppend "$feedPath" "$feedLines"
 	return 0
 }
 
@@ -231,7 +233,7 @@ AgentsHarnessContextResumeRoots(){ ## the kept system text and first records, as
 ## corrections. rc 1, with the reason on stderr, when it is not this run's to continue:
 ## another model, service, API host, wire or machine, or a file that does not parse.
 AgentsHarnessContextResume(){
-	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask resumeRoots
+	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask resumeRoots resumeCallId resumeCallIds resumeAnswered
 	if [ ! -s "$resumeFile" ] ; then
 		resumeWhy="no context file at $resumeFile"
 	elif ! resumeCount="$( LC_ALL=C awk -v mode=validate "${harnessContextAwk[@]}" "$resumeFile" 2>&1 )" ; then
@@ -271,6 +273,33 @@ AgentsHarnessContextResume(){
 		resumeIndex=$(( resumeIndex + 1 ))
 	done
 	rm -rf "$resumeDir" 2>/dev/null || :
+	## A run that died inside a tool round leaves calls with no result, and a provider refuses that history for good: each gets one now (S6.16).
+	## EVERY KEPT RECORD IS READ, not the last alone: a death after the first result leaves that result as the last record,
+	## and the call beside it would otherwise stay unanswered for ever. The chat wire's turn carries its calls as `tool_calls`,
+	## the Messages wire's as `tool_use` blocks, and a result names its call `tool_call_id` or `tool_use_id`.
+	resumeCallIds="" ; resumeAnswered=""
+	resumeIndex=0
+	while [ "$resumeIndex" -lt "$resumeCount" ] ; do
+		case "${harnessMessages[$resumeIndex]}" in
+			'{"role":"assistant"'*'"tool_calls"'*)
+				resumeCallIds="$resumeCallIds$( printf '%s' "${harnessMessages[$resumeIndex]}" | LC_ALL=C grep -o -E '"id":"[^"]+"' | LC_ALL=C sed -E 's/^"id":"//; s/"$//' )"$'\n'
+			;;
+			'{"role":"assistant"'*'"type":"tool_use"'*)
+				resumeCallIds="$resumeCallIds$( printf '%s' "${harnessMessages[$resumeIndex]}" | LC_ALL=C grep -o -E '"type":"tool_use","id":"[^"]+"' | LC_ALL=C sed -E 's/^"type":"tool_use","id":"//; s/"$//' )"$'\n'
+			;;
+			*'"tool_call_id":"'*|*'"tool_use_id":"'*)
+				while IFS= read -r resumeCallId ; do
+					[ -z "$resumeCallId" ] || resumeAnswered="$resumeAnswered $resumeCallId"
+				done <<< "$( printf '%s' "${harnessMessages[$resumeIndex]}" | LC_ALL=C grep -o -E '"(tool_call_id|tool_use_id)":"[^"]+"' | LC_ALL=C sed -E 's/^"[a-z_]+":"//; s/"$//' )"
+			;;
+		esac
+		resumeIndex=$(( resumeIndex + 1 ))
+	done
+	while IFS= read -r resumeCallId ; do
+		[ -n "$resumeCallId" ] || continue
+		case " $resumeAnswered " in *" $resumeCallId "*) continue ;; esac
+		harnessMessages+=( "$( AgentsWireToolResultRecord "$resumeCallId" "ERROR: the run ended before this call gave a result, so it did not complete." "" )" )
+	done <<< "$resumeCallIds"
 	## The same prompt-cache routing key the context was kept under, where the wire has one.
 	resumeKey="$( AgentsHarnessContextHeader "$resumeFile" cache_key )"
 	if [ -n "$resumeKey" ] && [ -n "${agentsWirePromptCacheKey:-}" ] && [ "$resumeKey" != "$agentsWirePromptCacheKey" ] ; then

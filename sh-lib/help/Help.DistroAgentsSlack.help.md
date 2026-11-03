@@ -37,8 +37,10 @@
 			for, and the header of the post says so.
 
 		--slack-resolve-ids [--user-name <name>]... [--channel-name <name>]... [--raw]
-			Turns a person's name or a conversation's name into the ids the other
-			operations take.
+			Turns a person's name, a person's own id or a conversation's name into
+			the ids the other operations take, with the person's handle, real name and
+			e-mail on the row. An id is asked of `users.info`, so a person the
+			directory page misses is still named.
 
 		--slack-delete-message <channel>:<ts>... [--identity-bot]
 			Deletes those messages.

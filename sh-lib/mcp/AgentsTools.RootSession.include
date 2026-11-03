@@ -39,14 +39,6 @@
 ## named as this server's session, and never a place on a disk.
 agentsRootSessionUse="root-harness session of this myx.distro MCP server; give its id and its token to RootSession operation=adopt."
 
-## The file holding this server instance's session, one line: its id, a space, its token, in the server's
-## own scratch root: the calling session's output folder where it has one, the workspace's .local/temp otherwise.
-AgentsToolsRootSessionStore(){ ## server pid
-	local rootBase="$MMDAPP/.local/temp"
-	[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || rootBase="$MDAT_SPAWN_SANDBOX_ROOT/output"
-	printf '%s' "$rootBase/agent-mcp.$1/root-session"
-}
-
 ## The token kept for one session of this workspace, rc 1 where there is none: what a mint wrote,
 ## and the only thing an adopt takes as proof of the id.
 AgentsToolsRootSessionTokenRead(){ ## session folder
@@ -129,18 +121,15 @@ AgentsToolsRootSessionRecord(){ ## id, server pid
 	return 0
 }
 
-AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
-	local rootPid="$1" rootOp="$2" rootGiven="$3" rootTokenGiven="$4"
-	local rootStore rootLock rootHeld="" rootHeldToken="" rootDir="" rootId="" rootToken="" rootKind=""
-	rootStore="$( AgentsToolsRootSessionStore "$rootPid" )" || {
-		printf 'ERROR: RootSession: the workspace is not set, so there is nowhere to keep a session.\n'
-		return 1
-	}
-	[ -d "${rootStore%/*}" ] || {
+## The server's session is kept in `<scratch root>/root-session`, one line, in the scratch root the request hands in first.
+AgentsToolsRootSessionServe(){ ## scratch root, server pid, operation, id given, token given
+	local rootScratch="$1" rootPid="$2" rootOp="$3" rootGiven="$4" rootTokenGiven="$5"
+	local rootLock rootHeld="" rootHeldToken="" rootDir="" rootId="" rootToken="" rootKind=""
+	[ -d "$rootScratch" ] || {
 		printf 'ERROR: RootSession: this server has no scratch root, so it has nowhere to keep a session.\n'
 		return 1
 	}
-	rootLock="$rootStore.lock"
+	rootLock="$rootScratch/root-session.lock"
 	AgentsToolsRootSessionLockTake "$rootLock" || {
 		printf 'ERROR: RootSession: another call holds the session lock of this server; nothing was changed.\n'
 		return 1
@@ -152,7 +141,7 @@ AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
 		printf 'ERROR: RootSession: the session store of this package is missing, so no session can be resolved.\n'
 		return 1
 	fi
-	[ ! -s "$rootStore" ] || read -r rootHeld rootHeldToken < "$rootStore" || :
+	[ ! -s "$rootScratch/root-session" ] || read -r rootHeld rootHeldToken < "$rootScratch/root-session" || :
 
 	case "$rootOp" in
 		mint)
@@ -220,7 +209,7 @@ AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
 				printf 'ERROR: RootSession: the session token could not be kept, so no session was made.\n'
 				return 1
 			fi
-			if ! AgentsToolsRootSessionStoreSet "$rootStore" "$rootId" "$rootToken" ; then
+			if ! AgentsToolsRootSessionStoreSet "$rootScratch/root-session" "$rootId" "$rootToken" ; then
 				AgentsToolsRootSessionDiscard "$rootDir" || :
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: the new session could not be kept for this server, so no session was made.\n'
@@ -259,7 +248,7 @@ AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
 				printf 'ERROR: RootSession: this server already carries a session, so it will not adopt another; a new server adopts the other one.\n'
 				return 1
 			fi
-			if [ -z "$rootHeld" ] && ! AgentsToolsRootSessionStoreSet "$rootStore" "$rootGiven" "$rootTokenGiven" ; then
+			if [ -z "$rootHeld" ] && ! AgentsToolsRootSessionStoreSet "$rootScratch/root-session" "$rootGiven" "$rootTokenGiven" ; then
 				AgentsToolsRootSessionLockGive "$rootLock"
 				printf 'ERROR: RootSession: that session exists, but where this server keeps it could not be written, so it was not adopted.\n'
 				return 1

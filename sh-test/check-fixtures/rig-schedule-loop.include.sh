@@ -92,6 +92,18 @@ RIGDATE
 }
 
 rigLiveSpawn="" rigLivePid=""
+## The door of the rig's runs: the check holds the writing end, fd 5, and every run-stand-in reads it. The kernel closes
+## that end when the check's process ends, however it ends -- a pass, a fail, a kill -- so no run of the rig outlives it.
+## Nothing is polled, and nothing of the rig is signalled to make this true.
+rigLiveDoor=""
+rigLiveDoorOpen(){
+	[ -z "$rigLiveDoor" ] || return 0
+	mkdir -p "$rigTmp/stand-ins" || return 1
+	rigLiveDoor="$rigTmp/stand-ins/runs.$$.fifo"
+	rm -f "$rigLiveDoor" ; mkfifo "$rigLiveDoor" 2> /dev/null || { rigLiveDoor="" ; return 1 ; }
+	exec 5<> "$rigLiveDoor" || { rigLiveDoor="" ; return 1 ; }
+	return 0
+}
 rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: a stand-in process, a record, a thread and a store; its spawn id in rigLiveSpawn
 	local liveRecord liveSpawn liveLeft
 	liveRecord="$( LC_ALL=C grep -l -x "owner: $1" $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.spawn.md ) | head -1 )"
@@ -103,7 +115,8 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
 		LC_ALL=C awk '{ print } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
 	fi
-	sleep 600 > /dev/null 2>&1 < /dev/null &
+	rigLiveDoorOpen || return 1
+	rigLiveFifo="$rigLiveDoor" bash -c 'exec 0<"$rigLiveFifo" ; IFS= read -r rigLiveLine ; exit 0' runner 5>&- > /dev/null 2>&1 < /dev/null &
 	rigLivePid="$!"
 	rigProcNote "$!" ; rigStarted="$rigStarted $!"
 	printf '%s claude --verbose --session-id %s --agent %s the brief\n' "$!" "$liveSpawn" "$1" >> "$rigDir/ps.list"

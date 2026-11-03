@@ -115,7 +115,9 @@ case "$1" in
 		--google-whoami|--google-file-find|--google-sheet-read|--google-sheet-info|--google-sheet-write|--google-sheet-clear|--google-doc-read|--google-doc-write|--google-comment-read|--google-comment-post)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
-			DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}"
+			## The stub reaches its implementation in this file, never through the dispatcher (S6.24):
+			## an include calls the include that holds the code, and DistroAgentsTools is no command here.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include" "--intern-op-comms-${1#--}" "${@:2}"
 			return $?
 		;;
 
@@ -131,7 +133,7 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
-			DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include" "--intern-op-comms-google-${1#--client-comms-google-}" "${@:2}"
 			return $?
 		;;
 

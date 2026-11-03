@@ -130,8 +130,34 @@ AgentsWireUserRecord(){
 ## The whole assistant turn goes back as the stream delivered it, in its own block
 ## order, so the calls the core assembles from AgentsWireToolCallEntry are not used:
 ## rebuilt from them, the turn would lose its thinking blocks and the next request 400s.
-AgentsWireAssistantToolCallsRecord(){
-	printf '%s' '{"role":"assistant","content":'"$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=content -v mode=raw -f "$harnessHere/harness/AgentsHarnessJsonField.awk" )"'}'
+## A NAME THE PROVIDER BROKE IS THE ONE THING NOT REPLAYED (S6.16): the API matches a
+## `tool_use` name against the tools it declares, so a name carrying the provider's own
+## markup refuses the whole request. Only that block is built again, from its id, its
+## repaired name and its own input; every other block, and every round with no such call,
+## goes back byte for byte from the response the stream left.
+AgentsWireAssistantToolCallsRecord(){ ## the core's assembled calls (this wire does not use them), then `<id><TAB><repaired name>` a line
+	local recordIdx=0 recordCount=0 recordRaw recordBlocks="" recordId recordName
+	if [ -n "${2:-}" ] ; then
+		recordCount="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=content.__count -v optional=1 -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || recordCount=0
+		case "$recordCount" in ''|*[!0123456789]*) recordCount=0 ;; esac
+	fi
+	if [ "$recordCount" -eq 0 ] ; then
+		printf '%s' '{"role":"assistant","content":'"$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=content -v mode=raw -f "$harnessHere/harness/AgentsHarnessJsonField.awk" )"'}'
+		return 0
+	fi
+	while [ "$recordIdx" -lt "$recordCount" ] ; do
+		recordId="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path="content.$recordIdx.id" -v optional=1 -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || recordId=""
+		recordName=""
+		[ -z "$recordId" ] || recordName="$( printf '%s\n' "$2" | LC_ALL=C awk -F'\t' -v want="$recordId" '$1 == want { print $2 ; exit }' )" || recordName=""
+		if [ -z "$recordName" ] ; then
+			recordRaw="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path="content.$recordIdx" -v mode=raw -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || recordRaw=""
+		else
+			recordRaw="$( AgentsWireToolCallEntry "$recordId" "$recordName" "$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path="content.$recordIdx.input" -v mode=raw -f "$harnessHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" )"
+		fi
+		recordBlocks="${recordBlocks}${recordBlocks:+,}$recordRaw"
+		recordIdx=$(( recordIdx + 1 ))
+	done
+	printf '%s' '{"role":"assistant","content":['"$recordBlocks"']}'
 }
 
 ## `input` is the call's own JSON object, placed raw; the stream gives none for a call

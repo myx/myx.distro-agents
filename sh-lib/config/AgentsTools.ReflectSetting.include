@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ReflectSetting.include -- REFLECT_MODELS, the closed lists its value is parsed
+## against, the one table of what each half it names needs, the keys a chosen half lacks, and
+## the live proof the wizard runs before it writes the value. Functions only, sourced where
+## one is called. Two readers share this file and each writes its own lines: --config-check
+## and the --owner-setup-reflection wizard.
+##
+## The value is `<board>+<documents>`, each position from its own closed list. `none` alone
+## is `none+none`, and an absent line means the same, so an unset key reads as both halves
+## off rather than as nothing at all.
+##
+
+## The two positions of the value: prints `<board> <documents>`; rc 1, with one line naming
+## the fault, for any string the closed lists do not carry.
+AgentsToolsReflectModelsParse(){ ## model
+	local parseBoard parseDocs
+	case "$1" in
+		''|none) printf 'none none\n' ; return 0 ;;
+		*+*) ;;
+		*)
+			echo "${MDSC_CMD:-DistroAgentsTools}: ❗ REFLECT_MODELS is <board>+<documents>, or none: $1" >&2
+			return 1
+		;;
+	esac
+	parseBoard="${1%%+*}" ; parseDocs="${1#*+}"
+	case "$parseBoard" in
+		none|jira|trello) ;;
+		*)
+			echo "${MDSC_CMD:-DistroAgentsTools}: ❗ REFLECT_MODELS: the board position is none, jira or trello, and this is neither: $parseBoard" >&2
+			return 1
+		;;
+	esac
+	case "$parseDocs" in
+		none|confluence|google-docs) ;;
+		*)
+			echo "${MDSC_CMD:-DistroAgentsTools}: ❗ REFLECT_MODELS: the documents position is none, confluence or google-docs, and this is neither: $parseDocs" >&2
+			return 1
+		;;
+	esac
+	printf '%s %s\n' "$parseBoard" "$parseDocs"
+}
+
+## Every key one half needs, its place key last where it has one. THE one definition of a
+## half: the fault line, the wizard's missing list and its live proof all read it, so no key
+## is asked for by one reader and forgotten by another.
+AgentsToolsReflectHalfKeys(){ ## half
+	case "$1" in
+		jira)        printf 'JIRA_SITE JIRA_USER JIRA_API_TOKEN REFLECT_JIRA_PROJECT\n' ;;
+		trello)      printf 'TRELLO_KEY TRELLO_TOKEN REFLECT_TRELLO_BOARD\n' ;;
+		confluence)  printf 'CONFLUENCE_SITE CONFLUENCE_USER CONFLUENCE_API_TOKEN CONFLUENCE_SPACE\n' ;;
+		google-docs) printf 'GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN\n' ;;
+	esac
+}
+
+## One key's value, read where the call that uses it reads it: the environment first, then the
+## acting member's own scope (magic-coordinator holds the token sets until S20 item 3 moves them
+## to the team), then the team's. Nothing at a console, which acts as no member. A read never
+## creates a scope, so this asks about a scope that is not there without making one.
+AgentsToolsReflectKeyValue(){ ## key
+	local valueHeld="" valueMember=""
+	valueHeld="${!1:-}"
+	if [ -z "$valueHeld" ] ; then
+		type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+		valueMember="$( AgentsToolsActingMember )" || valueMember=""
+		if [ -n "$valueMember" ] ; then
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+			valueHeld="$( AgentsToolsConfigOption "$valueMember" --select "$1" 2> /dev/null )" || valueHeld=""
+		fi
+	fi
+	if [ -z "$valueHeld" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		valueHeld="$( AgentsToolsConfigOption magic-team --select "$1" 2> /dev/null )" || valueHeld=""
+	fi
+	[ -z "$valueHeld" ] || printf '%s\n' "$valueHeld"
+	return 0
+}
+
+## What each chosen half lacks: one line a half that lacks anything, `<half> <key>...`, in
+## the halves' own order. Nothing where both halves are off, or every chosen half is whole:
+## the off direction is silent by design, since a token with no half is no fault.
+AgentsToolsReflectHalfLacks(){ ## model
+	local lackHalves lackHalf lackKey lackList
+	lackHalves="$( AgentsToolsReflectModelsParse "$1" )" || return 1
+	for lackHalf in $lackHalves ; do
+		[ "$lackHalf" != "none" ] || continue
+		lackList=""
+		for lackKey in $( AgentsToolsReflectHalfKeys "$lackHalf" ) ; do
+			[ -z "$( AgentsToolsReflectKeyValue "$lackKey" )" ] || continue
+			lackList="$lackList${lackList:+ }$lackKey"
+		done
+		[ -z "$lackList" ] || printf '%s %s\n' "$lackHalf" "$lackList"
+	done
+	return 0
+}
+
+## The write check the closed lists demand: rc 1, having written nothing, for any string the
+## two positions do not carry. A delete passes, since absence means `none`. It judges a value
+## it is given and writes nothing: the arm that hands it a value on stdin keeps that value in
+## a local of its own and is the one place the value is written.
+AgentsToolsReflectModelsWriteCheck(){ ## value (may be empty)
+	local writeValue="${1:-}"
+	[ -n "$writeValue" ] || return 0
+	AgentsToolsReflectModelsParse "$writeValue" > /dev/null || {
+		echo "${MDSC_CMD:-DistroAgentsTools}: ⛔ ERROR: --agents-config-option: REFLECT_MODELS is <board>+<documents> over its two closed lists, or none -- nothing was written" >&2
+		return 1
+	}
+	return 0
+}
+
+## The wizard's step 4: each chosen half answers one live read, in the order the model names
+## them, and a half that does not is named. A half whose keys are missing cannot answer, so
+## the same walk gates that case and no second walk restates it. The read reaches the call
+## through the environment, which every comms read takes before any scope, so no scope file
+## is made for it.
+AgentsToolsReflectHalvesProve(){ ## model
+	local proveHalves proveHalf proveKey proveValue proveRc=0
+	proveHalves="$( AgentsToolsReflectModelsParse "$1" )" || return 1
+	for proveHalf in $proveHalves ; do
+		[ "$proveHalf" != "none" ] || continue
+		for proveKey in $( AgentsToolsReflectHalfKeys "$proveHalf" ) ; do
+			proveValue="$( AgentsToolsReflectKeyValue "$proveKey" )"
+			[ -z "$proveValue" ] || export "$proveKey=$proveValue"
+		done
+		case "$proveHalf" in
+			jira|confluence)
+				type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --intern-op-atlassian-check --member routine-reflection-setup --product "$proveHalf" > /dev/null 2>&1 || proveRc=$?
+			;;
+			trello)
+				type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include"
+				AgentsToolsCommsTrelloCheck routine-reflection-setup > /dev/null 2>&1 || proveRc=$?
+			;;
+			google-docs)
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --intern-op-comms-google-whoami routine-reflection-setup > /dev/null 2>&1 || proveRc=$?
+			;;
+		esac
+		[ "$proveRc" = 0 ] || {
+			echo "${MDSC_CMD:-DistroAgentsTools}: ⛔ ERROR: --owner-setup-reflection --apply: the $proveHalf half did not answer a live read, so REFLECT_MODELS was not written -- it never names a half this workspace cannot use now" >&2
+			return 1
+		}
+	done
+	return 0
+}

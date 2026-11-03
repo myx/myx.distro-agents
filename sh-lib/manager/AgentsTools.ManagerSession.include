@@ -565,7 +565,7 @@ AgentsToolsManagerKillRecord(){ ## spawn id, who
 		printf '%s\n' "${recordItem%.md}"
 		return 0
 	fi
-	( AgentsTranscriptEvent "$1" ENDING "" 0 kind dismissed by "$2" text "manager-kill: no dispatch item, the process is stopped by manager-kill" ) > /dev/null 2>&1 || :
+	( AgentsTranscriptEventAfterEnd "$1" ENDING 0 kind dismissed by "$2" text "manager-kill: no dispatch item, the process is stopped by manager-kill" ) > /dev/null 2>&1 || :
 	printf '%s\n' "-"
 	return 0
 }
@@ -634,21 +634,63 @@ AgentsToolsManagerKillWait(){ ## pids, space-separated
 AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), the name the ending is recorded under where the console's user is another's (may be empty)
 	local killOp="$1" killId="$2" killOwn="${3:-}" killTab=$'\t' killFile killUser killStamp killAt killPid killSeen=" "
 	local killKind killSession killSpawn killMember killStatus killLive killRest killRecord killFound killLeft
-	local killAny="" killHard="" killStuck=0
+	local killAny="" killHard="" killStuck=0 scopeFailed=""
 	local killSessions=() killSpawns=() killMembers=() killStatuses=() killOutcomes=() killPids=() killItems=() killBegan=()
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
-	if [ -d "$MMDAPP/.local/agents/spawned" ] && ! AgentsToolsRegistrySpawnedSessionsRebuild ; then
-		killFile="$( AgentsToolsRegistryFile spawned-sessions )"
-		echo "⛔ ERROR: $MDSC_CMD $killOp: the session registries could not be rebuilt in ${killFile%/*} -- nothing was signalled" >&2
-		return 1
+	## THE ASKED SESSION IS SIGNALLED FIRST, WHATEVER THE REGISTRY COSTS. The registry is a cache, and rebuilding it reads every
+	## spawn record of the workspace before anything could be signalled. So this session's own record is read here, and its
+	## runs signalled, before that rebuild is asked for; what the rebuild then adds is the runs that joined it.
+	local killOwnRecord="" killOwnSession="" killOwnSpawn="" killOwnMember="" killOwnStatus="" killOwnFound=""
+	if [ -z "$killPlan" ] && [ -d "$MMDAPP/.local/agents/spawned" ] ; then
+		killOwnRecord="$( AgentsToolsRegistrySpawnRecord "$killId" < /dev/null )" || killOwnRecord=""
+		[ -n "$killOwnRecord" ] || killOwnRecord="$( AgentsToolsRegistrySessionOwnRecord "$killId" < /dev/null )" || killOwnRecord=""
 	fi
-	AgentsToolsManagerSessionScope "$killOp" "$killId" "$killOwn" "nothing was signalled" fresh || return 1
+	if [ -n "$killOwnRecord" ] ; then
+		killOwnSession="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$killOwnRecord" )" session-id )"
+		killOwnSpawn="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$killOwnRecord" )" spawn-id )"
+		killOwnMember="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$killOwnRecord" )" owner )"
+		killOwnStatus="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$killOwnRecord" )" status )"
+		[ "$killOwnSpawn" != "-" ] || killOwnSpawn="$killOwnSession"
+		case "$killOwnSpawn" in ''|-|.|..|*/*) killOwnSpawn="" ;; esac
+	fi
+	if [ -n "$killOwnSpawn" ] && { [ -z "$killOwn" ] || [ "$killOwnSpawn" = "$killId" ] ; } ; then
+		local killOwnLive="no-process"
+		AgentsToolsRegistryRecordedRunAlive "$killOwnRecord" > /dev/null 2>&1 && killOwnLive="running" || killOwnLive="gone"
+		[ "$killOwnLive" = "running" ] || killOwnLive="gone"
+		killFound="$( { AgentsToolsRegistryRunProcesses "$killOwnSpawn" "$killOwnRecord" < /dev/null ; AgentsToolsRegistryRunLeftKept "$killOwnSpawn" < /dev/null ; } | AgentsToolsManagerKillPids )"
+		if [ -n "$killFound" ] ; then
+			killUser="${4:-}"
+			[ -n "$killUser" ] || killUser="$( AgentsToolsManagerConsoleUser )"
+			killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
+			AgentsToolsManagerKillMark "$killOwnRecord" "$killUser" "$killStamp" < /dev/null \
+				|| echo "⚠️ WARNING: $MDSC_CMD $killOp: the record of run $killOwnSpawn could not be marked as killed, so its handback retry may start it once more" >&2
+			killAt="${#killSpawns[@]}"
+			killSessions[killAt]="$killOwnSession" ; killSpawns[killAt]="$killOwnSpawn" ; killMembers[killAt]="$killOwnMember" ; killStatuses[killAt]="$killOwnStatus"
+			killOutcomes[killAt]="signalled" ; killPids[killAt]="$killFound" ; killItems[killAt]="-"
+			killBegan[killAt]="$( printf '%s\n' $killFound | AgentsToolsRegistryProcessesBegan )"
+			killSeen=" $killOwnSpawn "
+			killAny="$killAny $killFound"
+			for killPid in $killFound ; do
+				kill -TERM "$killPid" 2>/dev/null || :
+			done
+		fi
+	fi
+	killUser="${4:-}"
+	[ -n "$killUser" ] || killUser="$( AgentsToolsManagerConsoleUser )"
+	killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
+	## The registry then, for the runs that joined this session: a rebuild that cannot be written is said and passed over.
+	if [ -d "$MMDAPP/.local/agents/spawned" ] && ! AgentsToolsRegistrySpawnedSessionsRebuild 2> /dev/null ; then
+		killFile="$( AgentsToolsRegistryFile spawned-sessions )"
+		echo "⚠️ WARNING: $MDSC_CMD $killOp: the session registries could not be rebuilt in ${killFile%/*}, so only the record of $killId itself was read" >&2
+	fi
+	AgentsToolsManagerSessionScope "$killOp" "$killId" "$killOwn" "nothing was signalled" fresh || scopeFailed="yes"
 	killUser="${4:-}"
 	[ -n "$killUser" ] || killUser="$( AgentsToolsManagerConsoleUser )"
 	killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
 	type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsReviewEndChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 	## The `run` rows of the session, as the list prints them: the one run chosen, or each.
+	if [ -z "$scopeFailed" ] ; then
 	while IFS="$killTab" read -r killKind killSession killSpawn killMember killStatus killLive killRest ; do
 		[ "$killKind" = "run" ] && [ -n "$killSpawn" ] || continue
 		[ "$scopeRun" = "-" ] || [ "$killSpawn" = "$scopeRun" ] || continue
@@ -679,6 +721,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		killPids[killAt]="$killFound" ; killOutcomes[killAt]="signalled"
 		killAny="$killAny $killFound"
 	done <<< "$scopeListed"
+	fi
 	if [ -n "$killAny" ] ; then
 		AgentsToolsManagerKillWait "$killAny"
 		killAt=0 ; killAny=""

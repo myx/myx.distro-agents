@@ -14,7 +14,8 @@ type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-
 ## each send (AgentsHarnessOwnPostRecord), a line each, the latest first: `<channel>:<thread> <ts>
 ## <addressees> <thread floor> <conversation floor> <siblings> <reactions> <checked>`, a word not known
 ## yet `-`. What a post holds, as the epic's floor reads (F3.3):
-##   - every reply in its thread, the run's own posts apart (AgentsWaitOwnPostReplies.awk, mode thread);
+##   - every reply in its thread where the post opens it, the run's own posts apart (AgentsWaitOwnPostReplies.awk, mode thread);
+##     inside another's thread, only the messages of the people it addressed and those that mention the run (mode channel);
 ##   - for a post at the top of its conversation, the messages after it there from the people it
 ##     addressed, and any that mention the run, until ten siblings have followed it. After that its
 ##     siblings are no longer watched: the conversation is read on from where it stopped for a mention
@@ -31,6 +32,24 @@ type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-
 agentsWaitRepliesSiblings=10
 
 ## A value of a side file the reading awk wrote, `<key> <value>` a line.
+## THE SLACK ACCOUNTS THAT REACT FOR THE TEAM, spaced: the bot's own account, and every member's account this workspace knows. A
+## reaction only they hold is the tooling's own and no input to handle (S6.38: the human-owner's rule is at least the bot's reactions on
+## a session root message). Both are files the workspace already keeps, so this starts no request of its own:
+## `.local/cache/comms/slack/.user-id-<member>.txt` (`<epoch> <U-id>`, what the tooling reacts as), and the mention-id cache. One awk
+## over a few small files, once for the process.
+AgentsToolsWaitOursReactIds(){
+	if [ -z "${agentsWaitOursReactIds+set}" ] ; then
+		agentsWaitOursReactIds=""
+		if [ -n "${MMDAPP:-}" ] ; then
+			agentsWaitOursReactIds="$( LC_ALL=C awk '
+				FILENAME ~ /\.user-id-.*\.txt$/ { if ( $2 ~ /^U[A-Z0-9]+$/ ) { print $2 ; } next ; }
+				{ n = split( $0, field, "=" ) ; if ( n >= 2 && field[2] ~ /^U[A-Z0-9]+$/ ) { print field[2] ; } }
+			' "$MMDAPP/.local/cache/comms/slack"/.user-id-*.txt "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null | LC_ALL=C awk 'NF && !seen[$0]++ { printf "%s ", $0 ; }' )"
+		fi
+	fi
+	printf '%s' "${agentsWaitOursReactIds% }"
+}
+
 AgentsWaitRepliesSide(){ ## side file, key
 	LC_ALL=C awk -v wantKey="$2" '$1 == wantKey { sub(/^[^ ]+ /, "") ; print ; exit ; }' "$1" 2> /dev/null
 }
@@ -96,11 +115,13 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 	LC_ALL=C grep -q -x -F -e "question-ts: $lookTs" -e "thread-ts: $lookThread" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null && return 1
 	case " $agentsWaitCovered " in *" $lookChannel "*) lookChannelCovered=1 ;; esac
 	lookNewThreadFloor="$lookThreadFloor" ; lookNewChanFloor="$lookChanFloor" ; lookNewSibs="$lookSibs" ; lookNewReact="$lookReact"
-	## Its thread: every reply after the post, or after the last one returned.
+	## Its thread: every reply after the post, or after the last one returned. A post inside another's thread gets only its addressees and mentions.
 	lookFrom="$lookTs"
 	[ "$lookThreadFloor" = "-" ] || ! AgentsWaitTsNewer "$lookThreadFloor" "$lookFrom" || lookFrom="$lookThreadFloor"
 	AgentsWaitReadRendered "$lookMember" "$lookChannel:$lookThread" thread "" "$lookFile.thread" || return 2
-	LC_ALL=C awk -v mode=thread -v postTs="$lookTs" -v floorTs="$lookFrom" -v callerName="$lookMember" -v deliver="$lookDeliver" -v side="$lookFile.thread.side" \
+	## The sibling cap is off for a thread read: the awk reads nothing at a cap of 0, and a thread never holds a million.
+	LC_ALL=C awk -v threadTs="$lookThread" -v addressees="${lookAddr//,/ }" -v siblingsMax=1000000 -v postTs="$lookTs" -v floorTs="$lookFrom" -v callerName="$lookMember" -v deliver="$lookDeliver" -v side="$lookFile.thread.side" \
+		-v oursReactIds="$( AgentsToolsWaitOursReactIds )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
 		< "$lookFile.thread" > "$lookFile.thread.out" 2>> "$lookFile.thread.err" || lookRc=$?
 	AgentsWaitOwnFile "$lookFile.thread.out" || return 2
@@ -146,6 +167,7 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 		fi
 		LC_ALL=C awk -v mode=channel -v postTs="$lookTs" -v floorTs="$lookFrom" -v callerName="$lookMember" -v addressees="${lookAddr//,/ }" \
 			-v siblings="$lookSibs" -v siblingsMax="$agentsWaitRepliesSiblings" -v mentionsOnly="$lookMentionsOnly" -v side="$lookFile.chan.side" \
+			-v oursReactIds="$( AgentsToolsWaitOursReactIds )" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
 			< "$lookFile.chan" > "$lookFile.chan.out" 2>> "$lookFile.chan.err" || lookRc=$?
 		AgentsWaitOwnFile "$lookFile.chan.out" || return 2

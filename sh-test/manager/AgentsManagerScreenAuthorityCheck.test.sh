@@ -188,7 +188,7 @@ rigCaseWait(){ ## name -- the refusal of section 5, and a stand-in tool call tha
 	rigCase "$1"
 	printf '#!/usr/bin/env bash\nprintf "%%s\\n" "🙋 WARNING: DistroAgentsTools: the answer allow-once of question %s needs the authority of magic-tester, which user-rig does not hold, so nothing was done." >&2\nexit 3\n' "$rigAsk" > "$MANAGER_SCREEN_RIG/refused.sh"
 	printf 'script refused.sh\n' > "$MANAGER_SCREEN_RIG/mode.--manager-pending-reply-answer --id $rigAsk --answer allow-once"
-	printf '#!/usr/bin/env bash\ntrap '"'"'printf "WITHDRAWN 9f9f\\n" ; exit 130'"'"' TERM\ntrap '"'"'printf "ENQUEUED 9f9f\\n" ; exit 0'"'"' USR1\nprintf "PENDING 9f9f magic-tester\\n"\nwhile : ; do sleep 1 ; done\n' > "$MANAGER_SCREEN_RIG/waits.sh"
+	printf '#!/usr/bin/env bash\ntrap '"'"'printf "WITHDRAWN 9f9f\\n" ; exit 130'"'"' TERM\ntrap '"'"'printf "ENQUEUED 9f9f\\n" ; exit 0'"'"' USR1\nprintf "PENDING 9f9f magic-tester\\n"\n## It waits on a read of its own standard input, which the screen leaves open and never writes: no wake-up a\n## second, and no loop to leave behind. Standard input reaching end of file ends it, as a std-in of /dev/null does.\nIFS= read -r rigWaitsLine || :\n' > "$MANAGER_SCREEN_RIG/waits.sh"
 	printf 'script waits.sh\n' > "$MANAGER_SCREEN_RIG/mode.$rigWaitCall"
 }
 rigCaseWait enqueued

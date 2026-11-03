@@ -39,6 +39,13 @@
 #                           s n t f z (null) or { [ (value: member/item count);
 #                           jfNodeRaw(i) its source as the old readers spelled it;
 #                           jfRootChar the first non-blank byte. Never stops early.
+#   jfConsumeText(text)     the same walk, handed to the consumer as it goes and
+#                           stored nowhere: the consumer defines
+#                           jfNodeHook(path, type, value, fromPos, toPos). One node
+#                           costs one call, so a consumer holds only what it keeps.
+#                           0 one clean value with nothing after it, 1 not an object,
+#                           2 otherwise. This is how a reader of a whole API body
+#                           runs: the body is never one string it walks by index.
 #
 # LINEAR, AND THE WAY IT GETS THERE IS LOAD-BEARING. This awk's substr(), index()
 # and length() each cost the length of the WHOLE string they are given, and a
@@ -333,7 +340,11 @@ function jfEmit(leafPath, leafValue, leafType, fromPos) {
 	jfFoundCount++
 }
 
+## A consumer holds no node of its own: one call and it is done. Its source bytes
+## are jfSlice(fromPos, jfPos) while the call runs, so a reader that prints an
+## object keeps the body's own text, never a re-serialisation of it.
 function jfNodeAdd(nodePath, nodeType, nodeValue, fromPos) {
+	if (jfOn) { jfNodeHook(nodePath, nodeType, nodeValue, fromPos, jfPos) ; return }
 	jfNodeN++
 	jfNodePath[jfNodeN] = nodePath
 	jfNodeType[jfNodeN] = nodeType
@@ -591,6 +602,43 @@ function jfWalkText(text) {
 	if (jfStructErr) return 2
 	jfSkipWs()
 	return (jfPos <= jfTotal) ? 2 : 0
+}
+
+## Library entry: the walk with no node kept, each one handed to jfNodeHook as it
+## passes. The consumer file defines the hook. 0 one clean value with nothing after
+## it, 1 not an object at all, 2 a fault inside or after it.
+## A body that arrives over several lines goes in through jfDocLine and is walked by
+## jfDocConsume once. Joining those lines into one string first copies the whole body
+## again for every line; the chunk table is appended to in place instead.
+function jfConsumeText(text) {
+	jfDocReset()
+	jfDocLine(text)
+	return jfDocConsume()
+}
+
+function jfDocReset() {
+	jfReset()
+	jfDocLines = 0
+}
+
+function jfDocLine(text) {
+	if (jfDocLines) jfAppend("\n", 1)
+	jfAppend(text, length(text))
+	jfDocLines++
+}
+
+function jfDocConsume(   consumeRc) {
+	jfCollectAll = 0
+	jfAllLive = 1
+	jfOrdered = 1
+	jfRecords = 0
+	jfNeedOk = 0
+	jfBalancedOn = 0
+	jfSliceGrammar = 0
+	jfOn = 1
+	consumeRc = jfParseDocument()
+	jfOn = 0
+	return consumeRc
 }
 
 ## A node's source as the per-file readers spelled it: a string with its quotes,

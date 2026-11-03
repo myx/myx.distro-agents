@@ -403,16 +403,6 @@ case "$1" in
 				|| echo "$MDSC_CMD: board-upsert-move-edit: ⚠️ WARNING: the handler-routine change of $itemName was written, but its Decisions line was not" >&2
 		fi
 
-		## Commit gate: .git presence in the team-data root, presence only and
-		## independent of TEAM_DATA_GIT_REMOTE -- this op never pushes or syncs.
-		local repoRoot="" sourceTracked="false"
-		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
-		## Asked before the source is removed: `git add` on a vanished untracked
-		## path fails the whole op after the move has already happened.
-		if [ -n "$repoRoot" ] && [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
-			[ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] || sourceTracked="true"
-		fi
-
 		if [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
 			## trash/ belongs to the trash op and is not a board state, so a move
 			## never spools there. `--` guards a later edit that bypasses validation.
@@ -435,30 +425,14 @@ case "$1" in
 			;;
 		esac
 
-		## Both ends of the move in one commit: the destination that now holds the
-		## item, and the source whose removal git must record -- plus every path the cascade changed.
-		if [ -n "$repoRoot" ] ; then
-			local commitPaths=( "$targetPath" )
-			[ "$sourceTracked" = "true" ] && commitPaths+=( "$sourcePath" )
-			[ "${#approvalCascadePaths[@]}" -eq 0 ] || commitPaths+=( "${approvalCascadePaths[@]}" )
-			local gitOut="" gitRc=0
-			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
-				set +e ; return 1
-			fi
-			local moveFrom="$fromState"
-			[ "$isCreate" = "true" ] && moveFrom="create"
-			gitOut="$( git -C "$repoRoot" commit -m "* board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
-				set +e ; return 1
-			fi
-			echo "# $MDSC_CMD: board-upsert-move-edit: committed ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
-			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
-			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataPushIfAhead "board-upsert-move-edit"
-		fi
+		## Both ends of the move in one commit: the destination that now holds the item, and the source whose removal git must record -- plus
+		## every path the cascade changed. The commit and the push are the team-data thread's (AgentsToolsTeamDataCommitPaths): this op writes files.
+		local commitPaths=( "$targetPath" ) moveFrom="$fromState"
+		[ "$isCreate" = "true" ] || [ "$sourcePath" = "$targetPath" ] || commitPaths+=( "$sourcePath" )
+		[ "${#approvalCascadePaths[@]}" -eq 0 ] || commitPaths+=( "${approvalCascadePaths[@]}" )
+		[ "$isCreate" != "true" ] || moveFrom="create"
+		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" "${commitPaths[@]}"
 
 		return 0
 	;;

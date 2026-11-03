@@ -143,7 +143,7 @@ case "$1" in
 			## over it and history keeps it like any tracked item.
 			if [ -n "$repoRoot" ] && [ -z "$( git -C "$repoRoot" ls-files -- "$inboxSourcePath" 2>/dev/null )" ] ; then
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-				AgentsToolsTeamDataCommitPaths "board-trash: keep ${inboxSourcePath#"$MDAT_DATA_ROOT"/} in history before deleting it" "$inboxSourcePath"
+				MDAT_TEAM_DATA_COMMIT_WAIT=yes AgentsToolsTeamDataCommitPaths "board-trash: keep ${inboxSourcePath#"$MDAT_DATA_ROOT"/} in history before deleting it" "$inboxSourcePath"
 				## HEAD, not the index: staged-but-uncommitted is not in history.
 				if [ -z "$( git -C "$repoRoot" ls-tree --name-only HEAD -- "$inboxSourcePath" 2>/dev/null )" ] ; then
 					echo "$MDSC_CMD: board-trash: ⛔ ERROR: could not commit the never-committed $inboxSourcePath before deleting it, so it was left in place" >&2
@@ -152,21 +152,9 @@ case "$1" in
 			fi
 			if [ -n "$repoRoot" ] ; then
 				rm -f -- "$inboxSourcePath"
-				local gitOut="" gitRc=0
-				gitOut="$( git -C "$repoRoot" add -- "$inboxSourcePath" 2>&1 )" || gitRc=$?
-				if [ "$gitRc" -ne 0 ] ; then
-					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git add failed for $inboxSourcePath: $gitOut" >&2
-					set +e ; return 1
-				fi
-				gitOut="$( git -C "$repoRoot" commit -m "- $opContext, $callingMember" -- "$inboxSourcePath" 2>&1 )" || gitRc=$?
-				if [ "$gitRc" -ne 0 ] ; then
-					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git commit failed for $inboxSourcePath: $gitOut" >&2
-					set +e ; return 1
-				fi
-				echo "# $MDSC_CMD: board-trash: deleted and committed ${inboxSourcePath#"$MDAT_DATA_ROOT"/}" >&2
-				## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
-				type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-				AgentsToolsTeamDataPushIfAhead "board-trash inbox source"
+				type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+				AgentsToolsTeamDataCommitPaths "- $opContext, $callingMember" "$inboxSourcePath"
+				echo "# $MDSC_CMD: board-trash: deleted ${inboxSourcePath#"$MDAT_DATA_ROOT"/}, and the team-data thread commits the deletion" >&2
 			else
 				## trash/ is flat, has several writers, and `mv` cannot refuse a
 				## collision: this test is the only thing that reports one.
@@ -272,7 +260,7 @@ case "$1" in
 			endSpawn="$( AgentsToolsDecisionsField "$sourcePath" spawn-id )" || endSpawn=""
 			case "$endSpawn" in
 				''|-) ;;
-				*) AgentsTranscriptEvent "$endSpawn" ENDING "" 0 item "${itemName%.md}" kind dismissed by "$callingMember" text "trashed: $endOut" 2>/dev/null || : ;;
+				*) AgentsTranscriptEventAfterEnd "$endSpawn" ENDING 0 item "${itemName%.md}" kind dismissed by "$callingMember" text "trashed: $endOut" 2>/dev/null || : ;;
 			esac
 		else
 			AgentsReviewEndChild "$callingMember" "$sourcePath" trashed >&2 || :
@@ -280,7 +268,7 @@ case "$1" in
 		## Same never-committed case as the inbox arm above: committed first, then deleted.
 		if [ -n "$repoRoot" ] && [ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] ; then
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataCommitPaths "board-trash: keep ${sourcePath#"$MDAT_DATA_ROOT"/} in history before deleting it" "$sourcePath"
+			MDAT_TEAM_DATA_COMMIT_WAIT=yes AgentsToolsTeamDataCommitPaths "board-trash: keep ${sourcePath#"$MDAT_DATA_ROOT"/} in history before deleting it" "$sourcePath"
 			## HEAD, not the index: staged-but-uncommitted is not in history.
 			if [ -z "$( git -C "$repoRoot" ls-tree --name-only HEAD -- "$sourcePath" 2>/dev/null )" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: could not commit the never-committed $sourcePath before deleting it, so it was left in place" >&2
@@ -289,21 +277,9 @@ case "$1" in
 		fi
 		if [ -n "$repoRoot" ] ; then
 			rm -f -- "$sourcePath"
-			local gitOut="" gitRc=0
-			gitOut="$( git -C "$repoRoot" add -- "$sourcePath" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: git add failed for $sourcePath: $gitOut" >&2
-				set +e ; return 1
-			fi
-			gitOut="$( git -C "$repoRoot" commit -m "- $opContext, $callingMember" -- "$sourcePath" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: git commit failed for $sourcePath: $gitOut" >&2
-				set +e ; return 1
-			fi
-			echo "# $MDSC_CMD: board-trash: deleted and committed ${sourcePath#"$MDAT_DATA_ROOT"/}" >&2
-			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
-			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataPushIfAhead "board-trash"
+			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataCommitPaths "- $opContext, $callingMember" "$sourcePath"
+			echo "# $MDSC_CMD: board-trash: deleted ${sourcePath#"$MDAT_DATA_ROOT"/}, and the team-data thread commits the deletion" >&2
 		else
 			## Same flat-trash/ collision refusal as the inbox arm above.
 			local targetPath="$MDAT_DATA_ROOT/trash/$itemName"

@@ -74,6 +74,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session, never assessed inline. It holds `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps ("What to hand off").
    - rule: "propose-only", "addressed to me" or small-looking is no exemption.
    - rule: what happens in this conversation stays here. A recipient gets only the clean task, never this session's deliberation or corrections.
+   - rule: every request he makes is read back before anything acts on it, and the continuing chat is that readback.
+   - rule: `magic-team.armed.md`'s "A human-owner request is read back before anything acts on it" settles it.
    - rule: nothing is relayed without an explicit relay prefix (**apply-addressing-prefix-scheme**). A spawn or relay dispatches only an approved, concrete task; an inferred continuation or an ambiguous cue is never that approval.
 5. **select-harness-mode**: Exactly two root-only modes exist, both under the relay rules below:
    - `harness-session-detect` — the default for the live chat-facing root. Never spawned.
@@ -95,6 +97,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 9. **enforce-root-never-inline**: The root coordinates and never executes the work it coordinates, rules:
    - rule: every edit, test, tool call, investigation or routine happens in a spawned session, never in the root's own turn. No size exemption: a task feeling small enough to skip the spawn is the trigger to re-check this rule.
    - rule: two exceptions only. `team-fix-session`, within its bounds. And the human-owner explicitly telling this root to act inline for one case, now — never inferred from urgency or size.
+   - rule: this is the `never` of "A `never` withholds a capability", and the two above are this root's whole crossing set.
    - rule: the root's chat carries coordination turns only: mode selection, relay, dispatch approval, bootstrap clarification. Packaging a dispatch quotes what exists. A file the root writes, its own notes included, is a job it did.
    - rule: every activity spawns its responsible member — `magic-coordinator` for coordinator routines (daily, grooming, retro, one-on-one), the named member for a single-member ask. The root stays present to relay and report.
    - rule: once a spawned session exists for a line of work, further related asks, including spawning more members for it, are relayed into it.

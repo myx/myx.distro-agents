@@ -291,31 +291,15 @@ case "$1" in
 		[ -z "$movedFrom" ] || rm -f -- "$movedFrom"
 		echo "# $MDSC_CMD: member-inbox-upsert: wrote $itemName ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 
-		## Commit gate: .git presence in the team-data root, presence only --
-		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit.
-		local repoRoot=""
-		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
-		if [ -n "$repoRoot" ] && [ "$noCommit" = "no" ] ; then
+		## The commit and the push are the team-data thread's (AgentsToolsTeamDataCommitPaths): this op writes files.
+		if [ "$noCommit" = "no" ] ; then
 			local msgPrefix="+" msgAction="created"
 			if [ "$existedBefore" = "true" ] ; then msgPrefix="*" ; msgAction="updated" ; fi
-			local ctxForMsg="$opContext"
+			local ctxForMsg="$opContext" commitPaths=( "$target" )
 			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-member-inbox-upsert" ; fi
-			local gitOut="" gitRc=0 commitPaths=( "$target" )
 			[ -z "$movedFrom" ] || commitPaths+=( "$movedFrom" )
-			gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: git add failed for $target: $gitOut" >&2
-				set +e ; return 1
-			fi
-			gitOut="$( git -C "$repoRoot" commit -m "$msgPrefix $msgAction: $ctxForMsg" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: git commit failed for $target: $gitOut" >&2
-				set +e ; return 1
-			fi
-			echo "# $MDSC_CMD: member-inbox-upsert: committed ${target#"$MDAT_DATA_ROOT"/}" >&2
-			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
-			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataPushIfAhead "member-inbox-upsert"
+			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataCommitPaths "$msgPrefix $msgAction: $ctxForMsg" "${commitPaths[@]}"
 		fi
 		return 0
 	;;

@@ -91,6 +91,19 @@ rigLiveCalls(){ ## extended regular expression, [drive]
 	liveWhat="$( rigLiveTag "${2:-$rigDriveTag}" )"
 	LC_ALL=C grep -c -E -- "$1" "$rigTmp/calls-$liveWhat.log" || :
 }
+## Whether a drive left a dialog open, and which: `opened` with the dialog's name in rigDialogName, or `not-opened`. It is a
+## function since a `case` inside a command substitution is not read as one.
+rigDialogKind="" ; rigDialogName=""
+rigDialog(){ ## drive, tag
+	rigDialogName="$( rigLiveVal "$2" dialog "$1" )"
+	rigDialogKind="not-opened"
+	case "$rigDialogName" in *:*) rigDialogKind="opened" ;; esac
+}
+## Whether the frame a drive drew holds those words anywhere, as their own run of characters: yes or no. It is the pane as
+## drawn, so words under its fold are not in it, and a check of the pane names what stands above the fold.
+rigLiveHolds(){ ## drive, words
+	case "$( cat "$rigTmp/screen-$( rigLiveTag "$1" ).out" )" in *"$2"*) printf yes ;; *) printf no ;; esac
+}
 rigLiveOp(){ ## the dispatcher itself, in the rig, as the console operator calls it -- a known positive for a control
 	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=xterm-256color LC_ALL=en_US.UTF-8 \
 		MDAT_WORKSPACE_MODE=team-rig MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigStore" \
@@ -145,4 +158,13 @@ rigLiveUname(){ ## system, machine
 	printf '#!/bin/sh\ncase "$1" in -s) echo %s ;; -m) echo %s ;; *) echo %s ;; esac\n' "$1" "$2" "$1" > "$rigTmp/bin/uname" \
 		|| rigRefuse "the rig's uname could not be written"
 	chmod +x "$rigTmp/bin/uname" || rigRefuse "the rig's uname could not be made executable"
+}
+## The dispatcher the screen is given, with the kill it asks for held for that many seconds: a loaded machine's answer, made
+## certain, so a case about the wait is not a race. Every other call passes straight through.
+rigLiveSlowKill(){ ## seconds
+	local slowTools="$rigTmp/tools-slow.sh"
+	printf '#!/usr/bin/env bash\n## the rig dispatcher: a real kill is held, every other call passes through\nprintf "%%s\\n" "$*" >> "%s"\ncase "$1" in\n\t--manager-session-kill)\n\t\tcase " $* " in *" --plan "*) ;; *) sleep %s ;; esac\n\t;;\nesac\nexec bash "%s" "$@"\n' \
+		"$rigLog" "$1" "$rigFn" > "$slowTools" || rigRefuse "the slow dispatcher could not be written"
+	chmod +x "$slowTools" || rigRefuse "the slow dispatcher could not be made executable"
+	rigTools="$slowTools"
 }

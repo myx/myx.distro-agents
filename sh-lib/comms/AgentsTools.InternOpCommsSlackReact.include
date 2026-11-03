@@ -7,6 +7,8 @@
 ## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
 ##
 
+type AgentsToolsCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+
 case "$1" in
 
 		--intern-op-comms-slack-react)

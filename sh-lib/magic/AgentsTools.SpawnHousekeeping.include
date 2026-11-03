@@ -35,6 +35,11 @@ AgentsToolsReviewUnseenEscalate(){ ## the member the scan acts as
 		unMark="$MDAT_DATA_ROOT/board/review/.unseen-$unItem"
 		[ ! -f "$unMark" ] || continue
 		mkdir -p "${unMark%/*}" 2> /dev/null && : > "$unMark" 2> /dev/null || continue
+		## The mark is a write into the store like any other, and it outlives the pass that made it: it leaves an entry, and
+		## the one thread commits it. Without one it sat untracked, beside 132 others, until a person's --commit-pending.
+		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || :
+		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || continue
+		AgentsToolsTeamDataCommitPaths "review-unseen mark, ${unItem%.md}" "$unMark" > /dev/null 2>&1 || :
 		AgentsToolsSpawnProxyStaleHandbackTell "$unBy" "$unTold" "$unItem" "$unSeen" || :
 		printf 'REVIEW-UNSEEN: %s waited %ss for a verdict, told to %s\n' "$unItem" "$unSeen" "$unTold"
 	done
@@ -232,8 +237,9 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			## A member of any workspace stays too (AgentsTools.TeamRegistry.include), not this one's own index alone.
 			*) if reviewDir="$( AgentsToolsTeamMemberDirectory "$reviewBy" )" && [ -f "$reviewDir/SKILL.md" ] ; then continue ; fi ; reviewId="$reviewBy" ;;
 		esac
+		## The live column is the twelfth word and the state the thirteenth (S27.4): a live run reads its activity word, never `running`.
 		sessionKind="$( printf '%s\n' "$measureText" | LC_ALL=C awk -v wantSession="$reviewId" '
-			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $13 == "running" || $13 == "waiting" ) { sawLive = 1 ; } }
+			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $12 == "running" || $13 == "waiting" ) { sawLive = 1 ; } }
 			END { if ( sawLive ) { print "live" ; } else if ( sawRow ) { print "ended" ; } }
 		' )"
 		case "$sessionKind:$reviewId" in
@@ -258,6 +264,10 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			housekeepingLog="${housekeepingLog}housekeeping: $itemName review-by -> magic-coordinator"$'\n'
 		fi
 	done
+	## AN END MARK A REFUSAL OR A RATE LIMIT LEFT (S6.37): the root message of a session whose marks Slack did not take
+	## is asked again here, by the pass that already runs over the dead records. One that lands becomes the session's end.
+	type AgentsToolsSpawnProxyRootMarkRetry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	AgentsToolsSpawnProxyRootMarkRetry || :
 	if [ "${3:-}" = no-threads ] ; then
 		AgentsToolsHousekeepingReport "$2" "${housekeepingLog%$'\n'}"
 		return 0

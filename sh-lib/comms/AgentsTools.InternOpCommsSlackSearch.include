@@ -28,6 +28,7 @@ AgentsToolsCommsSlackSearchAnswer(){
 				fi
 				local metaOut metaRc=0
 				metaOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" -v mode=meta \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || metaRc=$?
 				if [ "$metaRc" = "1" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT READ the search.messages response for page $pageNum (see the reader's own error above). Nothing is known from this call about presence or absence of matches." >&2
@@ -48,6 +49,7 @@ AgentsToolsCommsSlackSearchAnswer(){
 				if [ "$pretty" = "true" ] ; then
 					local linesOut linesRc=0
 					linesOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" )" || linesRc=$?
 					if [ "$linesRc" = "1" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT FORMAT the search.messages matches for page $pageNum (see the reader's own error above)." >&2

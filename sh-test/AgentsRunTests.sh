@@ -37,6 +37,8 @@
 ## check of the reader unsets it, and ends what it starts.
 ## And none starts the thread that updates the sources a scan reads (MDAT_COLLECT_THREAD=off, AgentsTools.CollectThread.include): the same
 ## kind of process, left running after its rig is gone. The check of the thread unsets it, and ends what it starts.
+## And none starts the thread that commits and pushes the team data (MDAT_TEAM_DATA_COMMIT_THREAD=off, AgentsTools.TeamDataThread.include): with it off
+## a writer commits in its own process, as before the thread. The check of the thread unsets it, and ends what it starts.
 ## And a rig that sets no workspace mode is a team rig (MDAT_WORKSPACE_MODE=team-rig, AgentsTools.TeamDataGate.include): its mode is the
 ## default the one reader of the mode gives, which a setting of the rig stands ahead of. Unset, a rig is just agents and keeps no team
 ## data (F13.1). The checks of the gate and of the digest set or unset it themselves.
@@ -263,15 +265,44 @@ AgentsRunHandLockOwn(){ ## -- rc 0 when the lock was taken by hand by this run's
 	esac
 	return 1
 }
+AgentsRunTicketAlive(){ ## ticket file -- rc 0 while the check or the run that holds that ticket is still there
+	local ticketPid ticketKind
+	ticketPid="$( LC_ALL=C sed -n 's/^pid=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
+	ticketKind="$( LC_ALL=C sed -n 's/^kind=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
+	case "$ticketPid" in ''|*[!0123456789]*) return 1 ;; esac
+	## A check takes the same turn a run does (sh-test/check-fixtures/rig-temp.include.sh): its ticket says so, and it
+	## is alive while its process is, whatever its command line.
+	if [ "$ticketKind" = check ] ; then kill -0 "$ticketPid" 2>/dev/null ; return $? ; fi
+	case "$( ps -p "$ticketPid" -ww -o args= 2>/dev/null )" in *AgentsRunTests.sh*) return 0 ;; esac
+	return 1
+}
+AgentsRunAncestors(){ ## -- the pids above this process, self included, on one line
+	local ancestorPid="$$" ancestorAround=0
+	while [ -n "$ancestorPid" ] && [ "$ancestorAround" -lt 64 ] ; do
+		printf '%s ' "$ancestorPid"
+		ancestorPid="$( ps -o ppid= -p "$ancestorPid" 2>/dev/null | LC_ALL=C tr -d ' ' )"
+		ancestorAround=$(( ancestorAround + 1 ))
+	done
+}
 AgentsRunQueueLeave(){ ## -- out of the line, and the lock given back where this run took it
 	[ -z "$runTicket" ] || rm -f "$runQueueDir/$runTicket"
 	[ -z "$runLockMine" ] || { rm -f "$runHandLock/holder.txt" ; rmdir "$runHandLock" 2>/dev/null ; }
 	runTicket="" ; runLockMine=""
 }
 AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; says whom it waits behind, each time that changes
-	local turnStamp turnFile turnPid turnWhom turnAhead turnSaid=""
+	local turnStamp turnFile turnPid="" turnWhom="" turnAhead=0 turnAncestors="" turnSaid="" turnBegan turnWaited
+	## A RUN NEVER STANDS IN THE LINE PAST ITS BOUND. A run that has waited MDAT_SUITE_QUEUE_LIMIT seconds -- 900 unless
+	## the machine sets it -- says in one line whom it waits behind and refuses: it runs nothing outside its turn, and its
+	## ticket goes, so the runs behind it are not held by it. Two runs waited half an hour on 2026-11-03 before a person
+	## ended them; a run below a person's patience is worth more than a run that never says anything.
+	turnBegan="$( date +%s )"
+	turnWaited=0
+	case "${MDAT_SUITE_QUEUE_LIMIT:-900}" in ''|*[!0123456789]*) turnWaited=900 ;; *) turnWaited="${MDAT_SUITE_QUEUE_LIMIT:-900}" ;; esac
 	mkdir -p "$runQueueDir" 2>/dev/null || {
 		echo "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line of test runs: $runQueueDir -- no run is started outside its turn" >&2 ; exit 1
+	}
+	mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || {
+		echo "⛔ ERROR: AgentsRunTests.sh: cannot create $MMDAPP/.local/temp, the folder of the lock a run takes at its turn" >&2 ; exit 1
 	}
 	turnStamp="$( python3 -I -B -c 'import time; print("%017.6f" % time.time(), end="")' 2>/dev/null )" || turnStamp=""
 	[ -n "$turnStamp" ] || turnStamp="$( date +%s ).000000"
@@ -280,33 +311,45 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 	trap 'exit 130' INT
 	trap 'exit 143' TERM HUP
 	## whole or not at all: a ticket half written would read as one of no runner
-	printf 'pid=%s\norigin=%s\nsince=%s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runQueueDir/.$runTicket" \
+	printf 'pid=%s\norigin=%s\nkind=run\nsince=%s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runQueueDir/.$runTicket" \
 		&& mv -f "$runQueueDir/.$runTicket" "$runQueueDir/$runTicket" || {
 		echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line of test runs: $runQueueDir" >&2 ; exit 1
 	}
 	while : ; do
-		turnWhom="" ; turnAhead=0
+		turnWhom="" ; turnAhead=0 ; turnAncestors=" $( AgentsRunAncestors ) "
 		for turnFile in "$runQueueDir"/*.ticket ; do
 			[ -f "$turnFile" ] || continue
 			[ "${turnFile##*/}" \< "$runTicket" ] || continue
 			turnPid="$( LC_ALL=C sed -n 's/^pid=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )"
-			if ! AgentsRunRunnerAlive "$turnPid" ; then
+			## a ticket held above this run -- a check running it, or a check of a check -- is the turn this run is inside.
+			## A ticket that names no pid is no ancestor's: it is read below as one of no live holder, and taken out.
+			case "$turnPid" in
+				''|*[!0123456789]*) ;;
+				*) case "$turnAncestors" in *" $turnPid "*) continue ;; esac ;;
+			esac
+			if ! AgentsRunTicketAlive "$turnFile" ; then
 				rm -f "$turnFile" ; continue
 			fi
 			turnAhead=$(( turnAhead + 1 ))
-			[ -n "$turnWhom" ] || turnWhom="the run of pid $turnPid from $( LC_ALL=C sed -n 's/^origin=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p ), in line since $( LC_ALL=C sed -n 's/^since=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )"
+			[ -n "$turnWhom" ] || case "$( LC_ALL=C sed -n 's/^kind=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )" in
+				check) turnWhom="the check of pid $turnPid, in line since $( LC_ALL=C sed -n 's/^since=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )" ;;
+				*) turnWhom="the run of pid $turnPid from $( LC_ALL=C sed -n 's/^origin=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p ), in line since $( LC_ALL=C sed -n 's/^since=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )" ;;
+			esac
 		done
 		## Taken by hand by this run's own caller: no turn of its own. With nobody ahead the
 		## run's turn has come and it starts under that lock; with anyone ahead it is refused,
 		## since each of them waits behind that lock and this run would wait behind them.
 		if [ -d "$runHandLock" ] && AgentsRunHandLockOwn ; then
-			[ "$turnAhead" != 0 ] || return 0
+			[ "$turnAhead" != 0 ] || { MDAT_SUITE_QUEUE_TURN="$runQueueDir/$runTicket" ; export MDAT_SUITE_QUEUE_TURN ; return 0 ; }
 			echo "⛔ ERROR: AgentsRunTests.sh: not started: this run's caller holds $runHandLock by hand, and its turn in the machine's line has not come: $turnAhead run(s) stand ahead of it, the first $turnWhom. A lock taken by hand is no turn. Remove it and run again: the run waits its turn by itself, and takes the lock itself when that comes." >&2
 			exit 1
 		fi
 		if [ -z "$turnWhom" ] ; then
 			if mkdir "$runHandLock" 2>/dev/null ; then
 				runLockMine=1
+				## The tests this run starts are inside its turn: they take no ticket of their own, so the run's own
+				## workers still run as many tests at once as it was given (rig-temp.include.sh, rigQueueTurn).
+				MDAT_SUITE_QUEUE_TURN="$runQueueDir/$runTicket" ; export MDAT_SUITE_QUEUE_TURN
 				printf 'runner-pid: %s\nagent: AgentsRunTests.sh, a run from %s\ntaken: %s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runHandLock/holder.txt"
 				return 0
 			fi
@@ -320,6 +363,13 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 		if [ "$turnWhom" != "$turnSaid" ] ; then
 			echo "# AgentsRunTests.sh: one run of the tests runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2
 			turnSaid="$turnWhom"
+		fi
+		## Its bound passed: what it waits behind, and no run of it. The ticket is given back here, so nothing behind it
+		## waits on a run that will never start.
+		if [ "$(( $( date +%s ) - turnBegan ))" -ge "$turnWaited" ] ; then
+			rm -f "$runQueueDir/$runTicket" 2> /dev/null ; runTicket=""
+			echo "⛔ ERROR: AgentsRunTests.sh: not started: its turn in the machine's line had not come within ${turnWaited}s. It waited behind $turnWhom. Nothing was run, and no ticket is left in the line. Run it again, or set MDAT_SUITE_QUEUE_LIMIT higher where a longer wait is wanted." >&2
+			exit 1
 		fi
 		sleep 2
 	done
@@ -367,6 +417,7 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		export MDAT_WAIT_REMIND=off
 		export MDAT_COMMS_READER=off
 		export MDAT_COLLECT_THREAD=off
+		export MDAT_TEAM_DATA_COMMIT_THREAD=off
 		export MDAT_WORKSPACE_MODE=team-rig
 		cd "$testDir" || exit 1
 		exec python3 -I -B "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"

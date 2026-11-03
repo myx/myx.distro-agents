@@ -14,10 +14,13 @@ pass=0 fail=0
 check(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; pass=$((pass+1)) ; else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; fail=$((fail+1)) ; fi ; }
 
 ## The resolver's environment branch runs before any scope read, so a stub scope reader that
-## must never be called proves the branch is first.
+## must never be called proves the branch is first. The config store itself is stubbed as well:
+## a rig has no workspace of its own, so an unstubbed read answers from the operator's live
+## store and this check would measure that instead of the branch under test.
 DistroAgentsTools(){ echo "scope-read should not run" >&2 ; return 1 ; }
 AgentsToolsSlackOwnSettingsApply(){ echo "scope-read should not run" >&2 ; return 1 ; }
 AgentsToolsSlackClientSide(){ echo "scope-read should not run" >&2 ; return 1 ; }
+AgentsToolsConfigOption(){ echo "scope-read should not run" >&2 ; return 1 ; }
 
 . "$rigInc"
 

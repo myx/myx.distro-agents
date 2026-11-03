@@ -95,7 +95,10 @@ case "$1" in
 			rootHarnessModeLine="$rootHarnessModeLine"$'\n'"ROUTINE: ${rootHarnessRoutineFile##*/} -- the dispatch's --routine parameter: run it as this pass's payload."
 		fi
 
-		{ printf '%s\n\n' "$rootHarnessModeLine" ; cat "$rootHarnessBriefFile" ; } | DistroAgentsTools "${rootHarnessSpawnArgs[@]}"
+		## The coordinator's start is that include's own arm, never the dispatcher: on a console
+		## DistroAgentsTools is no command (S6.24).
+		{ printf '%s\n\n' "$rootHarnessModeLine" ; cat "$rootHarnessBriefFile" ; } \
+			| { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicCoordinatorState.include" "${rootHarnessSpawnArgs[@]}" ; }
 		return $?
 	;;
 

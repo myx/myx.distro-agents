@@ -222,7 +222,7 @@ rigAssert "no registry row is written, added or removed by a send: both registri
 echo "-- the same client to the other organisation: its persona, and nothing of its in-team form --"
 ## What a send into the other organisation needs, in the workspace it is called from: the
 ## client's own token there and its contact for the conversation.
-printf '%s\n' 'SLACK_USER_TOKEN=rig-user-token-CLIENTHERE' > "$rigWork/ws-here/.local/.agents/client-rig.agent.env"
+printf '%s\n' 'CLIENT_SLACK_USER_TOKEN=rig-user-token-CLIENTHERE' > "$rigWork/ws-here/.local/.agents/client-rig.agent.env"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
 rigContactSeed "$rigWork/ws-here/.local/agents/team-data-root" client-rig rig-client-team CCLIENT001 -
 rigRunIn ws-here --client-comms-slack-send-message client-rig CCLIENT001 RIG-BODY

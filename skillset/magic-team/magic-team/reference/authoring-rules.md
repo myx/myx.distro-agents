@@ -13,6 +13,7 @@ Read this when writing or repairing a rule, an instruction, a definition or a de
 
 - A rule is a short, abstract, present-tense statement, never a narrative. Register by kind: `reference/authoring-rules.md`'s "Generalise a rule, sharpen an instruction".
 - Every instruction and document states a durable fact and its reason. Never narrate a past action, a measurement, or session provenance — a task or rule needing narrated text says so explicitly. A pending/settled status marker is allowed.
+- Write for a reader who has none of the session's context. State the why, the scope, and every term the text relies on. Only a member's own CheckList is written for itself. The rule stands in `magic-team.basic.md`'s "The register".
 - A file that includes another may override, extend or waive the included rules, unless the included rule forbids it.
 - A term's short definition lives in one terminology list. Each consumer describes its own use of it.
 - A help entry or Operation Reference states when to call an operation and what to pass. Nothing about its internals.

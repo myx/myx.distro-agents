@@ -37,7 +37,8 @@ rigAssert(){ ## what is asserted, got, want
 rigLivePreset rig 'PRESET_CLI_SERVICE=anthropic'
 rigScope="agents:preset-rig"
 
-## The key under test: one the scope does not hold.
+## The key under test: one the scope does not hold. The drive ends where `d` leaves it. A later key would run the row's main
+## action and measure that instead, so what is asserted below is the frame `d` itself left.
 rigLiveWhere unset
 {
 	printf 'at configuration clipresets presets %s\n' "$rigScope"
@@ -47,9 +48,6 @@ rigLiveWhere unset
 	printf 'keys d\n'
 	printf 'wait action 60\nwait list 60\nturn 4\n'
 	printf 'get PRESSED\n'
-	printf 'keys ENTER\n'
-	printf 'wait action 60\nwait list 60\nturn 4\n'
-	printf 'get AFTER\n'
 } | rigLiveDrive
 
 ## The known positive: a key the scope does hold, whose `d` really does ask and then call. Without it "nothing was
@@ -73,9 +71,9 @@ rigAssert "d on a key the preset holds does ask, and calls: the probe can see on
 rigAssert "d on the unset key calls nothing" \
 	"$( rigLiveCalls "^--manager-scope-unset $rigScope PRESET_MODEL_OR_MACRO\$" unset )" "0"
 rigAssert "no failure box opens on it" \
-	"$( rigLiveVal AFTER dialogTitle unset )" ""
+	"$( rigLiveVal PRESSED dialogTitle unset )" ""
 rigAssert "the status line says the key holds nothing" \
-	"$( rigLiveVal AFTER notice unset )" "the key holds nothing"
+	"$( rigLiveVal PRESSED notice unset )" "the key holds nothing"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN PRESET UNSET LIVE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -173,13 +173,16 @@ rigMessage(){ ## thread ts suffix, ts suffix, user, text
 ## answers is re-waited without end by design, so the guard is the scenario's: a killed run is
 ## reported as such, never as a result. The rig's posts are of 2023, so every reminder of an
 ## ask would be due at once: the waits here send none, and each post counted is the call's own.
+## The comms cache is off (MDAT_SLACK_THREAD_CACHE_SECONDS=0): its 15 s serve is the design's
+## floor on re-reading one thread, and a rig round is 1 s, so a scenario about WHEN an arrival
+## reaches the caller must read the thread it changed. The cache has its own check.
 rigKilled=""
 rigCall(){ ## guard seconds, tool, argument object
 	local callPid callLeft="$1"
 	rigKilled="no"
 	set -m
 	( cd "$rigScenarioDir/ws" && printf '%s' "$3" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SESSION_THREAD \
-		MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SPAWN_SESSION_ID="rig-anyupdate-$rigScenarioName" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 MDAT_WAIT_SETTLE_SECONDS=0 MDAT_WAIT_REMIND=off \
+		MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SPAWN_SESSION_ID="rig-anyupdate-$rigScenarioName" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=20 MDAT_SLACK_THREAD_CACHE_SECONDS=0 MDAT_WAIT_SETTLE_SECONDS=0 MDAT_WAIT_REMIND=off \
 		bash "$rigHarness" --intern-tool "$2" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" &
 	callPid=$!
 	set +m

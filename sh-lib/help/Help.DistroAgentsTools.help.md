@@ -59,6 +59,8 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-list [--team-member <team-member>] <issue-key>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-read [--team-member <team-member>] <board-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
@@ -179,6 +181,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-slots <selector>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-frontmatter <selector>
 📘 syntax: DistroAgentsTools.fn.sh --manager-schedule-read
+📘 syntax: DistroAgentsTools.fn.sh --manager-schedule-override-flag [--no] <flag> [<ttl>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-schedule-set-worktime <start HH:MM> <until HH:MM> <days-of-week>
+📘 syntax: DistroAgentsTools.fn.sh --manager-schedule-set-weekend <days-of-week>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-text <selector>
 📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential|session [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share] [--cache]
 📘 syntax: DistroAgentsTools.fn.sh --manager-stats-routines [<routine>]
@@ -282,7 +287,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -828,6 +833,26 @@
 			named query together, inside the Python helper -- a fixed
 			bound, not a setting. No form of this op fetches more than
 			that one page, or holds it, ever.
+
+			A TERM SHAPED LIKE A USER ID IS ASKED OF `users.info`, one
+			call for that one id, and never of that page. The page matches
+			names, so an id compared against them matches nothing however
+			present the person is, and a page of a thousand rows is not
+			the directory anyway. The directory is fetched only when some
+			term is no id. This is the "give a known id" route
+			`SEARCH_HINT` names, and it names an organisation member and
+			a machine's partner users alike.
+
+			A match is one `USER_MATCH` row, whichever route found it:
+			`USER_MATCH|<term>|<user-id>|<handle>|<display-name>|
+			<real-name>|<e-mail>`, with a field the person lacks left
+			empty. The handle, the real name and the e-mail travel with
+			the result, so no reader has to look the id up again.
+
+			An id `users.info` refuses is one `UNRESOLVED|<id>|<reason>`
+			line carrying Slack's own reason, and never an origin this op
+			did not read: not "outside this workspace", not "a Connect
+			guest". It does not end the call in failure.
 
 			A capped result, or a total miss, ends with one extra
 			`SEARCH_HINT` line: how many users that one page held, that
@@ -1980,6 +2005,20 @@
 			HTTP 400 on the POST itself usually means the issue moved
 			again between lookup and write, or the target screen
 			required a field not supplied -- re-run to re-resolve.
+
+		--jira-issue-link-list [--team-member <team-member>] <issue-key>
+			Prints the remote links stored on that issue, one a line: its id, its
+			address and its title. Any member may read them; the issue itself is
+			readable only by identities its project is shared with. An answer
+			that is not the array of links this operation reads is reported
+			UNKNOWN with 3, never as an issue holding none.
+
+		--jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>
+			Runs only as `magic-coordinator`; any other name is refused
+			with 1. Links a page, such as a Confluence page, to that issue,
+			as a remote link. The address is the link's global id, so a
+			retry leaves one link. A `--url` that is not https is refused
+			with 1, and nothing is sent.
 
 		--jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 			Runs only as `magic-coordinator`; any other name is refused
@@ -4103,6 +4142,33 @@
 			holiday takes `worktime` out of those hours.
 			Exit 1 with one error line for an argument, and from inside a
 			member's session, like the rest of the family.
+
+		--manager-schedule-override-flag [--no] <flag> [<ttl>]
+			One of the console's own operations (see Notes). Sets or clears an
+			override of the scheduler's flags, for the console's Schedule view.
+			The flag is `emergency` (with a TTL), `overtime`, `holidays` (with a
+			TTL, or until it is cleared) or `learning`; `--no` clears it. `worktime`
+			and `weekend` are derived from the settings and are refused here.
+			Prints the flag's line as `--current-flags` gives it, on stdout.
+			Exit 1 with one error line for a flag that is not overridable, for a
+			TTL that is not whole seconds, and for `--no` with a TTL. The rules
+			are the dispatcher's own (`--override-flag`), asked here.
+
+		--manager-schedule-set-worktime <start HH:MM> <until HH:MM> <days-of-week>
+			One of the console's own operations (see Notes). Writes the
+			scheduled worktime, as `--set-worktime` does: the start before the
+			until, and the days `workdays`, `weekend`, `daily` or a list such as
+			`mon,thu`. Prints `<setting>: <value>` on stdout, a setting of the
+			`magic-team` scope. A value refused stores nothing.
+			Exit 1 with one error line for arguments that are not three, for
+			times that are not `HH:MM` or out of order, and for days that are none.
+
+		--manager-schedule-set-weekend <days-of-week>
+			One of the console's own operations (see Notes). Writes the days the
+			schedule reads as the weekend, `sat,sun` and the like, as
+			`--set-weekend` does. Prints `<setting>: <value>` on stdout.
+			Exit 1 with one error line for a day list that is none, and stores
+			nothing.
 
 		--manager-routine-verdict <routine-file|selector>
 			One of the console's own operations (see Notes). What the validator
@@ -6685,7 +6751,7 @@
 			waits there and a dismissal is addressed to the member
 			it is for.
 
-		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -6709,6 +6775,12 @@
 			session instead of starting one: they share its thread and
 			post no new header in the team channel. The scheduler uses it
 			for a work-duty that starts again.
+
+			`--session-thread:event-track` starts the session alone: its
+			tracking thread only, no session thread, and no header in the
+			team channel. `--session-thread:magic-team` is the ordinary
+			start with a session thread of its own, as no option at all
+			gives. The scheduler starts a work-duty with the first.
 
 			`--participants` names who the executor is to invite: a
 			comma-separated list of members, `<type>-*` and
@@ -7200,7 +7272,7 @@
 			not installed, or no store stands beside the file. On success it prints how
 			many records were removed.
 
-		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
+		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
 			Contacts' operation (DistroAgentsContacts.fn.sh), the people subsystem: every
 			member uses it, the coordinator and the client-* members most. Records a person,
 			or fills the record of one recorded already, in the team data root's
@@ -7216,7 +7288,9 @@
 			A shape that is none (an id, a Slack coordinate without its team, an e-mail), a
 			value too long and an option it does not know are refused, rc 1, with nothing
 			written. Prints `CONTACT: <id> created|updated|unchanged`. A call from no member's
-			session names the member that holds the contact with `--reached-by`. The record
+			session names the member that holds the contact with `--reached-by`. `--tier` is
+			the human-owner's alone, his own member name or the console account mapped to
+			him: `partner` or `recorded`, and a value that is neither is refused. The record
 			is written whole, by a rename, and nothing is written for a call that adds
 			nothing. A contact's access is not recorded in it: the permission model holds it.
 
@@ -7247,9 +7321,10 @@
 		--contacted-by <value> [--team <scope>]
 			Contacts' operation (DistroAgentsContacts.fn.sh): being contacted by a contact.
 			The sender looked up as `--find-contact` does: its record, then what the
-			permission model says it holds standing, the three tiers a request falls in
-			(Ingest, Basic, Recorded access) and the next step, the text of the template
-			`Contacts/contacted-known`. A sender nobody recorded is said so with the next step
+			permission model says it holds standing, the whole rules of the tier its record
+			names and of every tier below it, and the next step, the text of the template
+			`Contacts/contacted-known`. A record with no `tier:` gets the three tiers as they
+			were. A sender nobody recorded is said so with the next step
 			(`Contacts/contacted-unknown`), rc 1; a value that names more than one contact
 			prints their rows and asks for which, rc 1.
 
@@ -7587,6 +7662,19 @@
 			**Use this, not --slack-search-messages, for
 			something posted moments ago** -- search lags on Slack's
 			own index; this reads the conversation directly.
+
+			**One message is fetched as one message.** The
+			single-message form asks Slack for the wanted `<ts>` with
+			`oldest` set to it, `inclusive` and `limit=1`, so the
+			answer is bounded by the message, never by its thread's
+			length.
+
+			**A read ends with the run that asked for it.** A call
+			whose asking process has gone is not started, and one
+			still running when its asker goes is ended. No read runs
+			longer than `MDAT_SLACK_READ_BOUND_SECONDS` (120 by
+			default); past that it fails and says so, never a quiet
+			empty result.
 
 			Same credential resolution as --slack-send-message;
 			--identity-bot reads as the team bot, and is final. Read

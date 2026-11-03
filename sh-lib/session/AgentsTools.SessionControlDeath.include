@@ -563,8 +563,11 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 ## `death-failed` with why. The result: `done: <answer>`, which settles the death, or
 ## `failed: <why>`, after which the death stays unsettled, its reviewer is asked again
 ## (AgentsToolsSessionControlDeathAgain), and the tooling tries nothing by itself.
-## A DEAD-RUN VERDICT WORKS ON AN ITEM IN processed: the item is moved back to review, with
-## that reason, before the answer is carried out, and the answer then proceeds as for review.
+## A DEAD-RUN VERDICT WORKS ON AN ITEM IN processed OR running: the item is moved into review,
+## with that reason, before the answer is carried out, and the answer then proceeds as for review.
+## The move comes after the record is closed, because that close is itself what takes a run's item
+## out of running: an item nobody reviews reaches processed there, and a verdict read before it
+## would find the state the close has just left and refuse to work on it.
 ## A RESTART THAT FAILED AFTER ITS ITEM WAS RETURNED would leave the item in running with no
 ## run. The item is put back in review, by a review request in the name of the one who
 ## answered: there a return, an accept and the kill all work on it, so every option of the
@@ -588,15 +591,6 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 		[ -z "$actState" ] || break
 		actItem=""
 	done
-	## A dead-run verdict on an item in processed moves it back to review first (S24 13).
-	if [ -n "$actItem" ] && [ "$actState" = "processed" ] ; then
-		( set -- --intern-op-board-upsert-move-edit review "$actItem.md" --from-state:processed \
-			--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"its run died, and the verdict on that run applies to it in review" \
-			--context "${MDSC_CMD:-session-control}" --log-verb:updated
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
-		) > /dev/null 2>&1 || :
-		actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
-	fi
 	case "$actAnswer" in
 		resume|fresh)
 			actNow="$( [ -z "$actItem" ] || AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$actState/$actItem.md" spawn-id )"
@@ -610,6 +604,23 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 				[ "$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" status )" != "spawn-started" ] || AgentsToolsSessionControlDeathClose "$actRecord" \
 					|| actWhy="its record could not be closed as $agentsSessionControlDeathOutcome"
 				actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
+				## The close above is what moves a dead run's item, and an item nobody reviews reaches
+				## processed there: the verdict puts it into review from wherever it stands, before the
+				## return that starts the member again. A move that fails says what it said.
+				if [ -z "$actWhy" ] && [ -n "$actItem" ] && [ "$actState" != "review" ] ; then
+					case "$actState" in
+						running|processed)
+							actOut="$(
+								set -- --intern-op-board-upsert-move-edit review "$actItem.md" --from-state:"$actState" \
+									--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"its run died, and the verdict on that run applies to it in review" \
+									--context "${MDSC_CMD:-session-control}" --log-verb:updated
+								. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
+							 2>&1 )" || actWhy="its item could not be put into review from $actState"
+							[ -n "$actWhy" ] || actWhy="$( printf '%s\n' "$actOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'WARNING' )"
+							actState="$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )"
+						;;
+					esac
+				fi
 				[ -n "$actWhy" ] || [ "$actState" = "review" ] || actWhy="its item is in ${actState:-no board state}, not in review, so it could not be returned"
 				if [ -z "$actWhy" ] ; then
 					actOut="$(

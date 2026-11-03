@@ -10,6 +10,13 @@
 ##
 
 SCHEDULE_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+## The flags a person sets by hand: the four that take an override, and the two that are derived from a setting of their own.
+SCHEDULE_OVERRIDABLE = ("emergency", "overtime", "holidays", "learning")
+SCHEDULE_WRITE_SAYS = {
+    "override": "Set stores the override, and Clear takes it out: the read gives its line afterwards.",
+    "worktime": "The start and the until are HH:MM, the start first, and the days are workdays, weekend, daily, or a list such as mon,thu.",
+    "weekend": "The days the schedule reads as the weekend, a list such as sat,sun.",
+}
 ## How a flag of a cell is drawn in the grid: its glyph and its look. A flag not named here is drawn by its first letter.
 SCHEDULE_GLYPHS = {"worktime": ("█", LEVEL_OK), "weekend": ("░", DIM), "holidays": ("▒", LEVEL_WARN), "overtime": ("▓", LEVEL_WARN),
                    "emergency": ("!", LEVEL_BAD), "learning": ("L", BOLD)}
@@ -164,6 +171,90 @@ def scheduleSummary(state, path, row, form):
     return lines
 
 
+## ---- a flag set by hand: its dialog, and the operation behind it ----
+
+CALLS["schedule-override"] = ["--manager-schedule-override-flag"]
+CALLS["schedule-worktime"] = ["--manager-schedule-set-worktime"]
+CALLS["schedule-weekend"] = ["--manager-schedule-set-weekend"]
+
+DIALOGS["schedule-override"] = {"title": "Set the flag", "feeds": "scheduleflag", "first": "ttl",
+                                "controls": ({"name": "about", "kind": "text"},
+                                             {"name": "ttl", "kind": "input", "label": "How long it holds, in seconds, or none"}),
+                                "buttons": (("set", "Set"), ("clear", "Clear"), ("cancel", "Cancel"))}
+DIALOGS["schedule-worktime"] = {"title": "Set the worktime", "feeds": "scheduleflag", "first": "start",
+                                "controls": ({"name": "about", "kind": "text"},
+                                             {"name": "start", "kind": "input", "label": "Start, HH:MM", "required": "nothing is saved: no start is typed"},
+                                             {"name": "until", "kind": "input", "label": "Until, HH:MM", "required": "nothing is saved: no until is typed"},
+                                             {"name": "days", "kind": "input", "label": "Days: workdays, weekend, daily, or a list such as mon,thu", "required": "nothing is saved: no day is typed"}),
+                                "buttons": (("save", "Save"), ("cancel", "Cancel"))}
+DIALOGS["schedule-weekend"] = {"title": "Set the weekend", "feeds": "scheduleflag", "first": "days",
+                               "controls": ({"name": "about", "kind": "text"},
+                                            {"name": "days", "kind": "input", "label": "Days, a list such as sat,sun", "required": "nothing is saved: no day is typed"}),
+                               "buttons": (("save", "Save"), ("cancel", "Cancel"))}
+
+
+## Enter on a flag that is set by hand: its own dialog opens. A flag that is read only says so in the status line.
+def askScheduleFlag(state, row):
+    flag = row.get("flag") if row else None
+    if flag is None:
+        return ""
+    name = flag[0]
+    state.answer = None
+    if name in SCHEDULE_OVERRIDABLE:
+        openDialog(state, "schedule-override",
+                   {"about": {"lines": [("flag", "%s, now %s" % (name, flag[1])), SCHEDULE_WRITE_SAYS["override"]]}},
+                   {"name": name, "viewKey": viewKeyOf(state)}, "Set %s" % name)
+    elif name == "worktime":
+        openDialog(state, "schedule-worktime", {"about": {"lines": [("flag", "worktime"), SCHEDULE_WRITE_SAYS["worktime"]]}},
+                   {"name": name, "viewKey": viewKeyOf(state)}, "Set the worktime")
+    elif name == "weekend":
+        openDialog(state, "schedule-weekend", {"about": {"lines": [("flag", "weekend"), SCHEDULE_WRITE_SAYS["weekend"]]}},
+                   {"name": name, "viewKey": viewKeyOf(state)}, "Set the weekend")
+    else:
+        return "%s: this flag is set nowhere by hand" % name
+    return ""
+
+
+## Set, Clear or Save: the operation is asked once, with the words the dialog holds. A value it refuses is refused by it, and nothing is stored.
+def submitScheduleFlag(state, dialog, button):
+    about = dialog["about"]
+    name = about["name"]
+    if name in SCHEDULE_OVERRIDABLE and button == "clear":
+        words = callWords("schedule-override") + ["--no", name]
+        said = "cleared %s" % name
+    elif name in SCHEDULE_OVERRIDABLE:
+        ttl = dialogValue(dialog, "ttl").strip()
+        words = callWords("schedule-override") + [name] + ([ttl] if ttl else [])
+        said = "set %s" % name
+    elif name == "worktime":
+        words = callWords("schedule-worktime") + [dialogValue(dialog, "start").strip(), dialogValue(dialog, "until").strip(), dialogValue(dialog, "days").strip()]
+        said = "saved the worktime"
+    else:
+        words = callWords("schedule-weekend") + [dialogValue(dialog, "days").strip()]
+        said = "saved the weekend"
+    closeDialog(state)
+    askCall(state, "schedule", name, words, None, {"viewKey": about["viewKey"], "says": said})
+    state.notice = "asked of the tooling: %s" % said
+    state.noticeOf = None
+    return None
+
+
+## What the operation printed, for the left pane and the status line: its `<setting>: <value>` line, or its flag's own line.
+def scheduleFlagAnswer(text, about, width):
+    said = [line for line in text.splitlines() if line.strip()]
+    facts = [tuple(line.split(": ", 1)) for line in said if ": " in line]
+    return "the schedule", fieldLines(facts or [("output", " ".join(said) or "-")], width), about.get("says", "asked")
+
+
+DIALOG_HANDLERS["schedule-override"] = submitScheduleFlag
+DIALOG_HANDLERS["schedule-worktime"] = submitScheduleFlag
+DIALOG_HANDLERS["schedule-weekend"] = submitScheduleFlag
+ACTION_HANDLERS["scheduleflag"] = askScheduleFlag
+ACTION_FITS["scheduleflag"] = lambda state, row: bool(row and row.get("flag"))
+ACTION_REFUSALS["scheduleflag"] = lambda state, row: "that is no flag of the schedule"
+ACTION_ANSWERS["schedule"] = scheduleFlagAnswer
+
+
 def scheduleFocus(state, row):
     return scheduleSummary(state, state.path, row, {})
 
@@ -179,4 +270,10 @@ registerPlugin({
         ## the flags, the next switch and the week, as the tooling gives them; the routines are read beside them (their autorun)
         "list:schedule": {"operation": ["--manager-schedule-read"], "rows": "schedule", "also": ("list:@routines",)},
     },
+    "commands": (
+        ## Enter on a flag opens its own dialog, and that dialog calls the write arm which owns it
+        {"name": "schedule-flag", "keys": ("ENTER",), "menu": ("view", 3), "label": "~S~et the flag", "status": "Set", "window": "list",
+         "views": ("schedule",), "for": "a flag of the schedule", "on": ("schedule:record",), "only": True, "enters": True, "says": "set",
+         "does": ("action", "scheduleflag")},
+    ),
 })

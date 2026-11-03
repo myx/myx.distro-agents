@@ -477,13 +477,14 @@ AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder
 ## again after a cache-keep, a demand or a tag posts into its thread and opens no new header in the team channel. The first start,
 ## and one after the proxy refused the join (the session is no longer known), starts a session and keeps its id.
 AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
-	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile=""
+	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile="" spawnDayFirst=""
 	shift
 	case "$spawnKey" in
 		work-duty.?*)
 			spawnDutyFile="$MMDAPP/.local/agents/schedule/duty-session/${spawnKey#work-duty.}"
 			[ ! -s "$spawnDutyFile" ] || IFS= read -r spawnDutySession < "$spawnDutyFile" || spawnDutySession=""
 			case "$spawnDutySession" in ''|*[!A-Za-z0-9._-]*) spawnDutySession="" ;; esac
+			spawnDayFirst="$( AgentsToolsScheduleDayFirst ask )"
 		;;
 	esac
 	mkdir -p "$spawnStore" 2> /dev/null || return 1
@@ -491,10 +492,12 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 	( set -C ; : > "$spawnStore/$spawnKey" ) 2> /dev/null || return 1
 	(
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		spawnOut="$( DistroAgentsTools --spawn-session ${spawnDutySession:+--join-session "$spawnDutySession"} "$@" 2>&1 < /dev/null )" ; spawnRc=$?
+		spawnOut="$( MDAT_SPAWN_DAY_FIRST="$spawnDayFirst" DistroAgentsTools --spawn-session ${spawnDutySession:+--join-session "$spawnDutySession"} "$@" 2>&1 < /dev/null )" ; spawnRc=$?
 		if [ -n "$spawnDutyFile" ] ; then
 			if [ "$spawnRc" = 0 ] ; then
 				spawnDutySession="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
+				## The day is open from this start on, so no other duty start that day posts the greeting.
+				[ "$spawnRc" != 0 ] || AgentsToolsScheduleDayFirst record
 				if [ -n "$spawnDutySession" ] ; then mkdir -p "${spawnDutyFile%/*}" 2> /dev/null && printf '%s\n' "$spawnDutySession" > "$spawnDutyFile" ; fi
 			elif printf '%s\n' "$spawnOut" | LC_ALL=C grep -q -F 'refusing to join' ; then
 				rm -f "$spawnDutyFile"
@@ -971,6 +974,22 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 	fi
 	[ -n "$lifeLimit" ] && [ "$lifeIdle" -ge "$lifeLimit" ] || return 0
 	AgentsToolsScheduleDismiss "$lifeRecord" "$lifeWhy"
+}
+
+## The day a duty's greeting is owed on, in the clock worktime reads (MDAT_SCHEDULE_TIMEZONE, host-local where none is set).
+## `ask` prints `yes` where no duty start has opened that day yet and `no` where one has; `record` opens it.
+AgentsToolsScheduleDayFirst(){ ## ask|record
+	local dayVerb="$1" dayClock dayNow dayInto dayStart dayStore="$MMDAPP/.local/agents/schedule/day-first"
+	dayClock="$( AgentsToolsScheduleClock )"
+	dayNow="${dayClock%% *}" ; dayInto="${dayClock##* }"
+	case "$dayNow:$dayInto" in *[!0123456789:]*) return 0 ;; esac
+	dayStart=$(( dayNow - dayInto ))
+	if [ "$dayVerb" = "record" ] ; then
+		mkdir -p "${dayStore%/*}" 2> /dev/null && printf '%s\n' "$dayStart" > "$dayStore" 2> /dev/null
+		return 0
+	fi
+	[ "$( cat "$dayStore" 2> /dev/null )" = "$dayStart" ] && printf 'no\n' || printf 'yes\n'
+	return 0
 }
 
 ## The work-duty sessions by the flags (epic 1758-1763): a standing member holds one during worktime, magic-coordinator during worktime,

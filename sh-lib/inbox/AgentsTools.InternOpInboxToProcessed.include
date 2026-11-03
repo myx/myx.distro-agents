@@ -296,6 +296,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## An edit of an already-marked item can leave the bytes as they were.
+		local bytesSame="false"
+		[ "$sourcePath" != "$targetPath" ] || [ "$( cat "$sourcePath" )" != "$body" ] || bytesSame="true"
+
 		## Through a temp file beside the target and a rename, so a failed write
 		## never leaves a half-written item. The temp name is a dotfile not ending
 		## in .md, so no `*.md` inbox scan can ever see it. Split, the marked item
@@ -318,36 +322,20 @@ case "$1" in
 			echo "# $MDSC_CMD: inbox-to-processed: marked ${sourcePath#"$inboxDirResolved"/} processed in place" >&2
 		fi
 
-		## Commit gate: .git presence in the team-data root, presence only --
-		## this op never pushes. One path: the item itself, edited in place.
+		## One path: the item itself, edited in place. The commit and the push are the team-data thread's (AgentsToolsTeamDataCommitPaths): this op writes files.
 		local repoRoot=""
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 		if [ -n "$repoRoot" ] ; then
+			if [ "$bytesSame" = "true" ] ; then
+				echo "# $MDSC_CMD: inbox-to-processed: ${targetPath#"$MDAT_DATA_ROOT"/} unchanged, nothing to commit" >&2
+				return 0
+			fi
 			local ctxForMsg="$opContext"
 			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-inbox-to-processed" ; fi
 			local commitPaths=( "$targetPath" )
 			[ "$targetPath" = "$sourcePath" ] || commitPaths+=( "$sourcePath" )
-			local gitOut="" gitRc=0
-			gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
-				set +e ; return 1
-			fi
-			## An edit of an already-marked item can leave the bytes as they were;
-			## a commit of nothing would fail the op after a successful write.
-			if git -C "$repoRoot" diff --cached --quiet -- "${commitPaths[@]}" 2>/dev/null ; then
-				echo "# $MDSC_CMD: inbox-to-processed: ${targetPath#"$MDAT_DATA_ROOT"/} unchanged, nothing to commit" >&2
-				return 0
-			fi
-			gitOut="$( git -C "$repoRoot" commit -m "* processed: $ctxForMsg" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
-			if [ "$gitRc" -ne 0 ] ; then
-				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
-				set +e ; return 1
-			fi
-			echo "# $MDSC_CMD: inbox-to-processed: committed ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
-			## Every sync pushes (sketch 9.2): this commit goes out here, and a push that cannot is its own warning.
-			type AgentsToolsTeamDataPushIfAhead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataPushIfAhead "inbox-to-processed"
+			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataCommitPaths "processed: $ctxForMsg" "${commitPaths[@]}"
 		fi
 
 		## THE REPLY: an inquiry that asked for its outcome (`reply-requested: yes`) and is not a librarian update request

@@ -93,6 +93,19 @@ AgentsToolsOwnerSetupOptionSpec(){
 		CONFLUENCE_SPACE)
 			printf '%s\n' 'magic-team|<space-key>|plain|the key of the Confluence space the team keeps as its own place, as in its URL after /spaces/. Each member reaches it with its own CONFLUENCE_SITE, CONFLUENCE_USER and CONFLUENCE_API_TOKEN. A value set in a member scope wins for that member alone.'
 		;;
+		## What a workspace reflects, and what it does not (S17 item 2): one compound value over
+		## two closed lists, and `none` for both halves off. An unset key reads as none.
+		REFLECT_MODELS)
+			printf '%s\n' 'magic-team|<board>+<documents>|plain|the pair of mechanisms this workspace mirrors to, as <board>+<documents>: the board half is none, jira or trello, and the documents half is none, confluence or google-docs. The word none alone is none+none, and unset reads as none. A half named here and missing its keys is a fault the console, --config-check and the mirror each report; a token with no half is no fault.'
+		;;
+		## The place each reflecting half writes into, kept apart from the model so a place
+		## may change without changing the model (S17 item 2).
+		REFLECT_JIRA_PROJECT)
+			printf '%s\n' 'magic-team|<project-key>|plain|the Jira project the board half mirrors board items into, as the key in its own URLs. Read only while REFLECT_MODELS names the jira half.'
+		;;
+		REFLECT_TRELLO_BOARD)
+			printf '%s\n' 'magic-team|<board-id>|plain|the Trello board the board half mirrors board items into, as the id in its own URLs. Read only while REFLECT_MODELS names the trello half.'
+		;;
 		TEAM_DATA_DIRECTORY)
 			printf '%s\n' 'magic-coordinator|<abs-path>|plain|the directory holding the board and the inboxes. Left unset it is .local/agents/team-data-root inside this workspace; set it only to share team data between workspaces. Any path this account can write to; it is created on first use.'
 		;;

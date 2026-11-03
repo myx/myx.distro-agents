@@ -21,6 +21,8 @@
 ##   5. WHAT THE QUESTION SAYS, and that it is recorded as every decision is: its record open, its number emoji placed.
 ##   6. A POST THAT FAILS is tried again and asked once. A POST THAT HANGS holds no tick and is ended at its bound.
 ##   7. WHO SPEAKS: a death the thread keeps is the thread's while it lives, and a death it told is told by no other.
+##   8. A RUN PARKED ON ITS HANDBACK OR DISMISSED IS NOT DEAD (S6.34): its handback is its result, so its record
+##      is closed as an ordered end and no line, note or question is made about it.
 ## Red before the change: every assertion but the controls. Offline: a curl first on PATH answers as Slack and opens
 ## no socket; a ps beside it lists the rig's runs only, stand-in processes, never a real CLI. Every thread, post and
 ## stand-in this check starts is ended by it, through the rig's helpers.
@@ -350,8 +352,38 @@ killed-by: rig
 killed-at: 2026-10-13T06:10:00Z
 "
 rigOne d-killed ; rigOne d-killed ; rigOne d-killed
-rigAssert "a run the console killed is no death: none recorded, no state, nothing posted" \
-	"$rigRc:$( rigDeadLines d-killed ):[$( rigState d-killed )]:$( rigPosts '`d-killed`' | LC_ALL=C grep -c . )" "0:0:[]:0"
+## The thread closes that record as an ordered end, so the session of a run it was the last of reads
+## finished: the close is what the state file then says, and no death, note or question is made.
+rigAssert "a run the console killed is no death: none recorded, nothing posted, and its record closed as an ordered end" \
+	"$rigRc:$( rigDeadLines d-killed ):[$( rigState d-killed )]:$( rigPosts '`d-killed`' | LC_ALL=C grep -c . ):$( rigHeader d-killed status )" "0:0:[finished]:0:spawn-ended-without-close"
+
+## S6.34: a run the harness ended on its handback is not dead. It parked on its handback, or it was
+## dismissed and gave one, and the harness leaves its record as it was: the handback is already its
+## result, so no line is recorded, no question raised, and its record is closed as an ordered end.
+rigItem item-park d-park human-owner
+rigRec d-park d-park keeper-rig spawn-started "supervisor-process: $rigGoneShell
+spawns: item-park
+"
+mkdir -p "$rigStores/d-park" ; date +%s > "$rigStores/d-park/parked"
+rigOne d-park ; rigOne d-park
+rigAssert "a run parked on its handback, its process gone and its record open, is no death: no line, no question, and its record is closed" \
+	"$( rigDeadLines d-park ):$( rigPosts '`d-park`' | LC_ALL=C grep -c . ):$( rigHeader d-park status )" "0:0:spawn-ended-without-close"
+rigItem item-dism d-dism human-owner
+rigRec d-dism d-dism keeper-rig spawn-started "supervisor-process: $rigGoneShell
+spawns: item-dism
+"
+mkdir -p "$rigStores/d-dism" ; date +%s > "$rigStores/d-dism/dismissed" ; : > "$rigStores/d-dism/dismissed.handback"
+rigOne d-dism ; rigOne d-dism
+rigAssert "a run dismissed after giving its handback, its process gone and its record open, is no death either: no line, no question, and its record is closed" \
+	"$( rigDeadLines d-dism ):$( rigPosts '`d-dism`' | LC_ALL=C grep -c . ):$( rigHeader d-dism status )" "0:0:spawn-ended-without-close"
+## The control: the same record shape with no mark on it is still a death.
+rigItem item-nomark d-nomark human-owner
+rigRec d-nomark d-nomark keeper-rig spawn-started "supervisor-process: $rigGoneShell
+spawns: item-nomark
+"
+rigOne d-nomark
+rigAssert "control: the same run with neither mark is a death, one line recorded" \
+	"$( rigDeadLines d-nomark )" "1"
 
 echo "-- 2. a record that names no supervising shell is given its closing time --"
 rigItem item-old d-old human-owner

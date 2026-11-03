@@ -907,7 +907,8 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		threadSince="$threadLive" ; threadLive="$threadQuestion" ; threadAlso=""
 	fi
 	if [ "$threadRc" = "0" ] ; then
-		threadAnswers="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" <<< "$threadWork" 2>/dev/null \
+		threadAnswers="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" <<< "$threadWork" 2>/dev/null \
 			| LC_ALL=C awk -v rootTs="$threadLive" -v alsoTs="$threadAlso" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" -v tag="${threadStanding%%$'\t'*}" -v threadCount="${threadStanding#*$'\t'}" -v others="$threadOthers" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadFilterRc=$?
 		## A rendering that does not hold the question's own message is not known to be its

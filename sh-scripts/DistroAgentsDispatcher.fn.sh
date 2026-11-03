@@ -126,10 +126,9 @@ DistroAgentsDispatcher(){
 		## The runs this session may see, bound to the session of the call (ThisSession): its sub-sessions, the public
 		## coworking sessions and the caller's own -- never another member's private session, unless the call is made in it.
 		--list-session-runs)
-			local runsOp="$1"
 			shift
-			DistroAgentsDispatcherTools
-			AgentsToolsDispatcherListRuns "$runsOp" "$@"
+			type AgentsToolsThisSessionRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
+			AgentsToolsThisSessionRuns "$@"
 			return $?
 		;;
 

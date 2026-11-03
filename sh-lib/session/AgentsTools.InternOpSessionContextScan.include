@@ -367,6 +367,9 @@ case "$1" in
 				fi
 
 				if [ -n "$owner" ] ; then
+					## A file that has left its state folder since it was listed is skipped, exactly as the
+					## per-item read below skips it: housekeeping moves a running item to review on every handback.
+					[ -f "$f" ] || continue
 					ownerVal="$( LC_ALL=C awk '/^owner: / { sub(/^owner: /, "") ; print ; exit }' "$f" )"
 					[ "$ownerVal" = "$owner" ] || continue
 				fi
@@ -959,7 +962,8 @@ case "$1" in
 							[ -z "$parseBlocks" ] || printf '%s' "$parseBlocks" > "$sourcePrefetchDir/blocks.$1"
 							## Fresh targets carry their latest reply, for the display cap
 							## below; known-stale ones are kept apart -- see that awk.
-							if parseFound="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -v channel="$fetchChannel" -v oldest="$cutoffEpoch" -v vaneId="$ownSlackId" -v stale=1 -v latest=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackHistoryThreadTargets.awk" )" ; then
+							if parseFound="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -v channel="$fetchChannel" -v oldest="$cutoffEpoch" -v vaneId="$ownSlackId" -v stale=1 -v latest=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+							-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackHistoryThreadTargets.awk" )" ; then
 								if [ -n "$parseFound" ] ; then
 									printf '%s\n' "$parseFound" | LC_ALL=C awk -v stalePath="$sourcePrefetchDir/stale.$1" '$1 == "stale" { print $2 > stalePath ; next } { print }' | sort -u > "$sourcePrefetchDir/threads.$1"
 								fi
@@ -1810,12 +1814,32 @@ case "$1" in
 		if [ ${#matchedFiles[@]} -gt 0 ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
 			boardTokenRows="$( AgentsSessionTokensRollupRows "${matchedFiles[@]##*/}" 2>/dev/null )"
 		fi
+		## ONE READING OF THE TYPE TABLE AND OF THE SPAWN TREE FOR THE WHOLE SCAN. Each item below asks the handler
+		## twice, and without these every one of them re-derives the table and re-walks .local/agents/spawned: over a
+		## 266-item board that was 28 seconds of the scan's own work. The snapshot is taken here, once, so every item
+		## of one scan answers against the same reading. Both are the opt-in overrides of AgentsTools.BoardItemHandler.
+		local boardTypeTable boardLiveHolders
+		if [ ${#matchedFiles[@]} -gt 0 ] ; then
+			type AgentsToolsBoardTypeTable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+			boardTypeTable="$( AgentsToolsBoardTypeTable )" || boardTypeTable=""
+			boardLiveHolders="$( AgentsToolsBoardLiveHolders )" || boardLiveHolders=""
+		fi
+		local AGENTS_BOARD_TYPE_TABLE_CACHE="$boardTypeTable" AGENTS_BOARD_LIVE_HOLDERS_CACHE="$boardLiveHolders"
+		export AGENTS_BOARD_TYPE_TABLE_CACHE AGENTS_BOARD_LIVE_HOLDERS_CACHE
 		mi=0
 		while [ "$mi" -lt "${#matchedFiles[@]}" ] ; do
 			f="${matchedFiles[$mi]}"
 			state="${matchedStates[$mi]}"
 			mi=$(( mi + 1 ))
 			base="${f##*/}"
+			## AN ITEM THAT MOVED OR CANNOT BE READ IS NAMED AND SKIPPED, never a dead scan. A handback moves a running
+			## item to review, and housekeeping does it while a scan is walking the states, so the file listed here is
+			## gone from here. Every read below would then fail, and under the dispatcher's `set -e` the first of them
+			## ends the whole scan -- which is how one ordinary move cost the coordinator its entire sweep.
+			if [ ! -r "$f" ] ; then
+				printf '**NOTE:** item not read -- %s/%s is no longer a readable file in that state folder, so this item is skipped and every other section of this scan stands\n\n' "$state" "$base"
+				continue
+			fi
 
 			printf '## %s/%s\n' "$state" "$base"
 			## An item the scan was named for (one task's own input) shows its Decisions first: they bind it.

@@ -3,6 +3,9 @@
 
 ## AgentsHarnessToolsFile.include: the file tools: Read, Write, Edit, Glob, Grep. Sourced by AgentsUniversalHarness.sh, definitions only.
 
+## The document-contract guard's one decision function, shared by the Write and Edit doors here and by the native hook.
+type AgentsToolsDocGuardDecide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocGuard.include"
+
 ## Digits only, by explicit enumeration: a bracket range is collation-dependent.
 AgentsHarnessWholeNumber(){
 	local scanRest="$1" scanChar
@@ -252,6 +255,9 @@ AgentsHarnessToolWriteRun(){
 	if AgentsHarnessWriteExcluded "$toolPath" ; then
 		AgentsHarnessRefusal Write "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0
 	fi
+	if ! AgentsToolsDocGuardDecide "$toolPath" "$( [ ! -e "$toolPath" ] || cat -- "$toolPath" 2>/dev/null )" "$toolContent" harness ; then
+		printf 'ERROR: the document-contract guard refused the write of %s -- nothing was written\n' "$toolPath" ; return 0
+	fi
 	## Held for approval: nothing is written. The change is kept and shown instead.
 	if [ -n "$toolHeld" ] ; then
 		if ! printf '%s' "$toolContent" > "$harnessScratch/change.result" || { [ -e "$toolPath" ] && ! cp "$toolPath" "$harnessScratch/change.base" 2>/dev/null ; } ; then
@@ -424,6 +430,9 @@ AgentsHarnessToolEditRun(){
 		editsSource="$editsOut" ; editsOut="$editsSpare" ; editsSpare="$editsSource"
 		editsIndex=$(( editsIndex + 1 ))
 	done
+	if ! AgentsToolsDocGuardDecide "$toolPath" "$( cat -- "$toolPath" 2>/dev/null )" "$( cat "$editsSource" )" harness ; then
+		printf 'ERROR: the document-contract guard refused the edit of %s -- nothing was written\n' "$toolPath" ; return 0
+	fi
 	## Held for approval: nothing reaches the file. The change is kept and shown instead, with
 	## the file as it stands under the lock, which is what the change was worked out from.
 	if [ -n "$toolHeld" ] ; then

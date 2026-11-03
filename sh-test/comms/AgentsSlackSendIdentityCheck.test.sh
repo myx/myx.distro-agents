@@ -46,7 +46,7 @@ rigSend(){ ## member, target, send options...
 	: > "$rigTmp/calls"
 	local sendOut=""
 	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --slack-send-message "$1" "$2" "${@:3}" RIG-BODY-MARKER 2>&1 )" \
+		bash "$rigTool" --slack-send-message --team-member "$1" "$2" "${@:3}" RIG-BODY-MARKER 2>&1 )" \
 		|| { printf 'send-failed: %s' "$( printf '%s\n' "$sendOut" | grep 'ERROR' | head -1 )" ; return 0 ; }
 	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit }' "$rigTmp/calls"
 }
@@ -83,7 +83,7 @@ rigOwnerSend(){ ## member -- "<rc>:<tokens that posted>:<posts to the owner's ac
 	local ownerOut="" ownerRc=0
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 	ownerOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --slack-send-message "$1" human-owner RIG-BODY-MARKER 2>&1 )" || ownerRc=$?
+		bash "$rigTool" --slack-send-message --team-member "$1" human-owner RIG-BODY-MARKER 2>&1 )" || ownerRc=$?
 	printf '%s:%s:%s:%s' "$ownerRc" "$( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s%s", sep, $2 ; sep = "," }' "$rigTmp/calls" )" \
 		"$( LC_ALL=C grep -c -F '{"channel":"URIGOWNER",' "$rigTmp/bodies" )" "$( printf '%s\n' "$ownerOut" | LC_ALL=C grep -c "magic-coordinator's user account" )"
 }
@@ -97,7 +97,7 @@ rigAssert "user-<account>, a person at a console, is let send: one post, the tea
 	"$( rigOwnerSend user-rigacct )" "0:rig-bot-token-TEAM:1:0"
 rigAssert "and the post carries the account as its sender" "$( LC_ALL=C grep -c -F '"sender":"user-rigacct"' "$rigTmp/bodies" )" "1"
 rigAssert "a name that is no member, no routine and no account is refused: its skill folder is not there" \
-	"$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --slack-send-message nobody-rig magic-team RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'no such member skill directory' )" "1"
+	"$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --slack-send-message --team-member nobody-rig magic-team RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'no such member skill directory' )" "1"
 mv "$rigWs/.local/.agents/magic-coordinator.agent.env" "$rigTmp/coordinator.env.aside"
 rigAssert "magic-coordinator with no account of its own: the team bot's as well, never an error for want of a relay" \
 	"$( rigOwnerSend magic-coordinator )" "0:rig-bot-token-TEAM:1:0"
@@ -115,7 +115,7 @@ printf '28\n0\n' > "$rigTmp/post-exits"
 : > "$rigTmp/calls"
 rigSendRc=0
 rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-	bash "$rigTool" --slack-send-message keeper-myx magic-team --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
+	bash "$rigTool" --slack-send-message --team-member keeper-myx magic-team --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
 rigAssert "a timeout after the request left (curl 28) is not retried" "$( rigPostCount )" 1
 rigAssert "and the send fails" "$rigSendRc" 1
 rigAssert "and the send says whether it posted is unknown" \
@@ -130,7 +130,7 @@ rigAnswered(){ ## Slack's answers to the successive posts, one a line -- leaves 
 	: > "$rigTmp/calls"
 	rigSendRc=0
 	rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --slack-send-message keeper-myx CRIG00001:1700000000.000100 --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
+		bash "$rigTool" --slack-send-message --team-member keeper-myx CRIG00001:1700000000.000100 --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
 	rm -f "$rigTmp/post-errors"
 }
 rigAnswered invalid_thread_ts ok
@@ -146,7 +146,7 @@ rigAddressed(){ ## address -- "<rc>:<posts>:<lines of the refusal that hold the 
 	local addressOut="" addressRc=0
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 	addressOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --slack-send-message keeper-myx "$1" --identity-bot RIG-BODY-MARKER 2>&1 )" || addressRc=$?
+		bash "$rigTool" --slack-send-message --team-member keeper-myx "$1" --identity-bot RIG-BODY-MARKER 2>&1 )" || addressRc=$?
 	printf '%s:%s:%s' "$addressRc" "$( rigPostCount )" "$( printf '%s\n' "$addressOut" | LC_ALL=C grep -c -F -- "$2" )"
 }
 rigAssert "a word in front of the conversation that is no driver is refused, with one line that says what to pass, and no call to Slack" \
@@ -169,36 +169,36 @@ rigOpAs(){ ## acting member (empty: none), op and arguments... -- stdout and std
 }
 rigSendAs(){ ## acting member, send op, member, target -- the token it posted under, or refused
 	local sendOut
-	sendOut="$( rigOpAs "$1" "$2" "$3" "$4" RIG-BODY-MARKER )"
+	sendOut="$( rigOpAs "$1" "${@:2}" RIG-BODY-MARKER )"
 	case "$sendOut" in
 		*'this session acts as'*) printf 'refused, %s posted' "$( rigPostCount )" ; return 0 ;;
 	esac
 	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit }' "$rigTmp/calls"
 }
 rigAssert "a session sending as another member through --member-comms-* is refused" \
-	"$( rigSendAs keeper-myx --slack-send-message magic-coordinator magic-team )" "refused, 0 posted"
+	"$( rigSendAs keeper-myx --slack-send-message --team-member magic-coordinator magic-team )" "refused, 0 posted"
 rigAssert "control: the same session sending as itself posts under its own token" \
-	"$( rigSendAs keeper-myx --slack-send-message keeper-myx magic-team )" rig-user-token-KEEPER
+	"$( rigSendAs keeper-myx --slack-send-message --team-member keeper-myx magic-team )" rig-user-token-KEEPER
 rigAssert "the tooling's --intern-op-comms-* form sends as the member it names" \
 	"$( rigSendAs keeper-myx --intern-op-comms-slack-send-message magic-coordinator magic-team )" rig-user-token-COORD
 rigAssert "the coordinator's session acts as the member named, in the one operation" \
-	"$( rigSendAs magic-coordinator --slack-send-message keeper-myx magic-team )" rig-user-token-KEEPER
+	"$( rigSendAs magic-coordinator --slack-send-message --team-member keeper-myx magic-team )" rig-user-token-KEEPER
 rigAssert "control: the console sends as any member" \
-	"$( rigSendAs "" --slack-send-message magic-coordinator magic-team )" rig-user-token-COORD
+	"$( rigSendAs "" --slack-send-message --team-member magic-coordinator magic-team )" rig-user-token-COORD
 rigAssert "a scope declaration passes the stub from any session" \
 	"$( rigOpAs keeper-myx --slack-react --print-required-scopes | LC_ALL=C grep -c -x 'reactions:write' )" 1
 rigAssert "a react as another member is refused" \
-	"$( rigOpAs keeper-myx --slack-react magic-coordinator CRIG00001:1700000000.000100 eyes | LC_ALL=C grep -c -e 'this session acts as keeper-myx, so it cannot act as magic-coordinator' -e '^rc=1$' )" 2
+	"$( rigOpAs keeper-myx --slack-react --team-member magic-coordinator CRIG00001:1700000000.000100 eyes | LC_ALL=C grep -c -e 'this session acts as keeper-myx, so it cannot act as magic-coordinator' -e '^rc=1$' )" 2
 rigAssert "an email send as another member is refused before any connection" \
-	"$( rigOpAs keeper-myx --email-send magic-coordinator rig@example.org -- rig -- body | LC_ALL=C grep -c -e 'this session acts as keeper-myx' -e '^rc=1$' )" 2
+	"$( rigOpAs keeper-myx --email-send --team-member magic-coordinator rig@example.org -- rig -- body | LC_ALL=C grep -c -e 'this session acts as keeper-myx' -e '^rc=1$' )" 2
 rigAssert "a wait as another member is refused with its result line" \
-	"$( rigOpAs keeper-myx --wait-for-input magic-coordinator --wait-list-sources | LC_ALL=C grep -c -x -e 'WAIT-RESULT: ERROR' -e 'rc=1' )" 2
+	"$( rigOpAs keeper-myx --wait-for-input --team-member magic-coordinator --wait-list-sources | LC_ALL=C grep -c -x -e 'WAIT-RESULT: ERROR' -e 'rc=1' )" 2
 rigAssert "control: a wait as itself is not refused" \
-	"$( rigOpAs keeper-myx --wait-for-input keeper-myx --wait-list-sources | LC_ALL=C grep -c 'this session acts as' )" 0
+	"$( rigOpAs keeper-myx --wait-for-input --team-member keeper-myx --wait-list-sources | LC_ALL=C grep -c 'this session acts as' )" 0
 rigAssert "a digest as another member is refused, nothing posted" \
-	"$( rigOpAs keeper-myx --send-contact-digest magic-coordinator --resolved rig digest | LC_ALL=C grep -c -e 'this session acts as keeper-myx' -e '^rc=1$' ):$( rigPostCount )" "2:0"
+	"$( rigOpAs keeper-myx --send-contact-digest --team-member magic-coordinator --resolved rig digest | LC_ALL=C grep -c -e 'this session acts as keeper-myx' -e '^rc=1$' ):$( rigPostCount )" "2:0"
 rigAssert "an escalation read as another member is refused" \
-	"$( rigOpAs keeper-myx --read-escalation magic-coordinator rig-no-such-ask | LC_ALL=C grep -c -e 'this session acts as keeper-myx, so it cannot act as magic-coordinator' -e '^rc=1$' )" 2
+	"$( rigOpAs keeper-myx --read-escalation --team-member magic-coordinator rig-no-such-ask | LC_ALL=C grep -c -e 'this session acts as keeper-myx, so it cannot act as magic-coordinator' -e '^rc=1$' )" 2
 rigAssert "the tooling's --intern-op-escalation-read reads as the member it names" \
 	"$( rigOpAs keeper-myx --intern-op-escalation-read magic-coordinator rig-no-such-ask | LC_ALL=C grep -c -e 'this session acts as' -e 'no escalation record rig-no-such-ask' )" 1
 rigScopeOut="$( rigOpAs keeper-myx --member-config-option keeper-myx --select SLACK_USER_TOKEN )"

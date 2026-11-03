@@ -47,7 +47,12 @@ tool, ending with the apply report.
 
 # Opening steps
 
-None of its own: the Opening steps of the routine it inherits from run first (its session kind's, `magic-team.standalone.routine`).
+The Opening steps of the routine it inherits from run first (its session kind's, `magic-team.standalone.routine`). Then:
+
+1. **read-code-craft**: read both code references before any code is written, steps:
+   - `magic-developer/reference/code-craft.md`, whole.
+   - `magic-developer/reference/shell.md`, where the code is shell or awk.
+   - rule: both stand read on every run of this routine. A feature that changes no code reads them anyway, because the gate is judged against them.
 
 # Steps
 

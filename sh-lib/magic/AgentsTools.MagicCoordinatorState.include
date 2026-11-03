@@ -103,7 +103,9 @@ case "$1" in
 				--from-board|--from-vault|--from-audit) spawnDispatchDoc="reuse" ; break ;;
 			esac
 		done
-		DistroAgentsTools --intern-op-agent-spawn-proxy "$callingMember" "$@" --dispatch-doc:"$spawnDispatchDoc" --context --spawn-prompt
+		## The spawn proxy's own include, never the dispatcher: on a console DistroAgentsTools is
+		## no command (S6.24).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include" --intern-op-agent-spawn-proxy "$callingMember" "$@" --dispatch-doc:"$spawnDispatchDoc" --context --spawn-prompt
 		return $?
 	;;
 
@@ -113,7 +115,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --config-check: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-check-configs magic-coordinator \
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InternOpCheckConfigs.include" --intern-op-check-configs magic-coordinator \
 			--optional "EMAIL_IMAP_HOST:<host>" \
 			--optional "EMAIL_USER:<email-address>" \
 			--optional "EMAIL_APP_PASSWORD:<app-password>" \
@@ -124,7 +126,7 @@ case "$1" in
 			--expect-secret TRELLO_TOKEN \
 			--context --config-check
 		local configRc=$?
-		DistroAgentsTools --intern-op-check-configs magic-team \
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InternOpCheckConfigs.include" --intern-op-check-configs magic-team \
 			--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
 			--required "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
 			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
@@ -138,7 +140,7 @@ case "$1" in
 		## already answered; a setting is an override and is checked as one.
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 		if [ -n "$( AgentsToolsConfigOption magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
-			DistroAgentsTools --intern-op-check-configs magic-coordinator \
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InternOpCheckConfigs.include" --intern-op-check-configs magic-coordinator \
 				--optional "TEAM_DATA_DIRECTORY:<path>" \
 				--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
 				--context --config-check || configRc=1
@@ -147,12 +149,30 @@ case "$1" in
 			echo "  note: not set, so the team data is this workspace's own store"
 			echo "  path: $MDAT_DATA_ROOT"
 		fi
-		DistroAgentsTools --intern-op-check-configs magic-team \
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InternOpCheckConfigs.include" --intern-op-check-configs magic-team \
 			--optional "SLACK_BOT_TOKEN:<token>" \
 			--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 			--expect-secret SLACK_BOT_TOKEN \
 			--resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN \
 			--context --config-check || true
+		## The reflection setting, and the halves it names: one WARN naming the keys a chosen
+		## half lacks, and silence where the model is none or every chosen half is whole.
+		## A token with no half stays silent by design, and a WARN never gates this call.
+		type AgentsToolsReflectHalfLacks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ReflectSetting.include"
+		local stateReflectModel="" stateReflectLine=""
+		stateReflectModel="$( AgentsToolsConfigOption magic-team --select REFLECT_MODELS 2> /dev/null )" || stateReflectModel=""
+		if [ -n "$stateReflectModel" ] && ! AgentsToolsReflectModelsParse "$stateReflectModel" > /dev/null 2>&1 ; then
+			echo "REFLECT_MODELS: WARN"
+			echo "  warn: the stored value is neither none nor <board>+<documents> over the closed lists, so no half is read from it"
+			echo "  fix:  DistroAgentsTools.fn.sh --agents-config-option magic-team --upsert REFLECT_MODELS none"
+		elif [ -n "$stateReflectModel" ] ; then
+			while IFS= read -r stateReflectLine ; do
+				[ -n "$stateReflectLine" ] || continue
+				echo "REFLECT_MODELS: WARN"
+				echo "  warn: the ${stateReflectLine%% *} half is selected and this workspace lacks: $( printf '%s' "${stateReflectLine#* }" | LC_ALL=C sed 's/ /, /g' )"
+				echo "  fix:  DistroAgentsTools.fn.sh --owner-setup-reflection --apply"
+			done <<< "$( AgentsToolsReflectHalfLacks "$stateReflectModel" )"
+		fi
 		## The main loop's readiness floor, applied the same way here: the schedule starts sessions. The CLI service is
 		## the preset's of the tier, so a tier setting is what stands; the resolved CLI itself is shown beside it.
 		local stateCli=""
@@ -199,7 +219,7 @@ case "$1" in
 				echo "  fix:  replace SLACK_USER_TOKEN with a valid user token for her own Slack account"
 			fi
 		fi
-		DistroAgentsTools --intern-op-slack-check-scopes magic-coordinator \
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" --intern-op-slack-check-scopes magic-coordinator \
 			--scope-source --slack-send-message \
 			--scope-source AgentsToolsSlackCheck \
 			--scope-source --slack-read \
@@ -542,7 +562,7 @@ case "$1" in
 			printf '\nActive and blocked items:\n\n'
 			AgentsToolsBoardActiveItems | sed 's/^/- /'
 		)"
-		printf '%s\n' "$reportBody" | DistroAgentsTools --intern-op-comms-email-send "$callingMember" "$reportTo" -- "$reportSubject" -- --text-group report --from-stdin || {
+		printf '%s\n' "$reportBody" | { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include" --intern-op-comms-email-send "$callingMember" "$reportTo" -- "$reportSubject" -- --text-group report --from-stdin ; } || {
 			echo "⛔ ERROR: $MDSC_CMD --send-report: the send failed, so last-test-email-sent is not stamped" >&2
 			set +e ; return 1
 		}

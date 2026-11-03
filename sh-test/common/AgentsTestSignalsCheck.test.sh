@@ -264,6 +264,8 @@ rigList(){
 		'harness/AgentsHarnessAskCheck.test.sh|1|kill -TERM -- "-$askPid"|@probed' \
 		'harness/AgentsHarnessAskCheck.test.sh|1|kill -KILL -- "-$askPid"|@probed' \
 		'harness/AgentsHarnessAskForgedMarkCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
+		'comms/AgentsSlackJsonReadTimeCheck.test.sh|1|kill -9 "$timedPid" 2> /dev/null|@probed' \
+		'comms/AgentsSlackJsonReadTimeCheck.test.sh|2|pkill -f "$rigSleep" 2> /dev/null|@own-path' \
 		'harness/AgentsHarnessAskForgedMarkCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
 		'harness/AgentsHarnessAskFormsCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
 		'harness/AgentsHarnessAskFormsCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
@@ -386,8 +388,6 @@ rigList(){
 		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill "$rigParentPid" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the parent loop started a few lines above by this check, read by a command substitution of $!, with no start kept beside it to recheck' \
 		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill "$rigChildPid2" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same gap as rigChildPid above, for this scenes own second child' \
 		'session/AgentsSpawnSessionParentCheck.test.sh|1|kill "$rigParentPid2" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same gap as rigParentPid above, for this scenes own second parent loop' \
-		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$endOne" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a trap-time sweep of every child pid this check started, each read by $! when it began, with no start kept beside any of them to recheck' \
-		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$( cat "$rigKidsAt/$1.pid" )" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the pid a child wrote to its own file the moment it began, read back and signalled with no start kept beside it to recheck' \
 		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$waitPid" 2>/dev/null ; sleep 2 ; kill -KILL "$waitPid"|@probed' \
 		'session/AgentsWaitChildSourcesCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
 }
@@ -430,6 +430,8 @@ rigToolingList(){
 		'sh-lib/comms/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
 		'sh-lib/comms/AgentsTools.MemberCommsSlackPresence.include|1|pkill -USR1 -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
 		'sh-lib/comms/AgentsTools.MemberCommsSlackSocket.include|1|pkill -TERM -f "$socketMatch"|a sweep by the command line of the tooling'"'"'s own socket receiver for one app: no pid is kept, and whatever else carries that on its command line is reached too' \
+		'sh-lib/comms/AgentsTools.CommsSlack.include|2|kill -TERM "$boundPid" 2> /dev/null|@probed' \
+		'sh-lib/comms/AgentsTools.CommsSlack.include|2|kill -KILL "$boundPid" 2> /dev/null|the hard end of the same read, a second after the polite one: a read this shell started and has watched at every turn of its loop since, so the number is its own' \
 		'sh-lib/session/AgentsTools.SessionControlDeath.include|1|kill -TERM -- "-$postPid"|@probed' \
 		'sh-lib/session/AgentsTools.SessionControlDeath.include|1|kill -KILL -- "-$postPid"|@probed' \
 		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|= "$wakeLine" ] && kill -USR1 "$wakePid"|the wake of a control thread, which holds USR1 and ends nothing on it: the pid its pid file names, kept there with when it began by one rename, and signalled only while that pid is still the process that began then (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal; before it the command line of that process is read as the thread of that session, never a call of one tick, and its file of what it takes names the kind, which a thread empties before its shell is replaced' \
@@ -559,7 +561,7 @@ printf '%s\n' 'Self.test.sh|0|nothing of this check is listed|whatever it signal
 rigAssert "this check itself sends no signal outside the helper" "$( cd "$rigTmp" && rigGuard "$rigTmp/self.list" Self.test.sh )$( LC_ALL=C grep -c 'rigProcSignal' "$rigTmp/Self.test.sh" | LC_ALL=C awk '{ print ( $1 > 5 ) ? "" : " and too few through the helper: " $1 ; }' )" ""
 
 echo "-- 3. the same guard over the tooling: every signal of sh-lib, sh-scripts and builders is on its own list --"
-( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output -type f ! -name '*.md' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
+( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output -type f ! -name '*.md' ! -name '*.keep' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
 rigAssert "control: the files of the tooling are read, the harness, the spawn proxy, the console template and the builders among them, and none has a space in its name" \
 	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/tooling.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/tooling.files" || : )" "many 5 0"
 rigToolingOut="$( cd "$rigPackage" && rigGuard "$rigTmp/tooling.list" $( cat "$rigTmp/tooling.files" ) )"
