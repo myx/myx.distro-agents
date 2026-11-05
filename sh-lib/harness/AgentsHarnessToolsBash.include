@@ -5,6 +5,8 @@
 ## A call's two streams are joined as they are written unless the caller asks for `output_mode=prefixed`; then stdout and stderr are kept apart and each
 ## line is marked `>` for stdout and `!` for stderr, the rendering a detached read already gives (sketch 3.3).
 
+type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+
 ## A detached process's handle must be unique for the whole SESSION, not for one harness
 ## process: the counter this used to be kept in a shell variable reset in every served call, so
 ## two detaches in one session both came back as process-1 and the second one's files overwrote
@@ -120,13 +122,14 @@ AgentsHarnessProcessReporter(){ ## processes dir, handle, wrapper pid, thread, a
 		fi
 	done
 	repLines="$( AgentsHarnessProcessRender "$repDir" "$repHandle" "" "" 2> /dev/null | tail -n 20 )"
+	## The output follows the sentence as quoted data in a fence. Every rendered line starts with > or !, so no line the
+	## process wrote can close that fence early.
+	[ -z "$repLines" ] || repLines="Last lines of its output, > for stdout and ! for stderr:"$'\n'$'```'$'\n'"$repLines"$'\n'$'```'
 	if [ "$repEnd" = status ] ; then
 		repStatus="$( cat "$repDir/$repHandle.status" 2> /dev/null )"
-		AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "$repCaller" "Process $repHandle ended with exit status $repStatus." "${repLines:+Last lines of its output, > for stdout and ! for stderr:
-$repLines}"
+		AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "$repCaller" "Process $repHandle ended with exit status $repStatus." "$repLines"
 	else
-		AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "$repCaller" "Process $repHandle is gone and left no exit status." "${repLines:+Last lines of its output, > for stdout and ! for stderr:
-$repLines}"
+		AgentsHarnessProcessPost "$repDir" "$repHandle" "$repThread" "$repCaller" "Process $repHandle is gone and left no exit status." "$repLines"
 	fi
 	return 0
 }
@@ -147,7 +150,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		prefixed) ;;
 		*) printf 'ERROR: output_mode must be merged or prefixed, got: %s. Nothing was run.\n' "$toolOutputMode" ; return 0 ;;
 	esac
-	local processSession processDir processPid processTotal processCaps processWaited processOutBytes processErrBytes processCloseTmp processReportThread processReportNote processBegan processMine
+	local processSession processDir processPid processStatus processTotal processCaps processWaited processOutBytes processErrBytes processCloseTmp processReportThread processReportNote processBegan processMine
 	## A handle alone names a process this session started detached: read it, or stop it.
 	if [ -n "$toolHandle" ] ; then
 		case "$toolHandle" in
@@ -242,7 +245,16 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		if [ -f "$processDir/$toolHandle.closed" ] ; then
 			printf 'This process was stopped by you, so its output is closed where it stands.\n'
 		elif [ -f "$processDir/$toolHandle.status" ] ; then
-			printf 'This process ENDED with exit status %s, so its output is complete.\n' "$( cat "$processDir/$toolHandle.status" 2>/dev/null )"
+			read -r processStatus < "$processDir/$toolHandle.status" 2>/dev/null || processStatus=0
+			## A STATUS OF 128 OR MORE IS A SIGNAL DEATH, never a result the process chose (S6.47): 128+N is how a
+			## shell records being ended by signal N, so the output stops where that signal caught it. Said as ended
+			## by a signal, and never as complete, with the reason the handle carries said beside it.
+			if [ "$processStatus" -ge 128 ] 2>/dev/null ; then
+				printf 'This process was ENDED BY A SIGNAL (exit status %s), so its output stops where that signal caught it and may be incomplete.\n' "$processStatus"
+				[ ! -s "$processDir/$toolHandle.ceiling" ] || printf 'The reason its handle carries: %s.\n' "$( cat "$processDir/$toolHandle.ceiling" 2>/dev/null )"
+			else
+				printf 'This process ENDED with exit status %s, so its output is complete.\n' "$processStatus"
+			fi
 		elif [ -n "$processPid" ] && kill -0 "$processPid" 2>/dev/null ; then
 			printf 'This process is STILL RUNNING, so its output is still being written: what follows is what exists so far. Watch it with Wait sources=process:%s, which returns as its output grows.\n' "$toolHandle"
 		else
@@ -402,10 +414,10 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	printf '(exit status %s)\n' "$toolStatus"
 }
 AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
-	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	## S19.2: a command is held at its EXIT, so it ran and its result waits for the pause to end.
 	local pauseRc=0
 	AgentsHarnessToolBashRun "$@" || pauseRc=$?
-	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	AgentsToolsSessionPauseWait
 	return "$pauseRc"
 }
 
@@ -465,9 +477,10 @@ AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 	printf '(exit status %s)\n' "$toolStatus"
 }
 AgentsHarnessToolWorkspaceContextExecute(){ ## command, workspace, timeout
-	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	## S19.2: a workspace command is held at its EXIT, so it ran and its result waits for the pause to end. The start-check that
+	## refuses instead is `execute`'s own, in the tooling (--intern-mcp-execute), and not this tool's.
 	local pauseRc=0
 	AgentsHarnessToolWorkspaceContextExecuteRun "$@" || pauseRc=$?
-	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	AgentsToolsSessionPauseWait
 	return "$pauseRc"
 }

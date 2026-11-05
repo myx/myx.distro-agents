@@ -114,10 +114,10 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--retro-lock-refresh`
+- `--retro-lock-refresh` (`AgentDispatcherTools`)
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-note <team-member> <item-filename>`
-- `--slack-send-message <target> [text...]`
+- `--upsert-inbox-note <team-member> <item-filename>` (`DistroAgentsItems`)
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 
 # Maintainer Notes
 

@@ -403,9 +403,8 @@ rigAssert "9. E5: and the writer committed the item in its own process" "$( rigC
 rmdir "$rigData/.git/team-data-commit/thread.log" 2> /dev/null || :
 
 echo "-- 10. F1: a writer returns at once while a team-data thread lives (S12.4) --"
-## The writer starts the thread from a command substitution -- `queueStart="$( AgentsToolsTeamDataThreadStart )"`
-## -- so a thread that kept that capture's own output open would hold every writer for the thread's
-## whole life. The idle time here is 60s, far past the bound, so a writer that waited for the
+## The writer starts the thread from a command substitution, so a thread that kept that capture's own output open would hold every
+## writer for the thread's whole life. The idle time here is 60s, far past the bound, so a writer that waited for the
 ## thread's end reads red on the bound and not as a slow machine. A tree that starts no thread at
 ## all passes here by construction, so the proof this case can fail is a copy of the fix whose
 ## detached start keeps the capture's output: there case 10 reads waited 30s and nothing else does.

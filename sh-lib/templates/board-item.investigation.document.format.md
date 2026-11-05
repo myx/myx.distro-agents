@@ -19,6 +19,8 @@ A running investigation: the process document `magic-team.investigate.routine` w
 
 {{question}}
 
+Audience: {{audience}}
+
 # Goal
 
 {{goal}}
@@ -26,6 +28,10 @@ A running investigation: the process document `magic-team.investigate.routine` w
 # Current
 
 {{current}}
+
+# Next
+
+{{next}}
 
 # Settled
 
@@ -43,9 +49,11 @@ A running investigation: the process document `magic-team.investigate.routine` w
 # Slots
 
 - `matter` — the matter, one line, the title after `# Investigation:`.
+- `audience` — who reads this, in a word or two. A hint its reader interprets, never a closed list.
 - `question` — the question, the thing it is about, and what the answer is for.
 - `goal` — the exit conditions, each able to pass or fail; the round limit or time box; the walk-away point.
 - `current` — what is established so far, each finding labelled shown, inferred or assumed, with its evidence.
+- `next` — the next step, in one present-tense statement.
 - `settled` — each settled part as one present-tense statement, with who settled it and when.
 - `open` — the open parts, nearest to closing first. `none` when nothing is open.
 - `log` — one line per round: what moved, what closed, what stays open.

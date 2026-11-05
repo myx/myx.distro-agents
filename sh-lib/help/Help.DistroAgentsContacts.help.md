@@ -1,5 +1,5 @@
 📘 syntax: DistroAgentsContacts.fn.sh --send-contact-digest [--team-member <team-member>] [<origin team-member>] (--resolved|--needs-ruling) <text...>
-📘 syntax: DistroAgentsContacts.fn.sh --collect-contact [--team-member <team-member>] --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
+📘 syntax: DistroAgentsContacts.fn.sh --collect-contact [--team-member <team-member>] --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier ingest|basic|partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
 📘 syntax: DistroAgentsContacts.fn.sh --collect-organisation [--team-member <team-member>] --id <slug> [--name <text>] [--domain <text>] [--note <text>] [--correct]
 📘 syntax: DistroAgentsContacts.fn.sh --find-contact [--team-member <team-member>] <value> [--team <scope>] [--reached-by <member>]
 📘 syntax: DistroAgentsContacts.fn.sh --all-contacts [--team-member <team-member>] [--organisation <slug>] [--reached-by <member>]
@@ -27,12 +27,16 @@
 			One digest of the contacts' open questions into the contacts' channel,
 			said as resolved or as needing the human-owner's ruling.
 
-		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
+		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier ingest|basic|partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
 			A contact recorded, or filled where it is recorded already. The calling
 			member is added to who holds it. A coordinate is dropped with
 			`--drop`, and `--correct` says the record was wrong rather than merely
-			incomplete. `--tier` is the human-owner's alone: `partner` or `recorded`,
-			and a value that is neither is refused.
+			incomplete. `--tier` is the human-owner's alone: `ingest`, `basic`,
+			`partner` or `recorded`, each including the tiers below it, and a value
+			that is none of them is refused. A member's `--tier` call writes nothing:
+			it asks him once, in his own conversation, naming the contact and the
+			tier it proposes, and prints `ASKED <contact> <tier> <ask>`. His word is
+			what the record takes, and the action his answer runs is that same call.
 
 		--collect-organisation --id <slug> [--name <text>] [--domain <text>] [--note <text>] [--correct]
 			An organisation recorded, or filled where it is recorded already.
@@ -51,7 +55,7 @@
 		--contacted-by <value> [--team <scope>]
 			Being contacted: the sender looked up, its record, what it holds, the
 			tier's whole rules and the next step. The rules are the record's
-			`tier:` and every tier below it, and the three tiers as they were
+			`tier:` and every tier below it, and the four tiers as they stand
 			where the record sets none.
 
 		--reach-contact <id>

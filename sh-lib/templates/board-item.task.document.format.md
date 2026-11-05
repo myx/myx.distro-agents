@@ -16,9 +16,12 @@ Concrete, ready-to-execute work.
 # Task: {{matter}}
 
 {{body}}
+
+Audience: {{audience}}
 ```
 
 # Slots
 
 - `matter` — the matter, one line, the title after `# Task:`.
+- `audience` — who reads this, in a word or two. A hint its reader interprets, never a closed list.
 - `body` — the work, stated so that it can start without further questions.

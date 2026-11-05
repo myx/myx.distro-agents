@@ -74,6 +74,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - record each dependency as `blocks`/`blocked-by` between the pieces.
 6. **name-what-each-piece-needs**: for each piece, make the best guess its dispatch can carry, steps:
    - the members and expertise, the access permissions, and the tools, worked out from its targets: paths, pages, any text.
+   - every piece's access together, as one Permission set asked at the first dispatch, per `spawn-one-dispatch`'s **spawn-ask-access-once**.
    - its verification: the check that proves it done, and the case it must fail on. Agree both with the member who will verify it (`magic-tester` for software).
    - a destructive or irreversible step inside it, marked for confirmation before it runs.
 7. **imagine-it-failed**: assume the plan was carried out and failed, steps:
@@ -86,6 +87,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a disagreement becomes the no-quorum document, per "The ladder: one rung at a time".
 9. **propose-and-route**: write the plan into the task's tracking document, put it up for approval, and name the next flow step, steps:
    - the outcome and done criteria, the pieces in order, each piece's needs and checks, and the accepted risks.
+   - the document stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, each a plain present-tense statement. It is a produce under `magic-team.basic.md`'s "Relay, direct, produce", so a session restarted a month later continues from it alone.
    - a plan that binds the team, or needs the human-owner's go, goes through `magic-team.proposal.routine`.
    - otherwise the session's own parent approves it, per "The ladder: one rung at a time".
    - the next flow step, by outcome:
@@ -97,7 +99,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **closing-reflection**: reflect on how the planning went: a piece that would not split, a dependency found late, a risk nobody named. A pattern with no written rule behind it becomes a `reflection-*`.
-2. **hand-off-approved-pieces**: each approved piece is handed to `magic-coordinator` with `post-inquiry`, for the plan's own item where the plan has one, else for the board. `magic-coordinator` creates it with `--grooming-create-pending`, as a `task-*` item in `board-pending` carrying `approved-by`/`approved-at` and `spawned-by` the plan's item. Approving a plan is not a go to start it.
+2. **hand-off-approved-pieces**: each approved piece is handed to `magic-coordinator` with `post-inquiry`, for the plan's own item where the plan has one, else for the board. The hand-off carries the whole access need from **name-what-each-piece-needs**. `magic-coordinator` asks it as one set at the first dispatch. `magic-coordinator` creates it with `--grooming-create-pending`, as a `task-*` item in `board-pending` carrying `approved-by`/`approved-at` and `spawned-by` the plan's item. Approving a plan is not a go to start it.
 
 # Routine's local procedures
 
@@ -133,11 +135,11 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
-- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--grooming-create-pending <item-filename> --owner-header-value <value>`
-- `--get-board-item <item-filename>`
-- `--routine-run-inline <routine>`
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--grooming-create-pending <item-filename> --owner-header-value <value>` (`DistroAgentsItems`)
+- `--get-board-item <item-filename>` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

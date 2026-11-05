@@ -15,6 +15,10 @@
 ## only one authored by <agent> itself is ignored. A DISMISSED addressed to someone
 ## else, or to nobody, dismisses no one: a shared session thread holds several members.
 ##
+## `dismissalRun=<spawn id>` in the environment: the run that is waiting, where it is known. A message that names another
+## run (its `[addressee-run: <id>]`) reaches that one and not this (S6.40), so one member's DISMISSED in one session never
+## ends another of that member's runs.
+##
 ## A message of the session chat file (F3.3, F9.2) comes in its own form: the header `<iso-time> <from> -> <to>:` and its body, as the
 ## `chat:` source of a Wait returns it. It dismisses <agent> by the same rule: the header addresses <agent> and the body is exactly
 ## DISMISSED (a trailing `.` or `!` allowed), or the body is `DISMISSED <agent>`; one from <agent> itself dismisses no one. A chat block
@@ -23,9 +27,9 @@
 ## Prints the dismissing message's `<ts> | <user>` (`<iso-time> | <from>` for a chat block) and exits 0; exits 1 when none.
 ## Every closing `}` is preceded by a `;` (reference/shell.md's awk axiom).
 ##
-BEGIN { agent = ENVIRON["dismissalMember"] ; } ;
+BEGIN { agent = ENVIRON["dismissalMember"] ; ownRun = ENVIRON["dismissalRun"] ; } ;
 function flush(   chatFrom, chatTo, chatText) {
-	if (cur != "" && dismissalOf(cur, agent)) { print head ; found = 1 ; exit 0 ; } ;
+	if (cur != "" && dismissalOf(cur, agent, ownRun)) { print head ; found = 1 ; exit 0 ; } ;
 	cur = "" ;
 	if (chatHead != "") {
 		chatFrom = chatHead ;
@@ -47,7 +51,7 @@ function flush(   chatFrom, chatTo, chatText) {
 		gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", chatText) ;
 		## S27.8: the chat entry is written by the tooling, so it carries both runs. A run is no
 		## dismissal of itself, and one run of a member does dismiss another run of that member.
-		if (chatText ~ /^DISMISSED /) {
+		if (!chatForOther && chatText ~ /^DISMISSED /) {
 			chatTarget = chatText ;
 			sub(/^DISMISSED /, "", chatTarget) ;
 			sub(/[.!]?$/, "", chatTarget) ;
@@ -59,8 +63,10 @@ function flush(   chatFrom, chatTo, chatText) {
 				exit 0 ;
 			} ;
 		} ;
+		## S6.40: a block that names a run other than this one is not for it, whatever member it names.
+		chatForOther = (ownRun != "" && chatAddresseeRun != "" && chatAddresseeRun != ownRun) ;
 		if (chatFrom != agent || (chatAuthorRun != "" && chatAddresseeRun != "" && chatAuthorRun != chatAddresseeRun)) {
-			if ((chatText ~ /^DISMISSED[.!]?$/ && (("," chatTo ",") ~ ("," agent ","))) || chatText ~ ("^DISMISSED " agent "[.!]?$")) {
+			if (!chatForOther && ((chatText ~ /^DISMISSED[.!]?$/ && (("," chatTo ",") ~ ("," agent ","))) || chatText ~ ("^DISMISSED " agent "[.!]?$"))) {
 				head = chatHead ;
 				sub(/ .*$/, "", head) ;
 				print head " | " chatFrom ;

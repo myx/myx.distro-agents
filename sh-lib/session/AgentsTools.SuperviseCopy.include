@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseCopy.include -- the supervisor copies a file from one session sandbox to another (epic S13.6), always
+## a real copy and never a link. Sourced, never run; functions only.
+##
+## WHY IT IS NOT cp. A supervisor may copy between two runs' sandboxes with its own shell, and every shell it has sits in a
+## workspace whose files are the human-owner's: a `cp -a` there may link, a `ln` looks like a copy in a listing, and the one
+## measured accident of this shape is a sandbox file sharing an inode with a shipping file
+## (`warning-20261101T2309Z-sandbox-hardlink-shares-inode-with-shipping-file`). So the copy is made here, and then PROVEN
+## before it is put in place: a regular file, no link, a device and inode of its own, and a body identical to the source's.
+##
+## THE READ-ONLY input FOLDER. A spawn sandbox's `input/` carries no write bit at all (`chmod -R a-w`,
+## AgentsTools.SpawnSandboxFillInput), so a plain copy into it fails for every caller, the supervisor included. That is the
+## folder a supervisor most needs to reach: a brief's own material, corrected. So the write bit of each existing folder on
+## the way down is lifted, and put back exactly as it was found. A folder the copy has to make is made with the rule the
+## way down already carries: below a read-only folder it takes no write bit either, and the file does not. A copy never
+## widens the rule of the folder it lands in, whatever subfolder it names.
+##
+## NO stat(1) ANYWHERE. Two files are the same file exactly when `-ef` says so, which is a builtin of the shell this file
+## already runs in, and `stat` differs by platform (`MAGIC.md`, "stat(1) differs by platform"). The `bsd || gnu` retry is
+## worse than useless there: on Linux `stat -f` is `--file-system` and SUCCEEDS, so the retry reads filesystem numbers as a
+## file's device and inode.
+##
+## THE PATHS ARE THE SANDBOX'S. Each side is `<run-id> <path>`, the path relative to that run's sandbox root. A path is
+## refused when it is absolute, when it has a `.` or `..` part, or when it is blank: nothing here resolves a path out of a
+## sandbox, because a sandbox's root is the whole of what a supervisor was given.
+##
+## ONE ROW, TAB-separated: `copy <from-run> <source> <to-run> <destination> <new|replaced> <bytes>`.
+##
+
+## --supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
+AgentsToolsSuperviseCopy(){ ## <from-run> <source> <to-run> <destination>
+	local copyWs="${MMDAPP%/}" copyFromRun="" copyFromRel="" copyToRun="" copyToRel=""
+	local copyArgNo=0 copyRecord copyFromRoot copyToRoot copySrc copyDst copyDir copyTmp="" copyOne
+	local copyBytes copyHow copyReadOnly copyDeepest copyRel="" copyWalk="" copySeg copyRest=""
+	local copyRaised=() copyNew=() copyRc=0
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			-*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: invalid option: $1" >&2 ; return 1 ;;
+			*)
+				copyArgNo=$(( copyArgNo + 1 ))
+				case "$copyArgNo" in
+					1) copyFromRun="$1" ;;
+					2) copyFromRel="$1" ;;
+					3) copyToRun="$1" ;;
+					4) copyToRel="$1" ;;
+					*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: takes four words and got a fifth: $1" >&2 ; return 1 ;;
+				esac
+				shift
+			;;
+		esac
+	done
+	[ "$copyArgNo" -eq 4 ] || {
+		echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: syntax is <from-run-id> <source-path> <to-run-id> <destination-path>" >&2 ; return 1 ; }
+	for copyOne in "$copyFromRun" "$copyToRun" ; do
+		case "$copyOne" in ''|*/*|.|..) echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: a run id is a bare name, got: $copyOne" >&2 ; return 1 ;; esac
+	done
+	for copyOne in "$copyFromRel" "$copyToRel" ; do
+		case "$copyOne" in
+			'') echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: a path is required, and it is the one inside the run's sandbox" >&2 ; return 1 ;;
+			/*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: a path is inside its run's sandbox and never absolute, got: $copyOne" >&2 ; return 1 ;;
+			..|../*|*/..|*/../*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: a path has no .. part, got: $copyOne" >&2 ; return 1 ;;
+			.|./*|*/.|*/./*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: a path has no . part, got: $copyOne" >&2 ; return 1 ;;
+		esac
+	done
+	type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	copyRecord="$( MMDAPP="$copyWs" AgentsToolsRegistrySpawnRecord "$copyFromRun" )"
+	[ -n "$copyRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: no record of this workspace carries the run $copyFromRun" >&2 ; return 1 ; }
+	copyFromRoot="${copyRecord%/*}"
+	copyRecord="$( MMDAPP="$copyWs" AgentsToolsRegistrySpawnRecord "$copyToRun" )"
+	[ -n "$copyRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: no record of this workspace carries the run $copyToRun" >&2 ; return 1 ; }
+	copyToRoot="${copyRecord%/*}"
+	copySrc="$copyFromRoot/$copyFromRel"
+	copyDst="$copyToRoot/$copyToRel"
+	[ ! -L "$copySrc" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the source $copyFromRel of $copyFromRun is a link, and a supervisor copies a file rather than the thing a link reaches" >&2 ; return 1 ; }
+	[ -f "$copySrc" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: no file at $copyFromRel in the sandbox of $copyFromRun" >&2 ; return 1 ; }
+	[ ! -L "$copyDst" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the destination $copyToRel of $copyToRun is a link, and a link is never written through" >&2 ; return 1 ; }
+	[ ! -d "$copyDst" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the destination $copyToRel of $copyToRun is a folder" >&2 ; return 1 ; }
+	[ "$copySrc" != "$copyDst" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the source and the destination are one path, so there is no copy to make -- nothing was copied" >&2 ; return 1 ; }
+	if [ -e "$copyDst" ] && [ "$copySrc" -ef "$copyDst" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the source and the destination are one file under two names, and that is no copy -- nothing was copied" >&2 ; return 1
+	fi
+	copyHow=new
+	[ ! -e "$copyDst" ] || copyHow=replaced
+	copyDir="${copyDst%/*}"
+	copyRel=""
+	case "$copyToRel" in */*) copyRel="${copyToRel%/*}" ;; esac
+	## THE RULE THE WAY DOWN INHERITS, taken before anything is made: the deepest folder of the destination that exists
+	## now. A copy never widens it, so a folder made below a read-only one takes no write bit either.
+	copyDeepest="$copyToRoot"
+	copyWalk="$copyToRoot"
+	copyRest="$copyRel"
+	while [ -n "$copyRest" ] ; do
+		copySeg="${copyRest%%/*}"
+		[ "$copySeg" != "$copyRest" ] || copyRest=""
+		copyRest="${copyRest#*/}"
+		copyWalk="$copyWalk/$copySeg"
+		if [ ! -d "$copyWalk" ] ; then break ; fi
+		copyDeepest="$copyWalk"
+	done
+	copyReadOnly=no
+	if [ -w "$copyDeepest" ] ; then copyReadOnly=no ; else copyReadOnly=yes ; fi
+	## Each folder of the way down that is missing is made here, one at a time, and an existing one that carries no write
+	## bit has it lifted for the call. AgentsToolsSuperviseCopyClose below puts every bit back, and takes the folders this
+	## call made away again when the copy does not land.
+	copyWalk="$copyToRoot"
+	copyRest="$copyRel"
+	while [ -n "$copyRest" ] ; do
+		copySeg="${copyRest%%/*}"
+		[ "$copySeg" != "$copyRest" ] || copyRest=""
+		copyRest="${copyRest#*/}"
+		copyWalk="$copyWalk/$copySeg"
+		if [ ! -d "$copyWalk" ] ; then
+			if ! mkdir "$copyWalk" 2> /dev/null ; then
+				AgentsToolsSuperviseCopyClose drop
+				echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the folder ${copyWalk#"$copyToRoot"/} of $copyToRun could not be made -- nothing was copied" >&2 ; return 1
+			fi
+			copyNew=( ${copyNew[@]+"${copyNew[@]}"} "$copyWalk" )
+			continue
+		fi
+		if [ -w "$copyWalk" ] ; then continue ; fi
+		if ! chmod u+w "$copyWalk" 2> /dev/null ; then
+			AgentsToolsSuperviseCopyClose drop
+			echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the folder ${copyWalk#"$copyToRoot"/} of $copyToRun carries no write bit and it could not be lifted -- nothing was copied" >&2 ; return 1
+		fi
+		copyRaised=( ${copyRaised[@]+"${copyRaised[@]}"} "$copyWalk" )
+	done
+	copyTmp="$( mktemp "$copyDir/.supervise-copy.XXXXXX" 2> /dev/null )" || copyTmp=""
+	if [ -z "$copyTmp" ] || ! cp -p "$copySrc" "$copyTmp" 2> /dev/null ; then
+		[ -z "$copyTmp" ] || rm -f -- "$copyTmp" 2> /dev/null || :
+		AgentsToolsSuperviseCopyClose drop
+		echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the copy beside $copyToRel of $copyToRun could not be written -- nothing was copied" >&2 ; return 1
+	fi
+	## The proof, taken on the copy before it goes in place. A link would have been made by now, and a wrong body too.
+	if [ -L "$copyTmp" ] || [ ! -f "$copyTmp" ] || [ "$copySrc" -ef "$copyTmp" ] || ! cmp -s "$copySrc" "$copyTmp" ; then
+		rm -f -- "$copyTmp" 2> /dev/null || :
+		AgentsToolsSuperviseCopyClose drop
+		echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the copy of $copyFromRel is no real copy of it, so it was thrown away and nothing was copied" >&2 ; return 1
+	fi
+	## A read-only way down keeps its rule: the file is put there with no write bit of its own.
+	[ "$copyReadOnly" = no ] || chmod a-w "$copyTmp" 2> /dev/null || :
+	copyBytes="$( LC_ALL=C wc -c < "$copyTmp" 2> /dev/null | LC_ALL=C tr -d ' ' )" || copyBytes=""
+	mv -f "$copyTmp" "$copyDst" 2> /dev/null || {
+		rm -f -- "$copyTmp" 2> /dev/null || :
+		AgentsToolsSuperviseCopyClose drop
+		echo "$MDSC_CMD: ⛔ ERROR: --supervise-copy: the copy could not be put in place at $copyToRel in the sandbox of $copyToRun -- nothing was copied" >&2 ; return 1
+	}
+	printf 'copy\t%s\t%s\t%s\t%s\t%s\t%s\n' "$copyFromRun" "$copyFromRel" "$copyToRun" "$copyToRel" "$copyHow" "${copyBytes:-0}"
+	AgentsToolsSuperviseCopyClose keep || copyRc=1
+	return "$copyRc"
+}
+
+## The folders and bits this call changed, put back: `keep` on a copy that landed -- the folders it made lose the write
+## bit a read-only way down never had, and every folder it lifted a bit from gets it back. `drop` on a copy that did not
+## land: the folders it made go again, deepest first and only while one is empty, and every lifted bit comes back with
+## them. rc 1 where a folder of the way down stays writable, a sandbox left less read-only than it was found.
+AgentsToolsSuperviseCopyClose(){ ## keep|drop
+	local closeAt closeFolder closeStuck=""
+	if [ "$1" = "drop" ] ; then
+		while [ "${#copyNew[@]}" -gt 0 ] ; do
+			closeAt=$(( ${#copyNew[@]} - 1 ))
+			closeFolder="${copyNew[$closeAt]}"
+			unset "copyNew[$closeAt]"
+			chmod u+w "$closeFolder" 2> /dev/null || :
+			rmdir "$closeFolder" 2> /dev/null || :
+		done
+	else
+		## A folder this call made keeps the rule of the way down it was made under: below a read-only folder it takes no
+		## write bit, and below a writable one it keeps the write bit `mkdir` gave it.
+		for closeFolder in ${copyNew[@]+"${copyNew[@]}"} ; do
+			[ "$copyReadOnly" = no ] || chmod a-w "$closeFolder" 2> /dev/null || :
+		done
+	fi
+	while [ "${#copyRaised[@]}" -gt 0 ] ; do
+		closeAt=$(( ${#copyRaised[@]} - 1 ))
+		closeFolder="${copyRaised[$closeAt]}"
+		unset "copyRaised[$closeAt]"
+		chmod u-w "$closeFolder" 2> /dev/null || :
+		[ -w "$closeFolder" ] || continue
+		closeStuck="$closeStuck ${closeFolder##*/}"
+	done
+	case "$closeStuck" in '') return 0 ;; esac
+	echo "$MDSC_CMD: ⚠️ WARNING: --supervise-copy: the write bit stayed on$closeStuck" >&2
+	return 1
+}

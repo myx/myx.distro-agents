@@ -174,6 +174,20 @@ rigAssert "control, no args: the file that answers none is named, with its rc an
 rigAssert "control, --help-syntax: the same file is named" "[${rigNoSyntax# }]" "[Bad(rc1,0 own,0 other,1 refusal)]"
 rigAssert "control, --help: the same file is named" "[${rigNoHelp# }]" "[Bad(rc1,1 refusal)]"
 
+echo "-- 3. a syntax line printed by several surfaces names the same options on each --"
+## The four help surfaces are hand-maintained siblings and nothing compares them, so one gains an option and the others do not:
+## `--routine-chain` was written into the aggregate manual alone, and the dispatcher's own manual and the two includes still
+## printed the operation without it (S6.27 defect 3). Every line naming this operation, on every surface, is read here.
+rigChainShown="$( cat "$rigPackage"/sh-lib/help/Help.DistroAgentsDispatcher.help.md "$rigPackage"/sh-lib/help/Help.DistroAgentsDispatcher.include \
+	"$rigPackage"/sh-lib/help/Help.DistroAgentsTools.include "$rigPackage"/sh-lib/help/Help.DistroAgentsTools.help.md 2> /dev/null \
+	| LC_ALL=C grep -c -e '--spawn-session (--routine' )"
+rigAssert "the surfaces were read: the spawn-session syntax stands on four or more lines of them" \
+	"$([ "${rigChainShown:-0}" -ge 4 ] && printf read || printf "read ${rigChainShown:-0}")" read
+rigAssert "and every one of those lines names --routine-chain" \
+	"[$( cat "$rigPackage"/sh-lib/help/Help.DistroAgentsDispatcher.help.md "$rigPackage"/sh-lib/help/Help.DistroAgentsDispatcher.include \
+		"$rigPackage"/sh-lib/help/Help.DistroAgentsTools.include "$rigPackage"/sh-lib/help/Help.DistroAgentsTools.help.md 2> /dev/null \
+		| LC_ALL=C grep -e '--spawn-session (--routine' | LC_ALL=C grep -v -e '--routine-chain' | LC_ALL=C cut -c1-60 )]" "[]"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HELP FORMS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

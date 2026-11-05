@@ -13,6 +13,8 @@
 ##   4. the limit: by default a section at level 4 of the result is replaced by one line naming its file and its
 ##      heading; with --section-limit 2, so is one at level 3
 ##   4b. a `#` line inside a code fence is no heading: neither reworked nor counted
+##   4c. a four-backtick fence is one fence, closed only by four backticks: the example lines inside it are no headings, and the real
+##       headings after it are still reworked. Red before the fix: the engine closes a fence on the first three-backtick line inside it.
 ##   5. --do-index: a section titled Contents first, at the prefix level, listing the captions nested, to the capped depth
 ##   6. --section-exclude drops the sections whose caption matches; --section-include keeps only those
 ##   7. a plain file argument is refused, naming --mixin, and nothing is printed
@@ -55,8 +57,18 @@ rigMerge(){ ## result name, arguments... -- one merge, from the md folder; out a
 		bash "$rigTool" --intern-merge-md-files "$@" ) > "$rigTmp/$rigName.out" 2> "$rigTmp/$rigName.err"
 	printf '%s' "$?" > "$rigTmp/$rigName.rc"
 }
+## The heading lines of a result, joined by |, read as the engine reads them: a `#` line inside a code fence is no heading, so this
+## reader keeps the fence's own opening character and length rather than counting every `^#+ ` line.
 rigHeads(){ ## result name -- its heading lines, joined by |
-	LC_ALL=C grep -E '^#+ ' "$rigTmp/$1.out" 2> /dev/null | LC_ALL=C tr '\n' '|' | LC_ALL=C sed 's/|$//'
+	LC_ALL=C awk '
+		/^[ \t]*(```|~~~)/ {
+			run = $0 ; sub( /^[ \t]*/, "", run ) ; at = substr( run, 1, 1 ) ; len = 0 ;
+			while ( substr( run, len + 1, 1 ) == at ) len++ ;
+			if ( !fenced ) { fenced = 1 ; fencedAt = at ; fencedLen = len } else if ( at == fencedAt && len >= fencedLen ) { fenced = 0 } ;
+			next ;
+		}
+		!fenced && /^#+ / { printf "%s|", $0 }
+	' "$rigTmp/$1.out" 2> /dev/null | LC_ALL=C sed 's/|$//'
 }
 rigHas(){ ## result name, fixed text -- yes or no
 	LC_ALL=C grep -q -F -- "$2" "$rigTmp/$1.out" 2> /dev/null && printf yes || printf no
@@ -86,6 +98,12 @@ printf '# Fenced\n\n```sh\n# a shell comment, no heading\n## nor this\n```\n\naf
 rigMerge m9 --mixin "$rigTmp/md/fenced.md" "Section F"
 rigAssert "the fenced lines are kept as they were, and only the real headings are reworked" \
 	"$( rigHas m9 '# a shell comment, no heading' ):$( LC_ALL=C grep -c -x -F '## nor this' "$rigTmp/m9.out" ):$( rigHeads m9 | LC_ALL=C sed 's/|# a shell comment, no heading//; s/|## nor this//' )" "yes:1:# Section F|## Fenced"
+
+echo "-- 4c. a # line inside a four-backtick fence is no heading --"
+printf '# Outer\n\n````\n```\n# RIG-EXAMPLE-NOT-A-HEADING\n```\n````\n\n## Real two\n\nreal body\n' > "$rigTmp/md/foured.md"
+rigMerge m10 --mixin "$rigTmp/md/foured.md" "Section F4"
+rigAssert "an example line in a nested fence is kept as written, never reworked" "$( LC_ALL=C grep -c -x -F '# RIG-EXAMPLE-NOT-A-HEADING' "$rigTmp/m10.out" || : )" "1"
+rigAssert "and the real headings after it are reworked to fit"                    "$( rigHeads m10 )" "# Section F4|## Outer|### Real two"
 
 echo "-- 5. --do-index: a Contents section first, the captions nested, to the capped depth --"
 rigMerge m5 --do-index --mixin "$rigTmp/md/alpha.md" "Section A" --mixin "$rigTmp/md/beta.md" "Section B"

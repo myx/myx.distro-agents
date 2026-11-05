@@ -220,6 +220,14 @@ case "$1" in
 		return $?
 	;;
 
+	## The action a tier ask keeps, run by the authority act once the human-owner has answered it: the write the answer allows.
+	--intern-op-contact-tier-apply)
+		shift
+		type AgentsToolsContactsTierApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include"
+		AgentsToolsContactsTierApply "$@"
+		return $?
+	;;
+
 	## A contact operation this file does not implement -- the retired
 	## --intern-op-contact-assert-known among them -- is reported, never swallowed.
 	--intern-op-contact-*)

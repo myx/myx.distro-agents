@@ -39,26 +39,49 @@
 ## kind of process, left running after its rig is gone. The check of the thread unsets it, and ends what it starts.
 ## And none starts the thread that commits and pushes the team data (MDAT_TEAM_DATA_COMMIT_THREAD=off, AgentsTools.TeamDataThread.include): with it off
 ## a writer commits in its own process, as before the thread. The check of the thread unsets it, and ends what it starts.
+## And none starts the schedule's service thread (MDAT_SCHEDULE_THREAD=off, AgentsTools.ScheduleThread.include): with it off the main loop runs
+## the schedule's steps in its own process, as it always did. The check of the thread unsets it, and ends what it starts.
 ## And a rig that sets no workspace mode is a team rig (MDAT_WORKSPACE_MODE=team-rig, AgentsTools.TeamDataGate.include): its mode is the
 ## default the one reader of the mode gives, which a setting of the rig stands ahead of. Unset, a rig is just agents and keeps no team
 ## data (F13.1). The checks of the gate and of the digest set or unset it themselves.
 ##
-## ONE RUN AT A TIME, MACHINE-WIDE. Every run, of every test (no name given) or of named tests, waits
-## its turn, in arrival order, and says in one line that it waits and behind whom, across every
-## builder of the machine. The line is one folder on the machine, $HOME/.agents/magic-team/suite-queue,
-## never a folder of the package: a runner started from any copy of the package (MDLT_ORIGIN)
-## stands in the same line. A ticket is a file named by its arrival time, holding the pid of
-## its runner; one whose runner no longer exists is taken out by whoever waits behind it, so
-## no turn is held by the dead.
+## WAITING IN THE LINE, IN ARRIVAL ORDER, AND MORE THAN ONE LANE. Every run, of every test (no name
+## given) or of named tests, waits its turn in arrival order and says in one line that it waits and
+## behind whom, across every builder of the machine. The line is one folder on the machine,
+## $HOME/.agents/magic-team/suite-queue, never a folder of the package: a runner started from any copy
+## of the package (MDLT_ORIGIN) stands in the same line. A ticket is a file named by its arrival time,
+## holding the pid of its runner; one whose runner no longer exists is taken out by whoever waits
+## behind it, so no turn is held by the dead.
+##
+## HOW MANY RUNS STAND BESIDE EACH OTHER, AND WHAT DECIDES IT. The line became the team's throttle:
+## at 01:20Z on 2026-11-04 five runs queued behind one holder, and a run refused after 900 s having
+## started nothing. Load average is not the measure. At load 15 to 39 that night tool calls stayed at a
+## median of 1 s and a 90th percentile of 5 s, so the machine had capacity the line did not use. What is
+## measured is the pace a tool call finds now: one fixed piece of this shell's own work, no fork, best of
+## three, against the fastest pace this machine has shown. That floor is kept in
+## $HOME/.agents/magic-team/suite-lanes/pace-floor, a slower measurement never raises it, and it is read
+## afresh once it is a day old. Lanes are floor/pace times the machine's own count (suite-lanes/max, 3
+## unless it holds a number), at least one: fewer runs stand beside each other as calls slow down, more as
+## they speed up. Measured on ws-myx-devops at 04:16Z: 283 ms at rest, 336 ms with eight busy loops
+## added, 983 ms with twenty, and 286 ms again two seconds after those ended while load still read 19.8.
+##
+## A LANE IS WHAT A RUN HOLDS, AND THE QUEUE IS STILL IN ARRIVAL ORDER. A run takes one lane at its turn
+## and gives it back when it ends, so two runs stand beside each other exactly as many lanes allow. A
+## ticket ahead of this run that holds no lane is the head of the queue and is waited for, so a run that
+## arrived first starts first. A run with a test that measures its own timing takes EVERY lane and says
+## so: a test declares that with `## lane: alone` in its header, and such a test never runs beside
+## another test or another run.
 ## The hand rule this replaces, `mkdir $MMDAPP/.local/temp/suite-run.lock` around a run,
-## is kept by both sides, so a session on the hand rule and a queued run never run at once: a
-## run at its turn takes that lock itself and gives it back when it ends, and waits while
-## another holds it. A lock taken by hand is no turn: one whose note names the folder this
-## run's source root is in, under $MMDAPP/.local/temp, is the caller's own, and the run starts
-## under it only when its own turn in the line has come, leaving it for the caller to remove;
-## with any run ahead of it in the line the run is refused, saying so, since the runs
-## ahead wait behind that very lock. A lock left by a runner that no longer exists is removed;
-## one taken by hand never is.
+## is kept, so a session on the hand rule and a queued run never run at once: while another session
+## holds that lock every lane is shut and each run waits, naming it. A lock taken by hand is no turn:
+## one whose note names the folder this run's source root is in, under $MMDAPP/.local/temp, is the
+## caller's own, and the run starts under it only when its own turn in the line has come, leaving it for
+## the caller to remove; with any run ahead of it in the line the run is refused, saying so. A lock left
+## by a runner that no longer exists is removed; one taken by hand never is.
+##
+## NOTHING RUNS AROUND THE LINE. A run that cannot be given a lane says so and refuses; a test started by
+## a run carries that run's ticket (MDAT_SUITE_QUEUE_TURN) and stands in no line of its own, and a ticket
+## that is no file of the line buys no run anything.
 ##
 ## ONE BUDGET OF TEST WORKERS FOR THE WHOLE MACHINE, shared by every runner, of a full suite
 ## or of named tests, from any copy of the package: a test takes a worker slot before it
@@ -158,6 +181,8 @@ runTestLock="$MMDAPP/.local/temp/one-test-run.lock"
 ## the folder this run's source root is in, under the workspace's temp: empty for any other tree
 runOwnFolder="${MDLT_ORIGIN#"$MMDAPP/.local/temp/"}"
 if [ "$runOwnFolder" != "$MDLT_ORIGIN" ] ; then runOwnFolder="${runOwnFolder%%/*}" ; else runOwnFolder="" ; fi
+runLaneDir="${HOME:-}/.agents/magic-team/suite-lanes"
+runLaneMine="" runLaneAlone="" runLaneCountNow=1
 
 ## The slot keeper, one small program for both ends of a slot: every change to the one state
 ## file ($runSlotDir/state: `H <pid>` a slot held, `W <pid>` one asked for, in arrival order)
@@ -265,11 +290,36 @@ AgentsRunHandLockOwn(){ ## -- rc 0 when the lock was taken by hand by this run's
 	esac
 	return 1
 }
-AgentsRunTicketAlive(){ ## ticket file -- rc 0 while the check or the run that holds that ticket is still there
-	local ticketPid ticketKind
+AgentsRunTicketAlive(){ ## ticket file -- rc 0 while the check or the run that holds that ticket is still there, and is making progress
+	local ticketPid ticketKind ticketSince ticketStamp ticketClock ticketCpu ticketWas
 	ticketPid="$( LC_ALL=C sed -n 's/^pid=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
 	ticketKind="$( LC_ALL=C sed -n 's/^kind=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
 	case "$ticketPid" in ''|*[!0123456789]*) return 1 ;; esac
+	## A HOLDER THAT LIVES BUT HAS STOPPED IS NO HOLDER (S12.14): a runner alive with no CPU progress held the machine's one lane for over an
+	## hour on 2026-11-04, and every waiter stood behind it. The age is the ticket's own `since:`, so a holder that arrived moments ago is never
+	## judged. Past the bound its CPU time is read twice, a second apart, and one that stands still has given up its turn.
+	ticketSince="$( LC_ALL=C sed -n 's/^since=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
+	ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2>/dev/null || date -u -d "$ticketSince" '+%s' 2>/dev/null )" || ticketStamp=""
+	case "$ticketStamp" in
+		''|*[!0123456789]*) ticketStamp="" ;;
+	esac
+	if [ -n "$ticketStamp" ] ; then
+		ticketClock="$( date +%s )" || ticketClock=0
+		if [ "$(( ticketClock - ticketStamp ))" -gt "${MDAT_SUITE_QUEUE_STALL_SECONDS:-3600}" ] ; then
+			ticketCpu="$( ps -o time= -p "$ticketPid" 2>/dev/null | LC_ALL=C tr -d ' ' )"
+			case "$ticketCpu" in
+				''|*[!0123456789:.]*) ;;
+				*)
+					sleep 1
+					ticketWas="$( ps -o time= -p "$ticketPid" 2>/dev/null | LC_ALL=C tr -d ' ' )"
+					case "$ticketWas" in
+						''|*[!0123456789:.]*) ;;
+						*) [ "$ticketCpu" != "$ticketWas" ] || return 1 ;;
+					esac
+				;;
+			esac
+		fi
+	fi
 	## A check takes the same turn a run does (sh-test/check-fixtures/rig-temp.include.sh): its ticket says so, and it
 	## is alive while its process is, whatever its command line.
 	if [ "$ticketKind" = check ] ; then kill -0 "$ticketPid" 2>/dev/null ; return $? ; fi
@@ -284,13 +334,183 @@ AgentsRunAncestors(){ ## -- the pids above this process, self included, on one l
 		ancestorAround=$(( ancestorAround + 1 ))
 	done
 }
-AgentsRunQueueLeave(){ ## -- out of the line, and the lock given back where this run took it
+AgentsRunQueueLeave(){ ## -- out of the line, and every lane this run took given back
+	local leaveLane
 	[ -z "$runTicket" ] || rm -f "$runQueueDir/$runTicket"
-	[ -z "$runLockMine" ] || { rm -f "$runHandLock/holder.txt" ; rmdir "$runHandLock" 2>/dev/null ; }
-	runTicket="" ; runLockMine=""
+	for leaveLane in $runLaneMine ; do AgentsRunLaneGive "$leaveLane" ; done
+	runTicket="" runLockMine="" runLaneMine=""
 }
-AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; says whom it waits behind, each time that changes
-	local turnStamp turnFile turnPid="" turnWhom="" turnAhead=0 turnAncestors="" turnSaid="" turnBegan turnWaited
+## THE PACE A TOOL CALL FINDS NOW, and the lanes it buys (WAITING IN THE LINE, above). One fixed piece of this
+## shell's own work, no fork, so it measures the machine and not a program's start; the best of three, since the
+## slowest sample of a loaded machine says when a call was descheduled and not how fast one would be.
+AgentsRunPaceMs(){ ## -- the milliseconds of one fixed piece of shell work, or nothing where it cannot be timed
+	local paceTry paceOne paceLow="" paceWhole paceFrac
+	for paceTry in 1 2 3 ; do
+		## `%3R` is seconds to three decimals, such as `0.283`, so the whole part and the fraction are read apart
+		paceOne="$( { TIMEFORMAT='%3R' ; time for (( paceStep = 0 ; paceStep < 90000 ; paceStep++ )) ; do : ; done ; } 2>&1 )"
+		case "$paceOne" in ''|*[!0123456789.]*|*.*.*|*.) continue ;; esac
+		paceWhole="${paceOne%%.*}" ; paceFrac="${paceOne#*.}"
+		case "$paceWhole" in ''|*[!0123456789]*) continue ;; esac
+		paceOne=$(( 10#$paceWhole * 1000 + 10#$paceFrac ))
+		if [ -z "$paceLow" ] || [ "$paceOne" -lt "$paceLow" ] ; then paceLow="$paceOne" ; fi
+	done
+	printf '%s' "$paceLow"
+}
+AgentsRunLaneCount(){ ## -- how many runs may stand beside each other now: the machine's own count, else the pace against the fastest pace it has shown
+	local laneMax lanePace laneFloor laneCount laneFixed
+	laneMax="$( LC_ALL=C sed -n 1p "$runLaneDir/max" 2>/dev/null )"
+	case "$laneMax" in ''|*[!0123456789]*) laneMax="${MDAT_SUITE_LANES:-3}" ;; esac
+	case "$laneMax" in ''|*[!0123456789]*) laneMax=3 ;; esac
+	[ "$laneMax" -ge 1 ] || laneMax=1
+	mkdir -p "$runLaneDir" 2>/dev/null || { printf '1\n' ; return 0 ; }
+	## A machine whose lane count is set by hand keeps it, as a machine sets its budget of test workers by hand. That is
+	## how a rig of a check fixes the count, so nothing of it waits on how busy the host is.
+	laneFixed="$( LC_ALL=C sed -n 1p "$runLaneDir/count" 2>/dev/null )"
+	case "$laneFixed" in
+		''|*[!0123456789]*) ;;
+		*) [ "$laneFixed" -ge 1 ] || laneFixed=1 ; [ "$laneFixed" -le "$laneMax" ] || laneFixed="$laneMax" ; printf '%s\n' "$laneFixed" ; return 0 ;;
+	esac
+	laneFloor="$( LC_ALL=C sed -n 1p "$runLaneDir/pace-floor" 2>/dev/null )"
+	case "$laneFloor" in ''|*[!0123456789]*) laneFloor="" ;; esac
+	lanePace="$( AgentsRunPaceMs )"
+	## NO PACE, A BUSY MACHINE: a probe that cannot be timed says nothing about the machine, and a signal whose failure mode was
+	## "the machine is idle" is fooled by breaking the instrument. One lane is the safe reading, and never the maximum.
+	## A pace of zero is no measurement either: it would divide by zero, and written to the floor it would make every later
+	## reading look slow enough for one lane for ever.
+	case "$lanePace" in ''|*[!0123456789]*|0) printf '1\n' ; return 0 ;; esac
+	## The floor is the fastest pace this machine has shown. It is re-read once it is a day old, so a machine that
+	## was busy when it was last written is not held to that pace for ever, and a slower pace never raises it.
+	if [ -f "$runLaneDir/pace-floor" ] && [ -n "$( find "$runLaneDir/pace-floor" -mtime +0 2>/dev/null )" ] ; then laneFloor="" ; fi
+	if [ -z "$laneFloor" ] || [ "$lanePace" -lt "$laneFloor" ] ; then
+		printf '%s\n' "$lanePace" > "$runLaneDir/.pace-floor.$$" 2>/dev/null && mv -f "$runLaneDir/.pace-floor.$$" "$runLaneDir/pace-floor" 2>/dev/null || :
+		laneFloor="$lanePace"
+	fi
+	[ "$laneFloor" -gt 0 ] || laneFloor=1
+	laneCount=$(( laneMax * laneFloor / lanePace ))
+	[ "$laneCount" -ge 1 ] || laneCount=1
+	[ "$laneCount" -le "$laneMax" ] || laneCount="$laneMax"
+	printf '%s\n' "$laneCount"
+}
+AgentsRunLaneReport(){ ## -- the lane this run holds, of how many stood open when its turn came, and which other runs hold the rest
+	local reportEach reportUsed=0
+	for reportEach in $runLaneMine ; do reportUsed=$(( reportUsed + 1 )) ; done
+	printf 'running in %s lane(s) of the %s open at its turn, holding %s%s\n' \
+		"${reportUsed:-0}" "$runLaneCountNow" "${runLaneMine# }" "$( [ -z "$runLaneAlone" ] || printf ', the machine to itself for a test that measures its own timing' )"
+}
+AgentsRunLaneHolder(){ ## lane number -- the pid written in that lane, or nothing
+	case "$1" in
+		1) LC_ALL=C sed -n 's/^runner-pid: //p' "$runHandLock/holder.txt" 2>/dev/null | LC_ALL=C sed -n 1p ;;
+		*) LC_ALL=C sed -n 's/^pid=//p' "$runLaneDir/lane.$1/pid" 2>/dev/null | LC_ALL=C sed -n 1p ;;
+	esac
+}
+AgentsRunLaneGive(){ ## lane number -- gives one lane back, whatever state its holder left it in
+	case "$1" in
+		1) rm -f "$runHandLock/holder.txt" ; rmdir "$runHandLock" 2>/dev/null ;;
+		*) rm -f "$runLaneDir/lane.$1/pid" ; rmdir "$runLaneDir/lane.$1" 2>/dev/null ;;
+	esac
+	return 0
+}
+## A lane whose holder is gone is given back at every read, by whoever asks next, so no lane is held by the dead.
+## Lane 1 IS the hand rule's lock, so a lock taken by hand -- one with no runner-pid in it -- is held by a live
+## session and is never given back here.
+AgentsRunLaneFree(){ ## lane number -- rc 0 while that lane may be taken (its holder has ended)
+	local laneHeld
+	case "$1" in
+		1)
+			[ -d "$runHandLock" ] || return 0
+			LC_ALL=C grep -q '^runner-pid: ' "$runHandLock"/* 2>/dev/null || return 1
+		;;
+		*)
+			[ -d "$runLaneDir/lane.$1" ] || return 0
+		;;
+	esac
+	laneHeld="$( AgentsRunLaneHolder "$1" )"
+	case "$laneHeld" in
+		''|*[!0123456789]*) AgentsRunLaneGive "$1" ; return 0 ;;
+	esac
+	[ "$laneHeld" = "$$" ] && return 1
+	AgentsRunRunnerAlive "$laneHeld" && return 1
+	AgentsRunLaneGive "$1"
+	return 0
+}
+AgentsRunLaneTake(){ ## lane number -- takes that lane whole or not at all; rc 1 where another has just taken it
+	case "$1" in
+		1)
+			mkdir "$runHandLock" 2>/dev/null || return 1
+			runLockMine=1
+			printf 'runner-pid: %s\nagent: AgentsRunTests.sh, a run from %s\nlanes: yes\ntaken: %s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runHandLock/holder.txt" 2>/dev/null
+		;;
+		*)
+			mkdir -p "$runLaneDir" 2>/dev/null || return 1
+			mkdir "$runLaneDir/lane.$1" 2>/dev/null || return 1
+			printf 'pid=%s\nrunner-pid: %s\norigin=%s\ntaken: %s\n' "$$" "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runLaneDir/lane.$1/pid" 2>/dev/null
+		;;
+	esac
+	runLaneMine="$runLaneMine $1"
+	return 0
+}
+## A test that measures its own timing says `## lane: alone` in its header: it takes every lane, so nothing of any
+## other run is busy beside it. Read from the header alone, never from the body.
+AgentsRunAloneWanted(){ ## test name... -- rc 0 where one of them asks for the machine to itself
+	local aloneTest alonePath
+	for aloneTest in "$@" ; do
+		alonePath="$( AgentsRunTestPath "$aloneTest" )"
+		[ -f "$alonePath" ] || continue
+		LC_ALL=C sed -n '1,40s/^## lane: alone[[:space:]]*$/alone/p' "$alonePath" 2>/dev/null | LC_ALL=C grep -q alone && return 0
+	done
+	return 1
+}
+AgentsRunTicketHoldsLane(){ ## ticket pid, lane holders on one line -- rc 0 where one of the lanes is that pid's
+	case "$1" in ''|*[!0123456789]*) return 1 ;; esac
+	case " $2 " in *" $1 "*) return 0 ;; esac
+	return 1
+}
+AgentsRunLaneHolders(){ ## lanes to read -- the pids holding them now, on one line, a dead one given back as it is read, each pid once
+	local holderLane=1 holderLine="" holderPid
+	while [ "$holderLane" -le "$1" ] ; do
+		if ! AgentsRunLaneFree "$holderLane" ; then
+			holderPid="$( AgentsRunLaneHolder "$holderLane" )"
+			case " $holderLine " in *" $holderPid "*) ;; *) holderLine="$holderLine $holderPid" ;; esac
+		fi
+		holderLane=$(( holderLane + 1 ))
+	done
+	printf '%s' "$holderLine"
+}
+AgentsRunLaneFreeOne(){ ## lanes to try -- the first free lane number, or nothing where every lane is held
+	local freeLane=1
+	while [ "$freeLane" -le "$1" ] ; do
+		AgentsRunLaneFree "$freeLane" && { printf '%s\n' "$freeLane" ; return 0 ; }
+		freeLane=$(( freeLane + 1 ))
+	done
+	return 1
+}
+## A lock taken by hand -- the hand rule's own shape, a note and no runner-pid -- is a live session's, shuts every
+## lane, and is never given back by a runner. So does the lock of a runner from before the lanes: it writes no
+## `lanes: yes` line, and a run of this runner may not stand beside it, since that run would not see this one's lanes.
+AgentsRunHandLockByHand(){ ## -- rc 0 where the hand lock stands and no run holding it reads the lanes
+	[ -d "$runHandLock" ] || return 1
+	LC_ALL=C grep -q '^runner-pid: ' "$runHandLock"/* 2>/dev/null || return 0
+	LC_ALL=C grep -q '^lanes: yes' "$runHandLock"/* 2>/dev/null && return 1
+	return 0
+}
+AgentsRunDescribePid(){ ## pid -- that run named as its own ticket names it: its pid, the copy it runs from and since when
+	local describePid="$1" describeFile describeKind
+	case "$describePid" in ''|*[!0123456789]*) printf 'a run whose pid is not known' ; return 0 ;; esac
+	for describeFile in "$runQueueDir"/*.ticket ; do
+		[ -f "$describeFile" ] || continue
+		[ "$( LC_ALL=C sed -n 's/^pid=//p' "$describeFile" 2>/dev/null | LC_ALL=C sed -n 1p )" = "$describePid" ] || continue
+		describeKind="$( LC_ALL=C sed -n 's/^kind=//p' "$describeFile" 2>/dev/null | LC_ALL=C sed -n 1p )"
+		case "$describeKind" in
+			check) printf 'the check of pid %s, in line since %s' "$describePid" "$( LC_ALL=C sed -n 's/^since=//p' "$describeFile" 2>/dev/null | LC_ALL=C sed -n 1p )" ;;
+			*) printf 'the run of pid %s from %s, in line since %s' "$describePid" "$( LC_ALL=C sed -n 's/^origin=//p' "$describeFile" 2>/dev/null | LC_ALL=C sed -n 1p )" "$( LC_ALL=C sed -n 's/^since=//p' "$describeFile" 2>/dev/null | LC_ALL=C sed -n 1p )" ;;
+		esac
+		return 0
+	done
+	printf 'a run of pid %s' "$describePid"
+}
+AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn, and returns; says whom it waits behind, each time that changes
+	local turnStamp turnFile turnPid="" turnWhom="" turnHeldWhom="" turnAhead=0 turnAncestors="" turnSaid="" turnBegan turnWaited
+	local turnHolders turnLane turnRound=0 turnRecount=0
 	## A RUN NEVER STANDS IN THE LINE PAST ITS BOUND. A run that has waited MDAT_SUITE_QUEUE_LIMIT seconds -- 900 unless
 	## the machine sets it -- says in one line whom it waits behind and refuses: it runs nothing outside its turn, and its
 	## ticket goes, so the runs behind it are not held by it. Two runs waited half an hour on 2026-11-03 before a person
@@ -315,8 +535,13 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 		&& mv -f "$runQueueDir/.$runTicket" "$runQueueDir/$runTicket" || {
 		echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line of test runs: $runQueueDir" >&2 ; exit 1
 	}
+	runLaneAlone=""
+	AgentsRunAloneWanted "$@" && runLaneAlone=1
+	runLaneCountNow="$( AgentsRunLaneCount )"
 	while : ; do
 		turnWhom="" ; turnAhead=0 ; turnAncestors=" $( AgentsRunAncestors ) "
+		## The lanes are read at every pass, so a lane whose run died is given back here rather than held for ever.
+		turnHolders="$( AgentsRunLaneHolders "$runLaneCountNow" )"
 		for turnFile in "$runQueueDir"/*.ticket ; do
 			[ -f "$turnFile" ] || continue
 			[ "${turnFile##*/}" \< "$runTicket" ] || continue
@@ -330,38 +555,80 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 			if ! AgentsRunTicketAlive "$turnFile" ; then
 				rm -f "$turnFile" ; continue
 			fi
+			## A ticket ahead that holds no lane is the head of the queue, and this run waits for it, so a run
+			## that arrived first starts first. One already holding a lane is running, and this run may take
+			## another lane beside it -- and where every lane is taken, the holder is named as well.
+			if AgentsRunTicketHoldsLane "$turnPid" "$turnHolders" ; then
+				[ -n "$turnHeldWhom" ] || turnHeldWhom="$( AgentsRunDescribePid "$turnPid" )"
+				continue
+			fi
 			turnAhead=$(( turnAhead + 1 ))
-			[ -n "$turnWhom" ] || case "$( LC_ALL=C sed -n 's/^kind=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )" in
-				check) turnWhom="the check of pid $turnPid, in line since $( LC_ALL=C sed -n 's/^since=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )" ;;
-				*) turnWhom="the run of pid $turnPid from $( LC_ALL=C sed -n 's/^origin=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p ), in line since $( LC_ALL=C sed -n 's/^since=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )" ;;
-			esac
+			[ -n "$turnWhom" ] || turnWhom="$( AgentsRunDescribePid "$turnPid" )"
 		done
 		## Taken by hand by this run's own caller: no turn of its own. With nobody ahead the
 		## run's turn has come and it starts under that lock; with anyone ahead it is refused,
 		## since each of them waits behind that lock and this run would wait behind them.
 		if [ -d "$runHandLock" ] && AgentsRunHandLockOwn ; then
-			[ "$turnAhead" != 0 ] || { MDAT_SUITE_QUEUE_TURN="$runQueueDir/$runTicket" ; export MDAT_SUITE_QUEUE_TURN ; return 0 ; }
+			[ "$turnAhead" != 0 ] || {
+				## The caller holds the lock itself: the run starts under it and leaves it for the caller, so it takes no lane of its own and gives none back.
+				MDAT_SUITE_QUEUE_TURN="$runQueueDir/$runTicket" ; export MDAT_SUITE_QUEUE_TURN
+				return 0
+			}
 			echo "⛔ ERROR: AgentsRunTests.sh: not started: this run's caller holds $runHandLock by hand, and its turn in the machine's line has not come: $turnAhead run(s) stand ahead of it, the first $turnWhom. A lock taken by hand is no turn. Remove it and run again: the run waits its turn by itself, and takes the lock itself when that comes." >&2
 			exit 1
 		fi
-		if [ -z "$turnWhom" ] ; then
-			if mkdir "$runHandLock" 2>/dev/null ; then
-				runLockMine=1
-				## The tests this run starts are inside its turn: they take no ticket of their own, so the run's own
-				## workers still run as many tests at once as it was given (rig-temp.include.sh, rigQueueTurn).
-				MDAT_SUITE_QUEUE_TURN="$runQueueDir/$runTicket" ; export MDAT_SUITE_QUEUE_TURN
-				printf 'runner-pid: %s\nagent: AgentsRunTests.sh, a run from %s\ntaken: %s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runHandLock/holder.txt"
-				return 0
+		## The hand lock of any other session, taken by hand, shuts every lane: no run starts beside a session on the hand rule.
+		if AgentsRunHandLockByHand ; then
+			## A lock taken by hand and a lock of a runner from before the lanes say different things: the first is a
+			## session's own rule, the second is a runner this one cannot share lanes with.
+			if LC_ALL=C grep -q '^runner-pid: ' "$runHandLock"/* 2>/dev/null ; then
+				turnWhom="the lock $runHandLock, held by a runner from before the lanes: $( AgentsRunHandLockNote ) -- it runs alone on the whole machine, and this one waits for it"
+			else
+				turnWhom="the lock $runHandLock, taken by hand and held by: $( AgentsRunHandLockNote ) -- where that was done for this very run, remove it: the run takes the turn itself"
 			fi
-			turnPid="$( LC_ALL=C sed -n 's/^runner-pid: //p' "$runHandLock/holder.txt" 2>/dev/null | LC_ALL=C sed -n 1p )"
-			if [ -n "$turnPid" ] && ! AgentsRunRunnerAlive "$turnPid" ; then
-				rm -f "$runHandLock/holder.txt" ; rmdir "$runHandLock" 2>/dev/null
-				continue
+		elif [ -z "$turnWhom" ] ; then
+			if [ -n "$runLaneAlone" ] ; then
+				## A test that measures its own timing takes every lane, so nothing of any other run is busy beside it.
+				## Every lane is looked at first and then taken one at a time; a lane another run takes in between gives
+				## back what this run had, and it waits as any run does.
+				turnLane="" ; turnRound=1
+				while [ "$turnRound" -le "$runLaneCountNow" ] ; do
+					AgentsRunLaneFree "$turnRound" || { turnLane="" ; break ; }
+					turnLane="$turnRound" ; turnRound=$(( turnRound + 1 ))
+				done
+				if [ -n "$turnLane" ] ; then
+					turnRound=1
+					while [ "$turnRound" -le "$runLaneCountNow" ] ; do
+						AgentsRunLaneTake "$turnRound" || break
+						turnRound=$(( turnRound + 1 ))
+					done
+					if [ "$turnRound" -gt "$runLaneCountNow" ] ; then
+						MDAT_SUITE_QUEUE_TURN="$runQueueDir/$runTicket" ; export MDAT_SUITE_QUEUE_TURN
+						return 0
+					fi
+					for turnLane in $runLaneMine ; do AgentsRunLaneGive "$turnLane" ; done
+					runLaneMine="" runLockMine=""
+					turnWhom="a lane another run took as this one asked for every lane of the machine"
+					turnLane=""
+				fi
+				[ -n "$turnWhom" ] || turnWhom="$turnHeldWhom"
+				[ -n "$turnWhom" ] || turnWhom="a run of pid $turnHolders, holding one of $runLaneCountNow lane(s) of the machine"
+				turnWhom="$turnWhom -- this run holds a test that measures its own timing, and such a test runs alone"
+			else
+				turnLane="$( AgentsRunLaneFreeOne "$runLaneCountNow" )"
+				if [ -n "$turnLane" ] && AgentsRunLaneTake "$turnLane" ; then
+					## The tests this run starts are inside its turn: they take no ticket of their own, so the run's own
+					## workers still run as many tests at once as it was given (rig-temp.include.sh, rigQueueTurn).
+					MDAT_SUITE_QUEUE_TURN="$runQueueDir/$runTicket" ; export MDAT_SUITE_QUEUE_TURN
+					return 0
+				fi
+				## The run this one waits behind is the head of the queue, and where nobody is waiting for a lane, it is
+				## the run that holds the lane this one needs.
+				[ -n "$turnWhom" ] || turnWhom="${turnHeldWhom:-a run of pid $turnHolders, holding one of $runLaneCountNow lane(s) of the machine}"
 			fi
-			turnWhom="the lock $runHandLock, taken by hand and held by: $( AgentsRunHandLockNote ) -- where that was done for this very run, remove it: the run takes the turn itself"
 		fi
 		if [ "$turnWhom" != "$turnSaid" ] ; then
-			echo "# AgentsRunTests.sh: one run of the tests runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2
+			echo "# AgentsRunTests.sh: $runLaneCountNow lane(s) of test runs on this machine, by its pace -- this one waits its turn behind $turnWhom" >&2
 			turnSaid="$turnWhom"
 		fi
 		## Its bound passed: what it waits behind, and no run of it. The ticket is given back here, so nothing behind it
@@ -371,11 +638,14 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 			echo "⛔ ERROR: AgentsRunTests.sh: not started: its turn in the machine's line had not come within ${turnWaited}s. It waited behind $turnWhom. Nothing was run, and no ticket is left in the line. Run it again, or set MDAT_SUITE_QUEUE_LIMIT higher where a longer wait is wanted." >&2
 			exit 1
 		fi
+		## the lanes are read again now and then, so a machine that came to rest or grew busy widens or narrows them
+		turnRecount=$(( turnRecount + 1 ))
+		if [ "$turnRecount" -ge 15 ] ; then turnRecount=0 ; runLaneCountNow="$( AgentsRunLaneCount )" ; fi
 		sleep 2
 	done
 }
-## Every run waits its turn, a run of named tests as the whole suite does (ONE RUN AT A TIME, above).
-AgentsRunQueueTurn
+## Every run waits its turn, a run of named tests as the whole suite does (WAITING IN THE LINE, above).
+AgentsRunQueueTurn $( AgentsRunNames "$@" )
 
 ## A run a session starts keeps its folder in that session's output folder, beside its own files, and a run
 ## with no session keeps the workspace's .local/temp. The rule stands here as well as at the tooling's own
@@ -401,7 +671,7 @@ runCount="$( grep -c . "$runList" )"
 [ "$runCount" -gt 0 ] || { echo "⛔ ERROR: AgentsRunTests.sh: no test matches" >&2 ; exit 1 ; }
 
 AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run list
-	local oneName="$1" oneTimeout="${2:-$runTimeout}" oneStart oneEnd oneRc=0 oneLast onePid oneKey oneAfter oneKept=""
+	local oneName="$1" oneTimeout="${2:-$runTimeout}" oneStart oneEnd oneRc=0 oneLast onePid oneKey oneAfter oneKept="" oneEnded=""
 	## the state this test starts on, for the pass it may earn (the pass record, above)
 	oneKey="$( AgentsRunPassKey "$oneName" | LC_ALL=C cut -d' ' -f2 )"
 	oneStart="$( date +%s )"
@@ -418,6 +688,7 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		export MDAT_COMMS_READER=off
 		export MDAT_COLLECT_THREAD=off
 		export MDAT_TEAM_DATA_COMMIT_THREAD=off
+		export MDAT_SCHEDULE_THREAD=off
 		export MDAT_WORKSPACE_MODE=team-rig
 		cd "$testDir" || exit 1
 		exec python3 -I -B "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"
@@ -430,6 +701,11 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 	rm -f "$runDir/$oneName.started"
 	oneEnd="$( date +%s )"
 	oneLast="$( grep . "$runDir/$oneName.log" | tail -n 1 )"
+	## A TEST ENDED AT ITS TIME LIMIT SAYS SO, in its receipt, its FAIL line and the summary (S6.47): the exit status
+	## 128+ALRM it ends on is a number a reader has to decode, and the last line it printed can be any word at all.
+	oneEnded=""
+	[ ! -s "$runDir/$oneName.started.limit" ] || oneEnded="$( head -1 "$runDir/$oneName.started.limit" 2> /dev/null )"
+	rm -f "$runDir/$oneName.started.limit"
 	## kept only where the state is, now that the test has passed, the one it started on; the receipt says which it was
 	if [ "$oneRc" = 0 ] ; then
 		oneAfter="$( AgentsRunPassKey "$oneName" | LC_ALL=C cut -d' ' -f2 )"
@@ -442,11 +718,12 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		esac
 	fi
 	printf 'rc=%s\nseconds=%s\nlast=%s\n' "$oneRc" "$(( oneEnd - oneStart ))" "$oneLast" > "$runDir/$oneName.receipt"
+	[ -z "$oneEnded" ] || printf 'ended-by=time-limit\n' >> "$runDir/$oneName.receipt"
 	[ -z "$oneKept" ] || printf '%s\n' "$oneKept" >> "$runDir/$oneName.receipt"
 	if [ "$oneRc" = 0 ] ; then
 		printf 'PASS  %-48s %4ss  %s\n' "$oneName" "$(( oneEnd - oneStart ))" "$oneLast"
 	else
-		printf 'FAIL  %-48s %4ss  rc=%s  %s\n' "$oneName" "$(( oneEnd - oneStart ))" "$oneRc" "$oneLast"
+		printf 'FAIL  %-48s %4ss  rc=%s  %s%s\n' "$oneName" "$(( oneEnd - oneStart ))" "$oneRc" "${oneEnded:+$oneEnded -- }" "$oneLast"
 	fi
 }
 
@@ -518,6 +795,7 @@ mkdir -p "$runSlotDir" 2>/dev/null && [ -w "$runSlotDir" ] || {
 }
 
 echo "# AgentsRunTests.sh: $runCount test(s), workers ${runWorkers:-1}, timeout ${runTimeout}s, run folder: $runDir" >&2
+echo "# AgentsRunTests.sh: $( AgentsRunLaneReport ) -- the machine's lanes are read against its own pace ($runLaneDir)" >&2
 runStart="$( date +%s )"
 ## as many workers as the driver would run at once, and a line of the driver for each, never more lines than tests (THE DRIVER IS HANDED ITS WORKERS, above)
 runWorkerCount="${runWorkers:-1}"
@@ -549,7 +827,8 @@ fi
 {
 	for runName in $( cut -d' ' -f1 "$runList" ) ; do
 		runRc="$( sed -n 's/^rc=//p' "$runDir/$runName.receipt" 2>/dev/null )"
-		if [ "${runRc:-x}" = 0 ] ; then echo "PASS $runName" ; else echo "FAIL $runName rc=${runRc:-none}" ; fi
+		runEnded="$( sed -n 's/^ended-by=//p' "$runDir/$runName.receipt" 2>/dev/null | LC_ALL=C sed -n 1p )"
+		if [ "${runRc:-x}" = 0 ] ; then echo "PASS $runName" ; else echo "FAIL $runName rc=${runRc:-none}${runEnded:+ $runEnded}" ; fi
 	done | sort -k1,1 -k2,2
 	runPass="$( grep -l '^rc=0$' "$runDir"/*.receipt 2>/dev/null | wc -l | tr -d ' ' )"
 	[ -z "$runStalled" ] || echo "STALLED  never ran $runNeverCount  never ended $runOpenCount"

@@ -13,6 +13,11 @@
 ##      credential line, so "no mark" is never read off a run that stopped somewhere else.
 ##   4. THE INSTRUMENT. The mark reader is run on a log with a planted `command not found`
 ##      line and on a clean one: a reader that cannot fail is no check.
+##   7. ONE GUARD AN ARGUMENT (S6.23). In the two arms the review names, `--jira-issue-read` and
+##      `--jira-sprint-issue-search`, no `shift` carries a missing-argument `{ ... }`: a shift
+##      answers only whether a word remains, so each such guard said again what the `[ -n ... ]`
+##      test beside it already said. The two that were fixed are held here as text, and the
+##      control is the sibling arm that was already written that way.
 ## Red recipe: on the includes as they stand before S6.24, section 2 fails on twelve
 ## operations with `... : line 14: DistroAgentsTools: command not found` and their status is
 ## 127; sections 1, 3 and 4 pass.
@@ -148,6 +153,60 @@ env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDA
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_TEAM_DATA_COMMIT_THREAD=off \
 	bash "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-coordinator --upsert ALIAS rigalias > /dev/null 2>&1
 rigAssert "Registries answers the stored alias once one is set, and no mark" "$( rigRow ):$( rigMarkCount )" "- - - rigalias:0"
+
+echo "-- 6. the dispatcher's own process: no include calls back into the function --"
+## A shell that DEFINES the dispatcher function, records every call to it, and then drives the
+## include. On a console the call can only fail; here it succeeds and is seen, which is how the
+## guard the ruling forbids stayed invisible to every check that only runs a console.
+rigReenter(){ ## the snippet -- how many calls reached the recorded function
+	: > "$rigTmp/reentry.log"
+	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" \
+		MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDAT_SPAWN_AGENT=magic-coordinator MDAT_WAIT_REMIND=off MDAT_TEAM_DATA_COMMIT_THREAD=off \
+		MDAT_COMMS_READER=off MDAT_COLLECT_THREAD=off MDSC_CMD=probe RIG_SH="$rigPackage/sh-lib" RIG_TMP="$rigTmp" \
+		bash -c "$1" > "$rigTmp/call.out" 2>&1
+	LC_ALL=C grep -c . "$rigTmp/reentry.log" || :
+}
+rigProbeReenter='DistroAgentsTools(){ printf "%s\n" "$*" >> "$RIG_TMP/reentry.log" ; return 0 ; }
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$RIG_SH/member/AgentsTools.BareName.include"
+	type AgentsToolsMemberInvited > /dev/null 2>&1 || . "$RIG_SH/member/AgentsTools.MemberWorkspace.include"
+	probe(){ local MDSC_CMD=probe ; set -- --client-operation-run magic-coordinator --client-comms-trello-check client-rig
+		. "$RIG_SH/magic/AgentsTools.MagicClient.include" ; }
+	probe'
+rigProbeControl='DistroAgentsTools(){ printf "%s\n" "$*" >> "$RIG_TMP/reentry.log" ; return 0 ; }
+	probe(){ local MDSC_CMD=probe ; DistroAgentsTools --context control ; }
+	probe'
+rigAssert "the dispatcher's own process: a driven include calls the recorded function no time" \
+	"$( rigReenter "$rigProbeReenter" )" "0"
+rigAssert "control: a probe that does call it is seen, so a quiet result is a result" \
+	"$( rigReenter "$rigProbeControl" )" "1"
+rigReenter "$rigProbeReenter" > /dev/null
+cp "$rigTmp/call.out" "$rigTmp/include-run.out"
+rigAssert "and the include reaches the stub itself, its own missing-credential line and no mark" \
+	"$( LC_ALL=C grep -c -F 'TRELLO_KEY/TRELLO_TOKEN not fully set' "$rigTmp/include-run.out" ):$( LC_ALL=C grep -c -F 'command not found' "$rigTmp/include-run.out" || : )" "1:0"
+
+## One arm's `shift` guards that carry a missing-argument block, counted in the arm's own lines. A guard of that shape says
+## again what the `[ -n ... ]` test beside it says, and a shift that answers only whether a word remains cannot tell an empty
+## one: that is the fault S6.23 names. Read from the file's text, so an arm that regains the shape is caught before a run.
+rigArmShiftGuards(){ ## file, arm name -- how many such guards that arm holds
+	LC_ALL=C awk -v arm="$2" '
+		{ line = $0 ; sub( /^[ \t]+/, "", line ) }
+		index( line, "--" arm ")" ) == 1 { inside = 1 ; next }
+		inside && line ~ /^;;/ { exit }
+		inside && line !~ /^##/ && line ~ /shift \|\| \{/ { guards++ }
+		END { print guards + 0 }
+	' "$1"
+}
+
+echo "-- 7. one guard an argument, in the two arms the review names --"
+## The positive here is the file under test; the control is a sample holding the shape, since a reader that cannot count
+## a planted guard would report zero for both and prove nothing.
+printf -- '\t\t--intern-op-comms-jira-issue-read)\n\t\t\tshift || { : ; }\n\t\t;;\n' > "$rigTmp/armed.sh"
+rigAssert "control: the reader counts a guard of that shape when one is there" "$( rigArmShiftGuards "$rigTmp/armed.sh" intern-op-comms-jira-issue-read )" 1
+rigAssert "--jira-issue-read carries no shift guard"  "$( rigArmShiftGuards "$rigPackage/sh-lib/comms/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-issue-read )" 0
+rigAssert "--jira-sprint-issue-search carries none"   "$( rigArmShiftGuards "$rigPackage/sh-lib/comms/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-sprint-issue-search )" 0
+rigAssert "and the arm already written that way, the control arm, carries none either" \
+	"$( rigArmShiftGuards "$rigPackage/sh-lib/comms/AgentsTools.MemberCommsJira.include" intern-op-comms-jira-issue-link-list )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CONSOLE COMMS REENTRY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

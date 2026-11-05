@@ -8,6 +8,28 @@
 #
 # Own-line braces are the documented false positive and are skipped, as is a
 # brace inside a quoted payload the file only transports.
+#
+# A PROGRAM IS ALSO QUOTED INSIDE A SHELL FILE, and that was where the axiom went
+# unenforced: the checker read awk sources only, so an awk program held in a `sh`
+# file's single quotes was never looked at. With -v awkShell=1 the input is a shell
+# file, and only the lines inside a single-quoted region opened on a line naming awk
+# are checked. Every other line of that file is shell and is passed over.
+
+## True while the line is inside such a region, and the region's own opening line
+## is the one that names awk. The name is read whatever its case, since a shell
+## variable holding a program is written `rigSpinAwk=`. `'\''` is the shell's
+## apostrophe, so it closes and reopens one literal: those characters are taken
+## together and the region goes on.
+function shellRegion(text,   i, c) {
+	for (i = 1 ; i <= length(text) ; i++) {
+		c = substr(text, i, 1)
+		if (c != "'") continue
+		if (substr(text, i, 3) == "'\\''") { i = i + 2 ; continue }
+		if (inProgram) { inProgram = 0 ; continue }
+		inProgram = (tolower(substr(text, 1, i - 1)) ~ /awk/) ? 1 : 0
+	}
+	return inProgram
+}
 
 ## True when the line's last `}` closes an opener written as `${`. Openers are paired
 ## by nesting depth from the left; an unmatched close leaves the answer false.
@@ -25,7 +47,9 @@ function closesShellExpansion(text,   i, c, depth, openAt) {
 	return 0
 }
 
+BEGIN { inProgram = 0 }
 {
+	if (ENVIRON["AWK_AXIOM_SHELL"] != "") { if (!shellRegion($0)) next }
 	lineText = $0
 	sub(/^[ \t]+/, "", lineText)
 	sub(/[ \t]+$/, "", lineText)

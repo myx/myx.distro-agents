@@ -29,6 +29,9 @@
 ## AND THE THREAD OF THE SOURCES A SCAN READS (F4.2), the same: its start line is in collect/thread.log and its lock, collect/thread.lock,
 ## names it (sh-lib/comms/AgentsTools.CollectThread.include).
 ##
+## AND THE SCHEDULE'S SERVICE THREAD (S12.12), the same: its start line is in schedule-thread/thread.log and its lock, schedule-thread/thread.lock,
+## names it (sh-lib/session/AgentsTools.ScheduleThread.include).
+##
 ##   rigControlThreadNotes <dir>...   the notes found under those rig trees, `<pid> <start>` a line
 ##   rigControlThreadsEnd <dir>...    ends every such process that is still itself, with what it started (the
 ##                                    sleep it waits on), the hard way: nothing of it is wanted any more
@@ -46,6 +49,9 @@ rigControlThreadNotes(){ ## dir...
 	PATH="$rigProcPath" find "$@" -path '*/collect/thread.log' -type f -exec cat {} + 2> /dev/null \
 		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a start of the source collector is made: pid \([0-9][0-9]*\), begun \([^ ]*\)$/\1 \2/p'
 	PATH="$rigProcPath" find "$@" -path '*/collect/thread.lock' -type l -exec readlink {} \; 2> /dev/null
+	PATH="$rigProcPath" find "$@" -path '*/schedule-thread/thread.log' -type f -exec cat {} + 2> /dev/null \
+		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a thread is started here: pid \([0-9][0-9]*\)$/\1/p'
+	PATH="$rigProcPath" find "$@" -path '*/schedule-thread/thread.lock' -type f -exec cat {} + 2> /dev/null
 	return 0
 }
 

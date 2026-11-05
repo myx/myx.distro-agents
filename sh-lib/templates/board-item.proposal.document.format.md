@@ -18,6 +18,8 @@ An undecided design.
 ## Goal
 {{goal}}
 
+Audience: {{audience}}
+
 ## Approaches considered
 {{approaches}}
 
@@ -31,6 +33,7 @@ An undecided design.
 # Slots
 
 - `matter` — the matter, one line, the title after `# Proposal:`.
+- `audience` — who reads this, in a word or two. A hint its reader interprets, never a closed list.
 - `goal` — what the design is for, in the `## Goal` section.
 - `approaches` — two or more approaches, one top-level list item each, its name in bold, in the `## Approaches considered` section.
 - `recommendation` — the approach recommended, and why, in the `## Recommendation` section.

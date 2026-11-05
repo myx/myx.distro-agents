@@ -475,6 +475,14 @@ case "$1" in
 
 			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial="" imCapped=""
 			local imFailed="false" imAnySourceFailed="false"
+			local imNotReached=0 imNotReachedList=""
+			## THE SLACK LEG HAS ITS OWN BOUND, inside the caller's window. Measured 2026-11-04:
+			## a 60-day cut-off read 20 conversations in 130 s and a stored one 215 s.
+			local slackLegSeconds="${ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS:-240}"
+			case "$slackLegSeconds" in
+				*[!0123456789]*|''|0) slackLegSeconds=240 ;;
+			esac
+			local slackLegDeadline=$(( SECONDS + slackLegSeconds ))
 			if [ "$wantSlack" = "true" ] ; then
 				if [ "$commsCutoffDefaulted" = "true" ] ; then
 					imInstrument="cut-off defaulted to the last $sessionContextDefaultCutoffDays days -- no --comms-since-date-time or --comms-since-utime was given (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
@@ -592,7 +600,7 @@ case "$1" in
 				local dmRosterOutput="" dmRosterRc=0
 				if [ "$slackOwnCredentials" = "true" ] ; then
 					type AgentsToolsCommsSlackResolveIds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include"
-					dmRosterOutput="$( AgentsToolsCommsSlackConversationsRoster "$actingMember" $slackRosterIdentityArg \
+					dmRosterOutput="$( export ENV_MAGIC_SWEEP_SLACK_LEG_DEADLINE="$slackLegDeadline" ; AgentsToolsCommsSlackConversationsRoster "$actingMember" $slackRosterIdentityArg \
 						"${slackRosterTypesArg[@]+"${slackRosterTypesArg[@]}"}" )" || dmRosterRc=$?
 				else
 					dmRosterRc=4
@@ -902,6 +910,11 @@ case "$1" in
 				## parse failure is a file the loop reads (`fail.<i>`: items or trim;
 				## `disc.<i>`: thread discovery), never a missing result.
 				AgentsSessionContextSourceFetchOne(){ ## index into slackSourceSpecs
+					## Past the leg's bound a worker reads nothing and reports the source unreached.
+					if [ "$SECONDS" -ge "$slackLegDeadline" ] ; then
+						printf 'not-reached\n' > "$sourcePrefetchDir/state.$1"
+						return 0
+					fi
 					local fetchSpec="${slackSourceSpecs[$1]}" fetchIdentity fetchTarget fetchLabel fetchResolved fetchChannel fetchRc=0
 					fetchIdentity="${fetchSpec%%|*}"
 					fetchTarget="${fetchSpec#*|}"
@@ -1016,6 +1029,12 @@ case "$1" in
 					[ ! -f "$sourcePrefetchDir/state.$sourceIndex" ] || read -r sourceState < "$sourcePrefetchDir/state.$sourceIndex" || sourceState=""
 					case "$sourceState" in
 						read) ;;
+						not-reached)
+							imNotReached=$(( imNotReached + 1 ))
+							imNotReachedList="$imNotReachedList  - $slackName"$'\n'
+							imAnySourceFailed="true"
+							continue
+						;;
 						unresolved)
 							imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, no channel id configured"$'\n'
 							imAnySourceFailed="true"
@@ -1281,8 +1300,16 @@ case "$1" in
 				' )" || threadOrder=""
 
 				local threadEst threadCheckedDone=-1 threadCheckedEst="" threadDone threadAbove threadInFlight
+				local threadNotReachedSet=$'\n'
 				while read -r dtIndex dt threadEst ; do
 					[ -n "$dt" ] || continue
+					if [ "$SECONDS" -ge "$slackLegDeadline" ] ; then
+						imNotReached=$(( imNotReached + 1 ))
+						imNotReachedList="$imNotReachedList  - $dt"$'\n'
+						threadNotReachedSet="$threadNotReachedSet$dt"$'\n'
+						imAnySourceFailed="true"
+						continue
+					fi
 					if [ "$threadCapEngaged" = "true" ] && [ -n "$threadEst" ] ; then
 						if [ "$threadCapped" -gt 0 ] ; then
 							threadCapped=$(( threadCapped + 1 ))
@@ -1325,6 +1352,7 @@ case "$1" in
 					[ -n "$dt" ] || continue
 					dtIndex=$(( dtIndex + 1 ))
 					case "$threadCappedSet" in *$'\n'"$dt"$'\n'*) continue ;; esac
+					case "$threadNotReachedSet" in *$'\n'"$dt"$'\n'*) imSourcesTotal=$(( imSourcesTotal + 1 )) ; continue ;; esac
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
 					local statusLine blocksFile statusFile
 					blocksFile="$threadFetchWorkDir/blocks.$dtIndex"
@@ -1492,6 +1520,8 @@ case "$1" in
 				printf '**NOTE:** no new incoming communications\n\n'
 			fi
 
+			local imNotReachedText=""
+			[ "$imNotReached" -eq 0 ] || imNotReachedText="$( printf 'leg-bound: %s s (ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS) -- launching stopped there, and the reads already in flight were allowed to finish\nnot-reached: %s source(s), which the next pass reads\n%s' "$slackLegSeconds" "$imNotReached" "$imNotReachedList" )"
 			[ "$noSlack" = "true" ] || printf '## Incoming IM Updates\n\n'
 			if [ "$wantSlack" != "true" ] ; then
 				[ "$noSlack" = "true" ] || printf '**NOTE:** not requested\n\n'
@@ -1499,6 +1529,7 @@ case "$1" in
 				printf 'identity: slack %s (config: %s)\n' "$imIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$imInstrument"
 				printf 'sources-scanned: %s of %s\n' "$imSourcesScanned" "$imSourcesTotal"
+				[ "$imNotReached" -eq 0 ] || printf '%s' "$imNotReachedText"
 				printf '**NOTE:** no scan was made -- no watched Slack source could be read\n'
 				[ -z "$imPartial" ] || printf '%s' "$imPartial"
 				printf '\n'
@@ -1509,6 +1540,7 @@ case "$1" in
 				printf 'sort: oldest first -- conversations ordered by their own newest message, messages oldest first within each conversation (no message-level merge across conversations)\n'
 				printf 'cap: %s conversations -- a thread, channel or DM is ONE unit however many messages it carries\n' "$sessionContextCapIm"
 				printf 'messages-read: %s\n' "$imCount"
+				[ "$imNotReached" -eq 0 ] || printf '%s' "$imNotReachedText"
 				[ -z "$imPartial" ] || printf '%s' "$imPartial"
 				[ -z "$imCapped" ] || printf '%s' "$imCapped"
 				if [ "$imCount" = "0" ] ; then
@@ -1762,6 +1794,11 @@ case "$1" in
 						-v bodyByteCap="$inboxSectionBytes" \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxItemBlockPrint.awk" \
 						"${inboxEmit[@]}"
+					## THE SECTION'S CLOSING INSTRUCTION (S18.3): the acting member's own unprocessed items, never a widened read-only inbox,
+					## whose items are not that member's to mark. A section is one block, so the line stands once in it.
+					if [ "$inboxMember" = "$actingMember" ] ; then
+						printf '%s\n\n' "$( AgentsToolsInboxInstruction )"
+					fi
 					## Named-item lookup below is the ACTING member's own inbox only, so
 					## only its paths belong in the already-emitted set.
 					if [ "$inboxMember" = "$actingMember" ] ; then
@@ -1770,44 +1807,47 @@ case "$1" in
 				done
 			done
 
-			local boardStatesText="" boardTypeText="" boardOwnerText="" boardScopeLine bs
-			for bs in "${states[@]}" ; do
-				boardStatesText="${boardStatesText:+$boardStatesText|}$bs"
+		fi
+		local boardStatesText="" boardTypeText="" boardOwnerText="" boardScopeLine bs
+		for bs in "${states[@]}" ; do
+			boardStatesText="${boardStatesText:+$boardStatesText|}$bs"
+		done
+		if [ "$allTypes" = "true" ] ; then
+			boardTypeText="all types"
+		else
+			for bs in "${typePrefixes[@]}" ; do
+				boardTypeText="${boardTypeText:+$boardTypeText|}$bs"
 			done
-			if [ "$allTypes" = "true" ] ; then
-				boardTypeText="all types"
-			else
-				for bs in "${typePrefixes[@]}" ; do
-					boardTypeText="${boardTypeText:+$boardTypeText|}$bs"
-				done
-				boardTypeText="types: $boardTypeText"
-			fi
-			if [ -n "$owner" ] ; then
-				boardOwnerText="owner: $owner"
-			else
-				boardOwnerText="any owner"
-			fi
-			boardScopeLine="board/<state>/*.md -- $boardStatesText, $boardTypeText, $boardOwnerText"
+			boardTypeText="types: $boardTypeText"
+		fi
+		if [ -n "$owner" ] ; then
+			boardOwnerText="owner: $owner"
+		else
+			boardOwnerText="any owner"
+		fi
+		type AgentsToolsBoardTree > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+		local boardTree=""
+		boardTree="$( AgentsToolsBoardTree )"
+		boardScopeLine="board/<state>/*.md -- $boardStatesText, $boardTypeText, $boardOwnerText, tree: $boardTree"
 
-			## The item blocks are emitted below, outside this block: a decline may
-			## drop the heading only when there are none for it to head.
-			if [ "$noBoardRelated" != "true" ] || [ ${#matchedFiles[@]} -gt 0 ] ; then
-				printf '## Board Items\n'
-				if [ ${#matchedFiles[@]} -gt 0 ] \
-					|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
-					printf 'scope: %s\n' "$boardScopeLine"
-				fi
-				if [ ${#matchedFiles[@]} -eq 0 ] \
-					&& { [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; } ; then
-					printf '**NOTE:** no new Board Items -- scanned %s items, 0 matched owner: %s across %s\n\n' \
-						"$boardScanned" "$actingMember" "$boardRelatedStatesText"
-				else
-					printf '\n'
-				fi
+		## The item blocks are emitted below, outside this block: a decline may
+		## drop the heading only when there are none for it to head.
+		if [ "$noBoardRelated" != "true" ] || [ ${#matchedFiles[@]} -gt 0 ] ; then
+			printf '## Board Items\n'
+			if [ ${#matchedFiles[@]} -gt 0 ] \
+				|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
+				printf 'scope: %s\n' "$boardScopeLine"
+			fi
+			if [ ${#matchedFiles[@]} -eq 0 ] \
+				&& { [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; } ; then
+				printf '**NOTE:** no new Board Items -- scanned %s items, 0 matched owner: %s across %s\n\n' \
+					"$boardScanned" "$actingMember" "$boardRelatedStatesText"
+			else
+				printf '\n'
 			fi
 		fi
 
-		local h val mi handlerRc handlerOut
+		local h val mi handlerRc handlerOut boardHeldRows
 		## Each item's token totals, summed now over what sits under it, never stored
 		## (AgentsTools.SessionTranscript.include); one read of the board for all of them.
 		local boardTokenRows=""
@@ -1860,13 +1900,14 @@ case "$1" in
 				0) printf 'handler-routine (resolved): %s (%s)\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $2 ; exit }' )" "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '{ print $3 ; exit }' )" ;;
 				3) printf 'handler-routine (resolved): FLAGGED %s -- nothing runs\n' "$( printf '%s' "$handlerOut" | LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s%s", sep, $2 ; sep = "," }' )" ;;
 			esac
-			## Who holds the item for a round: the scan asks the round check itself, as the calling run, so a caller that may not run a round on it sees the holder.
-			if [ "$handlerRc" != 2 ] ; then
-				handlerOut="$( AgentsToolsBoardItemHandler "$f" --for-round 2> /dev/null )" || :
-				case "$handlerOut" in
-					*$'\t'held$'\t'"the item is held by the live run of "*) printf 'held (by %s)\n' "$( printf '%s' "$handlerOut" | LC_ALL=C sed -n 's/^.*the item is held by the live run of \(.*\): one writer, so this caller.*$/\1/p' | LC_ALL=C sed -n 1p )" ;;
-					*$'\t'held$'\t'"no live run holds the item"*) printf 'held (no live holder: only magic-coordinator runs it)\n' ;;
-				esac
+			## WHO HOLDS THE ITEM, as the DOCUMENT says it and never as the asker does: one view field, a
+			## function of the item and its live runs alone, so the holder, another member and the
+			## coordinator are answered alike. One writer is a separate rule, and it is the round
+			## check's own (AgentsToolsBoardItemRoundMay).
+			type AgentsToolsBoardItemHolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+			boardHeldRows="$( AgentsToolsBoardItemHolders "$f" 2> /dev/null )" || :
+			if [ -n "$boardHeldRows" ] ; then
+				printf 'held (by %s)\n' "$( printf '%s' "$boardHeldRows" | LC_ALL=C awk -F'\t' '{ printf "%s%s (%s)", sep, $1, $2 ; sep = ", " }' )"
 			fi
 			[ -z "$boardTokenRows" ] || AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$boardTokenRows" "$base" )" tokens-total
 			printf '\n'
@@ -1906,10 +1947,20 @@ case "$1" in
 
 			## Same one-process-per-batch rule as the sweep sections, and the
 			## same framing -- a named item is not a different kind of block.
-			[ ${#namedEmit[@]} -eq 0 ] || LC_ALL=C awk \
-				-v bodyByteCap="$sessionContextCapInboxItemBytes" \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxItemBlockPrint.awk" \
-				"${namedEmit[@]}"
+			if [ ${#namedEmit[@]} -gt 0 ] ; then
+				LC_ALL=C awk \
+					-v bodyByteCap="$sessionContextCapInboxItemBytes" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxItemBlockPrint.awk" \
+					"${namedEmit[@]}"
+				## THE NAMED BLOCK CLOSES WITH THE SECTION'S OWN INSTRUCTION (S18.3) where it delivered an item out of incoming/:
+				## that is an unprocessed item handed to its member. An already-processed item is not one, and carries none.
+				for namedPath in "${namedEmit[@]}" ; do
+					if [ -f "$namedInboxDir/incoming/${namedPath##*/}" ] ; then
+						printf '%s\n\n' "$( AgentsToolsInboxInstruction )"
+						break
+					fi
+				done
+			fi
 
 			ni=0
 			while [ "$ni" -lt "${#namedMissing[@]}" ] ; do

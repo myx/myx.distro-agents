@@ -60,10 +60,11 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), collecting earlier notes on the same question.
-2. **state-the-question**: state what is to be found out, before looking. Write it in the investigation's own document, its `investigation-*` item (`board-item.investigation`). Its sections are Question, Goal, Current, Settled, Open and Log. Steps:
+2. **state-the-question**: state what is to be found out, before looking. Write it in the investigation's own document, its `investigation-*` item (`board-item.investigation`). Its sections are Question, Goal, Current, Next, Settled, Open and Log. Steps:
    - the question, the thing it is about, and what the answer is for.
    - the scope: what the investigation may touch, and what it must not touch.
    - the answer that would settle it.
+   - the document stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, each a plain present-tense statement. It is a produce under `magic-team.basic.md`'s "Relay, direct, produce", so a session restarted a month later continues from it alone.
    - read the statement back to whoever asked, per **rephrase-and-confirm-before-acting**.
 3. **read-the-record-first**: read what the team already holds on the thing, steps:
    - the `MAGIC.md` of its tree, the help of the tool involved, the item's `## Decisions`, open `warning-*` items, earlier reports on it.
@@ -158,10 +159,10 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
-- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--get-board-item <item-filename>`
-- `--routine-run-inline <routine>`
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--get-board-item <item-filename>` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

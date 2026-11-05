@@ -52,7 +52,7 @@ How to read it:
   - A declined scope has no section at all.
 - `**NOTE:** no new incoming communications` appears only when every requested comms section was scanned and is empty.
 - **Annotation marks** accompany items: `**NOTE:** partial -- <source> not scanned, <reason>` (with `sources-scanned: <N> of <M>`) and `**NOTE:** truncated -- …`. An inbox section's truncation keeps the oldest items; newer ones are not shown.
-- Each comms section opens with `identity:` and `instrument:` lines saying how it was read; each inbox and board section opens with a `scope:` line.
+- Each comms section opens with `identity:` and `instrument:` lines saying how it was read; each inbox and board section opens with a `scope:` line. A board section's `scope:` line ends `, tree: <path>`, naming the board tree the scan read.
 - **Inbox item blocks** are `## inbox/<filename>`, frontmatter `key: value` lines, optional `body-truncated:` and `body-final-newline: absent`, then `body-lines: <N>` as the last key, then exactly `N` body lines, then a blank line. After `N` lines the next thing is `##` or end of file; anything else means the document is corrupt. A zero-byte item shows `item-empty:` and `body-lines: 0`. A truncated body says so in `body-truncated:`; read the item for the rest.
 - Inbox sections are oldest first. `## Other Inbox Items` holds anything that is not `inquiry-*`, `reflection-*` or `note-*`: such an item is misfiled and is reported to `magic-coordinator`.
 - The narrow inbox breadth lists the inbox's `incoming/` alone, so it leaves out items marked processed; the wider one adds its `processed/` while those items are not yet collected, so it is never complete history.

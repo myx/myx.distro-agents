@@ -135,7 +135,7 @@ rigAt(){ printf '%s' "$1" > "$rigDir/now.epoch" ; }
 
 rigOneRc=0
 rigOneRun(){ ## name of its output files -- one iteration of the real loop
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig MDAT_SCHEDULE_THREAD=off HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigScn" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -164,11 +164,11 @@ rigWaitStarts(){ ## -- until the starts the loop made in the background have end
 	return 0
 }
 rigTool(){ ## words... -- one tooling call from the rig workspace
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig MDAT_SCHEDULE_THREAD=off HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigScn" bash "$rigFn" "$@" ) > /dev/null 2>&1 < /dev/null
 }
 rigDispatch(){ ## words... -- one call of DistroAgentsDispatcher.fn.sh from the rig workspace
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig MDAT_SCHEDULE_THREAD=off HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigScn" bash "$rigPackage/sh-scripts/DistroAgentsDispatcher.fn.sh" "$@" ) > /dev/null 2>&1 < /dev/null
 }
 rigSaid(){ ## name of a run, fixed text -- how many lines of its errors hold it

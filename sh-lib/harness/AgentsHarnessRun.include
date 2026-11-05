@@ -543,7 +543,7 @@ AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;
 		SessionTranscriptAppend) harnessResult="$( AgentsHarnessToolSessionTranscriptAppend "${harnessArgV_note}" )" ;;
-		ThisSession) harnessResult="$( AgentsHarnessToolThisSession "${harnessArgV_operation}" "${harnessArgV_message}" "${harnessArgV_address_to}" "${harnessArgV_routine}" )" ;;
+		ThisSession) harnessResult="$( AgentsHarnessToolThisSession "${harnessArgV_operation}" "${harnessArgV_message}" "${harnessArgV_address_to}" "${harnessArgV_routine}" "${harnessArgV_move}" )" ;;
 		CheckList) harnessResult="$( AgentsHarnessToolCheckList "$harnessFuncArgsRaw" )" ;;
 		BatchTools) harnessResult="$( AgentsHarnessToolBatchTools "$harnessFuncArgsRaw" )" ;;
 		## The secondary tools (agentsFrontSecondary): one arm a name, so the population is read here as it is

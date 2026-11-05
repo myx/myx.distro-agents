@@ -93,15 +93,22 @@ case "$1" in
 			## The response goes straight out on stdout and the DIAGNOSTIC is what is
 			## captured -- a substitution yields one capture, and only the diagnostic
 			## is read back here. The op writes nothing to stdout when it fails.
-			local diag="" callRc=0
+			local diag="" callRc=0 reactedAsBot="$identityAsBot"
 			{ diag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
 			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
 			## As --slack-read does: a conversation the user identity cannot reach (the bot's own DM) is reacted to once by the bot.
 			if [ "$callRc" != "0" ] && [ "$identityAsBot" != "true" ] && ! AgentsToolsSlackClientSide "$memberName" && printf '%s\n' "$diag" | LC_ALL=C grep -q -E 'channel_not_found|not_in_channel' ; then
 				echo "# $MDSC_CMD --slack-react: the acting user identity cannot reach this conversation, reacting once under bot identity" >&2
-				callRc=0
+				callRc=0 ; reactedAsBot="true"
 				{ diag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]:0:$(( ${#opArgs[@]} - 2 ))}" --identity bot --context "--slack-react" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
 				[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+			fi
+			## THE BOT'S OWN ACCOUNT IS ON RECORD (S6.38): a reaction the tooling places under the bot identity is no input to handle,
+			## and the reader that decides that knows only the accounts this workspace keeps. Written here, on the path that just
+			## used the bot, and kept a day by the helper, so a wait's own read starts no request of its own. Quiet either way.
+			if [ "$callRc" = "0" ] && [ "$reactedAsBot" = "true" ] ; then
+				type AgentsToolsCommsSlackBotAccountId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+				AgentsToolsCommsSlackBotAccountId "$memberName" > /dev/null 2>&1 || :
 			fi
 			if [ "$callRc" != "0" ] ; then
 				local actingIdentity=""

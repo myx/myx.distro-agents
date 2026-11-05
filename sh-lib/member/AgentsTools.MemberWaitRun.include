@@ -141,6 +141,26 @@
 		## The stored baselines are taken over above; what is stored again is this wait's own.
 		[ "$waitMode" != "default" ] || rm -f "$waitStateDir"/base.* 2>/dev/null || true
 
+		## THE NAP STARTS NO PROCESS (S12.7): a `sleep` a tick is a fork a tick, and an idle run waits a tick a second for
+		## hours, so that fork rather than any probe is what an idle estate cost the machine. A fifo this wait holds both
+		## ends of, waited on by the shell's own `read -t`, blocks for the nap and starts nothing. Measured on bash 3.2.57:
+		## a read of 300 seconds is woken by TERM as promptly as a sleep is, so a wait is still ended the way it was.
+		local waitNapFifo="" waitNapLine=""
+		if mkfifo "$waitDir/nap.fifo" 2> /dev/null || [ -p "$waitDir/nap.fifo" ] ; then
+			## The redirection is on the block and not on the `exec`, which given redirections alone would keep them for the
+			## life of this shell: on the exec itself, `2> /dev/null` would silence every line the wait still owes.
+			{ exec 6<> "$waitDir/nap.fifo" ; } 2> /dev/null && waitNapFifo="yes"
+		fi
+
+		## Sources are read shortest check interval first (S5.7), sorted once: no interval changes while one wait runs.
+		local roundPlan="" roundPlanSource roundPlanTtl roundPlanGap
+		for roundPlanSource in $waitSources ; do
+			roundPlanTtl="$( AgentsWaitTtlOwn "$roundPlanSource" )"
+			[ -n "$roundPlanTtl" ] || roundPlanTtl="$( AgentsWaitTtlOf "$roundPlanSource" )"
+			case "$roundPlanTtl" in ''|*[!0-9]*) roundPlanTtl=0 ;; esac
+			roundPlan="$roundPlan$( printf '%05d %s\n' "$roundPlanTtl" "$roundPlanSource" )"$'\n'
+		done
+		waitSources="$( printf '%s' "$roundPlan" | LC_ALL=C sort -n | LC_ALL=C awk 'NF { sub(/^[0-9]+ /, "") ; printf "%s%s", ( n++ ? " " : "" ), $0 }' ) "
 		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
 		local waitProbeFailures="" waitReadSources="" waitRemindNext=0 waitProbedAt=() waitDeferred="" waitReturned="" waitPermissionErrors="" waitDetachedTask=""
 		## The TTL holds across Waits. A source is checked only once its TTL has passed since any Wait of the session last checked it.
@@ -185,6 +205,10 @@
 			roundNow=$(( waitStart + SECONDS - waitSecs0 ))
 			for roundSource in $waitSources ; do
 				roundIndex=$(( roundIndex + 1 ))
+				## A hit ends the round, so a slow source after it is never read and is named WAIT-NEVER-READ.
+				[ "$waitOutcome" != "RECEIVED" ] || break
+				## The bound is looked at before each source: one slow source read past it held the whole call past it.
+				[ -z "$waitDeadline" ] || [ $(( waitStart + SECONDS - waitSecs0 )) -lt "$waitDeadline" ] || break
 				roundKind="${roundSource%%:*}"
 				roundTarget="${roundSource#*:}"
 				roundFn="${waitRoundFn[$roundIndex]}"
@@ -391,14 +415,30 @@
 			if [ -n "$waitDeadline" ] && [ "$waitNow" -ge "$waitDeadline" ] ; then
 				break
 			fi
-			## The nap is the tick: a costly source waits for its own slow gap, and a caller's own interval is the nap.
+			## THE NAP IS THE NEAREST PENDING CHECK (S5.7), never longer than the caller's own interval: with nothing due a
+			## wait sleeps up to the first source that comes due, so a costly source is not re-read on every tick.
 			waitNap="$waitPoll"
+			local napIndex=0 napNext="" napGap
+			for roundPlanSource in $waitSources ; do
+				napIndex=$(( napIndex + 1 ))
+				napNext="$( AgentsWaitTtlOf "$roundPlanSource" )"
+				case "$napNext" in ''|*[!0-9]*|0) continue ;; esac
+				napGap=$(( ${waitProbedAt[$napIndex]:-0} + napNext - waitNow ))
+				[ "$napGap" -gt 0 ] || napGap=1
+				[ "$waitNap" -le "$napGap" ] || waitNap="$napGap"
+			done
 			if [ -n "$waitDeadline" ] ; then
 				waitRemaining=$(( waitDeadline - waitNow ))
 				[ "$waitNap" -le "$waitRemaining" ] || waitNap="$waitRemaining"
 			fi
-			## The only thing this process does between probes. No spin, no token.
-			sleep "$waitNap"
+			## The only thing this process does between probes. No spin, no token, and no process.
+			## A read that waited out its whole time reports 1, as `sleep` reports 0: the guard carries that, or `set -e` ends the wait.
+			if [ -n "$waitNapFifo" ] ; then
+				IFS= read -r -t "$waitNap" -u 6 waitNapLine || :
+			else
+				sleep "$waitNap"
+			fi
 		done
+		[ -z "$waitNapFifo" ] || exec 6>&-
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitResult.include"
 		return $?

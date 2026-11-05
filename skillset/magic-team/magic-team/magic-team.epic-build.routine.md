@@ -110,7 +110,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--request-update --kind knowledge --target <topic> --why <text> [--from-stdin|--from-file <path>] [--reply]`
-- `--slack-send-message <target> [text...]`
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 
 # Maintainer Notes
 

@@ -12,15 +12,19 @@
 ## whole runs, so one body costs one pass.
 ##
 ##   1. FIVE READERS, ONE 2 MB BODY, ONE BOUND. Each reader must finish well inside the
-##      bound. Its previous version took 21 s to over 120 s on this body.
+##      bound, answer with the status its own contract states for this body, and print what
+##      it exists to print. Its previous version took 21 s to over 120 s on this body.
 ##   2. THE SAME BYTES. Each reader against the version it replaced, kept in
 ##      check-fixtures/<reader>.legacy.awk: stdout, stderr and status, byte for byte. The
 ##      speed must come from the walk, never from reading less.
 ##
-## RED RECIPE: `--legacy` loads each reader alone, no engine, and skips section 2. Run it on
-## a tree whose five readers are still the old ones, and all five come back BOUND-HIT.
-## Section 2 is skipped there because the readers under test are those originals, so there
-## is nothing to compare them with.
+## A READER THAT NEVER RAN CANNOT PASS HERE. awk exits 2 at the load when a reader's engine is
+## not there, with nothing on stdout, and a section that only asked "did it finish" would pass
+## that. So section 1 holds every reader to its own status and its own output.
+##
+## RED RECIPE, in both directions: `--legacy` loads each reader alone, with no engine, and skips
+## section 2. All five then fail, each saying `does not load without its engine: status 2, no
+## output, awk calling undefined function jf...`, and the check ends red. A plain run is green.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -102,21 +106,44 @@ rigTimed(){ ## output stem, -f/-v arguments...
 	printf '%s %s' "$(( $( date +%s ) - timedStart ))" "$timedRc"
 }
 
-echo "-- 1. five readers, one $(( rigSize / 1000000 )) MB body, one ${rigBound}s bound --"
-for rigLine in \
-	"AgentsSlackMessagesFormat" \
-	"AgentsSlackMessageSelect -v wantTs=$rigLastTs" \
-	"AgentsSlackHistoryThreadTargets -v latest=1" \
-	"AgentsSlackConversationCounterparty" \
-	"AgentsSlackSearchMatches -v cutoff=0" ; do
-	rigName="${rigLine%% *}" rigArgs="${rigLine#"$rigName"}"
+## THE STATUS AND THE OUTPUT ARE BOTH ASSERTED. A reader whose engine is not loaded exits 2
+## from awk with nothing on stdout; a section asking only "did it finish" passes it. So each
+## reader is held to the status its contract states for this body, and to the line it exists
+## to print -- or to its empty stdout, where that is its answer.
+rigReaderTable(){
+	printf '%s\n' \
+		'AgentsSlackMessagesFormat|-v msgBound=1|0|\| U0BODY \|' \
+		"AgentsSlackMessageSelect|-v wantTs=$rigLastTs|0|\\\"ts\\\":\\\"$rigLastTs\\\"" \
+		'AgentsSlackHistoryThreadTargets|-v latest=1|0|^:1793710000\.000000 ' \
+		'AgentsSlackConversationCounterparty|-v channelBound=1|0|none' \
+		'AgentsSlackSearchMatches|-v cutoff=1|3|none'
+}
+rigReaderTable > "$rigTmp/readers"
+while IFS='|' read -r rigName rigArgs rigWantRc rigWantOut ; do
+	[ -n "$rigName" ] || continue
 	rigGot="$( rigTimed "$rigTmp/time" ${rigEngineArgs[@]+"${rigEngineArgs[@]}"} -f "$rigHere/comms/$rigName.awk" $rigArgs )"
 	if [ "$rigGot" = "BOUND-HIT" ] ; then
 		rigAssert "$rigName finishes inside ${rigBound}s" "still running at ${rigBound}s" "finished inside the bound"
-	else
-		printf '  PASS  %s finished in %ss\n' "$rigName" "${rigGot%% *}" ; rigPassCount=$(( rigPassCount + 1 ))
+		continue
 	fi
-done
+	rigRc="${rigGot#* }"
+	## A READER THAT NEVER RAN MUST FAIL, in either mode, and must not collect a pass from
+	## anything else here: awk exits 2 at the load when the engine is not there.
+	if [ "$rigRc" = "2" ] ; then
+		rigAssert "$rigName loaded and ran" "did not load: $( LC_ALL=C head -1 "$rigTmp/time.err" 2> /dev/null )" "loaded"
+		continue
+	fi
+	rigAssert "$rigName loaded and ran" "loaded" "loaded"
+	rigAssert "$rigName finished inside ${rigBound}s" "$( [ "$rigGot" = BOUND-HIT ] && printf no || printf yes )" "yes"
+	rigAssert "$rigName answers with the status its contract states" "${rigRc}" "${rigWantRc}"
+	if [ "$rigWantOut" = "none" ] ; then
+		rigAssert "$rigName prints nothing, which is its answer for this body" \
+			"$( LC_ALL=C wc -c < "$rigTmp/time.out" 2> /dev/null | LC_ALL=C tr -d ' ' )" "0"
+	else
+		rigAssert "$rigName prints the line it exists to print" \
+			"$( [ "$( LC_ALL=C grep -c -E -- "$rigWantOut" "$rigTmp/time.out" 2> /dev/null || : )" -gt 0 ] && printf printed || printf nothing )" "printed"
+	fi
+done < "$rigTmp/readers"
 
 echo "-- 2. the same bytes the reader it replaced printed --"
 if [ -n "$rigLegacyOnly" ] ; then

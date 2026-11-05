@@ -10,6 +10,11 @@
 # it takes the place of its newest message where its rendering has one, and goes after the dated ones in the order asked where it
 # has none. A line of a rendering that reads as a mark of this wait's own is printed one space in. Every closing brace is preceded
 # by a `;`.
+#
+# AN INBOX BLOCK CLOSES WITH ITS INSTRUCTION (S18.3), the environment's `INBOX_LINE`: the one line magic-librarian words, saying what
+# the run does with each unprocessed item it was just handed. It stands inside the block, after the last item, so the reader meets
+# it there. IT COMES THROUGH THE ENVIRONMENT, NEVER `-v`, which decodes a backslash out of the value before the program sees it
+# (reference/shell.md): the wording is the librarian's and may one day carry one.
 
 function keyOf(ts,   sec, frac) {
 	sec = ts ;
@@ -39,6 +44,7 @@ function neutral(line) {
 BEGIN {
 	units = 0 ;
 	late = "999999999999.999999" ;
+	inboxLine = ENVIRON["INBOX_LINE"] ;
 	while ( ( getline manifestLine < manifest ) > 0 ) {
 		split(manifestLine, part, "\t") ;
 		source = part[2] ;
@@ -91,16 +97,24 @@ BEGIN {
 	}
 	open = 0 ;
 	current = "" ;
+	openInbox = 0 ;
 	for ( i = 1 ; i <= units ; i++ ) {
 		if ( uWhole[i] || uSource[i] != current || ! open ) {
-			if ( open ) { print "# --- end ---" ; }
+			if ( open ) {
+				if ( openInbox && inboxLine != "" ) { print inboxLine ; }
+				print "# --- end ---" ;
+			}
 			print "# arrived on: " uSource[i] ;
 			print "# --- what that source holds now follows ---" ;
 			open = 1 ;
 			current = ( uWhole[i] ) ? "" : uSource[i] ;
+			openInbox = ( uSource[i] ~ /^inbox:/ ) ? 1 : 0 ;
 		}
 		for ( row = uFrom[i] ; row <= uTo[i] ; row++ ) { print neutral(body[uName[i], row]) ; }
 	}
-	if ( open ) { print "# --- end ---" ; }
+	if ( open ) {
+		if ( openInbox && inboxLine != "" ) { print inboxLine ; }
+		print "# --- end ---" ;
+	}
 	exit ;
 }

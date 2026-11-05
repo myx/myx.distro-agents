@@ -47,15 +47,20 @@ AgentsToolsTaskTick(){ ## seconds, pid served
 	return 0
 }
 
-## rc 0 where a message addressed to the member waits in the session chat. The floor is read and nothing is delivered, so the member's next Wait gets the message.
+## rc 0 where a message that is this run's own floor waits in the session chat (S13.11). The floor is read and nothing is delivered, so the
+## member's next Wait and its next tool result still get the message. It is read by the floor's own rule for this run's role in its session
+## (AgentsToolsSessionChatRole): the founder of the session is given every message of its thread, and a participant the ones that name it. A
+## filter of `me` alone read a message addressed to `all` as nobody's, so a busy executor was told nothing until its next Wait.
+## THE SESSION IS THE ONE THE RUN WORKS IN, never the id a caller guessed: a participant's chat is the coworking session's file, and a folder
+## named for anything else holds no chat file (AgentsToolsSessionChatKey).
 AgentsToolsTaskMessagePending(){ ## session, member
-	local pendingText
+	local pendingText pendingSession
 	[ -n "$2" ] || return 1
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
-	type AgentsToolsSessionChatWaiting > /dev/null 2>&1 && AgentsToolsSessionChatWaiting "$1" 2> /dev/null || :
-	agentsSessionChatFilter="me"
-	pendingText="$( AgentsToolsSessionChatFloor "$1" "$2" 2> /dev/null )" || pendingText=""
-	agentsSessionChatFilter=""
+	pendingSession="$( AgentsToolsSessionChatKey )"
+	[ -n "$pendingSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$pendingSession/session.chat" ] || pendingSession="$1"
+	type AgentsToolsSessionChatWaiting > /dev/null 2>&1 && AgentsToolsSessionChatWaiting "$pendingSession" 2> /dev/null || :
+	pendingText="$( AgentsToolsSessionChatFloor "$pendingSession" "$2" 2> /dev/null )" || pendingText=""
 	[ -n "$pendingText" ]
 }
 
@@ -183,6 +188,10 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	ln -sf "$callName/err" "$callDir/$callHandle.err"
 	ln -sf "$callName/status" "$callDir/$callHandle.status"
 	ln -sf "$callName/cmd" "$callDir/$callHandle.cmd"
+	## The ceiling's marker goes on the handle too (S6.47): a task it ended keeps its status 137 for ever, and 137 alone
+	## does not tell a reader that a limit ended it, nor which limit. The file is written after this point, so the link
+	## stands to a name that appears later, exactly as the status link does.
+	ln -sf "$callName/ceiling" "$callDir/$callHandle.ceiling"
 	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
 	callBegan="$( printf '%s\n' "$callPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" || callBegan=""
 	[ -z "$callBegan" ] || printf '%s\n' "$callBegan" > "$callDir/$callHandle.began"

@@ -98,6 +98,8 @@ Work whose core is talking it through with the human-owner.
 ## Body
 
 - Free text after the frontmatter, apart from what this contract names.
+- An `Audience:` line states who reads this, in a word or two: executive managers, developers, a team lead, general readers, the public. It is a hint its reader interprets, never a closed list. The text is formulated properly for that audience, and that is the hard rule.
+- The body states, in present-tense plain statements, the goal of the interview, the scope, the current state and the next question. A reader with no context, perhaps a month later, resumes it from the document alone.
 - A first `#` title line, `# <Type>: <matter, one line>`, is the convention of stored items. The validator does not check it.
 - A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--record-decision`, never by hand.
 

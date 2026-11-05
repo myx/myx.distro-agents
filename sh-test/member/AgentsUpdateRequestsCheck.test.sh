@@ -20,9 +20,9 @@
 ##   4. --request-result reads a request that waits as waiting and one that is closed as done, with its outcome and result; a name that is no
 ##      request is unknown (exit 1).
 ##   5. --queue-done, the librarian only, one of three: --result (closed), --refuse (refused), --apply (applied; a whole text or an edit of a skill
-##      file only, by the path and the checks of --skillset-upsert: without the permission, with learning off, with the file changed under a whole
-##      text, with the old string gone or twice, it is refused, says why and the request still waits). A closed request leaves the queue and meets
-##      the inquiry contract with its outcome and result.
+##      file only, by the path and the checks of --skillset-upsert: no permission ask at all while learning is on (S6.42), with learning off, with the
+##      file changed under a whole text, with the old string gone or twice, it is refused, says why and the request still waits). A closed request
+##      leaves the queue and meets the inquiry contract with its outcome and result.
 ##   6. THE REPLY. A request made with --reply files one note with the outcome into the requester's inbox when it is closed, whichever way it is
 ##      closed; a request made without --reply sends nothing back, whichever way it is closed.
 ## Offline, rig tree only: nothing here reaches Slack or any endpoint.
@@ -320,18 +320,14 @@ rigAs="" ; rigSid=""
 rigOther "$rigTmp/lrn" DistroAgentsDispatcher.fn.sh --override-flag learning
 rigAs=magic-librarian
 rigSid=lib-bare
-rigRun "$rigTmp/a6" --queue-done "$rigNameE" --apply
-rigAssert "a session with no routine that allows the write: the apply is refused with a REFUSAL-ID and the way to ask, the request still waits, the file is not written" "$rigRc $( rigHas 'REFUSAL-ID: refusal-' "$rigTmp/a6.err" ) $( rigHas 'was not applied, and still waits' "$rigTmp/a6.err" ) $( [ -f "$rigIn/$rigNameE" ] && printf waits ) $( [ -e "$rigSrc/keeper-here/reference/new-notes.md" ] && printf written || printf absent ) $( rigNotes "$rigMemberIn" )" "1 1 1 waits absent 0"
-rigSid=lib-allowed
 rigOther "$rigTmp/lrn2" DistroAgentsDispatcher.fn.sh --override-flag --no learning
-rigAs=magic-librarian
 rigRun "$rigTmp/a6b" --queue-done "$rigNameE" --apply
 rigAssert "learning off: the apply is refused naming the proposal route, and the request waits" "$rigRc $( rigHas 'learning is off, so the librarian offers proposals' "$rigTmp/a6b.err" ) $( [ -f "$rigIn/$rigNameE" ] && printf waits ) $( [ -e "$rigSrc/keeper-here/reference/new-notes.md" ] && printf written || printf absent )" "1 1 waits absent"
 rigAs="" ; rigSid=""
 rigOther "$rigTmp/lrn3" DistroAgentsDispatcher.fn.sh --override-flag learning
-rigAs=magic-librarian ; rigSid=lib-allowed
+rigAs=magic-librarian ; rigSid=lib-bare
 rigRun "$rigTmp/a6c" --queue-done "$rigNameE" --apply
-rigAssert "THE WHOLE TEXT applied, a new file: written exactly as given (no final line break), said" "$rigRc $( LC_ALL=C grep -c "^OK: wrote $rigSrc/keeper-here/reference/new-notes.md (a new file)\$" "$rigTmp/a6c.out" ) $( cmp -s "$rigSrc/keeper-here/reference/new-notes.md" "$rigTmp/whole.md" && printf same )" "0 1 same"
+rigAssert "a session that runs no routine at all: the apply goes ahead with no refusal, no ask and no REFUSAL-ID (S6.42), and the whole text lands" "$rigRc $( rigHas 'REFUSAL-ID' "$rigTmp/a6c.err" ) $( ls "$rigWs/.local/agents/sessions/lib-bare" 2> /dev/null | LC_ALL=C grep -c '^refusal-' ) $( LC_ALL=C grep -c "^OK: wrote $rigSrc/keeper-here/reference/new-notes.md (a new file)\$" "$rigTmp/a6c.out" ) $( cmp -s "$rigSrc/keeper-here/reference/new-notes.md" "$rigTmp/whole.md" && printf same )" "0 0 0 1 same"
 rigAssert "the request is closed applied, with where it wrote" "$( LC_ALL=C grep -c '^closed: inquiry-' "$rigTmp/a6c.out" ) [$( rigKey "$rigDone/$rigNameE" update-outcome )] [$( rigKey "$rigDone/$rigNameE" update-result )] $( rigValidate "$rigDone/$rigNameE" ) $( [ -f "$rigIn/$rigNameE" ] && printf still-waiting )" "1 [applied] [wrote $rigSrc/keeper-here/reference/new-notes.md (a new file)] 0 "
 rigNoteE="$( ls "$rigMemberIn" | LC_ALL=C grep '^note-' | LC_ALL=C sed -n 1p )"
 rigAssert "it asked for a reply, so one note went to the requester's inbox: from the librarian, to the requester, saying the outcome, the request and the result" "$( rigNotes "$rigMemberIn" ) $( printf '%s' "$rigNoteE" | LC_ALL=C grep -c -E "^note-[0-9]{8}T[0-9]{4}Z-update-applied-.*\.md\$" ) $( rigKey "$rigMemberIn/$rigNoteE" type ) $( rigKey "$rigMemberIn/$rigNoteE" from ) $( rigKey "$rigMemberIn/$rigNoteE" owner ) $( rigHas "# Note: your request $rigNameE is applied" "$rigMemberIn/$rigNoteE" ) $( rigHas "was applied: wrote $rigSrc/keeper-here/reference/new-notes.md (a new file)" "$rigMemberIn/$rigNoteE" ) $( rigValidateNote "$rigMemberIn/$rigNoteE" )" "1 1 note magic-librarian rig-member 1 1 0"

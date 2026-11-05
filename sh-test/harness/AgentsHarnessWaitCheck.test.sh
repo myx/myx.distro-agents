@@ -1668,7 +1668,7 @@ rigDropDone
 rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
 rigAssert "the model is shown RECEIVED as its opening"         "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: RECEIVED' )" yes
 rigAssert "the arrival is carried"                             "$( rigHolds "$rigScenarioDir/result" 'RIG-ARRIVAL-MARKER' )" yes
-rigAssert "a RECEIVED names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here' )" yes
+rigAssert "a RECEIVED says the message interrupts the wait, and names continuing it or cancelling the task" "$( rigHolds "$rigScenarioDir/result" 'this message interrupts your wait' ):$( rigHolds "$rigScenarioDir/result" 'Wait mode=continue' ):$( rigHolds "$rigScenarioDir/result" 'cancel the task' )" yes:yes:yes
 rigAssert "control: not the TIMEOUT wording"                   "$( rigHolds "$rigScenarioDir/result" 'NEXT: nothing new yet' )" no
 rigVerdict "the Wait tool's RECEIVED ends with the NEXT: line naming mode=continue"
 

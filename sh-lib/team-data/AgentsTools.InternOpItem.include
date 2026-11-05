@@ -111,11 +111,19 @@ AgentsToolsItemUnlockVerify(){ ## note path, header ops (op<TAB>name<TAB>value l
 ## when it already is the remote's copy and not this call's write. Reads the
 ## caller's target, repoRoot, priorExisted, priorContent, unlockCommitted.
 ## Returns 0 so it is safe under set -e; the caller then returns 1 itself.
+## THE COMMIT IT DROPS IS ITS OWN, NEVER WHATEVER HEAD HAPPENS TO BE (S12.10). `--soft HEAD~1` after this call's own
+## commit drops this call's commit, and after any other commit HEAD moved on to it drops that one instead. So the
+## subject of HEAD is read first, and the drop happens only where HEAD is the commit this call made: another
+## writer's commit, or nobody's, leaves the branch as it stands. Measured 2026-11-04 in the live store: the mark
+## `board/review/.unseen-dispatch-20261103T225226Z-spawn-proxy-68534-637d5076.md` was committed at 04:30:28 and
+## dropped by a reset one second later, and it reached no commit for the next 50 minutes.
 AgentsToolsItemUnlockKeep(){ ## restore|as-is, what failed
 	if [ "$1" = "restore" ] ; then
-		local relPath="${target#"$repoRoot"/}"
+		local relPath="${target#"$repoRoot"/}" keepSubject=""
 		if [ -n "$repoRoot" ] && [ "$unlockCommitted" = "true" ] ; then
-			git -C "$repoRoot" reset -q --soft HEAD~1 >/dev/null 2>&1 || :
+			keepSubject="$( git -C "$repoRoot" log -1 --format=%s HEAD 2>/dev/null )"
+			[ "$keepSubject" = "${commitMessage:-}" ] || keepSubject=""
+			[ -z "$keepSubject" ] || git -C "$repoRoot" reset -q --soft HEAD~1 >/dev/null 2>&1 || :
 		fi
 		[ -z "$repoRoot" ] || git -C "$repoRoot" reset -q -- "$relPath" >/dev/null 2>&1 || :
 		unlockCommitted="false"
@@ -657,9 +665,14 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	syncRc=$?
 	set -e
 	if [ "$syncRc" -ne 0 ] ; then
-		local relPath="${target#"$repoRoot"/}"
+		local relPath="${target#"$repoRoot"/}" dropSubject=""
 		set +e
-		git -C "$repoRoot" reset --soft HEAD~1 >/dev/null 2>&1
+		## THE SAME GUARD AS ABOVE: only a HEAD that is this call's own commit is dropped. HEAD that moved on to
+		## another writer's commit is theirs, and the sync is then simply tried again.
+		dropSubject="$( git -C "$repoRoot" log -1 --format=%s HEAD 2>/dev/null )"
+		if [ "$dropSubject" = "$commitMessage" ] ; then
+			git -C "$repoRoot" reset --soft HEAD~1 >/dev/null 2>&1
+		fi
 		git -C "$repoRoot" reset -- "$relPath" >/dev/null 2>&1
 		if git -C "$repoRoot" cat-file -e "HEAD:$relPath" 2>/dev/null ; then
 			git -C "$repoRoot" checkout -- "$relPath" >/dev/null 2>&1

@@ -144,14 +144,19 @@ AgentsToolsPresetRead(){ ## workspace root, scope, key
 }
 
 ## The credentials a CLI service reads, as words, from the harness leg of that name (a native service has the
-## credentials of the leg it is the vendor binary of); none for a service that has no leg.
+## credentials of the leg it is the vendor binary of); none for a service that has no leg. A leg's file name is read
+## two ways: plain lower-case (AgentsClaudeHarness.sh is `claude`), and with its camel-case words split by a hyphen
+## (AgentsStandardV1Harness.sh is `standard-v1`, which is the service's own name in agentsPresetCliServices). A name
+## matching neither takes no leg's credentials, so it reads as a service with no leg.
 AgentsToolsPresetCredentialKeys(){ ## cli service
-	local legName="${1%-native}" legFile legOne
+	local legName="${1%-native}" legFile legCase legSplit
 	for legFile in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/"Agents*Harness.sh ; do
 		[ -f "$legFile" ] || continue
-		legOne="${legFile##*/Agents}"
-		legOne="$( printf '%s' "${legOne%Harness.sh}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
-		[ "$legOne" = "$legName" ] || continue
+		legCase="${legFile##*/Agents}"
+		legCase="${legCase%Harness.sh}"
+		legSplit="$( printf '%s' "$legCase" | LC_ALL=C sed -E 's/([a-z0-9])([A-Z])/\1-\2/g' | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+		legCase="$( printf '%s' "$legCase" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+		[ "$legCase" = "$legName" ] || [ "$legSplit" = "$legName" ] || continue
 		LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "$legFile" 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' '\n' | LC_ALL=C awk '/^[A-Z][A-Z0-9_]*$/ { printf "%s%s", sep, $0 ; sep = " " ; } END { print "" ; }'
 		return 0
 	done

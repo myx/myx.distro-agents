@@ -331,6 +331,15 @@ spawns: item-wait
 rigStand d-wait
 rigOne d-wait
 rigAssert "a run that handed back and waits for its review is alive: running, and no death" "$( rigState d-wait ):$( rigDeadLines d-wait )" "running:0"
+## A RUN A PAUSE HOLDS (S19.3): its process gone and its record open is the pause's own state, never a death, and its
+## thread judges it `running` still -- so nothing asks about it and nothing restarts it.
+mkdir -p "$rigStores/d-held"
+printf '2026-11-04T06:00:00Z rig\n' > "$rigStores/d-held/paused"
+rigRec d-held d-held keeper-rig spawn-started "supervisor-process: $rigGoneShell
+"
+rigOne d-held ; rigOne d-held
+rigAssert "a paused run whose process is gone is no death, and its session reads running" \
+	"$rigRc:$( rigDeadLines d-held ):$( rigState d-held )" "0:0:running"
 ## It is resumed for its handback: the process its record names lives, and no line of the list carries its word.
 rigStand '' ; rigResumed="$rigStandPid"
 rigRec d-resume d-resume keeper-rig spawn-started "run-process: $( rigProcBegan "$rigResumed" )

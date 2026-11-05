@@ -128,6 +128,8 @@
 ## seconds of its start is counted, and the count travels to the next in the environment:
 ## the fifth such end in a row is not answered, so a fault that comes back at once ends.
 type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+## A PAUSED RUN IS JUDGED BY NOTHING (S19.3): the death reader of this thread asks the one pause flag reader.
+type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 
 AgentsToolsSessionControlAgain(){
 	[ -n "${agentsSessionControlStay:-}" ] || return 0
@@ -668,7 +670,9 @@ AgentsToolsSessionControlDeathStep(){
 ## that it was killed (`killed-by`, `killed-at`, AgentsToolsManagerKillMark), and its
 ## supervising shell is gone (`supervisor-process` of the record, read by
 ## AgentsToolsRegistryRecordedSupervisor). While that shell is alive the run is being
-## closed, and is no death. Whether the run handed back is not read: a handback alone
+## closed, and is no death -- for at most SESSION_CONTROL_CLOSING_SECONDS, after which a
+## shell still alive is one that will never close the record, and the record is closed as an
+## ordered end with nothing asked. Whether the run handed back is not read: a handback alone
 ## decides nothing, and a run whose process lives is alive, whatever it handed back.
 ## A RECORD THAT NAMES NO SUPERVISING SHELL, an old one among them, is given the closing time
 ## of a record, SESSION_CONTROL_CLOSING_SECONDS, from the moment its process was first seen
@@ -695,6 +699,14 @@ AgentsToolsSessionControlDeaths(){
 		[ -n "$rowTracking" ] && [ -n "$deathsAt" ] || continue
 		[ "$rowLive" = "gone" ] && [ "$rowStatus" = "spawn-started" ] || continue
 		case "$rowSpawn" in ''|-) continue ;; esac
+		## A RUN A PAUSE HOLDS IS NEVER JUDGED DEAD (S19.3): the pause holds its run at the points its own include names,
+		## and a process that is gone is the pause's own cold hold or its leave, never a death to ask about. Its record
+		## is left open, so the resume finds the run it held.
+		if AgentsToolsSessionPauseHeld "$rowSpawn" "${rowSession:-}" ; then
+			deathsGoneNow="$deathsGoneNow${deathsGoneNow:+
+}$rowSpawn $( date +%s 2> /dev/null )"
+			continue
+		fi
 		## A death that is kept is judged no more.
 		case "
 $deathsNow" in *"
@@ -707,24 +719,23 @@ $rowSpawn "*) continue ;; esac
 			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner was killed from the console and its record was still open: it is closed, and nothing is asked about it"
 			continue
 		fi
-		case "$deathsShell" in
-			alive) continue ;;
-			gone) ;;
-			*)
-				deathsShell="unknown"
-				deathsNoted=""
-				while read -r deathsOne deathsLine ; do
-					[ "$deathsOne" != "$rowSpawn" ] || { deathsNoted="$deathsLine" ; break ; }
-				done <<< "$deathsGoneWas"
-				case "$deathsNoted" in ''|*[!0123456789]*|????????????*) deathsNoted="$deathsAt" ;; esac
-				[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
-				if [ "$(( deathsAt - deathsNoted ))" -lt "$controlClosing" ] ; then
-					deathsGoneNow="$deathsGoneNow${deathsGoneNow:+
+		## A SUPERVISING SHELL IS GIVEN THE CLOSING TIME AND NOT A SECOND MORE (S5.6): a shell alive is closing its
+		## record, and a shell still alive once the time has passed never will, so the record is closed here.
+		deathsNoted=""
+		while read -r deathsOne deathsLine ; do
+			[ "$deathsOne" != "$rowSpawn" ] || { deathsNoted="$deathsLine" ; break ; }
+		done <<< "$deathsGoneWas"
+		case "$deathsNoted" in ''|*[!0123456789]*|????????????*) deathsNoted="$deathsAt" ;; esac
+		[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
+		if [ "$(( deathsAt - deathsNoted ))" -lt "$controlClosing" ] ; then
+			deathsGoneNow="$deathsGoneNow${deathsGoneNow:+
 }$rowSpawn $deathsNoted"
-					continue
-				fi
-			;;
-		esac
+			continue
+		fi
+		if [ "$deathsShell" = "alive" ] ; then
+			! AgentsToolsSessionControlDeathClose "$deathsRecord" || AgentsToolsSessionControlSay event "session $controlSession: run $rowSpawn of $rowOwner is gone and its supervising shell outlived the closing time of ${controlClosing}s: its record is closed, and nothing is asked about it"
+			continue
+		fi
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" status )" = "spawn-started" ] || continue
 		! AgentsToolsRegistrySpawnRuns "$rowSpawn" "$deathsRecord" || continue
 		## A RUN PARKED ON ITS HANDBACK OR DISMISSED IS NOT DEAD (S6.34): the harness ends such a run
@@ -774,7 +785,7 @@ $rowSpawn "*) continue ;; esac
 ## controlLeave why the thread ends, where it does. Every variable is the thread's own. No
 ## command of a tick can end the thread: each failure is taken here, and concludes nothing.
 AgentsToolsSessionControlTick(){
-	local tickWord="" tickReason="" tickLine="" tickLock="" tickText="" tickNames="" tickFull="" tickRc=0
+	local tickWord="" tickReason="" tickLine="" tickLock="" tickText="" tickNames="" tickFull="" tickRc=0 tickSchedule=""
 	## Whatever a function called at an earlier tick left switched on.
 	set +e +u
 	controlTicks=$(( controlTicks + 1 ))
@@ -833,6 +844,19 @@ AgentsToolsSessionControlTick(){
 		fi
 	fi
 	controlFullAt="$controlTicks" ; controlWitness=""
+	## THE SCHEDULE'S SERVICE THREAD IS ASKED FOR HERE (S12.12), one of the three places that ask. A read in full comes once a minute at
+	## most, so the schedule is asked for at about that cadence and never on a cheap tick. The ask is its own responsibility block, throttled to one
+	## look in MDAT_SCHEDULE_ASK_SECONDS, and it starts the thread where none lives and where its lock names a process that is gone. It says one line,
+	## kept in the thread's own log, and never ends this tick.
+	if [ "$controlMode" = "--run" ] ; then
+		type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" 2> /dev/null || :
+		if type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 ; then
+			tickSchedule="$( AgentsToolsScheduleThreadAsk 2> /dev/null )" || tickSchedule=""
+			case "$tickSchedule" in
+				started*|failed*) AgentsToolsSessionControlSay event "session $controlSession: the schedule's service thread: $tickSchedule" ;;
+			esac
+		fi
+	fi
 	AgentsToolsSessionControlLook ; tickRc=$?
 	if [ "$tickRc" = 0 ] && [ "$controlSeen" = "finished" ] ; then
 		## FINISHED IS BELIEVED ON TWO READS, one after the other, that find the same records
@@ -854,6 +878,13 @@ AgentsToolsSessionControlTick(){
 	## session is member-dead, whatever its other runs do, and the thread stays.
 	AgentsToolsSessionControlDeaths
 	[ "$controlDeadOpen" -eq 0 ] || controlSeen="dead"
+	## THE SESSION'S ROOT MESSAGE SHOWS ITS PAUSE (S6.37): `double_vertical_bar` while the harness holds the session, off again once it
+	## does not. This tick is the one reader of that flag that runs by itself, and the call is costless where the flag has not moved:
+	## it reads two files and posts nothing. A reaction that does not land leaves its mark as it was, and the next tick asks again.
+	if [ "$controlMode" = "--run" ] ; then
+		type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		! type AgentsToolsSpawnProxyRootPauseMarks > /dev/null 2>&1 || AgentsToolsSpawnProxyRootPauseMarks "$controlSession" || :
+	fi
 	## NOTHING HAS RUN FOR A LONG TIME: the thread ends itself (S5.6, item 6). A session with no run alive on this host, no death left
 	## to settle and no request of the console taken has nothing left to watch, and a thread that stayed would hold a process for
 	## the rest of the day: at 20:47Z on 2026-11-03 eight threads ran 7 to 11 hours for sessions whose agents were gone. The bound is

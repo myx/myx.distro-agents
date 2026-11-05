@@ -158,7 +158,7 @@ rigRun "$rigTmp/v3" "$rigDispatcher" --all-sessions
 rigSurface "$rigTmp/v4" --spawns --all
 rigRun "$rigTmp/v5" "$rigDispatcher" --current-flags
 rigSurface "$rigTmp/v6" --flags
-rigAssert "--spawns and --flags print what the Dispatcher prints" "$( rigSame "$rigTmp/v1.out" "$rigTmp/v2.out" ) $( rigSame "$rigTmp/v3.out" "$rigTmp/v4.out" ) $( rigSame "$rigTmp/v5.out" "$rigTmp/v6.out" ) $( LC_ALL=C grep -c -E '^(worktime|weekend|emergency|overtime|learning): ' "$rigTmp/v6.out" )" "same same same 5"
+rigAssert "--spawns and --flags print what the Dispatcher prints" "$( rigSame "$rigTmp/v1.out" "$rigTmp/v2.out" ) $( rigSame "$rigTmp/v3.out" "$rigTmp/v4.out" ) $( rigSame "$rigTmp/v5.out" "$rigTmp/v6.out" ) $( LC_ALL=C grep -c -E '^(worktime|weekend|emergency|overtime|learning|supervised): ' "$rigTmp/v6.out" )" "same same same 6"
 rigAs=""
 rigRun "$rigTmp/c0" "$rigContacts" --collect-contact --id alice-one --name "Alice One" --email alice@rig.example --reached-by keeper-x
 rigAs=magic-coordinator
@@ -198,7 +198,7 @@ rigBrief(){ ## result prefix
 		bash "$rigChain" --intern-op-spawn-prepare-brief rig-member --routine-default ) > "$1.out" 2> "$1.err" < /dev/null
 }
 rigBrief "$rigTmp/b1"
-rigAssert "the brief has the section, with the orders in force and the note that stands, after the open warnings, before the hand back" "$( LC_ALL=C grep -n -F -e '## open warning-* items' -e '## standing directives in force' -e 'When done, hand back' "$rigTmp/b1.out" | LC_ALL=C cut -d: -f2 | LC_ALL=C tr '\n' '|' ) $( rigHas '- order forever: Slack silence after 22:00' "$rigTmp/b1.out" ) $( rigHas '- order use-claude: Scaleway is back, use it again' "$rigTmp/b1.out" ) $( rigHas '- note note-20261020T1000Z-rig-standing.md: Keep the rig quiet on weekends' "$rigTmp/b1.out" )" "## open warning-* items|## standing directives in force|When done, hand back; then Wait until dismissed.| 1 1 1"
+rigAssert "the brief has the section, with the orders in force and the note that stands, after the open warnings, before the hand back" "$( LC_ALL=C grep -n -F -e '## open warning-* items' -e '## standing directives in force' -e 'When done, hand back' "$rigTmp/b1.out" | LC_ALL=C cut -d: -f2 | LC_ALL=C tr '\n' '|' ) $( rigHas '- order forever: Slack silence after 22:00' "$rigTmp/b1.out" ) $( rigHas '- order use-claude: Scaleway is back, use it again' "$rigTmp/b1.out" ) $( rigHas '- note note-20261020T1000Z-rig-standing.md: Keep the rig quiet on weekends' "$rigTmp/b1.out" )" "## open warning-* items|## standing directives in force|When done, hand back and Wait until dismissed.| 1 1 1"
 rigSurface "$rigTmp/e1" --directive-set --id until --text "Until the 22nd" --expires-at "$rigFuture"
 rigBrief "$rigTmp/b2"
 rigAssert "an order that ends is told with its date" "$( rigHas "- order until (until $rigFuture): Until the 22nd" "$rigTmp/b2.out" )" "1"

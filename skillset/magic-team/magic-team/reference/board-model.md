@@ -42,7 +42,7 @@ Always written `board-<state>`.
 - **`board-blocked`** — could not proceed: a human-owner decision, an external dependency, or another item. Every review attempts something: a request, a chase, an alternative. An item needing the human-owner's go waits here, gated by an `approval-*` item, per "The ladder: one rung at a time".
 - **`board-parked`** — deliberately deferred until a condition arrives. Nothing is done. A recheck only asks whether the condition has arrived.
 - **`board-processed`** — resolved: completed or denied. The resolution is written into the item. An ignored item is removed instead.
-- **`board-archived`** — abandoned for good, or a processed item marked `archive: true`.
+- **`board-archived`** — a processed item pinned explicitly with `archive: true`, kept from garbage collection. Never a denial and never an abandonment.
 - **`board-retained`** — concluded, but a live item (backlog, pending, running, review, blocked, parked, or archived) still points at it by `blocked-by` or `spawned-by`. Rechecked by `recheck-date`. Once nothing live points at it, it returns to `board-processed`.
 
 Every move into `board-blocked` carries an `execution-receipt`.

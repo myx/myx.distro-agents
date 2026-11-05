@@ -4,6 +4,9 @@ Read this when working on `myx.distro-*` itself (source/deploy/system/remote/.lo
 
 ## Contents
 
+- After a source change: the lifecycle, and what "no new changes" means
+- Running a deploy: what the prepare modes refresh
+- How a machine gets its name, and the two-name pattern
 - A different, larger system — don't conflate with myx.common
 - `builders/` is an overloaded directory name — establish the convention before reasoning
 - The full stage vocabulary — what is callable, and what was only ever planned
@@ -24,6 +27,64 @@ Read this when working on `myx.distro-*` itself (source/deploy/system/remote/.lo
 - Example command syntax on record
 - Reaching a tool is a fact to establish, not an assumption
 - Piping one host's console into another hides the source-side failure
+
+## After a source change: the lifecycle, and what "no new changes" means
+
+A source edit reaches a deploy through a chain of steps with separate currencies. The incremental steps can all report clean while an aggregate is still older than the source tree.
+
+- `--sync-cached-from-source` runs the scan itself. It mirrors the workspace's `source/` tree into `source-cache/sources/`, and writes the change delta only when that mirror actually differs.
+- `--ingest-distro-index-from-source` is that step followed by the publish step, in one call. This is the `🛫 Ingest Source Changes...` palette entry, and the ordinary way to pick up an edit.
+- `--build-project-metadata` rebuilds the aggregate from the change delta. An empty delta makes it a no-op.
+- `--rebuild-cached-index` ignores the delta and imports everything from source, then regenerates the secondary indexes.
+- `BuildCachedFromSource.fn.sh` regenerates the whole snapshot from source. This is the `📥 Re-Build Source Index Snapshot (cached from source)...` palette entry.
+- `--scan-source-changes` only reports what changed. It writes no delta, and no step depends on running it first.
+
+**"No new changes" is not proof the index is current.** It means the mirror already matches `source/`. A value the deploy resolves can still be older than the source tree, and every incremental step will keep reporting clean.
+
+**So a stale resolved value means run the snapshot rebuild before anything else.** It is the only whole-tree step. Never edit an index or cache file by hand.
+
+**How the per-project cache decides it is current.** The deploy reads `$MDSC_CACHED/<project>/project-provides-merged.txt`. That file is served when either test says it is fresh:
+
+- it is not older than `build-time-stamp.txt`, or
+- `distro-index.env.inf` is not newer than it.
+
+`distro-index.env.inf` reports staleness correctly. The stamp clause does not, because the step that would copy it returns before reaching the copy: with an empty change delta, `--sync-cached-from-source` exits at the "no new changes" test, and the stamp copy further down never runs. So the stamp stays at its old value, that test keeps reporting fresh, and the cache outlives any number of ingests.
+
+That is why the snapshot rebuild is the cure: `BuildCachedFromSource.fn.sh` regenerates the per-project files themselves rather than arguing with the gate.
+
+## Running a deploy: what the prepare modes refresh
+
+A deploy ships two generated things: a `sync/` folder of files to upload, and an `exec` script that runs on the target. Both are written into `output/deploy/<project>/`. Runs build them before they deploy.
+
+- `--prepare-full` is the default for a normal deploy. It regenerates `sync/` and `exec` from the current tree, then deploys. Use it whenever anything the deploy ships may have changed: an install fragment, a file under `data/`, a context variable, or the project's sequence.
+- `--prepare-exec` regenerates `exec` only. Use it when only the install script changed, and the uploaded file set is unchanged. It is the narrow choice for a fragment edit.
+- `--prepare-sync` regenerates `sync/` only. Use it when only files under `data/` changed, and the fragment set is unchanged.
+- `--prepare-none` reuses whatever is already on disk and deploys it. It is for running the exact artifact a previous prepare produced, such as a repeat attempt after a transport failure. It is never a way to skip a stale artifact: a run with `--prepare-none` sends the previous files unchanged, and its result says nothing about the current source tree.
+
+No prepare mode rebuilds an index or refreshes a resolved context variable. A source edit that changes a value the deploy resolves therefore needs the index lifecycle above first, then a prepare. `--prepare-full` alone refreshes the content the deploy ships, never the values it resolves.
+
+Which index a deploy reads depends on the spec in force. The deploy console defaults to `--distro-from-output`, and its index tree is `.local/output-cache/distro`. From source, the tree is `.local/system-index`. A rebuild of one says nothing about the other, so state which spec a value was read under.
+
+## How a machine gets its name, and the two-name pattern
+
+The structure file carries both, and they answer different questions.
+
+- **`servers`** is keyed by a host's own name and carries `wan.ip` and `wan.ipv6`. A server entry alone publishes that name at that host's own addresses, with no `targets` entry and no routing mode.
+- **`targets`** is keyed by a site or service name. A target's `target` field names the server it leads to, and its `dns` mode decides what is published.
+
+`dns: use-wan` publishes the target's server's own WAN address. `dns: use-router` publishes the router's address. `dns: no-address` publishes nothing. A target that names itself and carries `location` plus `dns: use-wan` is the shape for a standalone machine at its own WAN, and `magic.meloscope.nz` is the working precedent.
+
+The team's pattern has two names for a served machine:
+
+- a **service name** leads to the l6route and is covered by the router's wildcard ACME certificate;
+- a **machine name** leads to the machine and carries its own HTTP ACME certificate.
+
+A wildcarded zone makes a name resolving prove nothing. Check the zone's own `dns` map for the specific row, and run a negative control beside it. A specific row and a wildcard row look identical on the wire.
+
+Two traps that cost a host its deploy channel in this pass:
+
+- `tcp dport <port> accept` is not enough on its own. The listening process must also be on that port, and a firewall that closes the old port while the process still listens on it strands every client. Prove the new listener before the old rule goes.
+- Ubuntu's `sshd_config` reads `Include /etc/ssh/sshd_config.d/*.conf` before its own body, and sshd takes the first `Port` it finds. Append `Port` to the main file and a drop-in still beats it. Write the drop-in instead, and check with `sshd -T`.
 
 ## A different, larger system — don't conflate with myx.common
 
@@ -212,7 +273,7 @@ Two genuinely separate mechanisms exist in the index system, feeding different c
 - **The live, no-cache lookup path** — `IndexNoCacheDistroProjects`, driven only by `source-cache/all-projects.index.txt` (a lightweight project-path listing). It reads each selected project's `project.inf` fresh, on every call. This is what selector-based queries (`ListDistroProvides --select-*`/`--filter-*-column`, and by extension what `DeployRouting.fn.sh`/`DeploySettings.fn.sh` read internally to build their task lists) actually consult at runtime. As long as `all-projects.index.txt` itself is current, this path is always current. It never goes stale independently, because it doesn't cache the provides data at all.
 - **`all-projects.index.txt` itself is not automatically current after a project move.** It only reflects reality as of the last time `DistroSourcePrepare --ingest-distro-index-from-source` (or equivalent) was run. A project move can land correctly on disk and be committed/pushed. `ListDistroProvides --select-projects <name>` and other selector-based resolution can still return the pre-move path and pre-move `Provides:` entries, with no error, until that command is re-run. Re-running it picks up exactly that one changed project and resolves it correctly. Practical implication: after ANY project move, re-run `DistroSourcePrepare --ingest-distro-index-from-source` before trusting a `ListDistroProvides`/selector-based resolution check. Don't assume the live-lookup path is automatically fresh just because it isn't the cached-snapshot pipeline described below.
 - **The cached-snapshot pipeline** — `DistroSourcePrepare.fn.sh`'s `--sync-cached-from-source` writes `source-cache/prepare/distro-provides.txt` (and sibling `distro-declares.txt`/`distro-keywords.txt`/`distro-requires.txt`). `--ingest-distro-index-from-prepared` publishes that into `system-index/distro-provides.txt`. `--build-project-metadata` rebuilds the same aggregate from per-project cache subdirectories. This is a separately-maintained report/aggregate artifact — nothing in the live selector-query path reads it. Staleness here does not imply staleness in the live lookup path above. It does not by itself indicate anything is broken for an actual deploy. Verify which of the two mechanisms actually feeds the operation before treating a stale file as a functional problem.
-- **The index-rebuild pipeline has a required step order.** `--scan-source-changes` must run first — it's what populates `source-cache/new-changed.index.txt`, the change-delta file every later step gates on. `--sync-cached-from-source`, `--rebuild-cached-index`, and `--build-project-metadata` all need `--scan-source-changes` to have populated that delta first. Without it they silently no-op (`"no new changes"`) or produce incomplete/partial output. None of them surface an error when this happens. A partial `--build-project-metadata` run shows as `cat: ... No such file or directory` for the projects whose per-project cache subdirectories were never created. Correct full sequence when the cached-snapshot files themselves need refreshing: `--scan-source-changes` → `--sync-cached-from-source` → `--build-project-metadata` → `--ingest-distro-index-from-prepared`.
+- **The index-rebuild pipeline is three separate steps, and the first is not a prerequisite.** `--sync-cached-from-source` runs the scan itself and writes the change delta. `--build-project-metadata` reads that delta, so an empty one makes it a silent no-op. `--rebuild-cached-index` ignores the delta and does a full import. `--scan-source-changes` only reports, and writes nothing. Read the lifecycle section above before choosing an entry. A `--build-project-metadata` run without a full delta shows as `cat: ... No such file or directory` for the projects whose per-project cache subdirectories were never created.
 
 ## Building blocks vs. actions — two different layers, don't conflate them
 

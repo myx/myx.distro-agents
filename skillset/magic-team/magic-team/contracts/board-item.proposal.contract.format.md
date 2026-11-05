@@ -98,6 +98,8 @@ An undecided design.
 ## Body
 
 - Free text after the frontmatter, apart from what this contract names.
+- An `Audience:` line states who reads this, in a word or two: executive managers, developers, a team lead, general readers, the public. It is a hint its reader interprets, never a closed list. The text is formulated properly for that audience, and that is the hard rule.
+- The body states, in present-tense plain statements, the current state of the decision and the next step: who must decide, and by when it is needed. A reader with no context, perhaps a month later, acts on the document alone.
 - Four `##` sections, once each, in this order: `## Goal`, `## Approaches considered`, `## Recommendation`, `## Open questions`.
 - `## Approaches considered` holds two or more approaches, one top-level list item each, its name in bold.
 - A first `#` title line, `# <Type>: <matter, one line>`, is the convention of stored items. The validator does not check it.

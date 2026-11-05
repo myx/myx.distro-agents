@@ -93,10 +93,14 @@ if ! type AgentsToolsApprovalCascade > /dev/null 2>&1 ; then
 				continue
 			fi
 			if [ "$newBody" != "$( cat "$targetPath" )" ] ; then
-				printf '%s\n' "$newBody" > "$targetPath" || {
+				## Beside the item and moved into place, as the board move primitive writes it.
+				local stampBeside=""
+				stampBeside="$( mktemp "$targetPath.XXXXXX" )" || stampBeside=""
+				if [ -z "$stampBeside" ] || ! printf '%s\n' "$newBody" > "$stampBeside" || ! mv -f "$stampBeside" "$targetPath" ; then
+					[ -z "$stampBeside" ] || rm -f "$stampBeside"
 					echo "$logPrefix: approval cascade: ⚠️ $targetState/$target.md could not be written, skipped" >&2
 					continue
-				}
+				fi
 				approvalCascadePaths+=( "$targetPath" )
 				echo "# $logPrefix: approval cascade: stamped approved-by/approved-at on $targetState/$target.md" >&2
 			fi

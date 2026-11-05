@@ -1,0 +1,279 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RoutineStack.include -- the routine stack a session records (S6.27): the frames it starts
+## with, the bottom one first, the one line its opening post shows, and the four moves that change them.
+## A frame is one routine in one state: `pending`, `open`, `current`, `done` or `skipped`. A move writes
+## the frames back and appends one line of its own, `<routine-stack-<verb>:> <routine> by: <who>
+## reason: <why>`, and posts that line into the session's event-track thread. Function-only.
+##
+
+type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+
+## The frames a start records, one `routine-stack: <routine file>:<state>` line each, the bottom frame
+## first: the declared chain's, else the one routine this spawn runs. The first frame is `current` and
+## every frame above it is `pending`. Nothing where neither is declared.
+## A chain is the path this start takes, so a chain whose first entry is not the routine in force is
+## refused: its first frame would name a routine the session does not run.
+AgentsToolsRoutineStackStartLines(){ ## the routine this spawn runs (its file name, may be empty), the declared chain (may be empty)
+	local startRoutine="$1" startChain="$2" startEntry startPath startFirstPath="" startSeen=0
+	if [ -z "$startChain" ] ; then
+		[ -z "$startRoutine" ] || printf 'routine-stack: %s:current\n' "$startRoutine"
+		return 0
+	fi
+	if [ -z "$startRoutine" ] ; then
+		echo "⛔ ERROR: --routine-chain begins with ${startChain%%,*}, and this spawn runs no routine -- name the routine in force with --routine or --routine-default" >&2
+		return 1
+	fi
+	## An empty entry is refused, never silently skipped: a trailing comma or a doubled one is a typo in the
+	## chain, and a chain that quietly loses a frame is a session whose recorded path is not the one asked for.
+	case "$startChain" in
+		,*|*,|*,,*) echo "⛔ ERROR: --routine-chain: the chain holds an empty entry: $startChain -- every entry must name one routine file" >&2 ; return 1 ;;
+	esac
+	for startEntry in ${startChain//,/ } ; do
+		startSeen=$(( startSeen + 1 ))
+		startPath="$( AgentsToolsSpawnRoutineResolve "$startEntry" 2> /dev/null )" || {
+			echo "⛔ ERROR: --routine-chain: $startEntry is not one routine file of the skillset" >&2
+			return 1
+		}
+		if [ "$startSeen" -gt 1 ] ; then
+			printf 'routine-stack: %s:pending\n' "${startPath##*/}"
+			continue
+		fi
+		startFirstPath="${startPath##*/}"
+		if [ "$startFirstPath" != "$startRoutine" ] ; then
+			echo "⛔ ERROR: --routine-chain begins with $startFirstPath, and this spawn runs $startRoutine -- a chain begins with the routine in force" >&2
+			return 1
+		fi
+		printf 'routine-stack: %s:current\n' "$startFirstPath"
+	done
+	return 0
+}
+
+## The frames written on one line for a reader: `<routine>:<state>` each, separated by an arrow. Nothing
+## where no frame is given.
+AgentsToolsRoutineStackShown(){ ## the `routine-stack:` lines
+	local shownLine="" shownOut=""
+	while IFS= read -r shownLine ; do
+		case "$shownLine" in 'routine-stack: '?*) ;; *) continue ;; esac
+		shownOut="${shownOut:+$shownOut → }${shownLine#routine-stack: }"
+	done <<< "$1"
+	printf '%s\n' "$shownOut"
+}
+
+## The record a session's stack is kept in: the first of its records that carries any, the session's own record
+## (`<session-id>.spawn.md`) first; where none carries any, its own record or any that names it, so a move can start a
+## stack there. A record belongs to the session its `session-id:` names, so a session whose own record is absent still
+## answers: 11 sessions of the estate hold records that name them and no record named by their id. Printed; rc 1 where
+## no record here names the session.
+AgentsToolsSessionRoutineStackRecord(){ ## session id
+	local stackRecord="" stackNamed="" stackFrames=""
+	for stackRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned/$1/$1.spawn.md" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md ; do
+		[ -f "$stackRecord" ] || continue
+		stackFrames="$( LC_ALL=C anchor="$1" awk '
+			NR == 1 { if ( $0 != "---" ) exit 1 ; next ; }
+			$0 == "---" { exit ( mine ? 0 : 1 ) ; }
+			index( $0, "session-id: " ) == 1 { if ( substr( $0, 13 ) == ENVIRON["anchor"] ) { mine = 1 } ; next ; }
+			mine && index( $0, "routine-stack: " ) == 1 { print ; }
+		' "$stackRecord" 2> /dev/null )" || continue
+		[ -z "$stackFrames" ] || { printf '%s\n' "$stackRecord" ; return 0 ; }
+		[ -n "$stackNamed" ] || stackNamed="$stackRecord"
+	done
+	[ -n "$stackNamed" ] || return 1
+	printf '%s\n' "$stackNamed"
+}
+
+## The `routine-stack:` lines of a session, one a line in the order its record keeps them. Nothing where its record
+## carries none, which is every session started before the stack was recorded.
+AgentsToolsSessionRoutineStackLines(){ ## session id
+	local stackRecord
+	stackRecord="$( AgentsToolsSessionRoutineStackRecord "$1" )" || return 0
+	LC_ALL=C awk '$0 == "---" { if ( ++dashes == 2 ) exit ; next } dashes == 1 && index( $0, "routine-stack: " ) == 1 { print }' "$stackRecord" 2> /dev/null
+	return 0
+}
+
+## The file the CheckList tool keeps one member's list in for a session, which is where the harness reads and writes it
+## (AgentsHarnessCheckListPlace): the folder of the record the session id names, else the session's own folder. A move that
+## acts on the list asks here, so it never reads a folder the tool does not write.
+AgentsToolsSessionCheckListFile(){ ## session id, member name
+	local listRecord
+	type AgentsToolsSpawnRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	listRecord="$( AgentsToolsSpawnRecordPath "$1" )"
+	if [ -n "$listRecord" ] ; then
+		printf '%s/%s.checklist.md\n' "${listRecord%/*}" "$2"
+	else
+		printf '%s/.local/agents/sessions/%s/%s.checklist.md\n' "$MMDAPP" "$1" "$2"
+	fi
+}
+
+## The frames changed by one move, from the frames on standard input to the frames on standard output, one
+## `<routine file>:<state>` a line, the bottom first. `push` and `replace` put a routine on top, the frame in force
+## becoming `open` and `skipped`; `rewind` leaves every frame as it is; `return` and `return-to` make the named frame
+## `current` and end every frame above it, a frame already ended keeping its own end. Nothing where the verb is no
+## move, or where the frame a return names is not below the top.
+AgentsToolsRoutineStackMoved(){ ## verb, the routine file a push, replace or return-to names
+	local movedVerb="$1" movedWant="${2:-}"
+	LC_ALL=C awk -v verb="$movedVerb" -v want="$movedWant" '
+		function splitFrame( line,   name, state ) {
+			state = line ; sub( /^.*:/, "", state ) ; name = line ; sub( /:[^:]*$/, "", name )
+			frameName[++frameCount] = name ; frameState[frameCount] = state
+		}
+		function emit( i ) { printf "%s:%s\n", frameName[i], frameState[i] ; }
+		{ if ( $0 != "" ) splitFrame( $0 ) }
+		END {
+			if ( verb == "push" || verb == "replace" ) {
+				if ( frameCount > 0 ) { frameState[frameCount] = ( verb == "push" ? "open" : "skipped" ) }
+				frameName[++frameCount] = want ; frameState[frameCount] = "current"
+			} else if ( verb == "return" || verb == "return-to" ) {
+				target = 0
+				for ( i = frameCount - 1 ; i >= 1 ; i-- ) { if ( verb == "return" || frameName[i] == want ) { target = i ; break } }
+				if ( target == 0 ) { exit 1 }
+				for ( i = target + 1 ; i <= frameCount ; i++ ) { if ( frameState[i] != "skipped" ) { frameState[i] = "done" } }
+				frameState[target] = "current"
+			} else if ( verb != "rewind" ) {
+				exit 1
+			}
+			for ( i = 1 ; i <= frameCount ; i++ ) { emit( i ) }
+		}
+	'
+}
+
+## The frames and the move line written into a record, in place: the frame lines stay where they are, and the move line
+## goes last, just above the closing line of the frontmatter, so the key of the frames never carries a move.
+AgentsToolsRoutineStackRecordText(){ ## the text of the record on standard input
+	LC_ALL=C awk '
+		function putFrames(   count, one, at ) {
+			if ( placed ) { return }
+			count = split( ENVIRON["STACK_FRAMES_NEW"], one, "\n" )
+			for ( at = 1 ; at <= count ; at++ ) { if ( one[at] != "" ) { printf "routine-stack: %s\n", one[at] } }
+			placed = 1
+		}
+		NR == 1 && $0 == "---" { inFront = 1 ; print ; next }
+		inFront && $0 == "---" { putFrames() ; print ENVIRON["STACK_MOVE_LINE"] ; print ; inFront = 0 ; next }
+		inFront && index( $0, "routine-stack: " ) == 1 { putFrames() ; next }
+		{ print }
+	'
+}
+
+## The step names of one frame's routine, in reading order: the routine's steps as its run reads them, which is its own
+## with the routine of its kind mixed in. A run that joined a session takes the steps that begin `All participants`.
+AgentsToolsRoutineStackSteps(){ ## the routine file of the frame, session id, spawn id
+	local stepsPath="$1"
+	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+	type AgentsToolsCheckListRoutineSteps > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
+	AgentsToolsSpawnRoutineMixText "$stepsPath" | AgentsToolsCheckListRoutineSteps "$2" "$3"
+}
+## The first of the frame's steps that the caller's own CheckList has not closed, so a moved run resumes where its list
+## stands: a step already `- [x]` is behind it. Nothing where the list is not there or holds every step closed.
+AgentsToolsRoutineStackStartStep(){ ## the CheckList file, the step names, one a line
+	local startFile="$1" startStep=""
+	[ -f "$startFile" ] || return 1
+	while IFS= read -r startStep ; do
+		[ -n "$startStep" ] || continue
+		LC_ALL=C grep -q -x -F -- "- [x] $startStep" "$startFile" || { printf '%s\n' "$startStep" ; return 0 ; }
+	done <<< "$2"
+	return 1
+}
+
+## THE FOUR MOVES (S6.27 stage 2, with stage 3's result): `push`, `replace`, `rewind`, `return` and `return-to` change the
+## frames of the calling session's record, record one line of their own, and post it into the session's event-track thread.
+## Nothing is refused for want of authority: the design records who moved and asks for a reason, which the whole
+## requirement is. A replace skips the routine in force, so its reason is required. A replace writes the executor's
+## CheckList, because the replaced routine's `step` items go; every other move leaves the list alone. Its result names
+## the frame's steps and the step the run starts at, and a replace says how many items it dropped and kept.
+AgentsToolsRoutineStackMove(){ ## the verb, the routine file a push, replace or return-to names, the reason, where it came from (chair|routine|tool)
+	local moveVerb="$1" moveRoutine="${2:-}" moveReason="${3:-}" moveBy="${4:-chair}"
+	local moveSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-}}" moveSpawn="${MDAT_SPAWN_SESSION_ID:-}" moveMember="${MDAT_SPAWN_AGENT:-}"
+	local moveRecord="" moveFrameLines="" moveRoutineName="" moveFrames="" moveNew="" moveLine="" moveTopName="" moveTopFile=""
+	local moveSteps="" moveStepList="" moveStart="" moveStore="" moveTmp="" moveLock="" moveDropped="" moveListFile=""
+	case "$moveVerb" in
+		push|replace|return-to)
+			[ -n "$moveRoutine" ] || { echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: it names the routine to move to. Nothing was done." >&2 ; return 1 ; }
+			moveFrames="$( AgentsToolsSpawnRoutineResolve "$moveRoutine" )" || moveFrames=""
+			[ -n "$moveFrames" ] || { echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: nothing was done." >&2 ; return 1 ; }
+			moveRoutineName="${moveFrames##*/}"
+		;;
+		rewind|return) ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: --routine-stack: $moveVerb is no move -- the moves are push, replace, rewind, return and return-to. Nothing was done." >&2 ; return 1 ;;
+	esac
+	if [ "$moveVerb" = "replace" ] && [ -z "$moveReason" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --routine-stack replace: it skips the routine in force, so it needs --reason. Nothing was done." >&2
+		return 1
+	fi
+	## A REASON OF ONE LINE (S6.27 D1): the reason goes into a line of the record, so a line break inside it would write a line
+	## the reader of the frames takes for a frame. A word the design does not name is refused the same way, before anything is
+	## written, since a reader that groups by `by:` would meet a fourth value.
+	case "$moveReason" in
+		*$'\n'*|*$'\r'*) echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: --reason holds a line break, so it would write a line of its own into session $moveSession's record. Nothing was done." >&2 ; return 1 ;;
+	esac
+	case "$moveBy" in
+		chair|routine|tool) ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: --by takes chair, routine or tool, and got: $moveBy. Nothing was done." >&2 ; return 1 ;;
+	esac
+	moveRecord="$( AgentsToolsSessionRoutineStackRecord "$moveSession" )" || moveRecord=""
+	[ -n "$moveRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --routine-stack: session ${moveSession:-<none>} has no record here to hold its stack. Nothing was done." >&2 ; return 1 ; }
+	moveFrameLines="$( AgentsToolsSessionRoutineStackLines "$moveSession" | LC_ALL=C sed -n 's/^routine-stack: //p' )"
+	moveNew="$( printf '%s\n' "$moveFrameLines" | AgentsToolsRoutineStackMoved "$moveVerb" "$moveRoutineName" )" || moveNew=""
+	[ -n "$moveNew" ] || {
+		case "$moveVerb" in
+			return-to) echo "$MDSC_CMD: ⛔ ERROR: --routine-stack return-to: $moveRoutineName is no frame below the routine in force in session $moveSession. Nothing was done." >&2 ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: session $moveSession records no frame below its top, so there is nowhere to return to. Nothing was done." >&2 ;;
+		esac
+		return 1
+	}
+	moveTopName="${moveNew##*$'\n'}" ; moveTopName="${moveTopName%:*}"
+	moveLine="routine-stack-${moveVerb%%-to}: $moveTopName by: $moveBy reason: ${moveReason:--}"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake "routine-stack-$moveSession" 30 "the routine stack of $moveSession" || {
+		echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: another move of session $moveSession holds its stack. Nothing was done." >&2
+		return 1
+	}
+	moveLock="$agentsLocalLockPath"
+	moveTmp="$( mktemp "$moveRecord.XXXXXX" 2> /dev/null )" || moveTmp=""
+	if [ -z "$moveTmp" ] || ! STACK_FRAMES_NEW="$moveNew" STACK_MOVE_LINE="$moveLine" AgentsToolsRoutineStackRecordText < "$moveRecord" > "$moveTmp" 2> /dev/null \
+		|| ! LC_ALL=C grep -q -x -F -- "$moveLine" "$moveTmp" || ! mv -f "$moveTmp" "$moveRecord" 2> /dev/null ; then
+		[ -z "$moveTmp" ] || rm -f "$moveTmp" 2> /dev/null
+		AgentsToolsLocalLockGive "$moveLock"
+		echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $moveVerb: the stack of session $moveSession could not be written. Nothing was done." >&2
+		return 1
+	fi
+	AgentsToolsLocalLockGive "$moveLock"
+	## THE LIST THE MEMBER ACTUALLY HAS, never one the record's own folder happens to hold: the CheckList tool's own place
+	## (AgentsToolsSessionCheckListFile), so a move reads what the member wrote, whatever its record is filed under.
+	moveListFile="$( AgentsToolsSessionCheckListFile "$moveSession" "$moveMember" )"
+	## A REPLACE REWRITES THE LIST BY ITS MARKS (S6.27): the replaced routine's `step` items go, the new routine's steps
+	## are added before everything kept, and every other item keeps the source it had. Every other move leaves the list alone.
+	moveTopFile="$( AgentsToolsSpawnRoutineResolve "$moveTopName" 2> /dev/null )" || moveTopFile=""
+	[ -z "$moveTopFile" ] || moveStepList="$( AgentsToolsRoutineStackSteps "$moveTopFile" "$moveSession" "$moveSpawn" 2> /dev/null )" || moveStepList=""
+	if [ "$moveVerb" = "replace" ] ; then
+		type AgentsToolsCheckListReplace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2> /dev/null || :
+		if type AgentsToolsCheckListReplace > /dev/null 2>&1 ; then
+			moveDropped="$( AgentsToolsCheckListReplace "$moveListFile" "$moveStepList" 2> /dev/null )" || moveDropped=""
+		fi
+	fi
+	## Stage 3 of the result: the steps of the frame as its run reads them, and the step a moved run starts at. A rewind
+	## runs the steps of the frame again from the first; any other move starts at the first step its own list has not closed.
+	if [ -n "$moveStepList" ] ; then
+		moveSteps="$( printf '%s\n' "$moveStepList" | LC_ALL=C awk 'BEGIN { ORS = "" } { printf "%s%s", ( NR > 1 ? ", " : "" ), $0 }' )"
+		if [ "$moveVerb" = "rewind" ] ; then
+			moveStart="${moveSteps%%,*}"
+		else
+			moveStart="$( AgentsToolsRoutineStackStartStep "$moveListFile" "$moveStepList" )" || moveStart=""
+		fi
+	fi
+	## The move goes into the event-track thread of the session too; a post that fails leaves the move recorded.
+	type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include" 2> /dev/null || :
+	if type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 ; then
+		AgentsToolsEventTrackThreadPost "$moveMember" "$MMDAPP/.local/agents/sessions/$moveSession" --kind activity \
+			--session-id "$moveSession" --field what="the routine stack moved" --from-stdin > /dev/null 2>&1 <<< "$moveLine" \
+			|| echo "$MDSC_CMD: ⚠️ WARNING: --routine-stack $moveVerb: the move is recorded, and it could not be posted into the session's event-track thread" >&2
+	fi
+	printf 'OK: --routine-stack %s: %s is in force in session %s (%s frame(s)).\n' \
+		"$moveVerb" "$moveTopName" "$moveSession" "$( printf '%s\n' "$moveNew" | LC_ALL=C awk 'END { print NR + 0 }' )"
+	[ -z "$moveSteps" ] || printf '  steps: %s\n' "$moveSteps"
+	[ -z "$moveDropped" ] || printf '  checklist: %s\n' "$moveDropped"
+	[ -z "$moveStart" ] || printf '  start at: %s\n' "$moveStart"
+	printf '  moved: %s\n' "$moveLine"
+	return 0
+}

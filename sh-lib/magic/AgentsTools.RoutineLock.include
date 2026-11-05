@@ -18,6 +18,10 @@
 ##
 
 ## Runs the board's own resync primitive. Caller declares advanceSyncOut.
+## THE WRITERS ARE SETTLED BEFORE THE TREE IS MOVED (S12.4). The store's checkout is also its writers' working tree: a writer leaves
+## a file and an entry, and git refuses to move a tree that holds an uncommitted change to a file origin changed too. So the writers
+## are committed first, through the one thread, and this call holds until they are. A sync that still fails is a merge to settle, as
+## the close push settles one, and the sync then runs a second time. No caller sees a transient refusal of that kind.
 AgentsToolsAdvanceCloneSync(){
 	local repoRoot="$1" originUrl="$2" lockBranch="$3"
 	advanceSyncOut=""
@@ -26,11 +30,33 @@ AgentsToolsAdvanceCloneSync(){
 		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
 		return 1
 	fi
-	local syncRc=0
+	local syncRc=0 syncGitDir=""
 	set +e
-	type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
+	type AgentsToolsTeamDataSettle > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || :
+	if ! AgentsToolsTeamDataSettle 60 ; then
+		advanceSyncOut="a writer of the team data was still uncommitted after 60s, so the tree was not moved under a commit in flight"
+		set -e
+		return 1
+	fi
 	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
+	## A merge the sync could not settle -- origin and a writer here both moved one file -- is settled here and the sync run again, as
+	## AgentsToolsTeamDataPushIfAhead settles one. A sync that failed for any other reason is reported as it is.
+	if [ "$syncRc" -ne 0 ] ; then
+		syncGitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2> /dev/null )" || syncGitDir=""
+		git -C "$repoRoot" fetch -q origin "+refs/heads/$lockBranch:refs/remotes/origin/$lockBranch" > /dev/null 2>&1 || :
+		git -C "$repoRoot" merge --no-commit --no-ff "refs/remotes/origin/$lockBranch" > /dev/null 2>&1 || :
+		AgentsToolsTeamDataMergeSettle "the advance-lock resync" > /dev/null 2>&1 || :
+		if [ -e "$syncGitDir/MERGE_HEAD" ] && [ -z "$( git -C "$repoRoot" diff --name-only --diff-filter=U 2> /dev/null )" ] ; then
+			git -C "$repoRoot" commit -q -m "* team-data merge settled before the board resync" > /dev/null 2>&1 || :
+		fi
+		if [ -e "$syncGitDir/MERGE_HEAD" ] ; then
+			git -C "$repoRoot" merge --abort > /dev/null 2>&1
+		else
+			advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+			syncRc=$?
+		fi
+	fi
 	set -e
 	## Every sync pushes: what the resync left ahead of origin goes out now, best effort, with the owed marker of every team-data push.
 	if [ "$syncRc" -eq 0 ] ; then

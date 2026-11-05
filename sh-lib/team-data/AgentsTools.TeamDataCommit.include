@@ -25,16 +25,54 @@ AgentsToolsTeamDataThreadDir(){
 	printf '%s' "$dirGit/team-data-commit"
 }
 
+## THE STORE'S WRITERS ARE SETTLED BEFORE ANYTHING MOVES ITS TREE (S12.4). The store's checkout is also its writers' working tree, so a
+## writer's file that waits for its commit is an uncommitted change to that tree. Git refuses to move a tree whose file origin changed
+## holds such a change, which is how a duty start met LOCK_UNCHECKABLE and a retry a minute later passed. So a caller about to move the
+## tree settles what waits first. A store with nothing waiting costs one git status and no process.
+## rc 0 where nothing waited, or everything did and is committed; rc 1 where a writer was still uncommitted at the bound.
+AgentsToolsTeamDataSettleDirty(){ ## -- the store's uncommitted tracked paths, one a line, absolute
+	## `-z` prints no quotes at all, so a path holding a blank or a quote stays one word: the plain form wraps such a path in
+	## quotes, and the commit step then refuses the pieces of it as not under the store. Each entry reads `<XY> <path>`.
+	git -C "$MDAT_DATA_ROOT" status --porcelain -z 2> /dev/null \
+		| while IFS= read -r -d '' settleEntry ; do
+			settleEntry="${settleEntry#???}"
+			case "$settleEntry" in ''|'??'*) continue ;; esac
+			printf '%s/%s\n' "${MDAT_DATA_ROOT%/}" "$settleEntry"
+		done
+}
+AgentsToolsTeamDataSettle(){ ## bound seconds
+	local settleDir settleBound="${1:-60}" settlePath
+	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] || return 0
+	settleDir="$( AgentsToolsTeamDataThreadDir )" || return 0
+	for settlePath in "$settleDir"/*.entry ; do
+		[ -f "$settlePath" ] && break
+		settlePath=""
+	done
+	[ -n "$settlePath" ] || [ -n "$( AgentsToolsTeamDataSettleDirty )" ] || return 0
+	## With the thread off, as the checks have it, the writers are committed here: there is no thread to ask.
+	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" != "off" ] ; then
+		type AgentsToolsOnDemandThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+		mkdir -p "$settleDir" 2> /dev/null || :
+		AgentsToolsOnDemandThreadStart "$settleDir" --intern-team-data-commit --run > /dev/null 2>&1 || :
+		AgentsToolsOnDemandThreadAsk "$settleDir" "$settleBound" "commit" > /dev/null || :
+	fi
+	## A write that landed while that pass ran, and one whose entry never came: committed here, as the thread would have committed it.
+	while IFS= read -r settlePath ; do
+		[ -z "$settlePath" ] || AgentsToolsTeamDataCommitPathsNow "the store's writers, settled before the resync" "$settlePath"
+	done <<< "$( AgentsToolsTeamDataSettleDirty )"
+	[ -z "$( AgentsToolsTeamDataSettleDirty )" ]
+}
+
 ## A write into the team data that is to be committed and pushed. The writer runs no git: the paths and what to say of them are left as
 ## one entry file in the thread's folder (AgentsToolsTeamDataThreadDir), and the one thread that commits and pushes (--intern-team-data-commit,
-## AgentsTools.InternTeamDataCommit.include) is started where none lives. A lock another writer holds can no longer fail the write,
-## and the thread commits one entry after another. Never fails its caller.
+## AgentsTools.InternTeamDataCommit.include) is started where none lives and asked to commit. A lock another writer holds can no longer
+## fail the write, and the thread commits one entry after another. Never fails its caller.
 ## The context is the subject of the commit, `* ` before it unless it starts with `+ `, `- ` or `* `. MDAT_TEAM_DATA_COMMIT_WAIT=yes in front
 ## of the call keeps it until the thread has committed the entry, for a writer that deletes what it has just written: the history of a
 ## file is made before the file goes. With MDAT_TEAM_DATA_COMMIT_THREAD=off the commit is made here, in the caller, as the rigs and the
 ## checks have it.
 AgentsToolsTeamDataCommitPaths(){ ## context, path...
-	local queueContext="$1" queueDir queueEntry queueMark="" queueStart queueFrom="$SECONDS"
+	local queueContext="$1" queueDir queueEntry queueStart
 	shift
 	[ "$#" -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] || return 0
 	queueDir="$( AgentsToolsTeamDataThreadDir )" || return 0
@@ -42,29 +80,35 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
 		return 0
 	fi
-	[ "${MDAT_TEAM_DATA_COMMIT_WAIT:-}" != "yes" ] || queueMark="$( mktemp "$queueDir/wait.XXXXXX" 2> /dev/null )" || queueMark=""
 	queueEntry="$( mktemp "$queueDir/write.XXXXXX" 2> /dev/null )" || queueEntry=""
-	if [ -z "$queueEntry" ] || ! { printf '%s\n%s\n' "${queueMark##*/}" "$queueContext" ; printf '%s\n' "$@" ; } > "$queueEntry" 2> /dev/null || ! mv -f "$queueEntry" "$queueEntry.entry" 2> /dev/null ; then
+	if [ -z "$queueEntry" ] || ! { printf '\n%s\n' "$queueContext" ; printf '%s\n' "$@" ; } > "$queueEntry" 2> /dev/null || ! mv -f "$queueEntry" "$queueEntry.entry" 2> /dev/null ; then
 		[ -z "$queueEntry" ] || rm -f "$queueEntry" 2> /dev/null
-		[ -z "$queueMark" ] || rm -f "$queueMark" 2> /dev/null
 		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
 		return 0
 	fi
-	type AgentsToolsTeamDataThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include"
-	queueStart="$( AgentsToolsTeamDataThreadStart )" || queueStart="failed - the start ended with an error"
+	type AgentsToolsOnDemandThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	queueStart="$( AgentsToolsOnDemandThreadStart "$queueDir" --intern-team-data-commit --run )" || queueStart="failed - the start ended with an error"
 	case "$queueStart" in
 		failed*)
 			## No thread to take the entry: it is taken back and committed here, never left unseen.
 			rm -f "$queueEntry.entry" 2> /dev/null
-			[ -z "$queueMark" ] || rm -f "$queueMark" 2> /dev/null
 			echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: the team-data thread could not be started ($queueStart), so the commit is made here" >&2
 			AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
 			return 0
 		;;
 	esac
-	## At most half a minute: past it the entry is the thread's alone, and a file written for its history is as it would be after a failed commit.
-	while [ -n "$queueMark" ] && [ -e "$queueMark" ] && [ "$(( SECONDS - queueFrom ))" -lt 30 ] ; do sleep 0.2 ; done
-	[ -z "$queueMark" ] || rm -f "$queueMark" 2> /dev/null
+	## A writer that asked to wait holds the entry until the thread has committed it, half a minute at most, for a writer that deletes
+	## what it has just written: the history of a file is made before the file goes. Past the bound, or with no answer at all, the entry
+	## is the thread's alone, so the commit is made here as it would be after a failed one.
+	if [ "${MDAT_TEAM_DATA_COMMIT_WAIT:-}" = "yes" ] ; then
+		if AgentsToolsOnDemandThreadAsk "$queueDir" 30 "commit" > /dev/null ; then
+			return 0
+		fi
+		rm -f "$queueEntry.entry" 2> /dev/null
+		AgentsToolsTeamDataCommitPathsNow "$queueContext" "$@"
+		return 0
+	fi
+	AgentsToolsOnDemandThreadAsk "$queueDir" - "commit" || :
 	return 0
 }
 
@@ -107,9 +151,25 @@ AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
 	case "$commitContext" in '+ '*|'- '*|'* '*) commitSubject="$commitContext" ;; *) commitSubject="* $commitContext" ;; esac
 	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 	[ -n "$repoRoot" ] || return 0
+	## THE STORE'S OWN HISTORY, OR NONE. A data folder with no repository of its own, placed inside another repository's work tree, resolves
+	## that repository: committed there its files become the other repository's history, which is how a check rig's scratch file reached the
+	## shared store. A store that is no repository root commits nothing, and says so once.
+	if [ "$( cd "$MDAT_DATA_ROOT" 2> /dev/null && pwd -P )" != "$( cd "$repoRoot" 2> /dev/null && pwd -P )" ] ; then
+		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: the store $MDAT_DATA_ROOT is no repository of its own, inside $repoRoot, so nothing is committed into that one: $commitContext" >&2
+		return 0
+	fi
 	for commitPath in "$@" ; do
 		case "$commitPath" in
 			*/../*|*/..) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: a path with .. is never committed: $commitPath" >&2 ;;
+			## THE STORE'S OWN .local IS NO TEAM DATA: it holds the local state of the workspace that runs the tooling. One already tracked
+			## is let through, and only so that its removal can be committed by this same step, which is how a stray leaves.
+			"$MDAT_DATA_ROOT"/.local/*)
+				if git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 ; then
+					commitPaths+=( "$commitPath" )
+				else
+					echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: local state is never committed into the store: $commitPath" >&2
+				fi
+			;;
 			"$MDAT_DATA_ROOT"/*) commitPaths+=( "$commitPath" ) ;;
 			*) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: not under the team-data store, not committed: $commitPath" >&2 ;;
 		esac

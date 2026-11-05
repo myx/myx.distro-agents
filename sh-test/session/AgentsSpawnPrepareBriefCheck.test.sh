@@ -90,7 +90,7 @@ printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and
 	"" \
 	"" \
 	"executors: magic-coordinator" "invitees: magic-team" "" \
-	"## open warning-* items" "(none open)" "## standing directives in force" "(none in force)" "## your access" "to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides. Your other standing rows: --list-permissions." "When done, hand back; then Wait until dismissed." > "$rigTmp/b1.want"
+	"## open warning-* items" "(none open)" "## standing directives in force" "(none in force)" "## your access" "free to read without asking: the team skillset" "to ask for more: call RequestPermission naming the tool or path and why. The human-owner decides. Your other standing rows: --list-permissions." "When done, hand back and Wait until dismissed." > "$rigTmp/b1.want"
 rigAssert "the brief is the filled Skeleton, byte for byte" "$( cmp -s "$rigTmp/b1" "$rigTmp/b1.want" && printf same || printf differs )" same
 rigAssert "no slot is left unfilled"                   "$( LC_ALL=C grep -c '{{' "$rigTmp/b1" )" 0
 rigAssert "the header names the member"                "$( LC_ALL=C grep -c -x -F 'SPAWN-PREPARE-BRIEF: rig-member' "$rigTmp/b1" )" 1
@@ -109,7 +109,7 @@ rigAssert "it loads the myx.distro tools in one call"  "$( LC_ALL=C grep -c '^to
 rigAssert "and names the MCP skillset reader"          "$( LC_ALL=C grep -c '^skillset-reader: mcp__myx_distro__Skill {name: <member>, file: <file>}' "$rigTmp/b2n" )" 1
 rigAssert "no harness tag is left"                     "$( LC_ALL=C grep -c -E '^\[(own|native)\] ' "$rigTmp/b2n" || : )" 0
 rigAssert "the universal harness brief has no ToolSearch line" "$( LC_ALL=C grep -c '^tools: ' "$rigTmp/b1" || : )" 0
-rigAssert "both briefs end with the handback line"      "$( tail -1 "$rigTmp/b1" ):$( tail -1 "$rigTmp/b2n" )" "When done, hand back; then Wait until dismissed.:When done, hand back; then Wait until dismissed."
+rigAssert "both briefs end with the handback line"      "$( tail -1 "$rigTmp/b1" ):$( tail -1 "$rigTmp/b2n" )" "When done, hand back and Wait until dismissed.:When done, hand back and Wait until dismissed."
 
 echo "-- open warnings --"
 for rigState in backlog pending running blocked parked processed ; do

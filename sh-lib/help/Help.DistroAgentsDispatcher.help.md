@@ -1,5 +1,5 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --all-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 📘 syntax: DistroAgentsDispatcher.fn.sh --active-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
@@ -9,7 +9,7 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --session-record [--team-member <team-member>] <session-id> [--run]
 📘 syntax: DistroAgentsDispatcher.fn.sh --routine-completed [--team-member <team-member>] <routine> --since \"<YYYY-MM-DD HH:MM>\"
 📘 syntax: DistroAgentsDispatcher.fn.sh --current-flags [--team-member <team-member>]
-📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>]
+📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>] [--days <n>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --set-country [--team-member <team-member>] <iso-code-2-or-3-letters>
 📘 syntax: DistroAgentsDispatcher.fn.sh --set-timezone [--team-member <team-member>] <tz-spec>
 📘 syntax: DistroAgentsDispatcher.fn.sh --set-worktime [--team-member <team-member>] <start HH:MM> <until HH:MM> <days-of-week>
@@ -39,7 +39,7 @@
 			an item of the board, the inbox or the vault. `--wait` stays until the
 			run ends and brings its notice.
 
-		--spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			A session of one routine's run, started for each team member named, or
 			for the caller where none is: the work-session dispatch every routine
 			runs under. The participants the executor is to invite, and what the
@@ -85,12 +85,15 @@
 
 		--current-flags
 			The flags of the schedule now, derived from the settings and the clock:
-			worktime, weekend, holidays, emergency, overtime and learning, a line
-			each, `<flag>: yes|no`. Read-only.
+			worktime, weekend, holidays, emergency, overtime, learning and
+			supervised, a line each, `<flag>: yes|no`. Read-only.
 
-		--override-flag [--no] <flag> [<ttl>]
+		--override-flag [--no] <flag> [<ttl>] [--days <n>]
 			An override of a flag: emergency, with a TTL; overtime; holidays, with a
-			TTL or until cleared; or learning. `--no` clears the override.
+			TTL or until cleared; or learning; or supervised, which while it is on
+			keeps one supervision session of this rig running. `--no` clears the
+			override. `--days <n>` belongs to overtime alone and ends it n worktime
+			starts ahead, the earlier end winning against a TTL.
 
 		--set-country <iso-code-2-or-3-letters>
 		--set-timezone <tz-spec>

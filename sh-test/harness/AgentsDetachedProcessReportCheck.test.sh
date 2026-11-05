@@ -85,6 +85,8 @@ rigHandle="$( LC_ALL=C sed -n 's/^Process handle: //p' "$rigTmp/start1.out" | LC
 rigAssert "the start names its handle" "$( printf '%s' "$rigHandle" | LC_ALL=C grep -c -E '^process-[0-9]+$' )" 1
 rigAssert "the end is posted: the handle, the exit status" "$( rigAwaitPost "$rigHandle ended with exit status 3" 40 )" yes
 rigAssert "the end carries the last line of the output" "$( rigPostsHold 'RIG-LAST-LINE' ):$( rigPostsHold "$rigHandle ended" )" "1:1"
+rigAssert "and that line is quoted in a fenced block, so it is the process's data and not the tool's prose" \
+	"$( LC_ALL=C awk -v one="$rigHandle ended" -v two="rich_text_preformatted" 'index( $0, one ) > 0 && index( $0, two ) > 0 { hits++ } END { print hits + 0 }' "$rigScenario"/post.* )" 1
 rigAssert "a prompt with no newline is reported once as possibly waiting for input" "$( rigPostsHold "$rigHandle may be waiting for input" )" 1
 rigAssert "a run that goes on is reported as still running" "$( [ "$( rigPostsHold "$rigHandle is still running" )" -ge 1 ] && printf yes || printf no )" yes
 rigAssert "every post went into the session thread, and there were at least three" "$( LC_ALL=C grep -l -F '"thread_ts":"1760000000.000100"' "$rigScenario"/post.* 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' ):$( [ "$( rigPosts )" -ge 3 ] && printf many )" "$( rigPosts ):many"

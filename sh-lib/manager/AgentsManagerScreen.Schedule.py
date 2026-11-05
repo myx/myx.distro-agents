@@ -4,14 +4,14 @@
 ## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ##
-## IT RENDERS AND DECIDES NOTHING. `--manager-schedule-read` (AgentsTools.ManagerSchedule.include) prints the rows: `now`, a `flag` row for each of the six flags with its answer and what the
+## IT RENDERS AND DECIDES NOTHING. `--manager-schedule-read` (AgentsTools.ManagerSchedule.include) prints the rows: `now`, a `flag` row for each of the seven flags with its answer and what the
 ## answer is from, the `switch` row (the seconds to the next change of a flag and what changes), and a `cell` row for each day and hour with the flag that stands there. The autorun table is the
 ## rows of `Routines` (their `runs-at` and `runs-after` as the listing gives them). The screen sums, derives and guesses none of it.
 ##
 
 SCHEDULE_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-## The flags a person sets by hand: the four that take an override, and the two that are derived from a setting of their own.
-SCHEDULE_OVERRIDABLE = ("emergency", "overtime", "holidays", "learning")
+## The flags a person sets by hand: the five that take an override, and the two that are derived from a setting of their own.
+SCHEDULE_OVERRIDABLE = ("emergency", "overtime", "holidays", "learning", "supervised")
 SCHEDULE_WRITE_SAYS = {
     "override": "Set stores the override, and Clear takes it out: the read gives its line afterwards.",
     "worktime": "The start and the until are HH:MM, the start first, and the days are workdays, weekend, daily, or a list such as mon,thu.",
@@ -19,7 +19,7 @@ SCHEDULE_WRITE_SAYS = {
 }
 ## How a flag of a cell is drawn in the grid: its glyph and its look. A flag not named here is drawn by its first letter.
 SCHEDULE_GLYPHS = {"worktime": ("█", LEVEL_OK), "weekend": ("░", DIM), "holidays": ("▒", LEVEL_WARN), "overtime": ("▓", LEVEL_WARN),
-                   "emergency": ("!", LEVEL_BAD), "learning": ("L", BOLD)}
+                   "emergency": ("!", LEVEL_BAD), "learning": ("L", BOLD), "supervised": ("S", BOLD)}
 SCHEDULE_NONE = ("·", DIM)
 ## The columns ahead of the hours: the day, and a blank.
 SCHEDULE_LEAD = 5
@@ -53,7 +53,7 @@ ROW_FORMS["schedule"] = {"parse": parseScheduleRows}
 
 
 ## A cell may hold several flags (`worktime,learning`): the one drawn is the first of SCHEDULE_ORDER that it holds, else the first it names.
-SCHEDULE_ORDER = ("emergency", "overtime", "holidays", "worktime", "weekend", "learning")
+SCHEDULE_ORDER = ("emergency", "overtime", "holidays", "worktime", "weekend", "learning", "supervised")
 
 
 def scheduleCellFlag(cell):
@@ -65,7 +65,7 @@ def scheduleCellFlag(cell):
 
 
 ## The mark each flag carries in a cell, beside its glyph: readable in a cell of several columns.
-SCHEDULE_MARKS = {"worktime": "W", "weekend": "E", "holidays": "H", "overtime": "O", "emergency": "!", "learning": "L"}
+SCHEDULE_MARKS = {"worktime": "W", "weekend": "E", "holidays": "H", "overtime": "O", "emergency": "!", "learning": "L", "supervised": "S"}
 ## The widest a cell of an hour may be, and the narrowest the grid is cut to before it takes more lines.
 SCHEDULE_CELL_MOST = 6
 SCHEDULE_CELL_LEAST = 3
@@ -105,7 +105,7 @@ def scheduleGridLines(held, width=60):
             lines.append(lookedAt(day.ljust(SCHEDULE_LEAD) + "".join(texts).rstrip(), spans))
         lines.append("")
     named = set(scheduleCellFlag(cell) for cell in held["cells"].values())
-    legend = "  ".join("%s %s %s" % (SCHEDULE_MARKS[name], SCHEDULE_GLYPHS[name][0], name) for name in ("worktime", "weekend", "holidays", "overtime", "emergency", "learning") if name in named)
+    legend = "  ".join("%s %s %s" % (SCHEDULE_MARKS[name], SCHEDULE_GLYPHS[name][0], name) for name in ("worktime", "weekend", "holidays", "overtime", "emergency", "learning", "supervised") if name in named)
     return lines[:-1] + ([looked(" " * SCHEDULE_LEAD + legend, DIM)] if legend else [])
 
 

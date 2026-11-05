@@ -23,6 +23,7 @@ rigRefuse(){
 }
 [ -f "$rigSandboxInclude" ] || rigRefuse "the include this check measures is not at the origin: $rigSandboxInclude"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSessionRootMarksCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data" ; rigSlack="$rigTmp/slack"
@@ -31,7 +32,8 @@ mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" 
 mkdir -p "$rigSkills/magic-team"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-team/magic-team.basic.md"
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
-trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+rigStarted=""
+trap 'rigProcSignalWithChildren KILL $rigStarted ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 
 ## THE RIG'S SLACK: no socket, each call logged, each reaction kept as `<method> <ts> <name>`, and a step of
 ## slack/react-steps answering it -- `ok`, `rate:<n>` (HTTP 429 with a Retry-After of n), or `error:<name>`.
@@ -205,6 +207,34 @@ rigAssert "a resumed session takes the pause off" "$( rigReacted )" "reactions.r
 rigSection
 rigInRig AgentsToolsSpawnProxyRootPauseMarks "$rigSess" > /dev/null
 rigAssert "and asks for that once too" "$( rigReacted )" ""
+
+echo "-- 8b. the control thread is what asks for the pause mark (S6.37) --"
+## The fault this holds: the function existed and nothing shipping called it, so no session could ever show its pause. The
+## assertion is a real thread of a session's control, over the rig's own store and Slack, with no call of the mark's own.
+rigSession "rig-eight-$$" "CHAIR008:1700000000.000800"
+rigRun "rig-eight-a-$$" spawn-started
+: > "$rigStores/$rigSess/paused"
+rigSection
+( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" \
+	MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigSlack" \
+	SLACK_BOT_TOKEN=rig-bot-token-TEAM MDAT_WORKSPACE_MODE=team-rig MDAT_COMMS_READER=off \
+	bash "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --run --session-id "$rigSess" ) > "$rigTmp/thread.out" 2> "$rigTmp/thread.err" < /dev/null &
+rigPauseThread=$!
+rigProcNote "$rigPauseThread" ; rigStarted="$rigStarted $rigPauseThread"
+disown "$rigPauseThread" 2> /dev/null || :
+rigLeft=$(( 40 * 5 ))
+while [ "$rigLeft" -gt 0 ] && [ ! -s "$rigSlack/react" ] ; do sleep 0.2 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "a thread of the control places the pause on the root message" "$( rigReacted )" "reactions.add CHAIR008:1700000000.000800 double_vertical_bar "
+rigAssert "and the mark is kept as the message's"                     "$( LC_ALL=C tr '\n' ' ' < "$rigStores/$rigSess/root.pause" 2> /dev/null || : )" "double_vertical_bar "
+rigSection
+sleep 2.2
+rigAssert "a second tick of a quiet pause reaction adds nothing"       "$( rigReacted )" ""
+rigSection
+rm -f "$rigStores/$rigSess/paused"
+rigLeft=$(( 40 * 5 ))
+while [ "$rigLeft" -gt 0 ] && [ ! -s "$rigSlack/react" ] ; do sleep 0.2 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "a resumed session takes the pause off, by its own thread"  "$( rigReacted )" "reactions.remove CHAIR008:1700000000.000800 double_vertical_bar "
+rigProcSignal TERM "$rigPauseThread" 2> /dev/null || :
 
 echo "-- 9. the marks are the magic-team account's, never a member's --"
 ## WHO REACTS: the team account, under the bot identity. Every reaction this file makes is counted against that, so a call

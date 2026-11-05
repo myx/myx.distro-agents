@@ -160,7 +160,7 @@ Relationship shape — the asymmetric external-organisation relationship (`clien
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape. A `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the team's console rules require anyway.
-    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team/contracts/magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
+    - Decision authority: this member does the task in its own domain and reports it to `magic-coordinator` in its own words. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team/contracts/magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.

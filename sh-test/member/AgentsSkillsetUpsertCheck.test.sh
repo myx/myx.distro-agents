@@ -7,12 +7,8 @@
 ##   0. THE VALIDATOR'S --as. A text on stdin checked as the document that will stand at a path: shown by that path, its citations looked for from
 ##      there, so a skill file checked before it is saved gives the rows it would give as the file.
 ##   1. WHO. Only magic-librarian: another member, a session with no member and a call from no session are refused.
-##   2. THE PERMISSION CHAIN. The call asks the chain for the permission `skillset-upsert` over `<member>:<pathname>`, as a tool call is asked: a routine
-##      whose `access-control:` names it holds it (`magic-librarian:skillset-upsert`, `executors:skillset-upsert`, or with a target); a call from a session with no
-##      routine, from a routine with no access-control:, one that allows another tool, one that allows it to another member, or for another file, is not held:
-##      it is REFUSED with a REFUSAL-ID, recorded (tool skillset-upsert, target member:pathname), and the hint to ask with RequestPermission, and writes
-##      nothing. Once the owner grants it for the session, or once, the call is retried as it was made and written; a grant covers its target only, and
-##      a once is used up by the call.
+##   2. NO PERMISSION ASK (S6.42). A skill that points to source needs no permission and no ask of any kind: a session that runs no routine writes
+##      it, and no refusal is recorded anywhere. The gate is the source copy (section 4) and `learning` (section 3), nothing more.
 ##   3. WHAT AND WHEN. Only a .md file below a skill's folder, the text from stdin or a file and not empty, and only while learning is on: while it is
 ##      off the refusal names the proposal route.
 ##   4. WHICH COPY. The source copy the member registry names (this workspace's rows, then the machine's), written whole where the member has install
@@ -36,7 +32,7 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsSkillsetUpsertCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'rigProcSignal TERM $rigStarted ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigStarted ; rigProcSignal KILL $rigStarted ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigFails=0 rigPasses=0
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
@@ -86,7 +82,7 @@ esac
 exec "${0%/*}/ps.real" "$@"
 RIGPS
 chmod +x "$rigTmp/bin/ps"
-bash -c 'sleep 600 ; :' rig-standin > /dev/null 2>&1 < /dev/null &
+bash -c 'exec sleep 600' rig-standin > /dev/null 2>&1 < /dev/null &
 rigStand="$!" ; rigStarted="$rigStarted $rigStand" ; rigProcNote "$rigStand" ; disown "$rigStand" 2> /dev/null || :
 ## The sessions of the librarian and the routines they run: a spawn record names its routine, the routine file stands in the librarian's folder.
 rigRoutines="$rigWs/.local/agents/members/magic-librarian"
@@ -102,14 +98,11 @@ rigSession(){ ## session id, routine file name (may be empty)
 	printf '%s rig-run --session-id %s\n' "$rigStand" "$1" >> "$rigTmp/ps.list"
 }
 rigRoutine magic-librarian.rig-allowed.routine.md magic-librarian 'magic-librarian:allow-tool:skillset-upsert' ; rigSession rig-allowed magic-librarian.rig-allowed.routine.md
-rigRoutine magic-librarian.rig-executors.routine.md magic-librarian 'executors:allow-tool:skillset-upsert' ; rigSession rig-executors magic-librarian.rig-executors.routine.md
 rigRoutine magic-librarian.rig-target.routine.md magic-librarian 'magic-librarian:allow-tool:skillset-upsert:keeper-here%3Areference/by-target.md' ; rigSession rig-target magic-librarian.rig-target.routine.md
 rigRoutine magic-librarian.rig-silent.routine.md magic-librarian '' ; rigSession rig-silent magic-librarian.rig-silent.routine.md
 rigRoutine magic-librarian.rig-other.routine.md magic-librarian 'magic-librarian:allow-tool:WebFetch' ; rigSession rig-other magic-librarian.rig-other.routine.md
 rigRoutine magic-librarian.rig-someone.routine.md magic-librarian 'keeper-myx:allow-tool:skillset-upsert' ; rigSession rig-someone magic-librarian.rig-someone.routine.md
 rigSession rig-bare ""
-rigSession rig-granted ""
-rigSession rig-once ""
 rigStdin=""
 rigRun(){ ## result prefix, session id (may be empty), member (may be empty), command... -- one command in the rig; stdin from rigStdin; output into <prefix>, rc into <prefix>.rc
 	local runOut="$1" runSession="$2" runMember="$3" ; shift 3
@@ -135,12 +128,6 @@ rigHas(){ ## fixed text, file -- how many lines of the file hold it
 }
 rigMode(){ ## file -- its mode in octal
 	stat -f '%Lp' "$1" 2> /dev/null || stat -c '%a' "$1" 2> /dev/null
-}
-rigRefusalIdOf(){ ## output file -- the REFUSAL-ID it names
-	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | LC_ALL=C sed -n 1p
-}
-rigRefusalField(){ ## session, refusal id, field
-	LC_ALL=C awk -v key="$3" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$rigWs/.local/agents/sessions/$1/$2.md" 2> /dev/null
 }
 rigBegin=$( date +%s )
 rigNew=$'---\nmaintainers: rig\n---\n# keeper-here armed\n\nA "quoted" word, a back\\slash, an accent: café, and a tab:\there.\n\nThe last line.\n'
@@ -170,38 +157,21 @@ rigUp "$rigTmp/g1b" "" "" --skillset-upsert keeper-here keeper-here.armed.md --f
 rigAssert "a call from no member's session: refused" "$( cat "$rigTmp/g1b.rc" ) $( rigHas 'runs only as magic-librarian, and this call comes from no member' "$rigTmp/g1b" )" "1 1"
 rigAssert "none of them wrote a byte, or recorded a refusal" "$( rigBytes "$rigHere" ) $( ls "$rigWs/.local/agents/sessions/rig-allowed" | LC_ALL=C grep -c '^refusal-' )" 'rig-seedarmed\n 0'
 
-echo "-- 2. the permission chain --"
+echo "-- 2. no permission ask at all (S6.42) --"
 ## learning is on for what follows; the learning gate itself is section 3
 rigRun "$rigTmp/learning-on" "" "" bash "$rigPackage/sh-scripts/DistroAgentsDispatcher.fn.sh" --override-flag learning
 rigAssert "learning is switched on by the flag's own operation" "$( LC_ALL=C grep -c -x 'learning: yes' "$rigTmp/learning-on" )" "1"
 rigUp "$rigTmp/p2a" rig-bare magic-librarian --skillset-upsert keeper-here keeper-here.armed.md --from-stdin
-rigIdA="$( rigRefusalIdOf "$rigTmp/p2a" )"
-rigAssert "a session that runs no routine: not held, refused, naming the access-control: key, with a REFUSAL-ID and the way to ask with RequestPermission" "$( cat "$rigTmp/p2a.rc" ) $( rigHas 'does not name skillset-upsert in its access-control: key' "$rigTmp/p2a" ) $( rigHas 'magic-librarian:allow-tool:skillset-upsert' "$rigTmp/p2a" ) $( printf '%s' "$rigIdA" | LC_ALL=C grep -c '^refusal-' ) $( rigHas "RequestPermission refusal_id=$rigIdA" "$rigTmp/p2a" )" "1 1 1 1 1"
-rigAssert "the refusal is recorded as a refused call of that tool: the librarian's, the tool skillset-upsert, the target member:pathname; nothing was written" "$( rigRefusalField rig-bare "$rigIdA" owner ) $( rigRefusalField rig-bare "$rigIdA" tool ) $( rigRefusalField rig-bare "$rigIdA" target ) $( rigBytes "$rigHere" )" 'magic-librarian skillset-upsert keeper-here:keeper-here.armed.md rig-seedarmed\n'
-rigUp "$rigTmp/p2b" rig-silent magic-librarian --skillset-upsert keeper-here keeper-here.armed.md --from-stdin
-rigUp "$rigTmp/p2c" rig-other magic-librarian --skillset-upsert keeper-here keeper-here.armed.md --from-stdin
-rigUp "$rigTmp/p2d" rig-someone magic-librarian --skillset-upsert keeper-here keeper-here.armed.md --from-stdin
-rigUp "$rigTmp/p2e" rig-target magic-librarian --skillset-upsert keeper-here keeper-here.armed.md --from-stdin
-rigAssert "from a routine with no access-control:, one that allows another tool, one that allows it to another member, one that allows it for another file: refused each time, each with its refusal id, nothing written" \
-	"$( cat "$rigTmp/p2b.rc" )$( cat "$rigTmp/p2c.rc" )$( cat "$rigTmp/p2d.rc" )$( cat "$rigTmp/p2e.rc" ) $( rigRefusalIdOf "$rigTmp/p2b" | LC_ALL=C grep -c '^refusal-' )$( rigRefusalIdOf "$rigTmp/p2c" | LC_ALL=C grep -c '^refusal-' )$( rigRefusalIdOf "$rigTmp/p2d" | LC_ALL=C grep -c '^refusal-' )$( rigRefusalIdOf "$rigTmp/p2e" | LC_ALL=C grep -c '^refusal-' ) $( rigBytes "$rigHere" )" '1111 1111 rig-seedarmed\n'
+rigAssert "a session that runs no routine at all: written, with no refusal, no REFUSAL-ID and no ask opened" "$( cat "$rigTmp/p2a.rc" ) $( cmp -s "$rigHere" "$rigTmp/new.md" && printf same ) $( rigHas 'REFUSAL-ID' "$rigTmp/p2a" ) $( ls "$rigWs/.local/agents/sessions/rig-bare" | LC_ALL=C grep -c '^refusal-' ) $( ls "$rigWs/.local/questions" 2> /dev/null | LC_ALL=C grep -c . )" "0 same 0 0 0"
+rigAssert "and the log of the skill says the librarian wrote it" "$( rigHas 'keeper-here armed' "$rigHere" )" "1"
+rigUp "$rigTmp/p2b" rig-silent magic-librarian --skillset-upsert keeper-here reference/by-silent.md --from-stdin
+rigUp "$rigTmp/p2c" rig-other magic-librarian --skillset-upsert keeper-here reference/by-other.md --from-stdin
+rigUp "$rigTmp/p2d" rig-someone magic-librarian --skillset-upsert keeper-here reference/by-someone.md --from-stdin
+rigUp "$rigTmp/p2e" rig-target magic-librarian --skillset-upsert keeper-here reference/by-target.md --from-stdin
+rigAssert "a routine with no access-control:, one allowing another tool, one allowing it to another member, one allowing it for one file: each written, each with no refusal" \
+	"$( cat "$rigTmp/p2b.rc" )$( cat "$rigTmp/p2c.rc" )$( cat "$rigTmp/p2d.rc" )$( cat "$rigTmp/p2e.rc" ) $( rigHas 'REFUSAL-ID' "$rigTmp/p2b" )$( rigHas 'REFUSAL-ID' "$rigTmp/p2c" )$( rigHas 'REFUSAL-ID' "$rigTmp/p2d" )$( rigHas 'REFUSAL-ID' "$rigTmp/p2e" ) $( [ -f "$rigSrc/keeper-here/reference/by-target.md" ] && printf written )" "0000 0000 written"
 rigAsLib "$rigTmp/p2f" --skillset-upsert keeper-here reference/by-allows.md --from-stdin
-rigAssert "from the routine whose access-control: names it for its member (magic-librarian:skillset-upsert): held, and written" "$( cat "$rigTmp/p2f.rc" ) $( cmp -s "$rigSrc/keeper-here/reference/by-allows.md" "$rigTmp/new.md" && printf same ) $( rigHas 'REFUSAL-ID' "$rigTmp/p2f" )" "0 same 0"
-rigUp "$rigTmp/p2g" rig-executors magic-librarian --skillset-upsert keeper-here reference/by-executors.md --from-stdin
-rigAssert "from a routine that allows it to its executors (executors:skillset-upsert): written" "$( cat "$rigTmp/p2g.rc" ) $( cmp -s "$rigSrc/keeper-here/reference/by-executors.md" "$rigTmp/new.md" && printf same )" "0 same"
-rigUp "$rigTmp/p2h" rig-target magic-librarian --skillset-upsert keeper-here reference/by-target.md --from-stdin
-rigAssert "from a routine that allows it for one file: written for that file" "$( cat "$rigTmp/p2h.rc" ) $( cmp -s "$rigSrc/keeper-here/reference/by-target.md" "$rigTmp/new.md" && printf same )" "0 same"
-## the owner's answer to the request for the refused call, as the chain records it: a grant for the session, then one for the call
-rigRun "$rigTmp/p2i" "" "" bash "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-open human-owner --session-id rig-bare --refusal-id "$rigIdA" --kind session
-rigUp "$rigTmp/p2j" rig-bare magic-librarian --skillset-upsert keeper-here keeper-here.armed.md --from-stdin
-rigAssert "once the owner grants it for the session the call is retried as it was made and written: no refusal now" "$( LC_ALL=C grep -c '^GRANT: session ' "$rigTmp/p2i" ) $( cat "$rigTmp/p2j.rc" ) $( cmp -s "$rigHere" "$rigTmp/new.md" && printf same ) $( rigHas 'REFUSAL-ID' "$rigTmp/p2j" )" "1 0 same 0"
-rigUp "$rigTmp/p2k" rig-bare magic-librarian --skillset-upsert keeper-here reference/other-file.md --from-stdin
-rigAssert "the grant covers its target only: another file of the same session is refused again, with a refusal id of its own" "$( cat "$rigTmp/p2k.rc" ) $( rigRefusalIdOf "$rigTmp/p2k" | LC_ALL=C grep -c '^refusal-' ) $( [ -e "$rigSrc/keeper-here/reference/other-file.md" ] && printf written || printf absent )" "1 1 absent"
-rigUp "$rigTmp/p2l" rig-once magic-librarian --skillset-upsert keeper-here reference/once.md --from-stdin
-rigIdB="$( rigRefusalIdOf "$rigTmp/p2l" )"
-rigRun "$rigTmp/p2m" "" "" bash "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-open human-owner --session-id rig-once --refusal-id "$rigIdB" --kind once
-rigUp "$rigTmp/p2n" rig-once magic-librarian --skillset-upsert keeper-here reference/once.md --from-stdin
-rigUp "$rigTmp/p2o" rig-once magic-librarian --skillset-upsert keeper-here reference/once.md --from-stdin
-rigAssert "a grant for the call: the retry is written, and the grant is used up, so the same call again is refused" "$( LC_ALL=C grep -c '^GRANT: once ' "$rigTmp/p2m" ) $( cat "$rigTmp/p2n.rc" ) $( cmp -s "$rigSrc/keeper-here/reference/once.md" "$rigTmp/new.md" && printf same ) $( cat "$rigTmp/p2o.rc" ) $( rigRefusalIdOf "$rigTmp/p2o" | LC_ALL=C grep -c '^refusal-' )" "1 0 same 1 1"
+rigAssert "the routine whose access-control: still names it: written the same" "$( cat "$rigTmp/p2f.rc" ) $( cmp -s "$rigSrc/keeper-here/reference/by-allows.md" "$rigTmp/new.md" && printf same ) $( rigHas 'REFUSAL-ID' "$rigTmp/p2f" ) $( cmp -s "$rigSrc/keeper-here/reference/by-silent.md" "$rigTmp/new.md" && printf same )" "0 same 0 same"
 
 echo "-- 3. what and when --"
 rm -f "$rigWs/.local/.agents/magic-team.agent.env.keep"

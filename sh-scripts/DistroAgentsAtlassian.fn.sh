@@ -48,7 +48,7 @@ DistroAgentsAtlassian(){
 	[ -z "$frontDone" ] || return "$frontRc"
 	case "$1" in
 
-		--confluence-comment-add|--confluence-comment-read|--confluence-page-create|--confluence-page-delete|--confluence-page-search|--confluence-page-update|--jira-comment-add|--jira-comment-read|--jira-issue-create|--jira-issue-delete|--jira-issue-link-page|--jira-issue-search|--jira-issue-transition|--jira-issue-update)
+		--confluence-comment-add|--confluence-comment-read|--confluence-page-create|--confluence-page-delete|--confluence-page-search|--confluence-page-update|--confluence-space-create|--jira-comment-add|--jira-comment-read|--jira-issue-create|--jira-issue-delete|--jira-issue-link-page|--jira-issue-search|--jira-issue-transition|--jira-issue-update)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include"
 			return $?
 		;;

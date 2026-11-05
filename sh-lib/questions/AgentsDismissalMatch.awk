@@ -17,6 +17,11 @@
 ##     its author is AgentsSessionContextCommsItems.awk's readHeader author: the
 ##     first `*_<name>_*` before the arrow, with nothing but a mark before it;
 ##   - no header, the text `DISMISSED <member>` (a person typing it in the thread).
+## S6.40: THE RUN A MESSAGE NAMES DECIDES WHO IT REACHES. Where a message carries `[addressee-run: <id>]` and the
+## caller gives its own run id (the third argument), any other run is passed over: the match is never by member name
+## alone once both runs are known. That is what keeps one run's DISMISSED from ending an unrelated run of the same
+## member in another session.
+##
 ## S27.8: THE TWO RUNS, NOT THE TWO MEMBERS, DECIDE THE AUTHOR'S OWN CASE. A run cannot dismiss
 ## itself, which is the rule above kept exactly. One run of a member CAN dismiss another run of
 ## that same member, and that is what `[author-run: <id>]` and `[addressee-run: <id>]` say where
@@ -24,7 +29,7 @@
 ##
 ## Every closing `}` is preceded by a `;` (reference/shell.md's awk axiom).
 ##
-function dismissalOf(msg, member,   rest, ann, sender, arrow, fromPart, author, toPart, endPos, body, authorRun, addresseeRun) {
+function dismissalOf(msg, member, ownRun,   rest, ann, sender, arrow, fromPart, author, toPart, endPos, body, authorRun, addresseeRun) {
 	gsub(/[\r\n\t]+/, " ", msg) ;
 	rest = msg ;
 	sub(/^[0-9]+\.[0-9]+ \| [^|]* \|/, "", rest) ;
@@ -39,6 +44,10 @@ function dismissalOf(msg, member,   rest, ann, sender, arrow, fromPart, author, 
 	} ;
 	sub(/^[ ]+/, "", rest) ;
 	sub(/[ ]+$/, "", rest) ;
+	## S6.40: A MESSAGE NAMING ANOTHER RUN IS NOT OURS (S6.40). Where the message carries the run it was for, and the
+	## waiter knows its own run, only that run is addressed: a DISMISSED for one run of a member never ends another of
+	## that member's, and never one in another session. A message that carries no run is read as it always was.
+	if (ownRun != "" && addresseeRun != "" && addresseeRun != ownRun) { return 0 ; } ;
 	if (rest ~ ("^DISMISSED " member "[.!]?$")) { return (sender != member) ; } ;
 	arrow = index(rest, " → ") ;
 	if (arrow == 0) { return 0 ; } ;

@@ -625,6 +625,31 @@ AgentsToolsResolveSlackBotToken(){
 	printf 'shared-bot-token %s\n' "$resolvedToken"
 	return 0
 }
+## THE TEAM BOT'S OWN SLACK ACCOUNT (S6.38), kept a day beside the member's own in slack/.user-id-magic-team.txt as
+## `<epoch> <U-id>`: the account the team bot acts as, which is magic-team's, so the file names the member it belongs to and
+## every reader of the accounts our tooling reacts as picks it up from the same place. One auth.test when the file is absent
+## or a day old, so a wait that reads it starts no request of its own. Prints the id; rc 1 where Slack answers none.
+AgentsToolsCommsSlackBotAccountId(){ ## acting member
+	local botFile="$MMDAPP/.local/cache/comms/slack/.user-id-magic-team.txt" botStamp="" botId="" botNow botTmp="" botResp=""
+	botNow="$( date +%s )"
+	[ ! -f "$botFile" ] || { read -r botStamp botId ; } 2> /dev/null < "$botFile" || botId=""
+	case "$botStamp:$botId" in
+		[0-9]*:U[A-Z0-9]*) [ $(( botNow - botStamp )) -lt 86400 ] && { printf '%s\n' "$botId" ; return 0 ; } ;;
+	esac
+	## Its own auth.test is a call of this include, so the guard keeps a call made from inside one from asking again.
+	[ -z "${agentsSlackBotAccountBusy:-}" ] || return 1
+	agentsSlackBotAccountBusy="yes"
+	botResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${1:-magic-team}" --api auth.test --identity bot --context "--bot-account" 2> /dev/null )" || botResp=""
+	agentsSlackBotAccountBusy=""
+	botId="$( printf '%s\n' "$botResp" | LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || botId=""
+	case "$botId" in
+		U[A-Z0-9]*) ;;
+		*) return 1 ;;
+	esac
+	{ mkdir -p "${botFile%/*}" && botTmp="$( mktemp "$botFile.XXXXXX" )" && printf '%s %s\n' "$botNow" "$botId" > "$botTmp" && chmod 600 "$botTmp" && mv -f "$botTmp" "$botFile" ; } 2> /dev/null || :
+	printf '%s\n' "$botId"
+	return 0
+}
 ## The X-Request-Detail header's workspace value -- two-tier fallback, same shape
 ## as AgentsToolsResolveSlackBotToken above, by the side of the call as it is. See MAGIC.md.
 ## Prints the resolved domain, or nothing when neither scope has one; the caller

@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## THE COMMS SOURCE INGEST (S1.12 §3, §4): the half of the sweep that reads one source and writes its events, and the ids
+## those events are given.
+##
+##   The events      $MMDAPP/.local/cache/comms/<service>/<service>-<id>/YYYYMM/events.txt, one event a line, sixteen
+##                   TAB columns, appended and never rewritten. The columns, the kinds, the escapes and the 2,000-byte
+##                   threshold are stated once in myx.distro-agents/MAGIC.md.
+##   The pointer     .ingest.txt in that folder, its one line the last event id written, and the ingest its only writer.
+##                   It never moves by itself, and a failed read leaves it where it was (§4).
+##   The id thread   $MMDAPP/.local/cache/comms/.event-id/, on the shared on-demand thread. It holds last time and last
+##                   sequence in memory, replies through its request fifo, dies on idle, and updates no file. Its origin is
+##                   read once for the thread's whole life.
+##
+## Sourced, never run: functions only. AgentsTools.InternCommsEventId.include is the operation's own arm.
+##
+
+agentsCommsEventIdle="${MDAT_COMMS_EVENT_ID_IDLE_SECONDS:-60}"
+case "$agentsCommsEventIdle" in ''|*[!0-9]*|0) agentsCommsEventIdle=60 ;; esac
+
+## THE THREAD'S FOLDER: one a workspace, beside the cache it serves.
+AgentsCommsEventIdDir(){
+	printf '%s\n' "${MMDAPP:?}/.local/cache/comms/.event-id"
+}
+
+## ONE BATCH OF IDS FROM THE THREAD, one a line. The one shared ask path (S12.11 ruling 1) asks the thread, starts it where none
+## lives, and asks once more: a local retry loop is not this caller's. rc 1 where nothing answered, and then nothing is printed: a
+## pass with no ids writes no events and leaves the pointer where it was.
+AgentsCommsEventIdNext(){ ## how many
+	local nextCount="${1:-1}" nextDir=""
+	nextDir="$( AgentsCommsEventIdDir )" || return 1
+	mkdir -p "$nextDir" 2> /dev/null || return 1
+	type AgentsToolsOnDemandThreadRequest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	AgentsToolsOnDemandThreadRequest "$nextDir" 10 --intern-comms-event-id --run -- "$nextCount"
+}
+
+## THE THREAD'S OPERATION: `--run` serves it on the shared on-demand thread. The last time and the last sequence are this
+## process's memory across every request, which is why the id comes from a thread and never from a file.
+AgentsToolsInternCommsEventId(){ ## --run
+	local eventIdMode="${1:-}"
+	shift
+	type AgentsToolsOnDemandThreadServe > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	case "$eventIdMode" in
+		--run) ;;
+		*)
+			printf '%s\n' "${MDSC_CMD:-DistroAgentsTools} --intern-comms-event-id -- the event ids of the comms cache, minted by one thread holding last time and last sequence (S12.11)." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  ${MDSC_CMD:-DistroAgentsTools} --intern-comms-event-id --run" >&2
+			printf '%s\n' "      The thread: one batch of ids a request, ending after MDAT_COMMS_EVENT_ID_IDLE_SECONDS (60) with none, or on TERM." >&2
+			set +e ; return 1
+		;;
+	esac
+	local eventIdDir
+	eventIdDir="$( AgentsCommsEventIdDir )" || return 1
+	mkdir -p "$eventIdDir" 2> /dev/null || return 1
+	## THE ORIGIN IS READ ONCE, HERE: three hex characters of the workspace's own name, so two stores never mint the same
+	## id. One value for the thread's whole life, never one recomputed per id.
+	commsIdOriginHex="$( LC_ALL=C awk -v base="${MMDAPP##*/}" 'BEGIN {
+		for (i = 1 ; i <= length(base) ; i++) sum = (sum * 31 + index("abcdefghijklmnopqrstuvwxyz0123456789", substr(base, i, 1))) % 4096
+		printf "%03X", sum
+	}' )"
+	exec < /dev/null >> "$eventIdDir/thread.log" 2>&1
+	cd / 2> /dev/null
+	AgentsToolsOnDemandThreadServe "$eventIdDir" "$agentsCommsEventIdle" AgentsCommsEventIdHandler - no
+	return $?
+}
+
+## ONE REQUEST'S IDS, on descriptor 3. The clock is read once, and the last time and sequence advance in the thread's own
+## memory: a clock that moved forward resets the sequence, and one that stood still increments it, so two passes inside one
+## second still sort as time. Six decimal places hold a million ids in a second; past that the next id takes the next
+## millisecond, as EventIdentifier does.
+AgentsCommsEventIdHandler(){ ## how many ids
+	local idLeft="${1:-1}" idNow idTurn
+	case "$idLeft" in ''|0*|*[!0-9]*) idLeft=1 ;; esac
+	## A NEW THREAD NEVER REUSES ITS PREDECESSOR'S MILLISECOND. This process holds the clock and the sequence from its first
+	## answer, so the one thing it cannot see is what the thread before it minted. Waiting for the second to turn makes its
+	## first millisecond later than anything that thread could have written, and the sequence then carries the order inside
+	## each second. It costs at most one second, once, where a thread starts.
+	if [ -z "${commsIdLastMs:-}" ] ; then
+		idTurn="$( date +%s )"
+		while [ "$( date +%s )" = "$idTurn" ] ; do sleep 1 ; done
+	fi
+	idNow=$(( $( date +%s ) * 1000 ))
+	if [ -z "${commsIdLastMs:-}" ] || [ "$idNow" -gt "$commsIdLastMs" ] ; then
+		commsIdLastMs="$idNow" ; commsIdSeq=0
+		commsIdStamp="$( AgentsCommsEventIdStamp "$commsIdLastMs" )"
+	fi
+	while [ "$idLeft" -gt 0 ] ; do
+		if [ "$commsIdSeq" -gt 999999 ] ; then
+			commsIdLastMs=$(( commsIdLastMs + 1 )) ; commsIdSeq=0
+			commsIdStamp="$( AgentsCommsEventIdStamp "$commsIdLastMs" )"
+		fi
+		printf '%s-%06d%s\n' "$commsIdStamp" "$commsIdSeq" "$commsIdOriginHex" >&3
+		commsIdSeq=$(( commsIdSeq + 1 ))
+		idLeft=$(( idLeft - 1 ))
+	done
+}
+
+## A millisecond as the id's date-time part, `yyyyMMddTHHmmssSSSZ`, by the civil-from-days rule: no date process, and the
+## same answer on every platform this runs on.
+AgentsCommsEventIdStamp(){ ## milliseconds since the epoch
+	LC_ALL=C awk -v ms="${1:-0}" 'BEGIN {
+		dayCount = int(ms / 86400000) + 719468 ; secOfDay = int((ms % 86400000) / 1000)
+		eraValue = int(dayCount / 146097) ; dayOfEra = dayCount - eraValue * 146097
+		yearOfEra = int((dayOfEra - int(dayOfEra / 1460) + int(dayOfEra / 36524) - int(dayOfEra / 146096)) / 365)
+		yearValue = yearOfEra + eraValue * 400
+		dayOfYear = dayOfEra - (365 * yearOfEra + int(yearOfEra / 4) - int(yearOfEra / 100))
+		monthPrime = int((5 * dayOfYear + 2) / 153)
+		dayValue = dayOfYear - int((153 * monthPrime + 2) / 5) + 1
+		monthValue = monthPrime < 10 ? monthPrime + 3 : monthPrime - 9
+		if (monthValue <= 2) yearValue++
+		printf "%04d%02d%02dT%02d%02d%02d%03dZ", yearValue, monthValue, dayValue, int(secOfDay / 3600), int((secOfDay % 3600) / 60), secOfDay % 60, ms % 1000
+	}'
+}
+
+## ONE PASS OF THE INGEST FOR ONE SLACK SOURCE, and nothing else: the history read from the pointer's floor, one read of
+## each thread its history names with something newer than that floor, the events those reads hold that the store does
+## not, and the pointer moved to the last id written. rc 0 the pass ran, whether or not it found anything. rc 1 the source
+## could not be read, and then the pointer is where it was.
+AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack ts>]
+	local ingestMember="$1" ingestChannel="$2" ingestAsBot="false" ingestFloor=""
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--as-bot) ingestAsBot="true" ; shift ;;
+			--floor) ingestFloor="${2:-}" ; shift 2 ;;
+			*) shift ;;
+		esac
+	done
+	case "$ingestChannel" in ''|-*|*[!A-Za-z0-9._-]*) echo "⛔ ERROR: the ingest takes one channel id, got: $ingestChannel" >&2 ; return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: the ingest needs a workspace" >&2 ; return 1 ; }
+	type AgentsToolsCommsCacheSlackDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+	AgentsToolsCommsCacheSlackDir "$ingestMember" "$ingestAsBot" "$ingestChannel" || { echo "⛔ ERROR: the ingest could not resolve the cache folder of $ingestChannel" >&2 ; return 1 ; }
+	local ingestDir="$agentsCommsCacheDir" ingestRows ingestHistory=() ingestBody ingestTarget ingestTargets=""
+	local pagedPages=()
+	if [ -z "$ingestFloor" ] && [ -f "$ingestDir/.ingest.txt" ] ; then
+		IFS= read -r ingestFloor 2> /dev/null < "$ingestDir/.ingest.txt" || ingestFloor=""
+	fi
+	[ -z "$ingestFloor" ] || ingestFloor="$( AgentsCommsIngestSlackTs "$ingestFloor" )"
+	mkdir -p "$ingestDir" 2> /dev/null
+	ingestRows="$( mktemp "$ingestDir/rows.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: the ingest could not make a working file in $ingestDir" >&2 ; return 1 ; }
+	AgentsCommsIngestLoadSlack
+	AgentsToolsSlackReadPagedConversation "$ingestMember" conversations.history "$ingestChannel" \
+		"$( [ "$ingestAsBot" = "false" ] && printf user || printf bot )" "" "$ingestFloor" "comms-ingest" "" "" || { rm -f "$ingestRows" ; return 1 ; }
+	ingestHistory=( ${pagedPages[@]+"${pagedPages[@]}"} )
+	for ingestBody in ${ingestHistory[@]+"${ingestHistory[@]}"} ; do
+		printf '%s\n' "$ingestBody" | AgentsCommsIngestRows "$ingestDir" >> "$ingestRows" || { rm -f "$ingestRows" ; return 1 ; }
+		ingestTargets="$ingestTargets$( printf '%s\n' "$ingestBody" | AgentsCommsIngestThreadTargets "$ingestChannel" "$ingestFloor" )"
+		[ -z "$ingestTargets" ] || ingestTargets="$ingestTargets"$'\n'
+	done
+	for ingestTarget in $ingestTargets ; do
+		AgentsToolsSlackReadPagedConversation "$ingestMember" conversations.replies "${ingestTarget%%:*}" \
+			"$( [ "$ingestAsBot" = "false" ] && printf user || printf bot )" "${ingestTarget#*:}" "" "comms-ingest-thread" "" "" || { rm -f "$ingestRows" ; return 1 ; }
+		for ingestBody in ${pagedPages[@]+"${pagedPages[@]}"} ; do
+			printf '%s\n' "$ingestBody" | AgentsCommsIngestRows "$ingestDir" >> "$ingestRows" || { rm -f "$ingestRows" ; return 1 ; }
+		done
+	done
+	AgentsCommsIngestAppend "$ingestDir" "$ingestRows" || { rm -f "$ingestRows" ; return 1 ; }
+	rm -f "$ingestRows"
+	return 0
+}
+
+## The Slack include, loaded where it is not. Sourced inside a function, so the include's own dispatch finds no operation
+## word among its caller's arguments and runs nothing.
+AgentsCommsIngestLoadSlack(){
+	type AgentsToolsSlackReadPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+}
+
+## The event rows one raw read holds that the store does not, as the fifteen columns that follow the id.
+AgentsCommsIngestRows(){ ## the cache folder, and the read's body on stdin
+	local rowsDir rowsFiles=""
+	for rowsDir in "$1"/[0-9][0-9][0-9][0-9][0-9][0-9]/events.txt ; do
+		[ -f "$rowsDir" ] && rowsFiles="$rowsFiles $rowsDir"
+	done
+	LC_ALL=C awk -v storeFiles="$rowsFiles" -v lineBytes="${agentsCommsCacheLineCap:-2000}" -v headBytes=400 \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCommsIngestEvents.awk"
+}
+
+## The thread targets one history body names, `<channel>:<parent ts>` a line, the sweep's own freshness rule.
+AgentsCommsIngestThreadTargets(){ ## the channel, the floor, and the history body on stdin
+	LC_ALL=C awk -v channel="$1" ${2:+-v oldest="$2"} \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackHistoryThreadTargets.awk"
+}
+
+## THE EVENTS WRITTEN, AND THE POINTER AFTER THEM: the rows made distinct and sorted before any id is pasted on, so the
+## ids' order is the events' order; one id a row from the thread; then a line appended to its own month's file, the body
+## beside it where the text is over the threshold; then the pointer moved to the last id written.
+AgentsCommsIngestAppend(){ ## the cache folder, the rows
+	local appendDir="$1" appendRows="$2" appendIds=() appendIndex=0 appendLine appendMonth appendLast appendCount
+	local appendDistinct appendMinted appendPointerTmp
+	## ONE EVENT A LINE, ONE LINE AN EVENT: a thread read repeats its parent, so one message arrives from two reads of one
+	## pass. The rows are made distinct on the identity the kind's own columns give it, and the first copy wins, because the
+	## history read is the authority on a message and the thread read repeats it without the thread's own count.
+	appendDistinct="$( LC_ALL=C awk -F'\t' 'NF {
+			if ($1 == "rx" || $1 == "rx-" || $1 == "att") key = $1 "\036" $2 "\036" $3 "\036" $6
+			else if ($1 == "fl") key = $1 "\036" $2 "\036" $4
+			else if ($1 == "thr") key = $1 "\036" $2
+			else key = $1 "\036" $2 "\036" $3
+			if (key in seen) next
+			seen[key] = 1 ; print
+		}' "$appendRows" 2> /dev/null )" || return 1
+	[ -n "$appendDistinct" ] || return 0
+	appendCount="$( printf '%s\n' "$appendDistinct" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+	## ONE BATCH OF IDS FROM THE THREAD, AND NO FALLBACK: a process minting its own ids restarts the sequence at nought every
+	## pass, so two passes in one second would sort as one. A pass the thread cannot answer writes nothing at all.
+	appendMinted="$( AgentsCommsEventIdNext "$appendCount" )" || { echo "⛔ ERROR: the id thread answered nothing, so no event was written and the pointer is where it was" >&2 ; return 1 ; }
+	while IFS= read -r appendLine ; do [ -z "$appendLine" ] || appendIds[${#appendIds[@]}]="$appendLine" ; done <<< "$appendMinted"
+	[ "${#appendIds[@]}" = "$appendCount" ] || { echo "⛔ ERROR: the ingest minted ${#appendIds[@]} ids for $appendCount events -- nothing was written" >&2 ; return 1 ; }
+	appendIndex=0
+	while IFS= read -r appendLine ; do
+		[ -n "$appendLine" ] || continue
+		appendLast="${appendIds[$appendIndex]:-}"
+		appendIndex=$(( appendIndex + 1 ))
+		[ -n "$appendLast" ] || return 1
+		appendMonth="$( printf '%s' "$appendLast" | LC_ALL=C cut -c1-6 )"
+		mkdir -p "$appendDir/$appendMonth" 2> /dev/null || return 1
+		printf '%s\n' "$appendLine" | LC_ALL=C awk -v id="$appendLast" -v dir="$appendDir/$appendMonth" -v lineBytes="${agentsCommsCacheLineCap:-2000}" -v headBytes=400 -F'\t' '
+			{
+				## THE LINE AND ITS BODY (§6): a text over the threshold keeps a short head, and the whole of it
+				## goes beside the line, in a file the last column names after the message own id.
+				if ( length($6) > lineBytes ) {
+					$15 = $3 ".body.txt"
+					printf "%s\n", $6 > (dir "/" $15) ; close(dir "/" $15)
+					$6 = substr($6, 1, headBytes)
+				}
+				out = $1 ; for (i = 2 ; i <= NF ; i++) out = out "\t" $i
+				printf "%s\t%s\n", id, out
+			}' >> "$appendDir/$appendMonth/events.txt" || return 1
+	done <<< "$appendDistinct"
+	## THE POINTER IS REWRITTEN WHOLE, through a temp beside it made by mktemp.
+	appendPointerTmp="$( mktemp "$appendDir/.ingest.txt.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$appendLast" > "$appendPointerTmp" 2> /dev/null && mv -f "$appendPointerTmp" "$appendDir/.ingest.txt" 2> /dev/null || { rm -f "$appendPointerTmp" ; return 1 ; }
+	return 0
+}
+
+## THE SLACK FLOOR AN EVENT ID NAMES: the id's date-time part as the `seconds.micros` a Slack read takes. The floor steps
+## back by one read's own bound, because the pointer is written after that read finished: a message created while the pass
+## ran is otherwise behind a floor taken at its end and never read again. The window is re-read, and an event the store
+## already holds is not written twice. An id already in Slack's own form is printed as it is.
+AgentsCommsIngestSlackTs(){ ## the last id seen
+	local tsBound="${MDAT_SLACK_READ_BOUND_SECONDS:-120}"
+	case "$tsBound" in ''|*[!0-9]*) tsBound=120 ;; esac
+	case "$1" in
+		[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]Z-*) ;;
+		*) printf '%s\n' "$1" ; return 0 ;;
+	esac
+	LC_ALL=C awk -v stamp="${1%%-*}" -v bound="$tsBound" 'BEGIN {
+		yearValue = substr(stamp, 1, 4) + 0 ; monthValue = substr(stamp, 5, 2) + 0 ; dayValue = substr(stamp, 7, 2) + 0
+		hourValue = substr(stamp, 10, 2) + 0 ; minuteValue = substr(stamp, 12, 2) + 0 ; secondValue = substr(stamp, 14, 2) + 0
+		milliValue = substr(stamp, 16, 3) + 0
+		if (monthValue <= 2) { yearValue-- ; monthValue += 12 }
+		eraValue = int(yearValue / 400) ; yearOfEra = yearValue - eraValue * 400
+		dayOfEra = int((153 * (monthValue - 3) + 2) / 5) + dayValue - 1
+		dayCount = eraValue * 146097 + yearOfEra * 365 + int(yearOfEra / 4) - int(yearOfEra / 100) + dayOfEra - 719468
+		floorSecond = dayCount * 86400 + hourValue * 3600 + minuteValue * 60 + secondValue - bound
+		if (floorSecond < 0) floorSecond = 0
+		printf "%d.%06d\n", floorSecond, milliValue * 1000
+	}'
+}

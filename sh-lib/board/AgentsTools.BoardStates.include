@@ -2,8 +2,8 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.BoardStates.include -- the states of the board, and the one function that
-## makes the board ready to be written. Sourced, never run. Functions only.
+## AgentsTools.BoardStates.include -- the states of the board, what a state means for a round, and
+## the one function that makes the board ready to be written. Sourced, never run. Functions only.
 ##
 ## THE BOARD is $MDAT_DATA_ROOT/board: a folder a state, and an item a `.md` file that
 ## moves between them. git keeps no empty folder, so a clone of the team data has only the
@@ -11,10 +11,30 @@
 ## an EMPTY STATE, never a fault. Whoever only reads the board takes it so and makes
 ## nothing. Whoever writes it calls AgentsToolsBoardReady first.
 ##
+## THE FIVE ACTIVE STATES are the states a sweep gives a round or a recheck to. A round is one
+## iteration on one document, and `AgentsToolsBoardItemDue` is the one answer to whether a
+## document is due one (S16 stage 2). Its period is `agentsBoardStaleWindowSeconds`, the one
+## constant the code carries for it.
+##
 
 ## THE ONE LIST of the states a board item can be in. A state added here has its folder
 ## made by AgentsToolsBoardReady with no further code.
 agentsBoardStates="backlog pending running review blocked parked processed archived retained"
+
+## THE FIVE ACTIVE STATES: what a sweep gives a round or a recheck to, and no other. Backlog is
+## grooming's work, and a done state is nobody's.
+agentsBoardActiveStates="pending running review blocked parked"
+
+## THE STALENESS WINDOW, in seconds: how long a document a round has visited stays out of the
+## next sweep's set. Stated once, here, and every reader asks this name.
+agentsBoardStaleWindowSeconds=3600
+
+## THE BOARD TREE: the one answer to where the board of this context is, printed. Its two
+## writers -- the board move primitive and the scan's `scope:` line -- read it here, so the
+## tree a sweep scans and the tree its rounds write is one constant, never two literals.
+AgentsToolsBoardTree(){
+	printf '%s\n' "$MDAT_DATA_ROOT/board"
+}
 
 ## Makes the board ready to be written: its folder, and the folder of every state of the
 ## one list. Called by the one operation every board write goes through
@@ -32,4 +52,96 @@ AgentsToolsBoardReady(){
 		}
 	done
 	return 0
+}
+
+## One frontmatter date-time as epoch seconds, or nothing where the value is no date-time its
+## one reader takes.
+AgentsToolsBoardItemEpoch(){ ## date-time
+	case "$1" in
+		[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*) ;;
+		*) return 0 ;;
+	esac
+	printf '%s\n' "$1" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null
+}
+
+## WHETHER A DOCUMENT IS DUE A ROUND, and why. THE predicate of the guarantee: its folder is one
+## of the five active states, `recheck-date` is absent or past, and `last-round-at` is absent or
+## older than the staleness window. Prints ONE LINE FOR EVERY item file given, never a filtered
+## set, so a reader works the answer out from the inputs rather than trusting a filter. The five
+## fields are `\x1c`-separated, since a tab is IFS whitespace and would shift an empty field:
+##   <item path> <yes|no> <why> <recheck-date or -> <last-round-at or ->
+## The why is `due`, `not-an-active-state`, `recheck-date-ahead`, `round-inside-the-window` or
+## `not-read`. A date its reader cannot take holds nothing back. rc 0 where one is due, 1 where
+## none is, 2 where a path is no board item file OR a document could not be read: a fault is
+## never reported as an empty set, and the document that could not be read is named.
+AgentsToolsBoardItemDue(){ ## item file...
+	local duePath dueState dueRecheck dueLast dueRows dueNow dueEpoch dueWhy dueAny=0 dueUnread=0
+	local dueRead=() dueBlind=()
+	[ $# -gt 0 ] || return 1
+	for duePath in "$@" ; do
+		[ -f "$duePath" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: AgentsToolsBoardItemDue: not a board item file: $duePath" >&2 ; return 2 ; }
+		[ -r "$duePath" ] || { dueBlind+=( "$duePath" ) ; continue ; }
+		dueRead+=( "$duePath" )
+	done
+	dueNow="$( date +%s )"
+	## One awk pass for the frontmatter of every file: a scan asks this of the whole board, and a
+	## fork per file is what F7.12's own sections were batched to remove. The fields are separated
+	## by \x1c and never by a tab: a tab is IFS whitespace, so `read` would collapse an empty
+	## field and shift the next one into its place.
+	dueRows=""
+	if [ ${#dueRead[@]} -gt 0 ] ; then
+		dueRows="$(
+			LC_ALL=C awk '
+				function dueRow(path, state, recheck, lastRound) {
+					printf "%s\x1c%s\x1c%s\x1c%s\n", path, state, recheck, lastRound ;
+				}
+				FNR == 1 {
+					if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast) } ;
+					fm = 0 ; seenPath = FILENAME ; seenState = "" ; seenRecheck = "" ; seenLast = "" ;
+					pathDepth = split(FILENAME, pathPart, "/") ;
+					if (pathDepth > 1) { seenState = pathPart[pathDepth - 1] } ;
+					if ($0 == "---") { fm = 1 } ;
+					next ;
+				}
+				fm == 1 && $0 == "---" { fm = 0 ; next } ;
+				fm == 1 && index($0, "recheck-date: ") == 1 { seenRecheck = substr($0, 15) ; next } ;
+				fm == 1 && index($0, "last-round-at: ") == 1 { seenLast = substr($0, 16) ; next } ;
+				END { if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast) } } ;
+			' "${dueRead[@]}"
+		)" || return 2
+	fi
+	while IFS=$'\x1c' read -r duePath dueState dueRecheck dueLast ; do
+		[ -n "$duePath" ] || continue
+		[ -n "$dueRecheck" ] || dueRecheck="-"
+		[ -n "$dueLast" ] || dueLast="-"
+		dueWhy="due"
+		case " $agentsBoardActiveStates " in
+			*" $dueState "*) ;;
+			*) dueWhy="not-an-active-state" ;;
+		esac
+		if [ "$dueWhy" = due ] && [ "$dueRecheck" != - ] ; then
+			dueEpoch="$( AgentsToolsBoardItemEpoch "$dueRecheck" )"
+			case "$dueEpoch" in
+				''|*[!0123456789]*) ;;
+				*) [ "$dueEpoch" -le "$dueNow" ] || dueWhy="recheck-date-ahead" ;;
+			esac
+		fi
+		if [ "$dueWhy" = due ] && [ "$dueLast" != - ] ; then
+			dueEpoch="$( AgentsToolsBoardItemEpoch "$dueLast" )"
+			case "$dueEpoch" in
+				''|*[!0123456789]*) ;;
+				*) [ "$(( dueEpoch + agentsBoardStaleWindowSeconds ))" -le "$dueNow" ] || dueWhy="round-inside-the-window" ;;
+			esac
+		fi
+		printf '%s\x1c%s\x1c%s\x1c%s\x1c%s\n' "$duePath" "$( [ "$dueWhy" = due ] && printf yes || printf no )" "$dueWhy" "$dueRecheck" "$dueLast"
+		[ "$dueWhy" != due ] || dueAny=1
+	done <<< "$dueRows"
+	## A DOCUMENT THAT COULD NOT BE READ IS AN ANSWER OF ITS OWN, never a missing row: the caller
+	## learns its name and that the set it got is incomplete.
+	for duePath in ${dueBlind[@]+"${dueBlind[@]}"} ; do
+		printf '%s\x1c%s\x1c%s\x1c%s\x1c%s\n' "$duePath" no not-read - -
+		dueUnread=1
+	done
+	[ "$dueUnread" = 0 ] || return 2
+	[ "$dueAny" = 1 ]
 }

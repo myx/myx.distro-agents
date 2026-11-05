@@ -505,12 +505,38 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 ## them too, whether its own starts wait or not: the guard reads names. So does one that names the return of a
 ## review, which starts an ended run again, or the harness's own tool that brings a member in.
 rigGuardOps='--intern-op-routine-lock-take|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--spawn-prompt|--spawn-session|--manager-spawn-member|--return-review|--intern-op-review-return|--intern-tool +"?Agent'
-## THE CHECKS THAT NAME A SPAWN OPERATION AND START NO THREAD, with the reason, by file name. A start its caller waits on (--wait) gets no control
-## thread (AgentsToolsSessionControlWaited: its transcript says wait=true; the spawner starts the thread, and the communications reader beside it,
-## in the supervising shell of a start that is not waited for), so a check whose every such line carries --wait has nothing to end. It stays on this
-## list only while that holds: one line of it that names an operation without --wait puts it back under the guard.
+## THE CHECKS THAT NAME A SPAWN OPERATION AND RUN NONE, with the reason, by file name. A start its caller waits on
+## (--wait) gets no control thread (AgentsToolsSessionControlWaited: its transcript says wait=true; the spawner starts the
+## thread, and the communications reader beside it, in the supervising shell of a start that is not waited for), so a
+## check whose every such line carries --wait has nothing to end. A name inside a search pattern is what a check asserts
+## about another file, never a call it makes: a line counts as a search only where every guarded name on it stands after
+## that line's own `grep`, so a line that calls and greps at once is still a call. Each stays on this list only while that
+## holds: one line that makes the call puts it back under the guard.
 ##   AgentsThisSessionCheck.test.sh   its one spawn (section 8, the brief of a start with no routine) is --intern-op-agent-spawn-proxy ... --wait
-rigGuardWaived=' AgentsThisSessionCheck.test.sh '
+##   AgentsHandbackNextCheck.test.sh  every --spawn-session line of it greps the spawn log of a stand-in spawner
+##   AgentsHarnessSpawnToolCheck.test.sh  its --spawn-session line names it inside an assertion's own description, and greps the arm of the dispatcher
+##   AgentsDutyKillRestartCheck.test.sh   its --spawn-session line greps the call a stand-in function recorded
+##   AgentsHelpFormsCheck.test.sh     its --spawn-session lines read the text of the help surfaces, the option counted and
+##                                    compared there, and they call no operation: the lines open a substitution that reads a file
+rigGuardWaived=' AgentsThisSessionCheck.test.sh AgentsHandbackNextCheck.test.sh AgentsHarnessSpawnToolCheck.test.sh AgentsDutyKillRestartCheck.test.sh AgentsHelpFormsCheck.test.sh '
+## The guarded names as plain words, spaced: a line's guarded name is counted by where it stands against that line's `grep`,
+## which a regular expression cannot compare. Spaced, never one a line: `awk -v` refuses a value holding a newline.
+rigGuardWords=' --intern-op-routine-lock-take --intern-main-loop --manager-session-control-start --intern-op-agent-spawn-proxy --spawn-prompt --spawn-session --manager-spawn-member --return-review --intern-op-review-return '
+## A line that only searches for a guarded name, printing nothing where it also calls one.
+rigSearchOnly(){ ## -- lines on stdin
+	LC_ALL=C awk -v words="$rigGuardWords" '
+		BEGIN { count = split( words, word, " " ) ; }
+		{
+			grepAt = index( $0, "grep" ) ;
+			if ( grepAt == 0 ) { print ; next ; }
+			for ( idx = 1 ; idx <= count ; idx++ ) {
+				if ( word[idx] == "" ) { continue ; }
+				at = index( $0, word[idx] ) ;
+				if ( at > 0 && at < grepAt ) { print ; next ; }
+			}
+		}
+	'
+}
 rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names one of the operations and does not end the threads of its rig, then how many name one
 	local guardFile guardNamed=0
 	for guardFile in "$1"/*.test.sh "$1"/*/*.test.sh ; do
@@ -518,9 +544,9 @@ rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names
 		LC_ALL=C grep -v '^[[:space:]]*#' "$guardFile" | LC_ALL=C grep -q -E -e "$rigGuardOps" || continue
 		guardNamed=$(( guardNamed + 1 ))
 		case "$rigGuardWaived" in
-			*" ${guardFile##*/} "*) [ -n "$( LC_ALL=C grep -v '^[[:space:]]*#' "$guardFile" | LC_ALL=C grep -E -e "$rigGuardOps" | LC_ALL=C grep -v -e ' --wait' )" ] || continue ;;
+			*" ${guardFile##*/} "*) [ -n "$( LC_ALL=C grep -v '^[[:space:]]*#' "$guardFile" | LC_ALL=C sed -e 's/^\([[:space:]]*rigAssert[[:space:]]*\)"[^"]*"/\1/' | LC_ALL=C grep -E -e "$rigGuardOps" | LC_ALL=C grep -v -e ' --wait' | rigSearchOnly )" ] || continue ;;
 		esac
-		LC_ALL=C grep -q -E -e '^\. "[^"]*check-fixtures/rig-control-threads\.include\.sh" ' "$guardFile" \
+		LC_ALL=C grep -q -E -e '^\. "[^"]*rig-control-threads\.include\.sh"' "$guardFile" \
 			&& LC_ALL=C grep -q -E -e "^trap '.*rigControlThreadsEnd \"\\\$rig[A-Za-z]+\" .*' EXIT\$" "$guardFile" \
 			|| printf 'NOT ENDED: %s\n' "${guardFile##*/}"
 	done
@@ -555,6 +581,13 @@ rigAssert "a check listed as starting no thread is let be while every spawn it n
 	"named: 1 /NOT ENDED: AgentsThisSessionCheck.test.sh named: 1 /NOT ENDED: AgentsSomeOtherCheck.test.sh named: 1 "
 rigAssert "control: the check that is listed is in the package, and every line of it that names a guarded operation is waited for" \
 	"$( [ -f "$rigPackage/sh-test/session/AgentsThisSessionCheck.test.sh" ] && printf present ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage/sh-test/session/AgentsThisSessionCheck.test.sh" | LC_ALL=C grep -E -e "$rigGuardOps" | LC_ALL=C grep -c -v -e ' --wait' )" "present:0"
+## A LISTED CHECK THAT CALLS AND SEARCHES AT ONCE IS STILL A CALL: a line that names a guarded operation and also greps is
+## not a search, and the guard must fail it. Reading every line that mentions grep as a search let a check start a thread
+## and search in the same line, and the guard passed it.
+mkdir -p "$rigTmp/probe-call-grep"
+printf '%s\n' '#!/usr/bin/env bash' 'bash "$rigTool" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create | LC_ALL=C grep -c y' > "$rigTmp/probe-call-grep/AgentsThisSessionCheck.test.sh"
+rigAssert "a listed check whose line calls and greps at once is put back under the guard" \
+	"$( rigGuard "$rigTmp/probe-call-grep" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: AgentsThisSessionCheck.test.sh named: 1 "
 
 echo "-- 11. nothing is left running, and nothing was asked of the network --"
 rigThreadsEnd

@@ -16,9 +16,12 @@ Work whose core is talking it through with the human-owner.
 # Interview: {{matter}}
 
 {{body}}
+
+Audience: {{audience}}
 ```
 
 # Slots
 
 - `matter` — the matter, one line, the title after `# Interview:`.
+- `audience` — who reads this, in a word or two. A hint its reader interprets, never a closed list.
 - `body` — the plan, the verbatim intents and benchmarks, the corrections and the settled facts.

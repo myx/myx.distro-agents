@@ -79,10 +79,10 @@ for rigContract in "$rigTemplates"/*-item.*.contract.format.md ; do
 	[ "$rigRc" -eq 1 ] || rigKindFaults=$(( rigKindFaults + 1 ))
 	rigUnread=$(( rigUnread + $( rigHas 'contract-rule-unread' ) ))
 done
-rigAssert "22 contracts, each its own kind: a document with no key refuses (exit 1) under every one" "$rigKinds:$rigKindFaults" "22:0"
+rigAssert "23 contracts, each its own kind: a document with no key refuses (exit 1) under every one" "$rigKinds:$rigKindFaults" "23:0"
 rigAssert "the reader understands every unmarked rule of every contract: no contract-rule-unread row" "$rigUnread" "0"
 rigRun no-such-kind "$rigD/real.md"
-rigAssert "an unknown kind is refused, the kinds built named, the type kinds among them" "$rigRc:$( LC_ALL=C grep -o -E 'board-item[.]task|inbox-item[.]note|audit-item[.]transcript|vault-item[.]verbatim' "$rigTmp/said.err" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "1:audit-item.transcript board-item.task inbox-item.note vault-item.verbatim "
+rigAssert "an unknown kind is refused, the kinds built named, the type kinds among them" "$rigRc:$( LC_ALL=C grep -o -E 'board-item[.]task|inbox-item[.]note|audit-item[.]transcript|vault-item[.]verbatim-record' "$rigTmp/said.err" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "1:audit-item.transcript board-item.task inbox-item.note vault-item.verbatim-record "
 
 echo "-- 2. a document that meets its contract passes; a required key absent refuses --"
 rigTask task-20261001T1000Z-ok.md

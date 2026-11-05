@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check of the typed vault writes (S24 item 9): --upsert-vault-investigation-report, --upsert-vault-decision-record
-## and --upsert-vault-verbatim each fix their contract and validate against it, and the generic --upsert-vault-item refuses a
+## and --upsert-vault-verbatim-record each fix their contract and validate against it, and the generic --upsert-vault-item refuses a
 ## name that carries a contract's type word. Temp stores only, in a temp workspace, every op through one `env -i` whose child
 ## refuses to run outside it. The control of each refusal is a write of the same op that must go through.
 set -u
@@ -88,8 +88,8 @@ rigAssert "and nothing is stored"                           "$( rigHas "$rigName
 rigAssert "the refusal names the typed operation"           "$( LC_ALL=C grep -c -F -e '--upsert-vault-investigation-report' "$rigDir/g1.err" )" 1
 printf -- 'x\n' | rigOp "$rigDir/g2" --upsert-vault-item adr-20261101T1509Z-rig.md --upsert-from-stdin
 rigAssert "an adr name is refused"                          "$( cat "$rigDir/g2.rc" )" 1
-printf -- 'x\n' | rigOp "$rigDir/g3" --upsert-vault-item verbatim-20261101T1509Z-rig.md --upsert-from-stdin
-rigAssert "a verbatim name is refused"                      "$( cat "$rigDir/g3.rc" )" 1
+printf -- 'x\n' | rigOp "$rigDir/g3" --upsert-vault-item verbatim-record-20261101T1509Z-rig.md --upsert-from-stdin
+rigAssert "a verbatim record name is refused"               "$( cat "$rigDir/g3.rc" )" 1
 printf -- 'x\n' | rigOp "$rigDir/g4" --upsert-vault-item artefact-20261101T1509Z-rig.md --upsert-from-stdin
 rigAssert "control: an artefact name is still written"      "$( cat "$rigDir/g4.rc" )$( rigHas artefact-20261101T1509Z-rig.md )" 0made
 
@@ -120,16 +120,16 @@ for rigRefused in r1 r2 r3 r4 ; do
 done
 rigAssert "the status refusal says the key is missing"       "$( LC_ALL=C grep -c 'status' "$rigDir/r1.err" | LC_ALL=C awk '{ print ( $1 > 0 ) ; }' )" 1
 
-echo "-- the decision record and the verbatim write --"
+echo "-- the decision record and the verbatim record write --"
 rigScenario siblings
 printf -- '---\nfrom: magic-coordinator\ndate: 2026-11-01 15:09 +0200\nstatus: proposed\n---\n\n# Question\n\nq\n' \
 	| rigOp "$rigDir/s1" --upsert-vault-decision-record adr-20261101T1509Z-rig.md --upsert-from-stdin
 rigAssert "a decision record is written"                    "$( cat "$rigDir/s1.rc" )$( rigHas adr-20261101T1509Z-rig.md )" 0made
 rigAssert "it names the decision record contract"           "$( rigCount adr-20261101T1509Z-rig.md 'document-contract: vault-item.decision-record' )" 1
-printf -- 'The words, word for word.\n' | rigOp "$rigDir/s2" --upsert-vault-verbatim verbatim-20261101T1509Z-rig.md --upsert-from-stdin
-rigAssert "a verbatim is written with its keys stamped"     "$( cat "$rigDir/s2.rc" )$( rigHas verbatim-20261101T1509Z-rig.md )$( rigCount verbatim-20261101T1509Z-rig.md 'document-contract: vault-item.verbatim' )" 0made1
-printf -- 'x\n' | rigOp "$rigDir/s3" --upsert-vault-verbatim adr-20261101T1509Z-other.md --upsert-from-stdin
-rigAssert "a verbatim op refuses an adr name"               "$( cat "$rigDir/s3.rc" )$( rigHas adr-20261101T1509Z-other.md )" 1none
+printf -- 'The words, word for word.\n' | rigOp "$rigDir/s2" --upsert-vault-verbatim-record verbatim-record-20261101T1509Z-rig.md --upsert-from-stdin
+rigAssert "a verbatim record is written with its keys stamped" "$( cat "$rigDir/s2.rc" )$( rigHas verbatim-record-20261101T1509Z-rig.md )$( rigCount verbatim-record-20261101T1509Z-rig.md 'document-contract: vault-item.verbatim-record' )" 0made1
+printf -- 'x\n' | rigOp "$rigDir/s3" --upsert-vault-verbatim-record adr-20261101T1509Z-other.md --upsert-from-stdin
+rigAssert "a verbatim record op refuses an adr name"         "$( cat "$rigDir/s3.rc" )$( rigHas adr-20261101T1509Z-other.md )" 1none
 rigAssert "and not for an unknown operation"                "$( LC_ALL=C grep -c 'invalid option' "$rigDir/s3.err" )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then

@@ -72,8 +72,11 @@ AgentsToolsRoutineRunInline(){ ## routine selector
 	printf '\n'
 	AgentsToolsRoutineInlineText "$inlineFile" || { [ -z "$inlineTemp" ] || rm -f "$inlineTemp" ; return 1 ; }
 	if [ -n "$inlineIn" ] ; then
-		printf '\n## input scan result\n\n'
-		cat "$inlineIn"
+		## the scan's report is one document, and joins the steps as a section of its own: the merge reworks its headings
+		## one level down, so none of them stands beside the routine's own sections
+		printf '\n'
+		type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+		AgentsToolsMergeMdFiles --section-prefix 2 --mixin "$inlineIn" "input scan result"
 		rm -f "$inlineIn"
 	fi
 	return 0

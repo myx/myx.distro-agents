@@ -1276,6 +1276,9 @@ AgentsHarnessAsk(){
 			## Added, this call waits on the stored wait whole -- the session's other open asks and
 			## every other source it holds -- and returns on whatever of it arrives, as a Wait does.
 			AgentsHarnessAskWaitItem add "$askPendingId" && askSessionWait=1 || :
+			## A message on the session's floor ends the ask's wait as it ends any wait (S5.4, S6.48):
+			## the chat source joins the same stored wait, so the ask sees it and marks it seen.
+			[ -n "$askSessionWait" ] && AgentsHarnessAskWaitItem add "$askPendingId" chat || :
 			toolSource="ask:$askPendingId"
 			askTs=""
 			askAddressees=""
@@ -1393,7 +1396,7 @@ AgentsHarnessAsk(){
 			'WAIT-RESULT: RECEIVED'*)
 				askOthers="$( AgentsHarnessAskSessionArrivals "$askPendingId" "$askWaitOut" )"
 				if [ ! -s "$harnessScratch/ask-own.out" ] ; then
-					printf 'ASK-RESULT: ARRIVED-OTHER\nThis call returned because something else this session waits on arrived, and not the answer to what it asked. Pending reply %s (%s) is NOT answered yet: it stays open and in your Wait set, and nothing about it is lost. What arrived follows, each part saying what it is. Read it, then go on waiting for this answer with the call on the last line, which posts nothing.\n' "$askPendingId" "$toolKind"
+					printf 'ASK-RESULT: ARRIVED-OTHER\nThis call returned because something else this session waits on arrived, and not the answer to what it asked. Pending reply %s (%s) is NOT answered yet: it stays open and in your Wait set, and nothing about it is lost. What arrived follows, each part saying what it is. Read it, then go on waiting for this answer with the call on the last line, which posts nothing -- or cancel the task with TaskStop, and the question stays open for a later call.\n' "$askPendingId" "$toolKind"
 					[ -z "$askRouteNote" ] || printf '%s\n' "$askRouteNote"
 					[ -z "$askWaitNote" ] || printf '%s\n' "$askWaitNote"
 					printf '%s\n' "$askOthers"
@@ -1476,7 +1479,11 @@ AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id
 			*) return 0 ;;
 		esac
 	fi
-	"$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1
+	case "$2" in
+		## The chat of the session itself joins the same stored wait, so an ask is woken by a floor message.
+		chat) "$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "chat:$itemSession" > /dev/null 2>&1 ;;
+		*) "$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1 ;;
+	esac
 }
 
 ## The lines that end an ask left open: its wait item, and the Wait that collects its answer.

@@ -22,14 +22,15 @@ The coordinator's duty session: it works what its work-duty scan found, then wai
 
 The Opening steps of its session kind run first. Then:
 
-1. **write-the-duty-list**: Write these recurring duties to your `CheckList`, one item each:
+1. **greet-the-team**: where this run's dispatch carries `day-first: yes`, post one short freeform greeting to `magic-team` before any other step: one message of one line. Where it carries `day-first: no`, post none.
+2. **write-the-duty-list**: Write these recurring duties to your `CheckList`, one item each:
    - the inbox.
    - the due items.
    - the permission asks.
    - the board round.
    - the run asks.
    - the held work.
-   - wait for more: run `--idle-wait`.
+   - wait for more: call `ThisSession`, operation `idle-wait`.
 
    Every round starts from that list.
 
@@ -81,13 +82,14 @@ The Opening steps of its session kind run first. Then:
    - rule: while a supervision session runs, hold each session that started since the last round. Never hold the critical session, a released session, a supervision session or this one.
    - rule: the measure of capacity is the gap between tool calls that a run feels, never the load average alone.
    - step: for every live run, take the gaps between its consecutive tool calls over the last ten minutes, and their median. One long call that is a Wait or a test run is not a slow call.
+   - step: ask one Permission set for the session next in the release order, where it has no approved `access-control:` set (`--request-permission-set`, on the item that tracks it). Cover every place, tool and member it will use.
    - step: every median under a minute and no run stuck, as `magic-coordinator.supervision-session.routine`'s **unstall-runs** defines it: release the next held session in the release order, per `release-a-session`.
    - step: a median of a minute or more: release nothing. Find the cause in the call path, and dispatch its fix with no regression.
 10. **decide-inline**: for each item of this round, decide inline which it is, and move on, steps:
    - small: work it at once here, as an inline routine (`--routine-run-inline`).
    - larger: prepare its brief, record it and spawn a sub-task (the Agent tool). The sub-task reuses this session's cached prefix, so its first round is cheap.
-11. **post-the-round**: post one line into the session thread (`--post-session-channel`): what this round started, moved or flagged, or that it found nothing. Post the round's record to `event-track` (`--slack-send-message`): the outcomes per item and their counts, the items left untouched, and what was started. It never repeats `check-process-board`'s **board-report**.
-12. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. Your list's `wait for more` item is this call: making it does that item. An arrival is any message addressed to you: new work, an ask or news. Go to **work-the-input** on one, and a `DISMISSED` ends the duty.
+11. **post-the-round**: post one line into the session thread (`ThisSession`, operation `post`): what this round started, moved or flagged, or that it found nothing. Post the round's record to `event-track` (`SendMessage`): the outcomes per item and their counts, the items left untouched, and what was started. It never repeats `check-process-board`'s **board-report**.
+12. **wait-for-more**: run `ThisSession`, operation `idle-wait`. Your list's `wait for more` item is this call: making it does that item. An arrival is any message addressed to you: new work, an ask or news. Go to **work-the-input** on one, and a `DISMISSED` ends the duty.
 
 # Closure steps
 
@@ -121,9 +123,9 @@ Steps:
 - Run with a reduced scope when the human-owner sets or agrees one: every job is still considered, only in-scope ones are executed.
 - Every 20 completed rounds, or on notice that a loaded skill file changed, reload the skill fresh. Do it at the top of the next **work-the-input**, never mid-step. A reload re-reads every file, never a partial set.
 - Ending the turn to wait for a notification is always fatal: nothing is left to receive it. The only wait is the one in **wait-for-more**.
-- Nothing substantive is done inline. A real edit, investigation or fix is dispatched (`spawn-one-dispatch`), and its result relayed back. **decide-inline** keeps small work inline.
+- Nothing substantive is done inline. A real edit, investigation or fix is dispatched (`spawn-one-dispatch`), and its result comes back as the worker's report. **decide-inline** keeps small work inline.
 - Already-approved work is spawned out by default, never executed in this session's own context.
-- This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance. This is the trust-chain check (narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
+- This instance holds its own Slack channel to the human-owner. A message it cannot verify is resolved there, not through another coordinator instance. This is the trust-chain check (narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
 - The main loop is not a mode: the host runs it, and no session starts, relays into or stops it. A stopped host loop explains why nothing advances on its own; it changes nothing about this duty.
 - Re-pinging a visibly stalled spawned session, or restarting it where prior work is safely preserved, is this member's own call. Escalate only when the stall makes prior output untrustworthy or risks a duplicated side effect.
 - The tooling does the housekeeping in the main loop, before the scan. It closes dead spawns, moves their items to review and starts missing control threads. It records the dependency edges too. The sections `## board dependencies` and `## recheck dates due` are its findings. The lock of this session is refreshed by its wait and its state writes.
@@ -134,6 +136,7 @@ Steps:
 - **Working an item**: decide what the item's gap needs, then act this round. Nothing left to decide: do the one concrete action (send, spawn, check) through its operation, verify it happened, and record what was done. A real choice: list the options with their outcome and risk, pick one, record the reasoning on the item, then act. Missing information: get it if one call away; otherwise flag it once, naming the missing fact. An outcome is done only when real state backs it: a message sent, a session spawned, a round run.
 - Staleness threshold: 1 hour. At most two respawns per round, oldest `date`/`owner-session-since` first. Work order: by real coverage of the item's goal, then by age; a sub-task count is never the measure.
 - Each item is a tracking document. Spawning work on it spawns the group its `participants` names, with the goal, the task, the document and its next iteration. No quorum among that group becomes the no-quorum document, carried the same way.
+- Every brief and nudge this duty sends is a direct message: it states its requirements in this member's own words, for the worker that has to act on them. `magic-team.basic.md`'s "Relay, direct, produce" tells it from a relay. It quotes the human-owner only for a name, path or flag whose exact form is load-bearing. The tracking document each item is, and the reports written on it, are produces.
 
 ## Per-round outcomes
 
@@ -173,25 +176,26 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--idle-wait [--wait-timeout <seconds>]`
-- `--post-session-channel [--address-to <team-member>]... (<text...>|--from-stdin)`
-- `--routine-run-inline <routine>`
+- `--idle-wait [--wait-timeout <seconds>]` (`ThisSession`)
+- `ThisSession`, operation `post` (`message`, `address_to <team-member>`): one line into this session's own thread.
+- `--routine-run-inline <routine>` (`ThisSession`)
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--advance-to-running <item-filename> --from-state:<state> [--header:...]...`
-- `--advance-to-parked <item-filename> --from-state:<state> [--header:...]...`
-- `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...`
-- `--move-to-pending <item-filename> --from-state:<state> [--header:...]...`
-- `--move-to-processed <item-filename> --from-state:<state> [--header:...]...`
-- `--advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]`
-- `--advance-sleep-run`
-- `--slack-send-message <target> [text...]`
+- `--advance-to-running <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
+- `--advance-to-parked <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
+- `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
+- `--move-to-pending <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
+- `--move-to-processed <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
+- `--advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]` (`DistroAgentsItems`)
+- `--advance-sleep-run` (`AgentDispatcherTools`)
+- `SendMessage` (`to`, `address_to`, `message`): one message to any target. `DistroAgentsSlack` `--slack-send-message` for `--text-group`, `--update-ts`, `--identity-bot` or a file.
 - `--console-list`
 - `--console-send <channel> [-- <command...>]`
-- `--answer-escalation <request-id> <verdict> [text]`
-- `--forward-escalation <request-id>`
-- `--accept-review <item-filename> [--summary <text>]`
-- `--return-review <item-filename> (--message <text>|--from-stdin)`
-- `--epic-update <epic-file> --set-status <feature-id> <status>`
+- `--answer-escalation <request-id> <verdict> [text]` (`DistroAgentsQuestions`)
+- `--request-permission-set <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` (`AgentDispatcherTools`)
+- `--forward-escalation <request-id>` (`DistroAgentsQuestions`)
+- `--accept-review <item-filename> [--summary <text>]` (`DistroAgentsItems`)
+- `--return-review <item-filename> (--message <text>|--from-stdin)` (`DistroAgentsItems`)
+- `--epic-update <epic-file> --set-status <feature-id> <status>` (`AgentDispatcherTools`)
 - `--intern-doc-validate`
 - `--skillset-upsert <team-member> <pathname>`
 - `--queue-list`

@@ -87,11 +87,10 @@ AgentsToolsAtlassianCall() {
 		;;
 	esac
 
-	## Strictly the acting member's own scope, no fallback and never the other
-	## product's set: an Atlassian API token IS an identity, and acting under the
-	## wrong one raises no error at all. Read by the side of the call
-	## (AgentsTools.CommsSide.include): on our own side a client-* member holds none,
-	## the expected state below, said in the one plain line that names its --client-* twin.
+	## The set's scope, by the side of the call (AgentsTools.CommsSide.include): on our own
+	## side a client-* member holds none, the expected state below, said in the one plain line
+	## that names its --client-* twin. An Atlassian API token IS an identity, and acting under
+	## the wrong one raises no error at all.
 	type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
 	if ! AgentsToolsCommsOwnSettingsApply "$actingMember" ; then
 		printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: $( AgentsToolsCommsOwnSideLine "$actingMember" "$( [ "$productName" = jira ] && printf Jira || printf Confluence )" "$callContext" )" >&2
@@ -100,20 +99,23 @@ AgentsToolsAtlassianCall() {
 	## The client's own Atlassian is a separate explicit key set, read on the client
 	## side only: CLIENT_JIRA_* and CLIENT_CONFLUENCE_*.
 	! AgentsToolsCommsClientSide "$actingMember" || keyPrefix="CLIENT_$keyPrefix"
-	local siteHost userEmail apiToken
+	local siteHost userEmail apiToken credentialScope=""
+	local siteEnvName="${keyPrefix}_SITE" userEnvName="${keyPrefix}_USER" apiEnvName="${keyPrefix}_API_TOKEN"
 	## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone, with
 	## its key in the environment, before it asks any scope. The same name the config
 	## store holds, so a caller that exports it needs no team data at all.
-	local siteEnvName="${keyPrefix}_SITE" userEnvName="${keyPrefix}_USER" apiEnvName="${keyPrefix}_API_TOKEN"
-	siteHost="${!siteEnvName:-}"
+	siteHost="${!siteEnvName:-}" userEmail="${!userEnvName:-}" apiToken="${!apiEnvName:-}"
+	## The rest comes from the scope the set is read from (AgentsToolsCommsScopeOf): the acting
+	## member's own in this workspace, else this rig's magic-team scope, and the whole set from
+	## that one place. A call the environment answers whole asks no scope at all.
+	if [ -z "$siteHost" ] || [ -z "$userEmail" ] || [ -z "$apiToken" ] ; then
+		type AgentsToolsCommsScopeOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+		credentialScope="$( AgentsToolsCommsScopeOf "$actingMember" "${keyPrefix}_" )"
+	fi
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-	[ -n "$siteHost" ] || siteHost="$( AgentsToolsConfigOption "$actingMember" --select "${keyPrefix}_SITE" )" || siteHost=""
-	userEmail="${!userEnvName:-}"
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-	[ -n "$userEmail" ] || userEmail="$( AgentsToolsConfigOption "$actingMember" --select "${keyPrefix}_USER" )" || userEmail=""
-	apiToken="${!apiEnvName:-}"
-	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-	[ -n "$apiToken" ] || apiToken="$( AgentsToolsConfigOption "$actingMember" --select "${keyPrefix}_API_TOKEN" )" || apiToken=""
+	[ -n "$siteHost" ] || siteHost="$( AgentsToolsConfigOption "${credentialScope:-$actingMember}" --select "${keyPrefix}_SITE" )" || siteHost=""
+	[ -n "$userEmail" ] || userEmail="$( AgentsToolsConfigOption "${credentialScope:-$actingMember}" --select "${keyPrefix}_USER" )" || userEmail=""
+	[ -n "$apiToken" ] || apiToken="$( AgentsToolsConfigOption "${credentialScope:-$actingMember}" --select "${keyPrefix}_API_TOKEN" )" || apiToken=""
 	## Not a contract error: a member holding no credential for this product is an
 	## expected state, so it carries its own code rather than 1.
 	if [ -z "$siteHost" ] || [ -z "$userEmail" ] || [ -z "$apiToken" ] ; then
@@ -130,7 +132,7 @@ AgentsToolsAtlassianCall() {
 	local configNewline=$'\n'
 	case "$siteHost$userEmail$apiToken" in
 		*"$configNewline"*)
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in ${actingMember}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in the ${credentialScope:-$actingMember} scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
 			return 1
 		;;
 	esac
@@ -336,6 +338,96 @@ AgentsToolsAtlassianArgsOnce() { ## arguments...
 		esac
 	done
 	return 0
+}
+
+## A HUMAN ASSIGNEE BELOW PARTNER, WHILE `learning` IS ON (S20.8): the human-owner's one-time permission, and one-time means
+## each assignment. A contact is a person of the other side by definition -- the store keeps persons, never our members -- so
+## the tier is the whole test: `partner` and `recorded` are allowed standing, and anything else asks him. `is-owner: yes` is his
+## own record and asks nobody. ASKED DIRECTLY, not through the authority rule: a coordinator holds that rule over any run, and
+## this permission is his own whatever the caller is. The ask is posted in his own conversation, and it KEEPS THE REFUSED CALL
+## AS ITS ACTION, as the tier ask keeps `--intern-op-contact-tier-apply` (AgentsTools.Contacts.include): his answer runs that
+## call once, and `AgentsToolsAuthorityApproved` is what lets this very call through when it runs as that action. One open ask
+## per contact and project: a second call of that assignment joins it rather than asking him twice.
+AgentsToolsJiraAssigneeLearningAllowed() { ## <team-member>, <contact>, <project>, <context>, [the refused call's own words...]
+	local learnMember="$1" learnContact="$2" learnProject="$3" learnContext="$4" learnTier="" learnWhat learnOpened learnKept
+	shift 4
+	type AgentsToolsContactsKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include" 2> /dev/null || return 1
+	AgentsToolsContactsStore "$learnContext" || return 1
+	[ -f "$contactsPersons/$learnContact.md" ] || return 0
+	learnTier="$( AgentsToolsContactsKey "$contactsPersons/$learnContact.md" tier )"
+	case "$learnTier" in partner|recorded) return 0 ;; esac
+	[ "$( AgentsToolsContactsKey "$contactsPersons/$learnContact.md" is-owner )" != yes ] || return 0
+	type AgentsToolsScheduleSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
+	[ "$( AgentsToolsScheduleSetting MDAT_SCHEDULE_LEARNING )" = on ] || return 0
+	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" 2> /dev/null || return 1
+	## HIS ANSWER HAS ALREADY LET THIS CALL THROUGH: it runs as the action the ask kept, and the answer is taken here, so it lets
+	## one call run and never a second (AgentsToolsAuthorityApproved).
+	AgentsToolsAuthorityApproved "$learnContact" && return 0
+	AgentsToolsAuthorityCaller
+	learnWhat="the Jira assignment of $learnProject to the contact $learnContact, a person below partner while learning is on"
+	learnKept="$( AgentsToolsAuthorityOpenRequestFor "$learnContact" "$learnWhat" )" || learnKept=""
+	## THE ASK KEEPS THIS CALL AS ITS ACTION, one word a line, so a value holding a newline cannot be carried: refused here, where
+	## the ask is the only reason, and said rather than replayed wrong.
+	if [ -z "$learnKept" ] ; then
+		case "$*" in
+			*$'\n'*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$learnContext: the contact $learnContact is below partner while learning is on, so this call needs the human-owner's permission, and its own ask keeps this call as the action to run -- one word a line, which a value holding a newline cannot be. Nothing was written: repeat the call with that value on one line, or record the contact at partner tier" >&2
+				return 1
+			;;
+		esac
+	fi
+	[ -n "$learnKept" ] || learnOpened="$( AgentsToolsAuthorityRequestOpen enqueue yes human-owner "${agentsAuthorityCallerSession:-}" \
+		"$learnContact" "$learnWhat" "" "$@" )" || learnOpened=""
+	case "$learnOpened" in PENDING\ *) learnKept="${learnOpened#PENDING }" ; learnKept="${learnKept%% *}" ;; esac
+	[ -n "$learnKept" ] || {
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$learnContext: the contact $learnContact is a person below partner on the organisation's side, and learning is on, so its assignment needs the human-owner's permission, which could not be asked -- nothing was written" >&2
+		return 1
+	}
+	printf '%s\n' "⛔ ERROR: $MDSC_CMD --$learnContext: the contact $learnContact is a person below partner on the organisation's side, and learning is on, so its assignment is the human-owner's own permission: it is asked as $learnKept, nothing was written, and his answer runs this call and creates it" >&2
+	printf 'ASKED\t%s\t%s\n' "$learnContact" "$learnKept"
+	return 1
+}
+
+## The Jira account id --assignee names, resolved through the contacts database: the word `me` is the acting identity's
+## own account, and any other word is a contact's id whose recorded e-mail address the site answers an account for. The
+## contacts store keeps no Jira coordinate, and an account id is the only handle the assignee field takes. Prints the id;
+## rc 1, said, where the contact is not recorded, holds no single address, or no assignable account answers to it. The
+## words after the four named ones are the calling operation's own, which its permission ask keeps as the action to run.
+AgentsToolsJiraAssigneeAccountId() { ## <team-member>, <assignee>, <project>, <context>, [the calling operation's own words...]
+	local assigneeMember="$1" assigneeWant="$2" assigneeProject="$3" assigneeContext="$4" assigneeMail="" assigneeId=""
+	shift 4
+	if [ "$assigneeWant" = "me" ] ; then
+		assigneeId="$( AgentsToolsAtlassianCall "$assigneeMember" jira GET /rest/api/3/myself "$assigneeContext" "" | LC_ALL=C awk -v path=accountId -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || assigneeId=""
+		case "$assigneeId" in
+			'') printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: --assignee me needs the acting identity's own accountId, and the site did not answer one -- nothing was written" >&2 ; return 1 ;;
+		esac
+		printf '%s\n' "$assigneeId"
+		return 0
+	fi
+	AgentsToolsAssertBareName "$assigneeWant" "<contact-id>" "$assigneeContext" || return 1
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include" 2> /dev/null || return 1
+	AgentsToolsContactsStore "$assigneeContext" || return 1
+	if [ ! -f "$contactsPersons/$assigneeWant.md" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: no contact $assigneeWant is recorded, so no Jira account answers to it -- find one with DistroAgentsContacts.fn.sh --find-contact <value>, or give --assignee me" >&2
+		return 1
+	fi
+	assigneeMail="$( AgentsToolsContactsKey "$contactsPersons/$assigneeWant.md" email )"
+	AgentsToolsJiraAssigneeLearningAllowed "$assigneeMember" "$assigneeWant" "$assigneeProject" "$assigneeContext" "$@" || return 1
+	case "$assigneeMail" in
+		''|*[[:space:]]*|*,*|*@*@*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: the contact $assigneeWant holds no single e-mail address, and a Jira account is looked up by one -- record it with --collect-contact --id $assigneeWant --email <address>" >&2
+			return 1
+		;;
+	esac
+	## The site answers one bare array here, and the package reader takes one object, so the body is wrapped
+	## under one key before it is read.
+	assigneeId="$( AgentsToolsAtlassianCall "$assigneeMember" jira GET "/rest/api/3/user/assignable/search?query=$( AgentsToolsAtlassianUrlEncode "$assigneeMail" )&project=$( AgentsToolsAtlassianUrlEncode "$assigneeProject" )" "$assigneeContext" "" \
+		| LC_ALL=C awk '{ held = held $0 } END { if ( substr( held, 1, 1 ) == "[" ) { print "{\"users\":" held "}" } else { print held } }' \
+		| LC_ALL=C awk -v array=users -v want=accountId -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sed -n 1p )" || assigneeId=""
+	case "$assigneeId" in
+		'') printf '%s\n' "⛔ ERROR: $MDSC_CMD --$assigneeContext: the site knows no account assignable in $assigneeProject for the contact $assigneeWant ($assigneeMail), so nothing was written -- give --assignee another contact, or add that account to the project" >&2 ; return 1 ;;
+	esac
+	printf '%s\n' "$assigneeId"
 }
 
 ## One Jira issue, read as the acting member: in-context helper, no operation of its own
@@ -758,6 +850,90 @@ case "$1" in
 		return 0
 	;;
 
+	## One Confluence space, created by the same v2 endpoint space-list reads. The name is
+	## what the site requires; the key identifies the space in every page address. A
+	## description is sent in the one form a create takes, plain text.
+	--intern-op-atlassian-confluence-space-create)
+		shift
+		local confSCMember="" confSCKey="" confSCName="" confSCDescription="" confSCContext="intern-op-atlassian-confluence-space-create"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--key|--name|--description|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)      confSCMember="$2" ;;
+						--key)         confSCKey="$2" ;;
+						--name)        confSCName="$2" ;;
+						--description) confSCDescription="$2" ;;
+						--context)     confSCContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confSCMember" ] || [ -z "$confSCKey" ] || [ -z "$confSCName" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: syntax is --member <team-member> --key <space-key> --name <text> [--description <text>] [--context <caller>] -- the space is created under that identity, and only where it may create spaces" >&2
+			set +e ; return 1
+		fi
+		## A space key is Confluence's own identifier: letters, digits, '-' and '_'. Enumerated,
+		## never a bracket range, and refused rather than repaired, since the site's key is what
+		## every page address carries afterwards.
+		local confSCKeyRest="$confSCKey" confSCKeyChar
+		while [ -n "$confSCKeyRest" ] ; do
+			confSCKeyChar="${confSCKeyRest%"${confSCKeyRest#?}"}"
+			confSCKeyRest="${confSCKeyRest#?}"
+			case "$confSCKeyChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				-|_) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: --key invalid: $confSCKey -- a space key is letters, digits, '-' and '_', and it becomes the space's own address, so it is refused rather than repaired" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local confSCNameEsc confSCDescEsc confSCCreateBody
+		confSCNameEsc="$( printf '%s' "$confSCName" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		confSCCreateBody="{\"key\":\"$confSCKey\",\"name\":\"$confSCNameEsc\""
+		if [ -n "$confSCDescription" ] ; then
+			confSCDescEsc="$( printf '%s' "$confSCDescription" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+			confSCCreateBody="$confSCCreateBody,\"description\":{\"value\":\"$confSCDescEsc\",\"representation\":\"plain\"}"
+		fi
+		confSCCreateBody="$confSCCreateBody}"
+		local confSCBody confSCRc=0
+		confSCBody="$( AgentsToolsAtlassianCall "$confSCMember" confluence POST /wiki/api/v2/spaces "$confSCContext" "$confSCCreateBody" )" || confSCRc=$?
+		if [ "$confSCRc" -ne 0 ] ; then
+			set +e ; return "$confSCRc"
+		fi
+		## 201 is the documented answer and it is this family's exit 0 (AgentsToolsAtlassianCall).
+		## Nothing is created twice by a retry of a create whose outcome is unknown, so a body
+		## with no id is reported UNKNOWN rather than printed as a space.
+		local confSCFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+		local confSCId="$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=id -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )"
+		if [ -z "$confSCId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confSCContext: UNKNOWN -- the site answered without a space id, so whether the space exists cannot be told from the answer. Read the space list for key $confSCKey before creating it again" >&2
+			set +e ; return 3
+		fi
+		local confSCUrl="$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=_links.base -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=_links.webui -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )"
+		printf 'SPACE_ID\tKEY\tNAME\tURL\n'
+		printf '%s\t%s\t%s\t%s\n' \
+			"$confSCId" \
+			"$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=key -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$confSCBody" | LC_ALL=C awk -v path=name -v optional=1 -v dialect=atlassian -f "$confSCFieldAwk" 2>/dev/null )" \
+			"${confSCUrl:--}"
+		[ -n "$confSCUrl" ] || printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confSCContext: the answer carried no _links, so the space's address is not printed here -- read it from --confluence-space-list" >&2
+		return 0
+	;;
+
 	## Jira agile boards, the one endpoint behind every board listing. Names its
 	## product for the same reason the Confluence op above does.
 	--intern-op-atlassian-jira-board-list)
@@ -1132,7 +1308,11 @@ case "$1" in
 	--intern-op-atlassian-jira-issue-create)
 		shift
 		local jiraICMember="" jiraICProject="" jiraICIssuetype="" jiraICSummary="" jiraICSummaryGiven="false"
-		local jiraICDescriptionAdf="" jiraICDescriptionGiven="false" jiraICFieldsJson="" jiraICContext="intern-op-atlassian-jira-issue-create"
+		local jiraICDescriptionAdf="" jiraICDescriptionGiven="false" jiraICFieldsJson="" jiraICContext="intern-op-atlassian-jira-issue-create" jiraICAgnee="me"
+		## The call's own words, kept before the loop takes them apart: they are what a permission ask for a low-tier assignee
+		## keeps as its action, and the action is a whole tooling call, so it opens with this operation's own name
+		## (AgentsToolsJiraAssigneeAccountId, AgentsToolsAuthorityRequestAct).
+		local jiraICWords=( --intern-op-atlassian-jira-issue-create "$@" )
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--member)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraICMember="$1" ; shift ;;
@@ -1155,6 +1335,7 @@ case "$1" in
 					jiraICDescriptionAdf="$( cat "$1" )" ; jiraICDescriptionGiven="true" ; shift
 				;;
 				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraICFieldsJson="$1" ; shift ;;
+				--assignee)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --assignee value missing" >&2 ; set +e ; return 1 ; } ; jiraICAgnee="$1" ; shift ;;
 				--context)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraICContext="$1" ; shift ;;
 				*)
 					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: invalid option: $1" >&2
@@ -1163,7 +1344,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$jiraICMember" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: syntax is --member <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--context <caller>] -- --project, --issuetype and --summary are all required. This operation never fetches that project's own createmeta to validate fields it usually already knows apply; a caller targeting an unfamiliar project/issuetype should read /rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId} itself first" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: syntax is --member <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--assignee <contact|me>] [--context <caller>] -- --project, --issuetype and --summary are all required. This operation never fetches that project's own createmeta to validate fields it usually already knows apply; a caller targeting an unfamiliar project/issuetype should read /rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId} itself first" >&2
 			set +e ; return 1
 		fi
 		[ -n "$jiraICProject" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --project missing" >&2 ; set +e ; return 1 ; }
@@ -1176,7 +1357,12 @@ case "$1" in
 		jiraICProjectEsc="$( printf '%s' "$jiraICProject" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
 		jiraICIssuetypeEsc="$( printf '%s' "$jiraICIssuetype" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
 		jiraICSummaryEsc="$( printf '%s' "$jiraICSummary" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
-		local jiraICFields="{\"project\":{\"key\":\"$jiraICProjectEsc\"},\"issuetype\":{\"name\":\"$jiraICIssuetypeEsc\"},\"summary\":\"$jiraICSummaryEsc\""
+		## Every ticket has an assignee (epic S20.8): --assignee names a contact, whose recorded address the site answers an
+		## account for, and the default is the acting identity's own account. An unresolvable assignee creates nothing.
+		local jiraICAgneeId="" jiraICAgneeEsc=""
+		jiraICAgneeId="$( AgentsToolsJiraAssigneeAccountId "$jiraICMember" "$jiraICAgnee" "$jiraICProject" "$jiraICContext" ${jiraICWords[@]+"${jiraICWords[@]}"} )" || { set +e ; return 1 ; }
+		jiraICAgneeEsc="$( printf '%s' "$jiraICAgneeId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+		local jiraICFields="{\"project\":{\"key\":\"$jiraICProjectEsc\"},\"issuetype\":{\"name\":\"$jiraICIssuetypeEsc\"},\"summary\":\"$jiraICSummaryEsc\",\"assignee\":{\"id\":\"$jiraICAgneeEsc\"}"
 		[ "$jiraICDescriptionGiven" = "true" ] && jiraICFields="$jiraICFields,\"description\":$jiraICDescriptionAdf"
 		jiraICFields="$jiraICFields}"
 		if [ -n "$jiraICFieldsJson" ] ; then
@@ -1196,6 +1382,9 @@ case "$1" in
 	--intern-op-atlassian-jira-issue-update)
 		shift
 		local jiraIUMember="" jiraIUKey="" jiraIUFieldsJson="" jiraIUUpdateJson="" jiraIUNotify="false" jiraIUContext="intern-op-atlassian-jira-issue-update"
+		local jiraICAgnee="" jiraIUProject="" jiraICAgneeId="" jiraICAgneeJson=""
+		## The call's own words, kept as the create arm keeps them, operation name first (AgentsToolsJiraAssigneeAccountId).
+		local jiraIUWords=( --intern-op-atlassian-jira-issue-update "$@" )
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--member)      shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraIUMember="$1" ; shift ;;
@@ -1203,6 +1392,8 @@ case "$1" in
 				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraIUFieldsJson="$1" ; shift ;;
 				--update-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --update-json value missing" >&2 ; set +e ; return 1 ; } ; jiraIUUpdateJson="$1" ; shift ;;
 				--notify-users) jiraIUNotify="true" ; shift ;;
+				--assignee)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --assignee value missing" >&2 ; set +e ; return 1 ; } ; jiraICAgnee="$1" ; shift ;;
+				--project)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --project value missing" >&2 ; set +e ; return 1 ; } ; jiraIUProject="$1" ; shift ;;
 				--context)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraIUContext="$1" ; shift ;;
 				*)
 					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: invalid option: $1" >&2
@@ -1211,13 +1402,24 @@ case "$1" in
 			esac
 		done
 		if [ -z "$jiraIUMember" ] || [ -z "$jiraIUKey" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: syntax is --member <team-member> --issue-key <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--context <caller>] -- at least one of --fields-json/--update-json is required. --fields-json is the WHOLE fields object, plain set-semantics per field it names; --update-json is Jira's own {\"field\":[{\"add\"/\"remove\"/\"set\"}]} shape. fields.status is refused in either shape -- change status with the issue-transition operation of the same family instead. There is no read-before-write here: this is ordinary last-write-wins" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: syntax is --member <team-member> --issue-key <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--assignee <contact|me> --project <key>] [--context <caller>] -- at least one of --fields-json/--update-json/--assignee is required. --fields-json is the WHOLE fields object, plain set-semantics per field it names; --update-json is Jira's own {\"field\":[{\"add\"/\"remove\"/\"set\"}]} shape. fields.status is refused in either shape -- change status with the issue-transition operation of the same family instead. There is no read-before-write here: this is ordinary last-write-wins" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$jiraIUKey" "<issue-key>" "$jiraIUContext" || { set +e ; return 1 ; }
-		if [ -z "$jiraIUFieldsJson" ] && [ -z "$jiraIUUpdateJson" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json|--update-json missing" >&2
+		if [ -z "$jiraIUFieldsJson" ] && [ -z "$jiraIUUpdateJson" ] && [ -z "$jiraICAgnee" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json|--update-json|--assignee missing" >&2
 			set +e ; return 1
+		fi
+		## --assignee on an update names a contact as it does on a create, and needs the project that contact must be
+		## assignable in. It joins a caller's own --fields-json rather than replacing it.
+		if [ -n "$jiraICAgnee" ] ; then
+			[ -n "$jiraIUProject" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --assignee needs --project <key>, so the contact can be checked as assignable in that project" >&2 ; set +e ; return 1 ; }
+			jiraICAgneeId="$( AgentsToolsJiraAssigneeAccountId "$jiraIUMember" "$jiraICAgnee" "$jiraIUProject" "$jiraIUContext" ${jiraIUWords[@]+"${jiraIUWords[@]}"} )" || { set +e ; return 1 ; }
+			jiraICAgneeJson="$( printf '{"assignee":{"id":"%s"}}' "$( printf '%s' "$jiraICAgneeId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )" )"
+			jiraIUFieldsJson="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsAtlassianJsonObjectMerge.py" "${jiraIUFieldsJson:-{\}}" "$jiraICAgneeJson" )" || {
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --assignee could not be joined to --fields-json -- nothing was changed" >&2
+				set +e ; return 1
+			}
 		fi
 		local jiraIUBody="{" jiraIUHasPart="false"
 		if [ -n "$jiraIUFieldsJson" ] ; then

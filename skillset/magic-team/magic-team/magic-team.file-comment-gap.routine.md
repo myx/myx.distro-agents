@@ -107,8 +107,8 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 - `--console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]` (**pick-understood-file**: batch the reads)
 - `--console-send <channel> [-- <command...>]` (**pick-understood-file**)
-- `--upsert-inbox-reflection <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**log-outcome**)
-- `--upsert-inbox-note <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**log-outcome**, where `log` names a note)
+- `--upsert-inbox-reflection <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`) (**log-outcome**)
+- `--upsert-inbox-note <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`) (**log-outcome**, where `log` names a note)
 
 # Maintainer Notes
 

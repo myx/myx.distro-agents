@@ -136,12 +136,12 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `DistroAgentsTesting.fn.sh --retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]` — software only
-- `DistroAgentsTesting.fn.sh --retest-result <request-id>...` — software only
-- `DistroAgentsTesting.fn.sh --test-list [--team-member <team-member>] [--project <p>] [--namespace <n>] [--keyword <k>]` — software only
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--get-board-item <item-filename>`
-- `--routine-run-inline <routine>`
+- `--retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]` (`DistroAgentsTesting`) — software only
+- `--retest-result <request-id>...` (`DistroAgentsTesting`) — software only
+- `--test-list [--team-member <team-member>] [--project <p>] [--namespace <n>] [--keyword <k>]` (`DistroAgentsTesting`) — software only
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--get-board-item <item-filename>` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

@@ -410,8 +410,17 @@ printf '\t--magic-team:permissions:workspace:*:allow-tool:magic-tester:RigGlobOn
 : > "$rigRig/.local/agents/members.registry"
 rigRun ws-rig --owner-workspace-upsert "$rigTestbedD"
 [ "$rigRc" = 0 ] || rigRefuse "the testbed could not be registered from the rig: $( head -3 "$rigTmp/err" )"
+## The index is a cache, and the package's own project.inf was written after it. A build says so, naming the step that
+## refreshes the index, rather than reading the older rows in silence (S6.22).
+sleep 1
+touch "$rigRig/.local/myx/myx.distro-agents/project.inf"
 rigRun ws-rig --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the rig: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
+rigAssert "a package's project.inf newer than the declares index: the build says so and names the step that refreshes it, beside the one warning it already gives" "$( LC_ALL=C grep -c -F -- 'is newer than' "$rigTmp/err" ):$( LC_ALL=C grep -c -F -- 'DistroSourcePrepare --ingest-distro-index-from-source' "$rigTmp/err" )" "1:1"
+## The control: an index at least as new as every package says nothing.
+touch "$rigRig/.local/system-index/distro-declares.txt"
+rigRun ws-rig --make-agents-indices
+rigAssert "control: an index newer than every package's project.inf: no such warning, and the registry the same" "$( LC_ALL=C grep -c -F -- 'is newer than' "$rigTmp/err" )" 0
 rigIndex="$rigRig/.local/agents/grants.index"
 rigAssert "its permissions registry is written from .local/myx"   "$( LC_ALL=C grep -c '^magic-tester:ws-rig:workspace:' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : )" 9
 rigAssert "from the declares index: a row only the index holds is read, a row only the project.inf holds is not" "$( LC_ALL=C grep -c 'RigIndexOnlyTool' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : ):$( LC_ALL=C grep -c 'RigGlobOnlyTool' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : )" "1:0"

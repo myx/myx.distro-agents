@@ -99,7 +99,7 @@ rigKeeper="$( rigScan keeper-rig )"
 rigAssert "the coordinator's scan has the board digest, the review items, the rechecks due and the dependencies" "$( printf '%s\n' "$rigCoord" | LC_ALL=C grep -c -x -e '## board digest' -e '## review items addressed to advance.routine' -e '## recheck dates due' -e '## board dependencies' -e '(none recomputed yet)' )" 5
 rigAssert "a keeper's scan has none of them" "$( printf '%s\n' "$rigKeeper" | LC_ALL=C grep -c -e '^## board digest' -e '^## recheck dates due' -e '^## board dependencies' || : )" 0
 rigDue="$( printf '%s\n' "$rigCoord" | LC_ALL=C awk '/^## recheck dates due/ { on = 1 ; next } /^## / { on = 0 } on && NF' )"
-rigAssert "the recheck-date that has arrived is listed with its date, and the one ahead is not" "$( printf '%s\n' "$rigDue" | LC_ALL=C grep -c -x -F -e '- pending/task-20261019T0108Z-rig-due.md recheck-date 2020-01-01 00:00 +0000' ):$( printf '%s\n' "$rigDue" | LC_ALL=C grep -c -F 'rig-ext-future' || : )" "1:0"
+rigAssert "the recheck-date that has arrived is listed with its date, and the one ahead is not" "$( printf '%s\n' "$rigDue" | LC_ALL=C grep -c -x -F -e '- pending/task-20261019T0108Z-rig-due.md recheck-date 2020-01-01 00:00 +0000 last-round-at -' ):$( printf '%s\n' "$rigDue" | LC_ALL=C grep -c -F 'rig-ext-future' || : )" "1:0"
 rigAssert "the items of the active states are in the digest" "$( printf '%s\n' "$rigCoord" | LC_ALL=C grep -c -x -e '## running/task-20261019T0106Z-rig-member.md' -e '## pending/task-20261019T0105Z-rig-contact.md' -e '## blocked/approval-20261019T0104Z-rig-ext-future.md' )" 3
 rm -f "$rigWs/.local/agents/board-dependencies.last"
 printf '## board dependencies (recomputed 2026-10-20T10:00:00Z)\n\ncycles: none\n' > "$rigWs/.local/agents/board-dependencies.last"

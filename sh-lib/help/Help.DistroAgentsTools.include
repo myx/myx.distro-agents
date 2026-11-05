@@ -156,20 +156,21 @@ echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
+echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-list [--team-member <team-member>] [--start-at <n>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-read [--team-member <team-member>] <board-id>" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]" >&2
+echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--assignee <contact>|me]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-list [--team-member <team-member>] <issue-key>" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]" >&2
-echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]" >&2
+echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--assignee <contact>|me --project <key>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
 echo "📘 syntax: DistroAgentsSlack.fn.sh --slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]" >&2
@@ -199,7 +200,7 @@ echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <t
 echo "📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --retro-lock-refresh [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-advance [--team-member <team-member>] <ts>" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-read [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
@@ -281,6 +282,8 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --s
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --session-id <id> <member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <unset|none|low|normal|high>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-pause --session-id <id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-resume --session-id <id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>" >&2
@@ -341,6 +344,7 @@ echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <m
 echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]" >&2
+echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [[--wait-source-ttl <seconds>] --wait-source <kind>:<target>[#short|#full][#ttl=<seconds>]]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]" >&2
@@ -376,6 +380,10 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --undo-plan <record-id> [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --undo-run <record-id> [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --undo-purge <record-id> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --intern-context-show [--team-member <team-member>] [--session-id <session-id>] [--spawn-id <spawn-id>] [--select-workspace <place-name|absolute-path>] [--tooling-origin <spec|absolute-path>]" >&2
 ## The six tool files whose own three help forms read this one table through AgentsToolsFrontSyntax
 ## (Help.DistroAgentsSession.include and its siblings): every operation each of them dispatches, a line each.
@@ -395,6 +403,7 @@ echo "📘 syntax: DistroAgentsSession.fn.sh --idle-wait [--team-member <team-me
 echo "📘 syntax: DistroAgentsSession.fn.sh --session-floor-remove [--team-member <team-member>] <seconds>" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --set-session-topic [--team-member <team-member>] <text...>" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --set-session-chapter [--team-member <team-member>] <text...>" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --routine-stack [--team-member <team-member>] (--push <routine>|--replace <routine>|--rewind|--return|--return-to <frame>) [--reason <text>] [--by chair|routine|tool]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --standing-directives [--team-member <team-member>] [--all]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]" >&2
@@ -408,7 +417,7 @@ echo "📘 syntax: DistroAgentsDispatcher.fn.sh --camunda-diagram-sync-stale [--
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --session-record [--team-member <team-member>] <session-id> [--run]" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --routine-completed [--team-member <team-member>] <routine> --since \"<YYYY-MM-DD HH:MM>\"" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --current-flags [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>] [--days <n>]" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --set-country [--team-member <team-member>] <iso-code-2-or-3-letters>" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --set-timezone [--team-member <team-member>] <tz-spec>" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --set-worktime [--team-member <team-member>] <start HH:MM> <until HH:MM> <days-of-week>" >&2
@@ -448,9 +457,9 @@ echo "📘 syntax: AgentDispatcherTools.fn.sh --contact [--team-member <team-mem
 echo "📘 syntax: AgentDispatcherTools.fn.sh --standing-directives [--team-member <team-member>] [--all]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]" >&2
-echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)" >&2
-echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-read [--team-member <team-member>] <epic-file> [--feature <feature-id>]" >&2
-echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-list [--team-member <team-member>] <folder>" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file|epic-item> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-read <epic-file|epic-item> [--feature <feature-id>]" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --epic-list [<folder>]" >&2
 echo "📘 syntax: DistroAgentsKnowledge.fn.sh [--mdat-output-format json] [<project selector: --select-*|--filter-*|--remove-*>] (--add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items)... (--query-keyword <text>|--query-pattern <regex>|--query-glob <glob>|--query-open-and|--query-open-or|--query-close)..." >&2
 		return 0
 	;;

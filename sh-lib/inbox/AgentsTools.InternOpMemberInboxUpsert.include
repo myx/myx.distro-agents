@@ -39,9 +39,16 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-upsert || { set +e ; return 1 ; }
-		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
-		if [ ! -d "$memberDir" ] ; then
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: no such member skill directory: $memberDir" >&2
+		## A MEMBER RECORD, NOT THE CALLER'S OWN VIEW. The item is written into the team data of the
+		## workspace this call runs from, and the write reads no skillset of the member whose inbox it
+		## is: any member this machine holds a record of is written to, wherever that member is set up,
+		## whoever calls, whichever member set root the caller carries. Only a name no workspace
+		## publishes is refused. The member view of the run is read first and a row of the machine's
+		## members index after it (AgentsTools.TeamRegistry.include), so a member this workspace's own
+		## view holds is found exactly as it always was.
+		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		if ! AgentsToolsTeamMemberDirectory "$memberName" > /dev/null ; then
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: no member record of that name on this machine: $memberName -- nothing was written. Looked for its directory under ${MDAT_SKILLSET_ROOT:-the member view of this workspace}, and for a row of it in the machine members index (${HOME:-}/.agents/magic-team/members.registry)." >&2
 			set +e ; return 1
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {

@@ -60,7 +60,7 @@
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
 function activeState(stateWord) {
-	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "awaiting-review" || stateWord == "unclosed" || stateWord == "failed" ) ;
+	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "paused" || stateWord == "awaiting-review" || stateWord == "unclosed" || stateWord == "failed" ) ;
 }
 
 ## The usage-limit flag of one run, from its store: the first line of
@@ -68,13 +68,16 @@ function activeState(stateWord) {
 ## refused the run because its API usage limit was reached -- that it stopped on the
 ## provider usage limit, and the date the provider said it reopens
 ## (AgentsTools.UsageLimit.include). One small file a run is opened for it, where the run has
-## one; empty where it has none. A run with no bare id opens nothing.
+## one; empty where it has none. A run with no bare id opens nothing. THE ACCEPT'S OWN WORDS ARE
+## NO REFUSAL (S6.14): a record the accept of a review settled used to have the accept written here
+## from its end-reason, and that line is a leftover of that writer, so it is not a flag.
 function usageLimitOfRun(agentsDir, spawnId,    limitPath, limitText) {
 	limitText = "" ;
 	if (spawnId != "" && spawnId != "-" && spawnId != "." && spawnId != ".." && index(spawnId, "/") == 0) {
 		limitPath = agentsDir "/sessions/" spawnId "/usage-limit" ;
 		if (( getline limitText < limitPath ) < 1) limitText = "" ;
 		close(limitPath) ;
+		if (substr( limitText, 1, 45 ) == "stopped by a provider refusal: the accept of ") limitText = "" ;
 	}
 	return limitText ;
 }
@@ -98,7 +101,8 @@ BEGIN {
 	OFS = "\t" ;
 	agentsDir = ENVIRON["MDAT_MANAGER_AGENTS"] ;
 	## The states a run is in, as the registry derives them, in the order a tally names them: those of a live run first.
-	stateTotal = split("thinking tool idling starting waiting parked unclosed failed finished", stateOrder, " ") ;
+## `paused` sits among the live ones (S19.1): a run a pause holds is alive and held, never busy and never ended.
+	stateTotal = split("thinking tool idling starting waiting paused parked unclosed failed finished", stateOrder, " ") ;
 	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
 	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
 		if (split(controlLines[controlAt], controlWords, " ") >= 2) controlOf[controlWords[1]] = controlWords[2] ;
@@ -139,7 +143,10 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 	if ($12 == "running") {
 		sessionLive[sessionKey] = 1 ;
 		sessionLiveCount[sessionKey]++ ;
-		if ($13 == "waiting" || $13 == "idling") { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
+		## A RUN A PAUSE HOLDS IS NEITHER WORKING NOR WAITING (S19.1): it is counted apart, so the counters and the
+		## session's own state say what holds it, and no reader takes it for a busy or an idle run.
+		if ($13 == "paused") { runActivity[runTotal] = "paused" ; agentsPaused++ ; sessionLivePaused[sessionKey]++ ; }
+		else if ($13 == "waiting" || $13 == "idling") { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
 		else { runActivity[runTotal] = "working" ; agentsWorking++ ; }
 	}
 	## A RUN THAT IS STILL HERE IS RUNNING, whatever its record says (S21.4): a `spawn-failed` mark written before the run started
@@ -195,7 +202,8 @@ END {
 		## start, else finished. ALL AGENTS FINISHED MAKE THE SESSION FINISHED, NEVER WAITING (sketch 5.4): a question
 		## still open does not hold a session whose runs have all ended -- it is counted in the counters row.
 		if (sessionKey in sessionLive) {
-			sessionState[sessionKey] = ( sessionLiveWaiting[sessionKey] == sessionLiveCount[sessionKey] ) ? "waiting" : "running" ;
+			if (sessionLivePaused[sessionKey] == sessionLiveCount[sessionKey]) sessionState[sessionKey] = "paused" ;
+			else sessionState[sessionKey] = ( sessionLiveWaiting[sessionKey] == sessionLiveCount[sessionKey] ) ? "waiting" : "running" ;
 		}
 		else if (sessionKey in sessionStarting) sessionState[sessionKey] = "starting" ;
 		else if ((sessionKey, "waiting") in sessionStates) sessionState[sessionKey] = "waiting" ;
@@ -205,6 +213,7 @@ END {
 		else if ((sessionKey in sessionFailed) && !( sessionKey in sessionEnded )) sessionState[sessionKey] = "failed" ;
 		else sessionState[sessionKey] = "finished" ;
 		if (sessionState[sessionKey] == "running") sessionsRunning++ ;
+		if (sessionState[sessionKey] == "paused") sessionsPaused++ ;
 		if (activeOnly && !activeState(sessionState[sessionKey])) continue ;
 		if (learnOnly && sessionState[sessionKey] != "finished") continue ;
 		stateTally = "" ;
@@ -227,6 +236,6 @@ END {
 		## A run with no date stands after the dated ones of its session.
 		print sessionStart[sessionKey], sessionPlace[sessionKey], 1, ( runMinutes[runAt] < 0 ? 99999999999 : runMinutes[runAt] ), runAt, "run", sessionKey, runRow[runAt], runActivity[runAt] ;
 	}
-	## Paused comes with the step of pause and resume: its place is kept, and reads 0 until then.
-	print -2, 0, 0, 0, 0, "counters", sessionsRunning + 0, 0, agentsWorking + 0, agentsWaiting + 0, pendingAnswers + 0, ( loadAverage == "" ? "-" : loadAverage ), ( hostName == "" ? "-" : hostName ) ;
+	## Paused comes with the step of pause and resume (S19.1): the sessions a pause holds, then the runs of them.
+	print -2, 0, 0, 0, 0, "counters", sessionsRunning + 0, sessionsPaused + 0, agentsWorking + 0, agentsWaiting + 0, pendingAnswers + 0, ( loadAverage == "" ? "-" : loadAverage ), ( hostName == "" ? "-" : hostName ) ;
 }

@@ -33,30 +33,11 @@ fi
 
 if [ "$1" != "--agents-config-option" ] ; then
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
-		local teamDataDir
-		teamDataDir="$(
-			set -- --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY
-			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
-		)" || teamDataDir=""
-		if [ -n "$teamDataDir" ] ; then
-			case "$teamDataDir" in
-				/*) MDAT_DATA_ROOT="$teamDataDir" ;;
-				*)
-					if [ -d "$MMDAPP/$teamDataDir" ] ; then
-						MDAT_DATA_ROOT="$MMDAPP/$teamDataDir"
-					elif [ -d "$MMDAPP/source/$teamDataDir" ] ; then
-						MDAT_DATA_ROOT="$MMDAPP/source/$teamDataDir"
-					else
-						MDAT_DATA_ROOT="$MMDAPP/$teamDataDir"
-					fi
-				;;
-			esac
-			export MDAT_DATA_ROOT
-		else
-			## Unset is the normal case: the workspace's own hidden store. The
-			## setting is an override, for workspaces that share team data.
-			export MDAT_DATA_ROOT="$MMDAPP/.local/agents/team-data-root"
-		fi
+		## ONE IMPLEMENTATION of the rule, shared with the supervisor's reads of another rig (AgentsTools.TeamDataRoot.include, S13.12).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+		MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" )" || MDAT_DATA_ROOT=""
+		[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
+		export MDAT_DATA_ROOT
 	fi
 	## One site for every op: a remote set and no local board yet clones before any writer touches it. The clear of a Just Agents workspace
 	## (--owner-clear-just-agents, F13.2) touches settings alone, never team data: it clones nothing, whatever it is about to clear.

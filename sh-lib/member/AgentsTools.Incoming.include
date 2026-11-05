@@ -113,3 +113,37 @@ AgentsToolsIncomingSync(){ ## member, [scope: all|start]
 	done
 	return 0
 }
+
+## THE SYNC OF A START IS BOUNDED (S5.5): a member's mailbox is read on a network, and a start that waited on it
+## waited on a mail server. Measured over 342 spawns on one workspace: 0s for 80, 1-3s for 24, and one at 96s. So the
+## read is given SPAWN_INCOMING_SYNC_SECONDS (20) and the start goes on without it once that has passed: the notes it
+## brings are read at the member's own next scan, so nothing is lost, only deferred. A zero leaves it unbounded, for a
+## rig that must see the whole read.
+AgentsToolsIncomingSyncBounded(){ ## member, [scope]
+	local syncMember="${1:-}" syncScope="${2:-all}" syncBound syncPid syncTurns=0 syncRc=0 syncMonitor
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	syncBound="$( AgentsToolsConfigOption magic-team --select-default SPAWN_INCOMING_SYNC_SECONDS 20 2> /dev/null )" || syncBound=""
+	case "$syncBound" in ''|*[!0123456789]*) syncBound=20 ;; esac
+	if [ "$syncBound" = "0" ] ; then
+		AgentsToolsIncomingSync "$syncMember" "$syncScope"
+		return $?
+	fi
+	## The read is the leader of a group of its own, so the end at the bound reaches what it started too: a
+	## mail read is shells under shells, and killing the one it was called in leaves them writing.
+	local syncMonitor="$BASH_SUBSHELL:$-"
+	set -m
+	( set +m ; AgentsToolsIncomingSync "$syncMember" "$syncScope" ) &
+	syncPid=$!
+	case "$syncMonitor" in 0:*m*) ;; *) set +m ;; esac
+	while [ "$syncTurns" -lt "$syncBound" ] && kill -0 "$syncPid" 2> /dev/null ; do
+		sleep 1 ; syncTurns=$(( syncTurns + 1 ))
+	done
+	if kill -0 "$syncPid" 2> /dev/null ; then
+		kill -TERM -- "-$syncPid" 2> /dev/null || kill -TERM "$syncPid" 2> /dev/null || :
+		printf 'collect: bound: %s: the read was still running after %ss, so this start went on without it -- its notes are read at the next scan of that member\n' "$syncMember" "$syncBound"
+		return 0
+	fi
+	{ wait "$syncPid" ; } 2> /dev/null || syncRc=$?
+	[ "$syncRc" = 0 ] || printf 'collect: bound: %s: the read ended with rc %s, so this start read only what was already there\n' "$syncMember" "$syncRc"
+	return 0
+}

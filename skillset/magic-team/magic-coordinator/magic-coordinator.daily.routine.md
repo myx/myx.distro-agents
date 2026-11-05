@@ -121,13 +121,13 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--daily-lock-refresh`
+- `--daily-lock-refresh` (`AgentDispatcherTools`)
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...`
-- `--advance-to-running <item-filename> --from-state:running [--header:...]...`
-- `--roster-upsert`
-- `--slack-send-message <target> [text...]`
-- `--routine-run-inline <routine>`
+- `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
+- `--advance-to-running <item-filename> --from-state:running [--header:...]...` (`DistroAgentsItems`)
+- `--roster-upsert` (`AgentDispatcherTools`)
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

@@ -19,7 +19,9 @@
 ##   rigTempDir <name>   waits its turn, then prints the path of a new, empty folder,
 ##                       $MMDAPP/.local/agents/scratch/sh-test/<name>.XXXXXXXX, made by mktemp -d. With no
 ##                       MMDAPP, or one that is no folder, it makes nothing, says so on stderr, and returns 1,
-##                       for the check to end on before it reports a result.
+##                       for the check to end on before it reports a result. A MMDAPP that is the team-data
+##                       store, or inside it, is refused too: a rig's files are no team data, and one placed
+##                       there was committed into the shared store by the very step that commits the team data.
 ##
 ## HOW THE TURN IS KEPT AND GIVEN BACK. A ticket is a file named by its arrival time, holding the pid of the check
 ## that took it. No trap gives it back: whoever waits behind a ticket whose process is gone removes it, so a check
@@ -48,12 +50,28 @@ rigQueueAncestors(){ ## -- the pids above this process, self included, on one li
 	done
 }
 
-rigQueueTicketState(){ ## ticket file, ancestors -- `alive`, `own` or `gone`
-	local ticketPid
+rigQueueTicketState(){ ## ticket file, ancestors -- `alive`, `own`, `stale` or `gone`
+	local ticketPid ticketSince ticketStamp ticketClock ticketCpu ticketWas ticketAge
 	ticketPid="$( LC_ALL=C sed -n 's/^pid=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	case "$ticketPid" in ''|*[!0123456789]*) printf 'gone' ; return 0 ;; esac
 	case " $2 " in *" $ticketPid "*) printf 'own' ; return 0 ;; esac
-	kill -0 "$ticketPid" 2> /dev/null && printf 'alive' || printf 'gone'
+	kill -0 "$ticketPid" 2> /dev/null || { printf 'gone' ; return 0 ; }
+	## A HOLDER THAT LIVES BUT HAS STOPPED IS NO HOLDER (S12.14). A runner alive with no CPU progress is one that cannot give its turn back: it
+	## stood in the machine's line for over an hour on 2026-11-04 while every waiter stood behind it. The age is read from the ticket's own
+	## `since:`, so a holder that arrived moments ago is never judged. Only a holder older than the bound is sampled at all, and then its CPU time
+	## is read twice, a second apart: a holder that is working moves it.
+	ticketSince="$( LC_ALL=C sed -n 's/^since=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2> /dev/null || date -u -d "$ticketSince" '+%s' 2> /dev/null )" || ticketStamp=""
+	case "$ticketStamp" in ''|*[!0123456789]*) printf 'alive' ; return 0 ;; esac
+	ticketClock="$( date +%s )" || { printf 'alive' ; return 0 ; }
+	ticketAge=$(( ticketClock - ticketStamp ))
+	[ "$ticketAge" -gt "${MDAT_SUITE_QUEUE_STALL_SECONDS:-3600}" ] || { printf 'alive' ; return 0 ; }
+	ticketCpu="$( ps -o time= -p "$ticketPid" 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$ticketCpu" in ''|*[!0123456789:.]*) printf 'alive' ; return 0 ;; esac
+	sleep 1
+	ticketWas="$( ps -o time= -p "$ticketPid" 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$ticketWas" in ''|*[!0123456789:.]*) printf 'alive' ; return 0 ;; esac
+	[ "$ticketCpu" = "$ticketWas" ] && printf 'stale' || printf 'alive'
 }
 
 rigQueueInsideRun(){ ## -- rc 0 when this check runs inside a run of the tests, whose turn it is already in
@@ -66,6 +84,24 @@ rigQueueInsideRun(){ ## -- rc 0 when this check runs inside a run of the tests, 
 		ancestorAround=$(( ancestorAround + 1 ))
 	done
 	return 1
+}
+
+## THE WALL-CLOCK LIMIT OF A CHECK (S12.14). A check started by hand takes its turn in the machine's line and holds it for as long as it likes,
+## and the runner's own `-t` covers only the tests a run starts. So the turn sets a deadline for the check it was called by, and a check that
+## stands still is ended by its own work rather than found by a person hours later. MDAT_SUITE_CHECK_LIMIT_SECONDS (900) is the limit.
+## A check inside a run takes no deadline of its own: the run's `-t` and its stall watch already cover it.
+## The deadline is set when this fixture is sourced, which is the first line of a check: a value made inside rigTempDir could not reach the
+## check, since that call is a command substitution.
+rigCheckDeadline=""
+[ -n "${MDAT_SUITE_QUEUE_TURN:-}" ] || rigCheckDeadline=$(( $( date +%s ) + ${MDAT_SUITE_CHECK_LIMIT_SECONDS:-900} ))
+rigCheckSecondsLeft(){ ## -- the seconds this check has left before its deadline, or 0 where none is set or it has passed
+	local leftSeconds
+	case "${rigCheckDeadline:-}" in
+		''|*[!0123456789]*) printf '0\n' ; return 0 ;;
+	esac
+	leftSeconds=$(( rigCheckDeadline - $( date +%s ) ))
+	[ "$leftSeconds" -ge 0 ] || leftSeconds=0
+	printf '%s\n' "$leftSeconds"
 }
 
 rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one line whom it waits behind
@@ -94,7 +130,7 @@ rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one lin
 			[ "${turnFile##*/}" \< "$turnTicket" ] || continue
 			turnState="$( rigQueueTicketState "$turnFile" "$turnAncestors" )"
 			case "$turnState" in
-				gone) rm -f "$turnFile" ; continue ;;
+				gone|stale) rm -f "$turnFile" ; continue ;;
 				own) continue ;;
 			esac
 			turnAhead=$(( turnAhead + 1 ))
@@ -114,6 +150,14 @@ rigTempDir(){
 	if [ -z "${MMDAPP:-}" ] || [ ! -d "$MMDAPP" ] ; then
 		echo "⛔ ERROR: MMDAPP names no workspace, so this rig has no place to live -- the system temp folder is never used; refusing to report a result" >&2
 		return 1
+	fi
+	if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+		case "$( cd "$MMDAPP" && pwd -P )/" in
+			"$( cd "$MDAT_DATA_ROOT" 2> /dev/null && pwd -P )/"*)
+				echo "⛔ ERROR: MMDAPP is the team-data store, or inside it, so a rig placed there would be committed into the shared store; refusing to report a result" >&2
+				return 1
+			;;
+		esac
 	fi
 	rigQueueTurn || return 1
 	mkdir -p "$MMDAPP/.local/agents/scratch/sh-test" || return 1

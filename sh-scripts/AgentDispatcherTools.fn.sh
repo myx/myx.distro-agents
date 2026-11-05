@@ -86,6 +86,12 @@ AgentDispatcherToolsMoved(){
 			return $?
 		;;
 
+		## The epic reads (S17.4): an epic vault item or a plain epic file, read by any member with no ask.
+		--epic-read|--epic-list)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
+			return $?
+		;;
+
 		--sweep-state-advance|--sweep-state-read|--sweep-state-upsert)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
 			return $?
@@ -182,8 +188,73 @@ AgentDispatcherTools(){
 			return $?
 		;;
 
-		## The epic file's own edit (W1): --set-status and --add-settled, so no routine edits an epic by hand; and its two reads (S23.8), --epic-read and --epic-list.
-		--epic-update|--epic-read|--epic-list)
+		## [--workspace <path>]...: the runs that ended with no handback, resumed once the fixed sleep has passed, one line each.
+		--supervise-resume)
+			shift
+			AgentsToolsSurfaceCaller --supervise-resume write || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseResume.include"
+			AgentsToolsSuperviseResume "$@"
+			return $?
+		;;
+
+		## <run-id> [--tail <n>] [--thread-lines <n>] [--no-thread] [--no-checklist] [--log]: one run read by its id, as its supervisor reads it.
+		--supervise-read)
+			shift
+			AgentsToolsSurfaceCaller --supervise-read read || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseRead.include"
+			AgentsToolsSuperviseRead "$@"
+			return $?
+		;;
+
+		## <run-id> [--text <text>|--from-file <path>]: guidance posted into that run's thread, as its supervisor.
+		--supervise-guide)
+			shift
+			AgentsToolsSurfaceCaller --supervise-guide write || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseGuide.include"
+			AgentsToolsSuperviseGuide "$@"
+			return $?
+		;;
+
+		## <run-id> (--item <text>)...: pending items added to that run's own CheckList.
+		--supervise-checklist-add)
+			shift
+			AgentsToolsSurfaceCaller --supervise-checklist-add write || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseGuide.include"
+			AgentsToolsSuperviseChecklistAdd "$@"
+			return $?
+		;;
+
+		## <run-id> --owner <member> --title <one line> [--from-file <path>]: a tooling fault filed with its evidence, linked to the run it blocks.
+		--supervise-fault)
+			shift
+			AgentsToolsSurfaceCaller --supervise-fault write || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseFault.include"
+			AgentsToolsSuperviseFault "$@"
+			return $?
+		;;
+
+		## <from-run> <source> <to-run> <destination>: one file copied between two session sandboxes, a real copy and never a
+		## link, reaching a read-only input/ folder (epic S13.6).
+		--supervise-copy)
+			shift
+			AgentsToolsSurfaceCaller --supervise-copy write || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseCopy.include"
+			AgentsToolsSuperviseCopy "$@"
+			return $?
+		;;
+
+		## [--workspace <path>] [--dry-run]: the transcripts left changed in the store reach a commit, and the push owed is paid.
+		--supervise-commit-transcripts)
+			shift
+			AgentsToolsSurfaceCaller --supervise-commit-transcripts write || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseCommit.include"
+			AgentsToolsSuperviseCommitTranscripts "$@"
+			return $?
+		;;
+
+		## The epic's own edit (W1): --set-status and --add-settled, so no routine edits an epic by hand. The two reads are in the
+		## table above, and reach this same include (S17.4).
+		--epic-update)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
 			return $?
 		;;

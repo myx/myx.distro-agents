@@ -69,18 +69,19 @@ The Opening steps of the routine it inherits from run first (its session kind's,
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **choose-next-features**: Choose the next features by the epic's order of work, reordered as the epic goes, by effect and by the owner's word.
-2. **dispatch-builders**: Dispatch each chosen feature to a builder
-(`--spawn-prompt`), with the build brief (filled by the tooling) and the
-feature's name. Dispatch at most as many at once as economy allows.
+2. **dispatch-builders**: Settle the epic's access, then dispatch, steps:
+   - carry the intake's whole access need into the first builder's dispatch. There `spawn-one-dispatch`'s **spawn-ask-access-once** asks it once, for the whole epic.
+   - dispatch each chosen feature to a builder (`--spawn-prompt`), with the build brief (filled by the tooling) and the feature's name.
+   - dispatch at most as many at once as economy allows.
 3. **check-gates**: Check each builder's gate, every line against the spec and its Settled lines, and answer yes, yes-with-changes, or no. Most yeses come with one change; name it.
 4. **rule-gaps**: Rule each gap the builder sends by the spec, or ask the owner when only he can decide; send the ruling back at once.
 5. **inject-mid-run**: On a mid-run request from the owner, inject it into a
 feature in work when it is small and near. Otherwise add it to the next epic's
 input.
 6. **set-status**: After each accepted apply, move the closed item to the epic's `## Done` section through the tooling (`--epic-update <epic-file> --set-status <feature-id> done`). There it is one line: its id and what holds now. An open item keeps only its open work and owner.
-7. **keep-state-current**: Keep the run's state document current (`--intern-op-state-note-upsert`) — the features in work, the gates open, the owner's rulings.
+7. **keep-state-current**: Keep the run's state document current (`--intern-op-state-note-upsert`) — the features in work, the gates open, the owner's rulings. The document stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, as plain present-tense statements, so the next run continues from it alone.
 8. **fresh-builder**: Start a fresh builder when the last one's context has grown large; a long builder's context is never reused for speed.
-9. **remind-owner**: Remind the owner of his own steps (a commit, a review, a rig update) by Slack DM (`--slack-send-message`) when each falls due.
+9. **remind-owner**: Remind the owner of his own steps (a commit, a review, a rig update) by Slack DM (`SendMessage`) when each falls due.
 
 # Closure steps
 
@@ -98,6 +99,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- The coordinator asks one Permission set for the whole epic, at the first dispatch. A builder asks for itself only what that set missed.
 - Every gate is checked line by line before any yes. A yes that was not checked is a fault.
 - A gap is ruled by the spec alone where the spec decides it. Only a decision
   the owner alone can make reaches him, and it becomes a Settled line at once.
@@ -118,12 +120,12 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--epic-update <epic-file> --set-status <feature-id> <status>`
-- `--epic-update <epic-file> --add-settled <feature-id> <text...>`
-- `--spawn-prompt <team-member> [--routine <selector>] [--from-board <item> [--board-state <state>]...] [--description <text>]`
+- `--epic-update <epic-file> --set-status <feature-id> <status>` (`AgentDispatcherTools`)
+- `--epic-update <epic-file> --add-settled <feature-id> <text...>` (`AgentDispatcherTools`)
+- `--spawn-prompt <team-member> [--routine <selector>] [--from-board <item> [--board-state <state>]...] [--description <text>]` (`DistroAgentsDispatcher`)
 - `--intern-op-state-note-upsert magic-coordinator`
-- `--state-note-read magic-coordinator`
-- `--slack-send-message <target> [text...]`
+- `--state-note-read magic-coordinator` (`AgentDispatcherTools`)
+- `SendMessage` (`to`, `address_to`, `message`): one message to any target. `DistroAgentsSlack` `--slack-send-message` for `--text-group`, `--update-ts`, `--identity-bot` or a file.
 
 # Maintainer Notes
 

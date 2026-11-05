@@ -228,6 +228,8 @@ AgentsToolsPermissionCovers(){ ## held target, wanted target
 ## per line: with a session, the output/ of that session's own sandbox, where its spawn record
 ## is the member's, and for reading its input/ too and this origin's own skillset. The rest of
 ## the floor is in the grants index (AgentsTools.Grants.include), as the member's floor rows.
+## A read adds the run seats of S6.41 too: the session record and the output/ folder of every
+## run this run reviews (AgentsToolsGrantsRunSeats), so a reviewer reads what it reviews.
 AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id (optional)
 	local floorWs="$1" floorMember="$2" floorPurpose="$3" floorSession="${4:-}" floorRecord floorDir
 	[ -n "$floorWs" ] && [ -n "$floorMember" ] || return 0
@@ -244,6 +246,10 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 		;;
 	esac
 	[ "$floorPurpose" = "read" ] || return 0
+	if [ -n "$floorSession" ] ; then
+		type AgentsToolsGrantsRunSeats > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" 2> /dev/null || :
+		type AgentsToolsGrantsRunSeats > /dev/null 2>&1 && AgentsToolsGrantsRunSeats "$floorWs" "$floorSession" || :
+	fi
 	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
 	return 0
 }
@@ -805,7 +811,7 @@ AgentsToolsPermissionAccessBlock(){ ## member, routine file (optional)
 	[ -z "$abAddTool" ] || printf 'your routine adds tools: %s\n' "$abAddTool"
 	[ -z "$abAddRead" ] || printf 'your routine adds reads: %s\n' "$abAddRead"
 	[ -z "$abAddWrite" ] || printf 'your routine adds writes: %s\n' "$abAddWrite"
-	printf 'to ask for more: call RequestPermission naming the tool or path and why; the human-owner decides. Your other standing rows: --list-permissions.\n'
+	printf 'to ask for more: call RequestPermission naming the tool or path and why. The human-owner decides. Your other standing rows: --list-permissions.\n'
 }
 
 ## The seats a member may read without asking, for the brief's access block (S21.20, item 20a): the

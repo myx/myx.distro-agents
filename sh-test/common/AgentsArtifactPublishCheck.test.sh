@@ -149,7 +149,7 @@ rigAssert "and nothing sent or posted"                      "$( rigNothingSent )
 rigStart noBackend
 rigGrant ; rigMarkdown
 rigCall "$( rigPublishJson ADR 'Render documents' doc.md )"
-rigAssert "no team place: refused, naming the keys"         "$( rigHolds "$rigScenarioDir/tool.out" 'no team place is set up for magic-tester' )$( rigHolds "$rigScenarioDir/tool.out" 'CONFLUENCE_SPACE (its own scope or magic-team) and CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN' )$( rigHolds "$rigScenarioDir/tool.out" 'GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN' )" yesyesyes
+rigAssert "no team place: refused, naming the keys"         "$( rigHolds "$rigScenarioDir/tool.out" 'no team place is set up for magic-tester' )$( rigHolds "$rigScenarioDir/tool.out" 'CONFLUENCE_SPACE (its own scope or magic-team) with CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in its own scope or in magic-team' )$( rigHolds "$rigScenarioDir/tool.out" 'GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN' )" yesyesyes
 rigAssert "and nothing sent, recorded or posted"            "$( rigNothingSent )$( rigRecord | wc -l | tr -d ' ' )$( rigPostHolds 'Render documents' )" yes0no
 rigStart noSpace
 rigGrant ; rigConfluence ; rigMarkdown
@@ -158,7 +158,7 @@ rigAssert "Confluence credentials, no CONFLUENCE_SPACE, no Google: no place" "$(
 rigStart spaceNoCredentials
 rigGrant ; rigGoogle '[{"id":"root-1","name":"magic-team","parent":"x"}]' ; rigTeam CONFLUENCE_SPACE=TEAM ; rigMarkdown
 rigCall "$( rigPublishJson ADR 'Render documents' doc.md )"
-rigAssert "CONFLUENCE_SPACE without Confluence credentials: refused, not Google" "$( rigHolds "$rigScenarioDir/tool.out" 'CONFLUENCE_SPACE names the team space TEAM, and magic-tester holds no CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN' )$( rigNothingSent )" yesyes
+rigAssert "CONFLUENCE_SPACE without Confluence credentials: refused, not Google" "$( rigHolds "$rigScenarioDir/tool.out" "CONFLUENCE_SPACE names the team space TEAM, and neither magic-tester's own scope nor this workspace's magic-team scope holds CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN" )$( rigNothingSent )" yesyes
 rigStart bothPlaces
 rigGrant ; rigConfluence ; rigGoogle '[{"id":"root-1","name":"magic-team","parent":"x"}]' ; rigTeam CONFLUENCE_SPACE=TEAM ; rigMarkdown
 rigCall "$( rigPublishJson ADR 'Render documents' doc.md )"

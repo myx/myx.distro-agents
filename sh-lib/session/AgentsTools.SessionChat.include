@@ -288,6 +288,8 @@ AgentsToolsSessionChatReaderInit(){ ## session, member
 ## (AgentsSessionChatRead.awk, -v filter). The pointer then stops in front of the first block the floor owes the member that the words
 ## passed over, and agentsSessionChatSeen names the blocks delivered beyond it, spaced, for AgentsToolsSessionChatSeen to mark.
 agentsSessionChatNewest=""
+agentsSessionChatBlocks=""
+agentsSessionChatEyes=""
 agentsSessionChatFilter=""
 agentsSessionChatSeen=""
 AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver` (optional: the pointer moves as the blocks are printed)
@@ -340,6 +342,10 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatRead.awk" "$floorDir/$agentsSessionChatName.index" "$floorDir/$agentsSessionChatName" 2> /dev/null || :
 	agentsSessionChatNewest="$( LC_ALL=C sed -n 's/^newest //p' "$floorSide" 2> /dev/null | head -1 )"
 	agentsSessionChatSeen="$( LC_ALL=C sed -n 's/^seen //p' "$floorSide" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	## The blocks this read delivered, in order: a wait keys an eyes reaction on a block number (S6.48).
+	agentsSessionChatBlocks="$( LC_ALL=C sed -n 's/^block //p' "$floorSide" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	## The message each of those blocks carried, as `<conversation>:<ts>`, where it was sent by a person (S6.48).
+	agentsSessionChatEyes="$( LC_ALL=C sed -n 's/^eye //p' "$floorSide" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
 	floorThreadTs="$( LC_ALL=C sed -n 's/^threadts //p' "$floorSide" 2> /dev/null | head -1 )"
 	rm -f "$floorSide"
 	[ "${4:-}" != "deliver" ] || AgentsToolsSessionChatDelivered "$1" "$2"

@@ -116,23 +116,15 @@ function mentionsRun(line,   rest, arrow, toPart, endPos) {
 	return ( rest ~ ( "(^|[^A-Za-z0-9_-])@" callerName "([^A-Za-z0-9_-]|$)" ) )
 }
 
-## Whether a reaction is ours, and so no input to handle. Two are: the eyes, which nothing but the tooling gives -- it is the hand-over
-## mark a Wait or a collect puts on a message the moment it delivers it -- and any reaction every user of which is one of our own accounts
-## (-v oursReactIds, spaced, and the run's own -v callerId). The human-owner's rule (S6.38): our own reactions, like a coordinator's
-## message to a non-coordinator, are not input to handle, and the message itself still reads. Without this the mark made on delivery
-## returns as an arrival, that arrival is handled, another message is delivered and marked: measured on 2026-11-03, 100 marks from
-## 20:05Z while load reached 102.
-function reactionIsOurs(ann,   rest, name, users, userCount, userWord, idx) {
-	rest = ann
-	sub(/^\[reactions: /, "", rest)
-	name = rest
-	sub(/ x.*$/, "", name)
-	if ( name == "eyes" ) { return 1 ; }
+## Whether a reaction is ours: every user it holds is one of our own accounts (-v oursReactIds, and the run's -v callerId). The
+## author decides, never the emoji (S6.38). Users are comma-joined, and a space is accepted too. With no list known, nothing is ours.
+function reactionIsOurs(ann,   rest, users, userCount, userWord, idx) {
 	if ( oursReactIds == "" && callerId == "" ) { return 0 ; }
+	rest = ann
 	users = rest
 	sub(/^.*\(/, "", users)
 	sub(/\)\]$/, "", users)
-	userCount = split(users, userWord, " ")
+	userCount = split(users, userWord, /[, ]+/)
 	if ( userCount < 1 ) { return 0 ; }
 	for ( idx = 1 ; idx <= userCount ; idx++ ) {
 		if ( userWord[idx] == "" ) { continue ; }

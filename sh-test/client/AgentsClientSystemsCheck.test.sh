@@ -261,7 +261,7 @@ rigAssert "its Confluence listing is its own site" "$rigRc $( rigCalls )" "0 htt
 rigRun --email-check --team-member keeper-none
 rigAssert "a member of ours with no mailbox is told its own scope is not set, as before, and not the line of a client" "$rigRc $( rigN "$rigTmp/err" "not fully set in keeper-none's own scope" ) $( rigN "$rigTmp/err" 'on our own organisation' ) $( rigLines "$rigTmp/calls" )" "1 1 0 0"
 rigRun --jira-board-list --team-member keeper-none
-rigAssert "and in Jira it is the designed refusal that names the missing settings, as before" "$rigRc $( rigN "$rigTmp/err" 'JIRA_SITE' ) $( rigN "$rigTmp/err" 'on our own organisation' ) $( rigLines "$rigTmp/calls" )" "6 1 0 0"
+rigAssert "and in Jira a member of ours holding none of its own reaches this workspace's magic-team set" "$rigRc $( rigCalls ) $( rigN "$rigTmp/err" 'on our own organisation' )" "0 http jira-team.here.invalid us@team.here.invalid 0"
 
 echo "-- 6. magic-coordinator reaches the client side through --client-operation-run; a --magic-comms-* operation given a client is our own side --"
 rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41

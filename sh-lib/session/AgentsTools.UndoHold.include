@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.UndoHold.include -- the marker a promise of undo leaves where a cleaner would
+## delete (S13.19), and the kinds of act that promise answers for. Sourced, never run. Functions
+## only, so a cleaner, the GC and the owner's purge all load it with no other effect.
+##
+## A marker is `undo.hold` in the folder it protects, one line per open record, and a line is
+## `<session-id>/<record-id>`. Presence alone decides nothing: a cleaner asks what its lines
+## name, and a line naming no open record keeps the material and says which record it wanted.
+## An empty marker holds, and names nothing.
+##
+
+if ! type AgentsToolsUndoHoldState >/dev/null 2>&1 ; then
+
+	## The two record states whose promise stands, and no other.
+	agentsUndoHeldStates=" open rework-asked "
+
+	## The folder a record lives in, for a line of a marker.
+	AgentsToolsUndoHoldRecordDir(){ ## session id, record id
+		case "${1:-}" in ''|.|..|*/*) return 1 ;; esac
+		case "${2:-}" in ''|.|..|*/*) return 1 ;; esac
+		printf '%s' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/undo/$2"
+	}
+
+	## The state word a record's own `record` file carries, or empty.
+	AgentsToolsUndoHoldRecordState(){ ## record folder
+		LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$1/record" 2> /dev/null
+	}
+
+	## One word for what a marker says: `absent` where there is none, `held` where every line
+	## names a record whose promise stands, and `missing` where a line names none.
+	AgentsToolsUndoHoldState(){ ## marker file
+		local holdLine holdDir
+		[ -f "$1" ] || { printf 'absent' ; return 0 ; }
+		while IFS= read -r holdLine ; do
+			[ -n "$holdLine" ] || continue
+			holdDir="$( AgentsToolsUndoHoldRecordDir "${holdLine%%/*}" "${holdLine#*/}" )" || { printf 'missing' ; return 0 ; }
+			[ -f "$holdDir/record" ] || { printf 'missing' ; return 0 ; }
+			case "$agentsUndoHeldStates" in *" $( AgentsToolsUndoHoldRecordState "$holdDir" ) "*) ;; *) printf 'missing' ; return 0 ;; esac
+		done < "$1"
+		printf 'held'
+	}
+
+	## Each line of a marker that names no open record, one a line, as it stands in the marker.
+	AgentsToolsUndoHoldUnresolved(){ ## marker file
+		local holdLine holdDir
+		[ -f "$1" ] || return 0
+		while IFS= read -r holdLine ; do
+			[ -n "$holdLine" ] || continue
+			holdDir="$( AgentsToolsUndoHoldRecordDir "${holdLine%%/*}" "${holdLine#*/}" )" || { printf '%s\n' "$holdLine" ; continue ; }
+			[ -f "$holdDir/record" ] || { printf '%s\n' "$holdLine" ; continue ; }
+			case "$agentsUndoHeldStates" in *" $( AgentsToolsUndoHoldRecordState "$holdDir" ) "*) ;; *) printf '%s\n' "$holdLine" ;; esac
+		done < "$1"
+	}
+
+	## Adds one record's line to the marker of a folder, once, making the marker where it is not.
+	AgentsToolsUndoHoldAdd(){ ## folder, session id, record id
+		local addMarker="$1/undo.hold" addLine="$2/$3"
+		[ -d "$1" ] && [ ! -L "$1" ] || return 1
+		[ -f "$addMarker" ] || : > "$addMarker" || return 1
+		LC_ALL=C grep -Fxq -- "$addLine" "$addMarker" || printf '%s\n' "$addLine" >> "$addMarker"
+	}
+
+	## Takes one record's line out of the marker, and the marker once it names nothing.
+	AgentsToolsUndoHoldDrop(){ ## folder, session id, record id
+		local dropMarker="$1/undo.hold" dropKeep
+		[ -f "$dropMarker" ] || return 0
+		dropKeep="$( LC_ALL=C awk -v want="$2/$3" '$0 != want' "$dropMarker" 2> /dev/null )" || dropKeep=""
+		if [ -z "$dropKeep" ] ; then
+			rm -f -- "$dropMarker"
+			return 0
+		fi
+		printf '%s\n' "$dropKeep" > "$dropMarker"
+	}
+
+fi

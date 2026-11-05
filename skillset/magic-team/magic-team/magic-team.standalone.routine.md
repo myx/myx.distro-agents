@@ -146,15 +146,15 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts.fn.sh`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
+Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
 
-- `--slack-send-message <target> [text...]`
-- `--slack-react <channel>:<ts> <emoji-name>`
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
+- `--slack-react <channel>:<ts> <emoji-name>` (`DistroAgentsSlack`)
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
-- `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--routine-run-inline <routine>`
+- `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 - `--get-session-thread [--own]`
 - `--executor-checkpoint-push [<name>]`
 

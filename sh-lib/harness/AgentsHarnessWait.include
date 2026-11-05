@@ -241,6 +241,20 @@ AgentsHarnessWaitCheckListLine(){
 	fi
 }
 
+## AN ITEM PAST ITS DUE TIME IS A FLOOR SOURCE (S13.9): the items of the caller's own CheckList whose due time
+## has come are returned at once, ahead of every other source and before any probe, in a `CheckList pending:`
+## block under one line saying what they are. The reaction layer puts a fresh state in front of the member
+## rather than at the end of a wait, which is the whole point of a due time: a duty written on the list is not
+## missed because a quiet round came first. A call that waits for an ask is the ask's, and carries none of it.
+AgentsHarnessWaitCheckListDue(){
+	local dueOut="" dueRc=0
+	[ "$1" = "true" ] || return 0
+	dueOut="$( AgentsHarnessCheckListDue )" ; dueRc=$?
+	[ "$dueRc" = "0" ] || return 0
+	printf 'CheckList pending: these items of your list are past their due time, and they are yours to close before you wait again.\n%s\n' "$dueOut"
+	return 0
+}
+
 ## The idle Wait (owner 2026-10-31): a call naming no source of its own, from a session that has handed back since the floor last
 ## returned an arrival, or that is a work duty's own quiet loop, is that member asking for more work, a review or DISMISSED. Its open
 ## items are returned at once then, before any probe and any wait, so it finishes or closes them first; what the floor already holds
@@ -479,10 +493,13 @@ AgentsHarnessToolWait(){
 		cat "$harnessScratch/wait.out"
 		return 0
 	fi
-	## The idle Wait comes before any probe: a member that has handed back and still holds open items is given them, not made to
-	## wait (AgentsHarnessWaitCheckListIdle). Nothing where its list holds none, or has not changed since the last such return.
 	[ -n "$waitOwnSources" ] || waitFloorOnly=1
 	if [ "$waitTool" = "true" ] ; then
+		## An item past its due time comes first of all (S13.9): the floor, before the idle items and before any probe.
+		waitIdleReturn="$( AgentsHarnessWaitCheckListDue "$waitTool" )"
+		[ -z "$waitIdleReturn" ] || { printf '%s\n' "$waitIdleReturn" ; return 0 ; }
+		## Then the idle Wait: a member that has handed back and still holds open items is given them, not made to
+		## wait (AgentsHarnessWaitCheckListIdle). Nothing where its list holds none, or has not changed since the last such return.
 		waitIdleReturn="$( AgentsHarnessWaitCheckListIdle "$waitOwnSources" "$toolMode" )"
 		[ -z "$waitIdleReturn" ] || { printf '%s\n' "$waitIdleReturn" ; return 0 ; }
 	fi
@@ -525,12 +542,13 @@ AgentsHarnessToolWait(){
 	## What a wait that worked said on its stderr goes to this run's own log, never left in scratch.
 	[ -z "$waitDiag" ] || printf '%s\n' "$waitDiag" >&2
 	## A dismissal is a Wait outcome of its own: a message whose body is DISMISSED,
-	## addressed to this member (AgentsHarnessWaitDismissed.awk). The spawner sends it when
+	## addressed to this member, and to this run where it names one (S6.40): another run's
+	## DISMISSED reaches that run alone (AgentsHarnessWaitDismissed.awk). The spawner sends it when
 	## it is satisfied; the waiting session ends with its handback on it. Everything the
 	## wait returned still follows, so nothing it saw is hidden behind the outcome.
 	local waitDismissedBy=""
 	if [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: RECEIVED" ] \
-		&& waitDismissedBy="$( dismissalMember="$harnessAgent" LC_ALL=C awk -f "$harnessHere/questions/AgentsDismissalMatch.awk" -f "$harnessHere/harness/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
+		&& waitDismissedBy="$( dismissalMember="$harnessAgent" dismissalRun="${MDAT_SPAWN_SESSION_ID:-}" LC_ALL=C awk -f "$harnessHere/questions/AgentsDismissalMatch.awk" -f "$harnessHere/harness/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
 		## An executor is not dismissed while another participant of its session runs (F6.9): its
 		## dismissal is kept, given at its first wait once they have ended, and this wait is what it got.
 		if [ -n "$waitRecord" ] && waitHeldOthers="$( AgentsHarnessDismissWaits )" ; then
@@ -558,6 +576,10 @@ AgentsHarnessToolWait(){
 			printf 'WAIT-RESULT: TIMEOUT (%ss) NEXT: run --idle-wait, if you are waiting for new work or a dismissal\n' "$( LC_ALL=C sed -n 's/^# waited: \([0-9]*\)s of .*/\1/p' "$harnessScratch/wait.out" | head -1 )"
 		fi
 		LC_ALL=C grep '^WAIT-NEVER-READ: ' "$harnessScratch/wait.out" || :
+		## A SOURCE DENIED, AND ONE WHOSE PROBE COULD NOT RUN, ARE CARRIED THROUGH TOO (S6.47): neither is counted as
+		## never-read, so on a wait whose every source was denied or failed, this line was the whole result and it read
+		## exactly like a wait that read everything and found it quiet.
+		LC_ALL=C grep -E '^WAIT-SOURCE-ERROR: |^# probes that could not run this wait' "$harnessScratch/wait.out" || :
 		AgentsHarnessWaitCheckListLine
 		return 0
 	fi
@@ -574,7 +596,8 @@ AgentsHarnessToolWait(){
 			## handback mark is cleared, since the arrival answers the handback that was given before it.
 			AgentsHarnessWaitCheckListAnswered
 			AgentsHarnessWaitCheckListLine
-			printf 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here\n'
+			## A message interrupts the wait, and the member decides: go on waiting, or drop the task (S5 item 4).
+			printf 'NEXT: this message interrupts your wait. Read it, then either call Wait mode=continue -- it resumes after what is shown here -- or cancel the task with TaskStop if it no longer applies\n'
 			[ -n "$waitFloorOnly" ] || return 0
 			printf 'NEXT: when this batch is done, run --idle-wait: it means all done, and waits for any message addressed to your run\n'
 		;;

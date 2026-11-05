@@ -4,20 +4,21 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-list [--team-member <team-member>] [--start-at <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-read [--team-member <team-member>] <board-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--assignee <contact>|me]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-list [--team-member <team-member>] <issue-key>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--assignee <contact>|me --project <key>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
@@ -38,11 +39,14 @@
 		--jira-issue-search <jql> [--limit <n>]
 			Prints the issues a JQL query finds, up to the limit given.
 
-		--jira-issue-create --project <key> --issuetype <name> --summary <text> [--description-adf <json>]
+		--jira-issue-create --project <key> --issuetype <name> --summary <text> [--description-adf <json>] [--assignee <contact>|me]
 			Creates one issue there, and `--fields-json` sets any other field it needs.
+			Every issue takes an assignee: `--assignee` names a contact, or `me`,
+			and the acting identity is the default.
 
-		--jira-issue-update <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
-			Changes the fields of one issue.
+		--jira-issue-update <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--assignee <contact>|me --project <key>]
+			Changes the fields of one issue. `--assignee` sets its assignee, and
+			needs `--project`, where the contact must be assignable.
 
 		--jira-issue-transition <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>]
 			Moves one issue to that status, with a comment where one is given.
@@ -60,6 +64,12 @@
 			Prints the remote links stored on that issue, one a line: its id, its
 			address and its title. Every member may read them, since they are
 			readable by any identity that can see the issue.
+
+			Completeness on stderr: `more: unknown` always, because this
+			endpoint's answer carries no total and no paging field, so it
+			can never say it holds every link. An answer that is not the
+			array of links is reported UNKNOWN with 3, never as an issue
+			holding none. Exit statuses as `--jira-board-list` lists them.
 
 		--jira-issue-link-page <issue-key> --url <page-url> --title <text>
 			Links a page, such as a Confluence page, to that issue. Runs only as
@@ -94,6 +104,21 @@
 
 		--confluence-comment-add <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 			Adds one comment to that page, as an answer where a parent comment is named.
+
+		--confluence-space-create --key <space-key> --name <text> [--description <text>]
+			Creates one space on this organisation's own site, and prints its row:
+			`SPACE_ID`, `KEY`, `NAME`, `URL`. `--key` is how every page of the space is
+			addressed afterwards, so a key outside letters, digits, `-` and `_` is refused
+			before anything is sent. `--description` goes in the one form a create takes,
+			plain text.
+
+			A space is the site's top-level container, so this runs only as
+			`magic-coordinator`, and no client-side twin of it exists. The account
+			needs Confluence's permission to create spaces: the site answers 404
+			without it, which is reported as that refusal and not as a missing space.
+
+			An answer carrying no space id is reported UNKNOWN with 3, never as success,
+			because nothing is created twice on an unknown outcome.
 
 		--confluence-space-list [--cursor <value>]
 			The spaces the member may see, one page of them, the next page by the cursor

@@ -76,6 +76,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A rule about which tool to call names the harness it holds in. State the channel's role first, then the tool per harness: a tool list is negotiated per session.
 - A boundary that reads an absent answer as consent is default-open. Design it so the absent answer refuses, and make its last branch decide explicitly.
 - A proposal resting on an external tool's or platform's documented behaviour cites the current docs, fetched during the work (**source-over-memory**).
+- Before seriously resolving a batch, a grooming item or a duty question, this member updates itself and rereads the inputs. Fill each gap by investigation or research, inline where it can be, then resolve.
 
 # Domain knowledge: macro-level design
 
@@ -232,8 +233,8 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 ## Tooling operations
 
-- `--get-board-item <item-filename>`
-- `--upsert-inbox-inquiry <team-member> <item-filename>`
+- `--get-board-item <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <team-member> <item-filename>` (`DistroAgentsItems`)
 
 # Maintainer Notes
 

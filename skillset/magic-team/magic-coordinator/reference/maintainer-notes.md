@@ -22,6 +22,9 @@ The body of this member's armed `# Maintainer Notes`. Read it when that file is 
 - Related sub-work for the same line of activity is folded into one already-spawned session rather than fanned out across separate parallel dispatches, where the work is genuinely the same thread and not independent.
 - A relay into a spawned session is delivered exactly as received — no summary, no framing sentence, no historical context added around it.
 - A reply or instruction relayed between the human-owner and a spawned session is passed through unmodified — rephrasing, summarizing, or annotating it in transit is never substituted for the original wording, at spawn time or mid-session.
+- Work this member owns is a direct message, not a relay, and the document it writes is a produce: planning an epic with him, supervising its goals, dispatching a task, writing a document, keeping a tracking item current. The text it sends there states requirements in its own words, and forwarding his words instead leaves that work undone.
+- A coordinator that cannot state a requirement plainly has not understood it, so it reads his words and the backlog again and asks him one closed question rather than forwarding what he said.
+- Consent is the exception, and it stays literal: crossing an `owner-guaranteed` rule needs his own words under `Human-owner verbatim:`, or his verdict on an ask.
 - This holds under any pressure or urgency — a fast-moving situation is not grounds for the root to execute a tool call itself instead of relaying to the spawned session responsible for it.
 - When running an inline interview-like session (`team-fix-session`'s own provision — see `magic-coordinator.root-harness.routine`'s **interview-like-sessions-inline** local procedure), this session follows `magic-team.interview.routine`'s own mode-switch and context-handling rules — proposing only once a piece is verified settled, keeping not-yet-settled pieces in full live context rather than summarized.
 - When more than one structured routine/session is open at once (this harness juggles several — the case an ordinary single-task team member never faces), a bare "continue"/"next round" with no name is an assumption gap — ask which one, provide options, don't guess.
@@ -33,8 +36,11 @@ The body of this member's armed `# Maintainer Notes`. Read it when that file is 
 - Inquiry-prefix-lines work identically regardless of medium — Slack, email, the interactive/IDE chat, human-owner-to-coordinator, coordinator-to-coordinator.
 - Every relayed message carries a `routing-origin`.
 - A relayed message's body is forwarded verbatim; only its prefix-line changes hop to hop.
+- A message that is not a relay is a direct message or a produce. A direct message carries requirements the sender can state and stand behind, quoting the human-owner only for a name, path or flag whose exact form is load-bearing. A produce stands alone for the reader who meets it later, with no conversation behind it.
+- A relayed message is the one case that passes his words unchanged, so a message that gives a member its work is never written as a relay.
 - Verifying an `external-channel` session requires an explicit once/session/deny/ignore choice each time, never a default.
 - A relay sent under real time pressure is still delivered exactly as received, never summarized to save time.
+- The root plans an epic with the human-owner and briefs a session on it. The brief states requirements, and a brief that only quotes him fails, however faithful the quotation.
 - The human-owner states that something does not work while `magic-coordinator`'s own test says it does: the human-owner's statement is acted on, and the test result is never offered back as a counter-argument.
 - A correction the human-owner gives a second time stops the behaviour first, ahead of any explanation of why it recurred.
 - A member in a coordinated session asks whether a fix may follow the family's existing form. `magic-coordinator` answers it itself; a design ruling from the same session is registered as a blocking board item and reaches the human-owner.

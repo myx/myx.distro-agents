@@ -1212,9 +1212,10 @@ AgentsToolsWaitChildThreadSources(){
 ## command line that only carries a spawn's id holds no sandbox: a process of the tooling
 ## that waits on its session, or another run whose line holds this sandbox's path.
 AgentsToolsSpawnSandboxSweep(){ ## where
-	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive thisHost
+	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive sweepHold thisHost
 	[ -d "$sweepRoot" ] || return 0
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
+	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UndoHold.include"
 	## A process list that cannot be read says nothing of any run: nothing is touched then.
 	ps -A -ww -o args= > /dev/null 2>&1 || return 0
 	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
@@ -1238,6 +1239,18 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 			if AgentsToolsRegistrySpawnRuns "$sweepSession" "$sweepRecord" ; then sweepLive="running" ; break ; fi
 		done
 		[ -z "$sweepLive" ] || continue
+		## A sandbox a promise of undo holds is never swept, whatever the record
+		## says: the marker is the cleaner's own, read beside the liveness test, and
+		## what it protects is the record it names.
+		sweepHold="$( AgentsToolsUndoHoldState "$sweepDir/undo.hold" )"
+		case "$sweepHold" in
+			absent) ;;
+			missing)
+				echo "# $MDSC_CMD: $1: kept ${sweepDir##*/}, whose undo.hold names no open record: $( AgentsToolsUndoHoldUnresolved "$sweepDir/undo.hold" | LC_ALL=C tr '\n' ' ' )" >&2
+				continue
+			;;
+			*) continue ;;
+		esac
 		if [ -n "$( find "$sweepDir/input" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] ; then
 			AgentsToolsSpawnSandboxCleanInput "$sweepDir"
 			echo "# $MDSC_CMD: $1: emptied input/ of ${sweepDir##*/}, whose session is no longer running" >&2
@@ -1750,6 +1763,37 @@ AgentsToolsSpawnProxyChildrenDismiss(){ ## tracking file of the closing run
 	return 0
 }
 
+## A STALE PARK MARK GOES (S6.14): a mark is the harness's own, left while its run waits for a verdict, and the close
+## takes it away. A record settled by an ACCEPT could keep the mark of its earlier handback beside it -- the run
+## handed back and parked, and the verdict then closed the record -- and the mark alone holds its session in
+## `awaiting-review` for good: session d3206c74 on MEL read so from 2 November, its item already in `processed`.
+## The store of a run whose record an accept settled gives its mark up here, in the pass that already closes what
+## a dead spawn left open, so no store is edited by hand. Nothing else is swept: a record settled another way, and
+## one still open, keeps its mark, which is the state a run waiting for a verdict reads by.
+AgentsToolsSpawnProxyStaleParkClear(){
+	local staleMark staleRun staleRecord staleCleared=0
+	[ -d "$MMDAPP/.local/agents/sessions" ] || return 0
+	for staleMark in "$MMDAPP/.local/agents/sessions"/*/parked ; do
+		[ -f "$staleMark" ] || continue
+		staleRun="${staleMark%/parked}" ; staleRun="${staleRun##*/}"
+		case "$staleRun" in ''|-|.|..|*/*) continue ;; esac
+		staleRecord=""
+		for staleRecord in "$MMDAPP/.local/agents/spawned"/*/"$staleRun.spawn.md" ; do
+			[ -f "$staleRecord" ] || { staleRecord="" ; continue ; }
+			break
+		done
+		[ -n "$staleRecord" ] || continue
+		case "$( AgentsToolsSpawnSandboxRecordHeader "$staleRecord" end-reason )" in
+			"the accept of "*) ;;
+			*) continue ;;
+		esac
+		rm -f "$staleMark" 2> /dev/null || continue
+		staleCleared=$(( staleCleared + 1 ))
+	done
+	[ "$staleCleared" -eq 0 ] || printf 'housekeeping: cleared %s stale park mark(s), their records settled by an accept\n' "$staleCleared"
+	return 0
+}
+
 ## The park mark of a run is taken away where its record closes (S27.2). The mark is written under
 ## the id the harness holds, and a run's record carries both that one and its session-id.
 AgentsToolsSpawnProxyParkClear(){ ## tracking file of the closing run
@@ -1903,6 +1947,10 @@ AgentsToolsSpawnProxyRootMarkRetry(){
 
 AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end reason (optional)
 	[ -f "$1" ] || return 0
+	## THE PARK MARK GOES WITH THE RECORD IT BELONGED TO (S27.2), AND IT GOES FIRST (S6.14): a mark beside a
+	## record that has settled is a stale one, and the settled guard below ends this close before any later
+	## step could take it away. So it is taken away at the top, on every close a run takes.
+	AgentsToolsSpawnProxyParkClear "$1" || :
 	## A SETTLED RECORD IS CLOSED BY NOTHING (S6.26): no question of it is withdrawn, no run of its session is dismissed,
 	## and nothing is said a second time about its end. The checks below all read a record that still says it was
 	## started, and this is the guard that makes that true for a second close as well as for a first.
@@ -1922,9 +1970,6 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end r
 	## that is gone. A participant's close ends itself alone. Done before the record closes, while the
 	## record still names its session.
 	AgentsToolsSpawnProxyChildrenDismiss "$1" || :
-	## THE PARK MARK GOES WITH THE RECORD IT BELONGED TO (S27.2): a settled record must never read
-	## awaiting-review, and a mark left behind would do exactly that.
-	AgentsToolsSpawnProxyParkClear "$1" || :
 	## THE SESSION'S ROOT MESSAGE SHOWS ITS END (S6.37), placed here and only here: the one close a record takes, so a
 	## second close adds nothing, and the settled guard above is what makes that true.
 	if AgentsToolsSpawnProxyCloseSandboxOnce "$@" ; then
@@ -2319,12 +2364,22 @@ AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
 }
 
 ## Whether a sandbox folder may be removed for one item that is going: `open` (a record still started or without a status),
-## `shared` (another board item still links to it, or the folder is not a plain directory under the spawned root), else `removable`.
+## `shared` (another board item still links to it, or the folder is not a plain directory under the spawned root),
+## `held` (its root carries the marker a promise of undo writes, so no cleaner may remove it), else `removable`.
 AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 	local folderName="$1" skipStem="$2" spawnRoot="$MMDAPP/.local/agents/spawned"
-	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath spawnIds=""
+	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath spawnIds="" sharedHold
+	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UndoHold.include"
 	case "$folderName" in ''|.|..|*/*) echo shared ; return 0 ;; esac
 	[ -d "$spawnRoot/$folderName" ] && [ ! -L "$spawnRoot/$folderName" ] || { echo shared ; return 0 ; }
+	## A marker naming no open record keeps the folder as a marker naming one does: the
+	## cleaner cannot tell a promise it cannot see from no promise, so it deletes nothing.
+	sharedHold="$( AgentsToolsUndoHoldState "$spawnRoot/$folderName/undo.hold" )"
+	case "$sharedHold" in
+		absent) ;;
+		missing) echo "# $MDSC_CMD: kept sandbox $folderName, whose undo.hold names no open record: $( AgentsToolsUndoHoldUnresolved "$spawnRoot/$folderName/undo.hold" | LC_ALL=C tr '\n' ' ' )" >&2 ; echo held ; return 0 ;;
+		*) echo held ; return 0 ;;
+	esac
 	for recordPath in "$spawnRoot/$folderName"/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
 		recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"

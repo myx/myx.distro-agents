@@ -3,7 +3,7 @@
 
 ##
 ## AgentsTools.BoardRoundScan.include -- the sections of a scan that a round of the board's rules reads (F7.12): the board's items of the
-## active states, the review items addressed to the advance routine, the registries of sessions, and the items whose recheck-date has arrived.
+## active states, the review items addressed to the advance routine, the registries of sessions, and the documents due a round.
 ## The coordinator's work-duty scan prints them from here -- the scan the work-duty, the manual start of the advance routine and the daily declare -- so there is
 ## one reading of the board for the rules of magic-team.advance.routine, wherever they are run. (The advance scan, --intern-op-advance-input-scan, is retired.)
 ## Sourced, never run; functions only. All are pure reads: what a round acts on first (what a dead spawn left open, the edges of the
@@ -15,8 +15,8 @@
 ## again per item. Timed against that real data: 37s, almost all of it there. This function now scans each of those ONCE here and exports them
 ## (AGENTS_BOARD_TYPE_TABLE_CACHE, AGENTS_BOARD_LIVE_HOLDERS_CACHE) for AgentsTools.BoardItemHandler.include's functions to use instead of
 ## recomputing -- an opt-in override those functions fall back from when unset, so every other caller (AgentsBoardItemHandlerCheck.test.sh
-## among them) keeps its original, unchanged behaviour. AgentsToolsBoardRecheckDueSection had the same one-fork-per-file shape and is batched
-## the same way, into one awk call over every matched file instead of two per file.
+## among them) keeps its original, unchanged behaviour. AgentsToolsBoardRecheckDueSection had the same one-fork-per-file shape, and now asks
+## the one due predicate (AgentsTools.BoardStates.include) for the whole board in one pass.
 ##
 
 ## The board digest, the review items addressed to advance.routine and the registries. rc: that of the digest.
@@ -62,41 +62,43 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 	return "$roundRc"
 }
 
-## The items of the active states whose recheck-date has arrived: one `- <state>/<item> recheck-date <date>` line each, or `(none)`.
+## THE DOCUMENTS DUE A ROUND, and the inputs that decided it: one
+## `- <state>/<item> recheck-date <date|-> last-round-at <date|->` line each, else `(none)`. The predicate itself is
+## `AgentsToolsBoardItemDue` (AgentsTools.BoardStates.include), asked once for the whole board: a guarantee names a
+## predicate, never a set this section filters, so every line here carries the very dates the answer came from.
+## A DOCUMENT THE SECTION COULD NOT READ IS NAMED IN ONE `not read:` LINE, and the section returns rc 1. A fault is
+## never an empty set: the duty reads this section, and a silent `(none)` over an unreadable board would read as a
+## sweep with nothing to do.
 AgentsToolsBoardRecheckDueSection(){
-	local dueNow dueState dueFile dueOut="" dueN=0
-	dueNow="$( date +%s )"
+	local dueState dueFile dueFiles=() dueRows dueLabel dueRecheck dueLast dueCount=0 dueBlind=0 dueRc=0
+	type AgentsToolsBoardItemDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
 	printf '\n%s\n\n' "## recheck dates due"
-	local dueFiles=() dueLabels=()
-	for dueState in pending running review blocked parked ; do
+	for dueState in $agentsBoardActiveStates ; do
 		for dueFile in "$MDAT_DATA_ROOT/board/$dueState"/*.md ; do
 			[ -f "$dueFile" ] || continue
 			dueFiles+=( "$dueFile" )
-			dueLabels+=( "$dueState/${dueFile##*/}" )
 		done
 	done
 	if [ ${#dueFiles[@]} -gt 0 ] ; then
-		local dueRows dueItem dueDate dueEpoch
-		## One awk pass over every matched file instead of one fork each: FNR == 1 marks a new file, exactly as the
-		## labels array does, so the two stay in step without re-opening any file a second time.
-		dueRows="$(
-			LC_ALL=C awk -v labelsStr="$( printf '%s\x1c' "${dueLabels[@]}" )" '
-				BEGIN { split(labelsStr, labelArr, "\x1c") }
-				FNR == 1 { fm = 1 ; found = 0 ; fileIdx++ ; if ( $0 != "---" ) fm = 0 ; next }
-				fm == 0 { next }
-				$0 == "---" { fm = 0 ; next }
-				!found && index($0, "recheck-date: ") == 1 { printf "%s\t%s\n", labelArr[fileIdx], substr($0, 15) ; found = 1 }
-			' "${dueFiles[@]}"
-		)"
-		while IFS=$'\t' read -r dueItem dueDate ; do
-			[ -n "$dueItem" ] || continue
-			dueEpoch="$( printf '%s\n' "$dueDate" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
-			case "$dueEpoch" in ''|*[!0123456789]*) continue ;; esac
-			[ "$dueEpoch" -le "$dueNow" ] || continue
-			dueN=$(( dueN + 1 ))
-			dueOut="$dueOut- $dueItem recheck-date $dueDate"$'\n'
+		dueRows="$( AgentsToolsBoardItemDue "${dueFiles[@]}" )" || dueRc=$?
+		while IFS=$'\x1c' read -r dueFile dueDue dueWhy dueRecheck dueLast ; do
+			[ -n "$dueFile" ] || continue
+			if [ "$dueWhy" = not-read ] ; then
+				printf 'not read: %s -- so the rows below are not the whole answer\n' "${dueFile#"$MDAT_DATA_ROOT/board/"}"
+				dueBlind=$(( dueBlind + 1 ))
+				continue
+			fi
+			[ "$dueDue" = yes ] || continue
+			dueLabel="${dueFile#"$MDAT_DATA_ROOT/board/"}"
+			printf -- '- %s recheck-date %s last-round-at %s\n' "$dueLabel" "$dueRecheck" "$dueLast"
+			dueCount=$(( dueCount + 1 ))
 		done <<< "$dueRows"
 	fi
-	if [ "$dueN" -gt 0 ] ; then printf '%s' "$dueOut" ; else printf '(none)\n' ; fi
+	[ "$dueCount" -gt 0 ] || [ "$dueBlind" -gt 0 ] || printf '(none)\n'
+	## rc 1: a document could not be read, and is named above, so the set this section printed is
+	## incomplete. rc 2: the predicate could not answer at all (a path that is no board item file),
+	## and there is no set to print. A caller tests the status; it never reads a fault as `(none)`.
+	if [ "$dueBlind" -gt 0 ] ; then return 1 ; fi
+	[ "$dueRc" -lt 2 ] || return "$dueRc"
 	return 0
 }

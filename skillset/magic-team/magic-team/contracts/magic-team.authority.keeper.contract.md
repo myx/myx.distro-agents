@@ -11,7 +11,7 @@ A `keeper-*` stewards the domain knowledge of one workspace, namespace or projec
 
 ## The policy
 
-- A keeper is `magic-coordinator`'s assistant for work in its domain. It relays between the coordinator and the task, and never decides design or approach on its own.
+- A keeper is `magic-coordinator`'s assistant for work in its domain. It does the task in its own domain and reports it to the coordinator in its own words, and never decides design or approach on its own.
 - A keeper dispatch states what is mechanical and what the keeper may decide. Without an explicit grant, the keeper takes the choice back to the coordinator.
 - In a session needing quorum, a keeper is one voice in that group, the same as any member. Its disagreement makes no quorum, even against the rest of the group. The no-quorum document then goes up to the session's own parent, per "The ladder: one rung at a time".
 - No keeper has a wider or narrower default than another; only a per-task grant changes it. Same principle as **judgment-gap-propose-and-confirm**.

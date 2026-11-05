@@ -73,7 +73,7 @@ invitees: {{invitees}}
 {{directives}}
 ## your access
 {{access}}
-When done, hand back; then Wait until dismissed.
+When done, hand back and Wait until dismissed.
 ```
 
 # Contract

@@ -85,7 +85,31 @@ rigAssert "the gated item carries approved-at"             "$( rigHas task-rig-a
 rigAssert "a non-blocked blocks item is stamped"           "$( rigHas task-rig-b "$rigBy" )" 1
 rigAssert "a non-blocked blocks item stays where it was"   "$( rigLoc task-rig-b )" backlog
 rigAssert "each cascaded step is printed"                  "$( rigCascadeLines "$rigTmp/o1" )" 3
-rigAssert "one commit holds the approval and the cascade"  "$( rigGit show --no-renames --name-only --format= HEAD | LC_ALL=C sort | tr '\n' ' ' )" \
+## The commit is the team-data thread's when the thread is on (S12.4): the op returns before it, so the
+## assertions about what the commit holds wait for the work tree to go clean, which is the commit landing.
+## With MDAT_TEAM_DATA_COMMIT_THREAD=off, as a rig of the runner sets, the op commits in its own process
+## and the wait returns at once.
+rigWaitClean(){ ## <seconds> -- the work tree clean, or rc 1 at the bound
+	## The loop sleeps a fifth of a second, so a bound in seconds has to be counted in fifths: reading the number as tries
+	## made a 150 wait 30 seconds, which fails on a slow machine rather than on a defect (S12.9).
+	local cleanLeft=$(( ${1:-30} * 5 ))
+	while [ "$( rigGit status --porcelain | wc -l | tr -d ' ' )" != 0 ] ; do
+		[ "$cleanLeft" -gt 0 ] || return 1
+		sleep 0.2 ; cleanLeft=$(( cleanLeft - 1 ))
+	done
+	return 0
+}
+## THE NUMBER IS SECONDS, AND IT IS MEASURED: with the tree dirty the helper waits out its own bound and then says rc 1. Two
+## seconds of waiting is under four, and a helper reading the number as tries of a fifth of a second waits 0.4s, so the
+## assertion below fails on exactly the defect it names.
+printf 'rig dirty\n' > "$rigData/dirty-probe"
+rigWaitFrom="$SECONDS"
+rigWaitClean 2 || :
+rigWaitTook=$(( SECONDS - rigWaitFrom ))
+rm -f "$rigData/dirty-probe"
+rigAssert "the wait helper's bound is counted in seconds: two of them is a wait, not a fifth of one" \
+	"$([ "$rigWaitTook" -ge 2 ] && [ "$rigWaitTook" -le 4 ] && printf seconds || printf "${rigWaitTook}s")" seconds
+rigAssert "one commit holds the approval and the cascade"  "$( rigWaitClean 150 && rigGit show --no-renames --name-only --format= HEAD | LC_ALL=C sort | tr '\n' ' ' )" \
 	"board/backlog/task-rig-b.md board/blocked/task-rig-a.md board/pending/task-rig-a.md board/processed/approval-rig-a.md board/running/approval-rig-a.md "
 rigAssert "the work tree is clean after the commit"        "$( rigGit status --porcelain | wc -l | tr -d ' ' )" 0
 

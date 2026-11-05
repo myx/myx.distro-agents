@@ -11,10 +11,15 @@
 ##   3b. liveness is the process and the mark: a run whose record reads spawn-succeeded gets its line
 ##   4. a parked run, and a dismissed run, get no `run` line and no `dead` line
 ##   5. the existing kinds are unchanged: an open ask to the coordinator still reads `ask`
-## The pause is the file the harness holds at, `sessions/<id>/paused` (AgentsHarnessToolsFile.include). No tooling writes it
-## yet: the pause operation is S19's, and the console's own paused counter reads 0 until then (AgentsManagerSessionRows.awk).
-## So the paused case here makes the file by hand, and that is the whole of what the scan can read today.
-## Red before S13.18: no `run` line at all, and a parked run reads `dead`.
+##   6. THE COST DOES NOT GROW WITH THE OWNER'S QUESTIONS either: the same fork count with an ask to the owner standing, which
+##      the scan used to answer by walking every spawn record once for the asking run and once for its parent
+## WHAT THE PAUSED CASE PROVES. The pause signal is the flag `sessions/<id>/paused`, which `--manager-session-pause` writes
+## and `--manager-session-resume` removes (S19, AgentsTools.SessionPause.include). This case makes that file by hand, so it
+## proves the scan reads the very flag the harness and the tooling obey, and that a paused run reads `waiting` and never
+## `stuck`. A real pause reaching it is held by sh-test/session/AgentsSessionPauseReadersCheck.test.sh, which writes the flag
+## through the operation and reads this scan's own line.
+## Red before S13.18: no `run` line at all, and a parked run reads `dead`. Red before the owner-ask fix: the fork count of
+## section 6 rises by the record count per standing ask.
 ## Offline: a rig workspace, its spawn records and its team data are this rig's own temp tree; a run's process is a stand-in.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -95,13 +100,17 @@ rigChat(){ ## run id, seconds ago, who, text
 rigPlan(){ ## run id, member, the item in progress
 	printf -- '- [~] %s (in progress: %s)\n- [ ] another item\n' "$3" "$3" > "$rigAgents/spawned/$1/$2.checklist.md"
 }
-rigAsk(){ ## run id, owner -- its question, still unanswered
-	printf -- '---\nstatus: reply-pending\nowner: %s\nkind: question\naddress-to: magic-coordinator\nsession-id: %s\nquestion-ts: %s.000000\nasked-at: %s\n---\n' \
-		"$2" "$1" "$rigNow" "$( date '+%Y-%m-%d %H:%M %z' )" > "$rigAgents/pending/rig-ask-$1.md"
+rigAsk(){ ## run id, owner, address-to (magic-coordinator where not given) -- its question, still unanswered
+	printf -- '---\nstatus: reply-pending\nowner: %s\nkind: question\naddress-to: %s\nsession-id: %s\nquestion-ts: %s.000000\nasked-at: %s\n---\n' \
+		"$2" "${3:-magic-coordinator}" "$1" "$rigNow" "$( date '+%Y-%m-%d %H:%M %z' )" > "$rigAgents/pending/rig-ask-$1.md"
+}
+rigAskOwner(){ ## run id -- a question of that run to the human-owner, its own file so it never shares a name
+	printf -- '---\nstatus: reply-pending\nowner: magic-coordinator\nkind: question\naddress-to: human-owner\nsession-id: %s\nquestion-ts: %s.000000\nasked-at: %s\n---\n' \
+		"$1" "$rigNow" "$( date '+%Y-%m-%d %H:%M %z' )" > "$rigAgents/pending/owner-ask-$1.md"
 }
 ## The scan, run by the dispatcher of the origin under test, or from RIG_INCLUDE where one names an include to try first.
 rigScan(){
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="${rigScanPath:-/usr/bin:/bin:/usr/sbin:/sbin}" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_INCLUDE="${RIG_INCLUDE:-}" \
 		bash -c 'if [ -n "$RIG_INCLUDE" ] ; then . "$RIG_INCLUDE" ; AgentsToolsSuperviseScan --workspace "$1" ; else exec bash "$2" --supervise-scan --workspace "$1" ; fi' rig "$rigWs" "$rigFn" 2>&1
@@ -115,7 +124,6 @@ rigWord(){ ## run id, field number -- that word of its `run` line
 rigKind(){ ## kind -- how many lines of that kind
 	printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" '$1 == want' | wc -l | tr -d ' '
 }
-
 ## The paused run: a pause holds its work, and an old tool call is no verdict of stuck on it.
 rigRun rigpaus magic-developer
 : > "$rigAgents/sessions/rigpaus/paused"
@@ -218,8 +226,57 @@ rigAssert "a parked run gets no run line" "$( rigLine rigpark )" ""
 rigAssert "a dismissed run gets no run line" "$( rigLine rigdism )" ""
 rigAssert "neither of them reads dead" "$( rigKind dead )" "0"
 
+echo "-- 4b. the scan costs the same however many closed records stand --"
+## The forks of a scan, counted by a PATH stub of the tools it runs: a scan that runs a process per record is then seen,
+## never reasoned about. Two scans, one on this rig and one with a hundred and twenty closed records added.
+rigForkCount(){ ## none
+	: > "$rigTmp/fork.log"
+	rigScanPath="$rigTmp/forkbin:/usr/bin:/bin:/usr/sbin:/sbin"
+	rigScan > /dev/null 2>&1
+	rigScanPath=""
+	LC_ALL=C wc -l < "$rigTmp/fork.log" | tr -d ' '
+}
+mkdir -p "$rigTmp/forkbin" || rigRefuse "the fork stub folder could not be made"
+for rigForkTool in ps sed awk grep find cut basename head tail tr wc sort ls : ; do
+	rigForkReal="$( command -v "$rigForkTool" 2> /dev/null )" || continue
+	printf '#!/bin/bash\nprintf "%%s\\n" %s >> "%s"\nexec %s "$@"\n' "$rigForkTool" "$rigTmp/fork.log" "$rigForkReal" > "$rigTmp/forkbin/$rigForkTool"
+	chmod +x "$rigTmp/forkbin/$rigForkTool"
+done
+rigFewForks="$( rigForkCount )"
+rigIdleAt=0
+while [ "$rigIdleAt" -lt 120 ] ; do
+	rigIdleAt=$(( rigIdleAt + 1 ))
+	rigRun "rigidle$rigIdleAt" magic-developer spawn-succeeded
+	rigPast "$rigAgents/spawned/rigidle$rigIdleAt/rigidle$rigIdleAt.spawn.md"
+done
+rigOut="$( rigScan )"
+rigManyForks="$( rigForkCount )"
+rigAssert "the fork count of a scan, without then with 120 more closed records" "$rigFewForks $rigManyForks" "$rigFewForks $rigFewForks"
+rigAssert "and every live run is still on its line" "$( rigKind run )" "9"
+
 echo "-- 5. the kinds of before are unchanged --"
 rigAssert "an open ask to the coordinator still reads ask" "$( rigKind ask )" "1"
+
+echo "-- 6. a standing ask to the owner costs no walk over the records --"
+## The owner holds open questions in every working rig, and most of them name a session no record carries. The scan answered
+## each one by walking the whole record folder for the asking run and again for its parent, so its cost was the records times
+## the asks. Both loops became one lookup in the record table read once, and this is the count that holds it: the same ask
+## over a rig with twice the closed records costs the same.
+rigAskOwner rigowner
+rigOut="$( rigScan )"
+rigAskFewForks="$( rigForkCount )"
+rigAssert "the owner's standing ask is read beside the coordinator's own" "$( rigKind ask )" "2"
+rigAssert "and it names no parent, naming a session no record carries" "$( rigKind parent-ask )" "0"
+rigIdleAt=0
+while [ "$rigIdleAt" -lt 120 ] ; do
+	rigIdleAt=$(( rigIdleAt + 1 ))
+	rigRun "rigmore$rigIdleAt" magic-developer spawn-succeeded
+	rigPast "$rigAgents/spawned/rigmore$rigIdleAt/rigmore$rigIdleAt.spawn.md"
+done
+rigOut="$( rigScan )"
+rigAskManyForks="$( rigForkCount )"
+rigAssert "and still no parent is named, with 120 more closed records behind it" "$( rigKind parent-ask )" "0"
+rigAssert "the fork count of a scan with an owner ask, without then with 120 more closed records" "$rigAskFewForks $rigAskManyForks" "$rigAskFewForks $rigAskFewForks"
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ SUPERVISE SCAN CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

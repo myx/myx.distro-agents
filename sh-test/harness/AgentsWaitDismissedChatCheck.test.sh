@@ -31,9 +31,9 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 ## What the awk says of a wait's output on its standard input: the line it prints, or `none`.
-rigDismissal(){ ## member -- the output on stdin
+rigDismissal(){ ## member [own run] -- the output on stdin
 	local dismissOut dismissRc=0
-	dismissOut="$( dismissalMember="$1" LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/harness/AgentsHarnessWaitDismissed.awk" )" || dismissRc=$?
+	dismissOut="$( dismissalMember="$1" dismissalRun="${2:-}" LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/harness/AgentsHarnessWaitDismissed.awk" )" || dismissRc=$?
 	if [ "$dismissRc" = "0" ] ; then printf '%s' "$dismissOut" ; else printf 'none' ; fi
 }
 rigWait(){ ## the blocks of a wait's output, as the lines after them
@@ -62,6 +62,17 @@ rigAssert "the word among others is no dismissal"                     "$( rigWai
 echo "-- 5. the block is read to its end --"
 rigAssert "a dismissal after another block's text is read as its own" "$( rigWait '# arrived on: slack:C1:1.1' '# --- what that source holds now follows ---' '2026-10-19T09:00:00Z rig-boss -> rig-member:' 'a plain word first' '' '2026-10-19T10:00:00Z rig-boss -> rig-member:' 'DISMISSED' '' '# --- end ---' | rigDismissal rig-member )" "2026-10-19T10:00:00Z | rig-boss"
 rigAssert "a DISMISSED line after the block's end is not part of it"  "$( rigWait '# arrived on: slack:C1:1.1' '# --- what that source holds now follows ---' '2026-10-19T09:00:00Z rig-boss -> rig-member:' 'a plain word first' '' '# --- end ---' 'DISMISSED' | rigDismissal rig-member )" none
+
+echo "-- 6. a DISMISSED reaches the run it names, and no other (S6.40) --"
+## The reported fault: a DISMISSED for one run of magic-tester ended another run of magic-tester in a second session.
+rigRested='2026-11-03T22:32:18Z rig-boss [author-run=run-a] -> rig-member [addressee-run=run-other]:'
+rigAssert "a run other than the one waiting dismisses it not"          "$( rigWait '# arrived on: slack:C1:1.1' '# --- what that source holds now follows ---' "$rigRested" 'DISMISSED' '' '# --- end ---' | rigDismissal rig-member run-mine )" none
+rigAssert "and the run it names is dismissed by it"                   "$( rigWait '# arrived on: slack:C1:1.1' '# --- what that source holds now follows ---' "$rigRested" 'DISMISSED' '' '# --- end ---' | rigDismissal rig-member run-other )" "2026-11-03T22:32:18Z | rig-boss"
+rigOtherBlock='2026-11-03T22:32:18Z rig-boss [author-run=run-a] -> rig-member [addressee-run=run-other]:'
+rigAssert "a chat block for another run is no dismissal of this one"  "$( rigWait '# arrived on: slack:C1:1.1' '# --- what that source holds now follows ---' "$rigOtherBlock" 'DISMISSED' '' '# --- end ---' | rigDismissal rig-member run-mine )" none
+rigAssert "control, that same block dismisses the run it names"        "$( rigWait '# arrived on: slack:C1:1.1' '# --- what that source holds now follows ---' "$rigOtherBlock" 'DISMISSED' '' '# --- end ---' | rigDismissal rig-member run-other )" "2026-11-03T22:32:18Z | rig-boss"
+rigPlainBlock='2026-11-03T22:32:18Z rig-boss -> rig-member:'
+rigAssert "a block that names no run is read as it always was"        "$( rigWait '# arrived on: slack:C1:1.1' '# --- what that source holds now follows ---' "$rigPlainBlock" 'DISMISSED' '' '# --- end ---' | rigDismissal rig-member run-mine )" "2026-11-03T22:32:18Z | rig-boss"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WAIT DISMISSED CHAT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

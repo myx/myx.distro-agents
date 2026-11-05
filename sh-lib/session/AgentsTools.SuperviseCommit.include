@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseCommit.include -- the transcripts a run left changed after its last milestone reach a commit, and the
+## store's push debt is paid (epic S13.10). Sourced, never run; functions only.
+##
+## WHAT WAS MISSING. A line written once a run has ended -- a verdict, a dismissal, a death note -- is committed by the writer that
+## wrote it (AgentsTranscriptEventAfterEnd) and by nothing else. A writer that failed, a run killed before its last milestone, and a
+## transcript touched by any other hand stay dirty in the store for ever. This is the sweep that closes them.
+##
+## ONLY AUDIT TRANSCRIPTS. The sweep commits what `audit/` holds and nothing else: the board, the inbox and the vault have their own
+## writers, and a sweep over them would take another writer's half-finished work.
+##
+
+## The audit transcripts the store holds changed, one absolute path a line. Prints nothing where the store is not a repository or
+## nothing under audit/ changed.
+AgentsToolsSuperviseChangedTranscripts(){ ## store root
+	local sweepRoot="${1:-${MDAT_DATA_ROOT:-}}" sweepEntry
+	[ -n "$sweepRoot" ] || return 0
+	[ -d "$sweepRoot/.git" ] || return 0
+	## `-z` keeps a path holding a blank whole, and each entry reads `<XY> <path>`, XY two characters and one blank.
+	git -C "$sweepRoot" status --porcelain -z --untracked-files=all -- audit 2> /dev/null \
+		| while IFS= read -r -d '' sweepEntry ; do
+			sweepEntry="${sweepEntry#???}"
+			case "$sweepEntry" in audit/*) [ ! -f "$sweepRoot/$sweepEntry" ] || printf '%s/%s\n' "${sweepRoot%/}" "$sweepEntry" ;; esac
+		done
+	return 0
+}
+
+## --supervise-commit-transcripts [--workspace <path>] [--dry-run]: one `commit <path>` row a transcript committed, or with
+## --dry-run the paths that would be; then `pushed <state>` once, the store's push after them.
+AgentsToolsSuperviseCommitTranscripts(){ ## [--workspace <path>] [--dry-run]
+	local commitWs="${MMDAPP%/}" commitDry=no commitRoot="" commitPath commitPaths=() commitLeft commitSavedRoot
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--workspace) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --workspace requires a path" >&2 ; return 1 ; } ; commitWs="${2%/}" ; shift 2 ;;
+			--dry-run) commitDry=yes ; shift ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-commit-transcripts: invalid option: $1" >&2 ; return 1 ;;
+		esac
+	done
+	## THE STORE OF THE WORKSPACE NAMED, never this call's own (S13.12): a supervisor commits another rig's transcripts in
+	## that rig's store. The workspace this call runs in keeps the store the entry already resolved for it.
+	commitSavedRoot="${MDAT_DATA_ROOT:-}"
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+	if [ "$commitWs" = "${MMDAPP%/}" ] && [ -n "$commitSavedRoot" ] ; then
+		commitRoot="${commitSavedRoot%/}"
+	else
+		commitRoot="$( AgentsToolsTeamDataRootOf "$commitWs" )" || commitRoot=""
+		commitRoot="${commitRoot%/}"
+	fi
+	[ -n "$commitRoot" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-commit-transcripts: no team-data store is resolved for $commitWs" >&2 ; return 1 ; }
+	[ -d "$commitRoot/.git" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-commit-transcripts: the store $commitRoot of $commitWs is no git repository" >&2 ; return 1 ; }
+	while IFS= read -r commitPath ; do
+		[ -n "$commitPath" ] || continue
+		commitPaths+=( "$commitPath" )
+	done <<< "$( AgentsToolsSuperviseChangedTranscripts "$commitRoot" )"
+	## THE WRITE IS THE WRITER'S AND THE COMMIT IS THE THREAD'S (S12.4): the sweep leaves its entry as every other writer does, and
+	## MDAT_TEAM_DATA_COMMIT_WAIT keeps it until that commit is made, so the rows printed are of a commit that landed.
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	if [ "${#commitPaths[@]}" -eq 0 ] ; then
+		printf 'commit\tnone\n'
+	else
+		## The commit and the push are made in the named rig, whose own store MDAT_DATA_ROOT is there: the same two variables the
+		## restart of that rig's run is made with (AgentsTools.SuperviseResume.include).
+		[ "$commitDry" = yes ] || ( MMDAPP="$commitWs" MDAT_DATA_ROOT="$commitRoot" ; export MMDAPP MDAT_DATA_ROOT
+			MDAT_TEAM_DATA_COMMIT_WAIT=yes AgentsToolsTeamDataCommitPaths \
+				"transcripts left changed after their run ended" "${commitPaths[@]}" > /dev/null 2>&1 || :
+			AgentsToolsTeamDataPushIfAhead "the transcript sweep" ) || :
+		for commitPath in "${commitPaths[@]}" ; do
+			printf 'commit\t%s\n' "${commitPath#"$commitRoot"/}"
+		done
+	fi
+	printf 'pushed\t%s\n' "$( MMDAPP="$commitWs" MDAT_DATA_ROOT="$commitRoot" ; export MMDAPP MDAT_DATA_ROOT ; AgentsToolsTeamDataPushAheadState )"
+	## WHAT THE SWEEP LEFT: the same read again, after the commit. A path still there is owed, and said so, so a caller never reads
+	## a row as a commit that did not land.
+	[ "$commitDry" = yes ] || [ "${#commitPaths[@]}" -eq 0 ] || {
+		commitLeft="$( AgentsToolsSuperviseChangedTranscripts "$commitRoot" | LC_ALL=C awk 'END { print NR + 0 }' )"
+		[ "$commitLeft" -eq 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-commit-transcripts: $commitLeft transcript(s) under $commitRoot/audit are still uncommitted, and are owed" >&2 ; return 1 ; }
+	}
+	return 0
+}

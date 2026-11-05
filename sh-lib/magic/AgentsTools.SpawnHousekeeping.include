@@ -100,10 +100,14 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	local endedOutcome="ended-without-close"
 	local recordPath recordCandidate recordStatus recordExit rowSide linkField linkStem itemName itemState itemPath itemSpawn itemOutput targetState closeOutcome
 	local controlLines controlSession controlWord controlPid controlWhy controlStarted="" controlCount=0
+	local leftoverSession leftoverDir leftoverFile leftoverHandle leftoverPid leftoverBegan leftoverTurns leftoverOut leftoverErr
 	measureText="$( AgentsToolsRegistryRenderSpawnedSessions agents )"
 	case "$measureText" in
 		*"**NOTE:** no scan was made"*) return 0 ;;
 	esac
+	## A STALE PARK MARK GOES FIRST (S6.14): a mark an accept left beside its run's settled record holds that
+	## session in `awaiting-review` for good, and this pass is the one that already closes what a dead spawn left open.
+	AgentsToolsSpawnProxyStaleParkClear
 	startedRows="$( printf '%s\n' "$measureText" | LC_ALL=C awk 'NF == 13 && $6 == "spawn-started" && $8 != "-" { print ; }' )"
 	type AgentsToolsSessionControlDeathHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include" 2> /dev/null || :
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState ; do
@@ -268,6 +272,44 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	## is asked again here, by the pass that already runs over the dead records. One that lands becomes the session's end.
 	type AgentsToolsSpawnProxyRootMarkRetry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 	AgentsToolsSpawnProxyRootMarkRetry || :
+	## A CLOSED SESSION'S LEFTOVER PROCESSES (S5.2): a detached command a run started is kept in its session's
+	## folder with the pid it began as, and nothing ended it when the session did. The rows measured above say
+	## which sessions have nothing alive, and their processes folder is walked for those alone. A process is
+	## signalled only while its pid is still the process that began then, as the Bash tool's own stop does, and
+	## its group with it, so a command that started children takes them too. A mark beside it keeps the next pass
+	## from signalling a number again.
+	for leftoverSession in $( printf '%s\n' "$measureText" | LC_ALL=C awk 'NF == 13 && ($12 == "gone" || $12 == "remote") && $6 ~ /^spawn-/ && $8 != "-" { print $2 }' | LC_ALL=C sort -u ) ; do
+		leftoverDir="$MMDAPP/.local/agents/sessions/$leftoverSession/processes"
+		[ -d "$leftoverDir" ] || continue
+		for leftoverFile in "$leftoverDir"/*.pid ; do
+			[ -f "$leftoverFile" ] || continue
+			leftoverHandle="${leftoverFile##*/}" ; leftoverHandle="${leftoverHandle%.pid}"
+			[ ! -f "$leftoverDir/$leftoverHandle.closed" ] || continue
+			leftoverPid=""
+			{ IFS= read -r leftoverPid < "$leftoverFile" ; } 2> /dev/null || continue
+			case "$leftoverPid" in ''|*[!0123456789]*) continue ;; esac
+			leftoverBegan=""
+			{ IFS= read -r leftoverBegan < "$leftoverDir/$leftoverHandle.began" ; } 2> /dev/null || leftoverBegan=""
+			[ -n "$leftoverBegan" ] || continue
+			[ "$( printf '%s\n' "$leftoverPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$leftoverBegan" ] || continue
+			## A detached start leads a group of its own, so the group is signalled first: a command that started
+			## children takes them with it. The pid follows, for a process a check started without a group of its own.
+			kill -TERM -- "-$leftoverPid" 2> /dev/null || :
+			kill -0 "$leftoverPid" 2> /dev/null && kill -TERM "$leftoverPid" 2> /dev/null || :
+			leftoverTurns=0
+			while [ "$leftoverTurns" -lt 20 ] && kill -0 "$leftoverPid" 2> /dev/null ; do sleep 0.1 ; leftoverTurns=$(( leftoverTurns + 1 )) ; done
+			if [ "$leftoverTurns" -ge 20 ] ; then
+				kill -KILL -- "-$leftoverPid" 2> /dev/null || :
+				kill -0 "$leftoverPid" 2> /dev/null && kill -KILL "$leftoverPid" 2> /dev/null || :
+			fi
+			leftoverOut=0 ; leftoverErr=0
+			[ ! -f "$leftoverDir/$leftoverHandle.out" ] || leftoverOut="$( wc -c < "$leftoverDir/$leftoverHandle.out" 2> /dev/null | LC_ALL=C tr -d ' ' )"
+			[ ! -f "$leftoverDir/$leftoverHandle.err" ] || leftoverErr="$( wc -c < "$leftoverDir/$leftoverHandle.err" 2> /dev/null | LC_ALL=C tr -d ' ' )"
+			{ printf 'out %s\nerr %s\n' "${leftoverOut:-0}" "${leftoverErr:-0}" > "$leftoverDir/$leftoverHandle.closed" ; } 2> /dev/null || :
+			printf 'leftover: %s %s pid %s\n' "$leftoverSession" "$leftoverHandle" "$leftoverPid"
+			housekeepingLog="${housekeepingLog}housekeeping: ended $leftoverSession/$leftoverHandle, a process its session no longer has"$'\n'
+		done
+	done
 	if [ "${3:-}" = no-threads ] ; then
 		AgentsToolsHousekeepingReport "$2" "${housekeepingLog%$'\n'}"
 		return 0

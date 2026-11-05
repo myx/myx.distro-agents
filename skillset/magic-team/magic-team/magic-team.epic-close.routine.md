@@ -101,9 +101,9 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 - `--queue-take`
 - `--queue-done <name> --apply | --refuse <reason> | --result <text>`
-- `--slack-send-message <target> [text...]`
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 - `--intern-op-state-note-upsert magic-coordinator`
-- `--state-note-read magic-coordinator`
+- `--state-note-read magic-coordinator` (`AgentDispatcherTools`)
 
 # Maintainer Notes
 

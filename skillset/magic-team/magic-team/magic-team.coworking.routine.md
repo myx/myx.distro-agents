@@ -89,6 +89,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **frame-the-shared-goal**: state what the session must achieve together. Once the goal names this session's tracking documents, steps:
    - read them from this run's input scan result (`input/input-scan.md`) before working from them.
    - re-read any inbox item naming the same board items.
+   - the session's tracking document stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, each a plain present-tense statement. A part it leaves out is written now, and each later step keeps it that way.
 2. **invite-participants-visibly**: invite each participant with an `Agent` call, at the start or later in the session. Whoever prepares a dispatch names its task, the members likely needed, and the permissions and tools likely needed. Steps:
    - take the default list from `ThisSession` `get-uninvited-participants`. An empty answer names no participant, and any member may be invited.
    - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information, then make the `Agent` call.
@@ -167,6 +168,7 @@ All statements apply at the same time, always. These rules override a participan
 - Every wait in this routine follows **wait-never-quit**.
 - A gap in understanding follows **gap-surfacing**: ask about intent, investigate facts.
 - **Sessions sharing a file edit it by turns.** Declare your region to the other session first, and re-read the file before every edit. Anchor each edit on text unique to your region, and hand the file back explicitly.
+- **The tracking document stands alone.** Every step that changes it leaves it stating the goal, why, the scope, the current state, the next step, the decisions taken and the open points, as plain present-tense statements. It is a produce under `magic-team.basic.md`'s "Relay, direct, produce", so a session restarted a month later continues from the document alone.
 - **No default attendees.** `magic-coordinator` calls in the members the task needs. Responsibility overrides this:
   - code, shell or config output: `magic-developer` and `magic-librarian`.
   - team-facing text or prose: `magic-librarian`.
@@ -193,17 +195,17 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts.fn.sh`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
+Contacts, the people you meet and reach, are kept by tooling, not by hand, with `DistroAgentsContacts`. Use `--contacted-by <value>` when someone writes to you, `--reach-contact <id>` to write to someone, and `--collect-contact` to record one.
 
-- `--slack-send-message <target> [text...]`
-- `--slack-react <channel>:<ts> <emoji-name>`
+- `SendMessage` (`to`, `address_to`, `message`): one message to any target.
+- `--slack-react <channel>:<ts> <emoji-name>` (`DistroAgentsSlack`)
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
-- `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--routine-run-inline <routine>`
+- `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 - `--get-session-thread [--own]`
-- `--get-uninvited-participants`
+- `--get-uninvited-participants` (`ThisSession`)
 - `--executor-checkpoint-push [<name>]`
 
 # Maintainer Notes

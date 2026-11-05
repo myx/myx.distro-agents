@@ -80,12 +80,12 @@ rigField(){ ## item filename, header name -- the value of that frontmatter line,
 rigProject="project-20261102T2300Z-walk.md" rigChildA="task-20261102T2301Z-walk-a.md" rigChildB="task-20261102T2302Z-walk-b.md"
 
 echo "-- 1. ingest: a project and two children in the backlog; a caller that is no coordinator is refused --"
-rigRun "$rigTmp/i0" magic-developer DistroAgentsItems --grooming-create-backlog magic-developer "$rigProject" --owner-header-value magic-developer --upsert-body:'The walk.'
+rigRun "$rigTmp/i0" magic-developer DistroAgentsItems --grooming-create-backlog --team-member magic-developer "$rigProject" --owner-header-value magic-developer --upsert-body:'The walk.'
 rigAssert "a developer's create is refused, rc non-zero, and nothing is made" "$( [ "$rigRc" != 0 ] && printf refused || printf allowed ):$( rigLoc "$rigProject" )" "refused:not-found"
-rigRun "$rigTmp/i1" magic-coordinator DistroAgentsItems --grooming-create-backlog magic-coordinator "$rigProject" --owner-header-value magic-coordinator --upsert-body:'The walk: one item from ingest to review.'
+rigRun "$rigTmp/i1" magic-coordinator DistroAgentsItems --grooming-create-backlog --team-member magic-coordinator "$rigProject" --owner-header-value magic-coordinator --upsert-body:'The walk: one item from ingest to review.'
 rigAssert "the project is made in the backlog" "$rigRc:$( rigLoc "$rigProject" )" "0:backlog"
-rigRun "$rigTmp/i2" magic-coordinator DistroAgentsItems --grooming-create-backlog magic-coordinator "$rigChildA" --owner-header-value magic-developer --header:upsert:spawned-by:"${rigProject%.md}" --upsert-body:'Child A.'
-rigRun "$rigTmp/i3" magic-coordinator DistroAgentsItems --grooming-create-backlog magic-coordinator "$rigChildB" --owner-header-value magic-developer --header:upsert:spawned-by:"${rigProject%.md}" --upsert-body:'Child B.'
+rigRun "$rigTmp/i2" magic-coordinator DistroAgentsItems --grooming-create-backlog --team-member magic-coordinator "$rigChildA" --owner-header-value magic-developer --header:upsert:spawned-by:"${rigProject%.md}" --upsert-body:'Child A.'
+rigRun "$rigTmp/i3" magic-coordinator DistroAgentsItems --grooming-create-backlog --team-member magic-coordinator "$rigChildB" --owner-header-value magic-developer --header:upsert:spawned-by:"${rigProject%.md}" --upsert-body:'Child B.'
 rigAssert "both children are in the backlog" "$( rigLoc "$rigChildA" ) $( rigLoc "$rigChildB" )" "backlog backlog"
 rigAssert "each child names its project" "$( rigField "$rigChildA" spawned-by ) $( rigField "$rigChildB" spawned-by )" "${rigProject%.md} ${rigProject%.md}"
 
@@ -100,9 +100,9 @@ rigAssert "the epic validates clean as kind epic" "$rigRc:$( wc -c < "$rigTmp/e3
 
 echo "-- 3. plan: backlog to pending --"
 rigScan "$rigTmp/s0"
-rigRun "$rigTmp/p0" magic-coordinator DistroAgentsItems --grooming-to-pending magic-coordinator "$rigChildA" --from-state:review --owner-header-value magic-coordinator
+rigRun "$rigTmp/p0" magic-coordinator DistroAgentsItems --grooming-to-pending --team-member magic-coordinator "$rigChildA" --from-state:review --owner-header-value magic-coordinator
 rigAssert "a move from a state the item is not in is refused and moves nothing" "$( [ "$rigRc" != 0 ] && printf refused || printf allowed ):$( rigLoc "$rigChildA" )" "refused:backlog"
-rigRun "$rigTmp/p1" magic-coordinator DistroAgentsItems --grooming-to-pending magic-coordinator "$rigChildA" --from-state:backlog --owner-header-value magic-developer
+rigRun "$rigTmp/p1" magic-coordinator DistroAgentsItems --grooming-to-pending --team-member magic-coordinator "$rigChildA" --from-state:backlog --owner-header-value magic-developer
 rigAssert "child A is in pending and left the backlog" "$rigRc:$( rigLoc "$rigChildA" )" "0:pending"
 rigScan "$rigTmp/s1"
 

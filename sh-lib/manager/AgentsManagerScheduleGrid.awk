@@ -2,7 +2,7 @@
 # `cell<TAB><weekday><TAB><hour 00-23><TAB><flags, comma-separated, or ->`. Reads nothing from a file; every value
 # comes in through ENVIRON, never -v (MAGIC.md): SCH_WORKTIME (`<start> <until> <days>`), SCH_WEEKEND (a days list),
 # SCH_EPOCH (now), SCH_OFFSET (the zone's offset in seconds), SCH_TODAY (0-6, sunday first), and the overrides as the
-# settings hold them -- SCH_HOLIDAYS, SCH_EMERGENCY, SCH_OVERTIME, SCH_LEARNING: `on`, `until <epoch>`, or empty.
+# settings hold them -- SCH_HOLIDAYS, SCH_EMERGENCY, SCH_OVERTIME, SCH_LEARNING, SCH_SUPERVISED: `on`, `until <epoch>`, or empty.
 # A cell holds `worktime` where the hour overlaps the planned worktime of that weekday (and no holiday holds in it),
 # `weekend` where the weekday is a weekend day, and an override's name where that override holds at some time of the
 # hour that has not passed yet.
@@ -50,6 +50,7 @@ BEGIN {
 			if ( held && holds( ENVIRON["SCH_EMERGENCY"], from, to ) ) flags = flags ",emergency"
 			if ( held && holds( ENVIRON["SCH_OVERTIME"], from, to ) ) flags = flags ",overtime"
 			if ( held && ENVIRON["SCH_LEARNING"] == "on" ) flags = flags ",learning"
+			if ( held && ENVIRON["SCH_SUPERVISED"] == "on" ) flags = flags ",supervised"
 			printf "cell\t%s\t%02d\t%s\n", name, hour, ( flags == "" ? "-" : substr( flags, 2 ) )
 		}
 	}

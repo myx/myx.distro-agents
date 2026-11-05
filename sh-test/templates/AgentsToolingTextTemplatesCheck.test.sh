@@ -108,9 +108,15 @@ rigAssert "being contacted by a sender nobody recorded: said so, with the next s
 	'No contact is recorded for UX. It is met at Ingest and Basic only: read the request, answer what needs no record, commit nothing.'
 rigAssert "being contacted by a recorded sender: the access first, the tiers the record gives, the calls to make (three lines hold the four)" \
 	"$( ASKP_F_id=alice-one ASKP_F_access='dispatch on job-18 (allowed by human-owner)' ASKP_F_tiers="$( rigBlock "$rigNote" Contacts/tier-none )" rigBlock "$rigNote" Contacts/contacted-known | LC_ALL=C grep -c -F -e 'Access of alice-one: dispatch on job-18 (allowed by human-owner)' -e 'Ingest, always: read and understand it.' -e '--contact-access alice-one --tool <tool> --target <target>' -e '--escalate-contact alice-one' )" 3
-rigAssert "the tiers of a record with none: the three, and no word of partner" \
+rigAssert "the tiers of a record with none: the four, each including the ones before it" \
 	"$( rigBlock "$rigNote" Contacts/tier-none )" \
-	'A request is in one of three tiers. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Recorded access, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.'
+	'A request is in one of four tiers, each including the ones before it. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Partner, for friends and partners: talk about what the team does, a little help, small research or investigation. Recorded, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.'
+rigAssert "the tiers of an ingest contact: ingest alone" \
+	"$( rigBlock "$rigNote" Contacts/tier-ingest )" \
+	$'This contact stands at Ingest. Every request is read and understood, and nothing more is open to it.\n\n- Ingest, always: read and understand it.'
+rigAssert "the tiers of a basic contact: ingest, and basic besides" \
+	"$( rigBlock "$rigNote" Contacts/tier-basic )" \
+	$'This contact stands at Basic. Every tier below is open to it, and Basic besides.\n\n- Ingest, always: read and understand it.\n- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.'
 rigAssert "the tiers of a partner: partner and every tier below it, then what partner never covers" \
 	"$( rigBlock "$rigNote" Contacts/tier-partner )" \
 	$'This contact is a partner. Every tier below is open to it, and Partner besides.\n\n- Ingest, always: read and understand it.\n- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.\n- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.\n\nPartner never covers credentials or client-confidential material. A partner changes a project, the board or the team\'s work only through escalation to the human-owner.'

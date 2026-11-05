@@ -31,7 +31,7 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `declaration-*` — audit. One host's output-style declarations for one day.
 - `refusal-*` — audit. The output-style check's record of text it stopped or reported, one row per fault.
 - `snapshot-*` — audit. A resource's content saved byte for byte before a write that could lose it.
-- `verbatim-*` — vault.
+- `verbatim-record-*` — vault.
 - `investigation-*` — vault. An investigation report, the result of a board `investigation-*`. The two share a type word, and the store tells them apart.
 - `adr-*` — vault. A decision record, one per technical question, kept by `magic-architect`.
 

@@ -10,9 +10,10 @@
 ##      that member and fills what is empty, keeps what is known and says so, replaces with --correct; the lists (coordinates, who holds it) only
 ##      grow, and --drop removes a coordinate. A key the tool does not know stays as it stands. Nothing is written for a call that adds nothing,
 ##      no temp file or lock is left, the mode is 644.
-##   3. A CONTACT'S TIER (epic S6.17) is `tier:` in the record, and the human-owner's to set: the console account mapped to him sets `partner` and
-##      `recorded`, and a member's session is refused, either value. A value that is neither is refused. A tier alone is something to record, and
-##      --correct replaces the one it holds.
+##   3. A CONTACT'S TIER (S6.17, S6.36) is `tier:` in the record, and the human-owner's to set: the console account mapped to him sets each of
+##      `ingest`, `basic`, `partner` and `recorded`, and a value that is none of the four is refused, naming them. A member's call writes nothing
+##      and asks him instead, which AgentsContactsTierWordCheck holds with a rig that can post the ask. A tier alone is something to record, and
+##      each set replaces the word the record stands at, the log saying which it was.
 ##   4. WHAT IS REFUSED, with nothing written: an id that is none, an organisation that is not recorded, a coordinate of a wrong shape (a Slack
 ##      id without its team, a team that is no bare name, an id in small letters, a handle without @, an e-mail that is none), --owner with a word
 ##      that is not yes or no, a value too long, a call with nothing to record, a new contact with neither a name nor a coordinate, a call from no
@@ -112,14 +113,16 @@ mkdir -p "$rigWs/.local/.agents"
 printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "$rigAcct" > "$rigWs/.local/.agents/magic-team.agent.env"
 rigAs=keeper-x
 rigRun "$rigTmp/t1" --collect-contact --id alice-one --tier partner
-rigAssert "a member's session may not set it: refused, the record unchanged" "$rigRc $( rigHas "--tier is the human-owner's to set, and this call is keeper-x" "$rigTmp/t1.err" ) $( LC_ALL=C grep -c '^tier: ' "$rigPerson/alice-one.md" )" "1 1 0"
+rigAssert "a member's session writes no tier: it asks him, and this rig can post no ask, so it is refused and the record is unchanged" "$rigRc $( LC_ALL=C grep -c '^tier: ' "$rigPerson/alice-one.md" )" "1 0"
 rigAs=""
 rigRun "$rigTmp/t2" --collect-contact --id alice-one --tier partner --reached-by keeper-x
 rigAssert "the console account mapped to him sets partner: a field of its own, in its place, and the log says what changed" "$rigRc $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/alice-one.md" ) $( LC_ALL=C awk '/^tier: / { tierAt = NR ; } /^reached-by: / { byAt = NR ; } END { print ( tierAt && byAt && tierAt < byAt ) ? "before-reached-by" : "misplaced" ; }' "$rigPerson/alice-one.md" ) $( rigHas 'changed: tier' "$rigPerson/alice-one.md" )" "0 partner before-reached-by 1"
 rigRun "$rigTmp/t3" --collect-contact --id alice-one --tier gold --reached-by keeper-x
-rigAssert "a value that is neither partner nor recorded: refused, and the record keeps its own" "$rigRc $( rigHas '--tier is partner or recorded: gold' "$rigTmp/t3.err" ) $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/alice-one.md" )" "1 1 partner"
+rigAssert "a word that is none of the four: refused, naming them, and the record keeps its own" "$rigRc $( rigHas 'ingest, basic, partner and recorded: gold' "$rigTmp/t3.err" ) $( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/alice-one.md" )" "1 1 partner"
+rigRun "$rigTmp/t3b" --collect-contact --id alice-one --tier ingest --reached-by keeper-x
+rigAssert "ingest is a tier of the record too, the lowest of the four" "$( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/alice-one.md" ) $( rigHas 'changed: tier (was: partner)' "$rigPerson/alice-one.md" )" "ingest 1"
 rigRun "$rigTmp/t4" --collect-contact --id alice-one --tier recorded --correct --reached-by keeper-x
-rigAssert "--correct replaces it, and the log says what it was" "$( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/alice-one.md" ) $( rigHas 'changed: tier (corrected, was: partner)' "$rigPerson/alice-one.md" )" "recorded 1"
+rigAssert "a later set replaces it, and the log says which it was" "$( LC_ALL=C sed -n 's/^tier: //p' "$rigPerson/alice-one.md" ) $( rigHas 'changed: tier (was: ingest)' "$rigPerson/alice-one.md" )" "recorded 1"
 rigRun "$rigTmp/t5" --collect-contact --id alice-one --tier recorded --reached-by keeper-x
 rigAssert "given the value it holds: unchanged, nothing written" "$( LC_ALL=C sed -n 1p "$rigTmp/t5.out" ) $( LC_ALL=C grep -c '^tier: ' "$rigPerson/alice-one.md" )" "CONTACT: alice-one unchanged 1"
 

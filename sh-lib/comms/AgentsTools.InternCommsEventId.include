@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternCommsEventId.include -- --intern-comms-event-id. The event ids of the comms cache (S1.12 §2.4), and the
+## thread that mints them, on the shared on-demand thread (S12.11). Sourced from DistroAgentsTools.fn.sh's own arm, and only
+## by it; relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+type AgentsCommsEventIdHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngest.include"
+
+## THE OPERATION WORD IS STILL $1 HERE, as every arm of the dispatcher leaves it: taken off first, as its siblings do.
+shift
+AgentsToolsInternCommsEventId "$@"

@@ -99,10 +99,12 @@ A running investigation: the process document `magic-team.investigate.routine` w
 
 ## Body
 
+- An `Audience:` line states who reads this, in a word or two: executive managers, developers, a team lead, general readers, the public. It is a hint its reader interprets, never a closed list. The text is formulated properly for that audience, and that is the hard rule.
 - The leg floor, each section present from creation, in this order:
   - `# Question` — the question, the thing it is about, and what the answer is for.
   - `# Goal` — the exit conditions, each able to pass or fail; the round limit or time box; the walk-away point.
   - `# Current` — what is established so far: each finding labelled shown, inferred or assumed, with its evidence. Regenerated in place each round.
+  - `# Next` — the next step, in one present-tense statement. A reader with no context takes it up from here.
   - `# Settled` — each settled part as one present-tense statement. Who settled it and when goes in `# Log`.
   - `# Open` — the open parts, nearest to closing first. `none` when nothing is open.
   - `# Log` — one line per round: what moved, what closed, what stays open. History lives only here.

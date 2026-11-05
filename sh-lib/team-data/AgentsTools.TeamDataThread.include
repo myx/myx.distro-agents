@@ -2,88 +2,77 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.TeamDataThread.include -- the one thread that commits and pushes the team data (S12.4). Sourced, never run. Functions
-## only; the operation that runs it is --intern-team-data-commit (AgentsTools.InternTeamDataCommit.include).
+## AgentsTools.TeamDataThread.include -- the work of the one thread that commits and pushes the team data (S12.4), run on the shared
+## on-demand thread (S12.11, AgentsTools.OnDemandThread.include). Sourced, never run. One function, used both as the thread's handler
+## and as its tick. The operation that runs it is --intern-team-data-commit (AgentsTools.InternTeamDataCommit.include).
 ##
 ## A writer runs no git. It leaves one entry file in the thread's folder, team-data-commit/ in the git directory of the store
-## (AgentsToolsTeamDataThreadDir, AgentsToolsTeamDataCommitPaths), and starts this thread where none lives. An entry holds, a line each:
-## the name of its wait mark or nothing, the context of the commit, and the paths. The thread commits the entries oldest first, each as its
-## own commit (AgentsToolsTeamDataCommitPathsNow), and pushes once. It removes the wait mark, wait.<name>, of an entry once committed.
-## Its files: thread.lock, `<pid> <start>` held for the life of the process (AgentsTools.ThreadLock.include), and thread.log.
+## (AgentsToolsTeamDataThreadDir, AgentsTools.TeamDataCommit.include), and asks the thread to commit what waits. An entry holds, a
+## line each: nothing, the context of the commit, and the paths. A pass commits the entries, oldest first, each as its own commit
+## (AgentsToolsTeamDataCommitPathsNow), and pushes once.
+## A pass runs on a request AND once a second with none, so an entry whose request was lost -- a request written in the moment the
+## thread was born, before it held the fifo -- still commits within the second. A pass with nothing to do forks nothing: the folder
+## and the debt's path are read once for the life of the thread, and an empty folder is found by the shell's own glob.
 ##
 
-type AgentsToolsThreadLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.ThreadLock.include"
+## The folder and the debt file, read once: this function runs once a second for the life of the thread, and each read is a git call
+## or a subshell. Empty means not read yet, or no store.
+teamPassDir=""
+teamPassOwedFile=""
 
-## STARTS THE THREAD, detached, and does not wait for it. Prints one line: alive <pid>, started <pid>, off (MDAT_TEAM_DATA_COMMIT_THREAD is
-## `off`) or failed - <why>. The process is the tooling script with the operation as its arguments, in its own process group, a hangup
-## ignored, its input /dev/null, its output and errors appended to thread.log, the names that carry a member's session taken out.
-AgentsToolsTeamDataThreadStart(){
-	local startDir startLock="" startRc=1 startMonitor="$BASH_SUBSHELL:$-" startPid="" startDrop
-	if [ "${MDAT_TEAM_DATA_COMMIT_THREAD:-}" = "off" ] ; then
-		printf 'off\n'
-		return 0
+## A pass over the entries that wait, oldest first, each committed as its own commit, then one push. An entry already gone when the
+## pass reaches it is nothing to commit, so a pass run twice for one request commits it once. `done` goes to descriptor 3, which the
+## shared thread points at the caller's fifo for a request and at /dev/null for a tick.
+AgentsToolsTeamDataThreadPass(){
+	local passEntry passContext passPath passPaths passCount=0 passAny=""
+	if [ -z "$teamPassDir" ] ; then
+		teamPassDir="$( AgentsToolsTeamDataThreadDir )" || { printf 'no store\n' >&3 ; return 0 ; }
+		teamPassOwedFile="$( AgentsToolsTeamDataCommitOwedPath )" || teamPassOwedFile=""
 	fi
-	startDir="$( AgentsToolsTeamDataThreadDir )" || { printf 'failed - %s\n' "the store is no repository" ; return 1 ; }
-	{ IFS= read -r startLock < "$startDir/thread.lock" || [ -n "$startLock" ] ; } 2> /dev/null || startLock=""
-	AgentsToolsThreadLockHolderLives "$startLock" ; startRc=$?
-	if [ "$startRc" != 1 ] ; then
-		printf 'alive %s\n' "${startLock%% *}"
-		return 0
+	for passEntry in "$teamPassDir"/*.entry ; do
+		[ -f "$passEntry" ] && { passAny="yes" ; break ; }
+	done
+	if [ -n "$passAny" ] ; then
+		while IFS= read -r passEntry ; do
+			[ -f "$passEntry" ] || continue
+			passPaths=()
+			{
+				IFS= read -r _
+				IFS= read -r passContext
+				while IFS= read -r passPath ; do
+					[ -z "$passPath" ] || passPaths+=( "$passPath" )
+				done
+			} < "$passEntry"
+			AgentsToolsTeamDataCommitPathsNow "$passContext" ${passPaths[@]+"${passPaths[@]}"}
+			rm -f "$passEntry"
+			passCount=$(( passCount + 1 ))
+		done < <( ls -rt "$teamPassDir"/*.entry 2> /dev/null )
 	fi
-	mkdir -p "$startDir" 2> /dev/null && { printf '' >> "$startDir/thread.log" ; } 2> /dev/null || { printf 'failed - %s\n' "$startDir/thread.log could not be written" ; return 1 ; }
-	set -m
-	(
-		trap '' HUP
-		set +e
-		for startDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
-			unset "$startDrop"
-		done
-		for (( startDrop = 3 ; startDrop < 64 ; startDrop++ )) ; do
-			eval "exec $startDrop>&-"
-		done
-		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-team-data-commit --run
-	) < /dev/null >> "$startDir/thread.log" 2>&1 &
-	startPid="$!"
-	case "$startMonitor" in 0:*m*) ;; *) set +m ;; esac
-	case "$startPid" in ''|*[!0123456789]*) printf 'failed - %s\n' "the process of the thread could not be started" ; return 1 ;; esac
-	disown "$startPid" 2> /dev/null || :
-	printf 'started %s\n' "$startPid"
+	AgentsToolsTeamDataThreadOwed
+	[ "$passCount" = 0 ] || AgentsToolsTeamDataPushIfAhead "the team-data thread"
+	printf 'done\n' >&3
 	return 0
 }
 
-## One pass: the entries that wait, oldest first, each committed as its own commit, then one push. What a commit could not carry stays owed
-## (AgentsToolsTeamDataCommitOwedAdd), and is tried again by a pass at least thirty seconds after the last try (teamThreadOwedAt, the thread's own).
-AgentsToolsTeamDataThreadPass(){
-	local passDir passEntry passToken passContext passPath passPaths passCount=0 passOwed=() passOwedFile
-	passDir="$( AgentsToolsTeamDataThreadDir )" || return 0
-	while IFS= read -r passEntry ; do
-		[ -f "$passEntry" ] || continue
-		passPaths=()
-		{
-			IFS= read -r passToken ; IFS= read -r passContext
-			while IFS= read -r passPath ; do
-				[ -z "$passPath" ] || passPaths+=( "$passPath" )
-			done
-		} < "$passEntry"
-		AgentsToolsTeamDataCommitPathsNow "$passContext" ${passPaths[@]+"${passPaths[@]}"}
-		[ -z "$passToken" ] || rm -f "$passDir/$passToken"
-		rm -f "$passEntry"
-		passCount=$(( passCount + 1 ))
-	done < <( ls -rt "$passDir"/*.entry 2> /dev/null )
-	passOwedFile="$( AgentsToolsTeamDataCommitOwedPath )" || passOwedFile=""
-	if [ -n "$passOwedFile" ] && [ -s "$passOwedFile" ] && [ "$passCount" = 0 ] && [ "$(( SECONDS - teamThreadOwedAt ))" -ge 30 ] ; then
-		teamThreadOwedAt="$SECONDS"
-		## EVERY PATH THE DEBT HOLDS, not only its first line: a commit that failed with several paths owed the store all of them,
-		## and reading one line left the rest owed for good while each retry reported a commit made.
-		passOwed=()
-		while IFS= read -r passPath ; do
-			[ -z "$passPath" ] || passOwed+=( "$passPath" )
-		done < "$passOwedFile"
-		if [ "${#passOwed[@]}" -gt 0 ] ; then
-			AgentsToolsTeamDataCommitPathsNow "owed commit" "${passOwed[@]}"
-			passCount=1
-		fi
-	fi
-	[ "$passCount" = 0 ] || AgentsToolsTeamDataPushIfAhead "the team-data thread"
+## How long ago the debt was last tried, in the thread's own clock: kept across passes, because the thread is one process and this is
+## the state it holds.
+teamOwedTriedAt=-100
+
+## The debt of a commit that failed, tried again on its own timer, at least thirty seconds after the last try: a lock, a full disk or
+## a merge left unfinished must not leave a write that "warned" and never landed. The debt is a file in the workspace, not this
+## thread's memory, so a debt outlives the thread that met it.
+AgentsToolsTeamDataThreadOwed(){
+	local owedPath owedPaths=()
+	[ -n "$teamPassOwedFile" ] && [ -s "$teamPassOwedFile" ] || return 0
+	[ "$(( SECONDS - teamOwedTriedAt ))" -ge 30 ] || return 0
+	teamOwedTriedAt="$SECONDS"
+	## EVERY PATH THE DEBT HOLDS, not only its first line: a commit that failed with several paths owed the store all of them,
+	## and reading one line left the rest owed for good while each retry reported a commit made.
+	while IFS= read -r owedPath ; do
+		[ -z "$owedPath" ] || owedPaths+=( "$owedPath" )
+	done < "$teamPassOwedFile"
+	[ "${#owedPaths[@]}" -gt 0 ] || return 0
+	AgentsToolsTeamDataCommitPathsNow "owed commit" "${owedPaths[@]}"
+	AgentsToolsTeamDataPushIfAhead "the team-data thread"
 	return 0
 }

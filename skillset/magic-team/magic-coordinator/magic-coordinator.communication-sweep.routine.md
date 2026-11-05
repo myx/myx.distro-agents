@@ -142,20 +142,20 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--sweep-state-read`
-- `--sweep-state-advance <ts>`
-- `--sweep-state-upsert`
-- `--slack-read <channel>:<ts> [--thread]`
-- `--slack-send-message <target> [text...]`
-- `--slack-react <channel>:<ts> <emoji-name>`
-- `--email-send <email@address>... -- <subject> -- <body...>`
-- `--email-mark-seen <uid>`
-- `--client-operation-run --client-<operation> [<argument>...]`
-- `--upsert-inbox-inquiry <member> <item-filename>`
-- `--upsert-inbox-note <team-member> <item-filename>`
-- `--roster-upsert`
-- `--trello-post-comment <card-id> [text...]`
-- `--routine-run-inline <routine>`
+- `--sweep-state-read` (`AgentDispatcherTools`)
+- `--sweep-state-advance <ts>` (`AgentDispatcherTools`)
+- `--sweep-state-upsert` (`AgentDispatcherTools`)
+- `--slack-read <channel>:<ts> [--thread]` (`DistroAgentsSlack`)
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
+- `--slack-react <channel>:<ts> <emoji-name>` (`DistroAgentsSlack`)
+- `--email-send <email@address>... -- <subject> -- <body...>` (`DistroAgentsMail`)
+- `--email-mark-seen <uid>` (`DistroAgentsMail`)
+- `--client-operation-run --client-<operation> [<argument>...]` (`AgentDispatcherTools`)
+- `--upsert-inbox-inquiry <member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-note <team-member> <item-filename>` (`DistroAgentsItems`)
+- `--roster-upsert` (`AgentDispatcherTools`)
+- `--trello-post-comment <card-id> [text...]` (`DistroAgentsTrello`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

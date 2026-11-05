@@ -12,7 +12,8 @@
 ##   D. extend: a preset that is there, not itself, no loop; and where a preset extends, its CLI service is not editable
 ##   E. what an extending preset inherits: the parent's CLI service, the parent's other keys unless its own stands ahead
 ##   F. the model or macro, the effort, the input cache time (5m or 1h, F10.7), the context size that is the restart threshold, the endpoint the service is reached at, the extra spawn line (the owner's)
-##   G. the credentials of the selected CLI service, and no other; never printed
+##   G. the credentials of the selected CLI service, and no other; never printed, and each service reads the leg it names,
+##      a leg's file name taken plain and with its camel-case words split by a hyphen (`standard-v1` is AgentsStandardV1Harness.sh)
 ##   H. a preset key stands in a preset and in no other scope; every other key and scope is written as it was
 ##   I. a value taken from stdin is checked as one in argv, and is written whole
 ##   J. the catalogue describes each key, and says a native CLI is passed no model
@@ -79,6 +80,14 @@ rigEffective(){ ## preset, key -- AgentsToolsPresetEffective, called as a functi
 	' rig "$1" "$2" 2>&1 )"
 	effRc=$?
 	printf '%s rc=%s' "$effOut" "$effRc"
+}
+rigCredKeys(){ ## cli service -- AgentsToolsPresetCredentialKeys, called as a function of the include; its words and ` rc=<rc>`
+	local credOut credRc
+	credOut="$( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDSC_CMD=rig-check bash -c '
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" && AgentsToolsPresetCredentialKeys "$1"
+	' rig "$1" 2>&1 )"
+	credRc=$?
+	printf '%s rc=%s' "$credOut" "$credRc"
 }
 rigSecretA="sk-RIGantCRED-Qw7ZpL3xV9tR2mBk4Hs8NfD1"
 rigSecretB="oauth-RIGtokenCRED-5yTgHn0LcX6aVu3PqZ8w"
@@ -187,6 +196,15 @@ rigAssert "and is not stored"                                                   
 rigAssert "a preset with no CLI service takes no credential"                      "$( rigSet mel-none ANTHROPIC_API_KEY "$rigSecretA" )" 1
 rigAssert "a native service has the credentials of its leg"                       "$( rigSet mel-native PRESET_CLI_SERVICE claude-native )$( rigSet mel-native ANTHROPIC_API_KEY "$rigSecretA" )" 00
 rigAssert "gemini has no leg, so no credential is taken yet"                      "$( rigSet mel-gemini PRESET_CLI_SERVICE gemini )$( rigSet mel-gemini ANTHROPIC_API_KEY "$rigSecretA" )" 01
+rigAssert "standard-v1 reads its leg: the two names AgentsStandardV1Harness.sh declares"  "$( rigCredKeys standard-v1 )" "ANTHROPIC_API_KEY OPENAI_API_KEY rc=0"
+rigOk=0
+for rigLeg in claude:ANTHROPIC_API_KEY\ CLAUDE_CODE_OAUTH_TOKEN copilot:COPILOT_GITHUB_TOKEN grok:XAI_API_KEY gemini: scaleway:SCALEWAY_API_KEY deepseek:DEEPSEEK_API_KEY local:LOCAL_AI_API_KEY claude-native:ANTHROPIC_API_KEY\ CLAUDE_CODE_OAUTH_TOKEN copilot-native:COPILOT_GITHUB_TOKEN grok-native:XAI_API_KEY ; do
+	[ "$( rigCredKeys "${rigLeg%%:*}" )" = "${rigLeg#*:} rc=0" ] && rigOk=$(( rigOk + 1 ))
+done
+rigAssert "and every other service still reads its own leg's names, a native service its leg's"  "$rigOk" 10
+rigAssert "a service naming no leg returns nothing, and does not fail"              "$( rigCredKeys rig-no-such-service )" " rc=0"
+rigAssert "a preset on standard-v1 takes both of its credentials"                  "$( rigSet mel-standard PRESET_CLI_SERVICE standard-v1 )$( rigSet mel-standard ANTHROPIC_API_KEY "$rigSecretA" )$( rigSet mel-standard OPENAI_API_KEY "$rigSecretB" )" 000
+rigAssert "and refuses a credential of another CLI service"                        "$( rigSet mel-standard XAI_API_KEY "$rigSecretC" )" 1
 rigAssert "an extending preset takes the credentials of the inherited service"    "$( rigSet mel-claude-sonnet PRESET_EXTEND mel-claude )$( rigSet mel-claude-sonnet CLAUDE_CODE_OAUTH_TOKEN "$rigSecretB" )$( rigSet mel-claude-sonnet SCALEWAY_GEMMA "$rigSecretC" )" 001
 rigRun --manager-config-digest scopes
 rigAssert "the digest shows a credential of a preset in the one form (first quarter, then *)" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $3 == "preset-mel-claude" && $4 == "ANTHROPIC_API_KEY" { print $5 }' "$rigTmp/run.out" )" "secret-set"

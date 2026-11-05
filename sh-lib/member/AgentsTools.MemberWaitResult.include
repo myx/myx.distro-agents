@@ -40,6 +40,9 @@
 			for settleSource in $waitSources ; do
 				settleIndex=$(( settleIndex + 1 ))
 				case "$settleSource" in slack:*) ;; *) continue ;; esac
+				## THE SETTLE RE-READS WHAT WAS RETURNED, NEVER A SOURCE THE ROUND DID NOT REACH: a source after a hit was
+				## not read, so re-reading it here is a slow source paid for after the hit ended the round.
+				case " $waitReadSources " in *"[$settleSource]"*) ;; *) continue ;; esac
 				settleRc=0
 				## THE SETTLE READS WHAT ARRIVED, NOT THE WHOLE THREAD AGAIN: the same cache look the round takes.
 				MDAT_COMMS_CACHE_STALE_OK="" MDAT_SLACK_THREAD_CACHE_SECONDS="$waitCacheTtl" \
@@ -140,7 +143,7 @@
 			seenOwnId="$( AgentsToolsSessionChatMemberId "$memberName" 2> /dev/null )" || seenOwnId=""
 			for seenOne in $waitHits ; do
 				seenSource="${seenOne#*=}" ; seenKind="${seenSource%%:*}" ; seenFile="$waitDir/now.${seenOne%%=*}"
-				case "$seenKind" in slack|ask|replies|tagged|dms|mentions) ;; *) continue ;; esac
+				case "$seenKind" in slack|ask|replies|chat|tagged|dms|mentions) ;; *) continue ;; esac
 				## The asking call's own source is the one it marks itself.
 				[ -z "${MDAT_WAIT_SEEN_OWN:-}" ] || [ "$seenSource" != "${MDAT_WAIT_SEEN_OWN_SOURCE:-}" ] || continue
 				[ -f "$seenFile" ] || continue
@@ -243,7 +246,16 @@
 						;;
 					esac
 				done
-				[ ! -s "$waitDir/rest.manifest" ] || LC_ALL=C awk -v manifest="$waitDir/rest.manifest" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitArrivalsOrder.awk" < /dev/null
+				## AN INBOX BLOCK CLOSES WITH ITS INSTRUCTION (S18.3), the one line magic-librarian words: what the run does with each
+				## unprocessed item it was just handed. Read once, and only where an inbox source arrived in this wait.
+				local waitInboxLine=""
+				case " $waitHits " in *"=inbox:"*)
+					type AgentsToolsInboxInstruction > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+					waitInboxLine="$( AgentsToolsInboxInstruction )"
+				;;
+				esac
+				## The inbox line travels in the environment, never as -v, which would decode a backslash out of it (S18.3).
+				[ ! -s "$waitDir/rest.manifest" ] || INBOX_LINE="${waitInboxLine:-}" LC_ALL=C awk -v manifest="$waitDir/rest.manifest" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitArrivalsOrder.awk" < /dev/null
 				## The line that reads a cut message in full stands once in a return, not once for each message.
 				[ -z "$( ls "$waitDir"/mode.*.cut 2> /dev/null )" ] || echo "# short forms: read one in full with --slack-read $memberName <source>:<ts> --thread, the source and ts as the message shows them"
 				## What the wait has said is stored, and the last ts of each Slack source named.

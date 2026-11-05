@@ -41,6 +41,24 @@ AgentsToolsCommsClientKey(){ ## acting member, key
 	esac
 }
 
+## THE ORDER ONE SET IS READ IN (S20 item 3): the environment, then the acting member's own scope
+## in the workspace the call runs from, then that workspace's magic-team scope, then -- where
+## neither holds a key of the set -- the workspace the member is set up in, which the settings read
+## already borrows from. Each rung is taken WHOLE, so a credential is never put together from two
+## places, and a member's rung that lacks a key is not completed from the team's. A borrowed key
+## therefore never outranks a team key: a member invited from another workspace acts under this
+## rig's identity, never its home one. A client-side call takes no team rung at all, the team
+## holding nothing of the other organisation's.
+AgentsToolsCommsScopeOf(){ ## acting member, the key prefix of the set -- the scope its settings are read from
+	type AgentsToolsScopeHoldsKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+	if [ "$1" != magic-team ] && ! AgentsToolsCommsClientSide "$1" ; then
+		if ! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$2" && AgentsToolsScopeHoldsKeys "${MMDAPP%/}" magic-team "$2" ; then
+			printf 'magic-team\n' ; return 0
+		fi
+	fi
+	printf '%s\n' "$1"
+}
+
 ## The one plain line for a client-* member's operation on our own side, in a system where
 ## our side holds no setting for it: says so, and names the --client-* operation that
 ## reaches the other organisation. That operation is the --client-comms-* twin of the Slack, Atlassian, Google, mail or

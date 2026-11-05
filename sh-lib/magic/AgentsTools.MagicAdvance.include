@@ -150,6 +150,12 @@ case "$1" in
 
 		local itemsRemaining="$itemsArg"
 		local spec itemName rest outcome receipt itemCount=0 failCount=0 priorOutcome priorReceipt
+		local itemState roundState priorRound priorRoundEpoch roundRecorded roundStamp
+		## THE STATES AN ITEM CAN BE IN, from the one list (AgentsTools.BoardStates.include). A round is recorded
+		## on a document in whatever state it was given (S16 stage 2), so the state is resolved from the item's
+		## own name. Before this, every write assumed `running`: an item in `review` was refused, and under `set -e`
+		## the awk over the missing `running/` path ended the whole call with rc 2 and no message.
+		type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
 		while [ -n "$itemsRemaining" ] ; do
 			case "$itemsRemaining" in
 				*,*) spec="${itemsRemaining%%,*}" ; itemsRemaining="${itemsRemaining#*,}" ;;
@@ -161,40 +167,73 @@ case "$1" in
 			rest="${spec#*:}"
 			if [ "$rest" = "$spec" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
-				set +e ; return 1
+				failCount=$(( failCount + 1 )) ; continue
 			fi
 			outcome="${rest%%:*}"
 			receipt="${rest#*:}"
 			if [ "$receipt" = "$rest" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
-				set +e ; return 1
+				failCount=$(( failCount + 1 )) ; continue
 			fi
-			AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" advance-batch-outcome || { set +e ; return 1 ; }
+			if ! AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" advance-batch-outcome ; then
+				failCount=$(( failCount + 1 )) ; continue
+			fi
+			## THE OUTCOMES THE ROUTINES NAME, and no others: `advanced` is what a completed round records
+			## (`magic-team.advance.routine.md`) and `parked-spawn-failed` what a failed start's park records
+			## (`magic-coordinator.work-duty.routine.md`). A word outside this list is a fault of the entry, and
+			## never of the batch: one bad entry leaves the items behind it alone.
 			case "$outcome" in
-				nudged|respawned|redispatched|flagged-once|no-action) ;;
+				nudged|advanced|respawned|redispatched|flagged-once|no-action|parked-spawn-failed) ;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: invalid outcome in entry $spec: $outcome" >&2
-					set +e ; return 1
+					failCount=$(( failCount + 1 )) ; continue
 				;;
 			esac
 			if [ -z "$receipt" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: execution-receipt required" >&2
-				set +e ; return 1
+				failCount=$(( failCount + 1 )) ; continue
 			fi
-			## One writer for the two fields: what the first round decided is never replaced by a different
-			## value from a later one. The item this op writes is the running one, so its headers are read there.
-			priorOutcome="$( LC_ALL=C awk '/^outcome: /{ print substr($0, 10) ; exit }' "$MDAT_DATA_ROOT/board/running/$itemName" 2> /dev/null )"
-			priorReceipt="$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$MDAT_DATA_ROOT/board/running/$itemName" 2> /dev/null )"
-			if { [ -n "$priorOutcome" ] && [ "$priorOutcome" != "$outcome" ] ; } || { [ -n "$priorReceipt" ] && [ "$priorReceipt" != "$receipt" ] ; } ; then
-				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: the item already says outcome '$priorOutcome' and execution-receipt '$priorReceipt', so this different value is refused" >&2
+			itemState=""
+			for roundState in $agentsBoardActiveStates ; do
+				[ ! -f "$MDAT_DATA_ROOT/board/$roundState/$itemName" ] || { itemState="$roundState" ; break ; }
+			done
+			if [ -z "$itemState" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: no active state holds $itemName" >&2
+				failCount=$(( failCount + 1 )) ; continue
+			fi
+			## ONE WRITER, FOR ONE ROUND (S26.4, re-scoped by S16 stage 2 item 1). The document's
+			## `last-round-at` says when a round last visited it, so a stamp inside the staleness window
+			## IS this window's round, and a different value now would overwrite what that round decided.
+			## Outside the window the document is due a new round, and this call is that round's proof:
+			## the guard must never hold a document out of its own next round.
+			priorOutcome="$( LC_ALL=C awk '/^outcome: /{ print substr($0, 10) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorReceipt="$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorRound="$( LC_ALL=C awk '/^last-round-at: /{ print substr($0, 16) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorRoundEpoch="$( AgentsToolsBoardItemEpoch "$priorRound" )"
+			roundRecorded=0
+			case "$priorRoundEpoch" in
+				''|*[!0123456789]*) ;;
+				*) [ "$(( priorRoundEpoch + agentsBoardStaleWindowSeconds ))" -le "$( date +%s )" ] || roundRecorded=1 ;;
+			esac
+			if [ "$roundRecorded" = 1 ] \
+				&& { { [ -n "$priorOutcome" ] && [ "$priorOutcome" != "$outcome" ] ; } || { [ -n "$priorReceipt" ] && [ "$priorReceipt" != "$receipt" ] ; } ; } ; then
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: this window's round is already recorded on the item, as outcome '$priorOutcome' and execution-receipt '$priorReceipt', so this different value is refused" >&2
 				failCount=$(( failCount + 1 ))
 				continue
 			fi
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			if ! DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
-				--from-state:running \
+			## `last-round-at` is stamped by a round and by nothing else, so `advanced` alone carries it.
+			## A `no-action` or a `parked-spawn-failed` records an administrative act on a document a
+			## sweep gave no round (S16 stage 2, the model's "Per state, a sweep gives"), and `nudged`,
+			## `respawned`, `redispatched` and `flagged-once` record what a pass did about a document
+			## rather than a round on it. Stamping those would cost the document a whole window.
+			roundStamp=()
+			[ "$outcome" != advanced ] || roundStamp=( --header:upsert:last-round-at:"$( date +"%Y-%m-%d %H:%M %z" )" )
+			if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$itemState" "$itemName" \
+				--from-state:"$itemState" \
 				--header:upsert:outcome:"$outcome" \
 				--header:upsert:execution-receipt:"$receipt" \
+				${roundStamp[@]+"${roundStamp[@]}"} \
 				--context --advance-batch-outcome
 			then
 				failCount=$(( failCount + 1 ))

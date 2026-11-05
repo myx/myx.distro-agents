@@ -61,7 +61,7 @@ rigAssert "the tooling's own accounts are read from the files the workspace keep
 rigRead(){ ## rendering file
 	LC_ALL=C awk -v threadTs="1760000000.000001" -v addressees="all" -v siblingsMax=1000000 -v postTs="1760000000.000001" \
 		-v floorTs="1760000000.000001" -v callerName="magic-developer" -v deliver=1 -v side="$rigTmp/side" \
-		-v oursReactIds="$rigOurs" \
+		-v oursReactIds="$rigOurs" -v callerId="U0BT7RIG01" \
 		-f "$rigDismiss" -f "$rigAwk" < "$1" > "$rigTmp/out" 2> "$rigTmp/err" || :
 	LC_ALL=C awk '$1 == "reactions" { sub(/^reactions /, "") ; print ; }' "$rigTmp/side" 2> /dev/null
 }
@@ -75,14 +75,28 @@ rigAssert "our bot's eyes on the run's post is no arrival"           "$( rigRead
 rigAssert "and nothing is returned for it"                          "$( rigHits "$rigTmp/out" 'reactions on your post' )" 0
 rigRender '[reactions: white_check_mark x1 (U0BT7PCNG7Q)]' > "$rigTmp/check.txt"
 rigAssert "nor is any other reaction of our bot"                     "$( rigRead "$rigTmp/check.txt" )" "-"
-rigRender '[reactions: eyes x3 (U0BT7PCNG7Q U0BTTMPPZLG URIGSELF)]' > "$rigTmp/eyes3.txt"
+## Two of ours, a space apart: a rendering that separates them that way is read the same way.
+rigRender '[reactions: eyes x2 (U0BT7PCNG7Q U0BTTMPPZLG)]' > "$rigTmp/eyes3.txt"
 rigAssert "nor is a set of them, whoever of our accounts gave them" "$( rigRead "$rigTmp/eyes3.txt" )" "-"
+## The same set with the run's own account named, as the include gives it: the run's id is ours too.
+rigRender '[reactions: eyes x3 (U0BT7PCNG7Q U0BTTMPPZLG U0BT7RIG01)]' > "$rigTmp/eyes-run.txt"
+rigAssert "nor is a set that names the run's own account"            "$( rigRead "$rigTmp/eyes-run.txt" )" "-"
 
 echo "-- 2. a person's reaction is still an arrival --"
 rigRender '[reactions: thumbsup x1 (URIGHUM1)]' > "$rigTmp/thumb.txt"
 rigAssert "a person's reaction is a reaction set the read returns"    "$( rigRead "$rigTmp/thumb.txt" )" "[reactions: thumbsup x1 (URIGHUM1)]"
 rigRender '[reactions: eyes x1 (U0BT7PCNG7Q)] [reactions: thumbsup x1 (URIGHUM1)]' > "$rigTmp/mixed.txt"
 rigAssert "and our bot's beside it does not hide it"                  "$( rigRead "$rigTmp/mixed.txt" )" "[reactions: thumbsup x1 (URIGHUM1)]"
+## THE AUTHOR DECIDES, NOT THE EMOJI (S6.38). A person's eyes on the run's own post is an arrival, as any other reaction of a
+## person's is; the bot's eyes is not. Before this the emoji name decided, and a person's eyes came back as silence.
+rigRender '[reactions: eyes x1 (URIGHUM1)]' > "$rigTmp/person-eyes.txt"
+rigAssert "a person's eyes is an arrival like any other of theirs"    "$( rigRead "$rigTmp/person-eyes.txt" )" "[reactions: eyes x1 (URIGHUM1)]"
+## Two of ours hold it, comma-joined as the formatter writes them: the set is ours, and no news.
+rigRender '[reactions: white_check_mark x2 (U0BT7PCNG7Q,U0BTTMPPZLG)]' > "$rigTmp/ours-two.txt"
+rigAssert "a set held only by two of our accounts, comma-joined, is no arrival" "$( rigRead "$rigTmp/ours-two.txt" )" "-"
+## And our bot's eye beside a person's, comma-joined: the person's still comes back, and only the person's.
+rigRender '[reactions: eyes x1 (URIGHUM1)] [reactions: eyes x2 (U0BT7PCNG7Q,U0BTTMPPZLG)]' > "$rigTmp/mixed-eyes.txt"
+rigAssert "our set beside a person's eyes leaves the person's alone"  "$( rigRead "$rigTmp/mixed-eyes.txt" )" "[reactions: eyes x1 (URIGHUM1)]"
 
 echo "-- 3. control: a reply still comes back --"
 rigRender '' '1760000000.000002 | URIGHUM1 | A REPLY' > "$rigTmp/reply.txt"

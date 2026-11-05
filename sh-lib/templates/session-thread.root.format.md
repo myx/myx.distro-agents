@@ -20,7 +20,8 @@ One short line that says a session started, which one, and who started it.
 ## Goals
 
 - The root reads as the session's own, never as one participant's: it names no member as its owner, and carries no author line and no addressee.
-- It is short: one line, with no id block, no host and no time. That detail is the tracking thread's.
+- It is short: one line, and the session's routine frames as a second, with no id block, no host and no time. That detail is the tracking thread's.
+- The frames line exists so a reader can see, at the session's own head, the path it starts on and where it stands on it.
 
 ## Scope
 
@@ -30,10 +31,11 @@ One short line that says a session started, which one, and who started it.
 
 # Skeleton
 
-`{{session-name}}` is the session's name or comment, else its id. `{{started-by}}` is the member whose session brings the others in; its part is left out where that is not known.
+`{{session-name}}` is the session's name or comment, else its id. `{{started-by}}` is the member whose session brings the others in; its part is left out where that is not known. `{{routines}}` is the session's routine frames, bottom frame first, `<routine>:<state>` each; its line is left out where the session records no frame.
 
 ## root
 
 ```
 🧵 Session *{{session-name}}*[[, started by {{started-by}}]]
+[[Routines: {{routines}}]]
 ```

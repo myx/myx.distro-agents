@@ -3,6 +3,8 @@
 
 ## AgentsHarnessToolsFile.include: the file tools: Read, Write, Edit, Glob, Grep. Sourced by AgentsUniversalHarness.sh, definitions only.
 
+type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+
 ## The document-contract guard's one decision function, shared by the Write and Edit doors here and by the native hook.
 type AgentsToolsDocGuardDecide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocGuard.include"
 
@@ -35,8 +37,8 @@ AgentsHarnessReadRange(){ ## path, offset, limit, optional numbered
 }
 
 AgentsHarnessToolRead(){
-	## Cold pause, temporary: a read of a paused session waits here before it reads, checking only the flag every 5 seconds.
-	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	## S19.2: a read is one of the two points held at its START, so a paused run reads nothing while it holds.
+	AgentsToolsSessionPauseWait
 	local toolPath="${5:-$1}" toolOffset="$2" toolLimit="$3" toolPages="$4" toolBytes toolMime pdfFirst pdfLast pdfText imagePath imageEdge
 	if [ -z "$toolPath" ] ; then
 		printf 'ERROR: file_path is required and was empty. Nothing was read.\n' ; return 0
@@ -293,10 +295,10 @@ AgentsHarnessToolWriteRun(){
 	printf 'OK: wrote %s\n' "$toolPath"
 }
 AgentsHarnessToolWrite(){
-	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	## S19.2: a write is held at its EXIT, so the work is done and its result waits for the pause to end.
 	local pauseRc=0
 	AgentsHarnessToolWriteRun "$@" || pauseRc=$?
-	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	AgentsToolsSessionPauseWait
 	return "$pauseRc"
 }
 
@@ -460,10 +462,10 @@ AgentsHarnessToolEditRun(){
 	fi
 }
 AgentsHarnessToolEdit(){
-	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	## S19.2: an edit is held at its EXIT, so the change is made and its result waits for the pause to end.
 	local pauseRc=0
 	AgentsHarnessToolEditRun "$@" || pauseRc=$?
-	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	AgentsToolsSessionPauseWait
 	return "$pauseRc"
 }
 

@@ -35,12 +35,12 @@ runs-at: none
 ## Goals
 
 - Give the human-owner, or a member needing another's input, a direct conversation with one member that carries that member's full skill, not a paraphrase.
-- Keep the coordinator present to supervise and relay, without collapsing its context into the member's.
+- Keep the coordinator present to supervise, and to relay his turns to the member, without collapsing its context into the member's.
 
 ## Scope
 
 - Does: one target member, any permanent member, or a `partner-*` willing to raise something. Manual only: the human-owner asks for a "one-on-one" or "1:1".
-- Executed by a `magic-coordinator` instance the root harness spawns for it (`magic-coordinator.root-harness.routine`'s **enforce-root-never-inline**). The root relays the human-owner's turns into this session's thread.
+- Executed by a `magic-coordinator` instance the root harness spawns for it (`magic-coordinator.root-harness.routine`'s **enforce-root-never-inline**). The root relays the human-owner's turns into this session's thread: each is an answer to a question the member put, so each is a relay, carried unchanged under its caption.
 - Doesn't: hand the human-owner to the member in the root chat, or skip the spawn because the question looks small.
 
 # Opening steps
@@ -56,6 +56,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **invite-target-member**: Spawn the member into this session (`spawn-one-dispatch`). It loads its own skill and processes its own inbox at its own session start.
 4. **hold-the-conversation**: Carry the conversation between the human-owner's relayed turns and the member, in the session thread. Waiting is per **wait-never-quit**. A member silent past a reply is asked. One found dead is reported to the root
 ("the one-on-one session appears to have died — restart it?"). Genuinely private phrasing goes to the human-owner's DM instead of the thread.
+   - rule: his turn is the answer to a question the member put, so passing it on is a relay. His words travel unchanged under their caption, and this session adds no framing of its own. `magic-team.basic.md`'s "Relay, direct, produce" settles any doubtful case.
 
 # Closure steps
 
@@ -91,8 +92,8 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--upsert-inbox-note <team-member> <item-filename>`
-- `--slack-send-message <target> [text...]`
+- `--upsert-inbox-note <team-member> <item-filename>` (`DistroAgentsItems`)
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 
 # Maintainer Notes
 
@@ -104,13 +105,13 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-tests (benchmarks)
 
-- A one-on-one with `magic-architect` gets `magic-architect`'s own full `Skill` context, genuinely — the coordinating instance stays present to supervise and relay, it never steps out of the loop entirely.
+- A one-on-one with `magic-architect` gets `magic-architect`'s own full `Skill` context, genuinely — the coordinating instance stays present to supervise and to relay his turns, it never steps out of the loop entirely.
 
 ## Librarian Comments
 
 ### Reference
 
-- `magic-coordinator.root-harness.routine` — spawns this routine's executor and relays the human-owner's turns.
+- `magic-coordinator.root-harness.routine` — spawns this routine's executor and relays the human-owner's turns to it.
 
 ### Conventions
 

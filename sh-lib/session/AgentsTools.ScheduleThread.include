@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ScheduleThread.include -- the schedule as one service thread (S12.12): a shell process of the tooling and no agent, which runs the
+## schedule's steps and the board's dependencies on an interval. NO DEDICATED WATCHER AND NO CHECK ON EVERY CALL (owner, 2026-11-04): the thread is
+## asked for by the periodic places that already look at the workspace -- the control thread of a session, whose full read comes once a minute, and
+## the spawn proxy, once a start -- through AgentsToolsScheduleThreadAsk alone, and that ask is throttled to one look in MDAT_SCHEDULE_ASK_SECONDS.
+## Sourced, never run. Functions only; the operation that runs it is the dispatcher's arm `--intern-schedule` (AgentsTools.InternSchedule.include),
+## on the shared on-demand thread (S12.11, AgentsTools.OnDemandThread.include), as the team-data thread runs: one function is both its handler and
+## its tick, so a request and the interval run the same pass.
+## ONE ASK, ONE RESPONSIBILITY, BOUNDED: AgentsToolsScheduleThreadAsk reads the lock, starts the thread where none lives and where the lock names a
+## process that is gone, and returns. A caller waits for no answer beyond that one read, so a dead thread never hangs it.
+## ONE A WORKSPACE ON A HOST. Its files are in $MMDAPP/.local/agents/schedule-thread/: request.fifo, thread.lock and thread.log, which are the shared
+## thread's own, and thread.wanted and thread.asked, the epoch it was last asked for and the epoch the ask last looked.
+## WHERE MDAT_SCHEDULE_THREAD IS `off`, NOTHING IS STARTED, and the main loop runs the same steps in its own process, as it did before the thread. The
+## checks of the package run with it off, as they do for the communications reader, the source collector and the team-data thread.
+##
+
+type AgentsToolsOnDemandThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+type AgentsToolsThreadLockHolderLives > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.ThreadLock.include"
+
+## The seconds between two passes: minutes, so a pass's work is nowhere near the cadence of a wait. A pass runs in this one process, so the includes
+## it needs are parsed and initialised once, not once for every pass.
+agentsScheduleThreadGap="${MDAT_SCHEDULE_PASS_SECONDS:-180}"
+case "$agentsScheduleThreadGap" in ''|*[!0123456789]*|0) agentsScheduleThreadGap=180 ;; esac
+## The seconds between two looks by the ask: several, so no place that calls it often pays for more than a file's own test.
+agentsScheduleAskGap="${MDAT_SCHEDULE_ASK_SECONDS:-300}"
+case "$agentsScheduleAskGap" in ''|*[!0123456789]*|0) agentsScheduleAskGap=300 ;; esac
+
+## The folder the thread's own files are in. rc 1, nothing printed, where no workspace is selected.
+AgentsToolsScheduleThreadDir(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s' "$MMDAPP/.local/agents/schedule-thread"
+}
+
+## When the last pass began, on this thread's own clock: it is one process, and this is the state it holds.
+agentsScheduleThreadLastPass=-100000
+
+## ONE PASS, when its interval is due: the schedule's steps, then the board's dependencies, which are computed for each change of the board and cost
+## nothing otherwise. It asks for nothing on its own, so the thread ends by idleness once the places that want the schedule stop asking, and the next
+## ask starts it again. A pass that could not run says so in the thread's log, and the next one comes.
+AgentsToolsScheduleThreadPass(){
+	[ $(( SECONDS - agentsScheduleThreadLastPass )) -ge "$agentsScheduleThreadGap" ] || return 0
+	agentsScheduleThreadLastPass="$SECONDS"
+	type AgentsToolsScheduleLoop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" || return 0
+	AgentsToolsScheduleLoop
+	type AgentsToolsBoardDependencies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include" || return 0
+	AgentsToolsBoardDependencies
+	return 0
+}
+
+## THE ONE ASK. Its callers are the periodic places that already look at the workspace: the control thread of a session, at its read in full, and the
+## spawn proxy, at a start. Prints one line: off, waiting (looked too recently), alive <pid>, started <pid>, or failed - <why>. One look at most in
+## MDAT_SCHEDULE_ASK_SECONDS: the ask is not a thing to check on every call, so a caller that comes often costs one test of one file.
+AgentsToolsScheduleThreadAsk(){
+	local askDir askNow askAsked askLock askHolder askTold askSaid
+	[ "${MDAT_SCHEDULE_THREAD:-}" != "off" ] || { printf 'off\n' ; return 0 ; }
+	askDir="$( AgentsToolsScheduleThreadDir )" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
+	askNow="$( date +%s )" || askNow=0
+	askAsked="$( { cat "$askDir/thread.asked" ; } 2> /dev/null )" || askAsked=""
+	case "$askAsked" in ''|*[!0123456789]*) askAsked=0 ;; esac
+	if [ $(( askNow - askAsked )) -lt "$agentsScheduleAskGap" ] ; then printf 'waiting\n' ; return 0 ; fi
+	mkdir -p "$askDir" 2> /dev/null || { printf 'failed - %s\n' "the folder of the thread could not be made: $askDir" ; return 1 ; }
+	{ printf '%s\n' "$askNow" > "$askDir/thread.asked" ; date +%s > "$askDir/thread.wanted" ; } 2> /dev/null || :
+	askLock="$askDir/thread.lock"
+	if [ -s "$askLock" ] ; then
+		askHolder="$( cat "$askLock" 2> /dev/null )" || askHolder=""
+		AgentsToolsThreadLockHolderLives "$askHolder" 2> /dev/null ; askTold=$?
+		[ "$askTold" != 0 ] || { printf 'alive %s\n' "${askHolder%% *}" ; return 0 ; }
+	fi
+	askSaid="$( AgentsToolsOnDemandThreadStart "$askDir" --intern-schedule --run )" || { printf '%s\n' "$askSaid" ; return 1 ; }
+	printf '%s\n' "$askSaid"
+	return 0
+}

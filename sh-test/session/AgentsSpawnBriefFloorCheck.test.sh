@@ -23,7 +23,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 LC_ALL=C awk '
 	/^SPAWN-PREPARE-BRIEF: / { inBlock = 1 ; print ; next }
 	!inBlock { next }
-	$0 == "When done, hand back; then Wait until dismissed." { print ; exit }
+	$0 == "When done, hand back and Wait until dismissed." { print ; exit }
 	{ sub( /^\[(own|native|lock|scan)\] /, "" ) ; print }
 ' "$rigTemplate" > "$rigTmp/block"
 ## Each measure prints `within` when it holds, else the offending size and words.
@@ -77,7 +77,7 @@ rigListItemSentences(){ ## file -- every list item split into its sentences, wit
 rigCount(){ ## file -- the sentences of a file, and the list items it holds
 	LC_ALL=C awk '/^- / { items++ } { n = split( $0, s, /[.!?]( |$)/ ) ; if ( $0 == "" ) n = 0 ; sentences = sentences + n } END { print sentences + 0 ":" items + 0 }' "$1"
 }
-rigAssert "the block was read whole, to its closing line" "$( tail -1 "$rigTmp/block" )" "When done, hand back; then Wait until dismissed."
+rigAssert "the block was read whole, to its closing line" "$( tail -1 "$rigTmp/block" )" "When done, hand back and Wait until dismissed."
 rigAssert "no sentence of it is over 25 words" "$( rigLongestSentence "$rigTmp/block" )" within
 rigAssert "no line holds more than six sentences" "$( rigPerLine "$rigTmp/block" 6 )" within
 rigAssert "a line that is not a list item holds no run of instructions: six sentences at most" "$( rigPerRun "$rigTmp/block" 6 )" within

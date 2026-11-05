@@ -138,6 +138,13 @@ sleep 1
 rigRecord run-n1 run-n1 keeper-y rc.routine.md spawn-succeeded "2026-10-21 08:00" p3 key-c ; rigTokens run-n1 7 8 9 10
 rigRun "$rigTmp/u3" --routine-stats rc.routine.md
 rigAssert "a new run appears on the next read" "$( LC_ALL=C cut -f2-5 "$rigTmp/u3.out" | LC_ALL=C tr '\t' ' ' ) $( LC_ALL=C sed -n 2,100p "$rigStats/runs.index" | LC_ALL=C grep -c . )" "rc.routine.md 1 1 0 7"
+## Two records changed at once: their ids are one a line, and `-v` refuses a newline in a value, so the awk that keeps the rows this
+## work did not read loses all of them at the second id. The awk is fed through its environment now, and a failed append ends the read.
+sleep 1
+rigRecord run-a2 run-a2 magic-tester ra.routine.md spawn-succeeded "2026-10-19 10:00" p1 key-a
+rigRecord cow-1 run-c1 keeper-x ra.routine.md spawn-succeeded "2026-10-20 13:00" p2 key-a ws-other
+rigRun "$rigTmp/u4" --token-stats --by preset
+rigAssert "two runs changed since the index: no awk error, every preset's row, and no run's row lost from the index" "$( rigHas 'newline in string' "$rigTmp/u4.err" ) | $( LC_ALL=C cut -f2 "$rigTmp/u4.out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ) | $( LC_ALL=C sed -n 2,100p "$rigStats/runs.index" | LC_ALL=C grep -c . )" "0 | - p1 p2 p3  | 7"
 
 echo "-- 4. derived and rebuildable --"
 rigRun "$rigTmp/c1" --stats-check

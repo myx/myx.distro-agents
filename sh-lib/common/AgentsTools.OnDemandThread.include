@@ -1,0 +1,293 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.OnDemandThread.include -- the shared on-demand thread (S12.11): a thread a call starts where none lives, which serves
+## requests through one fifo, answers each through the caller's own fifo, and ends on idle. Sourced, never run. Functions only, four
+## of them: AgentsToolsOnDemandThreadStart, AgentsToolsOnDemandThreadAsk, AgentsToolsOnDemandThreadRequest and
+## AgentsToolsOnDemandThreadServe. An owner supplies a handler and a tick; nothing here knows what either does.
+## Its folder holds request.fifo, thread.lock, thread.log and thread.idle, and a reply fifo lives there until its caller has read the answer.
+## DESCRIPTORS 7 AND 8 ARE THIS INCLUDE'S for the duration of a call: Ask opens 7 on the request fifo and 8 on the caller's reply
+## fifo, and Start opens 8 on the request fifo across its fork and closes it after. A caller that holds either of them for a purpose
+## of its own loses that purpose to the close, so it opens its own on another number still.
+## Measured on bash 3.2.57: `read -t 0.3` is refused, so the loop reads a whole second at a time; a TERM trap fires inside a read of
+## one second and did not fire inside a read of a minute; a line written to a fifo is lost once the last descriptor on it closes, so
+## the serving side holds the request fifo open from before any caller opens it.
+##
+
+type AgentsToolsThreadLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.ThreadLock.include"
+
+## STARTS THE THREAD, detached, and does not wait for it. Prints one line: alive <pid> (one lives, nothing was started),
+## started <pid>, or failed - <why>. Only a lock whose holder is proved to live reads as alive: a lock that cannot be told either
+## way is a failed start that says so, never a claim that a thread runs there. The process is the tooling script with the operation given as its arguments, in its own process
+## group, a hangup ignored, its input /dev/null, its output and errors appended to the folder's thread.log, and the descriptors it
+## was handed closed.
+## THE REQUEST FIFO IS HELD OPEN BEFORE THE FORK AND BY THE CHILD AFTER IT (descriptor 8), so a request written the moment this
+## returns lands in the fifo and waits for the thread instead of going with the last descriptor. The thread closes 8 once it has its
+## own descriptor on the fifo. A reply fifo a caller left behind goes with the start.
+AgentsToolsOnDemandThreadStart(){ ## folder, the operation and its words...
+	local startFolder="${1:-}" startLock="" startLog startMonitor startPid="" startDrop startTold startIdle=""
+	shift
+	if [ -z "$startFolder" ] || [ "$#" -lt 1 ] ; then
+		printf 'failed - %s\n' "the folder and the operation are both needed"
+		return 1
+	fi
+	startLog="$startFolder/thread.log"
+	{ IFS= read -r startLock < "$startFolder/thread.lock" || [ -n "$startLock" ] ; } 2> /dev/null || startLock=""
+	AgentsToolsThreadLockHolderLives "$startLock" ; startTold=$?
+	case "$startTold" in
+		1) ;;
+		0)
+			## THE BOUND IS THE FOLDER'S (S12.11 ruling 4): the thread that took it wrote it there, so a start applies
+			## none of its own and the caller learns the bound in force.
+			{ IFS= read -r startIdle < "$startFolder/thread.idle" || [ -n "$startIdle" ] ; } 2> /dev/null || startIdle=""
+			case "$startIdle" in ''|*[!0123456789]*) startIdle="unknown" ;; esac
+			printf "alive %s bound %ss in force, this start discarded its own\n" "${startLock%% *}" "$startIdle"
+			return 0
+		;;
+		*)
+			## A holder that cannot be told is no thread this call may claim: the caller learns, and the lock is left as it is.
+			printf 'failed - %s\n' "$startFolder/thread.lock names a process that cannot be told whether it still lives: $startLock"
+			return 1
+		;;
+	esac
+	{ mkdir -p "$startFolder" && printf '' >> "$startLog" ; } 2> /dev/null || { printf 'failed - %s\n' "$startLog could not be written" ; return 1 ; }
+	if [ ! -p "$startFolder/request.fifo" ] ; then
+		rm -f "$startFolder/request.fifo" 2> /dev/null
+		mkfifo "$startFolder/request.fifo" 2> /dev/null || { printf 'failed - %s\n' "$startFolder/request.fifo could not be made" ; return 1 ; }
+	fi
+	rm -f "$startFolder"/reply.* 2> /dev/null || :
+	exec 8<> "$startFolder/request.fifo" || { printf 'failed - %s\n' "$startFolder/request.fifo could not be opened" ; return 1 ; }
+	startMonitor="$BASH_SUBSHELL:$-"
+	set -m
+	(
+		trap '' HUP
+		set +e
+		for startDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			unset "$startDrop"
+		done
+		for (( startDrop = 3 ; startDrop < 64 ; startDrop++ )) ; do
+			[ "$startDrop" = 8 ] || eval "exec $startDrop>&-"
+		done
+		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@"
+	) < /dev/null >> "$startLog" 2>&1 &
+	startPid="$!"
+	exec 8>&-
+	case "$startMonitor" in 0:*m*) ;; *) set +m ;; esac
+	case "$startPid" in ''|*[!0123456789]*) printf 'failed - %s\n' "the process of the thread could not be started" ; return 1 ;; esac
+	disown "$startPid" 2> /dev/null || :
+	printf '%s a thread is started here: pid %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid" >> "$startLog" 2> /dev/null || :
+	printf 'started %s\n' "$startPid"
+	return 0
+}
+
+## One request, and the answer held for <bound> seconds. Prints the answer, rc 0, where one came. A handler that ran and
+## answered with nothing is a served-and-empty answer: the thread still ends its answer with the terminator `.`, so the
+## call is rc 0 with nothing printed and the three outcomes separate. rc 1, printing nothing to stdout, where no thread
+## answered in the bound, and its stderr says which. A bound of `-` asks for the work and waits for no answer: the request
+## then names no reply fifo, and the thread's handler prints to /dev/null. Its own fifo is opened read-write, so neither the
+## open nor the read can wait on a thread that is gone.
+## A FIELD HOLDING A TAB OR A NEWLINE IS REFUSED (S12.11 ruling 3): the request is one tab-separated line, so such a field
+## cannot be carried and would arrive split. The refusal is named, and nothing is sent.
+AgentsToolsOnDemandThreadAsk(){ ## folder, bound seconds or -, the request's fields...
+	local askFolder="${1:-}" askBound="${2:-}" askReply="" askLine="" askAnswer="" askSent="" askField="" askOut="" askServed=""
+	shift 2
+	[ -n "$askFolder" ] && [ -p "$askFolder/request.fifo" ] || return 1
+	for askField in "$@" ; do
+		case "$askField" in
+			*$'\t'*|*$'\n'*)
+				printf '⛔ ERROR: a request field holds a tab or a newline, and a request is one tab-separated line: nothing was sent\n' >&2
+				return 1
+			;;
+		esac
+	done
+	case "$askBound" in
+		-) askReply="-" ;;
+		''|0*|*[!0123456789]*) return 1 ;;
+		*)
+			askReply="$( mktemp "$askFolder/reply.XXXXXX" 2> /dev/null )" || return 1
+			rm -f "$askReply" 2> /dev/null
+			mkfifo "$askReply" 2> /dev/null || { askReply="" ; return 1 ; }
+			exec 8<> "$askReply" || { rm -f "$askReply" 2> /dev/null ; return 1 ; }
+		;;
+	esac
+	askLine=""
+	while [ "$#" -gt 0 ] ; do
+		askLine="$askLine$1"$'\t'
+		shift
+	done
+	if exec 7<> "$askFolder/request.fifo" 2> /dev/null ; then
+		printf '%s\n' "$askLine$askReply" >&7 2> /dev/null && askSent="yes"
+		exec 7>&-
+	fi
+	if [ "$askReply" = "-" ] ; then
+		[ -n "$askSent" ] || return 1
+		return 0
+	fi
+	if [ -n "$askSent" ] ; then
+		## THE ANSWER ENDS WITH THE TERMINATOR `.` (S12.11 ruling 2). Lines are collected until it, so an answer of
+		## several lines arrives whole. The terminator alone is a served-and-empty answer: rc 0, nothing printed. No
+		## line and no terminator is the one remaining case: nobody answered, and the caller is told so.
+		while IFS= read -r -t "$askBound" -u 8 askAnswer ; do
+			if [ "$askAnswer" = "." ] ; then askServed="yes" ; break ; fi
+			askOut="$askOut$askAnswer"$'\n'
+			askServed="yes"
+		done
+		exec 8>&-
+		rm -f "$askReply" 2> /dev/null
+		[ -z "$askServed" ] || { printf '%s' "$askOut" ; return 0 ; }
+		printf '⛔ ERROR: no thread answered in %ss, so nothing of the request is taken as done\n' "$askBound" >&2
+		return 1
+	fi
+	exec 8>&-
+	rm -f "$askReply" 2> /dev/null
+	printf '⛔ ERROR: the request could not be written to %s\n' "$askFolder/request.fifo" >&2
+	return 1
+}
+
+## ONE ASK PATH FOR A SERVICE THREAD (S12.11 ruling 1): ask the thread, and where it answers nothing, start one and ask once
+## more. The restart belongs here, in one place, never in a caller's own loop. The operation to start is given after the bound
+## and before `--`, and the request's fields after it, so a field and an operation word never stand in each other's place.
+## Prints the answer, rc 0. rc 1 where the thread could not be started and answered nothing, and the reason goes to stderr. The
+## start's own line is dropped, so a caller reads an answer or nothing. One retry, which is what the epic's own sentence bounds.
+AgentsToolsOnDemandThreadRequest(){ ## folder, bound seconds or -, the operation... --, the request's fields...
+	local askStartFolder="${1:-}" askStartBound="${2:-}" askStartOut="" askStartSaid=""
+	local askStartRun=() askStartFields=()
+	shift 2
+	while [ "$#" -gt 0 ] && [ "$1" != "--" ] ; do askStartRun+=( "$1" ) ; shift ; done
+	[ "${1:-}" != "--" ] || shift
+	askStartFields=( "$@" )
+	if [ -n "$askStartFolder" ] && [ "${#askStartRun[@]}" -gt 0 ] ; then
+		askStartOut="$( AgentsToolsOnDemandThreadAsk "$askStartFolder" "$askStartBound" "${askStartFields[@]}" 2> /dev/null )" && { printf '%s' "$askStartOut" ; return 0 ; }
+	else
+		printf '⛔ ERROR: the shared ask path needs a folder, a bound, an operation before -- and the request after it\n' >&2
+		return 1
+	fi
+	## The thread is not there, or it ended between the ask and the request: the start makes the one that is there now.
+	askStartSaid="$( AgentsToolsOnDemandThreadStart "$askStartFolder" "${askStartRun[@]}" )" || {
+		printf '⛔ ERROR: the thread could not be started: %s\n' "${askStartSaid#failed - }" >&2
+		return 1
+	}
+	case "$askStartSaid" in
+		alive\ *|started\ *) ;;
+		*) printf '⛔ ERROR: the thread could not be started: %s\n' "$askStartSaid" >&2 ; return 1 ;;
+	esac
+	AgentsToolsOnDemandThreadAsk "$askStartFolder" "$askStartBound" "${askStartFields[@]}"
+}
+
+## THE THREAD'S WHOLE LIFE, run as its own process: it takes the folder's lock, holds the request fifo open read-write so a caller's
+## open never waits, reads one request a second, and calls <handler> with the request's fields. A second with no request calls <tick>,
+## or nothing where the tick is `-`. It ends on TERM, after <idle> seconds with no request, and when its folder or its lock is gone.
+## <once> `yes` calls the tick alone and ends, for a caller that wants the work now rather than a request served.
+## DESCRIPTOR 3 IS ALWAYS OPEN, at /dev/null except while one request's answer is served, so a handler prints its answer to descriptor
+## 3 and never tests whether anyone is there. What the thread prints elsewhere is what its starter keeps: its log for a started thread,
+## the caller's own output for a direct call. It runs with `set +e +u` and with the terminal's signals ignored, so no handler guards
+## either.
+AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, once (yes|no)
+	local serveFolder="${1:-}" serveIdle="${2:-60}" serveHandler="${3:-}" serveTick="${4:--}" serveOnce="${5:-no}"
+	local serveEnd="" servePid="" serveMe="" serveHolder="" serveTook="" serveLine="" serveSplit="" serveLeave=""
+	local serveLoops=0 serveLast=0 serveFields=() serveReply=""
+	if [ -z "$serveFolder" ] || [ -z "$serveHandler" ] ; then
+		printf '⛔ ERROR: the thread needs a folder and a handler\n' >&2
+		return 1
+	fi
+	case "$serveIdle" in ''|*[!0123456789]*|0) serveIdle=60 ;; esac
+	set +e +u
+	trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF PIPE USR1 USR2
+	trap 'serveEnd=TERM' TERM
+	exec 3> /dev/null || { printf '⛔ ERROR: the thread could not hold descriptor 3 open\n' >&2 ; return 1 ; }
+	## DESCRIPTOR 8, when a start handed it over, is this attempt's own hold on the request fifo: it stays open for the life of the
+	## process and this function never reads or closes it, so the fifo is never without a descriptor and a request written before the
+	## read below is opened waits rather than going with the last close.
+	mkdir -p "$serveFolder" 2> /dev/null || { printf '⛔ ERROR: the thread could not make its folder: %s\n' "$serveFolder" >&2 ; return 1 ; }
+	servePid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || servePid=""
+	case "$servePid" in ''|*[!0123456789]*) printf '⛔ ERROR: the thread could not read which process it is\n' >&2 ; return 1 ;; esac
+	serveMe="$( printf '%s\n' "$servePid" | AgentsToolsRegistryProcessesBegan )" || serveMe=""
+	if [ -z "$serveMe" ] ; then
+		printf '⛔ ERROR: the thread could not read when its own process began, so its lock would name nobody\n' >&2
+		return 1
+	fi
+	serveHolder="$( AgentsToolsThreadLockTake "$serveFolder/thread.lock" "$serveMe" )" ; serveTook=$?
+	case "$serveTook" in
+		0) serveHolder="" ;;
+		1)
+			printf '⛔ ERROR: the thread already runs as pid %s -- a second one is not started\n' "${serveHolder%% *}" >&2
+			return 1
+		;;
+		*)
+			printf '⛔ ERROR: the thread could not take the lock at %s\n' "$serveFolder/thread.lock" >&2
+			return 1
+		;;
+	esac
+	if [ ! -p "$serveFolder/request.fifo" ] ; then
+		rm -f "$serveFolder/request.fifo" 2> /dev/null
+		mkfifo "$serveFolder/request.fifo" 2> /dev/null || {
+			AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
+			printf '⛔ ERROR: the thread could not make its request fifo: %s\n' "$serveFolder/request.fifo" >&2
+			return 1
+		}
+	fi
+	exec 9<> "$serveFolder/request.fifo" || {
+		AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
+		printf '⛔ ERROR: the thread could not open its request fifo: %s\n' "$serveFolder/request.fifo" >&2
+		return 1
+	}
+	printf '%s the thread runs as pid %s: it serves %s, and ends after %ss with no request, or on TERM\n' \
+		"$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$servePid" "$serveFolder" "$serveIdle" >&2
+	## THE BOUND IS THE FOLDER'S (S12.11 ruling 4): the thread that took it writes it here, so a start over a living
+	## thread reads the bound in force, and a caller is told which one governs.
+	printf '%s\n' "$serveIdle" > "$serveFolder/thread.idle" 2> /dev/null || :
+	if [ "$serveOnce" = yes ] ; then
+		[ "$serveTick" = "-" ] || "$serveTick"
+		exec 9>&-
+		AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
+		return 0
+	fi
+	serveLast="$SECONDS"
+	while : ; do
+		serveLine=""
+		IFS= read -r -t 1 -u 9 serveLine
+		if [ -n "$serveLine" ] ; then
+			serveLast="$SECONDS"
+			case "$serveLine" in
+				*$'\t'*)
+					serveReply="${serveLine##*$'\t'}"
+					serveSplit="${serveLine%$'\t'*}"
+					serveFields=()
+					IFS=$'\t' read -r -a serveFields <<< "$serveSplit"
+					if [ "$serveReply" = "-" ] ; then
+						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}"
+					elif [ -e "$serveReply" ] && exec 3<> "$serveReply" 2> /dev/null ; then
+						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}"
+						## THE TERMINATOR IS THE THREAD'S (S12.11 ruling 2), never the handler's to remember: a handler that
+						## ran and said nothing still ends its answer, so its caller reads served-and-empty, not no answer.
+						printf '.\n' >&3 2> /dev/null || :
+						exec 3> /dev/null
+					else
+						printf '%s a request names a reply fifo that is gone: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveReply" >&2
+					fi
+				;;
+				*)
+					printf '%s a request with no reply field is dropped: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveLine" >&2
+				;;
+			esac
+		else
+			[ "$serveTick" = "-" ] || "$serveTick"
+		fi
+		[ -z "$serveEnd" ] || { serveLeave="it was ended by $serveEnd" ; break ; }
+		[ "$(( SECONDS - serveLast ))" -lt "$serveIdle" ] || { serveLeave="no request came for ${serveIdle}s" ; break ; }
+		serveLoops=$(( serveLoops + 1 ))
+		if [ "$(( serveLoops % 30 ))" = 0 ] ; then
+			serveHolder=""
+			{ IFS= read -r serveHolder < "$serveFolder/thread.lock" || [ -n "$serveHolder" ] ; } 2> /dev/null || serveHolder=""
+			[ "$serveHolder" = "$serveMe" ] || { serveLeave="its folder or its lock is gone" ; serveMe="" ; break ; }
+			if AgentsToolsThreadLogBound "$serveFolder/thread.log" > /dev/null 2>&1 ; then
+				exec < /dev/null >> "$serveFolder/thread.log" 2>&1
+			fi
+		fi
+	done
+	printf '%s the thread, pid %s, ends: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$servePid" "$serveLeave" >&2
+	exec 9>&-
+	[ -z "$serveMe" ] || AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
+	return 0
+}

@@ -30,6 +30,7 @@
 📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsMail.fn.sh --email-read [--team-member <team-member>] <uid> [--seen]
 📘 syntax: DistroAgentsTrello.fn.sh --trello-read [--team-member <team-member>] <notification-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
@@ -54,8 +55,8 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--assignee <contact>|me]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--assignee <contact>|me --project <key>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>
@@ -130,7 +131,7 @@
 📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>
@@ -212,6 +213,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --session-id <id> <member>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <unset|none|low|normal|high>
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-pause --session-id <id>
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-resume --session-id <id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]...
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>
@@ -287,7 +290,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -306,6 +309,10 @@
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-spread <path> [--keep <glob>]...
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-retire <path> --section <glob>...
 📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
+📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>]
+📘 syntax: DistroAgentsTools.fn.sh --undo-plan <record-id> [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --undo-run <record-id> [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --undo-purge <record-id> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-state [<key>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-add <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-approve <key>
@@ -1601,6 +1608,22 @@
 			success — a positive test on what is present, not an assumption
 			drawn from a 2xx status.
 
+		--confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]
+			Runs only as `magic-coordinator`: a space is the site's own
+			top-level container, so only the coordinator creates one.
+
+			Creates one space and prints its row: `SPACE_ID`, `KEY`,
+			`NAME`, `URL`. `--key` becomes the space's own address, so a key
+			outside letters, digits, `-` and `_` is refused before anything
+			is sent. `--description` goes as plain text, the one form a
+			create takes.
+
+			The account needs Confluence's permission to create spaces. The
+			site answers 404 without it, which is reported as that refusal,
+			never as a missing space. An answer carrying no space id is
+			reported UNKNOWN with 3, because nothing is created twice on an
+			unknown outcome.
+
 		--confluence-space-list [--team-member <team-member>] [--cursor <value>]
 			`<team-member>` is required; the listing is exactly what that
 			identity can see. Any other argument is refused with 1.
@@ -2013,6 +2036,10 @@
 			that is not the array of links this operation reads is reported
 			UNKNOWN with 3, never as an issue holding none.
 
+			Completeness on stderr: `more: unknown` always, because the endpoint
+			carries no total and no paging field. Exit statuses as
+			`--jira-board-list` lists them.
+
 		--jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1. Links a page, such as a Confluence page, to that issue,
@@ -2295,8 +2322,9 @@
 			one whose stamp changes moves to its folder. Own inbox only: a spawned session naming another
 			member than itself is refused; a call from no spawned
 			session is taken at the name it gives.
-			`<member>` must exist as a real skill directory;
-			`<item-filename>` a bare filename. The inbox is created
+			`<member>` must be a member this machine holds a record of, in the
+			member view of the run or in the machine's members index, wherever
+			that member is set up; `<item-filename>` a bare filename. The inbox is created
 			lazily if missing. Content via stdin by default, or
 			`--from-file <path>` -- either overwrites the target
 			outright. `--edit-patch-from-stdin` instead takes a JSON
@@ -2341,8 +2369,11 @@
 
 		--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
 			Passes an inquiry into a member's own inbox -- the standard
-			hand-off mechanism. `<member>` must exist as a real skill
-			directory; `<item-filename>` a bare filename. Inbox created
+			hand-off mechanism. Any member this machine holds a record of is
+			written to, wherever it is set up, whatever member view the caller
+			carries: the item lands in the team data of the workspace the call
+			runs from, and no skillset of that member is read. Only a name no
+			workspace publishes is refused. `<item-filename>` a bare filename. Inbox created
 			lazily if missing. Content via stdin by default, or
 			`--from-file <path>`. A new item's required
 			`type`/`from`/`date`/`owner` headers are completed as in
@@ -2445,14 +2476,16 @@
 		--get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
 		--upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 			Writes a vault document, creating it or overwriting it whole. It refuses a name that
-			starts with the type word of a vault contract (`investigation`, `adr`, `verbatim`):
-			that name belongs to the typed write below.
+			starts with the type word of a vault contract (`investigation`, `adr`, `verbatim-record`,
+			`epic-blueprint`): that name belongs to the typed write below.
 
 		--upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 		--upsert-vault-decision-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--upsert-vault-verbatim [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 			Writes a vault document of one contract: `investigation-*` (vault-item.investigation-report),
-			`adr-*` (vault-item.decision-record) or `verbatim-*` (vault-item.verbatim). The name must
+			`adr-*` (vault-item.decision-record), `verbatim-record-*` (vault-item.verbatim-record) or
+			`epic-blueprint-*` (vault-item.epic-blueprint). The name must
 			start with that contract's type word. A new document gets `type`, `from`, `date` and
 			`document-contract` where it names none. The document is checked against its contract, and
 			a fault the contract refuses on stops the write.
@@ -4120,7 +4153,7 @@
 			and the timezone the settings name, `host` where none is set.
 			`flag <name> <yes|no> <note>`
 			One row each for `worktime`, `weekend`, `holidays`,
-			`emergency`, `overtime` and `learning`, in that order, as
+			`emergency`, `overtime`, `learning` and `supervised`, in that order, as
 			`--current-flags` says them. <note> is `-`, or what that
 			operation adds in brackets: `(default)` for a setting that is
 			unset, `(holiday)` for worktime a holiday takes away,
@@ -4134,10 +4167,10 @@
 			`cell <weekday> <hour> <flags>`
 			168 rows, a weekday (`mon`..`sun`) and an hour (`00`..`23`)
 			each, in that order. <flags> is `-`, or a comma-separated list
-			of `holidays`, `worktime`, `weekend`, `emergency`, `overtime`
-			and `learning`. `worktime` and `weekend` are the plan of that
+			of `holidays`, `worktime`, `weekend`, `emergency`, `overtime`,
+			`learning` and `supervised`. `worktime` and `weekend` are the plan of that
 			weekday and hour. An override (holidays, emergency, overtime,
-			learning) is shown only in the hours that have not passed yet,
+			learning, supervised) is shown only in the hours that have not passed yet,
 			and in a coming weekday's hours as of the next such day; a
 			holiday takes `worktime` out of those hours.
 			Exit 1 with one error line for an argument, and from inside a
@@ -4147,7 +4180,7 @@
 			One of the console's own operations (see Notes). Sets or clears an
 			override of the scheduler's flags, for the console's Schedule view.
 			The flag is `emergency` (with a TTL), `overtime`, `holidays` (with a
-			TTL, or until it is cleared) or `learning`; `--no` clears it. `worktime`
+			TTL, or until it is cleared), `learning` or `supervised`; `--no` clears it. `worktime`
 			and `weekend` are derived from the settings and are refused here.
 			Prints the flag's line as `--current-flags` gives it, on stdout.
 			Exit 1 with one error line for a flag that is not overridable, for a
@@ -4594,19 +4627,19 @@
 			A run's <live> is what `ListAgents` shows: `running`, `gone`, `remote` or `unknown`. Its <state> too,
 			but for a run that died on its start: that one reads `failed`.
 			A live run's <state> is what it is doing: `thinking`, `tool`, `idling`
-			or `waiting`, and a run that handed back and left reads
+			or `waiting`, or `paused` while a pause holds it, and a run that handed back and left reads
 			`parked`. <activity> of a live run is `waiting` where
-			its <state> is `waiting` or `idling`, inside a `Wait` call or an ask that
+			its <state> is `waiting` or `idling`, `paused` where a pause holds it, inside a `Wait` call or an ask that
 			waits on a person, and `working` otherwise: it is read from
 			<state> and from no other file. `--active` keeps
 			every session that is not finished and can be acted on from
 			this host: those whose <state> is `running`, `waiting`,
-			`awaiting-review`, `unclosed` or `failed`, each with all its runs, as without it. It leaves
+			`awaiting-review`, `unclosed`, `paused` or `failed`, each with all its runs, as without it. It leaves
 			out the `finished` ones, and the `unknown-foreign`, which are
 			another host's: nothing can be done with those from here. The
 			counters count the whole workspace
-			either way. <sessions-paused> is 0 until sessions can be
-			paused. <pending-answers> is the open asks, <load-average> the
+			either way. <sessions-paused> is the sessions a pause holds,
+			whose every live run reads `paused` (S19). <pending-answers> is the open asks, <load-average> the
 			host's one-minute figure, and <host> the full name of the
 			host this call ran on, for a reader's eye: what `hostname -f`
 			gives where that resolves, else the plain `hostname`, else
@@ -4889,6 +4922,28 @@
 			saved, the path of the file. Exit 1, nothing saved, with one error
 			line, where the id is no bare name or names no store of this
 			workspace, or the effort is none of the five.
+
+		--manager-session-pause --session-id <id>
+		--manager-session-resume --session-id <id>
+			One of the console's own operations (see Notes). The paused
+			state of a session, or of one run of it, which the run itself
+			obeys and no process is signalled for. <id> is taken as
+			--manager-session-read takes it: a session's own id holds every
+			run of it, and a run's own id holds that run alone. `pause`
+			writes `paused` in the folder of that id under
+			`.local/agents/sessions/`, one line of the moment and the name
+			of who asked; `resume` removes it, and a resume of a session
+			that is not paused ends well and says so. Each run asks that
+			file at its pause points -- the start of Wait and Read, and the
+			exit of SendMessage, SubagentHandback, Bash,
+			WorkspaceContextExecute, Write and Edit -- so a paused run
+			holds there and nothing of it ends. The flag also reads as the
+			run's state in the registry, `ListAgents` and the console, where
+			a paused run is never counted as stuck, dead or idle. Prints one
+			row, TAB-separated: `pause` or `resume`, the id, the path of
+			the file, and for a resume the word `resumed` where a flag
+			stood. Exit 1, nothing written, with one error line, where the
+			id is no bare name or names no folder of this workspace.
 
 		--manager-session-control-start (--session-id <id>|--all)
 			One of the console's own operations (see Notes). Starts the
@@ -5594,6 +5649,12 @@
 			must be the caller's own; `board:<state>` on one
 			board state (backlog, pending, running, review,
 			blocked, parked, processed, archived or retained);
+			`checklist:<member>` on the open items of that
+			member's own CheckList, which must be the caller's
+			own -- a changed rendering is an arrival, and an
+			item past its due time is rendered first, so a duty
+			written on the list wakes the run rather than
+			waiting for something else to move;
 			`ask:<pending-id>` on the answer to a question
 			AskQuestion asked: its thread, floor and addressees
 			come from its pending record, read as that question's
@@ -6751,7 +6812,7 @@
 			waits there and a dismissal is addressed to the member
 			it is for.
 
-		--spawn-session (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -6759,6 +6820,14 @@
 			one, resolved once so every spawned member carries the
 			same routine file; that spawn's own spawn-prepare-brief
 			block is then automatic ahead of the task text.
+			`--routine-chain <routine>[,<routine>...]` is the session's
+			declared starting path, the routine in force first. Its
+			entries become the session's routine frames on every spawn
+			record, the first `current` and the rest `pending`, and the
+			session's opening post names them. It overrides the
+			`routine-chain:` a routine declares for itself, and an entry
+			that names no routine, or a first entry that is not the
+			routine in force, refuses the spawn.
 			`--description <text>` says in the caller's words what the
 			session is for. Every spawn of the call gets it unchanged:
 			it is kept on each dispatch item and spawn record, and
@@ -7120,7 +7189,7 @@
 			with no weekend set read `no (weekend not set)`. An override that has an end
 			shows the seconds left, `yes (3600 seconds left)`. Read-only.
 
-		--override-flag [--no] <flag> [<ttl>]
+		--override-flag [--no] <flag> [<ttl>] [--days <n>]
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). An override of a flag,
 			kept as a setting of the `magic-team` scope: `emergency` is set with a TTL in
 			whole seconds (`emergency 3600`), prolonged by a second call (its end is the TTL
@@ -7128,11 +7197,13 @@
 			its TTL or, with none or a later one, when normal worktime starts, and is
 			refused during worktime; `holidays` is set with a TTL or, with none, until it
 			is cleared, at any hour, and while it holds `worktime` is off (`no (holiday)`);
-			`learning` is on or off and takes no TTL. `--no`
-			clears the override and takes no TTL. `worktime` and `weekend` are derived and
+			`learning` is on or off and takes no TTL. `--days <n>`, `overtime`'s alone, ends
+			overtime n worktime starts ahead instead, the earlier end winning against a TTL. `--no`
+			clears the override and takes no TTL and no `--days`. `worktime` and `weekend` are derived and
 			have no override. Prints the flag's line as `--current-flags` would. Refused,
 			rc 1, with a flag that is none of the six, a TTL that is no whole number of
-			seconds, or an emergency with none.
+			seconds, a `--days` that is no whole number of days of 1 or more, `--days` on
+			another flag, or an emergency with none.
 
 		--set-country <iso-code-2-or-3-letters>
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Sets
@@ -7474,14 +7545,11 @@
 			row names). It never writes an install (a copy under a workspace's `.local`)
 			and never the HOME skills folder: a skill with no source copy, or with more
 			than one, is refused and the refusal says why. It is the librarian's: it runs
-			only as magic-librarian. It asks the permission chain for the permission
-			`skillset-upsert` over `<team-member>:<pathname>`, as a tool call is asked: a
-			routine whose `allows:` names it (`magic-librarian:skillset-upsert`) holds it,
-			and so does a grant of the session, the task or the call; a call that holds
-			none is refused with a REFUSAL-ID and the way to ask for it with
-			RequestPermission, and a granted call is retried as it was made. It changes the
-			skillset only while `learning` is on (`--current-flags`): while it is off the
-			librarian offers proposals, and the refusal says where the proposal goes. The
+			only as magic-librarian. It asks no permission (S6.42): while `learning` is on
+			it writes a skill's source copy, and the source copy is the whole gate. It
+			changes the skillset only while `learning` is on (`--current-flags`): while it
+			is off the librarian offers proposals, and the refusal says where the proposal
+			goes. The
 			resulting text is checked before anything is saved: a `*.routine.md` against
 			the routine contract, which refuses the save and prints its rows, and every
 			file against itself, whose `report-` rows are printed and refuse nothing. The
@@ -7607,6 +7675,23 @@
 			body and its stamps as they are, commits and pushes as every state update does,
 			and gives the lock back. Prints `DIRECTIVE: <id> set` or `DIRECTIVE: <id> ended`;
 			an id that is not there is refused (rc 1).
+
+		--undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>]
+		--undo-plan <record-id> [--session-id <id>]
+		--undo-run <record-id> [--session-id <id>]
+		--undo-purge <record-id> [--session-id <id>]
+			The undo protocol (S13.19): one record per act, holding the operation that
+			undoes it, and a hold that keeps the acting run's material from every
+			cleaner until the human-owner answers. `record` keeps the inverse, refuses a
+			kind that is not on its closed list and names the kinds, and writes
+			`undo.hold` in the acting run's sandbox root, one `<session-id>/<record-id>`
+			line per open record. `plan` is the dry run, read-only: it says `ready` and
+			the steps, or `not ready` and why the operands have moved since the act.
+			`run` takes the steps, each recorded before it is made, so a stopped run
+			resumes; a file inverse goes through the harness's own Write, as an approved
+			change does, and a store inverse through the operation that owns that store.
+			`purge` closes the record on an accept, which releases the hold. The record
+			lives in `sessions/<session-id>/undo/<record-id>/`.
 
 		--owner-cleanup-purge
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays).

@@ -78,7 +78,7 @@ DistroAgentsItems(){
 			return $?
 		;;
 
-		--get-audit-item|--get-board-item|--get-inbox-item|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--upsert-vault-decision-record|--upsert-vault-investigation-report|--upsert-vault-item|--upsert-vault-verbatim)
+		--get-audit-item|--get-board-item|--get-inbox-item|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--upsert-vault-decision-record|--upsert-vault-epic-blueprint|--upsert-vault-investigation-report|--upsert-vault-item|--upsert-vault-verbatim-record)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
 			return $?
 		;;

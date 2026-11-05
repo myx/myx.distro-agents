@@ -10,7 +10,9 @@
 ## archived, or waits in review past REVIEW_WAIT_LIMIT (AgentsReviewWaitLeft), and SESSION_CONTROL_CLOSING_SECONDS have passed since the
 ## read that first saw it so. A run another run needs is never ended here. The mark is control/release.<run id>: that read's seconds,
 ## then the seconds of the call last started (`--release`, apart from the tick).
+## A RUN A PAUSE HOLDS IS ENDED BY NOTHING (S19.3): a paused run's handback and its item wait as they are, and no closing time runs.
 ##
+type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 
 AgentsToolsSessionControlRelease(){
 	local releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest
@@ -21,6 +23,12 @@ AgentsToolsSessionControlRelease(){
 	while read -r releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest ; do
 		case "$releaseSpawn" in ''|-|.|..|*/*) continue ;; esac
 		if [ "$releaseLive" != "running" ] ; then
+			rm -f "$controlDir/release.$releaseSpawn" 2> /dev/null
+			continue
+		fi
+		## A RUN A PAUSE HOLDS IS ENDED BY NOTHING (S19.3): its handback waits, its item waits, and this step leaves it
+		## alone until the pause ends. Its own release mark is dropped, so the closing time is counted again from the resume.
+		if AgentsToolsSessionPauseHeld "$releaseSpawn" "$releaseSession" ; then
 			rm -f "$controlDir/release.$releaseSpawn" 2> /dev/null
 			continue
 		fi

@@ -530,6 +530,23 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local cleanupDir="$MMDAPP/.local/.cleanup"
+		local cleanupSpawned="$MMDAPP/.local/agents/spawned"
+		local cleanupHold cleanupHoldState cleanupUnresolved=""
+		type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UndoHold.include"
+		for cleanupHold in "$cleanupSpawned"/*/undo.hold ; do
+			[ -f "$cleanupHold" ] || continue
+			cleanupHoldState="$( AgentsToolsUndoHoldState "$cleanupHold" )"
+			case "$cleanupHoldState" in
+				absent) ;;
+				missing) cleanupUnresolved="$cleanupUnresolved $( AgentsToolsUndoHoldUnresolved "$cleanupHold" | LC_ALL=C tr '\n' ' ' )"
+					echo "⛔ ERROR: $MDSC_CMD --owner-cleanup-purge: refusing -- ${cleanupHold%/undo.hold} carries a hold naming no open record, so what it protects cannot be told from what it does not:${cleanupUnresolved}" >&2
+					set +e ; return 1
+				;;
+				*) echo "⛔ ERROR: $MDSC_CMD --owner-cleanup-purge: refusing -- an open undo record holds a sandbox of this workspace: $cleanupHold" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
 		if [ ! -d "$cleanupDir" ] ; then
 			echo "# $MDSC_CMD --owner-cleanup-purge: $cleanupDir does not exist -- nothing to purge" >&2
 			return 0

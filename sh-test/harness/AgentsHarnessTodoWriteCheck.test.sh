@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on CheckList, the harness tool a member keeps the checklist of its session
-## tasks with -- the counterpart of the native TodoWrite, with its input shape -- run through
+## tasks -- the counterpart of the native list tool, with its input shape -- run through
 ## --intern-tool, the path the myx.distro MCP serves every call by. Covers: one list a member a
 ## session, `<member>.checklist.md` in Markdown, shared by every run of that member, kept in the
 ## sandbox root of the spawn that founded the session, or in the session folder
@@ -311,7 +311,7 @@ rigAssert "no parameter is required" "$( rigHolds "$rigSchema" '},"required":[]}
 rigAssert "each item takes content, status and activeForm, all required" "$( rigHolds "$rigSchema" '"required":["content","status","activeForm"]' )" "yes"
 rigAssert "status is one of the three native states" "$( rigHolds "$rigSchema" '"enum":["pending","in_progress","completed"]' )" "yes"
 rigAssert "member is a string parameter" "$( rigHolds "$rigSchema" '"member":{"type":"string"' )" "yes"
-for rigWord in TodoWrite checklist 'session tasks' 'NOT the team board' 'NOT an inbox' 'returns your own list' 'with member set to *' 'one list in a session' ; do
+for rigWord in checklist 'session tasks' 'NOT the team board' 'NOT an inbox' 'returns your own list' 'with member set to *' 'one list in a session' ; do
 	rigAssert "its description says: $rigWord" "$( rigHolds "$rigText" "$rigWord" )" "yes"
 done
 
@@ -323,15 +323,14 @@ rigSearch(){ ## caller, query -- the names of the tools found, in order
 rigFound(){ ## names found, name
 	case " $1" in *" $2 "*) printf 'found' ;; *) printf 'not found: %s' "$1" ;; esac
 }
-rigAssert "TodoWrite finds it first" "$( rigSearch root TodoWrite | cut -d' ' -f1 )" "CheckList"
-rigAssert "checklist finds it first" "$( rigSearch root checklist | cut -d' ' -f1 )" "CheckList"
-rigAssert "session tasks finds it" "$( rigFound "$( rigSearch root 'session tasks' )" CheckList )" "found"
+rigAssert "by its own name, the search finds it first" "$( rigSearch root checklist | cut -d' ' -f1 )" "CheckList"
+rigAssert "by a word of its description, the search finds it" "$( rigFound "$( rigSearch root 'session tasks' )" CheckList )" "found"
 ## F1.2 / D5: search is a way of offering it. With no team identity the search still finds
 ## CheckList -- and the call refuses at execution with the hint, never with silence.
-rigAssert "with no team identity, the search still finds it" "$( rigFound "$( rigSearch nobody TodoWrite )" CheckList )" "found"
+rigAssert "with no team identity, the search still finds it" "$( rigFound "$( rigSearch nobody checklist )" CheckList )" "found"
 rigAssert "with no team identity, the call refuses with the hint" \
 	"$( rigHolds "$( rigCall nobody '{}' )" 'MDAT_SKILLSET_ROOT' )" "yes"
-rigAssert "with no session, the search still finds it" "$( rigFound "$( rigSearch session= TodoWrite )" CheckList )" "found"
+rigAssert "with no session, the search still finds it" "$( rigFound "$( rigSearch session= checklist )" CheckList )" "found"
 rigAssert "with no session, the call refuses with the hint, not silence" \
 	"$( rigHolds "$( rigCall session= '{}' )" 'RootSession operation=mint' )" "yes"
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on `--manager-schedule-read` (S13.9), the console's Schedule view, run rather than read, against a rig
-## workspace built here: its own magic-team settings and nothing of the real workspace. Held: the rows it prints -- `now`, the six
+## workspace built here: its own magic-team settings and nothing of the real workspace. Held: the rows it prints -- `now`, the seven
 ## `flag` rows in the order of --current-flags, one `switch` row naming the nearest change, and 168 `cell` rows, a weekday and an
 ## hour each; a cell holds `worktime` for the planned hours of a work day, `weekend` for a weekend day, and an override only
 ## in the hours that have not passed; a holiday takes worktime out of the days to come; the nearest change is an override's end
@@ -45,10 +45,10 @@ MDAT_SCHEDULE_EMERGENCY=until $(( rigNow + 90 ))
 rigBefore="$( find "$rigTmp/set" -type f | LC_ALL=C sort | xargs cksum )"
 rigRead set
 rigAssert "it ends 0, and its stdout is rows only" "$rigRc:$( LC_ALL=C grep -c -v -E '^(now|flag|switch|cell)	' "$rigTmp/set.out" )" "0:0"
-rigAssert "the rows are now, six flags, one switch and 168 cells, in that order of kinds" \
+rigAssert "the rows are now, seven flags, one switch and 168 cells, in that order of kinds" \
 	"$( LC_ALL=C awk -F'\t' '{ if ( $1 != last ) { kinds = kinds ( kinds == "" ? "" : " " ) $1 ; last = $1 } count[$1]++ } END { print kinds ":" count["now"] ":" count["flag"] ":" count["switch"] ":" count["cell"] }' "$rigTmp/set.out" )" \
-	"now flag switch cell:1:6:1:168"
-rigAssert "the flags are worktime, weekend, holidays, emergency, overtime, learning" "$( LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 }' "$rigTmp/set.out" )" "worktime weekend holidays emergency overtime learning "
+	"now flag switch cell:1:7:1:168"
+rigAssert "the flags are worktime, weekend, holidays, emergency, overtime, learning, supervised" "$( LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 }' "$rigTmp/set.out" )" "worktime weekend holidays emergency overtime learning supervised "
 rigAssert "now names the zone the settings give" "$( rigRow set now | LC_ALL=C cut -f5 )" "UTC"
 rigAssert "an override with a TTL reads yes with its seconds left" \
 	"$( rigRow set flag emergency | LC_ALL=C cut -f3 ):$( rigRow set flag emergency | LC_ALL=C cut -f4 | LC_ALL=C grep -c 'seconds left' )" "yes:1"

@@ -363,7 +363,7 @@ case "$1" in
 	## The vault write, the sibling of the read above. A stub: it checks the two names, and
 	## --intern-op-vault-item-write does the writing (AgentsTools.InternOpVaultAudit.include).
 	## The three typed siblings, one for each vault contract, write only a name of that contract's type word, and check the item against it.
-	--upsert-vault-item|--upsert-vault-investigation-report|--upsert-vault-decision-record|--upsert-vault-verbatim)
+	--upsert-vault-item|--upsert-vault-investigation-report|--upsert-vault-decision-record|--upsert-vault-verbatim-record|--upsert-vault-epic-blueprint)
 		local vaultOp="${1#--}" vaultTyped=()
 		[ "$vaultOp" = "upsert-vault-item" ] || vaultTyped=( --typed "vault-item.${vaultOp#upsert-vault-}" )
 		shift

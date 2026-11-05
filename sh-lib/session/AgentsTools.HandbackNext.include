@@ -101,9 +101,21 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 	elif AgentsToolsHandbackNextCycle "$nextRoutine" "$nextWant" ; then
 		nextWhy="the chain of hands-over-to from $nextWant comes back to $nextRoutine."
 	else
-		## The input: a real file, with no symlink and no `..` part, in a todo-sketchpad backlog or in the sandbox of this run.
+		## The input: an epic, by a vault item's bare name or by a real file -- one with no symlink and no `..` part -- in a
+		## todo-sketchpad backlog or in the sandbox of this run.
 		case "$nextInput" in
-			/*[!A-Za-z0-9._/@+-]*|[!/]*|*'/../'*|*'/..'|*'/./'*|*'//'*) nextWhy="the input is not an absolute path of plain characters with no . or .. part: $nextInput." ;;
+			/*[!A-Za-z0-9._/@+-]*|[!/]*|*'/../'*|*'/..'|*'/./'*|*'//'*)
+				case "$nextInput" in
+					*/*) nextWhy="the input is neither an absolute path of plain characters with no . or .. part, nor one bare vault epic item name: $nextInput." ;;
+					epic-blueprint-*.md)
+						nextReal="${MDAT_DATA_ROOT:-}/vault/$nextInput"
+						if [ -z "${MDAT_DATA_ROOT:-}" ] || [ ! -f "$nextReal" ] ; then
+							nextWhy="the input names no vault epic item: $nextInput."
+						fi
+					;;
+					*) nextWhy="the input is neither an absolute path of plain characters with no . or .. part, nor one bare vault epic item name: $nextInput." ;;
+				esac
+			;;
 			*)
 				nextDir="$( cd "${nextInput%/*}" 2> /dev/null && pwd -P )" || nextDir=""
 				nextReal="$nextDir/${nextInput##*/}"
@@ -119,10 +131,16 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 			;;
 		esac
 	fi
-	## The epic gate: no wave starts on an epic its validator refuses.
+	## The epic gate: no wave starts on an epic its validator refuses, by either of its two contracts.
 	if [ -z "$nextWhy" ] && [ "$nextWant" = "magic-team.epic-wave.routine.md" ] ; then
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		nextGateRows="$( DistroAgentsTools --intern-doc-validate epic "$nextInput" 2>&1 )" || nextGateRc=$?
+		nextGateRows="$( DistroAgentsTools --intern-doc-validate epic "$nextReal" 2>&1 )" || nextGateRc=$?
+		if [ "$nextGateRc" = 0 ] ; then
+			case "$nextInput" in
+				/*) ;;
+				*) nextGateRows="$( DistroAgentsTools --intern-doc-validate vault-item.epic-blueprint "$nextReal" 2>&1 )" || nextGateRc=$? ;;
+			esac
+		fi
 		[ "$nextGateRc" = 0 ] || nextWhy="the epic validator refuses the input, so no wave starts."$'\n\n```\n'"$( printf '%s\n' "$nextGateRows" | LC_ALL=C cut -c1-200 | head -8 )"$'\n```'
 	fi
 	if [ -n "$nextWhy" ] ; then

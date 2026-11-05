@@ -62,6 +62,8 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - reaching
   - escalation-ask
   - tier-none
+  - tier-ingest
+  - tier-basic
   - tier-partner
   - tier-recorded
 - Reasons
@@ -458,7 +460,28 @@ His click or word opens the grant: for this session, or, with 👤, for the cont
 The `{{tiers}}` of `contacted-known` for a contact whose record sets no `tier:`.
 
 ```
-A request is in one of three tiers. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Recorded access, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
+A request is in one of four tiers, each including the ones before it. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Partner, for friends and partners: talk about what the team does, a little help, small research or investigation. Recorded, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
+```
+
+## tier-ingest
+
+The same slot for a contact whose record says `tier: ingest`: the lowest tier, and nothing above it.
+
+```
+This contact stands at Ingest. Every request is read and understood, and nothing more is open to it.
+
+- Ingest, always: read and understand it.
+```
+
+## tier-basic
+
+The same slot for a contact whose record says `tier: basic`: Ingest, and Basic besides.
+
+```
+This contact stands at Basic. Every tier below is open to it, and Basic besides.
+
+- Ingest, always: read and understand it.
+- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
 ```
 
 ## tier-partner

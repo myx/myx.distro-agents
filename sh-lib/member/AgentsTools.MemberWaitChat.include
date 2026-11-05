@@ -79,6 +79,8 @@ AgentsWaitProbeChat(){
 	agentsSessionChatFilter=""
 	probeNewestText="${agentsSessionChatNewest:-}"$'\n'
 	for probeSeen in ${agentsSessionChatSeen:-} ; do probeNewestText="${probeNewestText}seen $probeSeen"$'\n' ; done
+	## The messages this read handed over, each `<conversation>:<ts>`: the eyes reaction is put on them (S6.48).
+	for probeSeen in ${agentsSessionChatEyes:-} ; do probeNewestText="${probeNewestText}eye $probeSeen"$'\n' ; done
 	AgentsWaitPut "$probeOut.newest" "$probeNewestText" || :
 	return 0
 }

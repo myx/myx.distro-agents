@@ -364,6 +364,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The undo protocol (S13.19): the record, its dry run, its run and its purge. A name of
+		## this dispatch that is no `--undo-*` one, and never a front-table name.
+		--undo-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UndoRecord.include"
+			return $?
+		;;
+
 		--intern-op-board-upsert-move-edit)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include"
 			return $?
@@ -505,6 +512,19 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The event ids of the comms cache, minted by one thread holding last time and sequence (S12.11, its first use on an event).
+		--intern-comms-event-id)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternCommsEventId.include"
+			return $?
+		;;
+
+		## The schedule as one service thread (S12.12): the schedule's steps and the board's dependencies run in a process of the tooling, and a
+		## periodic place that already looks at the workspace asks for it. No agent calls it.
+		--intern-schedule)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSchedule.include"
+			return $?
+		;;
+
 		## Registered places: their registration and the tooling's resolvers.
 		--intern-directory-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternDirectory.include"
@@ -553,10 +573,11 @@ DistroAgentsTools(){
 
 		--intern-mcp-execute)
 			shift
-			## Cold pause, temporary: a call of a paused session waits here before anything runs, checking only the flag every 5 seconds,
-			## and once the pause ends it is refused, so the caller runs it again against what is there then.
-			if [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}/paused" ] ; then
-				while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}/paused" ] ; do sleep 5 ; done
+			## S19.2: `execute` is checked at its START. A call that waited is refused with PAUSED, so nothing ran,
+			## and the run calls it again against what is there then.
+			type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+			if AgentsToolsSessionPauseOwn "${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" ; then
+				AgentsToolsSessionPauseWait "${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
 				echo "$MDSC_CMD: mcp-execute: ⛔ PAUSED: this session was paused while this call waited, and nothing ran. Run the same call again." >&2
 				set +e ; return 75
 			fi

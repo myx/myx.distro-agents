@@ -73,13 +73,19 @@ AgentsToolsUsageLimitMark(){ ## spawn id, the reason
 	return 0
 }
 
-## The flag of one run, printed as its store keeps it. rc 1 where the run has none.
+## The flag of one run, printed as its store keeps it. rc 1 where the run has none, AND rc 1 where the
+## reason kept is no provider refusal at all (S6.14): a record the accept of a review settled used to have
+## the accept's own words written here, from its end-reason, so that one line is a leftover of that writer
+## and not a refusal. Nothing else is filtered: a reason the harness kept stands as it was written.
 AgentsToolsUsageLimitRun(){ ## spawn id
 	local limitFile limitLine=""
 	limitFile="$( AgentsToolsUsageLimitFile "${1:-}" )" || return 1
 	[ -s "$limitFile" ] || return 1
 	IFS= read -r limitLine < "$limitFile" || :
 	[ -n "$limitLine" ] || return 1
+	case "$limitLine" in
+		"stopped by a provider refusal: the accept of "*) return 1 ;;
+	esac
 	printf '%s' "$limitLine"
 	return 0
 }

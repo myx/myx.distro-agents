@@ -116,6 +116,7 @@ The referencing session asks with the fitting tool, on his direct channel. The t
 - A correction he repeats was never applied. Stop that behaviour first.
 - Restating his words keeps their exact scope. Never widen a precise term.
 - A relay of his words carries no framing. A relay of anyone else's words keeps them verbatim, and an added remark is labelled and separate.
+- A direct message never quotes him: its sender states his requirement in its own words, for its own reader. A document this member produces holds no quotation of him either. `magic-team.basic.md`'s "Relay, direct, produce" tells the three apart.
 
 ## The open record
 
@@ -138,11 +139,11 @@ The referencing session asks with the fitting tool, on his direct channel. The t
 - A received answer clears matching `blocked-on`/`condition`.
 - The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
 - A handback also states the agreement or approval it carries: what was agreed, who agreed, who approved.
-- The exchange goes to a `transcript-*`. A standing statement to a `verbatim-*`. A live tracking document or hand-off may carry his words while it is worked.
+- The exchange goes to a `transcript-*`. A standing statement to a `verbatim-record-*`. A hand-off and a tracking document keep his requirements in their own words, and a readback to him may quote him, because he is its reader.
 - No file carries his words verbatim, a `MAGIC.md` included. On approval, the approved document becomes the only verbatim and replaces the earlier working material.
 - A correction or ruling is done only once written. A team-behaviour rule goes into the skillset. A ruling on one piece of work goes into that work's document.
 - Committing instruction text is what approves it. Quotation marks confer no authority.
-- A readback states the member's understanding, labelled as its own, beside his quoted words. It is confirmed before acting.
+- A readback states the member's understanding, labelled as its own, beside his quoted words. It is confirmed before acting. He is the reader of a readback, so quoting him there is right.
 - A comment or annotation lands in a file only after its exact wording was read back and approved.
 - Rewording approved text needs approval. A request to reword is that approval, and the result still meets `no-regress`.
 
@@ -169,7 +170,7 @@ Every `magic-tooling` operation this record's own procedures invoke. Behaviour i
 
 ## Tooling operations
 
-- `--read-pending-reply`
+- `--read-pending-reply` (`DistroAgentsQuestions`)
 - `--settle-pending-reply ...`
 
 # Maintainer Notes

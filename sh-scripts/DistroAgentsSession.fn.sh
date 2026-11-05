@@ -204,6 +204,44 @@ DistroAgentsSession(){
 			return $?
 		;;
 
+		## THE ROUTINE STACK'S MOVES (S6.27): one of --push <routine>, --replace <routine>, --rewind,
+		## --return or --return-to <frame>, with --reason <text> and --by <chair|routine|tool>. A move
+		## changes the frames of this session's record and appends one line of its own; its result
+		## names the frame's steps and the step the run starts at.
+		--routine-stack)
+			shift
+			DistroAgentsSessionTools
+			local stackVerb="" stackRoutine="" stackReason="" stackBy="chair"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--push|--replace|--return-to)
+						[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --routine-stack $1: it names a routine. Nothing was done." >&2 ; set +e ; return 1 ; }
+						stackVerb="${1#--}" ; stackRoutine="$2" ; shift 2
+					;;
+					--rewind|--return) stackVerb="${1#--}" ; shift ;;
+					--reason)
+						[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --routine-stack: --reason takes a text. Nothing was done." >&2 ; set +e ; return 1 ; }
+						stackReason="$2" ; shift 2
+					;;
+					--by)
+						[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --routine-stack: --by takes chair, routine or tool. Nothing was done." >&2 ; set +e ; return 1 ; }
+						stackBy="$2" ; shift 2
+					;;
+					*)
+						echo "$MDSC_CMD: ⛔ ERROR: --routine-stack: invalid option: $1 -- syntax is --routine-stack (--push <routine>|--replace <routine>|--rewind|--return|--return-to <frame>) [--reason <text>] [--by chair|routine|tool]" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			[ -n "$stackVerb" ] || {
+				echo "$MDSC_CMD: ⛔ ERROR: --routine-stack: syntax is --routine-stack (--push <routine>|--replace <routine>|--rewind|--return|--return-to <frame>) [--reason <text>] [--by chair|routine|tool]. Nothing was done." >&2
+				set +e ; return 1
+			}
+			type AgentsToolsRoutineStackMove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineStack.include"
+			AgentsToolsRoutineStackMove "$stackVerb" "$stackRoutine" "$stackReason" "$stackBy"
+			return $?
+		;;
+
 		## The update of the locked document of the session's routine (F6.2): one general operation. The session knows its
 		## routine and the document the spawner locked for it, so the call names neither; any participant of a locked session
 		## may make it. The lock-owned fields stay as the spawner set them, and each update is committed, and pushed where a

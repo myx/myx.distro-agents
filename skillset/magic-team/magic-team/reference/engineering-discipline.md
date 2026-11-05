@@ -6,7 +6,7 @@ Rules of "Engineering & operating discipline" that a member needs only on occasi
 
 - Git, scope and finishing
 - Evidence
-- Dispatch and relay
+- Dispatch, relay and produce
 
 Git, scope and finishing:
 - The floor: the team tools and its session sandbox (read `input/`, write `output/`). Under `source/` it adds reading every `MAGIC.md`, `README.md` and `docs/**.md`, and writing `MAGIC.md`. Anything else under `source/` needs a grant. A member's own file may hold a wider standing grant tied to a place. magic-librarian's `.md`-edit of a team-member skill under `.skillset-shared` or `.skillset-.local` is one (`magic-librarian.armed.md`). Nobody approves what it does not hold: tooling routes that ask up, to a holder in the session or task, then to the human-owner. A holder may pass a permission on (`--pass-permission`) to a participant or a member it spawned for the work. It is never wider or longer than its own.
@@ -20,7 +20,8 @@ Evidence:
 - A clean exit proves what ran, not that it was the target. A fallback that fires is a defect to trace. A rejected tool call may still have started a process.
 - Tell competing readings apart: find the observation they disagree on. Answer per state where the question is per state.
 - Coverage is the union of what the team can reach. Name the member who can reach a target instead of calling it untestable.
+- Evidence written for an external reader names which system it describes. Two installations that share a product name are two subjects, never one.
 
 Dispatch and relay:
-- The dispatching session checks a dispatched write against the conventions before relaying it as done.
+- The dispatching session checks a dispatched write against the conventions before it reports it done. The report is a direct message to whoever asked, in that member's own words.
 - A public-release scrub of a member covers its `.basic.md` and `SKILL.md` description as well as its `.armed.md`.

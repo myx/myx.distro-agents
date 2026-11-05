@@ -2,23 +2,25 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MagicEpic.include -- the coordinator's epic-file operations (W1 of the refactorings epic). One
-## operation, `--epic-update`, edits an epic file, so no routine edits one by hand:
-##   --epic-update <epic-file> --set-status <feature-id> <status>
-##   --epic-update <epic-file> --add-settled <feature-id> <text...>
-## Two reads let a session with no shell, the coordinator's, see an epic through the tooling (S23.8):
-##   --epic-read <epic-file> [--feature <feature-id>]   the file whole, or one feature's section
-##   --epic-list <folder>                               a line for each *.epic.md file of the folder, with its section count
-## A read names a path under a `todo-sketchpad` folder with no `..` part, and nothing else.
+## AgentsTools.MagicEpic.include -- the epic operations (W1 of the refactorings epic). One operation,
+## `--epic-update`, edits an epic, so no routine edits one by hand:
+##   --epic-update <epic-file|epic-item> --set-status <feature-id> <status>
+##   --epic-update <epic-file|epic-item> --add-settled <feature-id> <text...>
+## Two reads let any member see an epic through the tooling (S23.8):
+##   --epic-read <epic-file|epic-item> [--feature <feature-id>]   the epic whole, or one feature's section
+##   --epic-list [<folder>]                                     the vault's epic items, or each *.epic.md of the folder
+## An epic is a vault document of `vault-item.epic-blueprint` (`epic-blueprint-<date>-<matter>.md`), or the plain source file it was
+## moved from, named by a path under a `todo-sketchpad` folder with no `..` part.
 ## `--set-status` writes the `Status:` line that stands under the `## <feature-id>` heading (it replaces the line
 ## where one stands, else inserts it after the heading). `--set-status <feature-id>.<n> done <text...>` closes one
 ## item: it and its nested lines leave, and `## Done` gets `- <feature-id>.<n>: <text>`, the caller's text.
 ## `--set-status <feature-id> done` closes the feature, and is refused while an item stands: then the feature's
 ## lines leave and `## Done` gets one line, its id and what holds now -- the feature's settled text, else its
 ## heading's title. `--add-settled` adds the rule as one plain present-tense line under the same heading, after its
-## `Status:` line, with no date and no owner. Both refuse where the feature is not there or stands more than once. The file is a plain source file (the backlog folder),
-## edited in place and never committed: the owner commits what is applied. Sourced from AgentDispatcherTools.fn.sh's
-## arm for the name; relies on $1/$@/$MDSC_CMD.
+## `Status:` line, with no date and no owner. Both refuse where the feature is not there or stands more than once.
+## A vault item is edited as a copy and handed to `--upsert-vault-epic-blueprint`, so its contract check and its commit both
+## happen at the one vault write. A plain source file is edited in place and never committed: the owner commits what
+## is applied. Sourced from AgentDispatcherTools.fn.sh's arm for the name; relies on $1/$@/$MDSC_CMD.
 ##
 
 ## How many `## <feature-id> ` headings stand in an epic file.
@@ -40,10 +42,36 @@ AgentsToolsMagicEpicDoneText(){ ## file, feature-id
 	' "$1"
 }
 
-## The call runs only as magic-coordinator: the epic is the coordinator's to write.
+## An epic is written only as magic-coordinator, which owns it. Any member reads one, with no ask.
 AgentsToolsMagicEpicCaller(){ ## the operation, write (the default) or read
+	[ "${2:-write}" != read ] || return 0
 	type AgentsToolsSurfaceCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
-	AgentsToolsSurfaceCaller "$1" "${2:-write}"
+	AgentsToolsSurfaceCaller "$1" write
+}
+
+## The path in the vault of the epic item a call names, rc 1 where the argument is no vault epic name.
+AgentsToolsMagicEpicVaultPath(){ ## the argument
+	case "$1" in
+		*/*|'') return 1 ;;
+		epic-blueprint-*.md) ;;
+		*) return 1 ;;
+	esac
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	printf '%s/vault/%s\n' "$MDAT_DATA_ROOT" "$1"
+}
+
+## A vault epic's edited copy becomes the item through the one vault write, which checks it and commits it. A plain source
+## file is a plain file no longer, and the copy takes its place. Either way the copy goes.
+AgentsToolsMagicEpicPut(){ ## the built copy, the file it was built from, the vault item's name (empty for a plain file)
+	local putMember
+	if [ -z "$3" ] ; then
+		mv -f -- "$1" "$2" || { rm -f -- "$1" ; return 1 ; }
+		return 0
+	fi
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	putMember="$( AgentsToolsActingMember )" ; putMember="${putMember:-magic-coordinator}"
+	"${MDAT_BASH:-bash}" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --upsert-vault-epic-blueprint "$putMember" "$3" --from-file "$1" || { rm -f -- "$1" ; return 1 ; }
+	rm -f -- "$1"
 }
 
 ## A path a read may name: under a `todo-sketchpad` folder, with no `..` part.
@@ -77,7 +105,13 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsMagicEpicCaller "--epic-update" || { set +e ; return 1 ; }
-		if [ ! -f "$epicFile" ] ; then
+		## A vault epic item is the source, and its own name is what the edit reports.
+		local epicVaultName="" epicShown="$epicFile"
+		if AgentsToolsMagicEpicVaultPath "$epicFile" > /dev/null ; then
+			epicVaultName="$epicFile" ; epicShown="$epicVaultName"
+			epicFile="$( AgentsToolsMagicEpicVaultPath "$epicVaultName" )"
+			[ -f "$epicFile" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update: no such vault epic item: $epicVaultName" >&2 ; set +e ; return 1 ; }
+		elif [ ! -f "$epicFile" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --epic-update: no such epic file: $epicFile" >&2
 			set +e ; return 1
 		fi
@@ -140,9 +174,9 @@ case "$1" in
 						}
 						END { if ( ! seenDone ) { emit( "" ) ; emit( "## Done" ) } ; emit( line ) }
 					' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
-					mv -f -- "$statusTemp" "$epicFile" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
-					LC_ALL=C grep -q -F -x -- "$statusDoneLine" "$epicFile" || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the line is not in $epicFile after the write -- nothing was closed" >&2 ; set +e ; return 1 ; }
-					printf 'EPIC: %s: %s closed: %s\n' "${epicFile##*/}" "$statusItemId" "$statusDoneText"
+					LC_ALL=C grep -q -F -x -- "$statusDoneLine" "$statusTemp" || { rm -f -- "$statusTemp" ; echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the line is not in $epicShown after the write -- nothing was closed" >&2 ; set +e ; return 1 ; }
+					AgentsToolsMagicEpicPut "$statusTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
+					printf 'EPIC: %s: %s closed: %s\n' "${epicShown##*/}" "$statusItemId" "$statusDoneText"
 					set +e ; return 0
 				fi
 				[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: invalid option: $1 -- the status is one line, passed as one argument" >&2 ; set +e ; return 1 ; }
@@ -178,9 +212,9 @@ case "$1" in
 						}
 						END { if ( ! seenDone ) { print "" ; print "## Done" } ; print line }
 					' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
-					mv -f -- "$statusTemp" "$epicFile" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
-					LC_ALL=C grep -q -F -x -- "$statusDoneLine" "$epicFile" || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the line is not in $epicFile after the write -- nothing was closed" >&2 ; set +e ; return 1 ; }
-					printf 'EPIC: %s: %s closed: %s\n' "${epicFile##*/}" "$featureId" "$statusDoneText"
+					LC_ALL=C grep -q -F -x -- "$statusDoneLine" "$statusTemp" || { rm -f -- "$statusTemp" ; echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: the line is not in $epicShown after the write -- nothing was closed" >&2 ; set +e ; return 1 ; }
+					AgentsToolsMagicEpicPut "$statusTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
+					printf 'EPIC: %s: %s closed: %s\n' "${epicShown##*/}" "$featureId" "$statusDoneText"
 					set +e ; return 0
 				fi
 				statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
@@ -198,8 +232,8 @@ case "$1" in
 					}
 					END { if ( ! placed && inFeature ) { print "" ; print new } }
 				' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
-				mv -f -- "$statusTemp" "$epicFile" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
-				printf 'EPIC: %s: %s status set to %s\n' "${epicFile##*/}" "$featureId" "$featureStatus"
+					AgentsToolsMagicEpicPut "$statusTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
+					printf 'EPIC: %s: %s status set to %s\n' "${epicShown##*/}" "$featureId" "$featureStatus"
 			;;
 
 			--add-settled)
@@ -238,9 +272,9 @@ case "$1" in
 					}
 					END { if ( ! placed && inFeature ) { print "" ; print line } }
 				' "$epicFile" > "$settledTemp" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
-				mv -f -- "$settledTemp" "$epicFile" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
-				LC_ALL=C grep -q -F -x -- "$settledLine" "$epicFile" || { echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the line is not in $epicFile after the write -- nothing was settled" >&2 ; set +e ; return 1 ; }
-				printf 'EPIC: %s: %s settled: %s\n' "${epicFile##*/}" "$featureId" "$settledText"
+				LC_ALL=C grep -q -F -x -- "$settledLine" "$settledTemp" || { rm -f -- "$settledTemp" ; echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the line is not in $epicShown after the write -- nothing was settled" >&2 ; set +e ; return 1 ; }
+				AgentsToolsMagicEpicPut "$settledTemp" "$epicFile" "$epicVaultName" || { set +e ; return 1 ; }
+				printf 'EPIC: %s: %s settled: %s\n' "${epicShown##*/}" "$featureId" "$settledText"
 			;;
 
 			*)
@@ -270,10 +304,16 @@ case "$1" in
 			*) echo "⛔ ERROR: $MDSC_CMD --epic-read: invalid option: $1" >&2 ; set +e ; return 1 ;;
 		esac
 		AgentsToolsMagicEpicCaller "--epic-read" read || { set +e ; return 1 ; }
-		AgentsToolsMagicEpicReadPlace "--epic-read" "$readFile" || { set +e ; return 1 ; }
-		if [ ! -f "$readFile" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --epic-read: no such epic file: $readFile" >&2
-			set +e ; return 1
+		local readVaultPath=""
+		if readVaultPath="$( AgentsToolsMagicEpicVaultPath "$readFile" )" ; then
+			[ -f "$readVaultPath" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-read: no such vault epic item: $readFile" >&2 ; set +e ; return 1 ; }
+			readFile="$readVaultPath"
+		else
+			AgentsToolsMagicEpicReadPlace "--epic-read" "$readFile" || { set +e ; return 1 ; }
+			if [ ! -f "$readFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --epic-read: no such epic file: $readFile" >&2
+				set +e ; return 1
+			fi
 		fi
 		if [ -z "$readFeature" ] ; then
 			cat -- "$readFile" || { set +e ; return 1 ; }
@@ -293,11 +333,23 @@ case "$1" in
 	--epic-list)
 		shift
 		local listDir="${1:-}" listFile listCount listFound=no
-		if [ -z "$listDir" ] || [ $# -ne 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --epic-list: syntax is <folder>" >&2
+		AgentsToolsMagicEpicCaller "--epic-list" read || { set +e ; return 1 ; }
+		## No folder: the epics are the vault's own items.
+		if [ $# -eq 0 ] ; then
+			[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-list: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
+			for listFile in "$MDAT_DATA_ROOT"/vault/epic-blueprint-*.md ; do
+				[ -f "$listFile" ] || continue
+				listFound=yes
+				listCount="$( LC_ALL=C awk 'index( $0, "## " ) == 1 { n++ } END { print n + 0 }' "$listFile" )"
+				printf '%s %s sections\n' "${listFile##*/}" "$listCount"
+			done
+			[ "$listFound" = yes ] || printf 'EPIC-LIST: no epic item in %s/vault\n' "$MDAT_DATA_ROOT"
+			return 0
+		fi
+		if [ $# -ne 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --epic-list: syntax is [<folder>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsMagicEpicCaller "--epic-list" read || { set +e ; return 1 ; }
 		AgentsToolsMagicEpicReadPlace "--epic-list" "$listDir" || { set +e ; return 1 ; }
 		if [ ! -d "$listDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --epic-list: no such folder: $listDir" >&2

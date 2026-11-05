@@ -10,7 +10,7 @@
 ## Prints tab-separated records: `ROW <line> <rule> <text>` for a fault, `MOVED <line> <epic file> <feature id>` for each moved item.
 ##
 ## The rules:
-##   epic-title        the first line is not `# <title>`, or a second level-1 heading stands
+##   epic-title        the line the epic opens with is not `# <title>`, or a second level-1 heading stands
 ##   epic-preface      the `Source:` or the `Builders:` line is absent before the first section
 ##   epic-section      a `## ` heading that is no section of the contract, or a section out of its order
 ##   epic-decisions    `## Decisions` is absent
@@ -62,9 +62,13 @@ function closeFeature() {
 	featureId = "" ;
 }
 
-BEGIN { fenced = 0 ; h1Count = 0 ; lastRank = 0 ; firstSection = 0 ; lastH2 = 0 ; doneAt = 0 ; inDone = 0 ; inItem = 0 ; featureId = "" ; sourceSeen = 0 ; buildersSeen = 0 ; decisionsSeen = 0 ; }
+BEGIN { fenced = 0 ; h1Count = 0 ; lastRank = 0 ; firstSection = 0 ; lastH2 = 0 ; doneAt = 0 ; inDone = 0 ; inItem = 0 ; featureId = "" ; sourceSeen = 0 ; buildersSeen = 0 ; decisionsSeen = 0 ; frontOpen = 0 ; titleDone = 0 ; }
 
-FNR == 1 && $0 !~ /^# ./ { row(1, "epic-title", "the first line is not `# <title>`") ; }
+## A vault epic opens with a frontmatter block, which is no part of the epic: its lines are skipped, and the title is the first
+## line after it. A plain epic file has no such block and opens with its title.
+FNR == 1 && $0 == "---" { frontOpen = 1 ; next }
+frontOpen { if ($0 == "---") frontOpen = 0 ; next }
+titleDone == 0 { titleDone = 1 ; if ($0 !~ /^# ./) row(FNR, "epic-title", "the first line is not `# <title>`") ; }
 
 $0 ~ /^```/ { fenced = !fenced ; next ; }
 fenced { next ; }

@@ -67,7 +67,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - work the sub-points as small questions or statements to approve, per **collect-dont-converge** in `magic-team.interview.routine` and **run-the-conversation**'s topic queue.
 4. **converge-explicitly**: state the resolution plainly. Running out of time or information: say the session did not converge. Write it up as the no-quorum document, the agreed part and each member's own argument, sent up by "The ladder: one rung at a time".
 5. **checkpoint-decide-vs-build**: a decision about to become a build or edit dispatch is confirmed first by the ladder. That is the group's own parent, or the human-owner where he asked for it, per "The ladder: one rung at a time". A decision is never by itself a mandate to implement.
-6. **keep-tracking-item-current**: with a tracking item behind the decision, keep its `# Context Detail` current: options weighed, settled, still open. With no quorum, add one section per dissenting member, as the no-quorum document. The item's body stays a timeless statement of the proposal, per "A rule statement stays a rule statement".
+6. **keep-tracking-item-current**: with a tracking item behind the decision, keep its `# Context Detail` current: options weighed, settled, still open. With no quorum, add one section per dissenting member, as the no-quorum document. The item's body stays a timeless statement of the proposal, per "A rule statement stays a rule statement". The item also stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, each a plain present-tense statement, so a session restarted a month later continues from it.
 7. **record-the-outcome**: write the decision, and the rejected alternatives where useful, into the document it binds, per **decision-lands-in-the-document-it-binds**. Propose any new item (piece, type, goal) and wait for confirmation from the session's own parent, per "The ladder: one rung at a time". The exception is an item the human-owner asked for himself. For a `proposal-*` item, steps:
    - a decision that binds the team, or needs the human-owner's go: put it to him with `magic-team.proposal.routine`. The item keeps its state until he closes it.
    - otherwise, `magic-coordinator` resolves the item: to `board-processed` with the decision as its resolution, approved or rejected. An approved item's `blocks:` items with every `blocked-by` resolved move to `board-pending`.
@@ -112,13 +112,13 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--slack-send-message <target> [text...]`
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
-- `--move-to-processed <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
-- `--move-to-pending <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
-- `--routine-run-inline <routine>`
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` (`DistroAgentsItems`) — `magic-coordinator` only
+- `--move-to-processed <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` (`DistroAgentsItems`) — `magic-coordinator` only
+- `--move-to-pending <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`) — `magic-coordinator` only
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

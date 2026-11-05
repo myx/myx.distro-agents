@@ -23,7 +23,7 @@ The one copy of this policy. Each `partner-*` and `magic-coordinator` cite it.
 
 ## The policy
 
-- A partner is `magic-coordinator`'s assistant for its relationship. It relays between the coordinator and that relationship, and never decides design or approach on its own.
+- A partner is `magic-coordinator`'s assistant for its relationship. It carries the conversation with that relationship in its own words and reports it to the coordinator, and never decides design or approach on its own.
 - A partner dispatch states what is mechanical and what the partner may decide. Without an explicit grant, it takes the choice back to the coordinator.
 - In a session needing quorum, a partner is one voice in that group, the same as any member. Its disagreement makes no quorum, even against the rest of the group. The no-quorum document then goes up to the session's own parent, per "The ladder: one rung at a time".
 - It never asserts our team's authority inside the counterpart's systems.

@@ -56,7 +56,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **check-readiness**: Run `--config-check`. Every `FAIL` or `WARN` line, with its `fix:`, becomes a blocker for **checkpoint-ask-user**.
 2. **check-auth-identity**: Take `SLACK_AUTH_IDENTITY` from **check-readiness**'s output. `OK` names her authenticated `user_id`; anything else is a blocker.
-3. **check-send-path**: Send a probe, carrying a timestamp marker, to `magic-team`, `event-track`, `event-alert` and `human-owner` (`--slack-send-message`; it fails a send whose `message.user` is not **check-auth-identity**'s `user_id`). Read each back (`--slack-read`). A probe counts only when it arrived where expected and reads as sent by Magic Vane. Delivered under another identity, or not found, is a blocker. App attribution alongside her own identity is a warning, not a failure.
+3. **check-send-path**: Send a probe, carrying a timestamp marker, to `magic-team`, `event-track`, `event-alert` and `human-owner` (`SendMessage`; it fails a send whose `message.user` is not **check-auth-identity**'s `user_id`). Read each back (`--slack-read`). A probe counts only when it arrived where expected and reads as sent by Magic Vane. Delivered under another identity, or not found, is a blocker. App attribution alongside her own identity is a warning, not a failure.
 4. **check-alias-target**: A failed `human-owner` send leaves that target unresolved. Ask the human-owner for a reachable conversation; never guess a substitute.
 5. **check-slack-profile**: Read the profile (`--slack-profile-get magic-coordinator`) and compare it with `magic-coordinator.basic.md`. Compare the picture, display name Magic Vane, and handle `dispatchr`. Compare the short role-aligned status line too (baseline: "Dispatch and prioritization lead for magic-*"). A mismatch is set (`--slack-profile-set`) after the human-owner's go. A facet that could not be read is asked about, never assumed.
 6. **checkpoint-ask-user**: For each blocker, ask the human-owner for exactly the next action, one question at a time (`AskQuestion`), and wait for the answer (**wait-never-quit**). After each answer, apply only the affected fix and re-run only the affected step.
@@ -94,11 +94,11 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--config-check`
-- `--slack-send-message <target> [text...]`
-- `--slack-read <channel>:<ts>`
-- `--slack-profile-get`
-- `--slack-profile-set {--display-name <v>|--status-text <v>|--avatar <path>|...}`
+- `--config-check` (`AgentDispatcherTools`)
+- `SendMessage` (`to`, `address_to`, `message`): one message to any target. `DistroAgentsSlack` `--slack-send-message` for `--text-group`, `--update-ts`, `--identity-bot` or a file.
+- `--slack-read <channel>:<ts>` (`DistroAgentsSlack`)
+- `--slack-profile-get` (`DistroAgentsSlack`)
+- `--slack-profile-set {--display-name <v>|--status-text <v>|--avatar <path>|...}` (`DistroAgentsSlack`)
 
 # Maintainer Notes
 

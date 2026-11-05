@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TeamDataRoot.include -- the team data store of a named workspace, asked of any workspace on this machine and not only
+## the one a call runs in (S13.12). Sourced, never run. Functions only.
+##
+## ONE IMPLEMENTATION, two readers: the resolution every operation makes for the workspace it runs in
+## (AgentsContext.UseAgentsTools.include, MDAT_DATA_ROOT) and the supervisor's operations over another rig
+## (`AgentDispatcherTools` `--supervise-resume` and `--supervise-commit-transcripts`, through AgentsTools.SuperviseResume.include
+## and AgentsTools.SuperviseCommit.include). A supervisor reads several rigs from one session, and its board reads must find each
+## rig's own items; a second copy of the resolution would drift from the first. The scan itself resolves no store: it reads the
+## workspace's own `.local/agents` and names none.
+##
+## THE RULE (unchanged from its first home): TEAM_DATA_DIRECTORY of the workspace's magic-coordinator scope, where it is
+## set -- an absolute path as it is, a relative one looked for under the workspace and then under its source/ -- else the
+## workspace's own hidden store, .local/agents/team-data-root.
+##
+## The caller reads it through a command substitution, so a wrong answer shows as an empty one; a workspace that does not
+## exist has no store and prints nothing, rc 1.
+##
+
+## The team data store of a workspace, absolute. rc 1, nothing printed, for a path that is no directory.
+AgentsToolsTeamDataRootOf(){ ## workspace path
+	local rootWs="${1%/}" rootDir=""
+	[ -n "$rootWs" ] && [ -d "$rootWs" ] || return 1
+	rootDir="$(
+		set -- --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY
+		MMDAPP="$rootWs" . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	)" || rootDir=""
+	if [ -n "$rootDir" ] ; then
+		case "$rootDir" in
+			/*) printf '%s\n' "$rootDir" ; return 0 ;;
+		esac
+		if [ -d "$rootWs/$rootDir" ] ; then
+			printf '%s/%s\n' "$rootWs" "$rootDir" ; return 0
+		elif [ -d "$rootWs/source/$rootDir" ] ; then
+			printf '%s/source/%s\n' "$rootWs" "$rootDir" ; return 0
+		fi
+		printf '%s/%s\n' "$rootWs" "$rootDir"
+		return 0
+	fi
+	printf '%s/.local/agents/team-data-root\n' "$rootWs"
+	return 0
+}

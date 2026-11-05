@@ -95,7 +95,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-inquiry <team-member> <item-filename>`
+- `--upsert-inbox-inquiry <team-member> <item-filename>` (`DistroAgentsItems`)
 - `--skillset-upsert <team-member> <pathname>`
 - `--queue-list`
 - `--queue-take`

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionPause.include -- the paused state of a session or of one run (S19): the flag, the one question
+## every pause point asks, and the end that removes it. Sourced, never run. Functions only.
+## The flag is `paused` in `sessions/<id>/`, holding `<when> <by>`; the folder is the session's or one run's.
+## MAGIC.md, "A session or a run is paused (S19)", states what holds it and where the points ask.
+##
+
+## rc 0 while the named run, or the session it belongs to, is paused.
+AgentsToolsSessionPauseHeld(){ ## run id, session id (may be empty)
+	local pauseRun="${1:-}" pauseSession="${2:-}"
+	[ -n "${MMDAPP:-}" ] || return 1
+	case "$pauseRun" in ''|-|.|..|*/*) pauseRun="" ;; esac
+	case "$pauseSession" in ''|-|.|..|*/*) pauseSession="" ;; esac
+	[ -n "$pauseRun$pauseSession" ] || return 1
+	[ -z "$pauseRun" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$pauseRun/paused" ] || return 0
+	[ -z "$pauseSession" ] || [ "$pauseSession" = "$pauseRun" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$pauseSession/paused" ] || return 0
+	return 1
+}
+
+## The pause of this process's own run or of the session it joined: one call for a pause point, so no point restates
+## which two ids are asked. Both arguments are the harness's own where the caller names none.
+AgentsToolsSessionPauseOwn(){ ## the run's id (may be empty), the session's id (may be empty)
+	AgentsToolsSessionPauseHeld "${1:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}" "${2:-${MDAT_SESSION_ID:-}}"
+}
+
+## Waits while the pause stands, a check every 5 seconds. The one loop, so each pause point is a call and no point
+## carries a copy of the flag's path.
+AgentsToolsSessionPauseWait(){ ## the run's id (may be empty), the session's id (may be empty)
+	while AgentsToolsSessionPauseOwn "${1:-}" "${2:-}" ; do sleep 5 ; done
+}
+
+## Sets the flag of one id -- a session's, or a run's own -- and prints its path. rc 1, nothing printed, for a name
+## that is no id or a folder this workspace does not keep: a pause never makes a store of its own.
+AgentsToolsSessionPauseSet(){ ## id, by
+	local setPauseId="${1:-}" setPauseBy="${2:-unknown}" setPauseAside
+	case "$setPauseId" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	[ -d "${MMDAPP:-/nonexistent}/.local/agents/sessions/$setPauseId" ] || return 1
+	setPauseAside="$( mktemp "$MMDAPP/.local/agents/sessions/$setPauseId/paused.XXXXXX" 2> /dev/null )" || return 1
+	{ printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$setPauseBy" > "$setPauseAside" \
+		&& mv -f "$setPauseAside" "$MMDAPP/.local/agents/sessions/$setPauseId/paused" ; } 2> /dev/null \
+		|| { rm -f "$setPauseAside" 2> /dev/null ; return 1 ; }
+	printf '%s\n' "$MMDAPP/.local/agents/sessions/$setPauseId/paused"
+}
+
+## Removes the flag of one id. rc 0 whether or not one stood: resuming a session that is not paused is no fault.
+AgentsToolsSessionPauseClear(){ ## id
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	rm -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/paused" 2> /dev/null
+	return 0
+}
+
+## The pause said in the session's chat file, so its members read it there: one block, origin `console`, nothing posted.
+## Quiet: a session with no chat file reports nothing and is no fault.
+AgentsToolsSessionPauseSay(){ ## session id, the words
+	local saySession="${1:-}" sayWords="${2:-}" sayBy="${3:-tooling}"
+	[ -n "$saySession" ] && [ -n "$sayWords" ] || return 0
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	printf '%s\n' "$sayWords" | AgentsToolsSessionChatAppend "$saySession" "$sayBy" all - local console > /dev/null 2>&1 || :
+	return 0
+}

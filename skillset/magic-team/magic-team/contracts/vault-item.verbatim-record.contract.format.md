@@ -1,9 +1,9 @@
 ---
 maintainers: magic-librarian, magic-coordinator, human-owner
 ---
-# vault-item.verbatim — frontmatter contract
+# vault-item.verbatim-record — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.verbatim.document.format.md`; `--upsert-vault-verbatim` writes it. Read by the document validator, `--intern-doc-validate vault-item.verbatim <file>`.
+Normative contract: this file's own `# Contract` section, at its end. The document shape is the tooling's `sh-lib/templates/vault-item.verbatim-record.document.format.md`; `--upsert-vault-verbatim-record` writes it. Read by the document validator, `--intern-doc-validate vault-item.verbatim-record <file>`.
 
 ## Contents
 
@@ -16,13 +16,13 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-A verbatim document or fact: a standing statement kept word for word. Thin: the team's model defines this type in one line. So this contract carries the common keys, and the body is free.
+A verbatim record: a standing statement kept word for word. Thin: the team's model defines this type in one line. So this contract carries the common keys, and the body is free.
 
 # Contract
 
-- Kind `vault-item.verbatim`: store vault, type word `verbatim`.
-- Filename: `verbatim-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per Terminology.
-- A document names this contract in `document-contract`, with the value `vault-item.verbatim`. The writer fills it where missing.
+- Kind `vault-item.verbatim-record`: store vault, type word `verbatim-record`.
+- Filename: `verbatim-record-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per Terminology.
+- A document names this contract in `document-contract`, with the value `vault-item.verbatim-record`. The writer fills it where missing.
 - A key the Keys table does not name is not part of this contract. How a stored document that does not match is treated is set by the validator's per-rule disposition, not here.
 - The validator reads the Keys table, the Body and the unmarked Rules. A rule marked `[store]` needs more than the file to check: the item's board state, its inbox, its writer or its authority. A rule marked `[judged]` is for a reader to judge.
 
@@ -32,8 +32,8 @@ A verbatim document or fact: a standing statement kept word for word. Thin: the 
 
 | key | presence | writer | value form | rule |
 |---|---|---|---|---|
-| `document-contract` | required | either | `literal vault-item.verbatim` | Names this contract. The writer fills it where missing. |
-| `type` | required | either | `literal verbatim` | The filename's type word, never a genre. |
+| `document-contract` | required | either | `literal vault-item.verbatim-record` | Names this contract. The writer fills it where missing. |
+| `type` | required | either | `literal verbatim-record` | The filename's type word, never a genre. |
 | `from` | required | member | `member` | The author. |
 | `date` | required | member | `date-time` | When the statement was recorded. |
 | `owner` | optional | member | `owner-name` | The current holder, where one is named. |
@@ -53,6 +53,6 @@ A verbatim document or fact: a standing statement kept word for word. Thin: the 
 
 ## Rules
 
-- `type` equals the type word in the filename (`verbatim`).
+- `type` equals the type word in the filename (`verbatim-record`).
 - `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-` or `warning-`. A name starting with `investigation-` names a vault report.
 - [judged] The text is word for word, never paraphrased.

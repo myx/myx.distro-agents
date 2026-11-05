@@ -459,6 +459,16 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 		rosterCounterpartyIds="$( printf '%s\n' "$rosterLines" | LC_ALL=C awk -F '\t' '$4 != "" && !seen[$4]++ { print $4 }' )"
 		local rosterHandles="" rosterInfoId rosterInfoResp rosterInfoName
 		for rosterInfoId in $rosterCounterpartyIds ; do
+			## The caller's own bound, where one was handed down. A scan that sets
+			## ENV_MAGIC_SWEEP_SLACK_LEG_DEADLINE stops naming handles past it, and
+			## says so on its own line. Unset, this loop is unbounded as before.
+			case "${ENV_MAGIC_SWEEP_SLACK_LEG_DEADLINE:-}" in
+				''|*[!0123456789]*) ;;
+				*) if [ "$SECONDS" -ge "$ENV_MAGIC_SWEEP_SLACK_LEG_DEADLINE" ] ; then
+						echo "IDENTITY|identity=$rosterIdentity|auth=$rosterAuthId|handle=$rosterAuthName|status=bound|reason=the caller's leg bound passed while naming counterparties; the conversations above are real and some carry no handle"
+						break
+					fi ;;
+			esac
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			rosterInfoResp="$( DistroAgentsTools --intern-op-slack-call "$memberName" --api users.info --identity "$rosterIdentity" \
 				--form "user=$rosterInfoId" --context "--slack-conversations-roster ($rosterIdentity identity, one counterparty)" )" || continue
@@ -642,7 +652,7 @@ case "$1" in
 				continue
 			fi
 			case "$stubArg" in
-				--project|--issuetype|--summary|--description-adf|--description-adf-from-file|--fields-json) stubTakesValue=yes ;;
+				--project|--issuetype|--summary|--description-adf|--description-adf-from-file|--fields-json|--assignee) stubTakesValue=yes ;;
 				--description-adf-from-stdin) ;;
 				*)
 					printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-create: unexpected: $stubArg" >&2
@@ -684,7 +694,7 @@ case "$1" in
 				continue
 			fi
 			case "$stubArg" in
-				--fields-json|--update-json) stubTakesValue=yes ;;
+				--fields-json|--update-json|--assignee|--project) stubTakesValue=yes ;;
 				--notify-users) ;;
 				*)
 					printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-update: unexpected: $stubArg" >&2
@@ -933,6 +943,40 @@ case "$1" in
 		local opRc=0
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-atlassian-confluence-page-create --member "$actingMember" --context confluence-page-create "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--confluence-space-create)
+		shift
+		local actingMember="${1:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-space-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-space-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" confluence-space-create || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-space-create: runs only as magic-coordinator, and $actingMember is not it -- a space is the site's own top-level container, so only the coordinator creates one" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--key|--name|--description) stubTakesValue=yes ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-space-create: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-atlassian-confluence-space-create --member "$actingMember" --context confluence-space-create "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
 	;;

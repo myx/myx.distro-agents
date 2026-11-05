@@ -82,7 +82,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--routine-run-inline <routine>`
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

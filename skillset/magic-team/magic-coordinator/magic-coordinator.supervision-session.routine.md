@@ -63,6 +63,7 @@ The Opening steps of the routine it inherits from run first (its session kind's)
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **write-the-duty-list**: Write these recurring duties to your `CheckList`, one item each:
+   - watch the human-owner's replies.
    - read the live runs.
    - unstall the stuck.
    - clear the strays.
@@ -82,25 +83,29 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **read-every-live-run**: For each live run of a session that is not held, read these before acting:
+1. **watch-human-owner-replies**: Read his `human-owner` conversation and the team bot's conversation with him, from the saved floor, and every thread with a reply newer than the floor. Read the clarifications on open asks too. That reading covers the session threads and the team conversations, following each reaction and reply to its effect, or steering the member until it has. Answer what he said before anything else, and store the new floor in the session.
+
+   Before listing anything as waiting on him, read its current state.
+2. **read-every-live-run**: For each live run of a session that is not held, read these before acting:
    - its latest tool calls, with their times.
    - the item in progress on its `CheckList`.
    - every open ask addressed to the coordinator.
-2. **unstall-runs**: Give each of these runs its next exact step, in its session thread:
+3. **unstall-runs**: Give each of these runs its next exact step, in its session thread:
    - a run with no tool call for ten minutes.
    - a run waiting for a continue.
 
    Answer an ask that has waited past one tick by `magic-coordinator.work-duty.routine`'s **answer-run-asks**. A run that waits on something that cannot come goes through **end-and-resume**.
-3. **clear-strays**: Record, then end, each process the tooling should not run:
+4. **clear-strays**: Record, then end, each process the tooling should not run:
    - a test run left behind by an ended session.
    - an orphan wait.
    - a duplicate control thread.
 
    Never end one of the critical session's own.
-4. **sample-the-rest**: Sample the sessions that are not stuck, at random, or all of them as load allows. Read what each filed in `event-track` and the content it produced. Check its decisions and quality against the brief, the epic and the rules in force.
-5. **assess-the-system**: Assess how the whole system works: tooling, setup, processes, people and teams. Look for gaps, inefficiency and what to tune.
-6. **handle-a-problem**: Assess each problem the steps above found, before any action. Then fix it, file it, or send a request to magic.vane@meloscope.com (`--email-send`). Choose by the start mode, the install, the situation and the kind of problem.
+5. **sample-the-rest**: Sample the sessions that are not stuck, at random, or all of them as load allows. Read what each filed in `event-track` and the content it produced. Check its decisions and quality against the brief, the epic and the rules in force.
+6. **assess-the-system**: Assess how the whole system works: tooling, setup, processes, people and teams. Look for gaps, inefficiency and what to tune.
+7. **handle-a-problem**: Assess each problem the steps above found, before any action. Then fix it, file it, or send a request to magic.vane@meloscope.com (`--email-send`). Choose by the start mode, the install, the situation and the kind of problem.
    - detect problems and areas to improve actively, by reading the code and the running system, not only what a run reports.
+   - rule: every message this step sends to a run or a member is a direct message. It states the exact change in the supervisor's own words, and quotes the human-owner only for a name, path or flag whose exact form is load-bearing.
    - classify each: simple or profitable, then offer it or do it. Complicated or a minor improvement, then discuss it or record it.
    - each takes one of three ways, chosen by "Choosing a move" in `magic-team.basic.md`:
      - do it inline yourself, and record the rework or finishing it still needs.
@@ -109,15 +114,15 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a fault met is fixed forward in the tooling. No private script, wrapper or one-time patch stands in for the fix.
    - use what works, and take on what is broken.
    - study how a tool is made only when that is the task.
-7. **report-on-change**: Post one line to the human-owner's direct conversation for each change this tick. A change is a session released, a stage landed or accepted, or a fault found or fixed. Nothing changed: post nothing.
-8. **next-tick**: Decide what follows this tick, steps:
+8. **report-on-change**: Post one line to the human-owner's direct conversation for each change this tick. A change is a session released, a stage landed or accepted, or a fault found or fixed. Nothing changed: post nothing.
+9. **next-tick**: Decide what follows this tick, steps:
    - the stop condition given at a root or manual start is met: go to the Closure steps.
    - all of these hold: go to **check-all-and-report**.
      - no session is held.
      - every session is done or idle.
      - the critical work has landed.
    - otherwise wait for the next tick, with `Wait` (wait-never-quit).
-9. **check-all-and-report**: Check everything the supervision touched, steps:
+10. **check-all-and-report**: Check everything the supervision touched, steps:
    - review every change landed during the supervision against `code-craft.md` and `shell.md`.
    - move every proven item to the epic's Done.
    - validate the epic.
@@ -169,15 +174,21 @@ Improving changes how the system works:
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
+- Every message this routine sends to a run or to a member is a direct message: requirements in the supervisor's own words, for the worker that must act on them. `magic-team.basic.md`'s "Relay, direct, produce" tells it from a relay. Its change lines to the human-owner are direct messages too.
+- A requirement the supervisor cannot state plainly is one it has not understood. It reads his words, the epic and the board again, and asks him one closed question where that still does not settle it.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - The human-owner is asked nothing while he is away. Every decision the brief, the epic or a rule settles is taken, and said in the next change line.
-- This session uses any floor tool of the coordinator: pause and resume, session messaging, registry lists, the board and the team-data operations.
+- This session uses any tooling operation of the coordinator: pause and resume, session messaging, registry lists, the board and the team-data operations.
 - The areas named in **assess-the-system** are a direction, never a ceiling.
 - A run started by the `supervised` flag never ends while the flag is on, and reports on change.
 - A start by the root or by hand gives the run a stop condition only. Its goals and methods stay in this routine. The run ends when the condition is met, or on the human-owner's word.
 - Source that live runs read is written to a new file and moved into place, never rewritten where it stands.
 - No hold, pause or limit ever covers a supervision session, or the root harness session above it.
 - A process that keeps coming back after it was ended is a fault of the tooling. File it as one, and do not repeat the cleanup.
+- It stays above the machinery, and reaches the machinery only through the mandated tool: the tooling operation prescribed for that action.
+- A trivial fix it already understands, a configuration value above all, it edits itself through that tool rather than dispatching it.
+- It never reads or edits a tool's own indices or caches.
+- It departs from a mandated tool only where that tool is broken, and only with the human-owner's confirmation.
 
 # Routine-specific tooling
 
@@ -191,16 +202,16 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--current-flags`
+- `--current-flags` (`DistroAgentsDispatcher`)
 - `--manager-session-list [--active]`
 - `--manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]`
 - `--manager-session-checklist-read --session-id <id> <member>`
 - `--manager-session-kill --session-id <id> [--run] [--plan]`
 - `--manager-session-control-start (--session-id <id>|--all)`
-- `--spawn-session`
-- `--return-review <item-filename> (--message <text>|--from-stdin)`
-- `--email-send <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)`
-- `--slack-send-message <target> [text...]`
+- `--spawn-session` (`DistroAgentsDispatcher`)
+- `--return-review <item-filename> (--message <text>|--from-stdin)` (`DistroAgentsItems`)
+- `--email-send <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)` (`DistroAgentsMail`)
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 - `--intern-doc-validate`
 
 ## Gaps

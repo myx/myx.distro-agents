@@ -512,6 +512,43 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   working tree, so data must never be written there. `.gitignore` keeps
   `skillset/magic-team/human-owner/human-owner.workspaces.md` out of the package.
 
+## The comms event stream (S1.12)
+
+- **The store is a stream of events, and nothing in it is ever rewritten.** A channel's folder holds
+  `YYYYMM/events.txt`, one event a line, appended in arrival order. The month is a partition by the event's
+  own arrival time, closed once the month has passed. A late event about an old message lands in the current
+  month and names the older message in its `msg` column.
+- **Sixteen TAB columns, always, in this order**: `id`, `e`, `msg`, `u`, `v1`, `v2`, `x`, `bot`, `sub`, `par`,
+  `sender`, `track`, `sess`, `arun`, `adrun`, `body`. An empty column is the absence itself, so no reader
+  counts fields to learn what it holds. Two escapes, applied to every column: `\037` for a newline, `\036` for
+  a TAB, and `\r` dropped.
+- **The kinds**, each with the columns it fills: `msg` (a message arrived, `v1` its own id), `rx` and `rx-`
+  (a reaction appeared, and was taken away: `u` the reactor, `x` the name), `thr` (a thread's reply count in
+  `v1` and its latest reply in `v2`), `thru` (a reply author, `u`), `fl` (a file: `v1` its id, `v2` its size
+  and type, `x` its name), `att` (an unfurl: `v1` the target message, `x` its words), `edit` (`x` the new
+  body), `post` (one of our own posts changed state).
+- **`id` is when the event was seen, and it orders everything.** It is the `EventIdentifier` long form,
+  `yyyyMMddTHHmmssSSSZ-` and six decimal sequence digits and three hex origin characters, 29 characters, so
+  plain string order is time order. `--intern-comms-event-id` mints it: one thread a workspace, holding the
+  last millisecond and the last sequence in memory, started on demand, answering through its request fifo and
+  dying on idle. A thread and never a file, because a millisecond and a sequence cannot be kept by rewriting
+  one, and because two passes inside one second must sort as time. The origin is the workspace's own number,
+  read once for the thread's whole life.
+- **A pointer is the last `id` seen, and it is exact.** `msg` keeps the message's own id, so an event about an
+  old message takes a new id and reaches a reader that has already passed that message. The ingest's pointer is
+  `.ingest.txt`, one line, and the ingest is its only writer: it never moves by itself, and a failed read leaves
+  it where it was.
+- **A removal is only observable by comparison.** Slack's read returns current state, so the ingest folds what
+  the store already holds and emits `rx-` for a mark the store holds and the read no longer carries. A mark
+  added and removed between two reads leaves nothing.
+- **The threshold is 2,000 bytes, and it counts the text alone.** A longer text keeps a 400-byte head in `x`
+  and its whole self in `<msg>.body.txt` beside the month's file, named by the `body` column. Annotations are
+  their own events here, so they spend no part of that allowance.
+- **The ingest is one operation, one source**: `--intern-comms-ingest --run <member> <channel id>`. It reads the
+  history from its pointer's floor, reads each thread whose latest reply is newer than that floor, writes the
+  events the store does not hold, and moves the pointer. Nothing about what is actionable lives here; that is
+  the transfer's (§3 of the design).
+
 ## 7. The `--owner-setup-*` family
 
 User grammar is in [docs/commands.md](docs/commands.md); per-domain manuals are `--help-setup-<domain>`.
@@ -1313,6 +1350,19 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`<channel>:<ts>`). A coworking session shares one sandbox named by the session id. The start post
   names `paying-workspace` and `member-workspace` only where either differs from the workspace the
   session runs from.
+- **The routine stack** (`AgentsTools.RoutineStack.include`, S6.27): `routine-stack:` lines on the session
+  record, one a frame, the bottom first, `<routine file>:<state>`. The start writes the starting frames only:
+  the chain `--routine-chain` declares, else the routine's own `routine-chain:`, else the one routine in
+  force, the first frame `current` and the rest `pending`. A run joining a session keeps the frames its
+  record already holds. The same frames go in the session thread's root post as its `Routines:` line, so a
+  reader sees the path at the session's head.
+  Four moves change them (`--routine-stack`, ThisSession): `push` and `replace` put a routine on top, the
+  frame in force becoming `open` and `skipped`; `rewind` leaves every frame and runs the routine again;
+  `return` goes one frame up and `return-to` to the frame it names, every frame above ending `done`. Each
+  move appends one line of its own, `routine-stack-push:` and its three siblings, holding the routine,
+  `by:` and the reason, and posts that line into the session's event-track thread. Those four keys are
+  never frames: the reader of the frames takes `routine-stack:` alone. A move writes no CheckList, and its
+  result names the steps of the routine in force and the step the run starts at.
 - **Where a run reports to** (`AgentsToolsRunRoute`, `AgentsTools.SpawnSandbox.include`): its record's
   `reports-to`. Its handback goes there. So do its asks and escalations that name no target, and the
   notices of its end and its death. Unset, it is the initiator: the member that brought the run in
@@ -2246,7 +2296,9 @@ floor: a Slack source the session already waited on resumes after the last messa
 wait returned on it, so a post that landed while the caller was busy between two calls
 is returned by the next one, whichever mode it names. Only an explicit
 --wait-since-utime replaces those floors, and only --wait-close (or --wait-drop) removes
-them. A :conversation thread with no stored floor starts at the session's own last post
+them. A tag, a direct message and a mention keep a floor the same way (`floor
+tagged:<member>`, `floor dms:<member>`, `floor mentions:<member>`), so a message posted
+into any of them between two calls is not lost either. A :conversation thread with no stored floor starts at the session's own last post
 in that thread (sessions/<id>/last-own-post, written by the harness send), else at the
 spawn's launch (the mtime of $MDAT_SPAWN_LAUNCH_MARKER), whichever applies and is older
 than the wait; every other source with none starts at the wait's start. A floor only ever advances to the newest
@@ -3001,6 +3053,15 @@ THE NAP IS THE TICK. A local source was read this round and is read again in a s
 waits for its own slow gap, which the round gate above holds it to, so no read of the team's Slack
 budget is made more often than before. A caller's own interval (waitBackoff false) is the nap, as it
 always was.
+THE NAP STARTS NO PROCESS (S12.7). It is `read -t` on a fifo the wait holds both ends of, descriptor 6,
+and not a `sleep`: a sleep a tick is a fork a tick, and an idle run waits for hours. Measured on this
+estate, one file source, 15 further poll rounds: 1.00 processes a round before, 0.00 after; the whole
+21-second call spent 0.51 s of CPU before and 0.35 s after. The fifo is made in the wait's own folder
+and the descriptor is closed before the result is written. A wait that cannot make the fifo falls back
+to `sleep`, so a read-only temp folder costs the old one fork a round and nothing more. The read
+returns 1 when it waited out its time, as `sleep` returns 0: the guard `|| :` carries that, or `set -e`
+ends the wait at its first quiet second. A read of 300 seconds is woken by TERM as promptly as a sleep
+is (measured on bash 3.2.57), so a wait is still ended the way it was.
 ~~~
 
 #### `AgentsTools.MemberWaitSources.include`
@@ -3364,6 +3425,13 @@ flag would be a silent no-op there -- refused instead, same shape as the
   `incoming/` is checked before anything is written. It is marked processed
   after the inquiry is written, in the same call (`disposition:
   filed-as-inquiry`, `filed-as: <inquiry>`). A name that is no reflection there, or is another member's, refuses the call whole.
+- **Every delivered inbox block closes with the inbox instruction** (`AgentsToolsInboxInstruction`,
+  `AgentsTools.InboxPlace.include`): what the reading run does with each unprocessed item. Its places are
+  the input scan's own inbox sections, the acting member's alone (a widened read-only inbox carries none,
+  its items being nobody else's to mark), and the `Wait` result's `# arrived on: inbox:<member>` block,
+  printed by `AgentsWaitArrivalsOrder.awk` from `-v inboxLine`. The wording is `magic-librarian`'s: it
+  changes in that one function and nowhere else. `sh-test/inbox/AgentsInboxInstructionLineCheck.test.sh`
+  is its test.
 - **The GC and the trash op are separate mechanisms**: one deletes on a clock, the other relocates one
   named item.
 - **Inbox items live in `incoming/` and `processed/`** (`AgentsTools.InboxPlace.include`, the one answer to
@@ -3931,7 +3999,10 @@ op's own option arm.
   explanation, no syntax tail. It forwards `--member` and `--context`; the internal layer refuses a second
   of either. Diagnostics use the stub's context. A stub prints nothing itself and never calls another stub.
 - **Keys**: `JIRA_SITE/JIRA_USER/JIRA_API_TOKEN` and `CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN`,
-  from the acting member's scope, no fallback, never crossed: separate sets let one be rotated alone.
+  read in one order and never crossed: the environment, then the acting member's own scope in this
+  workspace, then this workspace's `magic-team` scope. A set is taken whole from one rung, so a
+  borrowed key never outranks a team key and a client-side call takes no team rung. Separate sets let
+  one be rotated alone.
 - **Exit codes** (Atlassian transport only). Faults ⛔: 1 contract error before any call; 3 no usable
   answer (transport, unreadable body, 3xx, 5xx); 4 credential rejected (401). Designed refusals 🙋: 5 conflict (409), 6 not configured, 7 forbidden (403, not
   yet seen live). Then 8 not found or invisible (404), and 9 any other 4xx
@@ -3962,6 +4033,10 @@ op's own option arm.
 - **Confluence gotchas**: REST v2 has no rendered form (`storage` or `atlas_doc_format`). `page-search`
   and `comment-read` have no completeness signal (`more: unknown`); `space-list`
   (`/wiki/api/v2/spaces`) terminates via `_links.next`, and its cursor passes through verbatim.
+  `space-create` is that endpoint's `POST`, coordinator-only and with no client twin: its documented
+  404 is the account lacking permission to create spaces, so it is a refusal and never a missing
+  space. Its `--key` is the space's own address, so a key outside letters, digits, `-` and `_` is
+  refused before anything is sent.
   `page-create` needs the numeric space id (`--space <key>` looks it up, refusing 0 or many matches).
   `page-update` is version-gated: the caller passes `--version <n>`, the op
   sends `n+1`, and never re-reads, since that would defeat the lock. It is a
@@ -4489,12 +4564,19 @@ op's own option arm.
 
 Each instrument states what it proves and its red recipe in its own header. What a maintainer must know:
 
-- **One run of `AgentsRunTests.sh` runs on this machine at a time.** Every run, of the whole suite or of named tests, waits its turn. That is
-  machine-wide, in arrival order (`AgentsRunQueueTurn`, ticket files under
-  `$HOME/.agents/magic-team/suite-queue`, never under the package). A run has one worker unless `-w` is
-  given. The line is said once per wait, naming who it waits behind. The hand rule this replaces is `mkdir $MMDAPP/.local/temp/suite-run.lock`
-  around a run, and it is kept on both sides. So a session still on the hand
-  rule and a queued run never run at once.
+- **The suite line is more than one lane, and the lane count comes from the pace a tool call finds.** Every run, of
+  the whole suite or of named tests, waits its turn machine-wide, in arrival order (`AgentsRunQueueTurn`, ticket
+  files under `$HOME/.agents/magic-team/suite-queue`, never under the package). A run then takes a lane, of as many
+  as `$HOME/.agents/magic-team/suite-lanes` allows, and gives it back when it ends. The count is the machine's own
+  ceiling (`suite-lanes/max`, 3 unless it holds a number) times `pace-floor` over `pace-now`: the floor is the fastest
+  pace this machine has shown, a slower pace never raises it, and it is read afresh once it is a day old.
+  `AgentsRunPaceMs` times one fixed piece of the shell's own work, no fork, best of three. Load average is never the
+  measure: at load 19.8 measured at 04:16Z on 2026-11-04 the pace had already returned to its fastest. A test whose
+  header carries `## lane: alone` measures its own timing, so its run takes every lane (`AgentsRunAloneWanted`).
+  A run has one worker unless `-w` is given. The line is said once per wait, naming who it waits behind. The hand
+  rule this replaces is `mkdir $MMDAPP/.local/temp/suite-run.lock` around a run, and it is kept on both sides: a lock
+  taken by hand shuts every lane, and so does the lock of a runner from before the lanes, which writes no
+  `lanes: yes`. `AgentsRunTestsQueueCheck` section 9 and `AgentsRunTestsLeakCheck` section 8 hold all of it.
 - **The retest queue is machine-wide too**, beside the suite queue at
   `$HOME/.agents/magic-team/retest-queue` (`AgentsTools.MemberRetest.include`), shared by the live tree
   and every scratch copy. A session that changed something asks for what to retest and goes on:
@@ -4705,7 +4787,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **A handback addressed to the duty is a ready input.** The work-duty scan lists the review items with `review-by: <member>.work-duty.routine` under `## Handbacks ready for the duty` and a `# ready: <N>` line. A Wait on `scan:work-duty` returns with the report again while N is above 0, until the duty takes the item out of review.
 - **A context refusal withholds tool results.** The harness records each tool result of a leg. A refusal for length withholds the results of the round that overflowed, and a refused summarise round is asked again once with every result withheld. A withheld result is a notice that the call ran.
 - **A duty's start does not wait for Slack news.** The spawner marks its real run of a scan `MDAT_SCAN_AT_START=1`, and the duty scan then reads Slack once with a one-second window. A Wait's own scan keeps `WAIT_COLLECT_SECONDS`.
-- **The coordinator reads epics through the tooling.** `AgentDispatcherTools --epic-read <file> [--feature <id>]` and `--epic-list <folder>` serve a path under a `todo-sketchpad` folder, with no `..` part, to the coordinator or to no member.
+- **An epic is a vault item, and any member reads it.** `vault-item.epic-blueprint` is the vault's type for an epic, written by `--upsert-vault-epic-blueprint` as `epic-blueprint-<date>-<matter>.md`, and `epic` keeps its shape. `AgentDispatcherTools --epic-read <epic-file|epic-item> [--feature <id>]` and `--epic-list [<folder>]` serve any member: a vault epic blueprint's bare name, or a path under a `todo-sketchpad` folder with no `..` part. `--epic-update` stays magic-coordinator's, and writes a vault item through `--upsert-vault-epic-blueprint`, so its contract check and its commit happen at that one write.
 - **A run's words are one word each (S27.4).** The `live` column reads `running`, `gone`, `remote` (the record names another host) or `unknown` (it names no host or no run). The `state` column reads `thinking`, `tool`, `waiting`, `idling`, `parked`, `finished`, `failed` or `unclosed`, plus `starting` for a run its start has not yet shown. A run on another host with an open record reads `unclosed`. `AgentsToolsRegistryMeasureRows` derives both, and `AgentsToolsRegistryDeriveState`, `AgentsToolsRegistryDeriveStateFromSet` and the legacy fixture of the diff check must give the same words. `idling` is a Wait whose sources are all the floor: `AgentsWaitActivityIdle` rewrites the run's `tool Wait` mark as `idle`, and the harness's idle-wait writes `idle`. A session's own state words (`running`, `waiting`, `awaiting-review`, `unknown-foreign`) are the console's and stay. The `ListAgents` filter `running` keeps every row whose `live` is `running`, and the `waiting` ones.
 
 ## A session's root message shows its end (S6.37)
@@ -4718,13 +4800,77 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **A pause is separate state and its own reaction.** `double_vertical_bar` while `sessions/<session>/paused` stands, asked at every tick of the session's control thread, and removed once that file is gone. `root.pause` says what the message currently carries.
 - **A mark is never an arrival, and no member spends a round on one.** The root post carries `[tracking: session-root]`, so `AgentsTrackingDrop.awk` drops it whole and its marks with it, `AgentsSessionChatImport.awk` records it as `history` for every floor, and `AgentsWaitOwnPostReplies.awk` reports a reaction set only for a post the member itself made. `sh-test/session/AgentsSessionRootMarkReadsCheck.test.sh` pins the three, with controls that show each reading able to see the root when the mark is not there.
 
+## A wait's first look reads from the run's beginning (S6.39)
+
+- **A post never looked at starts at the run's own beginning.** A record line's thread and conversation floors are `-` until a first look, and that look read from the post's own ts. What stood after the post but before the run began was handed over as new and took a seen `eyes`: 373 of 373 claims written on MDV on 3 November were for messages over six hours old, and 684 of 813 on MEL. `AgentsWaitRepliesStart` (`sh-lib/member/AgentsTools.MemberWaitReplies.include`) reads the launch marker once a wait, and the look starts there where the post is older. A run launched through no marker keeps the floor its line carries.
+- **History is dropped, work is not.** A message after the run began is still returned and still marked, and a later look returns what arrived while the run worked. `sh-test/member/AgentsWaitRepliesFirstLookCheck.test.sh` holds both directions, and the react log below.
+- **The seen path logs one line an attempt**, `comms-slack-react.YYYY-MM.log` beside the send log: `<stamp> <member> <target> <identity>:<account> <ok|failed> <reason>`. A mark that fails leaves no claim, so this log is the only record of it.
+- **The second identity is spent only where it can help.** `AgentsToolsSeenHopeless` lists the reasons no identity of ours can change, `already_reacted` among them; the react path stops after the first failure for one of those instead of calling again as the bot.
+
+## A session or a run is paused (S19)
+
+- **The flag is one file, and its folder is what it holds.** `sessions/<id>/paused`, one line of `<when> <by>`, written by `--manager-session-pause` and removed by `--manager-session-resume`. A session's own id in that folder holds every run of it, and a run's own id holds that run alone. `sh-lib/session/AgentsTools.SessionPause.include` is its one home: `AgentsToolsSessionPauseHeld`, `AgentsToolsSessionPauseOwn`, `AgentsToolsSessionPauseWait`, and the set and clear.
+- **Every point asks the run and its session, and there is one loop.** `AgentsToolsSessionPauseOwn` asks the harness's own run id and the coworking session it joined, so no point restates the chain; `AgentsToolsSessionPauseWait` is the 5-second look, shared by all of them.
+- **The start of a call and its exit are different pauses.** Read and Wait hold at their START, so a paused run reads nothing while it holds. SendMessage, SubagentHandback, Bash, WorkspaceContextExecute, Write and Edit hold at their EXIT, so the work is done and its result waits. `execute` (`--intern-mcp-execute`) is checked at its start and then REFUSED with PAUSED, exit 75, so nothing ran and the run calls it again.
+- **`paused` is a state word of the registry, never a busy one.** `AgentsToolsRegistryDeriveState`, `AgentsToolsRegistryDeriveStateFromSet` and the one awk pass in `AgentsToolsRegistryMeasureRows` all read it before the activity mark, for a live run only, at the same two ids the park mark is read at. A held run is therefore never `stuck`, `dead` or `idling`, and the console counts it apart: `sessions-paused` and the session's own `paused` state.
+- **Nothing ends a held run.** `AgentsToolsSessionControlRelease` turns away from a run a pause holds and drops its release mark, so the closing time counts again from the resume. The control thread's own judging keeps the session `running`, so no thread calls it finished.
+- **Two marks wait on it, and both are wired to this file.** S6.37's `double_vertical_bar` (`AgentsToolsSpawnProxyRootPauseMarks`) and S13.18's `paused=yes` with its `waiting` verdict (`AgentsSuperviseScan`) ask the same flag, and neither keeps a copy of its path.
+- **A pause is said where its members read it.** The operation writes one block into the session's chat file as `console`, and the work-duty scan prints one `PAUSED:` line naming the session.
+- **The checks.** `sh-test/session/AgentsSessionPauseStateCheck.test.sh` holds the state and its readers, `sh-test/harness/AgentsHarnessPausePointsCheck.test.sh` holds the seven points and the refusal, and `sh-test/session/AgentsSessionPauseReadersCheck.test.sh` holds the three readers and the two marks against a real flag.
+
 ## One team-data committer, runs that nobody ends, one audit log (S12.4, S5.6, S12.5)
 
-- **A writer of the team data runs no git.** `AgentsToolsTeamDataCommitPaths <context> <path>...` leaves one entry file in `team-data-commit/` of the store's git directory. It starts `--intern-team-data-commit --run` where none lives. The thread takes the entries oldest first, commits each as its own commit, and pushes once. A lock another writer holds can no longer fail a write. A thread that cannot be started leaves no entry unseen: the writer commits in its own process.
-- **The thread is one a store.** Its lock is `thread.lock`, holding `<pid> <start>` (`AgentsTools.ThreadLock.include`, which the three older threads do not use yet). It ends by itself once no entry came for `MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS` (60), and it gives the lock back first. An entry left in that moment takes the lock again. `thread.log` is cut back to 64 KiB when it passes 128 KiB. `--intern-team-data-commit --one` makes one pass, for a check.
-- **A failed commit stays owed.** `AgentsToolsTeamDataCommitPathsNow` keeps the paths in `.local/agents/team-data-commit.owed`. The thread tries them again every 30 seconds, and the debt does not keep it alive. A path that is gone and that git never knew is left out of a commit, since it fails the whole add, and so is a path that changed nothing.
-- **`MDAT_TEAM_DATA_COMMIT_THREAD=off` commits in the writer's own process.** `AgentsRunTests.sh` sets it, so no check starts a thread. The check of the thread unsets it. `MDAT_TEAM_DATA_COMMIT_WAIT=yes` before the call holds the writer until the thread has committed its entry, for at most 30 seconds. `board-trash` uses it, since the history of a file must be made before the file goes.
+- **A writer of the team data runs no git.** `AgentsToolsTeamDataCommitPaths <context> <path>...` leaves one entry file in `team-data-commit/` of the store's git directory. It starts the thread where none lives, and asks it through the store's `request.fifo` (the shared on-demand thread, below). The thread takes the entries oldest first, commits each as its own commit, and pushes once. A lock another writer holds can no longer fail a write. A thread that cannot be started leaves no entry unseen: the writer commits in its own process.
+- **A close that cannot be recorded drops its own commit, never another writer's (S12.10).** `item-upsert` stays outside the thread, so it commits in its caller and discards that commit when the close then fails. That discard was `git reset --soft HEAD~1` with no test of what HEAD was, so a commit another writer made in between was the one dropped. `AgentsToolsItemUnlockKeep` and the sync-failure arm now read HEAD's subject first, and reset only where it is this call's own commit message. Measured in the live store on 2026-11-04: `board/review/.unseen-dispatch-20261103T225226Z-spawn-proxy-68534-637d5076.md` was committed at 04:30:28 and dropped by such a reset one second later, and reached no commit for the next 50 minutes. `sh-test/team-data/AgentsCloseKeepsOtherCommitCheck.test.sh` holds it. Not fixed here: the close's own commit stays on the branch below the other writer's, so the history keeps a close whose note was put back.
+- **The thread is one a store.** Its lock is `thread.lock`, holding `<pid> <start>` (`AgentsTools.ThreadLock.include`, which the three older threads do not use yet). It ends by itself once no request came for `MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS` (60), and it gives the lock back first. A request left in that moment starts it again. `thread.log` is cut back to 64 KiB when it passes 128 KiB. `--intern-team-data-commit --one` makes one pass, for a check.
+- **A failed commit stays owed.** `AgentsToolsTeamDataCommitPathsNow` keeps the paths in `.local/agents/team-data-commit.owed`. The thread runs the same pass once a second with no request, so the debt is tried again every 30 seconds, and it does not keep the thread alive. A path that is gone and that git never knew is left out of a commit, since it fails the whole add, and so is a path that changed nothing.
+- **A resync settles the writers before it moves the tree (S12.4).** The store's checkout is also its writers' work tree, so a writer's file waiting for its commit is an uncommitted change to it. Git refuses to move a tree that holds such a change to a file origin changed too, which is how a duty start met `LOCK_UNCHECKABLE` and a retry a minute later passed. `AgentsToolsAdvanceCloneSync` calls `AgentsToolsTeamDataSettle` first: it asks the thread to commit what waits and holds for its answer, then commits anything still waiting itself. A store with nothing waiting costs one `git status`. A sync that still fails is a merge to settle, as the close push settles one, and the sync runs a second time. `sh-test/team-data/AgentsTeamDataResyncRaceCheck.test.sh` holds it.
+- **The store's own `.local` is no team data.** A data folder with no repository of its own, inside another repository's work tree, is not that repository's: `AgentsToolsTeamDataCommitPathsNow` commits nothing where `MDAT_DATA_ROOT` is no repository root. A path under the store's `.local` is refused too, unless git already tracks it, so an existing stray leaves through the same step and no hand git is needed. A check rig lives under `$MMDAPP/.local/agents/scratch`, and `rigTempDir` refuses a `MMDAPP` that is the team-data store or inside it.
+- **`MDAT_TEAM_DATA_COMMIT_THREAD=off` commits in the writer's own process.** `AgentsRunTests.sh` sets it, so no check starts a thread. The check of the thread unsets it. `MDAT_TEAM_DATA_COMMIT_WAIT=yes` before the call holds the writer until the thread has answered its request, for at most 30 seconds, and past that the commit is made in the writer. `board-trash` uses it, since the history of a file must be made before the file goes.
+
+## The on-demand thread (S12.11)
+
+- **One thread a task, started on demand and ended on idle.** `AgentsTools.OnDemandThread.include` holds four functions and knows no owner: `AgentsToolsOnDemandThreadStart <folder> <operation>...`, `AgentsToolsOnDemandThreadAsk <folder> <bound|-> <field>...`, `AgentsToolsOnDemandThreadRequest <folder> <bound> <operation>... -- <field>...`, and `AgentsToolsOnDemandThreadServe <folder> <idle> <handler> <tick|-> <once|no>`. The owner supplies the handler (one request's work) and the tick (a second's work with no request). The team-data committer is the first use; the write-up for a later one is `s12-11-on-demand-thread.form.md` in session 61538551's sandbox.
+- **A caller asks through `Request`, and the restart is that one function's.** It asks, starts a thread where none answered, and asks once more: a caller keeps no retry loop and no reply fifo of its own. It prints the answer, rc 0, and prints nothing with the reason on stderr where no thread answered, rc 1. The operation to start stands after the bound and before `--`, and the request's fields after it, so a field and an operation word never stand in each other's place.
+- **A request is one line of tab-separated fields, and the caller's own reply fifo is its last field.** A field of `-` asks for the work and no answer. The start holds `request.fifo` open read-write before it forks, and hands that descriptor to the thread, so the fifo is never without a holder and a request written the moment a thread is born waits for it. A reply fifo is opened read-write by its caller, so a caller whose thread died cannot hang either.
+- **The loop reads one second at a time, because bash 3.2 refuses a shorter read.** `read -t 0.3` is `invalid timeout specification` on 3.2, and a TERM trap fires inside a one-second read but not inside a read of a minute. So `Serve` reads `read -t 1` in a loop and tests the idle bound and its lock every thirtieth pass.
+- **Descriptor 3 is always open, at `/dev/null` except while one request's answer is served.** A handler writes its answer to `>&3` and never tests whether anyone is there. That is why a fire-and-forget request needs no second branch in the owner's code.
+- **A request the thread cannot answer costs the caller its wait, never its work.** A caller that wanted an answer falls back to doing the work itself when none arrives in its bound. The team-data writer commits the entry in its own process, and the thread's own tick is its own pass, so the entry would commit within the second anyway.
+- **An answer ends with the terminator line `.`, and the thread writes it.** A caller reads lines until it, so an answer of several lines arrives whole. The terminator alone is a served-and-empty answer: rc 0, nothing printed. A caller that reads neither is told nobody answered in its bound, rc 1 with a line on stderr, so the three outcomes separate. The terminator belongs to the thread, never to a handler, so a handler that says nothing still ends its answer. A request field holding a tab or a newline is refused, because a request is one tab-separated line.
+- **The idle bound belongs to the thread's folder.** `Serve` writes the bound in force to `thread.idle`, and a start over a living thread reads it and reports it: `alive <pid> bound <n>s in force, this start discarded its own`. A start can no longer claim a bound its own call would have set.
+- **The four older threads are self-pipes, so they do not move here.** Each holds a pipe of its own that nothing writes, so a long read is woken without a process. There is no request, no owner handler and no second caller. The assessment the epic asks for is recorded: the pattern does not apply to those four. A caller and its thread on different hosts are not supported either, and a use that needs it is a new piece of work.
+
 - **The writers that stopped running git** are the board ops that committed in their callers: upsert, move and edit, `member-inbox-upsert`, `inbox-to-processed`, `board-rename`, `board-trash`, `item-rename` and the final GC. Three groups still run git in the caller, and the owner rules on them. `item-upsert` stays, since its commit, its push and its read back are one lock protocol: it runs its `add` and `commit` again for ten seconds while another writer's `index.lock` stands. `--commit-pending` and the pushes of the closes, the main loop, the collector and the set-up stay as they were: they serialise on the push lock.
 - **A run its item no longer wants is ended by the control thread of its session.** A tick that reads in full asks `AgentsToolsSessionControlRelease` (`AgentsTools.SessionControlRelease.include`) about each live run. A run whose dispatch item is in processed or archived, or waits in review past `REVIEW_WAIT_LIMIT`, is ended once `SESSION_CONTROL_CLOSING_SECONDS` have passed since the thread first saw it so. A run that another run needs is not ended. The thread starts `--intern-session-control --release` apart from the tick, which kills the run as the console does, under the name `session-control`.
-- **A killed run's open record is closed by the thread.** A record with `killed-by` is no death and asks nobody. A supervising shell that lives past the closing seconds without closing the record counts as none: the run is a death then, as one with no shell is.
+- **A killed run's open record is closed by the thread.** A record with `killed-by` is no death and asks nobody. A supervising shell that lives past the closing seconds without closing the record counts as none: the run is a death then, as one with no shell is. The thread closes that record itself as an ordered end, and asks nothing about it.
+## Three run-lifecycle rules (S5.2, S5.4, S5.5)
+
+- **A closed session's leftover processes are closed by the advance pass.** A detached command a run started is kept in
+  its session's `processes/`, and nothing ended it when the session did. `AgentsToolsAdvanceSpawnHousekeeping` walks the
+  folder of each session whose rows say nothing is alive, and signals each process only while its pid is still the one
+  whose start is kept beside it, its group first and then the pid. A `.closed` mark with the two byte counts keeps the
+  next pass from signalling a number again. `sh-test/session/AgentsClosedSessionProcessesCheck.test.sh` holds it.
+- **An addressee with no live run is said where the message is sent.** `AgentsToolsCommsSlackUnreachableReport`, called by
+  both send paths, prints `SENT_MESSAGE_UNREACHABLE_MEMBERS=<member>...` for every addressee whose records show no live
+  run. It names no sender and changes nothing about the post: the message stands, and that member reads it at its next
+  start. `sh-test/comms/AgentsSendUnreachableCheck.test.sh` holds it.
+- **A start's read of the member's incoming is bounded.** `AgentsToolsIncomingSyncBounded` gives the read
+  `SPAWN_INCOMING_SYNC_SECONDS` (20 by default, 0 for none) as the leader of a group of its own, and the spawn goes on
+  without it once that has passed, saying so. Its notes are read at that member's next scan. Measured over 342 spawns on
+  one workspace: 0s for 80, 1-3s for 24, worst 96s. `sh-test/member/AgentsIncomingSyncBoundCheck.test.sh` holds it.
+
 - **Every harness writes one audit log.** A harness that keeps its context writes the lines of each new record as the record is kept (`AgentsHarnessContextFeed`), to the transcript and to the event-track feed, from the one reader `AgentsHarnessContextTranscript.awk`. Its milestones only commit. A tool line names the tool without its `mcp__<server>__` prefix, for both writers.
+
+## The schedule as a service thread (S12.12)
+
+- **The schedule runs in a process of its own, on the shared on-demand thread.** `--intern-schedule --run` serves `AgentsToolsScheduleThreadPass` (`sh-lib/session/AgentsTools.ScheduleThread.include`), the schedule's steps (`AgentsToolsScheduleLoop`) and the board's dependencies (`AgentsToolsBoardDependencies`), on the one thread `AgentsTools.OnDemandThread.include` gives. `--one` makes one pass and ends, for a check by hand. Its files are in `.local/agents/schedule-thread/`: `request.fifo`, `thread.lock`, `thread.log`, `thread.wanted` and `thread.asked`.
+- **The passes are minutes apart, and the includes are parsed once.** A pass runs when `MDAT_SCHEDULE_PASS_SECONDS` (180) have passed since the last one, so with a morning review at 09:00 and grooming at 09:00 a rig's schedule is checked within a few minutes of its time, and the cost of a rig that does nothing is one pass every three minutes. The includes a pass needs are read once, at the thread's first pass, and the variables survive between passes: that is the profit over the main loop's iteration, which parses them at each turn.
+- **One ask starts it, and the ask is throttled.** `AgentsToolsScheduleThreadAsk` is the only way it is started or put back. It reads `thread.lock`, answers `alive <pid>` where the process it names still lives, and otherwise starts the thread. It looks at the lock no more than once in `MDAT_SCHEDULE_ASK_SECONDS` (300), so a place that asks often spends one file test. It says one line: `off`, `waiting`, `alive <pid>`, `started <pid>` or `failed - <why>`.
+- **Three places ask, and none is a watcher of its own.** A session's control thread asks at its read in full, which comes once a minute at most. That is S12.12's "logically cheap place", as that same thread and the spawn path start the communications reader.
+- The spawn proxy asks at a start, so a rig where nothing else runs still starts its schedule at its first spawn.
+- The main loop asks at each iteration whose configuration check passed, and runs no schedule step of its own.
+- So a live session keeps the schedule running, an ended duty is put back by the next ask, and a rig with no session and no main loop runs no process of it.
+- **It ends on idleness and is put back by the next ask.** No pass asks for itself, so the shared thread's own bound ends it once no ask came for `MDAT_SCHEDULE_IDLE_SECONDS` (600), and the next ask starts it again. A pass that starts a routine through the spawner is unaffected by that end: the start is a detached spawn of its own.
+- **`MDAT_SCHEDULE_THREAD=off` leaves the steps in the main loop.** With it off, `--intern-main-loop` runs `AgentsToolsScheduleLoop` in its own process at each iteration, as it did before. `AgentsRunTests.sh` sets it, so no check starts the thread, and `sh-test/check-fixtures/rig-schedule-loop.include.sh` sets it in its own rig. The check of the thread unsets it, and ends what it starts.
+- **What rides with it, and what does not.** The board's housekeeping and the source collector already have a caller outside the loop: `AgentsToolsRegistryHousekeepingDue` starts the advance housekeeping and the pending-reply collect from any registry read, and `AgentsToolsCollectThreadCheck` starts the collector from any scan. So they do not stand still with no loop, and the schedule's thread carries neither. The steps that only the loop ran, and so stood still with it, are the schedule's own, and those are what the thread now runs. `sh-test/session/AgentsScheduleThreadCheck.test.sh` holds the operation, the pass, the ask, the kill and put-back, the interval, the off switch and the loop's two modes.
+

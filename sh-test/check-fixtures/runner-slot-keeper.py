@@ -267,6 +267,16 @@ while True:
     if stop_reason or (deadline is not None and time.time() >= deadline) or os.getppid() != runner_pid:
         if not stop_reason and deadline is not None and time.time() >= deadline:
             stop_reason.append(signal.SIGALRM)
+            ## A TEST ENDED AT ITS TIME LIMIT SAYS SO (S6.47). The marker beside its start stamp is what its runner
+            ## reads, and the line in its own log is what a person reading the test's output sees. Without them a test
+            ## that printed "ok" and then hung reads as a failure whose last word was "ok".
+            try:
+                with open(started + ".limit", "w") as limit_out:
+                    limit_out.write("ended at its time limit of %d seconds\n" % timeout)
+            except OSError:
+                pass
+            sys.stdout.write("# AgentsRunTests.sh: this test was ended at its time limit of %d seconds, so its output stops there and the test did not finish\n" % timeout)
+            sys.stdout.flush()
         ## Read the tree BEFORE any signal: the first signal ends the processes it was aimed at, and a stand-in under `set -m` is then no
         ## descendant of the leader any more, so a later read would miss it and it would live its whole sleep out under launchd.
         tree_before = test_tree(child)

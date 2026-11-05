@@ -90,6 +90,7 @@ All statements apply at the same time, always. These rules override a participan
 - A reply that is not clean is reworked before it stands.
 - **A proposal runs beside the work it came from, never in place of it.** A readback its source does not settle with yes or no goes through escalation first, and reaches here only where that does not settle it. A proposal never reduces back to a readback.
 - While the thread is open, `magic-team.advance.routine`'s `proposal-*` gate re-asks it when the tracking item's `recheck-date` is due.
+- The tracking item stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, each a plain present-tense statement. It is a produce under `magic-team.basic.md`'s "Relay, direct, produce".
 
 # Routine-specific tooling
 
@@ -101,11 +102,11 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...`
-- `--move-to-processed <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
-- `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
-- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--routine-run-inline <routine>`
+- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
+- `--move-to-processed <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

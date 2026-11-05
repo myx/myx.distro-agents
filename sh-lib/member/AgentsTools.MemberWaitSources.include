@@ -323,7 +323,7 @@
 				mentions|tagged) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitMentions.include" ;;
 				dms) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitDms.include" ;;
 				chat|scan) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitChat.include" ;;
-				file|process|inbox|board|wake) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitLocal.include" ;;
+				file|process|inbox|board|checklist|wake) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitLocal.include" ;;
 			esac
 			## A source that reads Slack loads the Slack router here, once, ahead of its probes: a probe runs in a subshell and would load it again on every tick.
 			case "$checkKind" in
@@ -348,6 +348,13 @@
 					if ! AgentsToolsInputScanNames | LC_ALL=C grep -q -x -- "$checkTarget" ; then
 						echo "WAIT-RESULT: ERROR"
 						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names no scan of the tooling: scan:<scan> takes one of $( AgentsToolsInputScanNames | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ). Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+				;;
+				checklist:*)
+					if [ "$checkTarget" != "$memberName" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: checklist:<own member name> is the own list only. Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 				;;

@@ -86,7 +86,7 @@ case "$1" in
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-write: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
 		type AgentsToolsDocValidateVaultKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
-		writeWord="$( AgentsToolsItemNameType "$writeItem" )"
+		writeWord="$( AgentsToolsDocValidateVaultItemWord "$writeItem" )" || writeWord=""
 		writeKind="$( AgentsToolsDocValidateVaultKind "$writeWord" )" || writeKind=""
 		if [ -z "$writeTyped" ] && [ -n "$writeKind" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --upsert-vault-item: $writeItem carries the type word $writeWord of the contract $writeKind, so it is written by --upsert-vault-${writeKind#vault-item.} -- nothing was written" >&2

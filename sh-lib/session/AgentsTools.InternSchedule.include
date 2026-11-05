@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternSchedule.include -- the operation that runs the schedule as one service thread (S12.12): a shell process of the tooling and no
+## agent, on the shared on-demand thread (S12.11). Sourced from DistroAgentsTools.fn.sh's `--intern-schedule` arm; needs $1/$@/$MDSC_CMD from
+## dot-sourcing. What a pass does and where the thread keeps its files: AgentsTools.ScheduleThread.include. A sibling of --intern-source-collect: a
+## usage blurb on no mode, the same set +e/set -e discipline, `--run` stays and `--one` makes one pass and ends.
+##
+## ITS ONE STARTER IS THE ASK, AgentsToolsScheduleThreadAsk, which a periodic place that already looks at the workspace makes: the control thread of
+## a session or a spawn. It is never a member's call, and no thread of its own watches the schedule. The thread ends by itself once no ask came for
+## MDAT_SCHEDULE_IDLE_SECONDS (600) and on TERM; its passes are MDAT_SCHEDULE_PASS_SECONDS (180) apart, so it never ends between two of its own
+## passes. It runs as no member.
+##
+
+case "$1" in
+
+	--intern-schedule)
+		shift
+
+		## Never run without a mode: an accidental invocation would stay.
+		local schMode=''
+		case "${1:-}" in
+			--run) schMode='--run' ;;
+			--one) schMode='--one' ;;
+		esac
+		if [ -z "$schMode" ] ; then
+			printf '%s\n' "$MDSC_CMD --intern-schedule -- the schedule as one service thread: a shell process of the tooling, no agent. The schedule's steps and the board's dependencies run in it, and no thread of its own watches it." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-schedule --run" >&2
+			printf '%s\n' "      The thread: a pass every MDAT_SCHEDULE_PASS_SECONDS (180), and ends by itself once no ask came for MDAT_SCHEDULE_IDLE_SECONDS (600), or on TERM." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-schedule --one" >&2
+			printf '%s\n' "      One pass, then the end: for a test, and for a check by hand." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "Its files are in .local/agents/schedule-thread/: request.fifo, thread.lock, thread.log, thread.wanted and thread.asked." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "The one ask that starts it is AgentsToolsScheduleThreadAsk, made by a periodic place that already looks at the workspace." >&2
+			set +e ; return 1
+		fi
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-schedule: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-schedule: MDAT_DATA_ROOT or MMDAPP is not set" >&2
+			set +e ; return 1
+		}
+
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" || { set +e ; return 1 ; }
+		set +e +u
+
+		## IT RUNS AS NO MEMBER: each name that carries a member's session is emptied here, for this operation and what it starts.
+		local schDrop
+		for schDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			[ -z "${!schDrop+set}" ] || local -x "$schDrop="
+		done
+
+		if [ "$schMode" = "--one" ] ; then
+			AgentsToolsScheduleThreadPass
+			return 0
+		fi
+
+		## From here on its input is /dev/null, its output and its errors are its own log, and its working folder is one that does not vanish, so a
+		## pass reads the workspace by its absolute path and nothing of whatever asked for it.
+		local schDir schIdle="${MDAT_SCHEDULE_IDLE_SECONDS:-600}"
+		case "$schIdle" in ''|*[!0123456789]*|0) schIdle=600 ;; esac
+		schDir="$( AgentsToolsScheduleThreadDir )" || { echo "⛔ ERROR: $MDSC_CMD --intern-schedule: no workspace is selected -- nothing was started" >&2 ; return 1 ; }
+		mkdir -p "$schDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-schedule: $schDir could not be made -- nothing was started" >&2 ; return 1 ; }
+		exec < /dev/null >> "$schDir/thread.log" 2>&1
+		case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
+		AgentsToolsOnDemandThreadServe "$schDir" "$schIdle" AgentsToolsScheduleThreadPass AgentsToolsScheduleThreadPass no
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

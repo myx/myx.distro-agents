@@ -14,6 +14,7 @@
 ##                          that some of them became
 
 type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 
 AgentsToolsRegistryFile(){ ## registry name
 	printf '%s\n' "$MMDAPP/.local/agents/$1.registry"
@@ -455,6 +456,10 @@ AgentsToolsRegistryRunDead(){ ## session id, run id
 ## the id it holds (`MDAT_SPAWN_SESSION_ID`), and a run's record carries two ids: that one, and its
 ## `session-id`, which is the coworking session it joined. So the mark is looked for at both, and
 ## the run is parked where either holds it.
+## THE MARK A PAUSED RUN LEAVES (S19.1) is the flag the pause operation writes, and it is read at the same two ids and no
+## more: `sessions/<id>/paused`, a line of when and by whom. A live run held by it reads `paused` whatever its own activity word
+## says, because a pause is state of its own and never a busy-looking run; once the flag is gone the activity word is the answer
+## again. Only a live run is asked: a flag left beside a run that ended changes nothing.
 AgentsToolsRegistryRunParked(){ ## run id, session id (may be empty)
 	local parkedRun="${1:-}" parkedSession="${2:-}"
 	[ -d "${MMDAPP:-/nonexistent}/.local/agents/sessions" ] || return 1
@@ -497,6 +502,9 @@ AgentsToolsRegistryDeriveState(){ ## status, live, session-id, run id
 	if [ "$dsLive" != running ] ; then
 		AgentsToolsRegistryRunParked "$dsSpawn" "$dsSession" && { printf 'parked\n' ; return 0 ; }
 	fi
+	## A LIVE RUN HELD BY A PAUSE READS `paused` (S19.1), before its activity word: a held run is not idle, not busy
+	## and not stuck, and a reader that called it any of those would restart or end it.
+	if [ "$dsLive" = running ] && AgentsToolsSessionPauseHeld "$dsSpawn" "$dsSession" ; then printf 'paused\n' ; return 0 ; fi
 	## A LIVE RUN SAYS WHAT IT IS DOING (S27.4): thinking, inside a tool, or in a call that waits.
 	[ "$dsLive" != running ] || { AgentsToolsRegistryRunActivity "$dsSpawn" "$dsLive" ; return 0 ; }
 	case "$dsStatus" in
@@ -1109,7 +1117,9 @@ AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-sessi
 	if [ "$2" != running ] ; then
 		AgentsToolsRegistryRunParked "${5:-}" "$3" && { derivedState="parked" ; return 0 ; }
 	fi
-	## A live run says what it is doing (S27.4), read from its own activity mark.
+	## A live run says what it is doing (S27.4), read from its own activity mark, and a live run held by a pause reads
+	## `paused` before either (S19.1).
+	if [ "$2" = running ] && AgentsToolsSessionPauseHeld "${5:-}" "$3" ; then derivedState="paused" ; return 0 ; fi
 	[ "$2" != running ] || { derivedState="$( AgentsToolsRegistryRunActivity "${5:-}" running )" || derivedState="thinking" ; return 0 ; }
 	case "$1" in
 		spawn-failed|spawn-succeeded)
@@ -1399,11 +1409,29 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 				}
 				return 0 ;
 			}
+			## WHETHER A LIVE RUN IS HELD BY A PAUSE (S19.1), by the flag under the id it holds and under the
+			## session id its record also carries, the same two the park mark is looked for at.
+			function pausedOf( rowSpawn, rowSession,   pausedAt, pausedKey, pausedLine ) {
+				for ( pausedAt = 1 ; pausedAt <= 2 ; pausedAt++ ) {
+					pausedKey = ( pausedAt == 1 ) ? rowSpawn : rowSession ;
+					if ( pausedKey == "" || pausedKey == "-" || pausedKey ~ /\// ) continue ;
+					if ( ! ( pausedKey in pausedSeen ) ) {
+						pausedSeen[pausedKey] = "no" ;
+						pausedLine = "" ;
+						if ( ( getline pausedLine < ( agentsDir "/sessions/" pausedKey "/paused" ) ) >= 0 ) { pausedSeen[pausedKey] = "yes" ; }
+						close( agentsDir "/sessions/" pausedKey "/paused" ) ;
+					}
+					if ( pausedSeen[pausedKey] == "yes" ) return 1 ;
+				}
+				return 0 ;
+			}
 			## The state a row comes to, exactly as AgentsToolsRegistryDeriveStateFromSet gives it.
 			function derivedOf( rowStatus, rowLive, rowSession, rowSpawn ) {
 				## A parked run is neither running nor finished (S27.2), unless it is live: the liveness
 				## check comes first, and the mark is looked for at both of the two ids the run carries.
 				if ( rowLive != "running" && parkedOf( rowSpawn, rowSession ) ) { return "parked" ; }
+				## A run a pause holds reads `paused` whatever its activity word says (S19.1).
+				if ( rowLive == "running" && pausedOf( rowSpawn, rowSession ) ) { return "paused" ; }
 				if ( rowStatus == "spawn-failed" || rowStatus == "spawn-succeeded" ) {
 					if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
 					if ( deadNames( rowSession, rowSpawn ) ) return "failed" ;
@@ -1543,7 +1571,7 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-spawn-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
-	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. live reads running, gone (no such process here), remote (the record names another host) or unknown (it names no host or no run). state is thinking/tool/waiting/idling for a run whose live is running, else parked/failed/finished/unclosed (starting, and waiting for a gone run with an open ask, as before) -- failed and finished are read straight from status and stand regardless of live."
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. live reads running, gone (no such process here), remote (the record names another host) or unknown (it names no host or no run). state is thinking/tool/waiting/idling/paused for a run whose live is running, else parked/failed/finished/unclosed (starting, and waiting for a gone run with an open ask, as before) -- failed and finished are read straight from status and stand regardless of live."
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		rowState="${registryRow##* }" ; rowLive="${registryRow% *}" ; rowLive="${rowLive##* }"

@@ -318,7 +318,7 @@ rigCheck "control: a row whose status a pass changed reads different, and so doe
 rigCheck "and prints no section either"                                 "$( rigHeadings "$rigTmp/b1.s2" )" 0
 rigCheck "an aged advance.routine item is still advance.routine after the second scan" "$( rigHeader "$rigD/board/review/task-rig-rv-advr.md" review-by )" advance.routine
 rigCheck "control: an aged item with an unregistered session id was rewritten, in the same two scans" "$( rigHeader "$rigD/board/review/task-rig-rv-aged.md" review-by )" magic-coordinator
-rigRun "$rigTmp/b1.mv" --move-to-processed magic-coordinator dispatch-rig-rv-triv.md --from-state:review
+rigRun "$rigTmp/b1.mv" --move-to-processed --team-member magic-coordinator dispatch-rig-rv-triv.md --from-state:review
 rigCheck "the coordinator's own move review -> processed succeeds"      "$( cat "$rigTmp/b1.mv.rc" )" 0
 rigCheck "the item is now in board/processed"                           "$( rigLoc dispatch-rig-rv-triv.md )" processed
 rigNew b1e

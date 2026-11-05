@@ -3,7 +3,8 @@
 # its `## root` block under `# Skeleton`, one line. The slots are filled by the one shared
 # filler, loaded ahead of this file (AgentsToolsToolingTemplateFill, AgentsToolingTemplateFill.awk).
 # What it fills with travels in the environment, never -v, which would decode backslashes in
-# a value: STR_SESSION_NAME, STR_STARTED_BY.
+# a value: STR_SESSION_NAME, STR_STARTED_BY, STR_ROUTINES (the routine frames, one line where
+# the session records any).
 # Exit 3: the template has no such block. Exit 4: the session has no name to show.
 
 ## A value as Slack shows it: its control characters as the entities Slack decodes, and a
@@ -19,6 +20,7 @@ function strValue( text ) {
 function ttSlot( name ) {
 	if ( name == "session-name" ) { return strValue( ENVIRON["STR_SESSION_NAME"] ) ; }
 	if ( name == "started-by" ) { return strValue( ENVIRON["STR_STARTED_BY"] ) ; }
+	if ( name == "routines" ) { return strValue( ENVIRON["STR_ROUTINES"] ) ; }
 	return "" ;
 }
 BEGIN {

@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseResume.include -- the supervisor's resume of a run that ended with no handback (epic S13.3). Sourced, never
+## run; functions only.
+##
+## WHAT IT IS FOR. A run that ends without a handback leaves its item in `review`, put there by the close with the reason
+## `ended-without-handback`. Nobody is coming back to it: its member has no live run, and no handback exists to review. The supervisor
+## returns that item, which starts the member again in the same session, sandbox and item (AgentsReviewRestart), from the context it
+## kept where that can be resumed.
+##
+## WHAT IT LEAVES ALONE, and why:
+##   - a live run (a record still open, or a process of this host that answers for the run as its own): nothing ended.
+##   - a run the owner dismissed, by `sessions/<id>/dismissed` or `schedule/dismissed/<id>`: a dismissal is the owner's own word,
+##     and it is never undone by a rule.
+##   - a run that ended inside the fixed sleep: a run that died a moment ago may still be writing its record, and the sleep is the
+##     same one a duty's restart waits (DUTY_RESTART_SECONDS, 300 by default; SUPERVISE_RESUME_SECONDS replaces both).
+##   - a work-duty run: the scheduler's own case of this same rule (AgentsToolsScheduleDutyRestartDue, AgentsTools.DispatcherSchedule.include),
+##     which reads the same sleep and the same dismissal marker. It is not resumed twice, from two places.
+##   - an item in any state but `review`, or one whose `review-reason` is not `ended-without-handback`: a handback waiting for its
+##     reviewer is that reviewer's, and this operation starts nothing behind their back.
+##   - an item whose own `spawn-id` names a live run newer than the dead one: the answer is already being carried out.
+##
+## ONE LINE A RUN IT LOOKED AT, `<word> <ws> <id> <member> <detail>`: `resumed` where the return started the member again, and
+## `held` with the reason. A live run, a dismissed one, and a run that handed back are said nothing of: they are no finding.
+##
+## A RIG OTHER THAN THIS ONE (S13.12): every board read below is of the store the named workspace keeps, resolved by
+## AgentsToolsTeamDataRootOf, so `--workspace` finds that rig's items and never this one's. The rest of the operation
+## reads the workspace's own .local/agents, which is already that rig's.
+##
+
+## --supervise-resume [--workspace <path>]...: the runs above, resumed or held, for each workspace named, else this one.
+AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
+	local resumeWorkspaces=() resumeWs resumeAgents resumeRecord resumeRun resumeMember resumeStatus resumeRoutine resumeDismissed
+	local resumeWait resumeNow resumeEnded resumeAge resumeItem resumeState resumeReason resumeHolder resumeItemSpawn resumeOut resumeSaid
+	local resumeWho resumeRc=0 resumeRoot="" resumeSavedRoot=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--workspace) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --workspace requires a path" >&2 ; return 1 ; } ; resumeWorkspaces+=( "${2%/}" ) ; shift 2 ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-resume: invalid option: $1" >&2 ; return 1 ;;
+		esac
+	done
+	[ ${#resumeWorkspaces[@]} -gt 0 ] || resumeWorkspaces=( "${MMDAPP%/}" )
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	resumeWait="${SUPERVISE_RESUME_SECONDS:-${DUTY_RESTART_SECONDS:-300}}"
+	case "$resumeWait" in ''|*[!0123456789]*) resumeWait=300 ;; esac
+	resumeNow="$( date +%s )"
+	resumeWho="${MDAT_SPAWN_AGENT:-magic-coordinator}"
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+	for resumeWs in "${resumeWorkspaces[@]}" ; do
+		resumeAgents="$resumeWs/.local/agents"
+		[ -d "$resumeAgents" ] || { printf 'error %s - no .local/agents here\n' "${resumeWs##*/}" ; continue ; }
+		## THE BOARD OF THE RIG NAMED, never of the workspace this call runs in: the item a run left in review is that rig's item.
+		## The workspace the call itself runs in keeps the store the entry already resolved for it.
+		resumeSavedRoot="${MDAT_DATA_ROOT:-}"
+		resumeRoot=""
+		if [ "${resumeWs%/}" = "${MMDAPP%/}" ] && [ -n "$resumeSavedRoot" ] ; then
+			resumeRoot="$resumeSavedRoot"
+		else
+			resumeRoot="$( AgentsToolsTeamDataRootOf "$resumeWs" )" || resumeRoot=""
+			[ -n "$resumeRoot" ] || resumeRoot="$resumeSavedRoot"
+		fi
+		for resumeRecord in "$resumeAgents"/spawned/*/*.spawn.md ; do
+			[ -f "$resumeRecord" ] || continue
+			resumeRun="${resumeRecord##*/}" ; resumeRun="${resumeRun%.spawn.md}"
+			resumeStatus="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" status )"
+			## A run whose record is open has not ended, and one that handed back is not this operation's either.
+			[ "$resumeStatus" != spawn-started ] || continue
+			resumeRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" routine )"
+			case "$resumeRoutine" in *.work-duty.routine.md) continue ;; esac
+			resumeDismissed=no
+			for resumeSaid in "$resumeAgents/sessions/$resumeRun/dismissed" "$resumeAgents/schedule/dismissed/$resumeRun" ; do
+				[ ! -e "$resumeSaid" ] || resumeDismissed=yes
+			done
+			[ "$resumeDismissed" = no ] || continue
+			resumeMember="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" owner )"
+			case "$resumeMember" in ''|-) continue ;; esac
+			## The moment it ended is the record's own last write, as the duty's restart reads it: its mtime.
+			resumeEnded="$( stat -f '%m' "$resumeRecord" 2> /dev/null || stat -c '%Y' "$resumeRecord" 2> /dev/null )" || resumeEnded=""
+			case "$resumeEnded" in ''|*[!0123456789]*) continue ;; esac
+			resumeAge=$(( resumeNow - resumeEnded ))
+			[ "$resumeAge" -lt 0 ] && resumeAge=0
+			[ "$resumeAge" -ge "$resumeWait" ] || { printf 'held %s %s %s ended %ss ago, inside the %ss sleep\n' "${resumeWs##*/}" \
+				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "$resumeAge" "$resumeWait" ; continue ; }
+			## The item the run works: the close leaves it in review, and it is the seat a return starts the member again on.
+			resumeItem=""
+			for resumeSaid in spawns spawned-by ; do
+				resumeItem="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRecord" "$resumeSaid" )"
+				resumeItem="${resumeItem%%,*}" ; resumeItem="${resumeItem%% *}" ; resumeItem="${resumeItem%.md}"
+				[ -n "$resumeItem" ] && [ "$resumeItem" != "-" ] && break
+				resumeItem=""
+			done
+			[ -n "$resumeItem" ] || { printf 'held %s %s %s its record links no board item\n' "${resumeWs##*/}" \
+				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" ; continue ; }
+			resumeState="$( MDAT_DATA_ROOT="$resumeRoot" AgentsToolsSpawnProxyBoardStateOf "$resumeItem.md" )"
+			[ "$resumeState" = review ] || { printf 'held %s %s %s its item is in %s, not in review\n' "${resumeWs##*/}" \
+				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "${resumeState:-no board state}" ; continue ; }
+			resumeReason="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRoot/board/review/$resumeItem.md" review-reason )"
+			[ "$resumeReason" = ended-without-handback ] || { printf 'held %s %s %s its item waits for review: %s\n' "${resumeWs##*/}" \
+				"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "${resumeReason:-no reason recorded}" ; continue ; }
+			## A newer run already holds the item: the answer is being carried out, and a second start is a second run of one task.
+			resumeItemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$resumeRoot/board/review/$resumeItem.md" spawn-id )"
+			case "$resumeItemSpawn" in ''|-|"$resumeRun") ;; *)
+				## THE GUARD REFUSES WHEN IT CANNOT ANSWER: rc 1 is the one answer that starts the run again. A read that
+				## could not be made at all, a missing name among them, is no "ended", and holding the item is the safe side.
+				if AgentsToolsRegistrySpawnRuns "$resumeItemSpawn" "" 2> /dev/null ; then resumeHolder=live ; else resumeHolder=$? ; fi
+				case "$resumeHolder" in
+					1) ;;
+					live) printf 'held %s %s %s a newer run %s holds its item\n' "${resumeWs##*/}" \
+						"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "$( printf '%s' "$resumeItemSpawn" | cut -c1-8 )" ; continue ;;
+					*) printf 'held %s %s %s the newer run %s could not be read as live or ended (rc %s), and one task is never started twice\n' \
+						"${resumeWs##*/}" "$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" \
+						"$( printf '%s' "$resumeItemSpawn" | cut -c1-8 )" "$resumeHolder" ; continue ;;
+				esac
+			;; esac
+			## THE RETURN RUNS IN THE RIG ITSELF: its record, its sandbox and its board are what it reads and writes, so the
+			## call is made with that workspace's MMDAPP and the store this pass resolved for it.
+			resumeOut="$( ( MMDAPP="$resumeWs" MDAT_DATA_ROOT="$resumeRoot" ; export MMDAPP MDAT_DATA_ROOT ; DistroAgentsTools --intern-op-review-return "$resumeWho" "$resumeItem" --context agent-dispatcher-tools \
+				--message "The run ended with no handback, and the fixed sleep has passed: continue the same task, then hand back again." ) 2>&1 )" || resumeRc=$?
+			case "$resumeOut" in
+				'RETURN: restarted '*)
+					resumeSaid="$( printf '%s' "$resumeOut" | LC_ALL=C awk '{ print ( $0 ~ /, resuming its kept context / ) ? "resuming its kept context" : ( $0 ~ /, resuming / ? "resuming its transcript" : "new process" ) ; exit }' )"
+					printf 'resumed %s %s %s %s %s\n' "${resumeWs##*/}" "$( printf '%s' "$resumeRun" | cut -c1-8 )" \
+						"$resumeMember" "$resumeItem" "$resumeSaid"
+				;;
+				*) printf 'held %s %s %s the return of %s did not start it again: %s\n' "${resumeWs##*/}" \
+					"$( printf '%s' "$resumeRun" | cut -c1-8 )" "$resumeMember" "$resumeItem" \
+					"$( printf '%s' "$resumeOut" | LC_ALL=C grep -m1 -e 'ERROR' -e 'RETURN: ' | cut -c1-200 )" ;;
+			esac
+			resumeRc=0
+		done
+	done
+	return 0
+}

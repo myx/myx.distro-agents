@@ -44,9 +44,9 @@
 			file access: a tool of its own, apart from the rules of Skill,
 			Read and Write. `<pathname>` is relative to the skill's
 			folder, no `..`. It never writes an install and never the HOME
-			skills folder. The librarian's alone; it asks the permission
-			`skillset-upsert` over `<team-member>:<pathname>`, and changes
-			the skillset only while `learning` is on. The resulting text
+			skills folder. The librarian's alone, and it asks no permission:
+			while `learning` is on (S6.42) it writes a skill's source copy,
+			and a skill with no source copy is refused. The resulting text
 			is checked before it is saved. Prints `OK: wrote <file>`.
 
 		--queue-list

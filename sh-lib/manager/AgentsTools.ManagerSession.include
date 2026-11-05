@@ -1288,6 +1288,63 @@ case "$1" in
 		return 0
 	;;
 
+	## The paused state of a session or of one run of it (S19.1). `--manager-session-pause` writes
+	## `sessions/<id>/paused`, holding `<when> <by>`, and `--manager-session-resume` removes it. <id> is a
+	## session's or a run's own, as --manager-session-read takes it. One row each, TAB-separated: the
+	## operation, the id, the file it wrote or removed, and for a resume the word `resumed` where a flag stood.
+	## Nothing is signalled: each run asks the flag at its own pause points (S19.2). Exit 1, nothing written,
+	## with one error line, where the id is no bare name, or names no folder this workspace keeps.
+	--manager-session-pause|--manager-session-resume)
+		local pauseOp="$1" pauseId="" pauseBy pauseFile pauseHeld="" pauseSyntax="--session-id <id>"
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $pauseOp: --session-id needs an id -- syntax is $pauseSyntax" >&2
+						set +e ; return 1
+					fi
+					pauseId="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $pauseOp: syntax is $pauseSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$pauseId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $pauseOp: syntax is $pauseSyntax, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$pauseId" "the session id" "$pauseOp" || { set +e ; return 1 ; }
+		pauseBy="$( AgentsToolsManagerConsoleMember 2> /dev/null )" || pauseBy="console"
+		type AgentsToolsSessionPauseSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+		case "$pauseOp" in
+			--manager-session-pause)
+				pauseFile="$( AgentsToolsSessionPauseSet "$pauseId" "$pauseBy" )" || {
+					echo "⛔ ERROR: $MDSC_CMD $pauseOp: no store of a session or of a run is named by that id in this workspace -- nothing was written" >&2
+					set +e ; return 1
+				}
+				AgentsToolsSessionPauseSay "$pauseId" "This session is paused. Its runs hold at their next pause point, and nothing of them ends." "$pauseBy"
+				printf 'pause\t%s\t%s\n' "$pauseId" "${pauseFile//[[:space:]]/_}"
+				return 0
+			;;
+		esac
+		pauseFile="$MMDAPP/.local/agents/sessions/$pauseId/paused"
+		if [ ! -d "$MMDAPP/.local/agents/sessions/$pauseId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $pauseOp: no store of a session or of a run is named by that id in this workspace -- nothing was removed" >&2
+			set +e ; return 1
+		fi
+		[ ! -f "$pauseFile" ] || pauseHeld="resumed"
+		AgentsToolsSessionPauseClear "$pauseId" || {
+			echo "⛔ ERROR: $MDSC_CMD $pauseOp: $pauseFile could not be removed" >&2
+			set +e ; return 1
+		}
+		AgentsToolsSessionPauseSay "$pauseId" "This session is resumed: its runs go on from where they held." "$pauseBy"
+		printf 'resume\t%s\t%s\t%s\n' "$pauseId" "${pauseFile//[[:space:]]/_}" "${pauseHeld:--}"
+		return 0
+	;;
+
 	## The control thread of one session started where it does not live, or, with --all, of
 	## every session of this workspace that needs one and has none alive: the check now of the
 	## manager, the one the advance lock take and the main loop make too

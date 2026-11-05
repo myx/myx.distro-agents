@@ -8,9 +8,13 @@
 ## call with none: the caller's own list, or with member that participant's, or with `*` every
 ## participant's. One member, one list in a session, however many runs it has there:
 ## <member>.checklist.md, Markdown, one line an item, `- [x]` done, `- [~]` in progress, `- [ ]` not
-## yet, the item in progress followed by its activeForm. A `- [ ]` line ending with one is the
-## in-progress shape before the mark, and reads as in progress for good. Kept in the session's place
-## (AgentsHarnessCheckListPlace).
+## yet, an open item that carries one ending ` (due: <date-time>)`, and the item in progress followed
+## by its activeForm. A `- [ ]` line ending with one is the in-progress shape before the mark, and
+## reads as in progress for good. The due mark stands before the in-progress one, so a close that
+## drops that suffix keeps the due time. Kept in the session's place (AgentsHarnessCheckListPlace).
+## An item's source (S6.27) is `step` for a step of the routine in force, `parent` for an item a
+## parent added and `own` for the member's own. It is kept beside the list and never in its line,
+## so every reader of a list above reads the list as it always did.
 ## A participant writes its own list alone. Checked whole first, so a list with one bad item is
 ## refused and the list kept before stays as it was; written to a temp file mktemp names beside
 ## it and put in place by one rename, so no reader sees half a list.
@@ -51,6 +55,7 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 		return 0
 	fi
 	local todoCount todoIndex=0 todoField todoWhere todoPending=0 todoActive=0 todoDone=0 todoFile todoText="" todoLine todoContent todoPathNo=0 todoTmp="" todoAdded=0
+	local todoDue="" todoDueEpoch="" todoDueRead="" 
 	AgentsHarnessArgParse "$1"
 	## No pre-requisites, no tool: a session whose member or place the harness does not know has none.
 	if ! AgentsHarnessCheckListPlace ; then
@@ -91,14 +96,30 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 			fi
 		done
 		AgentsHarnessArgFind "todos.$todoIndex.content" || :
-		todoContent="$harnessArgFound"
+		## A CONTENT THAT ECHOES A READ IS THE ITEM IT READ (S6.27): a member writing its own list back repeats
+		## the read's ` [step]` or ` [parent]` suffix, and that suffix is the read's, never the item's text.
+		todoContent="${harnessArgFound% \[step\]}"
+		todoContent="${todoContent% \[parent\]}"
+		## A due time (S13.9) is optional, and it is a moment the one reader of a moment reads: anything it
+		## cannot read is refused here, so a list never carries a due mark nothing can compare.
+		todoDue=""
+		todoDueRead=""
+		AgentsHarnessArgFind "todos.$todoIndex.due" || :
+		todoDueRead="$harnessArgFound"
+		if [ -n "$todoDueRead" ] ; then
+			todoDueEpoch="$( printf '%s\n' "$todoDueRead" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || todoDueEpoch=""
+			if [ -z "$todoDueEpoch" ] ; then
+				printf 'ERROR: %s: due must be a date-time this tooling can read, such as "2026-11-04 18:00 +0200", got: %s. Nothing was written.\n' "$todoWhere" "$( AgentsHarnessTruncateArg "$todoDueRead" )" ; return 0
+			fi
+			todoDue=" (due: $todoDueRead)"
+		fi
 		AgentsHarnessArgFind "todos.$todoIndex.status" || :
 		case "$harnessArgFound" in
-			pending) todoPending=$(( todoPending + 1 )) ; todoLine="- [ ] $todoContent" ;;
+			pending) todoPending=$(( todoPending + 1 )) ; todoLine="- [ ] $todoContent$todoDue" ;;
 			in_progress)
 				todoActive=$(( todoActive + 1 ))
 				AgentsHarnessArgFind "todos.$todoIndex.activeForm" || :
-				todoLine="- [~] $todoContent (in progress: $harnessArgFound)"
+				todoLine="- [~] $todoContent$todoDue (in progress: $harnessArgFound)"
 			;;
 			completed) todoDone=$(( todoDone + 1 )) ; todoLine="- [x] $todoContent" ;;
 			*) printf 'ERROR: %s: status must be pending, in_progress or completed, got: %s. Nothing was written.\n' "$todoWhere" "$( AgentsHarnessTruncateArg "$harnessArgFound" )" ; return 0 ;;
@@ -126,6 +147,10 @@ AgentsHarnessToolCheckList(){ ## raw arguments
 		printf 'ERROR: the checklist of %s in session %s could not be written. Nothing was written.\n' "$checkListMember" "$checkListSession" ; return 0
 	fi
 	rm -f "$todoFile.added" 2>/dev/null || :
+	## THE MEMBER'S OWN WRITE MARKS WHAT IT WROTE (S6.27): an item of its new list that no mark names is `own`. The
+	## seed and a parent's add mark their own items, so a step and a parent's item keep what they were given.
+	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2>/dev/null || :
+	AgentsToolsCheckListSourcesMark "$todoFile" "" "" 2>/dev/null || :
 	AgentsHarnessCheckListUnlock "$todoFile"
 	## The result names the member and the session it belongs to and gives no path: where the list is kept is the tooling's business, and
 	## a path in the result is one a member reads as something it may touch (the checklist is the tool's, written here, never edited there).
@@ -195,8 +220,7 @@ AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 	if [ "$readWant" = "*" ] ; then
 		while IFS= read -r readName ; do
 			[ -n "$readName" ] || continue
-			AgentsHarnessFileText "$checkListFolder/$readName.checklist.md"
-			readOut="$readOut"$'\n\n'"## $readName"$'\n'"${harnessFileText:-(empty)}"
+			readOut="$readOut"$'\n\n'"## $readName"$'\n'"$( AgentsHarnessCheckListShown "$checkListFolder/$readName.checklist.md" )"
 			readCount=$(( readCount + 1 ))
 		done <<< "$readMembers"
 		printf 'CHECKLISTS of session %s: %s participant(s), each under its member name.%s\n' "$checkListSession" "$readCount" "$readOut"
@@ -210,8 +234,23 @@ AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 			return 0
 		;;
 	esac
-	AgentsHarnessFileText "$checkListFolder/$readWant.checklist.md"
-	printf 'CHECKLIST of %s in session %s:\n%s\n' "$readWant" "$checkListSession" "${harnessFileText:-(empty)}"
+	printf 'CHECKLIST of %s in session %s:\n%s\n' "$readWant" "$checkListSession" "$( AgentsHarnessCheckListShown "$checkListFolder/$readWant.checklist.md" )"
+}
+
+## The list as a reader of it sees it: the list's own text, with the source of each item that is not the member's
+## own shown beside it, ` [step]` or ` [parent]`, and nothing for `own`, so an item no mark names reads exactly as
+## it always did. A list that is not there, and one that holds nothing, read `(empty)`.
+AgentsHarnessCheckListShown(){ ## the list file
+	local shownStore shownFile="$1"
+	[ -s "$shownFile" ] || { printf '(empty)\n' ; return 0 ; }
+	type AgentsToolsCheckListSourcesPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2> /dev/null || :
+	shownStore="$( AgentsToolsCheckListSourcesPath "$shownFile" )"
+	[ -n "$shownStore" ] && [ -f "$shownStore" ] || shownStore="/dev/null"
+	CHECKLIST_STORE="$shownStore" LC_ALL=C awk '
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; return line }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) } ; next }
+		{ if ( $0 ~ /^- \[[ x~]\] / ) { text = itemText( $0 ) ; if ( ( text in mark ) && mark[text] != "own" ) { print $0 " [" mark[text] "]" ; next } } ; print }
+	' "$shownStore" "$shownFile" 2> /dev/null
 }
 
 ## The state one line of a list carries: rc 0 pending, 1 in progress, 2 done, 3 no item. A `- [ ]` line whose text ends with its
@@ -242,6 +281,36 @@ AgentsHarnessCheckListOpenItems(){
 		AgentsHarnessCheckListLineState "$openLine" || continue
 		printf '%s\n' "$openLine"
 	done < "$openFile"
+	return 0
+}
+
+## THE ITEMS PAST THEIR DUE TIME (S13.9), exactly as the list keeps them, one a line, and nothing else:
+## rc 0 printing them, rc 1 where none is due, rc 2 where the harness gives the session no place for a
+## list. An item is due when its own ` (due: <date-time>)` mark holds a moment at or before now; an item
+## in progress is due too, since it is work still owed. The mark is read by the one reader of a moment
+## (LocalIsoToEpoch.awk), so a due time nothing can read is never silently skipped: it is refused by
+## the CheckList tool when it is written.
+AgentsHarnessCheckListDue(){
+	local dueFile="" dueLine="" dueText="" dueAt="" dueNow=0 dueState=0 dueAny=""
+	AgentsHarnessCheckListPlace || return 2
+	dueFile="$checkListFolder/$checkListMember.checklist.md"
+	[ -f "$dueFile" ] || return 1
+	dueNow="$( date +%s )"
+	while IFS= read -r dueLine || [ -n "$dueLine" ] ; do
+		dueState=0
+		AgentsHarnessCheckListLineState "$dueLine" || dueState=$?
+		case "$dueState" in 0|1) ;; *) continue ;; esac
+		case "$dueLine" in *' (due: '*) ;; *) continue ;; esac
+		dueText="${dueLine#* (due: }"
+		dueText="${dueText%%)*}"
+		[ -n "$dueText" ] || continue
+		dueAt="$( printf '%s\n' "$dueText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || dueAt=""
+		case "$dueAt" in ''|*[!0-9]*) continue ;; esac
+		[ "$dueAt" -le "$dueNow" ] || continue
+		printf '%s\n' "$dueLine"
+		dueAny="yes"
+	done < "$dueFile"
+	[ -n "$dueAny" ] || return 1
 	return 0
 }
 
@@ -337,7 +406,7 @@ AgentsHarnessCheckListAppendLines(){ ## folder, member -- stdin: the item texts,
 ## (the target's record names the caller's session as `parent-session-id`) and the participant its executor (the record's owner) -- or, with no session, to the caller's own list. Nothing
 ## already on a list is changed. The result names the member and the session and gives no path.
 AgentsHarnessCheckListAppend(){
-	local appendMember="${harnessArgV_member:-}" appendSession="${harnessArgV_session:-}" appendCount appendIndex=0 appendItems="" appendRecord appendFolder appendAdded
+	local appendMember="${harnessArgV_member:-}" appendSession="${harnessArgV_session:-}" appendCount appendIndex=0 appendItems="" appendRecord appendFolder appendAdded appendDueText appendDueAt
 	if AgentsHarnessArgFind todos.__count ; then
 		printf 'ERROR: append adds to a list and takes no todos, which replace your own: give one or the other. Nothing was written.\n' ; return 0
 	fi
@@ -349,6 +418,20 @@ AgentsHarnessCheckListAppend(){
 		if ! AgentsHarnessArgFind "append.$appendIndex" || [ -z "$harnessArgFound" ] ; then
 			printf 'ERROR: append item %s of %s is empty or no text -- each is a text. Nothing was written.\n' "$(( appendIndex + 1 ))" "$appendCount" ; return 0
 		fi
+		## A due mark (S13.9) is a moment the one reader of a moment reads, as it is on the member's
+		## own write: an appended item carrying one nothing can read is refused here, not written.
+		case "$harnessArgFound" in
+			*' (due: '*)
+				appendDueText="${harnessArgFound#* (due: }"
+				appendDueText="${appendDueText%%)*}"
+				appendDueAt="$( printf '%s\n' "$appendDueText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || appendDueAt=""
+				case "$appendDueAt" in
+					''|*[!0-9]*)
+						printf 'ERROR: append item %s of %s: due must be a date-time this tooling can read, such as "2026-11-04 18:00 +0200", got: %s. Nothing was written.\n' "$(( appendIndex + 1 ))" "$appendCount" "$( AgentsHarnessTruncateArg "$appendDueText" )" ; return 0
+					;;
+				esac
+			;;
+		esac
 		appendItems="$appendItems$harnessArgFound"$'\n'
 		appendIndex=$(( appendIndex + 1 ))
 	done
@@ -374,5 +457,8 @@ AgentsHarnessCheckListAppend(){
 	if ! appendAdded="$( printf '%s' "$appendItems" | AgentsHarnessCheckListAppendLines "$appendFolder" "$appendMember" )" ; then
 		printf 'ERROR: the checklist of %s could not be written to. Nothing was written.\n' "$appendMember" ; return 0
 	fi
+	## WHAT A PARENT ADDED IS THE PARENT'S (S6.27): each line just added is marked so, and nothing already marked moves.
+	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2>/dev/null || :
+	AgentsToolsCheckListSourcesMark "$appendFolder/$appendMember.checklist.md" "" "$appendItems" 2>/dev/null || :
 	printf 'OK: %s item(s) added, as pending, to the checklist of %s in session %s.\n' "$appendAdded" "$appendMember" "${appendSession:-$checkListSession}"
 }

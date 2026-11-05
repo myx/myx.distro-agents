@@ -18,6 +18,7 @@
 📘 syntax: DistroAgentsSession.fn.sh --session-floor-remove [--team-member <team-member>] <seconds>
 📘 syntax: DistroAgentsSession.fn.sh --set-session-topic [--team-member <team-member>] <text...>
 📘 syntax: DistroAgentsSession.fn.sh --set-session-chapter [--team-member <team-member>] <text...>
+📘 syntax: DistroAgentsSession.fn.sh --routine-stack [--team-member <team-member>] (--push <routine>|--replace <routine>|--rewind|--return|--return-to <frame>) [--reason <text>] [--by chair|routine|tool]
 📘 syntax: DistroAgentsSession.fn.sh --standing-directives [--team-member <team-member>] [--all]
 📘 syntax: DistroAgentsSession.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]
 📘 syntax: DistroAgentsSession.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]
@@ -117,6 +118,23 @@
 			The title of the session, what it is about: the title in lists and
 			statuses, and the thread's root post edited to match. The authority
 			rule's own options decide what a participant's change does.
+
+		--routine-stack (--push <routine>|--replace <routine>|--rewind|--return|--return-to <frame>) [--reason <text>] [--by chair|routine|tool]
+			One move of the calling session's routine stack, the ordered list of
+			routines it runs. `push` puts a routine on top and makes it the one in
+			force, and the frame under it stays open. `replace` exchanges the routine
+			in force for another, and the one it skips ends. `rewind` runs the routine
+			in force again, from its first step. `return` goes one frame up, and
+			`return-to` goes back to the frame it names, which is a routine file or
+			part of one. Every move appends one line to the record, its own key, the
+			routine, `by:` and the reason, and posts that line into the session's
+			event-track thread. `--by` says where the move came from, `chair` by
+			default. A replace needs `--reason`, since it ends a frame early. The
+			result names the steps of the routine now in force and the step the run
+			starts at: the first step for a rewind, else the first step the caller's
+			own CheckList has not closed. Nothing is written on a CheckList. Refused,
+			and nothing done, where the routine is not one file of the skillset, or
+			where there is no frame below the top to return to.
 
 		--set-session-chapter <text...>
 			What the session does now, kept in its own store and announced in the

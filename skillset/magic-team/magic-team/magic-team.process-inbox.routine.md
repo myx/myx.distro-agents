@@ -35,7 +35,7 @@ runs-at: none
 
 ## Goals
 
-- Give every acting member a working mailbox, so hand-offs and self-notes land and get worked without relaying every exchange through `magic-coordinator`.
+- Give every acting member a working mailbox, so hand-offs and self-notes land and get worked without passing every exchange through `magic-coordinator` by hand.
 - Keep the split: any member works its own mail; only `magic-coordinator` writes the board.
 
 ## Scope
@@ -95,10 +95,10 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--get-inbox-item <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]`
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--slack-send-message <target> [text...]`
-- `--mark-inbox-processed <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...`
+- `--get-inbox-item <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
+- `--mark-inbox-processed <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
 
 # Maintainer Notes
 

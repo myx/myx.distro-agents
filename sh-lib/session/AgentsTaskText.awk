@@ -10,7 +10,7 @@
 #           empty line or a heading;
 #   brief   the first paragraph of a dispatch's own brief, under `## Brief`, after the block the
 #           tooling writes ahead of the spawner's words (sh-lib/templates/spawn-brief.document.format.md:
-#           from `SPAWN-PREPARE-BRIEF:` to `When done, hand back; then Wait until dismissed.`);
+#           from `SPAWN-PREPARE-BRIEF:` to `When done, hand back and Wait until dismissed.`);
 #   header  one field of its frontmatter, named by TASKTEXT_FIELD;
 #   line    TASKTEXT_VALUE itself, no item read: a description or a comment somebody gave;
 #   kept    TASKTEXT_VALUE as a record keeps it: one line, redacted, at most 480 bytes.
@@ -98,7 +98,7 @@ want == "text" {
 want == "brief" {
 	if ( ! inBrief ) { if ( $0 == "## Brief" ) { inBrief = 1 ; } next ; }
 	if ( index( $0, "SPAWN-PREPARE-BRIEF: " ) == 1 ) { inBlock = 1 ; next ; }
-	if ( inBlock ) { if ( $0 == "When done, hand back; then Wait until dismissed." ) { inBlock = 0 ; } next ; }
+	if ( inBlock ) { if ( $0 == "When done, hand back and Wait until dismissed." ) { inBlock = 0 ; } next ; }
 	if ( $0 ~ /^#/ || $0 ~ /^[ \t]*$/ ) { if ( paragraph != "" ) { exit 0 ; } next ; }
 	paragraph = paragraph ( paragraph == "" ? "" : " " ) $0 ;
 	next ;

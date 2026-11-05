@@ -17,7 +17,7 @@ case "$1" in
 
 	--spawn-session)
 		shift
-		local routineSelector="" routineDefault="false" sessionNameOrComment="" sessionDescription=""
+		local routineSelector="" routineDefault="false" sessionRoutineChain="" sessionNameOrComment="" sessionDescription=""
 		local sessionCliService="" sessionSettingsWorkspace="" sessionThreadMode=""
 		local spawnMembers=() sessionJoinId="" sessionHandedOverBy=""
 		## THE PARTICIPANTS and what the work likely needs, as whoever prepares the dispatch guesses them: validated before
@@ -68,6 +68,16 @@ case "$1" in
 				--routine-default)
 					routineDefault="true"
 					shift
+				;;
+				## The session's declared starting path (S6.27): the routines it begins with, the one in force first,
+				## passed to every spawn of the call unchanged.
+				--routine-chain)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --routine-chain requires <routine>[,<routine>...]" >&2
+						set +e ; return 1
+					fi
+					sessionRoutineChain="$2"
+					shift 2
 				;;
 				## The thread this call's session opens: event-track starts it alone, with no session thread
 				## until it brings a member in (AgentsToolsScheduleSpawn's duty start). Passed to every spawn.
@@ -172,7 +182,7 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -464,6 +474,7 @@ case "$1" in
 			## What every start of the queue is given, kept beside the record for its watcher (AgentsToolsSpawnSessionParentStart).
 			local partitionArgs=( --dispatch-doc:create )
 			if [ "$routineDefault" = "true" ] ; then partitionArgs+=( --routine-default ) ; else partitionArgs+=( --routine "$routineSelector" ) ; fi
+			[ -z "$sessionRoutineChain" ] || partitionArgs+=( --routine-chain "$sessionRoutineChain" )
 			[ -z "$sessionThreadMode" ] || partitionArgs+=( --session-thread:"$sessionThreadMode" )
 			[ -z "$sessionNameOrComment" ] || partitionArgs+=( --session-name-or-comment "$sessionNameOrComment" )
 			[ -z "$sessionDescription" ] || partitionArgs+=( --description "$sessionDescription" )
@@ -482,6 +493,7 @@ case "$1" in
 			else
 				spawnArgs+=( --routine "$routineSelector" )
 			fi
+			[ -z "$sessionRoutineChain" ] || spawnArgs+=( --routine-chain "$sessionRoutineChain" )
 			[ -z "$sessionThreadMode" ] || spawnArgs+=( --session-thread:"$sessionThreadMode" )
 			[ -z "$sessionNameOrComment" ] || spawnArgs+=( --session-name-or-comment "$sessionNameOrComment" )
 			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )

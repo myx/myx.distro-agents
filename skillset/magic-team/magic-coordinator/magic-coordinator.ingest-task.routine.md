@@ -83,6 +83,7 @@ All statements apply at the same time, always. These rules override a participan
 - A requester declining further questions is respected, and the filed task states plainly what remains ambiguous. Where that requester is a group needing quorum, the unresolved part becomes the no-quorum document instead, per "The ladder: one rung at a time".
 - Keep `event-track` current as the routine runs.
 - The epic hand-over is a threshold judgement, made fresh each time against the open and queued items, never from precedent. At the threshold the run hands over to `magic-team.epic-intake.routine`. Below it, the task is filed as today.
+- Every brief, task and hand-over this routine writes is a direct message or a produce, never a relay: requirements in this member's own words, for the worker that has to act. `magic-team.basic.md`'s "Relay, direct, produce" tells the three apart.
 
 # Routine-specific tooling
 
@@ -95,11 +96,11 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--upsert-inbox-note <team-member> <item-filename>`
-- `--upsert-inbox-inquiry <member> <item-filename>`
-- `--grooming-create-backlog <item-filename> --owner-header-value <value>`
-- `--slack-send-message <target> [text...]`
-- `--routine-run-inline <routine>`
+- `--upsert-inbox-note <team-member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename>` (`DistroAgentsItems`)
+- `--grooming-create-backlog <item-filename> --owner-header-value <value>` (`DistroAgentsItems`)
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

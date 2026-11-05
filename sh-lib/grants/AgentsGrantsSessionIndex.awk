@@ -15,6 +15,9 @@
 ##       where the environment names none: a harness started before they went there holds the
 ##       caller that passes them so.
 ##   ENVIRON agentsGrantsEnded: the store dirs whose session has ended, one per line
+##   ENVIRON agentsGrantsRunSeats: the session record and the output/ folder of every run this
+##       run reviews (AgentsToolsGrantsRunSeats), one absolute path a line: the run seats of
+##       S6.41, printed as floor allow rows of the read tools, never as a store to join
 ##   ENVIRON agentsGrantsItemRuns: the stores of the member's other runs on the same board item
 ##       (AgentsToolsGrantsItemRuns), one `<store dir><TAB><item><TAB><coworking session store,
 ##       or -><TAB><only, task, or empty>` line each: a session grant there holds while that
@@ -248,6 +251,9 @@ END {
 	if ( sandboxIn != "" ) print "allow", readTools, grantsGlobPattern( sandboxIn "/**" ), "floor"
 	if ( sandboxOut != "" ) print "allow", writeTools, grantsGlobPattern( sandboxOut "/**" ), "floor"
 	if ( origin != "" ) print "allow", readTools, grantsGlobPattern( origin "/**" ), "floor"
+	## The run seats of S6.41, this run's own: what it reviews is read, by the floor.
+	n = split( ENVIRON["agentsGrantsRunSeats"], seatList, "\n" )
+	for ( i = 1 ; i <= n ; i++ ) if ( seatList[i] != "" ) print "allow", readTools, grantsGlobPattern( seatList[i] "/**" ), "floor"
 	for ( i = 1 ; i <= heldCount ; i++ ) print heldRow[i]
 	for ( i = 1 ; i <= onceCount ; i++ ) print onceRow[i]
 	print "end"

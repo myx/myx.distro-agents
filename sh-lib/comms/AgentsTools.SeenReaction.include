@@ -8,9 +8,31 @@
 ## a claim file in $MMDAPP/.local/agents/schedule/seen/<member>/<ts>, keyed by the Slack ts alone and taken back where the reaction fails.
 ## The member's own account reacts, the team bot where that account cannot reach the conversation. Dot-sourced; functions only.
 ##
+## ONE LINE AN ATTEMPT, in comms-slack-react.YYYY-MM.log beside the send log:
+##   <stamp> <member> <target> <identity:account> <ok|failed> <reason>
+## The identity is the one the react op says it acted under (ACTING_IDENTITY), and the account is that member's own user
+## id where the workspace knows it, else the word `user`. A failure already_reacted never reaches here: the react op
+## reports it as a success.
+##
+## THE SECOND ACCOUNT IS SPENT ONLY WHERE IT CAN HELP. A reason that names the request, not the account
+## (AgentsToolsSeenHopeless), is the same under any identity of ours, so the second call buys nothing. The conversation
+## errors are in that list because the react op already tries the bot identity itself for them.
+##
+
+AgentsToolsSeenHopeless="already_reacted message_not_found thread_not_found invalid_name invalid_arguments channel_not_found not_in_channel"
+
+AgentsToolsSeenLog(){ ## member, target, identity:account, ok|failed, the reason -- one line an attempt
+	local seenLogStamp seenLogReason
+	seenLogStamp="$( date -u +%Y%m%dT%H%M%SZ )"
+	seenLogReason="$( printf '%s' "$5" | LC_ALL=C tr -c 'A-Za-z0-9_.:=/ -' '_' )"
+	{ mkdir -p "$MMDAPP/.local/agents" && printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$seenLogStamp" "$1" "$2" "$3" "$4" "$seenLogReason" \
+		>> "$MMDAPP/.local/agents/comms-slack-react.${seenLogStamp:0:4}-${seenLogStamp:4:2}.log" ; } 2> /dev/null \
+		|| echo "⚠️ WARNING: AgentsToolsSeenReact: could not append this attempt to the react log under $MMDAPP/.local/agents" >&2
+	return 0
+}
 
 AgentsToolsSeenReact(){ ## member, <conversation>:<ts> of the message
-	local seenMember="$1" seenTarget="$2" seenTs seenDir
+	local seenMember="$1" seenTarget="$2" seenTs seenDir seenAccount seenIdentity seenRc seenDiag seenReason seenActor
 	seenTs="${seenTarget##*:}"
 	case "$seenTs" in
 		''|*[!0123456789.]*|.*|*.) return 1 ;;
@@ -20,10 +42,31 @@ AgentsToolsSeenReact(){ ## member, <conversation>:<ts> of the message
 	mkdir -p "$seenDir" 2> /dev/null || return 1
 	( set -C ; : > "$seenDir/$seenTs" ) 2> /dev/null || return 0
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	if DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes > /dev/null 2>&1 \
-		|| DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes --identity-bot > /dev/null 2>&1 ; then
-		return 0
-	fi
+	## The account the member's own reaction runs as, where this workspace already knows it: the cache the send and the
+	## wait both read. It names the account in the log, and makes no request of its own.
+	seenAccount="$( LC_ALL=C awk '$2 ~ /^U[A-Z0-9]+$/ { print $2 ; exit }' "$MMDAPP/.local/cache/comms/slack/.user-id-$seenMember.txt" 2> /dev/null )" || seenAccount=""
+	for seenIdentity in user bot ; do
+		seenRc=0
+		seenDiag="$( { DistroAgentsTools --intern-op-comms-slack-react "$seenMember" "$seenTarget" eyes \
+			$( [ "$seenIdentity" = user ] || printf '%s' --identity-bot ) 2>&1 1>&3 3>&- ; } 3>&1 )" || seenRc=$?
+		seenActor="$( printf '%s\n' "$seenDiag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )" || seenActor=""
+		case "$seenActor" in
+			bot) seenActor="bot:bot" ;;
+			user) seenActor="user:${seenAccount:-user}" ;;
+			*) seenActor="$seenIdentity:${seenAccount:-user}" ;;
+		esac
+		seenReason="$( printf '%s\n' "$seenDiag" | LC_ALL=C sed -n 's/.*"error":"\([a-z_]*\)".*/\1/p' | head -1 )" || seenReason=""
+		[ -n "$seenReason" ] || seenReason="$( printf '%s\n' "$seenDiag" | LC_ALL=C sed -n 's/^⛔ ERROR: [^:]*: //p' | head -1 )" || seenReason=""
+		[ -n "$seenReason" ] || seenReason="the call failed with no diagnostic"
+		if [ "$seenRc" = "0" ] ; then
+			AgentsToolsSeenLog "$seenMember" "$seenTarget" "$seenActor" ok "$seenReason"
+			return 0
+		fi
+		AgentsToolsSeenLog "$seenMember" "$seenTarget" "$seenActor" failed "$seenReason"
+		case " $AgentsToolsSeenHopeless " in
+			*" $seenReason "*) break ;;
+		esac
+	done
 	rm -f "$seenDir/$seenTs"
 	return 1
 }

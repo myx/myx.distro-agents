@@ -1598,7 +1598,7 @@ mkdir -p "$rigTmp/data/board/running" "$rigTmp/data/board/backlog"
 printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite? A fifth sentence that must not show.\n\n## Notes\n\nnot the first paragraph\n' \
 	> "$rigTmp/data/board/backlog/task-rig-start.md"
 printf -- '---\nowner: magic-tester\ntracks: task-rig-start\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nbrief text of the dispatch.\n' > "$rigTmp/data/board/running/dispatch-rig-tracks.md"
-printf -- '---\nowner: magic-tester\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nSPAWN-PREPARE-BRIEF: magic-tester\ntool-routing: rig\nWhen done, hand back; then Wait until dismissed.\n\nPlease fix the loader with the token sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Keep the tests green.\n\n## Your sandbox\n\nout\n' \
+printf -- '---\nowner: magic-tester\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\nSPAWN-PREPARE-BRIEF: magic-tester\ntool-routing: rig\nWhen done, hand back and Wait until dismissed.\n\nPlease fix the loader with the token sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Keep the tests green.\n\n## Your sandbox\n\nout\n' \
 	> "$rigTmp/data/board/running/dispatch-rig-own.md"
 printf -- '---\nowner: magic-tester\n---\n\n# Spawn-proxy dispatch: magic-tester\n\n## Brief\n\n' > "$rigTmp/data/board/running/dispatch-rig-empty.md"
 rigAssert "a dispatch that tracks a task: the task's title, both names, and its first paragraph cut at a sentence end, four sentences at most" \

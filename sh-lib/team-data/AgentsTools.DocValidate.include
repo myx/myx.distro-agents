@@ -54,7 +54,16 @@ AgentsToolsDocValidateVaultTypes(){
 	local typesBase
 	for typesBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
 		cat "$typesBase"/contracts/vault-item.*.contract.format.md 2> /dev/null || :
-	done | LC_ALL=C sed -n -E 's/^- Kind `(vault-item\.[a-z-]+)`: store vault, type word `([a-z]+)`.*$/\2'$'\t''\1/p' | LC_ALL=C awk -F'\t' '!( $2 in kindSeen ) { kindSeen[$2] = 1 ; print ; }'
+	done | LC_ALL=C sed -n -E 's/^- Kind `(vault-item\.[a-z-]+)`: store vault, type word `([a-z-]+)`.*$/\2'$'\t''\1/p' | LC_ALL=C awk -F'\t' '!( $2 in kindSeen ) { kindSeen[$2] = 1 ; print ; }'
+}
+
+## The type word an item file name carries, rc 1 where no contract names one at its start: the vault's type words are not
+## all one word (`epic-blueprint`), so the leading token (`AgentsToolsItemNameType`) is not the type word.
+AgentsToolsDocValidateVaultItemWord(){ ## item file name
+	local itemWord
+	itemWord="$( AgentsToolsDocValidateVaultTypes | LC_ALL=C awk -F'\t' -v itemName="$1" 'index( itemName, $1 "-" ) == 1 && length( $1 ) > length( best ) { best = $1 } END { print best ; }' )"
+	[ -n "$itemWord" ] || return 1
+	printf '%s\n' "$itemWord"
 }
 
 ## The kind of a vault type word, rc 1 where no vault contract names it.
@@ -126,7 +135,7 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
 	gateAfter="$( cat )"
 	gateKind="$gateStore-item.$( AgentsToolsItemNameType "$gateName" )"
 	## A vault type word is not its contract's name (`investigation` is `vault-item.investigation-report`): the contracts say which is which.
-	[ "$gateStore" != vault ] || gateKind="$( AgentsToolsDocValidateVaultKind "$( AgentsToolsItemNameType "$gateName" )" )" || gateKind=""
+	[ "$gateStore" != vault ] || gateKind="$( AgentsToolsDocValidateVaultKind "$( AgentsToolsDocValidateVaultItemWord "$gateName" )" )" || gateKind=""
 	## AN AUDIT SESSION LOG IS NAMED BY ITS SESSION, NOT BY THE CONTRACT (sketch 9.1, S8): `session-<ts>-<member>-<sid8>.log`
 	## and its `-part<N>` rolls are checked against `audit-item.transcript`, and the two rules the log cannot carry -- the type
 	## word, which is `session` here, and the frontmatter block, which a roll has none of -- are not asked of it. Every other

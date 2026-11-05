@@ -155,7 +155,7 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 			if [ -z "${MDAT_DATA_ROOT:-}" ] ; then echo "$knowOp: ⛔ ERROR: no team data root (MDAT_DATA_ROOT) -- nothing was read" >&2 ; return 1 ; fi
 		;;
 	esac
-	local knowFiles knowRows knowGroups knowArgs=() knowPath knowRef knowPre knowCaps knowCaption
+	local knowFiles knowRows knowGroups knowArgs=() knowPath knowRef knowPre knowCaps knowCaption knowUnread="" knowScanRc=0
 	local knowStoreMap="" knowStoreList="" knowStoreScratch="" knowStoreDir knowStoreRef knowStoreCount=0 knowStoreOut
 	knowFiles="$( AgentsToolsKnowledgeFiles $knowSources -- ${knowSelector[@]+"${knowSelector[@]}"} )" || return 1
 	if [ -z "$knowFiles" ] ; then
@@ -190,7 +190,10 @@ $knowStoreOut"
 					knowStoreMap="$knowStoreMap$knowStoreOut	$knowStoreRef
 "
 				else
-					## a store that cannot be read is left out: the MAGIC.md text still answers, and the query goes on
+					## A STORE THAT CANNOT BE READ IS NAMED (S6.47): its sections are not in this answer, and a query that
+					## answered nothing would otherwise read as a complete empty answer.
+					echo "# $knowOp: the LanceDB store beside $knowStoreRef could not be read, so its sections are not in this answer" >&2
+					knowUnread="yes"
 					rm -f "$knowStoreOut" "$knowStoreOut.err"
 				fi
 			done <<< "$knowStoreList"
@@ -201,8 +204,16 @@ $knowStoreOut"
 			exit $?
 		fi
 		knowRows="$( printf '%s\n' "$knowFiles" | KNOWLEDGE_QUERY="$knowQuery" KNOWLEDGE_STORE_MAP="$knowStoreMap" LC_ALL=C awk -v wsRoot="${MMDAPP%/}/" -v dataRoot="${MDAT_DATA_ROOT:+${MDAT_DATA_ROOT%/}/}" -v format=list \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk" )" || exit 1
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk" )" || knowScanRc=$?
+		## The scan's own 3 says a source file could not be read, and it named each one on stderr.
+		[ "$knowScanRc" != 3 ] || knowUnread="yes"
 		if [ -z "$knowRows" ] ; then
+			if [ -n "$knowUnread" ] ; then
+				## AN EMPTY ANSWER THAT IS NOT A COMPLETE ONE (S6.47): a reader must not take this for a search that looked
+				## everywhere and found nothing, whether the failure is a row-level one like a permission or a total one.
+				echo "# $knowOp: no section answers the query, and at least one source could not be read, so this is NOT a complete empty answer" >&2
+				exit 1
+			fi
 			echo "# $knowOp: no section answers the query" >&2
 			exit 0
 		fi

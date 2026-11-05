@@ -98,12 +98,15 @@ Concrete, ready-to-execute work.
 ## Body
 
 - Free text after the frontmatter, apart from what this contract names.
+- An `Audience:` line states who reads this, in a word or two: executive managers, developers, a team lead, general readers, the public. It is a hint its reader interprets, never a closed list. The text is formulated properly for that audience, and that is the hard rule.
+- The body states, in present-tense plain statements, the goal, why the work is done, its scope, the current state and the next step. A reader with no context, perhaps a month later, continues from the document alone.
 - A first `#` title line, `# <Type>: <matter, one line>`, is the convention of stored items. The validator does not check it.
 - A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--record-decision`, never by hand.
 
 ## Rules
 
 - `type` equals the type word in the filename (`task`).
+- The body carries the goal, the scope, the current state and the next step. A document missing one of them is incomplete, and a reader with no context cannot continue from it.
 - `approved-by` and `approved-at` appear together.
 - `recheck-date` and `condition` appear together.
 - [store] Only `magic-coordinator` creates or moves a board item.

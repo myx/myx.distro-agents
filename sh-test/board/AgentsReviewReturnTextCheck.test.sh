@@ -29,16 +29,19 @@ rigFixtures="$rigPackage/sh-test/check-fixtures"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigTool" "$rigFixtures/slack-send-identity-check.curl.stub.sh" "$rigFixtures/rig-processes.include.sh" ; do
+for rigFile in "$rigTool" "$rigFixtures/slack-send-identity-check.curl.stub.sh" "$rigFixtures/rig-processes.include.sh" "$rigFixtures/rig-control-threads.include.sh" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
 . "$rigFixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package"
+## A --return-review restarts a child that is not waited for, and that start opens the control thread of
+## its session: a detached process that outlives this check (AgentsSessionControlStartCheck, section 9).
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsReviewReturnTextCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'rigProcSignalWithChildren TERM $rigLivePids ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigScn="$rigTmp/scn"

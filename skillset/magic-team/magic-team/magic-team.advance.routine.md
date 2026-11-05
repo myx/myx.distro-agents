@@ -127,10 +127,10 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--get-board-item <item-filename>`
-- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...`
-- `--move-to-processed <item-filename> --from-state:<state> [--header:...]...`
-- `--routine-run-inline <routine>`
+- `--get-board-item <item-filename>` (`DistroAgentsItems`)
+- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
+- `--move-to-processed <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

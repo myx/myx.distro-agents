@@ -53,7 +53,7 @@ for rigType in $rigTypes ; do
 done
 rigAssert "all six in magic-team/contracts/" "$rigIn" "6"
 rigAssert "none flat in the member folder" "$rigFlat" "0"
-rigAssert "contracts/ holds the six and the *.contract.format.md shapes, and nothing else" "$( ls "$rigMember/contracts" 2> /dev/null | LC_ALL=C grep -v -c -E '^(magic-team[.]authority[.](client|expert|keeper|oncall|partner|warden)[.]contract[.]md|[a-z-]+([.][a-z]+)?[.]contract[.]format[.]md)$' || : )" "0"
+rigAssert "contracts/ holds the six and the *.contract.format.md shapes, and nothing else" "$( ls "$rigMember/contracts" 2> /dev/null | LC_ALL=C grep -v -c -E '^(magic-team[.]authority[.](client|expert|keeper|oncall|partner|warden)[.]contract[.]md|[a-z-]+([.][a-z-]+)*[.]contract[.]format[.]md)$' || : )" "0"
 
 echo "-- 2. the shapes are in contracts/, and templates/ is gone --"
 rigShapes=0

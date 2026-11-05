@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-## Behavioural check on the coordinator's epic read (S23.8): AgentDispatcherTools.fn.sh --epic-read and --epic-list, run rather than read,
+## Behavioural check on the epic read (S23.8, widened by S17.4): AgentDispatcherTools.fn.sh --epic-read and --epic-list, run rather than read,
 ## in a rig: epic files in the rig's workspace and the real tooling. Held:
-##   1. WHO: magic-coordinator and a call from no member's session read; another member's session is refused and prints nothing.
+##   1. WHO: any member's session, the coordinator's and a call from no member's session read; nobody is refused.
 ##   2. --epic-read <file> prints the file whole; with --feature <id> it prints that feature's section alone, down to the next heading.
 ##   3. --epic-list <folder> prints one line for each *.epic.md file of the folder, `<file> <N> sections`, and says so where there is none.
 ##   4. REFUSED: a path outside a todo-sketchpad folder, a path with a `..` part, a missing file, a feature that is not there or stands twice,
@@ -48,7 +48,7 @@ echo "-- 1. who --"
 rigAs=magic-coordinator ; rigRun "$rigTmp/a1" --epic-read "$rigEpic" ; rigRcA1="$rigRc"
 rigAs="" ;                rigRun "$rigTmp/a2" --epic-read "$rigEpic" ; rigRcA2="$rigRc"
 rigAs=keeper-x ;          rigRun "$rigTmp/a3" --epic-read "$rigEpic" ; rigRcA3="$rigRc"
-rigAssert "the coordinator and a call from no member read; another member is refused and gets no text" "$rigRcA1 $rigRcA2 $rigRcA3 $( rigHas 'runs only as magic-coordinator, and this call comes from keeper-x' "$rigTmp/a3.err" ) $( wc -c < "$rigTmp/a3.out" | tr -d ' ' )" "0 0 1 1 0"
+rigAssert "any member reads, the coordinator reads, and a call from no member reads" "$rigRcA1 $rigRcA2 $rigRcA3 $( rigHas 'runs only as magic-coordinator' "$rigTmp/a3.err" ) $( cmp -s "$rigTmp/a3.out" "$rigEpic" && printf same || printf differs )" "0 0 0 0 same"
 
 echo "-- 2. --epic-read --"
 rigAs=magic-coordinator

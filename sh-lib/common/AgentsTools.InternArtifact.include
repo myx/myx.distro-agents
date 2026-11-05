@@ -268,7 +268,7 @@ AgentsToolsArtifactConfluencePublish(){
 	artUrl="$( AgentsToolsArtifactJson _links.base "$artWork/created.json" )$( AgentsToolsArtifactJson _links.webui "$artWork/created.json" )"
 	case "$artUrl" in
 		https://*/*) ;;
-		*) artUrl="https://$( AgentsToolsArtifactOption "$artMember" CONFLUENCE_SITE )/wiki/spaces/$artSpace/pages/$artPageId" ;;
+		*) artUrl="https://$( AgentsToolsArtifactOption "${artScope:-$artMember}" CONFLUENCE_SITE )/wiki/spaces/$artSpace/pages/$artPageId" ;;
 	esac
 	## From here the page exists: a later failure is said with its URL, never as nothing done.
 	while IFS= read -r attachPath ; do
@@ -388,7 +388,7 @@ AgentsToolsArtifactPublish(){
 	local artBackend="" artSpace="" artSpaceId="" artGoogleRoot="" artHtml="" artUses="" artAttach=""
 	local artNumber="" artFullTitle="" artFilePrefix="" artUrl="" artPageId="" artPartial=0 artCreatedId="" artUploadedUrl=""
 	local artRecord="" artRepo="" artOrigin="" artBranch="" recordSlug="" artDocId="" artUploadedId=""
-	local artPlace artPlaceName artExtension="" artFormat callRc=0 rootRows rootCount
+	local artPlace artPlaceName artScope artExtension="" artFormat callRc=0 rootRows rootCount
 	local googleClientId="" googleClientSecret="" googleRefreshToken="" googleName="" googleParentId="" googleUploadPath="" googleFileId=""
 	trap 'rm -rf "$artWork" ; AgentsToolsLocalLockGive "$artLock"' EXIT
 	mkdir -p "$MMDAPP/.local/temp" && artWork="$( mktemp -d "$MMDAPP/.local/temp/mdat-artifact.XXXXXX" )" || {
@@ -398,18 +398,21 @@ AgentsToolsArtifactPublish(){
 
 	## The team place: the Confluence space CONFLUENCE_SPACE names -- the caller own value first,
 	## then the team one -- else Google, whose root is the magic-team folder found by listing.
-	## Either way with the caller own credentials.
+	## The Confluence credentials are read in the same order as every other Atlassian call
+	## (AgentsToolsCommsScopeOf): the member's own scope here, else this rig's magic-team scope.
 	artSpace="$( AgentsToolsArtifactOption "$artMember" CONFLUENCE_SPACE )"
 	[ -n "$artSpace" ] || artSpace="$( AgentsToolsArtifactTeamOption CONFLUENCE_SPACE )"
 	if [ -n "$artSpace" ] ; then
 		artBackend=confluence
-		if ! AgentsToolsArtifactKeysSet "$artMember" CONFLUENCE_SITE CONFLUENCE_USER CONFLUENCE_API_TOKEN ; then
-			echo "🙋 WARNING: $artCmd: CONFLUENCE_SPACE names the team space $artSpace, and $artMember holds no CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in its own scope -- set them there. Nothing was published" >&2
+		type AgentsToolsCommsScopeOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+		artScope="$( AgentsToolsCommsScopeOf "$artMember" CONFLUENCE_ )"
+		if ! AgentsToolsArtifactKeysSet "$artScope" CONFLUENCE_SITE CONFLUENCE_USER CONFLUENCE_API_TOKEN ; then
+			echo "🙋 WARNING: $artCmd: CONFLUENCE_SPACE names the team space $artSpace, and neither $artMember's own scope nor this workspace's magic-team scope holds CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN -- set them in one of the two. Nothing was published" >&2
 			return 6
 		fi
 		type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
 	elif ! AgentsToolsArtifactKeysSet "$artMember" GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN ; then
-		echo "🙋 WARNING: $artCmd: no team place is set up for $artMember -- set CONFLUENCE_SPACE (its own scope or magic-team) and CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in its own scope, or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN in its own scope with a Google folder named $agentsArtifactGoogleRoot shared with it. Nothing was published" >&2
+		echo "🙋 WARNING: $artCmd: no team place is set up for $artMember -- set CONFLUENCE_SPACE (its own scope or magic-team) with CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in its own scope or in magic-team, or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN in its own scope with a Google folder named $agentsArtifactGoogleRoot shared with it. Nothing was published" >&2
 		return 6
 	else
 		artBackend=google

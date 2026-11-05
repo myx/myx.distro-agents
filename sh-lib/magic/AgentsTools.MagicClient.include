@@ -64,22 +64,31 @@ case "$1" in
 		## read, the sender recorded and every refusal are the operation's own, and so are its
 		## stdin, its output and its exit status.
 		local -x MDAT_SPAWN_AGENT="$clientMember"
-		## Where this process defines the dispatcher, the call is the dispatcher's own, as it always
-		## was. Where it does not, as on a console, the client family's own include runs: the
-		## dispatcher is no command there (S6.24).
-		if type DistroAgentsTools > /dev/null 2>&1 ; then
-			DistroAgentsTools "${@:2}"
+		## The client stub's own include, never the dispatcher, which is no command on a console and
+		## would be re-entered from here (S6.24). The client, and its own settings, are brought from
+		## the workspace it is set up in, as the tool files' own front door brings them.
+		local MDSC_CMD='DistroAgentsTools' clientOpInclude
+		type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+		local clientBrought clientBroughtRoot clientBroughtFrom
+		clientBrought="$( AgentsToolsMemberSkillsetBring "$clientMember" "$clientOperation" )" || { set +e ; return 1 ; }
+		clientBroughtRoot="${clientBrought%%$'\t'*}"
+		clientBroughtFrom="${clientBrought#*$'\t'}"
+		case "$clientOperation" in
+			--client-comms-slack-*) clientOpInclude=comms/AgentsTools.MemberCommsSlack.include ;;
+			--client-comms-email-*) clientOpInclude=comms/AgentsTools.MemberCommsEmail.include ;;
+			--client-comms-trello-*) clientOpInclude=comms/AgentsTools.MemberCommsTrello.include ;;
+			--client-comms-google-*) clientOpInclude=comms/AgentsTools.MemberCommsGoogle.include ;;
+			--client-comms-*) clientOpInclude=client/AgentsTools.ClientComms.include ;;
+			--client-sweep-*) clientOpInclude=client/AgentsTools.ClientSweep.include ;;
+		esac
+		local -x MDAT_COMMS_SIDE=client MDAT_COMMS_OP="$clientOperation"
+		set -- "$clientOperation" "$clientMember" "${@:4}"
+		if [ -n "$clientBroughtRoot" ] && [ "$clientBroughtRoot" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
+			AgentsToolsMemberSettingsBorrowedSay "$clientMember" "$clientOperation" "$clientBroughtFrom"
+			( export MDAT_SKILLSET_ROOT="$clientBroughtRoot" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@" )
 			return $?
 		fi
-		local -x MDAT_COMMS_SIDE=client MDAT_COMMS_OP="$clientOperation"
-		case "$clientOperation" in
-			--client-comms-slack-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" "${@:2}" ;;
-			--client-comms-email-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include" "${@:2}" ;;
-			--client-comms-trello-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include" "${@:2}" ;;
-			--client-comms-google-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include" "${@:2}" ;;
-			--client-comms-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientComms.include" "${@:2}" ;;
-			--client-sweep-*) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientSweep.include" "${@:2}" ;;
-		esac
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$clientOpInclude" "$@"
 		return $?
 	;;
 

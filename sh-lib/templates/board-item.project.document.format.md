@@ -16,9 +16,12 @@ A container for related work, an epic. Its children link to it by `spawns` and `
 # Project: {{matter}}
 
 {{body}}
+
+Audience: {{audience}}
 ```
 
 # Slots
 
 - `matter` — the matter, one line, the title after `# Project:`.
-- `body` — what the container holds together, and why.
+- `audience` — who reads this, in a word or two. A hint its reader interprets, never a closed list.
+- `body` — what the container holds together, why, and the state it is in now.

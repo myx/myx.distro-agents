@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseGuide.include -- the supervisor speaks to a run (epic S13.5): guidance into its session thread, and
+## items added to its CheckList. Sourced, never run; functions only.
+##
+## WHY IT IS NOT A --manager-* OPERATION. Those post as the account at the console and are refused from inside a member's
+## session (AgentsToolsManagerCallerCheck). The supervisor is magic-coordinator's own run, so this operation posts as
+## magic-coordinator, through the one path a message of a session takes: the thread where the session has one, the chat file
+## otherwise (AgentsTools.SessionComms.include).
+##
+## THE CHECKLIST IS THE RUN'S OWN. `CheckList append` adds items to the list of a child's executor only, from that session's
+## parent (AgentsHarnessBatch.include). A supervisor founds no such session, so it appends here, with the same lock and the same
+## two files: `<member>.checklist.md`, and `<member>.checklist.md.added`, which the owner's next whole-list write keeps.
+##
+
+## --supervise-guide <run-id> [--text <text> | --from-file <path> | standard input]
+AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>]
+	local guideWs="${MMDAPP%/}" guideRun="" guideText="" guideFrom="" guideRecord guideMember guideSession guideFolder
+	local guideThread guideBody guideDir guideOut guideKept
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--text) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --text requires text" >&2 ; return 1 ; } ; guideText="$2" ; shift 2 ;;
+			--from-file) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --from-file requires a path" >&2 ; return 1 ; } ; guideFrom="$2" ; shift 2 ;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: invalid option: $1" >&2 ; return 1 ;;
+			*)
+				[ -z "$guideRun" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: takes one run id, got a second: $1" >&2 ; return 1 ; }
+				guideRun="$1" ; shift
+			;;
+		esac
+	done
+	case "$guideRun" in ''|*/*|.|..) echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: syntax is <run-id> [--text <text>|--from-file <path>]" >&2 ; return 1 ;; esac
+	if [ -n "$guideFrom" ] ; then
+		[ -f "$guideFrom" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: no such file: $guideFrom" >&2 ; return 1 ; }
+		guideBody="$( cat "$guideFrom" )" || guideBody=""
+	elif [ -n "$guideText" ] ; then
+		guideBody="$guideText"
+	else
+		guideBody="$( cat )" || guideBody=""
+	fi
+	case "$guideBody" in *[![:space:]]*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the guidance is empty -- nothing was posted" >&2 ; return 1 ;; esac
+	type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	guideRecord="$( MMDAPP="$guideWs" AgentsToolsRegistrySpawnRecord "$guideRun" )"
+	[ -n "$guideRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: no record of this workspace carries the run $guideRun" >&2 ; return 1 ; }
+	guideFolder="${guideRecord%/*}"
+	guideMember="$( AgentsToolsSpawnSandboxRecordHeader "$guideRecord" owner )"
+	guideSession="$( AgentsToolsSpawnSandboxRecordHeader "$guideRecord" session-id )"
+	case "$guideMember" in ''|-) echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the record of $guideRun names no member to address" >&2 ; return 1 ;; esac
+	guideThread="$( AgentsToolsSpawnSandboxRecordHeader "$guideRecord" session-thread )"
+	case "$guideThread" in ''|-)
+		guideThread=""
+		[ ! -f "$guideFolder/session.thread" ] || IFS= read -r guideThread < "$guideFolder/session.thread" || :
+	;; esac
+	guideDir="$( MMDAPP="$guideWs" AgentsToolsSessionChatDir "${guideSession:-$guideRun}" 2> /dev/null )" || guideDir=""
+	if [ -n "$guideThread" ] ; then
+		guideOut="$( printf '%s' "$guideBody" | MMDAPP="$guideWs" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+			--intern-op-comms-slack-send-message magic-coordinator "$guideThread" --address-to "$guideMember" --from-stdin 2>&1 )" \
+			|| { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the send to $guideThread failed: $( printf '%s' "$guideOut" | LC_ALL=C grep -m1 'ERROR' )" >&2 ; return 1 ; }
+		printf 'guide\t%s\t%s\t%s\tthread\n' "$guideRun" "$guideMember" "$guideThread"
+		return 0
+	fi
+	[ -n "$guideDir" ] && [ -d "$guideDir" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the run $guideRun has no thread and no session folder to keep a message in" >&2 ; return 1 ; }
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	guideKept="$( printf '%s\n' "$guideBody" | AgentsToolsSessionChatAppend "${guideSession:-$guideRun}" magic-coordinator "$guideMember" - - local )" || guideKept=""
+	[ -n "$guideKept" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the chat file of the session of $guideRun could not be written -- nothing was left" >&2 ; return 1 ; }
+	printf 'guide\t%s\t%s\t%s\tchat-file\t%s\n' "$guideRun" "$guideMember" "${guideSession:-$guideRun}" "$guideKept"
+	return 0
+}
+
+## --supervise-checklist-add <run-id> (--item <text>)...: pending items at the end of that run's own list.
+AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)...
+	local addWs="${MMDAPP%/}" addRun="" addRecord addMember addFolder addFile addLine addItem addCount=0 addKept addLeft=50
+	local addItems=()
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--item) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --item requires text" >&2 ; return 1 ; } ; addItems+=( "${2//[$'\n\r\t']/ }" ) ; shift 2 ;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: invalid option: $1" >&2 ; return 1 ;;
+			*)
+				[ -z "$addRun" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: takes one run id, got a second: $1" >&2 ; return 1 ; }
+				addRun="$1" ; shift
+			;;
+		esac
+	done
+	case "$addRun" in ''|*/*|.|..) echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: syntax is <run-id> (--item <text>)..." >&2 ; return 1 ;; esac
+	[ "${#addItems[@]}" -gt 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: give at least one --item" >&2 ; return 1 ; }
+	type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	addRecord="$( MMDAPP="$addWs" AgentsToolsRegistrySpawnRecord "$addRun" )"
+	[ -n "$addRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: no record of this workspace carries the run $addRun" >&2 ; return 1 ; }
+	addFolder="${addRecord%/*}"
+	addMember="$( AgentsToolsSpawnSandboxRecordHeader "$addRecord" owner )"
+	case "$addMember" in ''|-) echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: the record of $addRun names no member, so it keeps no list" >&2 ; return 1 ;; esac
+	addFile="$addFolder/$addMember.checklist.md"
+	## The list's own lock, the one the CheckList tool takes: a folder beside the file, removed to release it.
+	until mkdir "$addFile.lock" 2> /dev/null ; do
+		addLeft=$(( addLeft - 1 ))
+		[ "$addLeft" -gt 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: the list of $addMember is being written by another call and could not be taken in five seconds -- nothing was written" >&2 ; return 1 ; }
+		sleep 0.1
+	done
+	for addItem in "${addItems[@]}" ; do
+		[ -n "$addItem" ] || continue
+		! { printf -- '- [ ] %s\n' "$addItem" >> "$addFile" && printf -- '- [ ] %s\n' "$addItem" >> "$addFile.added" ; } 2> /dev/null \
+			|| addCount=$(( addCount + 1 ))
+	done
+	rmdir "$addFile.lock" 2> /dev/null || :
+	printf 'checklist\t%s\t%s\t%s\n' "$addRun" "$addMember" "$addCount"
+	return 0
+}

@@ -18,10 +18,8 @@
 ##
 ## THE WRITE OF A SKILLSET FILE is the librarian's own tool, apart from the rules of Skill, Read and Write: it names a member and a file in that
 ## member's skill, resolves the skill to its SOURCE COPY through the member registry (an install under .local, and the HOME skills folder, are never
-## written), and saves the text itself once it has been validated. Only magic-librarian calls it. It asks the permission chain for the permission
-## `skillset-upsert` over `<member>:<pathname>`, the way a harness tool is asked: a routine whose `access-control:` names it
-## (`magic-librarian:skillset-upsert`) or a grant of the session holds it, and a call that does not hold it is refused with a REFUSAL-ID and the
-## way to ask for it with RequestPermission. And it changes the skillset only while learning is on.
+## written), and saves the text itself once it has been validated. Only magic-librarian calls it, a skill with no source copy is refused, and it asks
+## no permission (S6.42). And it changes the skillset only while learning is on.
 ##
 
 ## What the functions below call, loaded where first needed.
@@ -118,47 +116,7 @@ AgentsToolsLibrarianEpoch(){ ## file
 	printf '%s' "$epochEpoch"
 }
 
-## ---- the permission, the skill, the save ----
-
-## The permission chain's gate, asked as the harness asks it of any tool it gates: the permission `skillset-upsert` over `<member>:<pathname>`, held by
-## the routine the run is in (`access-control: magic-librarian:allow-tool:skillset-upsert`) or granted for the session, the task or the one call
-## (--intern-op-permission-grant-read). A call that holds none is refused as a tool call is: the refusal is recorded (--intern-op-permission-refusal-log),
-## its REFUSAL-ID said with the way to ask for it, RequestPermission, and rc 1; a granted call is retried exactly as it was made.
-AgentsToolsLibrarianPermission(){ ## op, target (<team-member>:<pathname>)
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	local permMember permSession="${MDAT_SPAWN_SESSION_ID:-}" permOut="" permRc=0 permGrant permId permOpen permLog
-	AgentsToolsLibrarianLoad
-	permMember="$( AgentsToolsActingMember )"
-	if [ -n "$permSession" ] ; then
-		permOut="$( AgentsToolsLibrarianTool DistroAgentsTools --intern-op-permission-grant-read "$permMember" --session-id "$permSession" --tool skillset-upsert --target "$2" 2> /dev/null )" || permRc=$?
-		permGrant="$( printf '%s\n' "$permOut" | LC_ALL=C sed -n 's/^GRANT: //p' | LC_ALL=C sed -n 1p )"
-		if [ "$permRc" = 0 ] ; then
-			case "$permGrant" in
-				'session '*|'task '*|'planned '*|'standing '*) return 0 ;;
-				'once '*) AgentsToolsLibrarianTool DistroAgentsTools --intern-op-permission-grant-consume --session-id "$permSession" --refusal-id "${permGrant#once }" > /dev/null 2>&1 && return 0 ;;
-			esac
-		fi
-	fi
-	{
-		printf '%s: ⛔ ERROR: %s: this run holds no permission for it: the routine it is in does not name skillset-upsert in its access-control: key (a row such as magic-librarian:allow-tool:skillset-upsert), and no grant covers %s -- nothing was saved\n' "$MDSC_CMD" "$1" "$2"
-		if [ -z "$permSession" ] ; then
-			printf 'REFUSAL-ID: none -- this call has no session id, so the refusal was not recorded and cannot be escalated by id.\n'
-		else
-			permLog="$( AgentsToolsLibrarianTool DistroAgentsTools --intern-op-permission-refusal-log "$permMember" --session-id "$permSession" --tool skillset-upsert --target "$2" \
-				--reason "a $1 call this session holds no permission for" 2> /dev/null )" || permLog=""
-			permId="$( printf '%s\n' "$permLog" | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | LC_ALL=C sed -n 1p )"
-			if [ -z "$permId" ] ; then
-				printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id.\n'
-			else
-				printf 'REFUSAL-ID: %s\n' "$permId"
-				permOpen="$( printf '%s\n' "$permOut" | LC_ALL=C awk '$1 == "OPEN-ASK:" && $2 != "" { printf "%s%s (a %s, waiting on %s)", sep, $2, $3, $4 ; sep = ", " ; }' )"
-				[ -z "$permOpen" ] || printf 'An ask that would allow this call is already open: %s. Do not ask again: wait for its answer with Wait sources=ask:<its id>, then retry the call.\n' "$permOpen"
-				printf '%s\n' "$permLog" | LC_ALL=C sed -n 's/^HINT: //p'
-			fi
-		fi
-	} >&2
-	return 1
-}
+## ---- the skill, the save ----
 
 ## The source copy of a member's skill, from the member registries (this workspace's, then the machine's): the folder a source-symlink or a source-declared row names.
 ## It is set, physical, in `librarianCopy` (a variable, not output: the reason below must survive the call).
@@ -280,7 +238,6 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 	AgentsToolsAssertBareName "$upMember" "<team-member>" "${upOp#--}" || return 1
 	upReason="$( AgentsToolsLibrarianPathCheck "$upPath" )" || { echo "$MDSC_CMD: ⛔ ERROR: $upOp: $upReason" >&2 ; return 1 ; }
 	AgentsToolsLibrarianCaller "$upOp" librarian > /dev/null || return 1
-	AgentsToolsLibrarianPermission "$upOp" "$upMember:$upPath" || return 1
 	## learning: the librarian changes the skillset when learning is on, and offers proposals when it is not
 	upFlag="$( AgentsToolsLibrarianTool DistroAgentsDispatcher --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )"
 	case "$upFlag" in
@@ -290,7 +247,8 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 			return 1
 		;;
 	esac
-	## the skill's source copy, through the member registry, and the file in it
+	## the skill's source copy, through the member registry, and the file in it. A skill that points to no source copy is refused here, so this
+	## check is what settles whether the write is the librarian's at all: while learning is on, a write to a source copy asks no permission (S6.42).
 	AgentsToolsLibrarianSkillFile "$upMember:$upPath" || {
 		echo "$MDSC_CMD: ⛔ ERROR: $upOp: $librarianWhy -- nothing was saved" >&2
 		return 1

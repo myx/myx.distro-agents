@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseRead.include -- the supervisor reads one run by its id (epic S13.4): its log tail, its transcript, its
+## session thread and its CheckList, from the run's own record and store. Sourced, never run; functions only.
+##
+## WHY IT IS NOT A --manager-* OPERATION. Those are the console's own and are refused from inside a member's session
+## (AgentsToolsManagerCallerCheck). A supervisor is magic-coordinator's own run, so --manager-session-read and
+## --manager-session-checklist-read are closed to it. Nothing read another run's session thread at all. This operation is the
+## supervisor's, so AgentsToolsSurfaceCaller admits exactly that caller.
+##
+## ONE RUN A ROW A SECTION, TAB-separated:
+##   `run <run-id> <member> <session> <status> <live>`    what the record and the process list say
+##   `transcript <path|->` then `tail <line>`             the last --tail lines of every part of it
+##   `thread <channel:thread|->` then `message <speaker> <text>`
+##   `checklist <member> <path|->` then `item <line>`
+##   `log <path|->` then `logline <line>`                 with --log
+## A `-` in a path column says the run keeps none of that, and its rows are not printed.
+##
+
+## --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log]
+AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-thread] [--no-checklist] [--log]
+	local readRun="" readTail=40 readThreadLines=30 readThread=yes readChecklist=yes readLog=no
+	local readTab=$'\t' readRecord readMember readSession readStatus readFolder readPath readLine readAny readThreadValue
+	local readChatDir readMemberId readParts=()
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--tail) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --tail requires a count" >&2 ; return 1 ; } ; readTail="$2" ; shift 2 ;;
+			--thread-lines) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --thread-lines requires a count" >&2 ; return 1 ; } ; readThreadLines="$2" ; shift 2 ;;
+			--no-thread) readThread=no ; shift ;;
+			--no-checklist) readChecklist=no ; shift ;;
+			--log) readLog=yes ; shift ;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: invalid option: $1" >&2 ; return 1 ;;
+			*)
+				[ -z "$readRun" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: takes one run id, got a second: $1" >&2 ; return 1 ; }
+				readRun="$1" ; shift
+			;;
+		esac
+	done
+	case "$readRun" in ''|*/*|.|..)
+		echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: syntax is <run-id> [--tail <n>] [--thread-lines <n>] [--no-thread] [--no-checklist] [--log]" >&2 ; return 1 ;;
+	esac
+	for readAny in "$readTail" "$readThreadLines" ; do
+		case "$readAny" in ''|*[!0123456789]*|0) echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: a count must be a whole number above zero, got: $readAny" >&2 ; return 1 ;; esac
+	done
+	type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	readRecord="$( AgentsToolsRegistrySpawnRecord "$readRun" )"
+	[ -n "$readRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: no record of this workspace carries the run $readRun" >&2 ; return 1 ; }
+	readFolder="${readRecord%/*}"
+	readMember="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" owner )"
+	readSession="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" session-id )"
+	readStatus="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" status )"
+	readAny=gone
+	AgentsToolsRegistrySpawnRuns "$readRun" "$readRecord" > /dev/null 2>&1 && readAny=running
+	printf 'run\t%s\t%s\t%s\t%s\t%s\n' "$readRun" "${readMember:--}" "${readSession:--}" "${readStatus:--}" "$readAny"
+	## The transcript: every part of it, its last lines taken together. Its pointer is in the store of the session, and beside the
+	## record where a run keeps its own. A run that kept none reads `-`.
+	readAny=""
+	for readPath in "$readFolder/transcript" "$MMDAPP/.local/agents/sessions/${readSession:-$readRun}/transcript" ; do
+		[ -s "$readPath" ] || continue
+		IFS= read -r readLine < "$readPath" || readLine=""
+		[ -n "$readLine" ] && [ -f "$readLine" ] || continue
+		readParts=( "$readLine" )
+		while [ -f "${readLine%.log}-part$(( ${#readParts[@]} + 1 )).log" ] ; do
+			readParts+=( "${readLine%.log}-part$(( ${#readParts[@]} + 1 )).log" )
+		done
+		readAny="$readLine"
+		break
+	done
+	printf 'transcript\t%s\n' "${readAny:--}"
+	if [ "${#readParts[@]}" -gt 0 ] ; then
+		cat "${readParts[@]}" 2> /dev/null | tail -n "$readTail" | while IFS= read -r readLine || [ -n "$readLine" ] ; do
+			printf 'tail\t%s\n' "$readLine"
+		done
+	fi
+	## The thread: the session's own, read from the chat file by the one reader of it, and cut to its last messages.
+	if [ "$readThread" = yes ] ; then
+		readThreadValue="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" session-thread )"
+		case "$readThreadValue" in ''|-)
+			readThreadValue=""
+			[ ! -s "$readFolder/session.thread" ] || IFS= read -r readThreadValue < "$readFolder/session.thread" || :
+		;; esac
+		printf 'thread\t%s\n' "${readThreadValue:--}"
+		readChatDir="$MMDAPP/.local/agents/sessions/${readSession:-$readRun}"
+		if [ -n "$readThreadValue" ] && [ -s "$readChatDir/session.chat.index" ] && [ -f "$readChatDir/session.chat" ] ; then
+			type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+			readMemberId="$( AgentsToolsSessionChatMemberId "${readMember:--}" 2> /dev/null )" || readMemberId=""
+			LC_ALL=C awk -v thread="$readThreadValue" -v own=no -v member="${readMember:--}" -v memberId="$readMemberId" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionThreadRead.awk" \
+				"$readChatDir/session.chat.index" "$readChatDir/session.chat" 2> /dev/null \
+				| LC_ALL=C awk -v wantLines="$readThreadLines" '
+					/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [^ ]+ -> / {
+						heldNo++ ; heldSpeaker[heldNo] = $2 ; heldText[heldNo] = "" ; next ;
+					}
+					NF && heldNo > 0 { heldText[heldNo] = ( heldText[heldNo] == "" ? $0 : heldText[heldNo] " " $0 ) ; }
+					END {
+						first = heldNo - wantLines + 1 ; if ( first < 1 ) { first = 1 ; }
+						for ( at = first ; at <= heldNo ; at++ ) { print "message\t" heldSpeaker[at] "\t" heldText[at] ; }
+					}
+				' || :
+		fi
+	fi
+	## The CheckList: the file the CheckList tool keeps for that member, in the place of the run.
+	if [ "$readChecklist" = yes ] ; then
+		readAny=""
+		case "$readMember" in ''|-|.|..|*/*) ;; *) [ ! -f "$readFolder/$readMember.checklist.md" ] || readAny="$readFolder/$readMember.checklist.md" ;; esac
+		printf 'checklist\t%s\t%s\n' "${readMember:--}" "${readAny:--}"
+		if [ -n "$readAny" ] ; then
+			while IFS= read -r readLine || [ -n "$readLine" ] ; do
+				[ -n "$readLine" ] || continue
+				printf 'item\t%s\n' "$readLine"
+			done < "$readAny"
+		fi
+	fi
+	## The session log: the run's own, beside its store, else in the store of its session.
+	if [ "$readLog" = yes ] ; then
+		readAny=""
+		for readPath in "$readFolder/session.log" "$MMDAPP/.local/agents/sessions/${readSession:-$readRun}/session.log" ; do
+			[ ! -f "$readPath" ] || { readAny="$readPath" ; break ; }
+		done
+		printf 'log\t%s\n' "${readAny:--}"
+		if [ -n "$readAny" ] ; then
+			tail -n "$readTail" "$readAny" 2> /dev/null | while IFS= read -r readLine || [ -n "$readLine" ] ; do
+				printf 'logline\t%s\n' "$readLine"
+			done
+		fi
+	fi
+	return 0
+}

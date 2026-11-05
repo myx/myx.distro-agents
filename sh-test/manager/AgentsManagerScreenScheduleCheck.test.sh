@@ -38,7 +38,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 ## the week the operation would print: worktime on weekdays from 09 to 17, the weekend on Saturday and Sunday; it is Tuesday 03:02 and worktime starts in 21438 seconds
 {
 	rigRow now 1793062935 tue 03:02 host
-	rigRow flag worktime no "(default)" ; rigRow flag weekend no "(default)" ; rigRow flag holidays no - ; rigRow flag emergency yes "(3600 seconds left)" ; rigRow flag overtime no - ; rigRow flag learning no -
+	rigRow flag worktime no "(default)" ; rigRow flag weekend no "(default)" ; rigRow flag holidays no - ; rigRow flag emergency yes "(3600 seconds left)" ; rigRow flag overtime no - ; rigRow flag learning no - ; rigRow flag supervised no -
 	rigRow switch 21438 worktime-starts
 	for rigDay in mon tue wed thu fri sat sun ; do
 		for rigHour in 00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 ; do
@@ -93,7 +93,7 @@ show s
 roles r
 RIGSCRIPT
 rigAssert "Magic-Team holds Schedule after Routines" "$( rigVal team | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -x -e routines -e schedule | LC_ALL=C tr '\n' ' ' )" "routines schedule "
-rigAssert "a row for each flag, in the order of the operation" "$( rigVal ids )" ".. worktime weekend holidays emergency overtime learning"
+rigAssert "a row for each flag, in the order of the operation" "$( rigVal ids )" ".. worktime weekend holidays emergency overtime learning supervised"
 rigAssert "the schedule and the autorun are read once each, and nothing else is asked" "$( rigCalled '--manager-schedule-read' ) $( rigCalled '--manager-routine-list --facts-only' )" "1 1"
 rigAssert "the flags now: each with its answer and what it is from, an override with its time left" "$( rigHolds s 'worktime' ) $( rigHolds s 'yes (3600 seconds left)' ) $( rigHolds s 'no (default)' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "3 1 1"
 rigAssert "how long to the next switch and what changes: the seconds as they were given, in words" "$( rigHolds s 'next switch' ) $( rigHolds s 'worktime starts in 5h 57m' )" "1 1"

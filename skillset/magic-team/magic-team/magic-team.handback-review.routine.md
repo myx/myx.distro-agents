@@ -107,11 +107,11 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--get-board-item <item-name> [--board-state <state>]...`
-- `--accept-review <item-filename> [--summary <text>]`
-- `--return-review <item-filename> (--message <text>|--from-stdin)`
-- `--reject-review <item-filename> (--message <text>|--from-stdin)`
-- `--follow-up-review <item-filename> <new-item-name> --from-stdin`
+- `--get-board-item <item-name> [--board-state <state>]...` (`DistroAgentsItems`)
+- `--accept-review <item-filename> [--summary <text>]` (`DistroAgentsItems`)
+- `--return-review <item-filename> (--message <text>|--from-stdin)` (`DistroAgentsItems`)
+- `--reject-review <item-filename> (--message <text>|--from-stdin)` (`DistroAgentsItems`)
+- `--follow-up-review <item-filename> <new-item-name> --from-stdin` (`DistroAgentsItems`)
 
 # Maintainer Notes
 

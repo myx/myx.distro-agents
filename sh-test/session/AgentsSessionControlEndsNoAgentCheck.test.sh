@@ -37,7 +37,11 @@ command -v ps > /dev/null || rigRefuse "ps is not on PATH"
 rigTmp="$( rigTempDir AgentsSessionControlEndsNoAgentCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPids=""
-rigStopAll(){ rigProcSignalWithChildren KILL $rigPids ; rm -rf -- "$rigTmp" ; }
+## A loop this check keeps alive, and the subshell that waits on it, are ended here, from the note file: the
+## rigLoop runs inside a command substitution, so nothing it notes reaches this shell's own trap. The notes are
+## taken for this shell's own, and then ONE signal covers the loop pids and the stand-ins together: $rigPids holds
+## the stand-ins alone, so the loop pids are read from the note file and named in that same call.
+rigStopAll(){ rigLoops="$( PATH="$rigProcPath" LC_ALL=C awk 'NF == 2 && $1 ~ /^[0-9]+$/ { print $1 }' "$rigTmp/loops.note" 2> /dev/null )" ; rigProcNoteFrom "$rigTmp/loops.note" 2> /dev/null ; rigProcSignalWithChildren KILL $rigLoops $rigPids ; rm -rf -- "$rigTmp" ; }
 trap rigStopAll EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
@@ -109,7 +113,10 @@ rigLoop(){ ## session id, bound seconds -- the bound reached prints reached
 			bash "$rigFn" --intern-session-control --run --session-id "$loopSession"
 	) > "$rigTmp/loop-$loopSession.out" 2>&1 &
 	loopPid=$!
-	rigPids="$rigPids $loopPid"
+	## The note goes in a file, not in this shell's own: this function is called inside a command
+	## substitution, so nothing it sets reaches the caller's trap. The subshell that waits, and the
+	## loop it waits on, are noted: ending either ends the sleep it holds at that moment.
+	rigProcNoteFile "$rigTmp/loops.note" "$( exec sh -c 'echo "$PPID"' )" "$loopPid"
 	disown "$loopPid" 2> /dev/null || :
 	while [ "$loopWaited" -lt "$loopBound" ] && kill -0 "$loopPid" 2> /dev/null ; do
 		sleep 1 ; loopWaited=$(( loopWaited + 1 ))

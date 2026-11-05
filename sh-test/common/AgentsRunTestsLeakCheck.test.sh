@@ -32,6 +32,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigHome="$rigTmp/home" rigWs="$rigTmp/ws"
 rigPkg="$rigWs/.local/temp/rig-lane/source/myx/myx.distro-agents"
+rigLaneDir="$rigHome/.agents/magic-team/suite-lanes"
 mkdir -p "$rigHome" "$rigWs/.local/temp" "$rigPkg/sh-test/check-fixtures"
 cp "$rigRunner" "$rigPkg/sh-test/AgentsRunTests.sh" || rigRefuse "the runner under test could not be copied into the rig"
 cp "$( dirname "$rigRunner" )/check-fixtures"/runner-*.py "$rigPkg/sh-test/check-fixtures/" || rigRefuse "the runner's keepers could not be copied into the rig"
@@ -43,6 +44,16 @@ rigAssert(){ ## what is asserted, got, want
 	else
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 ))
 	fi
+}
+## The machine's lanes as this rig's own: a lane count it fixes, and a pace floor so fast that the count is that number
+## on any host (the count is the floor over the pace now, capped by the count). Lane 1 is the hand rule's lock, and
+## lane.<n> a folder of its own (sh-test/AgentsRunTests.sh, WAITING IN THE LINE).
+rigLanes(){ ## number -- how many lanes this rig's machine allows: fixed by the rig, so the count is that number on any host
+	mkdir -p "$rigLaneDir" && printf '%s\n' "$1" > "$rigLaneDir/max" && printf '%s\n' "$1" > "$rigLaneDir/count"
+}
+rigLaneHeld(){ ## -- the pids holding any lane now, whether as lane.<n> or as the hand rule's lock, sorted, on one line
+	{ for rigLaneFile in "$rigLaneDir"/lane.*/pid ; do [ -f "$rigLaneFile" ] && LC_ALL=C sed -n 's/^pid=//p' "$rigLaneFile" | LC_ALL=C sed -n 1p ; done
+	  LC_ALL=C sed -n 's/^runner-pid: //p' "$rigWs/.local/temp/suite-run.lock/holder.txt" 2> /dev/null | LC_ALL=C sed -n 1p ; } | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
 }
 
 ## The leaked stand-in: a process in a subshell of its own, so the test's own process ends while it runs, blocked on a
@@ -148,20 +159,73 @@ echo "-- 6. the guard: no file of sh-test spins a stand-in round a sleep, in a l
 ## check whenever the check is killed. It blocks on a pipe instead (check-fixtures/rig-blocking-stand-in.include.sh). This
 ## is the guard over that: the four checks that forked 32 such spinners, some 18 hours old, read `while : ; do sleep 1 ; done`.
 ## A bounded poll, `while [ ... ] && [ "$left" -gt 0 ] ; do sleep ...`, is no stand-in and is not what this reads.
-rigSpinPattern='while[[:space:]]*(:[[:space:]]*;|true[[:space:]]*;)[[:space:]]*do[[:space:]]*sleep'
+## IT READS THE LOOP'S WHOLE BODY (S12.8). The pattern this replaces read the opening line alone, and so saw only a loop
+## whose `do` and its `sleep` share that line. A spinner written the way anyone writes one -- `while : ; do`, then
+## `:` or a bare wait, then `sleep 1`, then `done` -- is the same spinner and went unseen. A loop is flagged when its
+## body holds nothing but waits: every line of it is blank, a comment, a bare `:`, a `sleep` or a nested `do`/`done`.
+rigSpinAwk='
+	{ line[NR] = $0 }
+	END {
+		for ( n = 1 ; n <= NR ; n++ ) {
+			if ( line[n] ~ /^[[:space:]]*#/ ) continue
+			if ( !match( line[n], /^[[:space:]]*(while[[:space:]]*(:[[:space:]]*;|true[[:space:]]*;)|until[[:space:]]+false[[:space:]]*;)[[:space:]]*do/ ) ) continue
+			closed = 0 ; body = substr( line[n], RLENGTH + 1 )
+			if ( match( body, /done[[:space:]]*;?[[:space:]]*$/ ) ) {
+				body = substr( body, 1, RSTART - 1 ) ; closed = n
+			} else {
+				depth = 1
+				for ( m = n + 1 ; m <= NR ; m++ ) {
+					if ( line[m] ~ /^[[:space:]]*#/ ) continue
+					if ( line[m] ~ /(^|[[:space:]])(while|until)[[:space:]]/ && line[m] ~ /do[[:space:]]*;?[[:space:]]*$/ ) depth++
+					if ( line[m] ~ /^[[:space:]]*done([[:space:]]|;|$)/ ) { depth-- ; if ( depth == 0 ) { closed = m ; break ; } ; continue }
+					body = body line[m] "\n"
+				}
+			}
+			if ( !closed ) continue
+			waitsOnly = 1
+			nbody = split( body, rows, /[;\n]/ )
+			for ( i = 1 ; i <= nbody ; i++ ) {
+				one = rows[i]
+				if ( one ~ /^[[:space:]]*$/ ) continue
+				if ( one ~ /^[[:space:]]*#/ ) continue
+				if ( one ~ /^[[:space:]]*:[[:space:]]*$/ ) continue
+				if ( one ~ /^[[:space:]]*sleep[[:space:]]/ ) continue
+				waitsOnly = 0 ; break
+			}
+			if ( waitsOnly ) printf "%d\t%s\n", n, line[n]
+		}
+	}'
 rigSpin(){ ## -- each unbounded spinning loop of sh-test, in code and not in a comment, as <file>:<line>, on one line
 	( cd "$rigShTest" && find . -type f -name '*.sh' | LC_ALL=C sort ) | while IFS= read -r rigOne ; do
 		[ "$rigOne" != "./common/AgentsRunTestsLeakCheck.test.sh" ] || continue
-		LC_ALL=C grep -n -E "$rigSpinPattern" "$rigShTest/$rigOne" 2> /dev/null \
-			| LC_ALL=C grep -v -E '^[0-9]+:[[:space:]]*#' | LC_ALL=C sed "s|^|${rigOne#./}:|"
+		LC_ALL=C awk "$rigSpinAwk" "$rigShTest/$rigOne" 2> /dev/null | LC_ALL=C sed "s|^|${rigOne#./}:|"
 	done
 }
 rigShTest="$( cd "$( dirname "$rigRunner" )" && pwd -P )"
 rigAssert "no file of sh-test waits in a spinning loop: a stand-in blocks on a pipe, which costs nothing and ends with its check" \
 	"$( rigSpin | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" ""
-rigAssert "control: the guard finds such a loop when one is there, and reads no comment that says one" \
-	"$( printf '%s\n' '## a comment: while : ; do sleep 1 ; done' 'while : ; do sleep 1 ; done' 'while [ "$left" -gt 0 ] ; do sleep 1 ; done' > "$rigTmp/spin.sh"
-		LC_ALL=C grep -n -E "$rigSpinPattern" "$rigTmp/spin.sh" | LC_ALL=C grep -v -E '^[0-9]+:[[:space:]]*#' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
+## Both directions: a loop whose body is only waits is flagged, however it is laid out, and a bounded poll is not.
+printf '%s\n' \
+	'while : ; do sleep 1 ; done' \
+	'while : ; do' \
+	'sleep 1' \
+	'done' \
+	'while true ; do' \
+	': ' \
+	'sleep 1' \
+	'done' \
+	'while [ "$left" -gt 0 ] ; do' \
+	'sleep 1' \
+	'left=$(( left - 1 ))' \
+	'done' \
+	'while : ; do' \
+	'rigPoll=$( rigProbe )' \
+	'sleep 1' \
+	'done' \
+	'## a comment: while : ; do sleep 1 ; done' \
+	> "$rigTmp/spin.sh"
+rigAssert "control: the guard flags a bare-wait loop in either layout, and neither a bounded poll nor a polling loop nor a comment" \
+	"$( LC_ALL=C awk "$rigSpinAwk" "$rigTmp/spin.sh" | LC_ALL=C awk -F'\t' '{ printf "%s ", $1 }' | LC_ALL=C sed 's/ $//' )" "1 2 5"
 
 echo "-- 7. the keeper runs on the python this machine has, not only on the one on PATH --"
 ## The fault this pins, 2026-11-03: the keeper called os.waitid, which the machine's /usr/bin/python3 (3.9.6) does not have.
@@ -185,6 +249,48 @@ rigAssert "a passing test reports PASS under that python, with the run's own sta
 	"$( printf '%s\n' "$rigPyOut" | LC_ALL=C awk '$1 == "PASS" && $2 == "RigQuiet" { n++ } END { print n + 0 }' ):$rigPyRc" "1:0"
 rigAssert "and no traceback of the keeper is in its log" \
 	"$( LC_ALL=C grep -c 'Traceback' "${rigPyFolder:-/nonexistent}/RigQuiet.log" 2> /dev/null || : )" 0
+
+echo "-- 8. a lane is given back when the run ends, however the run ends --"
+## The lanes put more than one run's tests on the machine at once, so a lane left held is a run that can never start.
+## An ended run's lane is given back by itself; a run killed outright leaves its lane file, and the next run to ask
+## takes it, exactly as a worker slot or a ticket of the line is taken back.
+rigLanes 2
+rigHold=""
+rigRun -t 60 RigQuiet
+rigAssert "a run that ends by itself leaves no lane held, and no lane folder behind" "$rigRc $( rigLaneHeld )|$( ls "$rigLaneDir" 2> /dev/null | LC_ALL=C grep -c '^lane\.' )" "0 |0"
+## A lane whose holder is gone is given back by whoever asks for a lane next, so a run killed outright holds nothing.
+mkdir -p "$rigLaneDir/lane.2"
+rigDeadPid="$( ( exit 0 ) & printf '%s' "$!" ; wait 2> /dev/null )"
+printf 'pid=%s\nrunner-pid: %s\n' "$rigDeadPid" "$rigDeadPid" > "$rigLaneDir/lane.2/pid"
+rigRun -t 60 RigQuiet
+rigAssert "a lane listed for a process that no longer exists: the run takes a lane at once, says nothing of waiting, and runs" \
+	"$rigRc $( LC_ALL=C grep -c 'waits its turn' <<< "$rigOut" || : ) $( rigVerdict RigQuiet )" "0 0 PASS"
+rigAssert "and the stale lane is gone: a dead run holds no lane" "$( ls "$rigLaneDir" 2> /dev/null | LC_ALL=C grep -c '^lane\.' )" 0
+## A test that measures its own timing takes every lane, so nothing of another run is busy beside it. Declared in its
+## header alone, and the run of it leaves every lane free again. Lane 1 is the hand rule's lock, so what it found held
+## for it is that lock plus every `lane.<n>` folder beside it.
+cat > "$rigPkg/sh-test/RigTimed.test.sh" <<'RIGTIMED'
+#!/usr/bin/env bash
+## lane: alone
+rigTimedFirst=0
+LC_ALL=C grep -q '^runner-pid: ' "$MMDAPP/.local/temp/suite-run.lock/holder.txt" 2> /dev/null && rigTimedFirst=1
+rigTimedRest="$( ls "$HOME/.agents/magic-team/suite-lanes" 2> /dev/null | LC_ALL=C grep -c '^lane\.' )"
+case "$rigTimedRest" in ''|*[!0123456789]*) rigTimedRest=0 ;; esac
+printf 'TIMED_LANES %s\n' "$(( rigTimedFirst + rigTimedRest ))" >> "$RIG_SHARED/timed"
+echo "RIG_TIMED: OK"
+RIGTIMED
+chmod +x "$rigPkg/sh-test/RigTimed.test.sh"
+rigLanes 3
+: > "$rigTmp/timed"
+rigRun -t 60 RigTimed
+rigAssert "a test whose header says it measures its own timing takes every one of the machine's lanes" \
+	"$( LC_ALL=C sed -n 's/^TIMED_LANES //p' "$rigTmp/timed" 2> /dev/null | LC_ALL=C sed -n 1p ) $( rigVerdict RigTimed )" "3 PASS"
+rigAssert "and every lane is given back when it ends" "$( rigLaneHeld )" ""
+rigLanes 1
+: > "$rigTmp/timed"
+rigRun -t 60 RigTimed
+rigAssert "with one lane the machine is as it was: the alone test takes that one lane, and runs" \
+	"$( LC_ALL=C sed -n 's/^TIMED_LANES //p' "$rigTmp/timed" 2> /dev/null | LC_ALL=C sed -n 1p ) $( rigVerdict RigTimed )" "1 PASS"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RUN TESTS LEAK CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

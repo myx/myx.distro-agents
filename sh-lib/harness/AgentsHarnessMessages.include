@@ -3,6 +3,8 @@
 
 ## AgentsHarnessMessages.include: session messages, the agent list, the transcript and ThisSession. Sourced by AgentsUniversalHarness.sh, definitions only.
 
+type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+
 ## The thread a session address names, asked of the one address resolver: prints "<thread> <what it is>", or an
 ## ERROR line saying why it names nowhere and what to pass instead, and returns 1.
 ## A session whose external side is its own root-native printback channel (F2.3) has no thread: the
@@ -262,10 +264,10 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 	printf 'NEXT: call Wait\n'
 }
 AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
-	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	## S19.2: a send is held at its EXIT, so the message went and the call's result waits for the pause to end.
 	local pauseRc=0
 	AgentsHarnessToolSendMessageRun "$@" || pauseRc=$?
-	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	AgentsToolsSessionPauseWait
 	return "$pauseRc"
 }
 
@@ -289,8 +291,8 @@ AgentsHarnessToolListAgents(){
 		*) printf 'ERROR: view must be agents or sessions, got: %s\n' "$toolView" ; return 0 ;;
 	esac
 	case "$toolState" in
-		''|running|thinking|tool|waiting|idling|parked|unclosed|failed|finished) ;;
-		*) printf 'ERROR: state must be running, thinking, tool, waiting, idling, parked, unclosed, failed or finished, got: %s. running is every run with a process here, and the waiting ones too.\n' "$toolState" ; return 0 ;;
+		''|running|thinking|tool|waiting|idling|paused|parked|unclosed|failed|finished) ;;
+		*) printf 'ERROR: state must be running, thinking, tool, waiting, idling, paused, parked, unclosed, failed or finished, got: %s. running is every run with a process here, and the waiting ones too.\n' "$toolState" ; return 0 ;;
 	esac
 	## A failed run's own reason stands under its row, the first line of the marker the harness kept
 	## beside its record when it ended refused (<sandbox>/<run>.refused). Nothing where none was kept.
@@ -425,8 +427,8 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 ## session's title and what it does now, from the message. idle-wait says this run is all done and
 ## waits for any message addressed to it (S18.2). Nothing here reads the thread: every wait already
 ## brings its replies.
-AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, routine
-	local toolOp="$1" toolMessage="$2" toolAddressTo="$3" toolRoutine="$4"
+AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, routine, the move of a routine-stack call
+	local toolOp="$1" toolMessage="$2" toolAddressTo="$3" toolRoutine="$4" toolMove="$5"
 	local toolOut="" toolRc=0 toolChannel="" toolThread="" toolTs=""
 	local -a toolArgs=()
 	local toolFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSession.fn.sh"
@@ -444,6 +446,12 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 			[ -n "$toolRoutine" ] || { printf 'ERROR: ThisSession routine-run-inline: routine is required, and this call named none. Nothing was run.\n' ; return 0 ; }
 			toolArgs=( --routine-run-inline "$toolRoutine" )
 		;;
+		routine-stack)
+			[ -n "$toolMove" ] || { printf 'ERROR: ThisSession routine-stack: move is required, and this call named none. The moves are push, replace, rewind, return and return-to. Nothing was done.\n' ; return 0 ; }
+			toolArgs=( --routine-stack "--$toolMove" )
+			[ -z "$toolRoutine" ] || toolArgs+=( "$toolRoutine" )
+			[ -z "$toolMessage" ] || toolArgs+=( --reason "$toolMessage" )
+		;;
 		get-uninvited-participants)
 			toolArgs=( --get-uninvited-participants )
 		;;
@@ -455,7 +463,7 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 			toolArgs=( --idle-wait )
 		;;
 		*)
-			printf 'ERROR: ThisSession: unknown operation: %s -- the operations are post, which posts to your own session thread, routine-run-inline, get-uninvited-participants, which reads the participants with no run yet, set-session-topic and set-session-chapter, which set the session title and what it does now, and idle-wait, which says this run is all done and waits for any message addressed to it. Nothing was done.\n' "${toolOp:-<none>}" ; return 0
+			printf 'ERROR: ThisSession: unknown operation: %s -- the operations are post, which posts to your own session thread, routine-run-inline, routine-stack, which makes one of the routine stack'"'"'s moves, get-uninvited-participants, which reads the participants with no run yet, set-session-topic and set-session-chapter, which set the session title and what it does now, and idle-wait, which says this run is all done and waits for any message addressed to it. Nothing was done.\n' "${toolOp:-<none>}" ; return 0
 		;;
 	esac
 	## The member this call resolved is the member the operation acts as, and the session is the one

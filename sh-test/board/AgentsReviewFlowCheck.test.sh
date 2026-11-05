@@ -36,7 +36,7 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsReviewFlowCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'rigProcSignalWithChildren TERM $rigLivePids ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; rigProcSignalKept TERM "$rigTmp/stand-in.notes" ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
@@ -132,9 +132,12 @@ rigRecord(){ ## spawn-id, status, session-thread or empty, item stem or empty, f
 }" "${4:+spawns: $4
 }" "${6:-}" > "$rigSpawned/$recFolder/$1.spawn.md"
 }
+## The stand-ins are noted in a file of the rig's own, not in the live list: the live list is cleared twice,
+## at sections 15 and 16, and a cleared list left eight `sleep 300` processes behind (run 20261104T002114Z).
+## rigProcNoteFile writes the fixture's own note; the trap signals every pid those notes carry.
 rigLive(){ ## spawn-id -- a stand-in process, in the rig's process list under its own pid, running as the spawn id
 	bash -c 'sleep 300 ; :' "$1" > /dev/null 2>&1 < /dev/null &
-	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!" ; rigProcNoteFile "$rigTmp/stand-in.notes" "$!"
 	printf '%s rig-run --session-id %s\n' "$!" "$1" >> "$rigTmp/ps.list"
 	disown "$!" 2> /dev/null || :
 }

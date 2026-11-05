@@ -4,17 +4,18 @@ How the magic-* team is organised: execution model, operating rhythm, work pacin
 
 ## Contents
 
-- Execution model: the UI instance relays, spawned instances work
+- Execution model: the UI instance directs and relays, spawned instances work
 - Operating rhythm: seven days a week, one continuous loop
 - Work-lifecycle pacing: staged by default
 - When the human-owner is actually needed
 - Partner posture and the proposal pipeline
 
-## Execution model: the UI instance relays, spawned instances work
+## Execution model: the UI instance directs and relays, spawned instances work
 
 - The instance a human talks to never executes an activity's real work itself.
 - Every activity — daily, grooming, retro, one-on-one, a member's own work — runs in a spawned instance of its responsible member. No activity is an exception.
-- The UI instance stays present for the whole activity and relays between the human and the spawned instance.
+- The UI instance stays present for the whole activity. It directs the spawned instance in its own words, as requirements for the work. Where the human answers a question the spawned instance put, it relays that answer unchanged, under a caption naming him.
+- Passing the human's words on in the place of its own direction is the fault: a coordinator that only forwards them has done none of the work. `magic-team.basic.md`'s "Relay, direct, produce" tells the three cases apart.
 - Spawned work does not depend on the human or the UI session being present. Input it needs travels the chain of command; real-time back-and-forth gets its own spawned interactive session.
 - Open, not yet designed: a per-activity briefing the documentation steward prepares in advance.
 

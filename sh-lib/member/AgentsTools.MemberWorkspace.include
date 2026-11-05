@@ -69,6 +69,16 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 ## later reader of the team's files meets a half view and goes on with an empty result.
 AgentsToolsMemberSkillsetBring(){ ## member, operation
 	local bringWorkspace bringRoot
+	## THE INBOX WRITES READ NO SKILLSET OF THE MEMBER THEY NAME. --upsert-inbox-inquiry names the
+	## member whose inbox it files INTO, and the note and reflection name the writer: each writes into
+	## the team data of the workspace the call runs from, and reads not one file of that member. A
+	## bring here would gate the write on a skillset it never opens, and refuse it for a member set up
+	## in a workspace the caller's own view does not cover. Nothing is brought, and the call runs on.
+	## The intern op is named too: it is the operation these three reach the writer under, at both the
+	## tool file's door and the dispatcher's.
+	case "$2" in
+		--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--intern-op-member-inbox-upsert) return 0 ;;
+	esac
 	bringWorkspace="$( AgentsToolsMemberWorkspaceResolve "$1" "$2" )" || return 1
 	[ -n "$bringWorkspace" ] || return 0
 	## a root not set yet reads as this workspace's own view, which is what it is then set to

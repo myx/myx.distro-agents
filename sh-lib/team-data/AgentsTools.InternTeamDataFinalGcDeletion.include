@@ -427,7 +427,7 @@ AgentsToolsFinalGcScanDir(){
 			gcSandboxRemovable="" ; gcSandboxOpen="false"
 			for gcFolderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$path" ) ; do
 				case "$( AgentsToolsSpawnSandboxFolderState "$gcFolderName" "${fileBase%.md}" )" in
-					open) gcSandboxOpen="true" ;;
+					open|held) gcSandboxOpen="true" ;;
 					removable) gcSandboxRemovable="$gcSandboxRemovable $gcFolderName" ;;
 				esac
 			done

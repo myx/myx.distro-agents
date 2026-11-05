@@ -51,13 +51,18 @@ printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n\nteam body line\n
 printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n' "$rigClientTs" > "$rigDir/data/inboxes/client-fix1/incoming/$rigNote"
 
 ## One tooling call in the fixture tree, guarded. rigSession names the member whose session the call comes from;
-## empty, the call comes from no session: the console.
+## empty, the call comes from no session: the console. rigLatency is the fake Slack's own wait per call, rigDms how
+## many direct conversations its roster holds, and rigLeg the Slack leg's bound as the scan reads it (unset: its default).
 rigSession=""
+rigLatency=0
+rigDms=2
+rigLeg=""
 rigRun(){ ## out-name, args...
 	local runName="$1" ; shift
 	local runRc=0
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" \
-		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" FIX_DIR="$rigDir" FIX_LATENCY=0 FIX_DMS=2 FIX_TS="$rigNow" RIG_TMP="$rigTmp" ${rigSession:+MDAT_SPAWN_AGENT="$rigSession"} \
+		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" FIX_DIR="$rigDir" FIX_LATENCY="$rigLatency" FIX_DMS="$rigDms" FIX_TS="$rigNow" RIG_TMP="$rigTmp" \
+		${rigSession:+MDAT_SPAWN_AGENT="$rigSession"} ${rigLeg:+ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS="$rigLeg"} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -147,6 +152,21 @@ echo "-- the next pass resumes from the advanced pointers --"
 rigRun next --intern-op-sweep-input-scan magic-coordinator
 rigAssert "team resumes from its advanced pointer"          "$( rigHas "$( rigTeamPart next )" "cut-off --comms-since-utime $rigNewTeam" )" yes
 rigAssert "client-fix2 resumes from its advanced pointer"   "$( rigHas "$( rigPart next client-fix2 )" "resumed-from: $rigNewClient (this member's own stored sweep position)" )" yes
+
+echo "-- the Slack leg has its own bound, and a pass says what it did not reach --"
+## S1.12's bound stops launching reads past ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS, and the document names the sources it did not
+## reach, so a truncated pass cannot read as a complete one. Held both ways: a leg whose stub Slack answers slower than the
+## bound reports it, and the same rig inside the bound says nothing of any.
+rigLatency=1 ; rigLeg=1
+rigRun bounded --intern-op-sweep-input-scan magic-coordinator
+rigAssert "a leg past its bound reports the bound it stopped at"  "$( rigHas "$( cat "$rigTmp/bounded.out" )" 'leg-bound: 1 s (ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS)' )" yes
+rigAssert "and names the sources it did not reach"              "$( rigHas "$( cat "$rigTmp/bounded.out" )" 'not-reached: ' )" yes
+rigAssert "and the count it gives is not zero"                   "$( LC_ALL=C awk '$1 == "not-reached:" { print ( $2 + 0 > 0 ? "yes" : "no" ) ; exit }' "$rigTmp/bounded.out" )" yes
+rigLatency=0 ; rigLeg=240
+rigRun unbounded --intern-op-sweep-input-scan magic-coordinator
+rigAssert "control: the same rig inside its bound reports no bound" "$( rigHas "$( cat "$rigTmp/unbounded.out" )" 'leg-bound: ' )" no
+rigAssert "control: and no source is left unreached"             "$( rigHas "$( cat "$rigTmp/unbounded.out" )" 'not-reached: ' )" no
+rigLatency=0 ; rigLeg=""
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SWEEP OWN-CUTOFF CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

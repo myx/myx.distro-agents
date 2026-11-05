@@ -19,6 +19,8 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 
 {{brief}}
 
+Audience: {{audience}}
+
 ## Result
 
 status: {{status}}
@@ -30,6 +32,7 @@ completed-at: {{completed-at}}
 # Slots
 
 - `caller` — the member the session is run as.
+- `audience` — who reads this brief: the spawned session's member, named. A hint its reader interprets, never a closed list.
 - `brief` — the spawn request, carried exactly.
 - `status` — the run's final state, written when the session ends.
 - `exit-code` — the session's exit code.

@@ -65,6 +65,12 @@ AgentsToolsInboxNotePath(){ ## member, note name
 	fi
 }
 
+## THE INSTRUCTION EVERY DELIVERED INBOX BLOCK CARRIES (S18.3): what the reading run does with each item it was handed, so an item ends
+## handled instead of growing the pile. The wording is magic-librarian's and is revised here, in the one place every delivery reads.
+AgentsToolsInboxInstruction(){
+	printf '%s\n' 'inbox items: handle each item, then trash it with --trash-inbox-item, or --mark-inbox-processed where the record must stay, or keep it with a stated reason.'
+}
+
 ## Whether a standing note lives in processed/: rc 0 for the state and lock note of a routine (`note-<stamp>-<word>-state-and-lock.md`) in the inbox
 ## of a member other than magic-coordinator.
 AgentsToolsInboxNoteProcessed(){ ## member, note name

@@ -76,6 +76,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - The caller is permitted and obliged to execute every step exactly as written, in order.
 - An inline run is the caller's own: the same member, the same session thread, the same workspace and tracking documents. It starts no session of its own, and every wait in it follows the caller's.
+- The tracking document the run updates stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, as plain present-tense statements. It is a produce under `magic-team.basic.md`'s "Relay, direct, produce", so a restarted session continues from it alone.
 - The input scan of the routine run inline was run for this call by `--routine-run-inline`. Its result is where that call said: "this run's input scan result" means that file.
 - Steps are never inherited. A routine run inline inherits this routine's Closure steps and these rules, in place of those of its session kind, and runs its own Steps.
 

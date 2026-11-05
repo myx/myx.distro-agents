@@ -68,11 +68,31 @@ AgentsWaitRepliesLook(){ ## member, now (epoch), the post's line, the rendering 
 	return "$lookRc"
 }
 
+## THE RUN'S OWN BEGINNING (S6.39): the launch marker this run was given, else the launch the session folder keeps, read once
+## for the wait into agentsWaitRepliesStart. A post never looked at is watched from here, never from its own ts. A run the
+## tooling launched through no marker has none, and such a post keeps the older floor its line carries. It sets the variable,
+## never prints it: a command substitution would set it in a subshell and lose it.
+AgentsWaitRepliesStart(){
+	local startMark=""
+	[ -z "${agentsWaitRepliesStartSeen:-}" ] || return 0
+	agentsWaitRepliesStartSeen="yes"
+	for startMark in "${MDAT_SPAWN_LAUNCH_MARKER:-}" "$MMDAPP/.local/agents/sessions/${waitSessionId:-.}/launch" ; do
+		[ -n "$startMark" ] && [ -f "$startMark" ] || continue
+		agentsWaitRepliesStart="$( stat -f %m "$startMark" 2> /dev/null || stat -c %Y "$startMark" 2> /dev/null )" || agentsWaitRepliesStart=""
+		agentsWaitRepliesStart="${agentsWaitRepliesStart%%$'\n'*}"
+		case "$agentsWaitRepliesStart" in
+			''|*[!0-9]*) agentsWaitRepliesStart="" ; continue ;;
+		esac
+		return 0
+	done
+	return 0
+}
+
 AgentsWaitRepliesLookRead(){ ## the same arguments
 	local lookMember="$1" lookNow="$2" lookOut="$4" lookFile="$4.post.$5" lookRc=0
 	local lookWhere lookTs lookAddr lookThreadFloor lookChanFloor lookSibs lookReact lookChecked lookRest
 	local lookChannel lookThread lookActivity lookQuiet lookTtlQuiet lookFrom lookDeliver=1 lookChannelCovered="" lookFound="" lookSide lookNew
-	local lookNewThreadFloor lookNewChanFloor lookNewSibs lookNewReact lookReactions lookSignature lookMentionsOnly
+	local lookNewThreadFloor lookNewChanFloor lookNewSibs lookNewReact lookReactions lookSignature lookMentionsOnly lookStart
 	read -r lookWhere lookTs lookAddr lookThreadFloor lookChanFloor lookSibs lookReact lookChecked lookRest <<< "$3"
 	lookAddr="${lookAddr:--}" ; lookThreadFloor="${lookThreadFloor:--}" ; lookChanFloor="${lookChanFloor:--}"
 	lookSibs="${lookSibs:-0}" ; lookReact="${lookReact:--}" ; lookChecked="${lookChecked:-0}"
@@ -115,13 +135,23 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 	LC_ALL=C grep -q -x -F -e "question-ts: $lookTs" -e "thread-ts: $lookThread" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null && return 1
 	case " $agentsWaitCovered " in *" $lookChannel "*) lookChannelCovered=1 ;; esac
 	lookNewThreadFloor="$lookThreadFloor" ; lookNewChanFloor="$lookChanFloor" ; lookNewSibs="$lookSibs" ; lookNewReact="$lookReact"
+	## A POST NEVER LOOKED AT STARTS AT THE RUN'S OWN BEGINNING, never at its own ts (S6.39). What stands after the post but
+	## before this run began is history: reading from the post handed it over as new and marked it seen, 373 of them over six
+	## hours old on MDV for claims written on 3 November. Where the run began before the post, the post itself is the start.
+	AgentsWaitRepliesStart ; lookStart="${agentsWaitRepliesStart:-}"
+	if [ "$lookThreadFloor" = "-" ] && [ -n "$lookStart" ] && AgentsWaitTsNewer "$lookStart" "$lookTs" ; then
+		lookNewThreadFloor="$lookStart"
+	fi
+	if [ "$lookChanFloor" = "-" ] && [ -n "$lookStart" ] && AgentsWaitTsNewer "$lookStart" "$lookTs" ; then
+		lookNewChanFloor="$lookStart"
+	fi
 	## Its thread: every reply after the post, or after the last one returned. A post inside another's thread gets only its addressees and mentions.
 	lookFrom="$lookTs"
-	[ "$lookThreadFloor" = "-" ] || ! AgentsWaitTsNewer "$lookThreadFloor" "$lookFrom" || lookFrom="$lookThreadFloor"
+	[ "$lookNewThreadFloor" = "-" ] || ! AgentsWaitTsNewer "$lookNewThreadFloor" "$lookFrom" || lookFrom="$lookNewThreadFloor"
 	AgentsWaitReadRendered "$lookMember" "$lookChannel:$lookThread" thread "" "$lookFile.thread" || return 2
 	## The sibling cap is off for a thread read: the awk reads nothing at a cap of 0, and a thread never holds a million.
 	LC_ALL=C awk -v threadTs="$lookThread" -v addressees="${lookAddr//,/ }" -v siblingsMax=1000000 -v postTs="$lookTs" -v floorTs="$lookFrom" -v callerName="$lookMember" -v deliver="$lookDeliver" -v side="$lookFile.thread.side" \
-		-v oursReactIds="$( AgentsToolsWaitOursReactIds )" \
+		-v oursReactIds="$( AgentsToolsWaitOursReactIds )" -v callerId="$( AgentsToolsSessionChatMemberId "$lookMember" )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
 		< "$lookFile.thread" > "$lookFile.thread.out" 2>> "$lookFile.thread.err" || lookRc=$?
 	AgentsWaitOwnFile "$lookFile.thread.out" || return 2
@@ -144,7 +174,7 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 		lookMentionsOnly=0
 		[ "$lookSibs" -lt "$agentsWaitRepliesSiblings" ] || lookMentionsOnly=1
 		lookFrom="$lookTs"
-		[ "$lookChanFloor" = "-" ] || ! AgentsWaitTsNewer "$lookChanFloor" "$lookFrom" || lookFrom="$lookChanFloor"
+		[ "$lookNewChanFloor" = "-" ] || ! AgentsWaitTsNewer "$lookNewChanFloor" "$lookFrom" || lookFrom="$lookNewChanFloor"
 		AgentsWaitReadRendered "$lookMember" "$lookChannel" conversation "$lookFrom" "$lookFile.chan" || return 2
 		## A top-level message is the reply of the LATEST post of the run above it in that conversation, and is returned once: what stands at or after the run's next
 		## top-level post there belongs to that post, never to this one.
@@ -167,7 +197,7 @@ AgentsWaitRepliesLookRead(){ ## the same arguments
 		fi
 		LC_ALL=C awk -v mode=channel -v postTs="$lookTs" -v floorTs="$lookFrom" -v callerName="$lookMember" -v addressees="${lookAddr//,/ }" \
 			-v siblings="$lookSibs" -v siblingsMax="$agentsWaitRepliesSiblings" -v mentionsOnly="$lookMentionsOnly" -v side="$lookFile.chan.side" \
-			-v oursReactIds="$( AgentsToolsWaitOursReactIds )" \
+			-v oursReactIds="$( AgentsToolsWaitOursReactIds )" -v callerId="$( AgentsToolsSessionChatMemberId "$lookMember" )" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
 			< "$lookFile.chan" > "$lookFile.chan.out" 2>> "$lookFile.chan.err" || lookRc=$?
 		AgentsWaitOwnFile "$lookFile.chan.out" || return 2

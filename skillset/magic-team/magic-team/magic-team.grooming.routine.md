@@ -63,12 +63,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **invite-participants**: invite `magic-librarian` and `magic-architect` per `magic-team.coworking.routine`'s **invite-participants-visibly**.
 2. **gather-the-backlog**: open with what changed since the last pass and today's top priority, steps:
-   - read the open board and `magic-coordinator`'s inbox from this run's input scan result (`input/input-scan.md`). Its `state-and-lock` note is this pass's tracking document. Keep it current with `--update-routine-state`, referencing items by name rather than copying them. Hold the lock with `--grooming-lock-refresh` during a long pass.
+   - read the open board and `magic-coordinator`'s inbox from this run's input scan result (`input/input-scan.md`). Its `state-and-lock` note is this pass's tracking document. Keep it current with `--update-routine-state`, referencing items by name rather than copying them. Hold the lock with `--grooming-lock-refresh` during a long pass. The note stands alone: the goal of the pass, why it runs, its scope, the current state, the next step, the decisions taken and the open points, as plain present-tense statements, so the next pass continues from it alone.
    - run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so fresh inbox items are triaged with the backlog.
    - refresh the `roster-note` with `--roster-upsert` where a member's `SKILL.md` description drifted from it.
    - check Trello board coverage.
    - check Google Drive and Sheets for files modified since the last grooming, with `--google-file-find`.
-   - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch. Send it to him with `--slack-send-message` during this pass: at **review-with-the-user** if he is live, else once this step ends.
+   - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch. Send it to him with `SendMessage` during this pass: at **review-with-the-user** if he is live, else once this step ends.
 3. **triage-per-item**: give every open item, old or new, one recorded triage verb or an explicit skip reason. Time-box each item. Steps:
    - decide each item by this tree, first match wins:
      - duplicate of another open item → **Merge**.
@@ -208,14 +208,14 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--grooming-lock-refresh`
+- `--grooming-lock-refresh` (`AgentDispatcherTools`)
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
 - `--grooming-to-<state> <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`, `<state>` one of `backlog`, `pending`, `parked`, `blocked`, `processed`, `archived`, `retained`
 - `--grooming-create-<state> <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`, `<state>` one of `backlog`, `pending`, `running`, `blocked`, `processed`
-- `--roster-upsert [--from-file <path>|--edit-patch-from-stdin]`
-- `--slack-send-message <target> [text...]`
-- `--google-file-find <team-member> <drive-query> --raw-query [--limit <n>]`
-- `--routine-run-inline <routine>`
+- `--roster-upsert [--from-file <path>|--edit-patch-from-stdin]` (`AgentDispatcherTools`)
+- `SendMessage` (`to`, `address_to`, `message`): one message to any target. `DistroAgentsSlack` `--slack-send-message` for `--text-group`, `--update-ts`, `--identity-bot` or a file.
+- `--google-file-find <team-member> <drive-query> --raw-query [--limit <n>]` (`DistroAgentsGoogle`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

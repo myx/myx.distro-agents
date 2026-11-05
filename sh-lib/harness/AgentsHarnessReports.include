@@ -3,6 +3,8 @@
 
 ## AgentsHarnessReports.include: handbacks, findings, notifications and artifacts. Sourced by AgentsUniversalHarness.sh, definitions only.
 
+type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+
 ## The body of one report tool: the block of its own name in the report template
 ## (sh-lib/templates/report.post.format.md), filled by the filler the ask posts use. The
 ## fields travel in the caller's environment, as ASKP_F_<slot>, and are placed by position,
@@ -222,10 +224,10 @@ AgentsHarnessToolSubagentHandbackRun(){
 	AgentsHarnessHandbackNext "$toolOutcome"
 }
 AgentsHarnessToolSubagentHandback(){
-	## Cold pause, temporary: the work is done, and the result waits while sessions/<session>/paused exists, checking only that file every 5 seconds.
+	## S19.2: a handback is held at its EXIT, so it reached its reader and the result waits for the pause to end.
 	local pauseRc=0
 	AgentsHarnessToolSubagentHandbackRun "$@" || pauseRc=$?
-	while [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-none}}}/paused" ] ; do sleep 5 ; done
+	AgentsToolsSessionPauseWait
 	return "$pauseRc"
 }
 

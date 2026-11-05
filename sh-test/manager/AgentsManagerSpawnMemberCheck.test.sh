@@ -165,7 +165,7 @@ rigHeader(){ ## run id, header -- that header of the run's record
 }
 rigPromptOf(){ ## brief file -- the prompt in it: what stands between the spawn brief block and the sandbox lines
 	LC_ALL=C awk '
-		! past && $0 == "When done, hand back; then Wait until dismissed." { past = 1 ; first = 1 ; next }
+		! past && $0 == "When done, hand back and Wait until dismissed." { past = 1 ; first = 1 ; next }
 		past && first { first = 0 ; if ( $0 == "" ) next }
 		past && $0 == "## Your sandbox" { exit }
 		past { held[++n] = $0 }

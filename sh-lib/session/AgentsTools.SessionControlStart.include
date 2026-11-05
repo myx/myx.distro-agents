@@ -143,7 +143,7 @@ AgentsToolsSessionControlLeftovers(){ ## session id
 AgentsToolsSessionControlJudged(){ ## -- stdin: measured rows
 	LC_ALL=C awk '
 		NF != 13 || $2 == "-" { next ; }
-		$13 != "thinking" && $13 != "tool" && $13 != "waiting" && $13 != "idling" && $13 != "failed" && $13 != "finished" && $13 != "unclosed" { next ; }
+		$13 != "thinking" && $13 != "tool" && $13 != "waiting" && $13 != "idling" && $13 != "paused" && $13 != "failed" && $13 != "finished" && $13 != "unclosed" { next ; }
 		{
 			if ( ! ( $2 in judgedSeen ) ) { judgedSeen[$2] = 1 ; judgedOrder[++judgedCount] = $2 ; }
 			if ( $12 == "running" ) { judgedAlive[$2]++ ; next ; }

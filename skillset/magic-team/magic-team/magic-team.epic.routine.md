@@ -42,4 +42,4 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--idle-wait [--wait-timeout <seconds>]`
+- `--idle-wait [--wait-timeout <seconds>]` (`ThisSession`)

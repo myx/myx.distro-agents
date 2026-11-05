@@ -104,10 +104,13 @@ case "$1" in
 
 		--intern-op-comms-jira-sprint-issue-search)
 			shift
+			## ONE GUARD AN ARGUMENT (S6.23): `shift` answers only whether a word remains, never whether that word is empty, so a
+			## `shift || { ... missing }` beside the `[ -n ... ]` test carried one message twice. The shifts stay bare, and the
+			## `-n` tests are the ones naming a missing argument.
 			local actingMember="${1:-}" sprintId="${2:-}"
-			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
 			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
-			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: <sprint-id> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
 			[ -n "$sprintId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-sprint-issue-search: <sprint-id> missing" >&2 ; set +e ; return 1 ; }
 			case "$#:${1:-}" in
 				0:|2:--start-at) ;;
@@ -121,10 +124,11 @@ case "$1" in
 
 		--intern-op-comms-jira-issue-read)
 			shift
+			## ONE GUARD AN ARGUMENT (S6.23), as the sprint-issue-search arm above.
 			local actingMember="${1:-}" issueKey="${2:-}"
-			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
 			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
-			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
 			[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
 			case "$#:${1:-}" in
 				0:|2:--format) ;;
@@ -133,6 +137,27 @@ case "$1" in
 			local opRc=0
 			type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
 			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --context jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
+			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+			return 0
+		;;
+
+		--intern-op-comms-jira-issue-link-list)
+			shift
+			## ONE GUARD AN ARGUMENT: `shift` answers only whether a word remains, never whether that word is empty, so a
+			## `shift || { ... missing }` beside the `[ -n ... ]` test carried one message twice and a copy of it could never
+			## reach its own case (S6.23). The shifts stay bare, and the `-n` tests are the ones naming a missing argument.
+			local actingMember="${1:-}" linkKey="${2:-}"
+			shift || :
+			[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift || :
+			[ -n "$linkKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+			case "$#:${1:-}" in
+				0:) ;;
+				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-issue-link-list: not accepted: $actingMember $linkKey $*" >&2 ; set +e ; return 1 ;;
+			esac
+			local opRc=0
+			type AgentsToolsAtlassianJiraIssueLinkList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpAtlassianCall.include"
+			AgentsToolsAtlassianJiraIssueLinkList --member "$actingMember" --context jira-issue-link-list --issue-key "$linkKey" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;

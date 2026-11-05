@@ -49,7 +49,8 @@ case "$1" in
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local boardRoot="$MDAT_DATA_ROOT/board"
+		local boardRoot=""
+		boardRoot="$( AgentsToolsBoardTree )"
 		local fromState="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0 msgVerb="wrote" actingMember="" bodyText=""
 		## Space-delimited field names the caller named in --header:, for the move stamp's override check.
 		local callerHeaderFields=""
@@ -395,7 +396,16 @@ case "$1" in
 			fi
 		fi
 
-		printf '%s\n' "$body" > "$targetPath"
+		## Written beside the item and moved into place: a reader in the write window sees the old
+		## item or the new one, never part of one. The beside file is this call's own, by mktemp.
+		local writeBeside=""
+		writeBeside="$( mktemp "$targetPath.XXXXXX" )" || writeBeside=""
+		if [ -z "$writeBeside" ] || ! printf '%s\n' "$body" > "$writeBeside" || ! mv -f "$writeBeside" "$targetPath" ; then
+			[ -z "$writeBeside" ] || rm -f "$writeBeside"
+			[ -z "$handlerLock" ] || AgentsToolsLocalLockGive "$handlerLock"
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: could not write $targetPath" >&2
+			set +e ; return 1
+		fi
 		[ -z "$handlerLock" ] || AgentsToolsLocalLockGive "$handlerLock"
 		if [ -n "$handlerChanged" ] ; then
 			type AgentsToolsDecisionsAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
@@ -407,9 +417,9 @@ case "$1" in
 			## trash/ belongs to the trash op and is not a board state, so a move
 			## never spools there. `--` guards a later edit that bypasses validation.
 			rm -f -- "$sourcePath"
-			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} deleted" >&2
+			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} deleted, tree: $boardRoot" >&2
 		else
-			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}" >&2
+			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, tree: $boardRoot" >&2
 		fi
 
 		## Approval cascade (AgentsTools.ApprovalCascade.include, contract: MAGIC.md): only an

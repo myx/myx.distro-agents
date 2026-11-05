@@ -65,7 +65,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **open-channel-and-create-item**: on opening or resuming, steps:
    - rule: one topic, one thread. An unrelated topic surfacing mid-interview is forked into its own thread.
    - open or continue the channel: a Slack thread by default; email for slow or unusually complex matters.
-   - create the `interview-*` tracking item now, in `board-running` with `--create-running`, unless it already exists. Never deferred.
+   - create the `interview-*` tracking item now, in `board-running` with `--create-running`, unless it already exists. Never deferred. It stands alone: the goal, why, the scope, the current state, the next question and the open points, each a plain present-tense statement, so a session restarted a month later resumes it alone.
    - a live interactive session sets `owner-session: interactive` and `owner-session-since: <now>` on the item, and refreshes them at each **resume-review**.
 4. **name-the-interview-on-resume**: with more than one interview open, a resume names which one. A bare "continue" is an assumption gap: ask which, per **readback-on-suspected-assumption-gap**.
 5. **resume-review**: on every pickup, before any new question, steps:
@@ -175,16 +175,16 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--slack-send-message <target> [text...]`
-- `--slack-read <channel>:<ts> --thread`
-- `--email-send <email@address>... -- <subject> -- <body...>`
-- `--create-running <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
-- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
-- `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
+- `--slack-read <channel>:<ts> --thread` (`DistroAgentsSlack`)
+- `--email-send <email@address>... -- <subject> -- <body...>` (`DistroAgentsMail`)
+- `--create-running <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
+- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`)
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
-- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--routine-run-inline <routine>`
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--routine-run-inline <routine>` (`ThisSession`)
 
 # Maintainer Notes
 

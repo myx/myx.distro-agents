@@ -2,16 +2,15 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.InternTeamDataCommit.include -- the one thread that commits and pushes the team data (S12.4): a shell process of the
-## tooling and no agent. Sourced from DistroAgentsTools.fn.sh's `--intern-team-data-commit` arm; needs $1/$@/$MDSC_CMD from
-## dot-sourcing. What it takes, what it does and where it keeps its files: AgentsTools.TeamDataThread.include. A sibling of
-## --intern-source-collect: a usage blurb on no mode, the same set +e/set -e discipline, `--run` stays and `--one` makes one pass and ends.
+## AgentsTools.InternTeamDataCommit.include -- the one thread that commits and pushes the team data (S12.4), run on the shared
+## on-demand thread (S12.11, AgentsTools.OnDemandThread.include): a shell process of the tooling and no agent. Sourced from
+## DistroAgentsTools.fn.sh's `--intern-team-data-commit` arm; needs $1/$@/$MDSC_CMD from dot-sourcing. What a request does and
+## where the thread keeps its files: AgentsTools.TeamDataThread.include. A sibling of --intern-source-collect: a usage blurb on no
+## mode, the same set +e/set -e discipline, `--run` stays and `--one` makes one pass and ends.
 ##
 ## ONE A STORE ON A HOST: its lock is thread.lock in team-data-commit/ of the store's git directory, held for the life of the process
-## (AgentsTools.ThreadLock.include). It starts where a writer left an entry and none lives, and ends by itself once no entry came for
-## MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS (a minute), and on TERM. The lock is given back before it ends, and an entry left in that moment takes
-## the lock again. A hangup, an interrupt, a quit, a stop and an alarm are ignored. Its input is /dev/null, its output and errors its own
-## log, and its working folder is `/`. It runs as no member.
+## (AgentsTools.ThreadLock.include). It starts where a writer asks for one and none lives, and ends by itself once no request came for
+## MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS (a minute), and on TERM. It runs as no member.
 ##
 
 case "$1" in
@@ -30,15 +29,15 @@ case "$1" in
 			printf '%s\n' "$MDSC_CMD --intern-team-data-commit -- the one thread that commits and pushes the team data: a shell process of the tooling. A writer of the team data writes its files and leaves an entry, and no agent runs it or calls it." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-team-data-commit --run" >&2
-			printf '%s\n' "      The thread: takes the lock of the store, commits the entries that wait, one commit each, oldest first, and pushes once. Ends on TERM, and by itself when no entry came for MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS (60)." >&2
+			printf '%s\n' "      The thread: takes the lock of the store, commits the entries that wait, one commit each, oldest first, and pushes once. Ends on TERM, and by itself when no request came for MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS (60)." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-team-data-commit --one" >&2
 			printf '%s\n' "      One pass under the same lock, then the end: for a test, and for a check by hand." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-team-data-commit --start" >&2
-			printf '%s\n' "      Starts the thread detached where none lives, and says alive <pid>, started <pid>, off (MDAT_TEAM_DATA_COMMIT_THREAD=off) or failed - <why>." >&2
+			printf '%s\n' "      Starts the thread detached where none lives, and says alive <pid>, started <pid> or failed - <why>." >&2
 			printf '%s\n' "" >&2
-			printf '%s\n' "Its files are in team-data-commit/ of the git directory of the store: thread.lock, thread.log, and the entries and wait marks of the writers." >&2
+			printf '%s\n' "Its files are in team-data-commit/ of the git directory of the store: request.fifo, thread.lock, thread.log, and the entries of the writers." >&2
 			set +e ; return 1
 		fi
 		shift
@@ -53,19 +52,19 @@ case "$1" in
 
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" || { set +e ; return 1 ; }
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataThread.include" || { set +e ; return 1 ; }
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include" || { set +e ; return 1 ; }
 		set +e +u
 
-		if [ "$teamThreadMode" = "--start" ] ; then
-			AgentsToolsTeamDataThreadStart
-			return $?
-		fi
+		local teamThreadDir="" teamThreadIdle="${MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS:-60}"
+		case "$teamThreadIdle" in ''|*[!0123456789]*|0) teamThreadIdle=60 ;; esac
+		teamThreadDir="$( AgentsToolsTeamDataThreadDir )" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-team-data-commit: $MDAT_DATA_ROOT is no repository -- nothing was started" >&2
+			return 1
+		}
 
-		## NOTHING BUT TERM ENDS THE PROCESS, from its first moment: what a terminal sends, to it and to what it starts, is ignored.
-		local teamThreadEnd=""
-		if [ "$teamThreadMode" = "--run" ] ; then
-			trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF
-			trap '' PIPE USR1 USR2
-			trap 'teamThreadEnd="TERM"' TERM
+		if [ "$teamThreadMode" = "--start" ] ; then
+			AgentsToolsOnDemandThreadStart "$teamThreadDir" --intern-team-data-commit --run
+			return $?
 		fi
 
 		## IT RUNS AS NO MEMBER: each name that carries a member's session is emptied here, for this operation and what it starts.
@@ -74,83 +73,18 @@ case "$1" in
 			[ -z "${!teamThreadDrop+set}" ] || local -x "$teamThreadDrop="
 		done
 
-		## This process, with when it began: the pid of the shell that runs these lines, also where that is a subshell.
-		local teamThreadDir teamThreadPid teamThreadMe="" teamThreadHolder="" teamThreadRc=0
-		teamThreadPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || teamThreadPid=""
-		case "$teamThreadPid" in ''|*[!0123456789]*) teamThreadPid="" ;; esac
-		[ -z "$teamThreadPid" ] || teamThreadMe="$( printf '%s\n' "$teamThreadPid" | AgentsToolsRegistryProcessesBegan )" || teamThreadMe=""
-		if [ -z "$teamThreadMe" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-team-data-commit: could not read which process this is and when it began, so its lock would name nobody -- nothing was started" >&2
-			return 1
-		fi
-		teamThreadDir="$( AgentsToolsTeamDataThreadDir )" || { echo "⛔ ERROR: $MDSC_CMD --intern-team-data-commit: $MDAT_DATA_ROOT is no repository -- nothing was started" >&2 ; return 1 ; }
-		mkdir -p "$teamThreadDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-team-data-commit: could not make $teamThreadDir -- nothing was started" >&2 ; return 1 ; }
-		teamThreadHolder="$( AgentsToolsThreadLockTake "$teamThreadDir/thread.lock" "$teamThreadMe" )" ; teamThreadRc=$?
-		case "$teamThreadRc" in
-			0) ;;
-			1)
-				echo "⛔ ERROR: $MDSC_CMD --intern-team-data-commit: the thread already runs as pid ${teamThreadHolder%% *}, begun ${teamThreadHolder#* } -- a second one is not started" >&2
-				return 1
-			;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-team-data-commit: could not take the lock at $teamThreadDir/thread.lock -- nothing was started" >&2
-				return 1
-			;;
-		esac
 		if [ "$teamThreadMode" = "--run" ] ; then
+			## From here on its input is /dev/null, its output and its errors are its own log, and its working folder is one that does
+			## not vanish, so a request it serves never depends on where it was started.
+			mkdir -p "$teamThreadDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-team-data-commit: could not make $teamThreadDir -- nothing was started" >&2 ; return 1 ; }
 			exec < /dev/null >> "$teamThreadDir/thread.log" 2>&1
-			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
 			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
-			echo "$( date -u +%Y-%m-%dT%H:%M:%SZ ) the team-data thread runs as pid $teamThreadPid: it commits and pushes what the writers of $MDAT_DATA_ROOT leave, and TERM ends it"
+			AgentsToolsOnDemandThreadServe "$teamThreadDir" "$teamThreadIdle" AgentsToolsTeamDataThreadPass AgentsToolsTeamDataThreadPass no
+			return $?
 		fi
 
-		local teamThreadIdle="${MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS:-60}" teamThreadLast="$SECONDS" teamThreadOwedAt=-100 teamThreadWork teamThreadEntry teamThreadLoops=0 teamThreadLeave="" teamThreadOwedFile=""
-		case "$teamThreadIdle" in ''|*[!0123456789]*|0) teamThreadIdle=60 ;; esac
-		teamThreadOwedFile="$( AgentsToolsTeamDataCommitOwedPath )" || teamThreadOwedFile=""
-		while : ; do
-			teamThreadWork=""
-			for teamThreadEntry in "$teamThreadDir"/*.entry ; do
-				[ ! -s "$teamThreadEntry" ] || { teamThreadWork="yes" ; break ; }
-			done
-			## The debt of a commit that failed is tried again on its own timer, and keeps the thread alive no longer than nothing else would.
-			if [ -n "$teamThreadWork" ] || [ "$teamThreadMode" = "--one" ] ; then
-				AgentsToolsTeamDataThreadPass
-				[ -z "$teamThreadWork" ] || teamThreadLast="$SECONDS"
-			elif [ -n "$teamThreadOwedFile" ] && [ -s "$teamThreadOwedFile" ] && [ "$(( SECONDS - teamThreadOwedAt ))" -ge 30 ] ; then
-				AgentsToolsTeamDataThreadPass
-			fi
-			[ "$teamThreadMode" != "--one" ] || break
-			[ -z "$teamThreadEnd" ] || break
-			if [ "$(( SECONDS - teamThreadLast ))" -ge "$teamThreadIdle" ] ; then
-				## The lock goes back first. An entry that came in that moment is not left to a thread that is no more.
-				AgentsToolsThreadLockGive "$teamThreadDir/thread.lock" "$teamThreadMe"
-				teamThreadWork=""
-				for teamThreadEntry in "$teamThreadDir"/*.entry ; do
-					[ ! -s "$teamThreadEntry" ] || { teamThreadWork="yes" ; break ; }
-				done
-				if [ -n "$teamThreadWork" ] && AgentsToolsThreadLockTake "$teamThreadDir/thread.lock" "$teamThreadMe" > /dev/null ; then
-					teamThreadLast="$SECONDS"
-					continue
-				fi
-				teamThreadLeave="no entry came for ${teamThreadIdle}s"
-				teamThreadMe=""
-				break
-			fi
-			teamThreadLoops=$(( teamThreadLoops + 1 ))
-			if [ "$(( teamThreadLoops % 30 ))" = 0 ] ; then
-				{ IFS= read -r teamThreadHolder < "$teamThreadDir/thread.lock" || [ -n "$teamThreadHolder" ] ; } 2> /dev/null || teamThreadHolder=""
-				[ "$teamThreadHolder" = "$teamThreadMe" ] || { teamThreadLeave="its folder or its lock is gone" ; teamThreadMe="" ; break ; }
-				[ "$teamThreadMode" != "--run" ] || ! AgentsToolsThreadLogBound "$teamThreadDir/thread.log" || exec < /dev/null >> "$teamThreadDir/thread.log" 2>&1
-			fi
-			sleep 1 2> /dev/null || :
-		done
-
-		if [ "$teamThreadMode" = "--run" ] ; then
-			[ -n "$teamThreadLeave" ] || teamThreadLeave="it was ended by $teamThreadEnd"
-			echo "$( date -u +%Y-%m-%dT%H:%M:%SZ ) the team-data thread, pid $teamThreadPid, ends: $teamThreadLeave"
-		fi
-		[ -z "$teamThreadMe" ] || AgentsToolsThreadLockGive "$teamThreadDir/thread.lock" "$teamThreadMe"
-		return 0
+		AgentsToolsOnDemandThreadServe "$teamThreadDir" 0 AgentsToolsTeamDataThreadPass AgentsToolsTeamDataThreadPass yes
+		return $?
 	;;
 
 	*)

@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CheckListSources.include -- where a CheckList item came from (S6.27): `step` for a step of the
+## routine in force, `parent` for an item a parent added, and `own` for the member's own. A mark is kept beside
+## the list as `<mark><TAB><item text>`, so it follows its item through a delete and never touches the list's own
+## lines. The marks are written from the list as it stands, so a mark never outlives its item. An item no mark
+## names is `own`, which is every item of a list kept before the marks existed. Function-only.
+##
+
+## The file a list's marks are kept in: the list's ending `.checklist.md` swapped for `.checklist-sources.md`,
+## which is no `*.checklist.md` to any reader of lists. Nothing where the path is no list.
+AgentsToolsCheckListSourcesPath(){ ## the list file
+	case "$1" in
+		*.checklist.md) printf '%s\n' "${1%.checklist.md}.checklist-sources.md" ;;
+	esac
+}
+
+## The source of each item of a list, one a line in the list's own order, as many as the list has items.
+AgentsToolsCheckListSourcesList(){ ## the list file
+	local sourcesStore
+	sourcesStore="$( AgentsToolsCheckListSourcesPath "$1" )"
+	[ -n "$sourcesStore" ] && [ -f "$sourcesStore" ] || sourcesStore="/dev/null"
+	CHECKLIST_STORE="$sourcesStore" LC_ALL=C awk '
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { mark[substr( $0, at + 1 )] = substr( $0, 1, at - 1 ) } ; next }
+		/^- \[[ x~]\] / { text = itemText( $0 ) ; print ( text in mark ? mark[text] : "own" ) }
+	' "$sourcesStore" "$1" 2> /dev/null
+}
+
+## Writes the marks of a list as it now stands, and drops a mark whose item has left the list: a member that deletes
+## an item, and a replace that drops a step, both take the mark with them. An item the marks do not name is `step`
+## when it is among the routine's steps, `parent` when it is among the lines a parent just added, and `own`
+## otherwise. The read's own suffix is stripped from an item's text here too, so a member that writes its read
+## back keeps its items' marks. rc 1 where the path is no list, or the marks could not be written.
+AgentsToolsCheckListSourcesMark(){ ## the list file, the step names (a line each, may be empty), the lines just added (may be empty)
+	local sourcesStore sourcesTemp
+	sourcesStore="$( AgentsToolsCheckListSourcesPath "$1" )"
+	[ -n "$sourcesStore" ] && [ -f "$1" ] || return 1
+	: >> "$sourcesStore" 2> /dev/null || return 1
+	sourcesTemp="$( mktemp "$sourcesStore.XXXXXX" 2> /dev/null )" || return 1
+	CHECKLIST_STORE="$sourcesStore" CHECKLIST_STEPS="${2:-}" CHECKLIST_ADDED="${3:-}" LC_ALL=C awk '
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line }
+		FILENAME == ENVIRON["CHECKLIST_STORE"] { at = index( $0, "\t" ) ; if ( at > 1 ) { heldLine[++heldCount] = $0 ; heldText[heldCount] = substr( $0, at + 1 ) } ; next }
+		/^- \[[ x~]\] / { itemNo++ ; itemLine[itemNo] = itemText( $0 ) }
+		END {
+			for ( at = 1 ; at <= itemNo ; at++ ) { present[itemLine[at]] = 1 }
+			for ( at = 1 ; at <= heldCount ; at++ ) { if ( heldText[at] in present ) { print heldLine[at] ; marked[heldText[at]] = 1 } }
+			for ( at = 1 ; at <= itemNo ; at++ ) {
+				if ( itemLine[at] in marked ) { continue }
+				if ( index( "\n" ENVIRON["CHECKLIST_STEPS"] "\n", "\n" itemLine[at] "\n" ) ) { print "step\t" itemLine[at] ; continue }
+				if ( index( "\n" ENVIRON["CHECKLIST_ADDED"] "\n", "\n" itemLine[at] "\n" ) ) { print "parent\t" itemLine[at] ; continue }
+				print "own\t" itemLine[at]
+			}
+		}
+	' "$sourcesStore" "$1" > "$sourcesTemp" 2> /dev/null || { rm -f "$sourcesTemp" ; return 1 ; }
+	mv -f "$sourcesTemp" "$sourcesStore" 2> /dev/null || { rm -f "$sourcesTemp" ; return 1 ; }
+	return 0
+}
+
+## Rewrites a list for a `replace` (S6.27): the replaced routine's `step` items go, the routine now in force has each
+## of its steps added as a pending item before everything kept, and every other item stays in its own order with its
+## own mark. A step one of the kept items already states is not added again, so a member's own item whose text is a
+## step's keeps its own mark and is never doubled. The marks are written from the result, so a mark never outlives its
+## item. The list and its marks are written under the list's lock, so a write of the member's own cannot interleave.
+## Prints `<dropped> item(s) dropped, <added> added, <kept> kept`; rc 1 where there is no list, or either file could
+## not be written.
+AgentsToolsCheckListReplace(){ ## the list file, the step names of the routine now in force (a line each)
+	local replaceFile="$1" replaceStore replaceShape replaceTemp replaceMarkTemp
+	[ -f "$replaceFile" ] || return 1
+	replaceStore="$( AgentsToolsCheckListSourcesPath "$replaceFile" )"
+	[ -n "$replaceStore" ] || return 1
+	type AgentsHarnessCheckListLock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include" 2> /dev/null || return 1
+	AgentsHarnessCheckListLock "$replaceFile" || return 1
+	replaceTemp="$( mktemp "$replaceFile.XXXXXX" 2> /dev/null )" || replaceTemp=""
+	replaceMarkTemp="$( mktemp "$replaceStore.XXXXXX" 2> /dev/null )" || replaceMarkTemp=""
+	replaceShape="$( CHECKLIST_STEPS="${2:-}" CHECKLIST_MARKS="$( AgentsToolsCheckListSourcesList "$replaceFile" )" \
+		CHECKLIST_LIST_OUT="$replaceTemp" CHECKLIST_MARKS_OUT="$replaceMarkTemp" LC_ALL=C awk '
+		function itemText( line ) { sub( /^- \[[ x~]\] /, "", line ) ; sub( / \(due: [^)]*\)$/, "", line ) ; sub( / \(in progress: .*$/, "", line ) ; sub( / \[step\]$/, "", line ) ; sub( / \[parent\]$/, "", line ) ; return line }
+		{
+			if ( $0 ~ /^- \[[ x~]\] / ) { itemNo++ ; itemLine[itemNo] = $0 ; itemSay[itemNo] = itemText( $0 ) ; next }
+			otherLine[++otherNo] = $0
+		}
+		END {
+			markCount = split( ENVIRON["CHECKLIST_MARKS"], markLine, "\n" )
+			for ( at = 1 ; at <= itemNo ; at++ ) { itemMark[at] = ( at <= markCount && markLine[at] != "" ) ? markLine[at] : "own" }
+			for ( at = 1 ; at <= itemNo ; at++ ) { if ( itemMark[at] != "step" ) { kept[itemSay[at]] = 1 ; keptCount++ } }
+			stepCount = split( ENVIRON["CHECKLIST_STEPS"], stepLine, "\n" )
+			stepOut = "" ; markOut = ""
+			for ( at = 1 ; at <= stepCount ; at++ ) {
+				if ( stepLine[at] == "" || ( stepLine[at] in kept ) || ( stepLine[at] in added ) ) { continue }
+				added[stepLine[at]] = 1 ; addedCount++
+				stepOut = stepOut "- [ ] " stepLine[at] "\n"
+				markOut = markOut "step\t" stepLine[at] "\n"
+			}
+			for ( at = 1 ; at <= otherNo ; at++ ) { bodyOut = bodyOut otherLine[at] "\n" }
+			for ( at = 1 ; at <= itemNo ; at++ ) {
+				if ( itemMark[at] == "step" ) { droppedCount++ ; continue }
+				bodyOut = bodyOut itemLine[at] "\n"
+				markOut = markOut itemMark[at] "\t" itemSay[at] "\n"
+			}
+			printf "%s", stepOut bodyOut > ENVIRON["CHECKLIST_LIST_OUT"]
+			printf "%s", markOut > ENVIRON["CHECKLIST_MARKS_OUT"]
+			printf "%d %d %d\n", droppedCount, addedCount, keptCount
+		}
+	' "$replaceFile" 2> /dev/null )" || replaceShape=""
+	if [ -z "$replaceShape" ] || [ -z "$replaceTemp" ] || [ -z "$replaceMarkTemp" ] \
+		|| ! mv -f "$replaceTemp" "$replaceFile" 2> /dev/null || ! mv -f "$replaceMarkTemp" "$replaceStore" 2> /dev/null ; then
+		rm -f "$replaceTemp" "$replaceMarkTemp" 2> /dev/null
+		AgentsHarnessCheckListUnlock "$replaceFile"
+		return 1
+	fi
+	AgentsHarnessCheckListUnlock "$replaceFile"
+	printf '%s item(s) dropped, %s added, %s kept\n' ${replaceShape}
+	return 0
+}

@@ -100,25 +100,35 @@ AgentsToolsCheckListRoutineSteps(){ ## session id, spawn id
 }
 
 ## Writes the items on standard input, a line each, as pending items of one member's list in one session, in the place the harness keeps it
-## (AgentsHarnessCheckListPlace): beside the record of the session's own spawn, else in the session's store. Prints how many it added.
-AgentsToolsCheckListSeed(){ ## session id, member name
-	local seedFolder seedTemp seedLine seedAdded=0
+## (AgentsHarnessCheckListPlace): beside the record of the session's own spawn, else in the session's store. Each item's source (S6.27) is kept
+## with it: `step` for an item named in the third argument, a step of the routine in force, and `parent` for every other, since whoever asked
+## for the spawn named it. An item the list already holds keeps the source it has. Prints how many it added.
+AgentsToolsCheckListSeed(){ ## session id, member name, the routine's step names (a line each, may be empty)
+	local seedFolder seedTemp seedLine seedAdded=0 seedSteps="${3:-}" seedFile="" seedAddedText=""
 	seedFolder="$( AgentsToolsSpawnRecordPath "$1" )"
 	seedFolder="${seedFolder%/*}"
 	[ -n "$seedFolder" ] || seedFolder="$MMDAPP/.local/agents/sessions/$1"
+	seedFile="$seedFolder/$2.checklist.md"
 	mkdir -p "$seedFolder" && seedTemp="$( mktemp "$seedFolder/$2.checklist.md.XXXXXX" )" || return 1
-	[ ! -f "$seedFolder/$2.checklist.md" ] || cat "$seedFolder/$2.checklist.md" > "$seedTemp"
+	[ ! -f "$seedFile" ] || cat "$seedFile" > "$seedTemp"
 	[ -z "$( tail -c 1 "$seedTemp" )" ] || printf '\n' >> "$seedTemp"
 	while IFS= read -r seedLine || [ -n "$seedLine" ] ; do
 		[ -n "$seedLine" ] || continue
 		! LC_ALL=C grep -q -F -e "] $seedLine" "$seedTemp" || continue
 		printf -- '- [ ] %s\n' "$seedLine" >> "$seedTemp"
+		seedAddedText="$seedAddedText$seedLine"$'\n'
 		seedAdded=$(( seedAdded + 1 ))
 	done
 	if [ "$seedAdded" -gt 0 ] ; then
-		mv -f "$seedTemp" "$seedFolder/$2.checklist.md"
+		mv -f "$seedTemp" "$seedFile" || { rm -f "$seedTemp" ; return 1 ; }
 	else
 		rm -f "$seedTemp"
+	fi
+	## The source of each item, marked from the list as it now stands: a step of the routine in force is `step`, and
+	## every item of the brief, the epic and the arguments is `parent`, since whoever asked for the spawn gave them.
+	type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include" 2> /dev/null || :
+	if type AgentsToolsCheckListSourcesMark > /dev/null 2>&1 ; then
+		AgentsToolsCheckListSourcesMark "$seedFile" "$seedSteps" "$seedAddedText" 2> /dev/null || :
 	fi
 	printf '%s\n' "$seedAdded"
 }

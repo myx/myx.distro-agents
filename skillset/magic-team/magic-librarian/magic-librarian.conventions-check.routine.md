@@ -128,7 +128,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--get-audit-item <document-name>`
+- `--get-audit-item <document-name>` (`DistroAgentsItems`)
 
 # Maintainer Notes
 

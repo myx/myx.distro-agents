@@ -183,12 +183,26 @@ END {
 		print "" ;
 		delivered++ ;
 		deliveredNo[delivered] = idxNo[at] ;
+		deliveredAtNo[delivered] = at ;
 	}
 	if ( side != "" ) {
 		pointerTo = ( filtered && holdAt > 0 ) ? holdAt - 1 : idxNo[count] ;
 		if ( stopAt > 0 && idxNo[stopAt] - 1 < pointerTo ) { pointerTo = idxNo[stopAt] - 1 ; }
 		print "newest " pointerTo > side ;
 		print "delivered " delivered > side ;
+		## The block number of each delivered block, in order: a wait keys an eyes reaction on it (S6.48).
+		for ( deliveredAt = 1 ; deliveredAt <= delivered ; deliveredAt++ ) {
+			print "block " deliveredNo[deliveredAt] > side ;
+			## The conversation and ts of each delivered block a person sent: the eyes reaction a wait puts on it (S6.48).
+			eyeAt = deliveredAtNo[deliveredAt] ;
+			if ( eyeAt < 1 ) { continue ; }
+			eyeFrom = text[idxLine[eyeAt]] ;
+			sub(/^[^ ]+ /, "", eyeFrom) ; sub(/ -> .*$/, "", eyeFrom) ;
+			if ( eyeAt > 0 && idxTs[eyeAt] ~ /^[0-9]+\.[0-9]+$/ && idxWhere[eyeAt] ~ /^[CDG][A-Z0-9]+:[0-9]+\.[0-9]+$/ && eyeFrom != member ) {
+				eyeChannel = idxWhere[eyeAt] ; sub(/:.*$/, "", eyeChannel) ;
+				print "eye " eyeChannel ":" idxTs[eyeAt] > side ;
+			}
+		}
 		if ( threadTs != "" ) { print "threadts " threadTs > side ; }
 		for ( deliveredAt = 1 ; filtered && deliveredAt <= delivered ; deliveredAt++ ) {
 			if ( deliveredNo[deliveredAt] > pointerTo ) { print "seen " deliveredNo[deliveredAt] > side ; }

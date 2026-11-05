@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-The brief given to one spawned session, carried exactly, with a dated log of its reports. Written by the spawner when it starts the session.
+The brief given to one spawned session, carried exactly as the spawner wrote it, with a dated log of its reports. Written by the spawner when it starts the session.
 
 # Contract
 
@@ -102,7 +102,9 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 ## Body
 
 - A first line `# Spawn-proxy dispatch: <caller member>`.
-- A `## Brief` section carries the spawn request exactly as given.
+- An `Audience:` line names the one reader: the spawned session's member. The brief is written for it alone, which sets what it may leave unstated.
+- A `## Brief` section carries the spawn request exactly as given. The spawner wrote that request: it is a direct message under `magic-team.basic.md`'s "Relay, direct, produce", stating its requirements in the spawner's own words for a worker with no context. It is never a relay of the human-owner's words.
+- The brief tells the worker to keep its tracking document standing alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, as plain present-tense statements. A session restarted a month later continues from that document alone.
 - A `## Result` section, written by the tooling when the session ends, carries `status:`, `exit-code:`, `output-file:` and `completed-at:` lines.
 - A dated log of the session's reports follows the brief.
 - A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--record-decision`, never by hand.

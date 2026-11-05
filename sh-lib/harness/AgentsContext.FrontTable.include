@@ -69,9 +69,10 @@ DistroAgentsItems	--upsert-inbox-inquiry	member
 DistroAgentsItems	--upsert-inbox-note	member
 DistroAgentsItems	--upsert-inbox-reflection	member
 DistroAgentsItems	--upsert-vault-decision-record	member
+DistroAgentsItems	--upsert-vault-epic-blueprint	member
 DistroAgentsItems	--upsert-vault-investigation-report	member
 DistroAgentsItems	--upsert-vault-item	member
-DistroAgentsItems	--upsert-vault-verbatim	member
+DistroAgentsItems	--upsert-vault-verbatim-record	member
 DistroAgentsQuestions	--amend-pending-reply	coordinator
 DistroAgentsQuestions	--answer-escalation	member
 DistroAgentsQuestions	--forward-escalation	coordinator
@@ -108,6 +109,7 @@ DistroAgentsAtlassian	--confluence-page-delete	coordinator
 DistroAgentsAtlassian	--confluence-page-read	member
 DistroAgentsAtlassian	--confluence-page-search	coordinator
 DistroAgentsAtlassian	--confluence-page-update	coordinator
+DistroAgentsAtlassian	--confluence-space-create	coordinator
 DistroAgentsAtlassian	--confluence-space-list	member
 DistroAgentsAtlassian	--jira-board-issue-search	member
 DistroAgentsAtlassian	--jira-board-list	member
@@ -146,6 +148,8 @@ AgentDispatcherTools	--advance-sleep-run	coordinator
 AgentDispatcherTools	--client-operation-run	coordinator
 AgentDispatcherTools	--config-check	coordinator
 AgentDispatcherTools	--daily-lock-refresh	coordinator
+AgentDispatcherTools	--epic-list	member
+AgentDispatcherTools	--epic-read	member
 AgentDispatcherTools	--grooming-lock-refresh	coordinator
 AgentDispatcherTools	--request-permission-set	coordinator
 AgentDispatcherTools	--retro-lock-refresh	coordinator

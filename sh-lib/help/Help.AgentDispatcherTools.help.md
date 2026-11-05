@@ -18,11 +18,19 @@
 📘 syntax: AgentDispatcherTools.fn.sh --standing-directives [--team-member <team-member>] [--all]
 📘 syntax: AgentDispatcherTools.fn.sh --directive-set [--team-member <team-member>] --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]
 📘 syntax: AgentDispatcherTools.fn.sh --directive-end [--team-member <team-member>] --id <id> [--wait <seconds>]
-📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)
-📘 syntax: AgentDispatcherTools.fn.sh --epic-read [--team-member <team-member>] <epic-file> [--feature <feature-id>]
-📘 syntax: AgentDispatcherTools.fn.sh --epic-list [--team-member <team-member>] <folder>
+📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file|epic-item> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)
+📘 syntax: AgentDispatcherTools.fn.sh --epic-read <epic-file|epic-item> [--feature <feature-id>]
+📘 syntax: AgentDispatcherTools.fn.sh --epic-list [<folder>]
 📘 syntax: AgentDispatcherTools.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-scan [--workspace <path>]... [--since <epoch>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-resume [--workspace <path>]...
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-guide <run-id> [--text <text>|--from-file <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-checklist-add <run-id> (--item <text>)...
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-commit-transcripts [--dry-run]
 📘 syntax: AgentDispatcherTools.fn.sh [--help-syntax [<op>]]
 📘 syntax: AgentDispatcherTools.fn.sh [--help]
 
@@ -99,21 +107,89 @@
 			Stubs of the same operations of DistroAgentsSession.fn.sh, the
 			ThisSession tool, which owns the standing directives.
 
-		--epic-update <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)
-			The epic file's own edit, so no routine edits an epic by hand: one
+		--epic-update <epic-file|epic-item> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)
+			The epic's own edit, so no routine edits an epic by hand: one
 			feature's status set, or one settlement added. A settlement stands
 			after the feature's `Status:` line, or before its next heading where
 			the feature has no `Status:` line, as the rule alone: no date and no
 			owner. A status of `done` closes the feature: its own lines leave, and
-			one line joins `## Done`, its id and what holds now.
+			one line joins `## Done`, its id and what holds now. A vault epic blueprint item
+			(`epic-blueprint-<date>-<matter>.md`) is written through `--upsert-vault-epic-blueprint`, so
+			its contract check and its commit both happen there.
 
-		--epic-read <epic-file> [--feature <feature-id>]
-		--epic-list <folder>
-			The epic read through the tooling, for a session with no shell: the file
-			whole, or one feature's section down to the next heading, and the epic
-			files of a folder, a line each with its section count. A path must lie
-			under a `todo-sketchpad` folder and have no `..` part; one outside is an
-			error, never an empty result.
+		--epic-read <epic-file|epic-item> [--feature <feature-id>]
+		--epic-list [<folder>]
+			The epic read through the tooling, for any member: the epic whole, or
+			one feature's section down to the next heading; and the epics, the
+			vault's own items or the `*.epic.md` files of a folder, a line each
+			with its section count. A path must lie under a `todo-sketchpad`
+			folder and have no `..` part; one outside is an error, never an empty
+			result.
+
+		--supervise-scan [--workspace <path>]... [--since <epoch>]
+			The supervisor's read of the rigs, one line a finding, for each
+			workspace named, else this one. Its kinds: `ask`, `unposted`,
+			`orphan-ask`, `parent-ask` (an open question to the owner whose asking
+			run's parent is a live coordinator's, so the parent can settle it),
+			`msg`, `track`, `dead`, `run` (where each live run stands, with its
+			verdict active, waiting or stuck), `stall` (a run silent past the
+			bound with items still pending on its own CheckList), `idle-done`,
+			`no-plan`, `stale-plan` and `control-stuck`. A run's age is its own
+			activity mark, else its transcript's last tool line, never a file's
+			date. The bound is `MDAT_SUPERVISE_STALL_SECONDS`, 600 by default.
+
+		--supervise-resume [--workspace <path>]...
+			The runs that ended with no handback, resumed once the fixed sleep
+			has passed, one line a run: `resumed` with its item and how it was
+			started, or `held` with why. It leaves alone a run still open, one the
+			owner dismissed, one that ended inside the sleep, a work-duty run (the
+			scheduler's own case) and an item waiting for its reviewer. The sleep
+			is `SUPERVISE_RESUME_SECONDS`, else `DUTY_RESTART_SECONDS`, else 300.
+
+		--supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log]
+			One run read by its id, as its supervisor reads it, one section a row:
+			`run` the record's member, session, status and liveness; `transcript`
+			and its last `--tail` lines (40); `thread` and its last
+			`--thread-lines` messages (30); `checklist` and its items; and with
+			`--log` the session log. A `-` column says the run keeps none of it.
+			`--no-thread` and `--no-checklist` leave a section out, for a run whose
+			sections are not wanted. The console's own --manager-session-* reads
+			are refused to a member's session, and a supervisor is one.
+
+		--supervise-guide <run-id> [--text <text>|--from-file <path>]
+			Guidance posted into that run's session thread, as magic-coordinator,
+			addressed to its member. A run with no thread takes the message in its
+			session chat file. The text is the standard input where neither
+			option gives it; an empty one is refused.
+
+		--supervise-checklist-add <run-id> (--item <text>)...
+			Pending items added at the end of that run's own CheckList, under the
+			list's own lock, and noted in `<member>.checklist.md.added` so the
+			member's next whole-list write keeps them. `CheckList append` does the
+			same for a session the caller started; a supervisor founds none.
+
+		--supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>]
+			A tooling fault filed as an inquiry in that member's inbox, with the
+			run, its member, its session and its dispatch item above the evidence,
+			and one line in that item's `## Decisions` linking the two. The
+			evidence is the standard input where `--from-file` gives none.
+
+		--supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
+			One file copied from one run's sandbox to another's, always a real copy
+			and never a link: the copy is proven a regular file with an inode of its
+			own and the source's bytes before it is put in place. Each path is
+			relative to its run's sandbox root, with no `..` and no absolute path.
+			A read-only `input/` folder is reached, its write bit lifted for the
+			call and put back, and the copy is left without one. One `copy` row
+			each: the two runs, the two paths, `new` or `replaced`, and the bytes.
+
+		--supervise-commit-transcripts [--workspace <path>] [--dry-run]
+			The transcripts under `audit/` that the store holds changed reach one
+			commit, and the push the store owes is paid, one `commit <path>` row
+			each then `pushed <state>`. `--dry-run` commits nothing and prints the
+			paths that would go. A path still uncommitted after the commit exits 1.
+			This is the sweep for the lines written after a run ended, which no
+			milestone of that run will ever carry.
 
 ##  Examples:
 

@@ -108,6 +108,53 @@ AgentsToolsCommsSlackMemberTeamPresentation(){ ## member, its part in the send (
 ## for a sender and for a member a message is addressed to, whoever it is: a client inside
 ## our team, a member with no alias of its own, a routine. What reads the line takes both
 ## forms (memberSendHeaderLength, AgentsDismissalMatch.awk): a member is known by its name,
+## WHICH ADDRESSEES HAVE NO LIVE RUN (S5.4), printed as SENT_MESSAGE_UNREACHABLE_MEMBERS where there are any. A message
+## addressed to a member reaches a run of that member's; one with none reads it at its next start. Saying so where the
+## message is sent shows the fault then, not hours later at the far end, and changes nothing about the post.
+## WHERE THE COST IS PAID, AND WHY IT IS ONE READ: every message of every member takes this path, so every spawn record is
+## read once for all the addressees by one awk, and only the records of an addressee still open are asked to be live.
+## A scan an addressee was how a post to three members cost three reads of the whole sandbox.
+AgentsToolsCommsSlackUnreachableReport(){ ## the addressees, the sending member
+	local reportMembers="$1" reportSender="$2" reportMember reportLive=" " reportRecord reportRecords="" reportOut="" reportHost
+	[ -n "$reportMembers" ] || return 0
+	type AgentsToolsSessionRecordLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	## The member's own words are no addressee, and neither is an empty one: the list the one read is told to match.
+	reportHost=" "
+	for reportMember in $reportMembers ; do
+		[ -n "$reportMember" ] && [ "$reportMember" != "$reportSender" ] || continue
+		reportHost="$reportHost$reportMember "
+	done
+	[ "$reportHost" != " " ] || return 0
+	## ONE READ OF EVERY RECORD FOR EVERY ADDRESSEE: the records that are still open, a row `<owner> TAB <record>` each. A
+	## record that has closed is no run of anybody's, and its status is the record's own word, read here and nowhere else.
+	reportRecords="$( LC_ALL=C awk -v wanted="$reportHost" '
+		function flush( ) {
+			if ( owner != "" && status == "spawn-started" && index( wanted, " " owner " " ) ) { print owner "\t" record ; }
+			owner = "" ; status = "" ; fence = 0 ;
+		}
+		FNR == 1 { flush() ; record = FILENAME ; }
+		$0 == "---" { fence++ ; if ( fence > 1 ) { next ; } ; next ; }
+		fence != 1 { next ; }
+		index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) ; next ; }
+		index( $0, "status: " ) == 1 && status == "" { status = substr( $0, 9 ) ; next ; }
+		END { flush() ; }
+	' "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || reportRecords=""
+	## Its own tree, the tooling's one reading of a run's liveness, asked of the records that may still be live: a member
+	## with one is not named, and the rest of its records are never read. The list keeps a blank at each end, so the same
+	## whole-word test finds the first member as the last.
+	[ -z "$reportRecords" ] || while IFS=$'\t' read -r reportMember reportRecord ; do
+		[ -n "$reportMember" ] && [ -n "$reportRecord" ] || continue
+		case "$reportLive" in *" $reportMember "*) continue ;; esac
+		! AgentsToolsSessionRecordLive "$reportRecord" || reportLive="$reportLive$reportMember "
+	done <<< "$reportRecords"
+	for reportMember in $reportMembers ; do
+		[ -n "$reportMember" ] && [ "$reportMember" != "$reportSender" ] || continue
+		case "$reportLive" in *" $reportMember "*) continue ;; esac
+		reportOut="$reportOut$reportMember "
+	done
+	[ -z "$reportOut" ] || printf 'SENT_MESSAGE_UNREACHABLE_MEMBERS=%s\n' "${reportOut% }"
+}
+
 ## between `*_` and `_*`, never by its alias.
 AgentsToolsCommsSlackAliasShown(){ ## name as the line shows it, alias
 	[ "$2" = "$1" ] || printf '@%s' "$2"
@@ -1186,6 +1233,7 @@ blocks|verbatim|caller|stdin file"
 				echo "SENT_MESSAGE_LOCAL=$chatKey:$chatNo" >&2
 				echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
 				[ -z "$addressedMembers" ] || echo "SENT_MESSAGE_ADDRESSEE_MEMBERS=${addressedMembers% }" >&2
+				AgentsToolsCommsSlackUnreachableReport "$addressedMembers" "$memberName"
 				echo "# $MDSC_CMD --slack-send-message: queued as block $chatNo of session $chatKey; the comms reader posts it to $channel:$threadTs" >&2
 				AgentsToolsSlackSendLogLine ok "queued block $chatNo for the comms reader"
 				if [ -n "$wakeMember$addressedMembers" ] ; then
@@ -1393,6 +1441,7 @@ blocks|verbatim|caller|stdin file"
 			## without it, and must say so rather than accept whatever arrives.
 			echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
 			[ -z "$addressedMembers" ] || echo "SENT_MESSAGE_ADDRESSEE_MEMBERS=${addressedMembers% }" >&2
+				AgentsToolsCommsSlackUnreachableReport "$addressedMembers" "$memberName"
 			## The block recorded before the post takes the ts and the thread Slack gave it, so a later read of the thread knows it.
 			[ -z "$chatRecord" ] || [ -z "$sentTs" ] || AgentsToolsSessionChatStamp "$chatKey" "$chatNo" "$sentTs" "${sentChannel#client:}:$sentThreadTs" 2> /dev/null || :
 			AgentsToolsSlackSendLogLine ok "$( [ -n "$updateTs" ] && printf 'edited' || printf 'posted' ) ts=$sentTs"

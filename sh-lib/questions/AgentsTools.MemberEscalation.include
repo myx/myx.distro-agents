@@ -1552,14 +1552,16 @@ case "$1" in
 			## The folder answer, only of a request whose post offered the folder; the project
 			## answer, only of one whose post offered the project.
 			permission:allow-folder|permission:allow-project|permission:allow-contact) [ -z "$( AgentsToolsEscalationFolderOffered "$answerFile" "${answerVerdict#allow-}" )" ] || answerFound=1 ;;
-			decision:*)
+			## An option's first word answers: a decision's options, and a plain question's own where it
+			## has them. A list that is not there is read as none, never as a read fault.
+			decision:*|question:*)
 				while IFS= read -r answerOptionLine ; do
 					answerOptionLine="${answerOptionLine#- }"
 					answerOptionLine="${answerOptionLine%%[ $'\t']*}"
 					answerOptionLine="${answerOptionLine%:}"
 					answerOptionLine="$( printf '%s' "$answerOptionLine" | LC_ALL=C tr 'A-Z' 'a-z' )"
 					[ "$answerOptionLine" != "$answerVerdict" ] || answerFound=1
-				done < "${answerFile%.md}.options"
+				done < <( cat "${answerFile%.md}.options" 2> /dev/null )
 			;;
 		esac
 		if [ -z "$answerFound" ] ; then

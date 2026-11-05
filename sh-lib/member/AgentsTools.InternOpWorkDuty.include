@@ -7,6 +7,7 @@
 ## AgentsTools.InputScanDef.include) and the spawner runs, with no instruction to an agent: no member calls it (F6.4). Sourced from the
 ## dispatcher's own arm, one op in the file; needs $1/$@/$MDSC_CMD from dot-sourcing.
 ##
+type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 ## It collects what is for the member to work on at the start of its duty:
 ##   - the inbox items not yet processed -- the member's incoming/ alone (F4.3), invitations and sub-tasks for handling and joining
 ##     among them, being items of their own types;
@@ -81,6 +82,10 @@ case "$1" in
 		}
 
 		printf '# Work duty input scan: %s\n\n' "$workMember"
+		## S19.3: a duty whose session a pause holds says so in its own scan, and the runs it reads are read as they stand.
+		if AgentsToolsSessionPauseHeld "$workSession" ; then
+			printf '**PAUSED:** session %s is paused, so its runs hold at their pause points and none is stuck, dead or idle.\n\n' "$workSession"
+		fi
 
 		## The inbox: the items not yet processed, which is what the member's incoming/ holds.
 		printf '## Inbox: items not yet processed\n\n'
@@ -138,7 +143,10 @@ case "$1" in
 				AgentsToolsBoardRoundSections "$workMember" --intern-op-work-duty-input-scan || { printf '\n(the board could not be read)\n' ; workBoardRc=1 ; }
 			fi
 			workTrace board-digest-review-and-registries
-			AgentsToolsBoardRecheckDueSection
+			## A DUE SECTION THAT COULD NOT READ EVERY DOCUMENT IS AN ERROR IN THIS SCAN'S RESULT, never a sweep
+			## with nothing due: the same rule the board read above follows. The section names each document it
+			## could not read, and its status says the answer is incomplete.
+			AgentsToolsBoardRecheckDueSection || { printf '\n(the documents due could not be read in full: see the not-read lines above)\n' ; workBoardRc=1 ; }
 			workTrace recheck-dates
 			printf '\n'
 			AgentsToolsBoardDependenciesSection

@@ -14,10 +14,14 @@
 ## OUTPUT, by -v format=:
 ##   list   a line for each section that answers: `<path><TAB><source><TAB><store><TAB><caption>` (an empty caption: the lines ahead of the first heading)
 ##   json   {"entries":[{"source":..,"store":..,"section":..,"snippet":..}]}, the snippet the section's own text (cut at 4000 bytes, "truncated":true then)
+##   rc 3   a source file could not be read, so the answer covers only the files that were. Each is named on stderr, and the
+##          count closes them. A caller must not read that answer as a complete one.
 ## -v wsRoot=<workspace>/ and -v dataRoot=<team data root>/ turn a path into its source, relative to the one it lies under; the store is `board`,
 ## `vault`, `inbox` where the path lies under the team data root's board/, vault/ or inboxes/, and `docs` for any other.
 ##
 ## Every closing `}` below is preceded by a `;` (magic-developer's reference/shell.md axiom).
+## A SOURCE FILE THAT CANNOT BE READ IS NAMED ON STDERR, and counted in one closing line (S6.47): without it the file
+## answers as one with nothing in it, and a query that answered nothing reads as a complete empty answer.
 ##
 
 ## A glob as an anchored regular expression, as LocalMergeMdFiles.awk reads one.
@@ -93,7 +97,7 @@ function flushSection(    line, text, cut) {
 
 ## A file read section by section. A path named in KNOWLEDGE_STORE_MAP (a store dumped to a scratch file) keeps the
 ## MAGIC.md reference it was dumped from as its source, not the scratch path it was read through.
-function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark, caption, at) {
+function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark, caption, at, readRc) {
 	filePath = path ; fileStore = "docs" ; rel = path ;
 	if (dataRoot != "" && index(path, dataRoot) == 1) {
 		rel = substr(path, length(dataRoot) + 1) ;
@@ -102,7 +106,7 @@ function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark,
 	fileRef = rel ;
 	for (at = 1 ; at <= storeMapCount ; at++) { if (path == storeMapPath[at]) { fileRef = storeMapRef[at] ; break ; } ; } ;
 	sectionLines = 0 ; sectionCaption = "" ; inFront = 0 ; lineNo = 0 ; inFence = 0 ; fenceMark = "" ;
-	while ((getline line < path) > 0) {
+	while ((readRc = getline line < path) > 0) {
 		lineNo++ ;
 		sub(/\r$/, "", line) ;
 		if (lineNo == 1 && line == "---") { inFront = 1 ; continue ; } ;
@@ -119,10 +123,14 @@ function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark,
 		sectionLines++ ; sectionText[sectionLines] = line ;
 	} ;
 	close(path) ;
+	## A FILE THAT COULD NOT BE READ IS NAMED (S6.47), never left as a file with nothing in it: getline returns -1 for
+	## a file it could not open or read, and 0 at end of file, and the loop above stops on both.
+	if (readRc < 0) { unreadCount++ ; printf "# could not be read, so its sections are not in this answer: %s\n", path > "/dev/stderr" ; } ;
 	flushSection() ;
 } ;
 
 BEGIN {
+	unreadCount = 0 ;
 	for (code = 1 ; code < 32 ; code++) { controlChars = controlChars sprintf("%c", code) ; } ;
 	queryCount = split(ENVIRON["KNOWLEDGE_QUERY"], queryLine, "\n") ;
 	for (at = 1 ; at <= queryCount ; at++) {
@@ -149,4 +157,8 @@ NF { scanFile($0) ; } ;
 
 END {
 	if (format == "json") { print "" ; print "]}" ; } ;
+	if (unreadCount > 0) {
+		printf "# %d source file(s) could not be read, so this answer covers only the sources that were read\n", unreadCount > "/dev/stderr" ;
+		exit 3 ;
+	} ;
 } ;

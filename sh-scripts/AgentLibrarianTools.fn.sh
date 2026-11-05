@@ -4,8 +4,7 @@
 ## AgentLibrarianTools.fn.sh -- the librarian's personal tool (F7.7): what magic-librarian takes in as work, and its write of a skillset file. A tool that
 ## takes work in: nobody reads results from it but the one who asked.
 ##   --skillset-upsert        the whole text of a .md file of a team member's skill, saved into the skill's source copy (never an install, never
-##                            the HOME skills folder) after the resulting version was checked; the librarian only, from a routine whose
-##                            allows: names it, and only while learning is on
+##                            the HOME skills folder) after the resulting version was checked; the librarian only, and only while learning is on
 ##   --request-update         any member's request that a document, the knowledge base or a skill file be updated, as a message, a whole text or
 ##                            a concrete edit: one inquiry into magic-librarian's inbox; --reply asks for a note with the outcome
 ##   --queue-list --queue-take --queue-done   the librarian's side of those requests, which are the inquiries of its inbox that carry an update-kind;

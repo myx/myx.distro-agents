@@ -103,13 +103,13 @@ rigRootHarness(){ ## extra --intern-root-harness args...
 		' rig-root-harness-wrapper "$@" < /dev/null 2>&1
 }
 
-## True when the file's own "When done, hand back; then Wait until dismissed." line (the brief block's own last line) is
+## True when the file's own "When done, hand back and Wait until dismissed." line (the brief block's own last line) is
 ## followed by exactly one blank line and then real content -- the "block, one blank
 ## line, then the spawn context" shape S5 asks for, checked the same way regardless of
 ## what the spawn context itself looks like in a given source mode.
 rigBlankGapThenContent(){ ## file
 	LC_ALL=C awk '
-		$0 == "When done, hand back; then Wait until dismissed." { base = NR ; next ; }
+		$0 == "When done, hand back and Wait until dismissed." { base = NR ; next ; }
 		base && NR == base + 1 { blank = ( $0 == "" ) ; next ; }
 		base && NR == base + 2 { print ( blank && $0 != "" ) ? "ok" : "bad" ; exit ; }
 	' "$1"

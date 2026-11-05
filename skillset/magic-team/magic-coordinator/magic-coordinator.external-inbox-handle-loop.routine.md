@@ -91,7 +91,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 ## Tooling operations
 
-- `--slack-send-message <target> [text...]`
+- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 
 # Maintainer Notes
 

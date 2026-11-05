@@ -196,7 +196,7 @@ rigAssert "names heartbeat as the routine to run" \
 rigAssert "names the armed.md sections" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' )$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 11
 rigAssert "ends its block with the handback line" \
-	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back; then Wait until dismissed.' )" 1
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back and Wait until dismissed.' )" 1
 
 echo "-- --one names heartbeat as the routine to run, non-interactively --"
 rigScenario routine-one 0 1
@@ -208,7 +208,7 @@ rigAssert "names heartbeat as the routine to run" \
 rigAssert "names the armed.md sections" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:' )$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F -- '- {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 11
 rigAssert "ends its block with the handback line" \
-	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back; then Wait until dismissed.' )" 1
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back and Wait until dismissed.' )" 1
 
 rigAssert "no request left for a real host"            "$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C grep -v -c 'slack.com/api/' || : )" 0
 

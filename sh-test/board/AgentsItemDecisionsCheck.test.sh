@@ -73,20 +73,23 @@ rigSection(){ ## item file -> its Decisions lines, in file order
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 
 echo "-- helper: create, then append --"
-rigOp rec1 --record-decision "$rigMember" "$rigTask.md" --kind clarification --text "The rig scope is the decisions helper only." --source 1700000009.000001
+## The acting member is the operation's own argument, `--team-member`: a member is named by the
+## family's one rule (Help.DistroAgentsQuestions.help.md: `--record-decision [--team-member
+## <team-member>] <item-filename>`), and a bare name before the item is refused as an option.
+rigOp rec1 --record-decision --team-member "$rigMember" "$rigTask.md" --kind clarification --text "The rig scope is the decisions helper only." --source 1700000009.000001
 [ "$rigRc" = "0" ] || rigRefuse "the decision op failed: $( cat "$rigTmp/rec1.err" )"
 rigAssert "it says recorded"                      "$( head -1 "$rigTmp/rec1" )" "DECISION-RECORDED $rigTask blocked"
 rigAssert "the section is created"                "$( rigHolds "$rigBoard/blocked/$rigTask.md" '## Decisions' )" yes
 rigAssert "with the line in its shape"            "$( rigSection "$rigBoard/blocked/$rigTask.md" | LC_ALL=C grep -c -E '^- [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z magic-tester clarification: The rig scope is the decisions helper only\. \(1700000009\.000001\)$' )" 1
 rigAssert "the blockers are left"                 "$( rigField "$rigBoard/blocked/$rigTask.md" blocked-on )" "the vendor contract"
-rigOp rec2 --record-decision "$rigMember" "$rigTask" --kind resolved --text "Second line."
+rigOp rec2 --record-decision --team-member "$rigMember" "$rigTask" --kind resolved --text "Second line."
 rigAssert "a second line is appended"             "$( rigSection "$rigBoard/blocked/$rigTask.md" | wc -l | tr -d ' ' )" 2
 rigAssert "after the first"                       "$( rigSection "$rigBoard/blocked/$rigTask.md" | tail -1 | LC_ALL=C sed 's/.* resolved: //' )" "Second line."
 rigAssert "one section only"                      "$( LC_ALL=C grep -c '^## Decisions' "$rigBoard/blocked/$rigTask.md" )" 1
 rigAssert "the read shows newest first"           "$( AgentsToolsDecisionsLines "$rigBoard/blocked/$rigTask.md" 30 | head -1 | LC_ALL=C sed 's/.* resolved: //' )" "Second line."
-rigOp rec3 --record-decision "$rigMember" "$rigTask" --kind answer --text "not a member kind"
+rigOp rec3 --record-decision --team-member "$rigMember" "$rigTask" --kind answer --text "not a member kind"
 rigAssert "a member may not record an answer"     "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken )" refused
-rigOp rec4 --record-decision "$rigMember" task-20261008T1300Z-missing --kind clarification --text "x"
+rigOp rec4 --record-decision --team-member "$rigMember" task-20261008T1300Z-missing --kind clarification --text "x"
 rigAssert "an item not on the board is refused"   "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken )" refused
 
 echo "-- ask -> item link --"
@@ -201,7 +204,7 @@ printf 'Which rig port should the tracked task use?\n' | rigOp early5 --intern-o
 rigAssert "a new dispatch finds it on the task"   "$( cut -d' ' -f1-2 "$rigTmp/early5" )" "EARLIER-DECISION $rigTracked"
 printf 'Which rig port should the tracked task use?\n' | rigOp early6 --intern-op-pending-reply-earlier "$rigMember" --session-id rig-session-d --kind question --item "$rigBeyond"
 rigAssert "tracks: is followed one level only"    "$( cat "$rigTmp/early6" )" ""
-rigOp rec5 --record-decision "$rigMember" "$rigDispA" --kind clarification --text "The rig port is fixed for this task."
+rigOp rec5 --record-decision --team-member "$rigMember" "$rigDispA" --kind clarification --text "The rig port is fixed for this task."
 rigAssert "a member record on a dispatch: both"   "$( LC_ALL=C grep -c '^DECISION-RECORDED ' "$rigTmp/rec5" )/$( AgentsToolsDecisionsLines "$rigBoard/running/$rigTracked.md" 30 | LC_ALL=C grep -c 'port is fixed' )" 2/1
 
 echo "-- only the item's own section: never a quoted copy --"
@@ -211,7 +214,7 @@ rigAssert "the read takes no quoted line"         "$( AgentsToolsDecisionsLines 
 rigAssert "and both own lines"                    "$( AgentsToolsDecisionsLines "$rigBoard/running/$rigDispA.md" 30 | wc -l | tr -d ' ' )" 2
 rigLegacy="task-20261008T1404Z-rig-legacy"
 printf -- '---\ntype: task\nowner: magic-tester\n---\n\n# Rig legacy\n\n## Decisions\n\n- 2026-10-01T00:00Z someone answer: LEGACY-LINE\n\n## Notes\n\nlater\n' > "$rigBoard/running/$rigLegacy.md"
-rigOp rec6 --record-decision "$rigMember" "$rigLegacy" --kind clarification --text "Appended to the legacy section."
+rigOp rec6 --record-decision --team-member "$rigMember" "$rigLegacy" --kind clarification --text "Appended to the legacy section."
 rigAssert "an unmarked section from before is still its own" "$( LC_ALL=C grep -c '^## Decisions' "$rigBoard/running/$rigLegacy.md" )/$( rigSection "$rigBoard/running/$rigLegacy.md" | wc -l | tr -d ' ' )" 1/2
 
 echo "-- the coordinator's forward refuses an escalation already answered --"

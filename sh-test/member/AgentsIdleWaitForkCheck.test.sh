@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-## One idle Wait costs one process a tick, and no more. An idle Wait reads its local sources
-## once a second, and every read that starts a process of its own is load the machine pays
-## with nothing arriving: on 2026-10-28 the owner's machine ran at a load average about 60
-## with every team session idle.
+## One idle Wait costs no process a tick. An idle Wait reads its local sources once a second,
+## and every process a tick starts is load the machine pays with nothing arriving: on
+## 2026-10-28 the owner's machine ran at a load average about 60 with every team session idle.
 ## Held here:
 ##   1. THE TICK. One idle Wait over a file source, a short window and a longer one,
 ##      counted by a PATH shim that records every external command started under it: at most
-##      2 processes to a poll round for the ticks the longer run adds. The rounds are counted
-##      from the wait's own report, so a rig that never ran fails here instead of passing on
-##      an empty count.
+##      one process more over the rounds the longer run adds beyond the shorter, which is a
+##      call's own start landing in one window rather than the other. A process a round cannot
+##      fit inside that, since the two windows are eight rounds apart or more. The rounds are
+##      counted from the wait's own report, so a rig that never ran fails here instead of
+##      passing on an empty count.
 ##   2. THE INSTRUMENT. The same shim counts the 5 date calls of a rig that makes exactly 5.
 ##      A counter that cannot see a fork it was put there to see is no counter at all.
 ##   3. A CALLER THAT IS GONE. A Wait started from a shell that then exits ends within 15
 ##      seconds with WAIT-RESULT: ERROR, instead of polling on for a result nobody reads.
 ## Red: on the code before the cut of 2026-10-28, section 1 counted 185 externals over 20
-## rounds (8.8 a round); section 3's wait ran on past its caller, to its whole bound.
+## rounds (8.8 a round); section 3's wait ran on past its caller, to its whole bound. On the
+## code before the nap of 2026-11-04 it counted 1 a round, the `sleep` of the nap itself:
+## measured at 13 processes over 13 further rounds. A builtin read on a fifo the wait holds
+## both ends of takes that fork out, and the bound below is what holds it out.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents"
@@ -80,8 +84,10 @@ case "${rigRounds1:-x}${rigRounds2:-x}" in ''|*[!0-9]*) rigFail "a wait of secti
 rigTicks=$(( rigRounds2 - rigRounds1 ))
 [ "$rigTicks" -ge 8 ] || rigFail "the two runs polled $rigRounds1 and $rigRounds2 rounds: too near each other to tell a tick from the start"
 rigForks="$(( $( wc -l < "$rigTmp/forks2" ) - $( wc -l < "$rigTmp/forks1" ) ))"
-[ "$rigForks" -le $(( rigTicks * 2 )) ] \
-	|| rigFail "one idle Wait started $rigForks processes over $rigTicks further poll rounds (one a round is the nap alone, 2 is the bound): the tick is forking again"
+## A one-off cost of a call's own start may fall in either window natively, so a single process either way is no
+## tick. A per-round cost cannot hide inside it: the two windows are at least eight rounds apart.
+[ "$rigForks" -le 1 ] \
+	|| rigFail "one idle Wait started $rigForks more processes over $rigTicks further poll rounds, and a quiet tick is to start none: the nap is forking again. What it started: $( LC_ALL=C awk 'NR > 0 { n[ $0 ]++ } END { for ( w in n ) printf "%s x%s ", w, n[w] }' "$rigTmp/forks2" )"
 
 ## SECTION 3: a wait whose caller is gone ends, and says so.
 : > "$rigTmp/orphan.out"

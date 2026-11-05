@@ -171,7 +171,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `includes:` (optional)
   - One line for each routine whose sections this routine takes in whole: `includes: <routine file name>: <section>, <section>`, the sections being `Steps`, `Routine's local procedures`, `Routine's local rules` and `Routine-specific tooling`. The mix-in engine puts each after the routine's own section of that name, under the heading `<section> of <routine>`. It does so wherever the routine's text is read: `--get-routine-text`, the brief, the cached prefix. Nothing is copied, so the rules stand in one place. `validate`: the routine file is one file of the skillset and holds the section.
 - `wait-sources:` (optional)
-  - The sources a run of the routine waits on besides its scans, for `--idle-wait`. The words are `inbox:{{team-member}}` (the own inbox) and `board:<state>`, which the wait reads at every pass. An item arriving in them wakes the run within seconds.
+  - The sources a run of the routine waits on besides its scans, for `ThisSession`, operation `idle-wait`. The words are `inbox:{{team-member}}` (the own inbox) and `board:<state>`, which the wait reads at every pass. An item arriving in them wakes the run within seconds.
 - `cache-prefix:` (optional)
   - How far the cacheable prefix of a spawn of this routine reaches. `armed`, the default, is the member's armed floor alone, for a routine that runs rarely. `routine` adds the routine's own instruction and reference, for a routine that runs often, so its runs share them. `extended` is `armed` and the Member+ layer: the member's reference files, merged by section to the third level of headings. They come right after its armed content, one copy that every such session of the member shares. A work-duty is `extended`. Its routine travels in its dispatch, where it caches across the member's work-duty runs. The member's reference files stand in the Member+ layer ahead of it. Any other value is refused by the validator, and the spawner writes the value on the run's record.
 - `runs-at:` (mandatory) and `runs-after:` (optional)
@@ -196,6 +196,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `# Steps`
   - Exact instructions, execute in order, literally as written.
   - A step that can't execute as written: escalate it, and never skip it silently.
+  - A routine that produces or updates a tracking document says, at the step that does it, both when to update the document and that it must stand alone. Standing alone means the goal, the reason, the scope, the current state, the next step, the decisions taken and the open points, each a plain present-tense statement. The document is a produce under `magic-team.basic.md`'s "Relay, direct, produce".
   - Exact steps as nested lists. Nested lines follow `magic-team/reference/skill-folder-model.md`'s nested-item grammar (`goal:`/`rule:`/`step:`).
   - Every root-level step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
   - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.

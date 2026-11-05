@@ -346,21 +346,28 @@ case "$1" in
 			case "$mainLoopCollect" in
 				started*|failed*) echo "# $MDSC_CMD --intern-main-loop: the source collector: $mainLoopCollect" >&2 ;;
 			esac
-			## The schedule (F7.5): the autorun of the routines that declare one, the work-duty sessions the flags allow, and the learning
-			## inquiry for each session that ended (AgentsTools.DispatcherSchedule.include). The decisions are Dispatcher's: the loop asks, and
-			## starts through the spawner. One line for each thing done; never fatal. They run only
-			## when the configuration check passed: a failed check is the iteration's failure (the backoff applies), and starts nothing.
-			local mainLoopSchedule="" mainLoopScheduleLine
+			## The schedule (F7.5, S12.12): with the schedule's service thread on -- which is every rig but the checks -- the loop only makes sure it
+			## runs, and the thread itself runs the steps. With MDAT_SCHEDULE_THREAD=off, as every check of this package has it, the loop runs
+			## them here, in its own process, exactly as it always did.
+			local mainLoopSchedule="" mainLoopScheduleLine mainLoopScheduleAsk=""
 			[ "$mainLoopInterrupted" = "false" ] || return 0
 			if [ -n "$mainLoopConfigOk" ] ; then
-				mainLoopSchedule="$(
-					set +e
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || exit 1
-					AgentsToolsScheduleLoop 2> /dev/null
-				)" || mainLoopSchedule="schedule: the steps could not run"
-				while IFS= read -r mainLoopScheduleLine ; do
-					[ -z "$mainLoopScheduleLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopScheduleLine" >&2
-				done <<< "$mainLoopSchedule"
+				if [ "${MDAT_SCHEDULE_THREAD:-}" != "off" ] ; then
+					type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" 2> /dev/null || :
+					mainLoopScheduleAsk="$( AgentsToolsScheduleThreadAsk 2> /dev/null )" || :
+					case "$mainLoopScheduleAsk" in
+						started*|failed*) echo "# $MDSC_CMD --intern-main-loop: the schedule's service thread: $mainLoopScheduleAsk" >&2 ;;
+					esac
+				else
+					mainLoopSchedule="$(
+						set +e
+						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || exit 1
+						AgentsToolsScheduleLoop 2> /dev/null
+					)" || mainLoopSchedule="schedule: the steps could not run"
+					while IFS= read -r mainLoopScheduleLine ; do
+						[ -z "$mainLoopScheduleLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopScheduleLine" >&2
+					done <<< "$mainLoopSchedule"
+				fi
 			else
 				echo "# $MDSC_CMD --intern-main-loop: the schedule's starts are skipped in this iteration" >&2
 			fi

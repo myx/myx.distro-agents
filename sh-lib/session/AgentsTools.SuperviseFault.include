@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseFault.include -- the supervisor files a tooling fault with its evidence, and links it to the run it
+## blocks (epic S13.7). Sourced, never run; functions only.
+##
+## WHAT WAS MISSING. `--upsert-inbox-inquiry` files an inquiry into a member's inbox and makes no link: nothing said which run
+## the fault blocked, and the run's own item carried no line about it. An inquiry holds no key the inquiry contract does not
+## name, so the link is made where a ruling on the work is read: one line in the `## Decisions` of the run's dispatch item,
+## through the same decisions writer every verdict uses.
+##
+
+## --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>|standard input]
+AgentsToolsSuperviseFault(){ ## <run-id> --owner <member> --title <text> [--from-file <path>|stdin]
+	local faultWs="${MMDAPP%/}" faultRun="" faultOwner="" faultTitle="" faultFrom="" faultBody="" faultRecord faultMember
+	local faultSession faultFolder faultItem faultName faultEvidence faultSaid faultLinked
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--owner) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --owner requires a member" >&2 ; return 1 ; } ; faultOwner="$2" ; shift 2 ;;
+			--title) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --title requires one line" >&2 ; return 1 ; } ; faultTitle="$2" ; shift 2 ;;
+			--from-file) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --from-file requires a path" >&2 ; return 1 ; } ; faultFrom="$2" ; shift 2 ;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: invalid option: $1" >&2 ; return 1 ;;
+			*)
+				[ -z "$faultRun" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: takes one run id, got a second: $1" >&2 ; return 1 ; }
+				faultRun="$1" ; shift
+			;;
+		esac
+	done
+	[ -n "$faultRun" ] && [ -n "$faultOwner" ] && [ -n "$faultTitle" ] || {
+		echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: syntax is <run-id> --owner <member> --title <one line> [--from-file <path>]" >&2 ; return 1 ; }
+	case "$faultRun" in */*|.|..) echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: a run id is a bare name, got: $faultRun" >&2 ; return 1 ;; esac
+	case "$faultOwner" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: --owner names a member by its name, got: $faultOwner" >&2 ; return 1 ;; esac
+	if [ -n "$faultFrom" ] ; then
+		[ -f "$faultFrom" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: no such file: $faultFrom" >&2 ; return 1 ; }
+		faultBody="$( cat "$faultFrom" )" || faultBody=""
+	else
+		faultBody="$( cat )" || faultBody=""
+	fi
+	case "$faultBody" in *[![:space:]]*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: the evidence is empty -- nothing was filed" >&2 ; return 1 ;; esac
+	type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	faultRecord="$( MMDAPP="$faultWs" AgentsToolsRegistrySpawnRecord "$faultRun" )"
+	[ -n "$faultRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: no record of this workspace carries the run $faultRun" >&2 ; return 1 ; }
+	faultFolder="${faultRecord%/*}"
+	faultMember="$( AgentsToolsSpawnSandboxRecordHeader "$faultRecord" owner )"
+	faultSession="$( AgentsToolsSpawnSandboxRecordHeader "$faultRecord" session-id )"
+	## The item the run works: its `spawns:`, else its `spawned-by:`, cut to the bare name as the review flow cuts it.
+	faultItem=""
+	for faultSaid in spawns spawned-by ; do
+		faultSaid="$( AgentsToolsSpawnSandboxRecordHeader "$faultRecord" "$faultSaid" )"
+		faultSaid="${faultSaid%%,*}" ; faultSaid="${faultSaid%% *}" ; faultSaid="${faultSaid%.md}"
+		case "$faultSaid" in ''|-) continue ;; esac
+		faultItem="$faultSaid" ; break
+	done
+	faultName="inquiry-$( date -u +%Y%m%dT%H%M%SZ )-fault-$( printf '%s' "$faultTitle" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' | cut -c1-60 ).md"
+	## The run's own facts go in the item, not in a thread: its reader is the member that owns the code.
+	faultEvidence="# Fault: $faultTitle
+
+Filed by the supervisor against the tooling, from run $faultRun.
+
+- run: $faultRun
+- member: ${faultMember:--}
+- session: ${faultSession:--}
+- dispatch item: ${faultItem:--}
+
+## Evidence
+
+$faultBody"
+	if [ -n "$faultItem" ] ; then
+		faultEvidence="$faultEvidence
+
+## Linked
+
+This fault blocks $faultItem, whose own Decisions carry a line about it."
+	fi
+	faultSaid="$( printf '%s\n' "$faultEvidence" | MMDAPP="$faultWs" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" \
+		--upsert-inbox-inquiry "$faultOwner" "$faultName" 2>&1 )" || faultSaid="$faultSaid
+$( printf '%s' "$?" )"
+	case "$faultSaid" in
+		*ERROR*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-fault: the inquiry could not be filed in $faultOwner's inbox: $( printf '%s' "$faultSaid" | LC_ALL=C grep -m1 'ERROR' )" >&2 ; return 1 ;;
+	esac
+	printf 'fault\t%s\t%s\t%s\t%s\n' "$faultRun" "$faultOwner" "$faultName" "${faultItem:--}"
+	## THE LINK, where a ruling on the work is read: one line in the item's own Decisions, naming the fault and the run.
+	## It goes through the tooling's own append, as every verdict and ending of the review flow does: a supervisor is no party to
+	## the item, and --record-decision is for its parties alone.
+	[ -n "$faultItem" ] || return 0
+	faultLinked="$( MMDAPP="$faultWs" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+		--intern-op-decisions-append magic-coordinator "$faultItem" --kind clarification --source "$faultName" --context agent-dispatcher-tools \
+		--text "tooling fault filed to $faultOwner: $faultName blocks run $faultRun" 2>&1 )" || faultLinked="ERROR $faultLinked"
+	case "$faultLinked" in
+		*ERROR*|*⛔*) echo "$MDSC_CMD: ⚠️ WARNING: --supervise-fault: the fault $faultName is filed, but $faultItem carries no line about it: $( printf '%s' "$faultLinked" | LC_ALL=C grep -m1 -e 'ERROR' -e '⛔' )" >&2 ; return 0 ;;
+	esac
+	printf 'linked\t%s\t%s\n' "$faultItem" "$faultName"
+	return 0
+}

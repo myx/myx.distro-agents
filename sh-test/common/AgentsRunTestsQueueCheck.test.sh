@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the line full suites stand in (sh-test/AgentsRunTests.sh), run rather than read, on a fixture
-## machine built here: a HOME, whose .agents/magic-team/suite-queue is the machine's one line, a workspace, and under
+## machine built here: a HOME, whose .agents/magic-team/suite-queue is the machine's one line and whose
+## .agents/magic-team/suite-lanes holds its lanes, a workspace, and under
 ## its .local/temp several copies of a package, each a build session's scratch with the runner under test and one tiny
 ## test in it. Held: a run of every test waits its turn in arrival order, whichever copy it is started from, and says
 ## in one line whom it waits behind; a run of named tests stands in the same line; a ticket whose runner no longer exists is taken
@@ -15,6 +16,11 @@
 ## long a run takes: a suite that must still be running when another is started runs until the rig lets it end, so the
 ## order of what happened is the rig's own, on a busy host as on an idle one. What the rig cannot show: nine real
 ## sessions at once, and a real suite's length.
+##
+## AND THE LANES: as many runs stand beside each other as the machine's lanes allow, in arrival order, and a test that
+## measures its own timing takes every lane. The rig fixes the lane count and its pace floor itself, so nothing here
+## waits on how busy this host is (section 9). Red before the lanes landed: three runs of one test each took turns one
+## after another, and the second of two that could have stood together waited for the first.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigRunner="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-test/AgentsRunTests.sh"
@@ -33,6 +39,7 @@ trap 'rigProcSignal TERM $rigStarted ; rm -rf -- "$rigTmp"' EXIT
 rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws"
 rigQueue="$rigHome/.agents/magic-team/suite-queue"
 rigWorkers="$rigHome/.agents/magic-team/suite-workers"
+rigLanes="$rigHome/.agents/magic-team/suite-lanes"
 rigLock="$rigWs/.local/temp/suite-run.lock"
 rigTestLock="$rigWs/.local/temp/one-test-run.lock"
 mkdir -p "$rigHome" "$rigWs/.local/temp"
@@ -114,8 +121,25 @@ rigHeld(){ ## session -- what its test found while it ran: the lock's runner, th
 rigDeadPid(){ ## -- the pid of a process that has ended
 	( exit 0 ) & local deadPid=$! ; wait "$deadPid" 2> /dev/null ; printf '%s\n' "$deadPid"
 }
-rigFresh(){ ## -- a clean line, no lock, no slot taken and no budget set, an empty log, nothing held or let go
-	rm -rf "$rigQueue" "$rigLock" "$rigTestLock" "$rigWorkers" ; : > "$rigTmp/log" ; rm -f "$rigTmp"/*.out "$rigTmp"/let.* ; rigHold=""
+rigFresh(){ ## -- a clean line at one lane, no lock, no slot taken and no budget set, an empty log, nothing held or let go
+	rm -rf "$rigQueue" "$rigLanes" "$rigLock" "$rigTestLock" "$rigWorkers" ; : > "$rigTmp/log" ; rm -f "$rigTmp"/*.out "$rigTmp"/let.* ; rigHold=""
+	rigLanes 1
+}
+rigLanes(){ ## number -- how many lane(s) this machine allows: fixed by the rig, so the count is that number on any host
+	mkdir -p "$rigLanes" && printf '%s\n' "$1" > "$rigLanes/max" && printf '%s\n' "$1" > "$rigLanes/count"
+}
+rigLaneHolders(){ ## -- the pids holding a lane of the rig's machine now, sorted, on one line (lane 1 is the hand rule's lock)
+	local laneNumber=1 lanePid laneMax
+	laneMax="$( LC_ALL=C sed -n 1p "$rigLanes/max" 2>/dev/null )"
+	case "$laneMax" in ''|*[!0123456789]*) laneMax=1 ;; esac
+	while [ "$laneNumber" -le "$laneMax" ] ; do
+		case "$laneNumber" in
+			1) lanePid="$( LC_ALL=C sed -n 's/^runner-pid: //p' "$rigLock/holder.txt" 2> /dev/null | LC_ALL=C sed -n 1p )" ;;
+			*) lanePid="$( LC_ALL=C sed -n 's/^pid=//p' "$rigLanes/lane.$laneNumber/pid" 2> /dev/null | LC_ALL=C sed -n 1p )" ;;
+		esac
+		[ -z "$lanePid" ] || printf '%s\n' "$lanePid"
+		laneNumber=$(( laneNumber + 1 ))
+	done | LC_ALL=C sort | LC_ALL=C tr '\n' ' '
 }
 rigBudget(){ ## number -- the machine's budget of test workers set to it
 	mkdir -p "$rigWorkers" && printf '%s\n' "$1" > "$rigWorkers/budget"
@@ -174,8 +198,8 @@ rigLet b ; rigEnd "$rigPidB" ; rigRcB=$rigRc
 rigLet c ; rigEnd "$rigPidC" ; rigRcC=$rigRc
 rigAssert "all three ran" "$rigRcA $rigRcB $rigRcC" "0 0 0"
 rigAssert "one at a time and in arrival order: each began only after the one before it had ended" "$( rigOrder )" "BEGIN a END a BEGIN b END b BEGIN c END c"
-rigAssert "the second said, in one line, that it waits and behind whom: the first, by its pid, the copy it runs from and since when" "$( rigWaits b ) $( LC_ALL=C grep -c -F -- "# AgentsRunTests.sh: one run of the tests runs on this machine at a time -- this one waits its turn behind the run of pid $rigTicketA from $( rigRoot a ), in line since " "$rigTmp/b.out" || : )" "1 1"
-rigAssert "the third said it once for each it waited behind in turn: the first, then the second" "$( rigWaits c ) $( LC_ALL=C grep -F -- 'waits its turn behind' "$rigTmp/c.out" | LC_ALL=C sed -e 's/.* from //' -e 's/, in line since.*//' -e "s|$rigWs/.local/temp/||" | LC_ALL=C tr '\n' ' ' )" "2 rig-scratch-a/source rig-scratch-b/source "
+rigAssert "the second said, in one line, that it waits and behind whom: the first, by its pid, the copy it runs from and since when" "$( rigWaits b ) $( LC_ALL=C grep -c -F -- "this one waits its turn behind the run of pid $rigTicketA from $( rigRoot a ), in line since " "$rigTmp/b.out" || : )" "1 1"
+rigAssert "the third said whom it waited behind, in one line each time that changed, naming a copy ahead of it and never its own" "$( rigWaits c ) $( LC_ALL=C grep -F -- 'waits its turn behind' "$rigTmp/c.out" | LC_ALL=C sed -e 's/.* from //' -e 's/, in line since.*//' -e "s|$rigWs/.local/temp/||" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "2 rig-scratch-a/source rig-scratch-b/source "
 rigAssert "each held the lock itself while it ran" "$( rigHeld b | LC_ALL=C sed -n 's/^lock=\([0-9]*\) line=\1 .*/own/p' ) $( rigHeld c | LC_ALL=C sed -n 's/^lock=\([0-9]*\) line=\1 $/own/p' )" "own own"
 rigAssert "and the line and the lock are free again" "$( rigTickets ) $( [ -d "$rigLock" ] && printf held || printf free )" "0 free"
 
@@ -383,6 +407,91 @@ rigAssert "a lock whose owner is the folder this run starts from is its own call
 : > "$rigTmp/log"
 rigRun live RigTiny ; rigEnd "$rigLast"
 rigAssert "a run from a tree that is no scratch folder cannot tell whose the lock is, and takes it as its caller's own: a session on the hand rule runs the live tree's tests under its own lock" "$rigRc $( rigOrder ) $( LC_ALL=C grep -c -F -- 'a test waits' "$rigTmp/live.out" || : ) $( rigTestLockHeld )" "0 BEGIN live END live 0 held:rig-scratch-n"
+
+echo "-- 9. the machine's lanes: as many runs stand beside each other as it has, in arrival order --"
+## The line became the throttle: a run of one named test held every other run for as long as it took. A lane is what a
+## run holds, the count comes from the machine's pace (fixed here), and a ticket ahead that holds no lane is still the
+## head of the queue. The rig's test writes its BEGIN and END to the shared log, so what ran at once is its own order.
+rigFresh ; rigLanes 2 ; rigHold=1
+rigRun a RigTiny ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the first run never began, so nothing below would be measured"
+rigRun b RigTiny ; rigPidB=$rigLast
+rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the second run never began beside the first: two lanes were free but the run waited"
+rigAssert "with two lanes, the second run begins while the first still runs: two tests at once, and neither said it waits" \
+	"$( rigMostAtOnce ) $( rigWaits a )$( rigWaits b )" "2 00"
+rigAssert "each holds a lane of its own, so no lane is taken twice" \
+	"$( rigLaneHolders | LC_ALL=C awk '{ print NF }' )" 2
+rigAssert "and the two tests' names are the ones the log holds at once" \
+	"$( rigBegun | LC_ALL=C wc -w | LC_ALL=C tr -d ' ' )" 2
+rigLet a ; rigLet b ; rigEnd "$rigPidA" ; rigEnd "$rigPidB"
+rigAssert "both ran through, rc 0 each" "$rigRc $( LC_ALL=C grep -c '^END ' "$rigTmp/log" )" "0 2"
+rigAssert "and both lanes are free again, with the line empty" "$( rigLaneHolders )|$( rigTickets )" "|0"
+rigFresh ; rigLanes 2 ; rigHold=1
+rigRun a RigTiny ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the run that was to hold a lane never began"
+rigRun b RigTiny ; rigPidB=$rigLast
+rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the second run never began on the machine's second lane"
+rigRun c RigTiny ; rigPidC=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/c.out" || rigRefuse "with both lanes taken, the third run never said it waits, so the limit below would be nobody's"
+rigAssert "with both lanes taken, a third run waits and begins nothing, saying whom it waits behind" "$( rigOrder ) $( rigWaits c )" "BEGIN a BEGIN b 1"
+rigLet a ; rigEnd "$rigPidA"
+rigUntil 'BEGIN c' "$rigTmp/log" || rigRefuse "the third run never took the lane the first gave back, so the lane would be held by the dead"
+rigAssert "control: the lane the first run gave back is taken by the third at once, and it runs" "$( LC_ALL=C grep -c -x -F 'BEGIN c' "$rigTmp/log" )" 1
+rigLet b ; rigLet c ; rigEnd "$rigPidB" ; rigEnd "$rigPidC"
+rigAssert "all three ran, and never more than the machine's two lanes at once" "$( LC_ALL=C grep -c '^END ' "$rigTmp/log" ) $( rigMostAtOnce )" "3 2"
+rigFresh ; rigLanes 1 ; rigHold=1
+rigRun a RigTiny ; rigPidA=$rigLast
+rigUntil 'BEGIN a' "$rigTmp/log" || rigRefuse "the run on the one-lane machine never began"
+rigRun b RigTiny ; rigPidB=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/b.out" || rigRefuse "with one lane the second run never said it waits"
+rigAssert "one lane is the machine as it was: the second run waits, and says so in one line" "$( rigOrder ) $( rigWaits b )" "BEGIN a 1"
+rigLet a ; rigEnd "$rigPidA" ; rigLet b ; rigEnd "$rigPidB"
+rigAssert "and then it runs" "$( LC_ALL=C grep -c '^END ' "$rigTmp/log" )" 2
+## A lane whose run is gone is taken by whoever asks next: a lane file left by a dead run, and a lock taken by hand,
+## which is lane 1 and is a live session's, so it is never given back.
+rigFresh ; rigLanes 2 ; rigDead="$( rigDeadPid )"
+mkdir -p "$rigLanes/lane.1" ; printf 'pid=%s\n' "$rigDead" > "$rigLanes/lane.1/pid"
+rigRun n RigTiny ; rigEnd "$rigLast"
+rigAssert "a lane listed for a process that no longer exists is taken at once, and nobody is told to wait" "$rigRc $( rigOrder ) $( rigWaits n )" "0 BEGIN n END n 0"
+rigFresh ; rigLanes 2
+mkdir -p "$rigLock" ; printf 'agent: rig-scratch-other (a session on the hand rule)\ntaken: 2026-01-01T00:00:00Z\n' > "$rigLock/holder.txt"
+rigRun n RigTiny ; rigPidN=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/n.out" || rigRefuse "a lock taken by hand never made the run wait, so the lane rule below would be nobody's"
+rigAssert "a lock taken by hand shuts every lane: the run waits behind it, and the lock is left as it was" "$( rigWaits n ) $( [ -d "$rigLock" ] && printf held || printf free ) $( LC_ALL=C grep -c 'rig-scratch-other' "$rigLock/holder.txt" 2> /dev/null || : )" "1 held 1"
+rm -rf "$rigLock" ; rigEnd "$rigPidN"
+rigAssert "accepted sibling: once it is removed the run takes a lane and runs" "$rigRc $( rigOrder )" "0 BEGIN n END n"
+## A test that measures its own timing takes every lane: declared `## lane: alone` in its header. The lanes it found
+## held for it are counted as the machine's own: the hand rule's lock is lane 1, and every `lane.<n>` folder is another.
+rigFresh ; rigLanes 3 ; rigHold=1
+cat > "$( rigRoot a )/myx/myx.distro-agents/sh-test/RigTinyAlone.test.sh" <<'RIGALONE'
+#!/usr/bin/env bash
+## lane: alone
+RIG_SUITE="$RIG_SUITE.alone"
+printf 'BEGIN %s\n' "$RIG_SUITE" >> "$RIG_SHARED/log"
+rigLaneFirst=0
+LC_ALL=C grep -q '^runner-pid: ' "$MMDAPP/.local/temp/suite-run.lock/holder.txt" 2> /dev/null && rigLaneFirst=1
+rigLaneRest="$( ls "$HOME/.agents/magic-team/suite-lanes" 2> /dev/null | LC_ALL=C grep -c '^lane\.' )"
+case "$rigLaneRest" in ''|*[!0123456789]*) rigLaneRest=0 ;; esac
+printf 'LANES %s\n' "$(( rigLaneFirst + rigLaneRest ))" >> "$RIG_SHARED/log"
+rigHeldFor=600
+while [ -n "${RIG_HOLD:-}" ] && [ ! -e "$RIG_SHARED/let.$RIG_SUITE" ] && [ "$rigHeldFor" -gt 0 ] ; do sleep 0.2 ; rigHeldFor=$(( rigHeldFor - 1 )) ; done
+printf 'END %s\n' "$RIG_SUITE" >> "$RIG_SHARED/log"
+echo "RIG_ALONE: OK"
+RIGALONE
+for rigSession in a b c ; do cp "$( rigRoot "$rigSession" )/myx/myx.distro-agents/sh-test/RigTinyAlone.test.sh" "$( rigRoot "$rigSession" )/myx/myx.distro-agents/sh-test/" 2> /dev/null || : ; done
+rigRun a RigTinyAlone ; rigPidA=$rigLast
+rigUntil 'BEGIN a.alone' "$rigTmp/log" || rigRefuse "the run of the alone test never began, so its lanes below would be nobody's"
+rigUntil 'LANES ' "$rigTmp/log" || rigRefuse "the alone test never said how many lanes it found held for it"
+rigAssert "a test whose header says it measures its own timing takes every lane of the machine" \
+	"$( LC_ALL=C sed -n 's/^LANES //p' "$rigTmp/log" | LC_ALL=C sed -n 1p )" 3
+rigRun b RigTiny ; rigPidB=$rigLast
+rigUntil 'waits its turn behind' "$rigTmp/b.out" || rigRefuse "a plain run never said it waits behind the alone run"
+rigAssert "so no other run starts beside it: the plain run waits, and says why" "$( rigOrder ) $( rigWaits b )" "BEGIN a.alone 1"
+rigLet a.alone ; rigEnd "$rigPidA"
+rigUntil 'BEGIN b' "$rigTmp/log" || rigRefuse "the plain run never began once the alone run had ended"
+rigLet b ; rigEnd "$rigPidB"
+rigAssert "and once it has ended the plain run takes one lane and runs, so every lane is given back" "$( rigOrder ) $( rigLaneHolders )" "BEGIN a.alone END a.alone BEGIN b END b "
+rm -f "$( rigRoot a )/myx/myx.distro-agents/sh-test/RigTinyAlone.test.sh"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RUN TESTS QUEUE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

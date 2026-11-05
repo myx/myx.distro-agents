@@ -133,6 +133,11 @@ FNR == 1 { fileNo++ ; inKeys = 0 ; inRules = 0 ; inFront = 0 ; frontDone = 0 ; }
 
 ## ---- the contract ----
 fileNo == 1 {
+	if ($0 ~ /^- Kind `[a-z.-]+`: store [a-z]+, type word `[a-z-]+`/) {
+		## The contract's own type word, which a vault one may write in two words (`epic-blueprint`) where the file name's
+		## leading token stops at the first dash.
+		kindWord = $0 ; sub(/^.*type word `/, "", kindWord) ; sub(/`.*$/, "", kindWord) ;
+	}
 	if ($0 ~ /^## /) { inKeys = ($0 ~ /^## Keys/) ; inRules = ($0 ~ /^## Rules/) ; next ; }
 	if ($0 ~ /^# /) { inKeys = 0 ; inRules = 0 ; next ; }
 	if (inKeys && $0 ~ /^\| `/) {
@@ -194,7 +199,10 @@ END {
 		oneRule = ruleText[idx] ; handled = 0 ;
 		if (oneRule ~ /^`[a-z-]+` equals the type word in the filename/) {
 			handled = 1 ; keyName = ruleKey(oneRule) ;
+			## The type word the file name carries: the contract's own where it stands at the name's start (`epic-blueprint-`),
+			## else the name's leading token, so `change-` with `type: task` still refuses.
 			typeOfName = docFile ; sub(/-.*$/, "", typeOfName) ;
+			if (kindWord != "" && index( docFile, kindWord "-" ) == 1) typeOfName = kindWord ;
 			if (docFile != "" && (keyName in docHas) && docVal[keyName] != "" && docVal[keyName] != typeOfName) {
 				emitRow(docLine[keyName], "contract-type", "the key " keyName " is not the type word of the file name " docFile, docVal[keyName] " (the file name says " typeOfName ")") ;
 			}

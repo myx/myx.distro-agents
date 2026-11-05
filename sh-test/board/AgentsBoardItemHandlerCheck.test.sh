@@ -185,9 +185,9 @@ rigOut="$( rigDigestAs rig-sess-coord )"
 rigAssert "an item a live run holds shows the holder, for the coordinator" "$( rigHeldLine "$rigOut" proposal-20261028T0120Z-rig-held.md )" "held (by keeper-rig (rig-sess-owner))"
 rigAssert "an item nobody holds shows none, where the caller may run it (the coordinator)" "$( rigHeldLine "$rigOut" proposal-20261028T0121Z-rig-free.md )" ""
 rigOut="$( rigDigestAs rig-sess-owner )"
-rigAssert "the holder itself sees no hold on its own item" "$( rigHeldLine "$rigOut" proposal-20261028T0120Z-rig-held.md )" ""
+rigAssert "the holder's own run sees the same holder: held is the document's, never the asker's" "$( rigHeldLine "$rigOut" proposal-20261028T0120Z-rig-held.md )" "held (by keeper-rig (rig-sess-owner))"
 rigOut="$( rigDigestAs rig-sess-other )"
-rigAssert "an item nobody holds shows that only the coordinator runs it, for another member" "$( rigHeldLine "$rigOut" proposal-20261028T0121Z-rig-free.md )" "held (no live holder: only magic-coordinator runs it)"
+rigAssert "an item nobody holds shows no hold line at all, for another member too: a view never decides" "$( rigHeldLine "$rigOut" proposal-20261028T0121Z-rig-free.md )" ""
 
 echo "-- 11. the board writer takes an investigation --"
 rigInvName=investigation-20261028T0830Z-rig-new.md
