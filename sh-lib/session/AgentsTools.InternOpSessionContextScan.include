@@ -53,7 +53,7 @@ case "$1" in
 		## owner scoping and the named-item lookup all stay with actingMember, and
 		## nothing here writes into another member's inbox.
 		local inboxAlsoMembers=() alsoSeen
-		local doBoardRelatedActive="false" doBoardRelatedAll="false"
+		local doBoardRelatedActive="false" doBoardRelatedAll="false" doBoardRelatedStartable="false"
 		local itemIncludeInbox="false" itemIncludeProcessed="no"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -144,6 +144,8 @@ case "$1" in
 					shift 2
 				;;
 				--do-board-related-active) doBoardRelatedActive="true" ; shift ;;
+				## THE STARTABLE SET, a duty's: the items it may take or already holds, pending and running, of the active path.
+				--do-board-related-startable) doBoardRelatedActive="true" ; doBoardRelatedStartable="true" ; shift ;;
 				--do-board-related-all)    doBoardRelatedAll="true" ; shift ;;
 				--no-inbox-inquiry)        noInboxInquiry="true" ; shift ;;
 				--no-inbox-reflections)    noInboxReflections="true" ; shift ;;
@@ -306,6 +308,9 @@ case "$1" in
 			if [ "$doBoardRelatedAll" = "true" ] ; then
 				boardRelatedStates=( backlog pending running review blocked parked processed archived retained )
 				boardRelatedStatesText="backlog|pending|running|review|blocked|parked|processed|archived|retained"
+			elif [ "$doBoardRelatedStartable" = "true" ] ; then
+				boardRelatedStates=( pending running )
+				boardRelatedStatesText="pending|running"
 			else
 				boardRelatedStates=( backlog pending running review blocked parked )
 				boardRelatedStatesText="backlog|pending|running|review|blocked|parked"

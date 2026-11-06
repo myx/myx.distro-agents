@@ -422,6 +422,18 @@ case "$1" in
 			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, tree: $boardRoot" >&2
 		fi
 
+		## A dispatch item whose `references:` cite peers gives its session's run a seat on each: that session's permission files are written again here, once.
+		case $'\n'"$body" in
+			*$'\n'"references: "*)
+				local seatSession=""
+				seatSession="$( printf '%s\n' "$body" | LC_ALL=C awk '/^session-id: / { print substr( $0, 13 ) ; exit }' )"
+				case "$seatSession" in ''|*/*|.|..) ;; *)
+					type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" 2> /dev/null || :
+					AgentsToolsGrantsStoreTouch "$MMDAPP/.local/agents/sessions/$seatSession" > /dev/null 2>&1 || :
+				;; esac
+			;;
+		esac
+
 		## Approval cascade (AgentsTools.ApprovalCascade.include, contract: MAGIC.md): only an
 		## approval-* arriving in processed, so a same-state edit (a comment, a clarification, a
 		## rejection with a reason) never fires it; a denial carries no approved-by and cascades nothing.

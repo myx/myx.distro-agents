@@ -91,7 +91,16 @@ case "$1" in
 
 		local armedFile="$MDAT_SKILLSET_ROOT/$targetMember/$targetMember.armed.md"
 		if [ ! -f "$armedFile" ] ; then
-			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile" >&2
+			## Said so the reader can act: whose member set was read, and where the machine's members index says the member is set up.
+			local armedRootWs="" armedSetUp=""
+			case "$MDAT_SKILLSET_ROOT" in */.local/agents/members) armedRootWs="${MDAT_SKILLSET_ROOT%/.local/agents/members}" ;; esac
+			armedSetUp="$( LC_ALL=C awk -F'\t' -v who="$targetMember" 'NF >= 5 && $1 == who && $3 != "source-declared" { printf "%s%s", sep, $2 ; sep = ", " ; }' "${HOME:-}/.agents/magic-team/members.registry" 2> /dev/null )" || armedSetUp=""
+			[ -n "$armedSetUp" ] || armedSetUp="no workspace the machine's members index (${HOME:-}/.agents/magic-team/members.registry) names"
+			if [ -n "$armedRootWs" ] && [ "$armedRootWs" != "${MMDAPP%/}" ] ; then
+				echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile -- nothing was started. The member set read is the view of $armedRootWs, not of ${MMDAPP%/}, the workspace this spawn runs from: MDAT_SKILLSET_ROOT was carried in from a member invited from $armedRootWs. $targetMember is set up in: $armedSetUp. Start it from a context whose MDAT_SKILLSET_ROOT is ${MMDAPP%/}/.local/agents/members." >&2
+			else
+				echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile -- nothing was started. $targetMember is set up in: $armedSetUp." >&2
+			fi
 			set +e ; return 1
 		fi
 

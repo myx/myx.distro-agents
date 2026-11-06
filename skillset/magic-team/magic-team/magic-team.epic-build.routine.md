@@ -34,6 +34,8 @@ review-by: inherit
 the four beats of "How a feature is delivered", the build brief, and the apply
 tool, ending with the apply report.
 
+Handles: task
+
 ## Goals
 
 - Deliver one feature the epic names, by the four beats: readback and gaps, sandbox, gate, apply.

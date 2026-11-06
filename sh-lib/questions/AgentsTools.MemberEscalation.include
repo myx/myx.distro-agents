@@ -15,8 +15,9 @@
 ## change, a reject drops it, and both are the human-owner's alone (AgentsTools.InternOpChange.include).
 ##
 
+## The dispatcher is loaded on its first call, never at load: most loads of this file never call it.
+type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" && DistroAgentsTools "$@" ; }
 ## One frontmatter field of a record, or empty.
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 AgentsToolsEscalationField(){ ## record file, field
 	local fieldLine
 	while IFS= read -r fieldLine ; do
@@ -761,6 +762,36 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	}
 	## The close moved the now-closed record to closed/ (retention, T9): the rest reads its fields from there.
 	[ -f "$applyFile" ] || applyFile="$MMDAPP/.local/agents/pending/closed/$applyId.md"
+	## HIS ANSWER TO A PROMISE OF UNDO IS CARRIED OUT HERE, and nowhere else: the record of the act
+	## is closed with his verdict first, so the lane's own gate finds his answer on it, and then the
+	## operation the verdict names runs. An accept purges the record, a reject runs its inverse, and
+	## a rework keeps his words and the hold. One that cannot be carried out says so, with why, and
+	## the record keeps his answer either way.
+	local applyUndo="" applyUndoDir="" applyUndoOut="" applyUndoRc=0 applyUndoOp=""
+	if [ "$applyKind" = "undo" ] ; then
+		type AgentsToolsUndoRecordOfAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UndoRecord.include"
+		applyUndoDir="$( AgentsToolsUndoRecordOfAsk "$applyId" )"
+		if [ -z "$applyUndoDir" ] ; then
+			applyUndo="not-applied -- the act this answer is about is no longer in the store of this workspace"
+		else
+			case "${applyVerdict%% *}" in
+				accept) applyUndoOp="--undo-purge" ;;
+				reject) applyUndoOp="--undo-run" ;;
+				rework) applyUndoOp="--undo-rework" ;;
+				*) applyUndoOp="" ;;
+			esac
+			if [ -z "$applyUndoOp" ] ; then
+				applyUndo="not-applied -- ${applyVerdict%% *} is no answer this lane carries out"
+			else
+				applyUndoOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$applyUndoOp" "$( AgentsToolsUndoField "$applyUndoDir" record-id )" --session-id "$( AgentsToolsUndoField "$applyUndoDir" session-id )" 2>&1 )" || applyUndoRc=$?
+				if [ "$applyUndoRc" -eq 0 ] ; then
+					applyUndo="done -- $( printf '%s\n' "$applyUndoOut" | LC_ALL=C grep -m1 -E '^(PURGED|RAN|REWORK) ' )"
+				else
+					applyUndo="not-applied -- $( printf '%s\n' "$applyUndoOut" | LC_ALL=C grep -m1 -v '^$' )"
+				fi
+			fi
+		fi
+	fi
 	if [ "$applyKind" = "permission" ] ; then
 		case "$applyVerdict" in
 			## A denial is said where the refusal was, in the asking session's tracking-thread, as
@@ -822,6 +853,13 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		permission:allow-*|permission-set:allow-set) AgentsToolsEscalationConfirm "$applyFile" "$applyId" granted "$applyVerdict" "$applyBy" "$applyFromForward" ;;
 		permission:deny|permission-set:deny) AgentsToolsEscalationConfirm "$applyFile" "$applyId" denied "$applyVerdict" "$applyBy" "$applyFromForward" ;;
 		permission-set:edit) AgentsToolsEscalationConfirm "$applyFile" "$applyId" edit "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText" ;;
+		## A promise of undo: what was done with it, by how its verdict was carried out.
+		undo:*)
+			case "$applyUndo" in
+				done*) AgentsToolsEscalationConfirm "$applyFile" "$applyId" taken "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText" ;;
+				*) AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "${applyUndo#not-applied -- }" ;;
+			esac
+		;;
 		## A held change: what was done with it, by how its verdict was carried out.
 		change:*)
 			case "$applyChange" in
@@ -846,6 +884,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	[ -z "$applyClosedBy" ] || printf 'CLOSED-BY: %s\n' "$applyClosedBy"
 	[ -z "$applyGrant" ] || printf '%s\n' "$applyGrant"
 	[ -z "$applyChange" ] || printf 'CHANGE: %s\n' "$applyChange"
+	[ -z "$applyUndo" ] || printf 'UNDO: %s\n' "$applyUndo"
 	return 0
 }
 

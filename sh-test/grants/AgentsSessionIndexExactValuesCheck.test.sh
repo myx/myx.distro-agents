@@ -56,7 +56,7 @@ case "$rigSandbox" in *'\t'*'\n'*) ;; *) rigRefuse "the rig's sandbox path holds
 ## A second on, so the grants index built at the first check is strictly newer than the
 ## registries it is made from, and is built once.
 sleep 1
-rigVersion="myx.distro session.permissions.index 1"
+rigVersion="myx.distro session.permissions.index 2"
 
 ## The native client's PreToolUse hook asked about one call of rig-member, in the rig's sandbox.
 ## It decides by the session index alone: `allow <what admitted it>`, `none`, else `deny`.
@@ -83,7 +83,7 @@ rigAssert "a Write into its output/ is admitted, by the floor" "$( rigHookSays W
 rigAssert "a Read in its input/ is admitted, by the floor"  "$( rigHookSays Read "$rigSandbox/input/i.txt" )" "allow floor"
 rigAssert "control: a Write into its input/ is not, nor one elsewhere" "$( rigHookSays Write "$rigSandbox/input/i.txt" ):$( rigHookSays Write "$rigTmp/elsewhere/e.txt" )" none:none
 rigAssert "the index's header is the session's own, byte for byte" "$( head -1 "$rigIndex" 2> /dev/null )" "$rigVersion"$'\t'"rig-member"$'\t'"$rigSandbox/input"$'\t'"$rigSandbox/output"$'\t'"$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
-rigAssert "and it is one whole index: a store row after the header, its end row last" "$( LC_ALL=C sed -n '2p' "$rigIndex" 2> /dev/null | LC_ALL=C cut -f1 ):$( tail -n 1 "$rigIndex" 2> /dev/null )" store:end
+rigAssert "and it is one whole session file: its own floor row after the header, its end row last" "$( LC_ALL=C sed -n '2p' "$rigIndex" 2> /dev/null | LC_ALL=C cut -f1 ):$( tail -n 1 "$rigIndex" 2> /dev/null )" allow:end
 ## A second on, so the index built next is strictly newer than everything it is made from.
 sleep 1 ; rigHookSays Read "$rigSandbox/input/i.txt" > /dev/null
 sleep 1 ; : > "$rigTmp/marker" ; sleep 1

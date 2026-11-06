@@ -632,7 +632,8 @@ AgentsToolsThisSessionSetChapter(){ ## the operation's arguments: <text...>
 	printf 'OK: --set-session-chapter: the session chapter is now "%s".\n' "$setChapterText"
 }
 
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+## The dispatcher is loaded on its first call, never at load: most loads of this file never call it.
+type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" && DistroAgentsTools "$@" ; }
 ## The intern-op dispatch: DistroAgentsTools --intern-op-set-session-topic|--intern-op-set-session-chapter.
 ## Sourced with $@ intact; matches only these names, so a source from DistroAgentsSession.fn.sh is a no-op here.
 case "$1" in

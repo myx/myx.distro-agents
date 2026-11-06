@@ -88,7 +88,7 @@
 # verdict only because the clicks were already judged at the reply's head.
 #
 # ENVIRON["MDAT_VERDICT_KIND"]    question | readback | decision | permission | permission-set | review
-#                                 | proposal | change
+#                                 | proposal | change | undo
 # ENVIRON["MDAT_VERDICT_SELECT"]  question only: yes-no | one | many.
 # ENVIRON["MDAT_VERDICT_OPTIONS"] decision, one and many: the options, one per line; each
 #                                 line's first word is the word that answers it, and the line
@@ -170,6 +170,7 @@ BEGIN {
 	else if ( kind == "permission-set" ) { optionSet["deny"] = 1 ; optionSet["allow-set"] = 1 ; optionSet["edit"] = 1 ; }
 	else if ( kind == "proposal" ) { optionSet["approved"] = 1 ; optionSet["rejected"] = 1 ; }
 	else if ( kind == "change" ) { optionSet["approve"] = 1 ; optionSet["reject"] = 1 ; }
+	else if ( kind == "undo" ) { optionSet["accept"] = 1 ; optionSet["reject"] = 1 ; optionSet["rework"] = 1 ; }
 	authorTotal = split( ENVIRON["MDAT_VERDICT_AUTHORS"], authorList, " " ) ;
 	for ( authorIndex = 1 ; authorIndex <= authorTotal ; authorIndex++ ) { authorSet[authorList[authorIndex]] = 1 ; }
 	askingTotal = split( ENVIRON["MDAT_VERDICT_ASKING"], askingList, " " ) ;
@@ -285,6 +286,14 @@ function judgeReactions(    lineIndex, name, who, heldIndex, picked ) {
 		## Reject first: two clicks never approve what one of them rejects.
 		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "reject" ; author = who ; }
 		else if ( ( who = holderOf( "+1" ) ) != "" || ( who = holderOf( "thumbsup" ) ) != "" || ( who = holderOf( "white_check_mark" ) ) != "" ) { verdict = "approve" ; author = who ; }
+		return ;
+	}
+	if ( kind == "undo" ) {
+		## Reject first, as a change does. A click for a rework carries no words, and a rework
+		## with none names no verdict: the lane returns it to the member that acted.
+		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "reject" ; author = who ; }
+		else if ( ( who = holderOf( "+1" ) ) != "" || ( who = holderOf( "thumbsup" ) ) != "" ) { verdict = "accept" ; author = who ; }
+		else if ( ( who = holderOf( "leftwards_arrow_with_hook" ) ) != "" ) { verdict = "rework" ; author = who ; }
 		return ;
 	}
 	if ( kind == "review" ) {
@@ -460,6 +469,7 @@ function answerOf( word, plain ) {
 	if ( kind == "proposal" ) { return ( word == "approved" || word == "approve" ) ? "approved" : ( ( word == "rejected" || word == "reject" ) ? "rejected" : "" ) ; }
 	if ( kind == "change" ) { return ( word == "approve" || word == "approved" ) ? "approve" : ( ( word == "reject" || word == "rejected" ) ? "reject" : "" ) ; }
 	if ( kind == "review" ) { return ( word == "accept" || word == "return" || word == "reject" ) ? word : "" ; }
+	if ( kind == "undo" ) { return ( word == "accept" || word == "reject" || word == "rework" ) ? word : "" ; }
 	if ( kind == "decision" || form == "one" ) {
 		if ( word in optionSet ) { return word ; }
 		return ( plain && kind == "decision" && recommendedWord != "" && ( word in affirmSet ) ) ? recommendedWord : "" ;
@@ -510,7 +520,7 @@ function judgeMessage(    replyText, replyWord, replyRest, shape, answer, other,
 			## His words on the verdict's line: always with a correction, an edit, a proposal's
 			## and a review's verdict, and with any other for a caller that keeps them.
 			gsub( /\t/, " ", words ) ;
-			if ( ! wordsWanted && ! ( ( kind == "readback" && answer == "correct" ) || ( kind == "permission-set" && answer == "edit" ) || kind == "proposal" || kind == "review" ) ) { words = "" ; }
+			if ( ! wordsWanted && ! ( ( kind == "readback" && answer == "correct" ) || ( kind == "permission-set" && answer == "edit" ) || kind == "proposal" || kind == "review" || kind == "undo" ) ) { words = "" ; }
 			verdict = answer ( words != "" ? " -- " words : "" ) ;
 		} else if ( kind == "decision" || form == "one" ) {
 			replyWord = replyText ;

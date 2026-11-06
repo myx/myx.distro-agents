@@ -160,6 +160,14 @@ All statements apply at the same time, always. These rules override a participan
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - When several routines or sessions are open, a bare "continue" or "next round" is ambiguous: ask which, offering the options.
+- Supervising, the root unblocks and improves directly: it fixes, tests and applies with `--apply-tool`, or fixes and applies where no test exists. Where `--apply-tool` is broken, or another reason blocks it, it patches the source inline.
+- After each such fix, the root files an urgent-class board task for each member the change concerns, such as magic-tester, magic-developer or magic-librarian. The task asks that member to review the change, rework it to the team's standards, and complete what it left out.
+- Where a fix concerns several members, the root may instead file one urgent-class task for `magic-coordinator`: run a coworking session with those members, which reviews, reworks, completes and checks the fix together. A board task, not a dispatch: a task shows on the board and reflects to Jira, where a dispatch does not.
+- While supervising, these rules override "source is outside every mode's reach" in the verbatim goals.
+- The root has no shell: it reads and acts on a rig through its own tools, `AgentDispatcherTools` (`--supervise-scan --workspace <path>`, `--spawns`, `--flags`, `--spawn-run --select-workspace <place>`), and on this workspace through `DistroAgentsDispatcher` and `DistroAgentsItems`.
+- A rig is stopped in order: set `holding`, then end its sessions, then end its schedule thread. It is resumed in order too: restart its schedule thread so it loads the current code, then clear `holding`.
+- After starting planned work, the root checks within one schedule pass that the board moves, from pending to running. A start that does not move is a blocker found now, and is unblocked or escalated at once.
+- Each round, the root reads the waiting sessions. One that has waited past a day is read: where its work is done, its handback is reviewed and the session closed, so finished work never sits waiting for days.
 
 # Routine-specific tooling
 
@@ -210,6 +218,9 @@ Used to check this file's own definitions against its own goals when it is updat
 - The root's own work — planning with him, supervising goals, briefing a session — is a direct message. Its text
   states requirements, and forwarding his words there leaves the work undone.
 - "Update root-harness routine to: distinct steps by interactive/non-interactive."
+- "Rule to add to supervisor: make it more straight forward - you fix-test-apply, or fix-apply (if no test) and leave urgent/emergency class tasks (to board) for relavant (tester, developer, librarian, ...) to review-rework to best standards or complete - so they can fill the gaps and make it proper after you unblock/improve. Even if you fix/patch inline in source (if --apply-tool is broken or any other reason)"
+- "For multiple maybe - like I don't know is there more proper ways - but you can task coordinator to start coworking with these members and complete/rework/finishe/check that fix.... But important - that you add these instructions for supervisor in it's routine - as a way to work"
+- "I said I don't know is there a betteer way - this way works, as normal task, yes. Maybe best for reflection, better than do an Jira Invisible dispatch"
 
 ## Verbatim-tests (benchmarks)
 

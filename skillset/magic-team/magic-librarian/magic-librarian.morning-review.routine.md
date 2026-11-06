@@ -60,12 +60,13 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **read-board-shape**: `magic-librarian` reads this run's input scan result (`input/input-scan.md`).
 2. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape. For example, `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`. That loses the difference between "stalled on something external" and "deliberately deferred".
-   - step: check the skillset files the scan lists as changed for accreted dated narration, per "Skillset content hygiene". A rewrite is proposed for the skillset change rule.
+   - step: check the skillset files the scan lists as changed for accreted dated narration, per "Skillset content hygiene". Plain hygiene that keeps every meaning is fixed with `--skillset-upsert`. A change of meaning is proposed to that file's `maintainers:`.
 3. **check-cross-file-consistency**: Check status claims in one file against the current content of another. Start from the skillset files the scan lists as changed.
 
 # Closure steps
 
-1. **advance-cutoff**: `magic-librarian` updates the routine's state with the new cut-off: `--update-routine-state --header:upsert:last_reviewed_ts:<the scan's next: value>`.
+1. **report-board-findings**: every board finding of this run goes to `magic-coordinator` as one inquiry, `--upsert-inbox-inquiry magic-coordinator`, a finding a line with its evidence, the file and line, and the move it proposes. `magic-coordinator`'s duty reads its inbox and makes the moves. With no finding, nothing is filed.
+2. **advance-cutoff**: `magic-librarian` updates the routine's state with the new cut-off: `--update-routine-state --header:upsert:last_reviewed_ts:<the scan's next: value>`.
 
 # Routine's local procedures
 
@@ -79,7 +80,8 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- Only `magic-coordinator` writes the board (`magic-team/reference/board-model.md`).
+- Only `magic-coordinator` writes the board (`magic-team/reference/board-model.md`). This run reads it, and its findings reach the coordinator by **report-board-findings**.
+- The review covers the skillset files changed since the cut-off and the board's state model, and nothing wider.
 - A state-model drift outranks ordinary staleness: fix the model gap, not only the one instance, since one gap likely misfiled several items.
 - A cross-file inconsistency where it is unclear which file is right is surfaced and resolved explicitly, never by silently picking a winner. No quorum there is the no-quorum document, carried up by "The ladder: one rung at a time".
 - A finding that is not about the board goes to `magic-librarian`'s own daily audit with `post-inquiry`.

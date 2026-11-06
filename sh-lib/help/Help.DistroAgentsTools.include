@@ -384,6 +384,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from
 echo "📘 syntax: DistroAgentsTools.fn.sh --undo-plan <record-id> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --undo-run <record-id> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --undo-purge <record-id> [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --undo-rework <record-id> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --intern-context-show [--team-member <team-member>] [--session-id <session-id>] [--spawn-id <spawn-id>] [--select-workspace <place-name|absolute-path>] [--tooling-origin <spec|absolute-path>]" >&2
 ## The six tool files whose own three help forms read this one table through AgentsToolsFrontSyntax
 ## (Help.DistroAgentsSession.include and its siblings): every operation each of them dispatches, a line each.

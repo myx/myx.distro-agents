@@ -108,6 +108,7 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - A router, or any file of distinct parts for separate operations, stays compact. The parser never reads a 1000-line file for a 2-line operation.
 - One long algorithm may be a large file by itself, when it is one piece with the most common path threading through it. It may still be split.
 - A command script is for an external call. An internal step sources the exact include it needs, never re-enters a whole command script.
+- Inside tooling code, a tool is reached through its loaded functions: `Require ListDistroProjects ; Distro ListDistroProjects --select-all`. This is how tooling is written, never how it is operated. An operator, and a member at work, calls the command, `<Tool>.fn.sh --<operation>`, as `magic-team.armed.md`, 'Execution mechanisms', states.
 - A review requires all of this. Code that breaks it is sent back, whatever else it fixes.
 
 ## The three costs of needless work

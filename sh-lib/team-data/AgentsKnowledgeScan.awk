@@ -14,6 +14,8 @@
 ## OUTPUT, by -v format=:
 ##   list   a line for each section that answers: `<path><TAB><source><TAB><store><TAB><caption>` (an empty caption: the lines ahead of the first heading)
 ##   json   {"entries":[{"source":..,"store":..,"section":..,"snippet":..}]}, the snippet the section's own text (cut at 4000 bytes, "truncated":true then)
+##   index  {"sections":[{"path":..,"source":..,"store":..,"heading-path":..,"heading":..,"text":..}]}, every section with the query not applied: the heading path
+##          is the chain of captions joined by `>`, deepest last. This is the index engine's input.
 ##   rc 3   a source file could not be read, so the answer covers only the files that were. Each is named on stderr, and the
 ##          count closes them. A caller must not read that answer as a complete one.
 ## -v wsRoot=<workspace>/ and -v dataRoot=<team data root>/ turn a path into its source, relative to the one it lies under; the store is `board`,
@@ -77,12 +79,18 @@ function sectionAnswers(    term, line, depth, token, value) {
 	return groupValue[1] ;
 } ;
 
-## The section read, if it answers.
+## The section read, if it answers it, or every section in the index format.
 function flushSection(    line, text, cut) {
 	if (sectionLines == 0) { return ; } ;
 	text = "" ;
 	for (line = 1 ; line <= sectionLines ; line++) { text = text sectionText[line] "\n" ; } ;
 	if (text ~ /^[ \t\n]*$/) { sectionLines = 0 ; return ; } ;
+	if (format == "index") {
+		sub(/\n+$/, "", text) ;
+		printf "%s{\"path\":\"%s\",\"source\":\"%s\",\"store\":\"%s\",\"heading-path\":\"%s\",\"heading\":\"%s\",\"text\":\"%s\"}", ( indexCount++ ? ",\n" : "" ), jsonText(filePath), jsonText(fileRef), jsonText(fileStore), jsonText(sectionPath), jsonText(sectionCaption), jsonText(text) ;
+		sectionLines = 0 ;
+		return ;
+	} ;
 	if (sectionAnswers()) {
 		if (format == "json") {
 			sub(/\n+$/, "", text) ; cut = 0 ;
@@ -95,17 +103,18 @@ function flushSection(    line, text, cut) {
 	sectionLines = 0 ;
 } ;
 
-## A file read section by section. A path named in KNOWLEDGE_STORE_MAP (a store dumped to a scratch file) keeps the
-## MAGIC.md reference it was dumped from as its source, not the scratch path it was read through.
-function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark, caption, at, readRc) {
+## A file read section by section. A path named in KNOWLEDGE_STORE_MAP (a store dumped to a scratch file, or one hit
+## of the index) keeps the reference it stands for as its source, not the scratch path it was read through, and the
+## word for its own group when the map carries one.
+function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark, caption, at, readRc, depth) {
 	filePath = path ; fileStore = "docs" ; rel = path ;
 	if (dataRoot != "" && index(path, dataRoot) == 1) {
 		rel = substr(path, length(dataRoot) + 1) ;
 		fileStore = ( rel ~ /^board\// ) ? "board" : ( rel ~ /^vault\// ) ? "vault" : ( rel ~ /^inboxes\// ) ? "inbox" : "team" ;
 	} else if (wsRoot != "" && index(path, wsRoot) == 1) { rel = substr(path, length(wsRoot) + 1) ; } ;
 	fileRef = rel ;
-	for (at = 1 ; at <= storeMapCount ; at++) { if (path == storeMapPath[at]) { fileRef = storeMapRef[at] ; break ; } ; } ;
-	sectionLines = 0 ; sectionCaption = "" ; inFront = 0 ; lineNo = 0 ; inFence = 0 ; fenceMark = "" ;
+	for (at = 1 ; at <= storeMapCount ; at++) { if (path == storeMapPath[at]) { fileRef = storeMapRef[at] ; if (storeMapGroup[at] != "") { fileStore = storeMapGroup[at] ; } ; break ; } ; } ;
+	sectionLines = 0 ; sectionCaption = "" ; sectionPath = "" ; chainCount = 0 ; inFront = 0 ; lineNo = 0 ; inFence = 0 ; fenceMark = "" ;
 	while ((readRc = getline line < path) > 0) {
 		lineNo++ ;
 		sub(/\r$/, "", line) ;
@@ -119,6 +128,11 @@ function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark,
 			caption = substr(line, RLENGTH + 1) ;
 			sub(/^[ \t]+/, "", caption) ; sub(/[ \t]+#*[ \t]*$/, "", caption) ; sub(/[ \t]+$/, "", caption) ; gsub(/\t/, " ", caption) ;
 			sectionCaption = caption ;
+			depth = RLENGTH - 1 ;
+			while (chainCount > 0 && chainDepth[chainCount] >= depth) { chainCount-- ; } ;
+			chainCount++ ; chainDepth[chainCount] = depth ; chainCaption[chainCount] = caption ;
+			sectionPath = chainCaption[1] ;
+			for (at = 2 ; at <= chainCount ; at++) { sectionPath = sectionPath ">" chainCaption[at] ; } ;
 		} ;
 		sectionLines++ ; sectionText[sectionLines] = line ;
 	} ;
@@ -147,16 +161,25 @@ BEGIN {
 		for (at = 1 ; at <= mapCount ; at++) {
 			if (mapLine[at] == "") { continue ; } ;
 			gap = index(mapLine[at], "\t") ;
-			if (gap > 0) { storeMapCount++ ; storeMapPath[storeMapCount] = substr(mapLine[at], 1, gap - 1) ; storeMapRef[storeMapCount] = substr(mapLine[at], gap + 1) ; } ;
+			if (gap > 0) {
+				storeMapCount++ ;
+				storeMapPath[storeMapCount] = substr(mapLine[at], 1, gap - 1) ;
+				mapRest = substr(mapLine[at], gap + 1) ;
+				gap = index(mapRest, "\t") ;
+				if (gap > 0) { storeMapRef[storeMapCount] = substr(mapRest, 1, gap - 1) ; storeMapGroup[storeMapCount] = substr(mapRest, gap + 1) ; }
+				else { storeMapRef[storeMapCount] = mapRest ; storeMapGroup[storeMapCount] = "" ; } ;
+			} ;
 		} ;
 	} ;
 	if (format == "json") { print "{\"entries\":[" ; } ;
+	if (format == "index") { print "{\"sections\":[" ; } ;
 } ;
 
 NF { scanFile($0) ; } ;
 
 END {
 	if (format == "json") { print "" ; print "]}" ; } ;
+	if (format == "index") { print "" ; print "]}" ; } ;
 	if (unreadCount > 0) {
 		printf "# %d source file(s) could not be read, so this answer covers only the sources that were read\n", unreadCount > "/dev/stderr" ;
 		exit 3 ;

@@ -55,6 +55,16 @@ type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 ## The reads a minute the whole reader is held to; the gaps of the cadence, in seconds.
 agentsSessionCommsReadsPerMinute=20
 agentsSessionCommsActiveGap=3
+## What one pass takes from a session's own outbox, and from all the channel outboxes together: a few posts a pass, so a backlog is
+## drained over many passes, and never holds the pass that takes the console's messages and reads the threads.
+agentsSessionCommsPostsPerSession=2
+agentsSessionCommsPostsPerPass=4
+## The seconds one pass may spend on new work: the console's messages are taken at its top, so a console message waits about this long, and
+## never the length of a pass that a backlog or a slow call would otherwise make.
+agentsSessionCommsPassSeconds=5
+## The channels a pass may pull: the rig's cache serves the members' reads, and a workspace of hundreds of marks would otherwise spend its
+## every pass on them, holding the console's messages behind that work.
+agentsSessionCommsPullsPerPass=2
 
 ## The folder of the reader's files. rc 1 for no workspace.
 AgentsToolsSessionCommsDir(){
@@ -781,15 +791,47 @@ AgentsToolsSessionCommsTake(){ ## session, the file left in chat.inbox
 	return 0
 }
 
-## THE WRITER'S PASS over one session: the posts that wait, the oldest first, none overtaking one that must wait; then what the
-## console left. Nothing is read from the network here but through the posts themselves.
+## EVERY SESSION'S CONSOLE INBOX, at the top of a pass: a message a person left is taken before any session's turn comes, so its wait is a
+## pass of its own and never the queue of the sessions ahead of it. The files are local, so this costs the pass no network call.
+AgentsToolsSessionCommsTakeAll(){
+	local allSessions=() allCount=0 allIdx allFile allName allDir
+	[ -n "${MMDAPP:-}" ] || return 0
+	for allFile in "$MMDAPP"/.local/agents/sessions/*/chat.inbox/*.msg ; do
+		[ -f "$allFile" ] || continue
+		allDir="${allFile%/chat.inbox/*}" ; allName="${allDir##*/}"
+		case "$allName" in ''|-|*/*|*[[:space:]]*) continue ;; esac
+		allSessions[allCount]="$allName" ; allCount=$(( allCount + 1 ))
+	done
+	for (( allIdx = 0 ; allIdx < allCount ; allIdx++ )) ; do
+		for allFile in "$MMDAPP/.local/agents/sessions/${allSessions[$allIdx]}"/chat.inbox/*.msg ; do
+			[ -f "$allFile" ] || continue
+			AgentsToolsSessionCommsTake "${allSessions[$allIdx]}" "$allFile"
+		done
+	done
+	return 0
+}
+
+## THE WRITER'S PASS over one session: what the console left first, then the posts that wait, the oldest first, none overtaking one that
+## must wait, and no more of them than this pass's share. Nothing is read from the network here but through the posts themselves.
 AgentsToolsSessionCommsDeliver(){ ## session
-	local delSession="$1" delDir delFile delName delRc delAny
+	local delSession="$1" delDir delFile delName delRc delAny delPosted=0
 	## The folder of AgentsToolsSessionChatDir, built here: asked of every session every pass.
 	case "$delSession" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 0
 	delDir="$MMDAPP/.local/agents/sessions/$delSession"
-	## Whether there is anything to do is told by the shell's own expansion: a pass over many sessions starts no process for those with nothing.
+	## WHAT THE CONSOLE LEFT FIRST: a message a person waits for is never held behind the posts of a backlog.
+	delAny=""
+	for delFile in "$delDir"/chat.inbox/*.msg ; do
+		[ ! -e "$delFile" ] || delAny="yes"
+		break
+	done
+	if [ -n "$delAny" ] ; then
+		for delName in $( ls "$delDir/chat.inbox" 2> /dev/null | LC_ALL=C grep '\.msg$' | LC_ALL=C sort ) ; do
+			AgentsToolsSessionCommsTake "$delSession" "$delDir/chat.inbox/$delName"
+		done
+	fi
+	## THE POSTS THAT WAIT, oldest first, none overtaking one that must wait, and only this pass's share of them: the rest wait for the
+	## next pass, which the reader always reaches because this one is bounded.
 	delAny=""
 	for delFile in "$delDir"/chat.outbox/*.retry ; do
 		[ ! -e "$delFile" ] || delAny="yes"
@@ -801,16 +843,8 @@ AgentsToolsSessionCommsDeliver(){ ## session
 			[ -e "$delDir/chat.outbox/$delName" ] || continue
 			AgentsToolsSessionCommsPost "$delSession" "$delDir/chat.outbox/$delName" ; delRc=$?
 			[ "$delRc" != 1 ] || break
-		done
-	fi
-	delAny=""
-	for delFile in "$delDir"/chat.inbox/*.msg ; do
-		[ ! -e "$delFile" ] || delAny="yes"
-		break
-	done
-	if [ -n "$delAny" ] ; then
-		for delName in $( ls "$delDir/chat.inbox" 2> /dev/null | LC_ALL=C grep '\.msg$' | LC_ALL=C sort ) ; do
-			AgentsToolsSessionCommsTake "$delSession" "$delDir/chat.inbox/$delName"
+			delPosted=$(( delPosted + 1 ))
+			[ "$delPosted" -lt "$agentsSessionCommsPostsPerSession" ] || break
 		done
 	fi
 	## NOTHING LEFT: its mark goes, so a later pass reads the session only where the list names it. The reads behind that are the

@@ -11,6 +11,7 @@ type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ## It collects what is for the member to work on at the start of its duty:
 ##   - the inbox items not yet processed -- the member's incoming/ alone (F4.3), invitations and sub-tasks for handling and joining
 ##     among them, being items of their own types;
+##   - the board items the member owns that it can act on: pending and running;
 ##   - for magic-coordinator alone: the human-owner and contact items due, the open permission asks, and the board (F7.12);
 ##   - the Slack that is tagged to the member -- a mention of it in the team channel or in its session thread, and any DM -- and the
 ##     team channel besides, over a collect window. A message of a session thread where the member's instance is present is no item
@@ -87,12 +88,13 @@ case "$1" in
 			printf '**PAUSED:** session %s is paused, so its runs hold at their pause points and none is stuck, dead or idle.\n\n' "$workSession"
 		fi
 
-		## The inbox: the items not yet processed, which is what the member's incoming/ holds.
+		## The inbox: the items not yet processed, which is what the member's incoming/ holds. EVERY MEMBER GETS ITS OWN BOARD TASKS here, the items of
+		## the pending and running states it owns (`--do-board-related-startable`); the coordinator gets the whole board besides, below.
 		printf '## Inbox: items not yet processed\n\n'
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$workMember" --all-types \
 			--do-inbox-reflections --do-inbox-notes --do-inbox-inquiry-active --do-inbox-other \
-			--no-slack --no-email --no-trello --no-board-related \
+			--no-slack --no-email --no-trello --do-board-related-startable \
 			--context --intern-op-work-duty-input-scan > "$workWork/inbox.out" 2> "$workWork/inbox.err" || workInboxRc=$?
 		if [ "$workInboxRc" != "0" ] ; then
 			printf 'The inbox could not be read (exit %s):\n\n' "$workInboxRc"

@@ -56,6 +56,16 @@ case "$1" in
 		for schDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
 			[ -z "${!schDrop+set}" ] || local -x "$schDrop="
 		done
+		## It reads the members of the workspace it serves: another workspace's member folder, inherited from an invited member's session, is dropped.
+		case "${MDAT_SKILLSET_ROOT:-}" in
+			*/.local/agents/members)
+				[ "${MDAT_SKILLSET_ROOT%/.local/agents/members}" = "${MMDAPP%/}" ] || local -x MDAT_SKILLSET_ROOT="${MMDAPP%/}/.local/agents/members"
+			;;
+		esac
+		## It works on the team data of the workspace it serves: a data root inherited from whatever asked for it is resolved again (S12.19).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" || { set +e ; return 1 ; }
+		local -x MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" 2> /dev/null )"
+		[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
 
 		if [ "$schMode" = "--one" ] ; then
 			AgentsToolsScheduleThreadPass

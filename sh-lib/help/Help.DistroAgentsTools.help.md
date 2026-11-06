@@ -2442,7 +2442,7 @@
 			`incoming/`, and in `processed/` too with
 			`--include-processed`: without it a processed item is not
 			found.
-			`<item-filename>` must carry one of the four type prefixes:
+			`<item-filename>` must carry a type prefix:
 			`note-`/`inquiry-`/`reflection-`/`warning-`. `--start-line`/`--end-line` must be
 			given as a complete pair.
 
@@ -4837,8 +4837,11 @@
 			where a process is still there after both. For a run that was
 			not signalled it is the run's <live> as
 			`--manager-session-list` gives it: `no-process`, `other-host`,
-			`no-spawn-id` or `host-unrecorded`. <status> is the status of
-			the run's record as it stood, <pids> the processes that were
+			`no-spawn-id` or `host-unrecorded`. A run with no process left
+			is closed: its <outcome> is `closed`, it is named in its
+			session's `control/closed`, and it reads finished from then
+			on. <status> is the status of the run's record as it stood,
+			<pids> the processes that were
 			signalled, comma-separated, and <item> the dispatch item the
 			ending was recorded on; an absent value reads `-`. Where no
 			run <id> names is alive: its rows, a note on stderr, and exit
@@ -4921,7 +4924,7 @@
 			file. Prints one row, TAB-separated: `effort`, the id, the effort
 			saved, the path of the file. Exit 1, nothing saved, with one error
 			line, where the id is no bare name or names no store of this
-			workspace, or the effort is none of the five.
+			workspace, or the effort is not one of those listed in the syntax.
 
 		--manager-session-pause --session-id <id>
 		--manager-session-resume --session-id <id>
@@ -7197,13 +7200,35 @@
 			its TTL or, with none or a later one, when normal worktime starts, and is
 			refused during worktime; `holidays` is set with a TTL or, with none, until it
 			is cleared, at any hour, and while it holds `worktime` is off (`no (holiday)`);
+			`holding` is set the same way, and while it holds the schedule starts no
+			routine, duty or supervision, while running sessions go on;
 			`learning` is on or off and takes no TTL. `--days <n>`, `overtime`'s alone, ends
 			overtime n worktime starts ahead instead, the earlier end winning against a TTL. `--no`
 			clears the override and takes no TTL and no `--days`. `worktime` and `weekend` are derived and
 			have no override. Prints the flag's line as `--current-flags` would. Refused,
-			rc 1, with a flag that is none of the six, a TTL that is no whole number of
+			rc 1, with a flag that is not overridable, a TTL that is no whole number of
 			seconds, a `--days` that is no whole number of days of 1 or more, `--days` on
 			another flag, or an emergency with none.
+			A flag set here asks the schedule thread once, and the thread stays while
+			a flag that opens duties holds. `overtime` opens every standing member's
+			duty, as worktime does. `emergency` opens the coordinator's, and another
+			member's only for a direct task from the coordinator or a pending board
+			task it owns marked `mark: emergency` or `mark: urgent`.
+
+		--stop-sessions
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Stops the rig in
+			order. It refuses, rc 1, unless `holding` holds, so the schedule starts
+			nothing again. Then it ends every live session of this workspace with the
+			console stop (--manager-session-kill), a `finish` row each, and the schedule
+			thread last. To resume: the next ask starts a thread on the current code,
+			then --override-flag --no holding.
+
+		--close-failed-sessions
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Closes every
+			failed session of this workspace with the console stop
+			(--manager-session-kill), which reads it as finished from then on: a
+			`finish` row each, then `closed <n> of <m> failed sessions`. A failed
+			session has no process, so no `holding` is needed.
 
 		--set-country <iso-code-2-or-3-letters>
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Sets
@@ -7680,18 +7705,27 @@
 		--undo-plan <record-id> [--session-id <id>]
 		--undo-run <record-id> [--session-id <id>]
 		--undo-purge <record-id> [--session-id <id>]
+		--undo-rework <record-id> [--session-id <id>]
 			The undo protocol (S13.19): one record per act, holding the operation that
-			undoes it, and a hold that keeps the acting run's material from every
-			cleaner until the human-owner answers. `record` keeps the inverse, refuses a
-			kind that is not on its closed list and names the kinds, and writes
-			`undo.hold` in the acting run's sandbox root, one `<session-id>/<record-id>`
-			line per open record. `plan` is the dry run, read-only: it says `ready` and
-			the steps, or `not ready` and why the operands have moved since the act.
-			`run` takes the steps, each recorded before it is made, so a stopped run
-			resumes; a file inverse goes through the harness's own Write, as an approved
-			change does, and a store inverse through the operation that owns that store.
-			`purge` closes the record on an accept, which releases the hold. The record
-			lives in `sessions/<session-id>/undo/<record-id>/`.
+			undoes it, a hold that keeps the acting run's material from every cleaner
+			until the human-owner answers, and one ask of kind `undo` that puts the act
+			to him. `record` keeps the inverse, refuses a kind that is not on its
+			closed list and names the kinds, writes `undo.hold` in the acting run's
+			sandbox root, one `<session-id>/<record-id>` line per open record, and posts
+			his prompt; a prompt that cannot be posted takes the record and the hold away
+			again, so nothing is promised that he was not asked about. `plan` is the dry
+			run, read-only: it says `ready` and the steps, or `not ready` and why the
+			operands have moved since the act.
+			`run` takes the steps on HIS reject, each recorded before it is made, so a
+			stopped run resumes; a file inverse goes through the harness's own Write, as
+			an approved change does, and a store inverse through the operation that owns
+			that store. `purge` closes the record on HIS accept, which releases the hold.
+			`rework` keeps his words on the record and leaves the state `rework-asked`, so
+			the promise and the hold stand while the act is done differently; a rework
+			with no words names no verdict and writes nothing. `run`, `purge` and `rework`
+			carry his own answer and no member's, and each refuses where the record's ask
+			is unanswered or was answered by anyone else. The record lives in
+			`sessions/<session-id>/undo/<record-id>/`.
 
 		--owner-cleanup-purge
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays).

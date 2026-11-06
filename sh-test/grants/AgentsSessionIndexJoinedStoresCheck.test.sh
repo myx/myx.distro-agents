@@ -185,7 +185,7 @@ rigIdA="$( rigRefusalOf keeper-myx rig-run-1 "$rigFileA" )"
 [ -n "$rigIdA" ] || { cat "$rigTmp/write.out" >&2 ; rigRefuse "the harness gate recorded no refusal for the rig's Write" ; }
 rigAssert "the gate's call says nothing of an index that could not be built" "$( rigNotBuilt )" 0
 rigAssert "the index is there, in the run's own store"     "$( [ -f "$rigSessions/rig-run-1/permissions.keeper-myx.index" ] && printf built || printf absent )" built
-rigAssert "a store row each: its own, the coworking session's, its parent's" "$( rigRows rig-run-1 keeper-myx store )" "$rigSessions/rig-run-1;$rigSessions/rig-cow;$rigSessions/rig-up;"
+rigAssert "the coworking session's store and its parent's each record the run as joining them" "$( cat "$rigSessions/rig-cow/grants.joined" "$rigSessions/rig-up/grants.joined" 2> /dev/null | LC_ALL=C tr '\n' ';' )" "$rigSessions/rig-run-1;$rigSessions/rig-run-1;"
 rigIdLate="$( rigRefusalOf keeper-myx rig-run-1 "$rigWs/ELSE/late.txt" )"
 [ -n "$rigIdLate" ] || rigRefuse "the harness gate recorded no refusal for the rig's other Write"
 

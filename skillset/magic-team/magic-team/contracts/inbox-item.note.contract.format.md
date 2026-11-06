@@ -40,7 +40,7 @@ Context or coordination.
 | `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
 | `references` | optional | member | `item-names` | Items this one cites. An inbox item may cite vault and audit items. |
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
-| `mark` | optional | member | `enum important, emergency` | Marks the item for the main loop (T3): an `important` item is spawned for, an `emergency` one is confirmed with the owner and sets the emergency flag. |
+| `mark` | optional | member | `enum important, urgent, emergency` | Marks the item for the main loop (T3): an `important` or `urgent` item is spawned for, an `emergency` one is confirmed with the owner and sets the emergency flag. |
 | `standing` | optional | member | `enum yes, no` | `yes` marks a standing note: while it is unprocessed it is in force, shown by `AgentDispatcherTools` `--standing-directives` and given to every spawn in its brief. `no` or absent is an ordinary note. Set with `--upsert-inbox-note --standing yes|no`. |
 | `supersedes` | optional | member | `item-names` | Items this one replaces. |
 | `superseded-by` | optional | member | `item-names` | Items that replace this one. |

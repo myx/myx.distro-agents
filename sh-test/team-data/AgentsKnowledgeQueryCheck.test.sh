@@ -19,6 +19,10 @@
 ##   9. --add-source-docs reads MAGIC.md, README.md and docs/**.md of the projects selected (the selector of ListDistroProjects, none:
 ##      every project) and the workspace's util.workspace-* always
 ##  10. refused, rc 1, nothing printed: no source, no term, a group not closed, a close that closes none, an unknown option
+##  11. the index: a fused query answers a section whose words the query does not share and one an exact term finds, each
+##      named by its heading path; with the store off or the index not standing the answer is today's text search, byte
+##      for byte; a hit of a file the member may not read is dropped and counted; and one resolver answers the path the
+##      index is built at
 ## Red before F7.3: there is no DistroAgentsKnowledge.fn.sh (every case fails).
 ## Offline: the rig's own team data store and workspace.
 set -u
@@ -165,6 +169,58 @@ rigQuery r4 --add-board-items --query-keyword RIGWORDONE --query-close
 rigQuery r5 --add-board-items --query-keyword RIGWORDONE --bogus
 rigAssert "no source, no term, a group not closed, a close that closes none, an unknown option" "$( for rigN in r1 r2 r3 r4 r5 ; do printf '%s:%s ' "$( cat "$rigTmp/$rigN.rc" )" "$( LC_ALL=C grep -c . "$rigTmp/$rigN.out" || : )" ; done )" "1:0 1:0 1:0 1:0 1:0 "
 rigAssert "each says what is wrong"                                      "$( LC_ALL=C grep -c -F -e 'no source added' "$rigTmp/r1.err" ):$( LC_ALL=C grep -c -F -e 'no query term' "$rigTmp/r2.err" ):$( LC_ALL=C grep -c -F -e 'not closed' "$rigTmp/r3.err" ):$( LC_ALL=C grep -c -F -e 'closes no group' "$rigTmp/r4.err" ):$( LC_ALL=C grep -c -F -e 'invalid option: --bogus' "$rigTmp/r5.err" )" "1:1:1:1:1"
+
+echo "-- 11. the index: fused, the fallback, the read set, and the one resolver --"
+## A rig workspace of its own: the store's Python standing, an index built at the resolver's root, and a vault of two
+## documents, one of which the acting member may not read. The model stand-in gives a paraphrase and the words it
+## answers one axis of its vector, so the fused call answers a text that shares no word with the query.
+rigIx="$rigTmp/ix" rigIxData="$rigTmp/ixdata"
+rigPythonDir="$( dirname "$( command -v python3 )" )"
+rigIxPackage="$rigOrigin/myx/myx.distro-agents"
+rigIxLib="$rigTmp/ixlib"
+mkdir -p "$rigIx/.local/lancedb/venv/bin" "$rigIx/.local/lancedb/model/potion-base-8M" "$rigIx/.local/agents" "$rigIxData/vault" "$rigIxLib"
+cp "$rigIxPackage/sh-test/check-fixtures/knowledge-store.python.stub.sh" "$rigIx/.local/lancedb/venv/bin/python" || rigRefuse "the Python stand-in is missing"
+chmod +x "$rigIx/.local/lancedb/venv/bin/python"
+printf 'LANCEDB_MODEL_NAME=potion-base-8M\nLANCEDB_MODEL_REVISION=rig111\nLANCEDB_MODEL_DIM=2\n' > "$rigIx/.local/lancedb/lancedb.env"
+cp -R "$rigIxPackage/sh-test/check-fixtures/knowledge-store-lancedb.stub/lancedb" "$rigIxLib/lancedb" || rigRefuse "cannot stage the lancedb stand-in"
+cp -R "$rigIxPackage/sh-test/check-fixtures/knowledge-store-model2vec.stub/model2vec" "$rigIxLib/model2vec" || rigRefuse "cannot stage the model2vec stand-in"
+printf -- '---\ntype: note\n---\n\n# A deployment\n\nA failed deployment goes back to the earlier build.\n' > "$rigIxData/vault/note-20260101T0000Z-deploy.md"
+printf -- '---\ntype: note\n---\n\n# An exact term\n\nThe RIGIXEXACTWORD stands here.\n' > "$rigIxData/vault/note-20260101T0001Z-exact.md"
+printf -- '---\ntype: note\n---\n\n# A secret\n\nA failed release returns to the previous build.\n' > "$rigIxData/vault/note-20260101T0002Z-secret.md"
+printf 'keeper-rig:ix:workspace:Read(/%s/vault/note-20260101T0000Z-deploy.md)\nkeeper-rig:ix:workspace:Read(/%s/vault/note-20260101T0001Z-exact.md)\n' "$rigIxData" "$rigIxData" > "$rigIx/.local/agents/permissions.registry"
+rigIxSections="$( printf '%s\n' "$rigIxData/vault/note-20260101T0000Z-deploy.md" "$rigIxData/vault/note-20260101T0001Z-exact.md" "$rigIxData/vault/note-20260101T0002Z-secret.md" | LC_ALL=C awk -v format=index -v dataRoot="${rigIxData%/}/" -f "$rigIxPackage/sh-lib/team-data/AgentsKnowledgeScan.awk" )"
+if printf '%s' "$rigIxSections" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" RIG_LANCEDB_STUB="$rigIxLib" \
+	"$rigIx/.local/lancedb/venv/bin/python" "$rigIxPackage/sh-lib/team-data/AgentsKnowledgeStore.py" build --index "$rigIx/.local/knowledge-index" \
+	--model-dir "$rigIx/.local/lancedb/model/potion-base-8M" --model-stamp 'potion-base-8M@rig111@2' > "$rigTmp/ixbuild.out" 2> "$rigTmp/ixbuild.err" ; then
+	rigIxQuery(){ ## result name, store setting, words... -- a query as keeper-rig's run, over the index rig
+		local ixName="$1" ixSetting="$2" ixRc=0
+		shift 2
+		( cd "$rigIx" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" MMDAPP="$rigIx" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+			MDAT_DATA_ROOT="$rigIxData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SESSION_ID=rig-index-run \
+			${ixSetting:+MDAT_KNOWLEDGE_STORE="$ixSetting"} RIG_LANCEDB_STUB="$rigIxLib" \
+			bash "$rigKnowledge" "$@" ) > "$rigTmp/$ixName.out" 2> "$rigTmp/$ixName.err" < /dev/null || ixRc=$?
+		printf '%s' "$ixRc" > "$rigTmp/$ixName.rc"
+	}
+	rigIxQuery fused on --add-vault-items --query-keyword 'undo the last release'
+	rigAssert "a fused query answers a section whose words the query does not share, naming its file and heading path" "$( cat "$rigTmp/fused.rc" ):$( rigHolds fused 'A failed deployment goes back to the earlier build.' ):$( rigHolds fused 'undo' ):$( LC_ALL=C grep -c -x -F '# vault/note-20260101T0000Z-deploy.md' "$rigTmp/fused.out" || : ):$( LC_ALL=C grep -c -x -F '## A deployment' "$rigTmp/fused.out" || : )" "0:yes:no:1:1"
+	rigIxQuery exact on --add-vault-items --query-keyword RIGIXEXACTWORD
+	rigAssert "an exact term is answered by the section that holds it, named by its heading path" "$( cat "$rigTmp/exact.rc" ):$( rigHolds exact 'The RIGIXEXACTWORD stands here.' )" "0:yes"
+	rigIxQuery keptoff off --add-vault-items --query-keyword RIGIXEXACTWORD
+	mv "$rigIx/.local/knowledge-index" "$rigIx/.local/knowledge-index.aside"
+	rigIxQuery keptgone on --add-vault-items --query-keyword RIGIXEXACTWORD
+	mv "$rigIx/.local/knowledge-index.aside" "$rigIx/.local/knowledge-index"
+	rigIxQuery plain off --add-vault-items --query-keyword RIGIXEXACTWORD
+	rigAssert "with the store off, or the index not standing, the answer is today's text search" "$( cat "$rigTmp/keptoff.rc" ):$( cat "$rigTmp/keptgone.rc" ):$( cmp -s "$rigTmp/keptoff.out" "$rigTmp/keptgone.out" && printf same || printf differs ):$( cmp -s "$rigTmp/keptoff.out" "$rigTmp/plain.out" && printf same || printf differs ):$( rigHolds keptgone RIGIXEXACTWORD )" "0:0:same:same:yes"
+	rigIxQuery dropped on --add-vault-items --query-keyword 'undo the last release'
+	rigAssert "a hit of a file the member may not read is dropped, and the drop is counted" "$( cat "$rigTmp/dropped.rc" ):$( rigHolds dropped 'A failed release returns to the previous build.' ):$( LC_ALL=C grep -c -F -e 'section(s) of the index were left out' "$rigTmp/dropped.err" || : )" "0:no:1"
+	rigIxQuery fusedjson on --mdat-output-format json --add-vault-items --query-keyword 'undo the last release'
+	rigAssert "the JSON shape is unchanged on the fused path: its source, its store and its heading path" "$( python3 -I -c 'import json, sys
+data = json.load( open( sys.argv[1] ) )
+print( ",".join( sorted( e["source"] + ":" + e["store"] + ":" + e["section"] for e in data["entries"] ) ) )' "$rigTmp/fusedjson.out" 2> /dev/null )" "vault/note-20260101T0000Z-deploy.md:vault:A deployment,vault/note-20260101T0001Z-exact.md:vault:An exact term"
+	rigAssert "the one resolver answers the path the index was built at, and nothing else names it" "$( env -i MMDAPP="$rigIx" MDLT_ORIGIN="$rigOrigin" bash -c '. "'"$rigOrigin"'/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.KnowledgeStore.include" ; AgentsToolsKnowledgeIndexRoot' ):$( [ -f "$rigIx/.local/knowledge-index/sections.json" ] && printf built || printf absent ):$( LC_ALL=C grep -c -F -e '.local/knowledge-index' "$rigIxPackage/sh-lib/team-data/AgentsTools.KnowledgeStore.include" || : )" "$rigIx/.local/knowledge-index:built:1"
+else
+	rigAssert "the rig index could be built (the store's Python and the two stand-ins)" "$( LC_ALL=C head -2 "$rigTmp/ixbuild.err" | LC_ALL=C tr '\n' ' ' )" "built"
+fi
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ KNOWLEDGE QUERY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

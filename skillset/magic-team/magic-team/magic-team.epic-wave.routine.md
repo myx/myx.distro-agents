@@ -69,10 +69,11 @@ The Opening steps of the routine it inherits from run first (its session kind's,
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **choose-next-features**: Choose the next features by the epic's order of work, reordered as the epic goes, by effect and by the owner's word.
-2. **dispatch-builders**: Settle the epic's access, then dispatch, steps:
-   - carry the intake's whole access need into the first builder's dispatch. There `spawn-one-dispatch`'s **spawn-ask-access-once** asks it once, for the whole epic.
-   - dispatch each chosen feature to a builder (`--spawn-prompt`), with the build brief (filled by the tooling) and the feature's name.
-   - dispatch at most as many at once as economy allows.
+2. **dispatch-builders**: Put each chosen feature on the board as a builder task, steps:
+   - write one task per feature (`--grooming-create-pending`), owned by its builder member. Its body names the routine (`magic-team.epic-build.routine`), the tracking document (the epic file and the feature id) and the executor.
+   - move a feature that must wait for others to `blocked` (`--grooming-to-blocked`), with `blocked-by` naming their tasks. The features of one wave stay pending together, so they run in parallel.
+   - carry the intake's whole access need into the first task's body, so it is asked once for the whole epic.
+   - leave the start to the tooling: the owner's duty takes a pending task. Never spawn a builder by hand.
 3. **check-gates**: Check each builder's gate, every line against the spec and its Settled lines, and answer yes, yes-with-changes, or no. Most yeses come with one change; name it.
 4. **rule-gaps**: Rule each gap the builder sends by the spec, or ask the owner when only he can decide; send the ruling back at once.
 5. **inject-mid-run**: On a mid-run request from the owner, inject it into a
@@ -122,7 +123,8 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 - `--epic-update <epic-file> --set-status <feature-id> <status>` (`AgentDispatcherTools`)
 - `--epic-update <epic-file> --add-settled <feature-id> <text...>` (`AgentDispatcherTools`)
-- `--spawn-prompt <team-member> [--routine <selector>] [--from-board <item> [--board-state <state>]...] [--description <text>]` (`DistroAgentsDispatcher`)
+- `--grooming-create-pending <item-filename> --owner-header-value <member> (--upsert-from-stdin|--upsert-body:<text>)` (`DistroAgentsItems`)
+- `--grooming-to-blocked <item-filename> --from-state:pending --owner-header-value <member> --header:upsert:blocked-by:<item-names>` (`DistroAgentsItems`)
 - `--intern-op-state-note-upsert magic-coordinator`
 - `--state-note-read magic-coordinator` (`AgentDispatcherTools`)
 - `SendMessage` (`to`, `address_to`, `message`): one message to any target. `DistroAgentsSlack` `--slack-send-message` for `--text-group`, `--update-ts`, `--identity-bot` or a file.

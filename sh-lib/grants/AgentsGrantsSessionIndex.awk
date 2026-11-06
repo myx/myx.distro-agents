@@ -243,11 +243,14 @@ END {
 		exit
 	}
 	print header
-	n = split( stores, storeList, "\n" )
-	for ( i = 1 ; i <= n ; i++ ) if ( storeList[i] != "" ) print "store", storeList[i]
-	for ( i = 1 ; i <= ceilingCount ; i++ ) print "ceiling", ceilingRow[i]
-	for ( i = 1 ; i <= approveCount ; i++ ) print "approve", approveRow[i]
-	for ( i = 1 ; i <= allowCount ; i++ ) print "allow", allowRow[i]
+	## -v commonApart=1: the check reads the ceiling, approve and standing rows from the grants index itself, so this file holds the session's own rows alone.
+	if ( !commonApart ) {
+		n = split( stores, storeList, "\n" )
+		for ( i = 1 ; i <= n ; i++ ) if ( storeList[i] != "" ) print "store", storeList[i]
+		for ( i = 1 ; i <= ceilingCount ; i++ ) print "ceiling", ceilingRow[i]
+		for ( i = 1 ; i <= approveCount ; i++ ) print "approve", approveRow[i]
+		for ( i = 1 ; i <= allowCount ; i++ ) print "allow", allowRow[i]
+	}
 	if ( sandboxIn != "" ) print "allow", readTools, grantsGlobPattern( sandboxIn "/**" ), "floor"
 	if ( sandboxOut != "" ) print "allow", writeTools, grantsGlobPattern( sandboxOut "/**" ), "floor"
 	if ( origin != "" ) print "allow", readTools, grantsGlobPattern( origin "/**" ), "floor"

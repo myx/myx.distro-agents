@@ -163,9 +163,19 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 		echo "# $knowOp: the sources added hold no file to read" >&2
 		return 0
 	fi
-	## F8.2: the LanceDB store beside each MAGIC.md is searched with the text (the buffer rule: what moved to the store stays findable). The store off,
-	## uninstalled, or no store standing, the text alone answers, exactly as before.
+	local knowIndex="" knowIndexRc=0 knowIndexScratch="" knowIndexModel knowIndexModelDir knowIndexText knowIndexHits knowIndexLine
+	local knowIndexFile knowIndexRef knowIndexStore knowIndexMember knowIndexPath knowIndexDropped=0
+	## The index stands when the store is on, its Python stands, and the index resolver's own root holds a table. The
+	## rows the fused call ranks are then the answer; with it off, uninstalled or absent, the text alone answers.
 	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
+	if [ "$( AgentsToolsKnowledgeStoreSetting )" = "on" ] && AgentsToolsKnowledgeStorePython > /dev/null 2>&1 ; then
+		type AgentsToolsKnowledgeIndexRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.KnowledgeStore.include"
+		knowIndexModel="$( AgentsToolsKnowledgeIndexModel )" || knowIndexModel=""
+		knowIndexModelDir="${knowIndexModel%%$'\n'*}"
+		if [ -n "$knowIndexModel" ] && [ -d "$( AgentsToolsKnowledgeIndexRoot )" ] ; then
+			knowIndex="$( AgentsToolsKnowledgeIndexRoot )"
+		fi
+	fi
 	case "$knowSources" in
 		*" --add-source-docs"*)
 			if [ "$( AgentsToolsKnowledgeStoreSetting )" = "on" ] && AgentsToolsKnowledgeStorePython > /dev/null 2>&1 ; then
@@ -176,7 +186,55 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 	## The store dumps are scratch files the scanner reads, labeled back to their MAGIC.md (AgentsKnowledgeScan.awk reads KNOWLEDGE_STORE_MAP), in a
 	## subshell whose own EXIT trap takes the scratch folder with it.
 	(
-		if [ -n "$knowStoreList" ] ; then
+		## THE INDEX ANSWERS when it stands and every term is a keyword: the fused call ranks the sections by full text
+		## and vector, each hit is read out as its own section, and a hit of a source not added, or of a file the acting
+		## member may not read, is dropped and counted on stderr.
+		if [ -n "$knowIndex" ] ; then
+			knowIndexText="$( printf '%s' "$knowQuery" | LC_ALL=C awk '
+				/^kw / { sub( /^kw /, "" ) ; printf "%s%s", ( done++ ? " " : "" ), $0 ; next }
+				{ other = 1 }
+				END { if ( other ) { exit 1 } ; }' )" || knowIndex=""
+		fi
+		if [ -n "$knowIndex" ] ; then
+			mkdir -p "$MMDAPP/.local/temp" || exit 1
+			knowIndexScratch="$( mktemp -d "$MMDAPP/.local/temp/knowledge-index-query.XXXXXX" )" || exit 1
+			trap "rm -rf -- $( printf '%q' "$knowIndexScratch" )" EXIT
+			knowIndexHits="$( "$( AgentsToolsKnowledgeStorePython )" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStore.py" query \
+				--index "$knowIndex" --model-dir "$knowIndexModelDir" --out-dir "$knowIndexScratch" --text "$knowIndexText" )" || knowIndexRc=$?
+			if [ "$knowIndexRc" = 0 ] ; then
+				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+				type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 1
+				type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+				knowIndexMember="$( AgentsToolsActingMember )"
+				knowFiles="" knowStoreMap=""
+				while IFS=$'\t' read -r knowIndexFile knowIndexRef knowIndexStore ; do
+					[ -n "$knowIndexFile" ] || continue
+					case "$knowIndexStore" in
+						docs) case "$knowSources " in *" --add-source-docs "*) ;; *) knowIndexDropped=$(( knowIndexDropped + 1 )) ; continue ;; esac ;;
+						board|vault|inbox) case "$knowSources " in *" --add-$knowIndexStore-items "*) ;; *) knowIndexDropped=$(( knowIndexDropped + 1 )) ; continue ;; esac ;;
+						*) knowIndexDropped=$(( knowIndexDropped + 1 )) ; continue ;;
+					esac
+					case "$knowIndexStore" in
+						board|vault|inbox) knowIndexPath="${MDAT_DATA_ROOT%/}/$knowIndexRef" ;;
+						*) knowIndexPath="$MMDAPP/$knowIndexRef" ;;
+					esac
+					if [ -n "$knowIndexMember" ] && ! AgentsToolsPermissionHolds "$knowIndexMember" Read "$knowIndexPath" "${MDAT_SPAWN_SESSION_ID:-}" > /dev/null 2>&1 ; then
+						knowIndexDropped=$(( knowIndexDropped + 1 ))
+						continue
+					fi
+					knowFiles="${knowFiles}${knowFiles:+
+}$knowIndexFile"
+					knowStoreMap="${knowStoreMap}${knowIndexFile}	${knowIndexRef}	${knowIndexStore}
+"
+				done <<< "$knowIndexHits"
+				[ "$knowIndexDropped" = 0 ] || echo "# $knowOp: $knowIndexDropped section(s) of the index were left out, of a source not added or a file this member may not read" >&2
+				## The fused ranks are the answer, so the query's terms are not applied a second time to them.
+				knowQuery=""
+			else
+				knowIndex=""
+			fi
+		fi
+		if [ -n "$knowStoreList" ] && [ -z "$knowIndex" ] ; then
 			mkdir -p "$MMDAPP/.local/temp" || exit 1
 			knowStoreScratch="$( mktemp -d "$MMDAPP/.local/temp/knowledge-store-query.XXXXXX" )" || exit 1
 			trap "rm -rf -- $( printf '%q' "$knowStoreScratch" )" EXIT

@@ -207,10 +207,13 @@ AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, id
 ## ONE PUSH OF A CHANNEL'S OUTBOX, by one pusher at a time (.pushlock.txt, stale after 120 s): the records after `sent`, oldest first,
 ## each posted as the session's writer posts one (AgentsToolsSessionCommsPost), with the record's own reason kept on line 2 so the writer
 ## says what really happened to it. Posted or given up moves `sent`. One left for later keeps its place, sets `retry-at` and counts the
-## attempt, and nothing after it overtakes it.
-AgentsToolsCommsCachePush(){ ## cache folder, now
-	local pushDir="$1" pushNow="$2" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0 pushWhy pushSep=$'\037'
+## attempt, and nothing after it overtakes it. `most` bounds the posts of this call, and nothing of it when 0: a backlog is drained over
+## passes, so the pass that drains it still takes the console's messages and reads the threads.
+AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no bound)
+	local pushDir="$1" pushNow="$2" pushMost="${3:-0}" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0 pushWhy pushSep=$'\037' pushFull=""
 	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload pushPauseDir pushPauseUntil
+	case "$pushMost" in ''|*[!0123456789]*) pushMost=0 ;; esac
+	agentsCommsCachePushMade=0
 	[ -f "$pushDir/outbox.pushing.txt" ] || [ -s "$pushDir/outbox.messages.txt" ] || return 0
 	if ! ( set -o noclobber ; printf '%s\n' "$pushNow" > "$pushDir/.pushlock.txt" ) 2> /dev/null ; then
 		{ read -r pushLock < "$pushDir/.pushlock.txt" ; } 2> /dev/null || pushLock=0
@@ -264,9 +267,13 @@ AgentsToolsCommsCachePush(){ ## cache folder, now
 			fi
 			pushSent="$pushNo" pushRetry=0 pushTries=0
 			printf '%s 0 0\n' "$pushSent" > "$pushDir/.push.txt"
+			pushMade=$(( agentsCommsCachePushMade + 1 ))
+			agentsCommsCachePushMade=$pushMade
+			[ "$pushMost" = 0 ] || [ "$pushMade" -lt "$pushMost" ] || { pushFull="yes" ; break ; }
 		done < "$pushDir/outbox.pushing.txt"
 		rm -rf "$pushWork"
 		[ "$pushRc" != 1 ] || break
+		[ -z "$pushFull" ] || break
 		## All of it sent: the outbox is cut back, and the next one, where a send came meanwhile, is taken.
 		rm -f "$pushDir/outbox.pushing.txt" "$pushDir/.push.txt"
 	done
@@ -274,15 +281,21 @@ AgentsToolsCommsCachePush(){ ## cache folder, now
 	return 0
 }
 
-## Every channel's outbox that holds a post, pushed: the shell's own expansion finds them, so a pass with none starts no process.
-AgentsToolsCommsCachePushAll(){ ## now
-	local allOut allSeen=" "
+## Every channel's outbox that holds a post, pushed: the shell's own expansion finds them, so a pass with none starts no process. `most`
+## is the posts of the whole pass, spent channel by channel in turn: a backlog of one channel never spends it all, and a workspace with
+## many channels still makes only that many posts, so the pass that drains them still takes the console's messages and reads the threads.
+AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
+	local allOut allSeen=" " allMost="${2:-0}" allLeft
 	[ -n "${MMDAPP:-}" ] || return 0
+	case "$allMost" in ''|*[!0123456789]*) allMost=0 ;; esac
+	allLeft="$allMost"
 	for allOut in "$MMDAPP/.local/cache/comms"/*/*/outbox.pushing.txt "$MMDAPP/.local/cache/comms"/*/*/outbox.messages.txt ; do
 		[ -f "$allOut" ] || continue
 		case "$allSeen" in *" ${allOut%/*} "*) continue ;; esac
 		allSeen="$allSeen${allOut%/*} "
-		AgentsToolsCommsCachePush "${allOut%/*}" "$1"
+		[ "$allMost" = 0 ] || [ "$allLeft" -gt 0 ] || break
+		AgentsToolsCommsCachePush "${allOut%/*}" "$1" "$allLeft"
+		[ "$allMost" = 0 ] || allLeft=$(( allLeft - agentsCommsCachePushMade ))
 	done
 	return 0
 }
@@ -307,8 +320,10 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 ## THE RIG'S PULL (owner 2026-10-28), run by the session comms reader: every channel read in the last 61 minutes whose last pull is
 ## past its TTL is pulled once, by the way its state names, so a member's read on the rig is served from the cache and never waits on
 ## the service. Once an hour it deletes the marks older than 48 hours (owner 2026-10-29).
-AgentsToolsCommsCachePullWatched(){ ## now
+AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one call may pull, none or 0 for no bound)
 	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchName watchDir watchHow watchTarget watchMember watchBot watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
+	local watchMost="${2:-0}" watchDone=0
+	case "$watchMost" in ''|*[!0123456789]*) watchMost=0 ;; esac
 	case "$watchTtl" in ''|*[!0-9]*) watchTtl=15 ;; esac
 	[ -n "${MMDAPP:-}" ] && [ -d "$watchMarks" ] || return 0
 	if [ $(( $1 - ${agentsCommsInterestCleanAt:-0} )) -ge 3600 ] ; then
@@ -331,6 +346,7 @@ AgentsToolsCommsCachePullWatched(){ ## now
 		done
 	fi
 	for watchName in $( find "$watchMarks" -type f -mmin -61 2> /dev/null | LC_ALL=C sed 's#^.*/##' ) ; do
+		[ "$watchMost" = 0 ] || [ "$watchDone" -lt "$watchMost" ] || break
 		watchDir="$MMDAPP/.local/cache/comms/${watchName%%-*}/$watchName"
 		AgentsToolsCommsCacheState "$watchDir" || continue
 		## Each channel from the TTL its readers read it at, kept in its mark; the default where the mark names none.
@@ -358,6 +374,7 @@ AgentsToolsCommsCachePullWatched(){ ## now
 					$( [ "$watchBot" != "true" ] || printf '%s' --identity-bot ) > /dev/null 2>&1 < /dev/null || :
 			;;
 		esac
+		watchDone=$(( watchDone + 1 ))
 	done
 	return 0
 }

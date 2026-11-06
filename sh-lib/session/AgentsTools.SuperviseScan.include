@@ -14,7 +14,8 @@
 ## `idle-done` a live run that handed back and has nothing pending; `no-plan` a live run older than ten minutes with no CheckList of its own;
 ## `stale-plan` a run active in the last ten minutes whose CheckList is unchanged for an hour; `control-stuck` a control thread
 ## whose session has no record left open at all and whose log has not been written for SESSION_CONTROL_NO_RUN_END_SECONDS plus five
-## minutes, which is a thread that should have ended itself and did not (S5.6); `track` an event of a run's
+## minutes, which is a thread that should have ended itself and did not (S5.6); `rig-orphan` a control thread inside a run's output folder,
+## a test rig, alive after that run's record closed (S5.2); `track` an event of a run's
 ## event-track thread since --since: a failed or refused tool call, an ask, an answer, a handback, a final answer, a model change.
 ## A `run` line reads no file's date: its age is the run's own activity mark, else the stamp of its own transcript. The transcript is
 ## read for a name alone between tools, since a long call leaves no line there until it returns, and every part of it is read.
@@ -315,7 +316,7 @@ AgentsToolsSuperviseScan(){
 		for scanCtlFile in "$scanAgents"/sessions/*/control/pid ; do
 			[ -f "$scanCtlFile" ] || continue
 			scanCtlPid=""
-			{ IFS= read -r scanCtlPid scanCtlRest < "$scanCtlFile" ; } 2> /dev/null || continue
+			{ read -r scanCtlPid scanCtlRest < "$scanCtlFile" ; } 2> /dev/null || continue
 			case "${scanCtlPid:-}" in ''|*[!0123456789]*) continue ;; esac
 			kill -0 "$scanCtlPid" 2> /dev/null || continue
 			scanCtlSid="${scanCtlFile%/control/pid}" ; scanCtlSid="${scanCtlSid##*/}"
@@ -331,6 +332,17 @@ AgentsToolsSuperviseScan(){
 			printf 'control-stuck %s %s %s pid=%s quiet-over=%sm no-record-open\n' "${scanWs##*/}" \
 				"$( printf '%s' "$scanCtlSid" | cut -c1-8 )" "$scanCtlSid" "$scanCtlPid" "$scanNoRunMin"
 		done
+		## A TEST RIG LEFT RUNNING (S5.2): a control thread started inside a run's own output folder, alive after that run's record closed.
+		while IFS= read -r scanCtlFile ; do
+			[ -n "$scanCtlFile" ] || continue
+			scanCtlPid=""
+			{ read -r scanCtlPid scanCtlRest < "$scanCtlFile" ; } 2> /dev/null || continue
+			case "${scanCtlPid:-}" in ''|*[!0123456789]*) continue ;; esac
+			kill -0 "$scanCtlPid" 2> /dev/null || continue
+			scanSpid="${scanCtlFile#"$scanAgents"/spawned/}" ; scanSpid="${scanSpid%%/*}"
+			! LC_ALL=C grep -q -x 'status: spawn-started' "$scanAgents/spawned/$scanSpid/$scanSpid.spawn.md" 2> /dev/null || continue
+			printf 'rig-orphan %s %s pid=%s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanCtlPid" "${scanCtlFile#"$scanAgents"/spawned/"$scanSpid"/}"
+		done <<< "$( find "$scanAgents/spawned" -mindepth 6 -maxdepth 14 -path '*/output/*' -path '*/control/pid' -type f 2> /dev/null )"
 	done
 	return 0
 }

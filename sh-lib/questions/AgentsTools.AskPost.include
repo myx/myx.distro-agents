@@ -37,7 +37,8 @@ EscalateDecision|decision|escalate-decision.post.format.md|one|question options 
 RequestPermission|permission|request-permission.post.format.md|grant|question refusal_id reason task_ref entries escalate escalate
 ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal document task_ref
 |review|review-prompt.post.format.md|verdict|
-|change|change-approve.post.format.md|approve|"
+|change|change-approve.post.format.md|approve|
+|undo|undo-approve.post.format.md|verdict|"
 	## The parameters every one of them takes.
 	agentsAskCommonArgs="to address_to context wait timeout wait_source as_bot pending_id withdraw revise description"
 

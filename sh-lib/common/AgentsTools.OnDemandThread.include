@@ -116,7 +116,8 @@ AgentsToolsOnDemandThreadAsk(){ ## folder, bound seconds or -, the request's fie
 		askLine="$askLine$1"$'\t'
 		shift
 	done
-	if exec 7<> "$askFolder/request.fifo" 2> /dev/null ; then
+	## The braces scope the silence to the open: on `exec` a bare `2> /dev/null` silences the caller for good.
+	if { exec 7<> "$askFolder/request.fifo" ; } 2> /dev/null ; then
 		printf '%s\n' "$askLine$askReply" >&7 2> /dev/null && askSent="yes"
 		exec 7>&-
 	fi
@@ -177,16 +178,18 @@ AgentsToolsOnDemandThreadRequest(){ ## folder, bound seconds or -, the operation
 
 ## THE THREAD'S WHOLE LIFE, run as its own process: it takes the folder's lock, holds the request fifo open read-write so a caller's
 ## open never waits, reads one request a second, and calls <handler> with the request's fields. A second with no request calls <tick>,
-## or nothing where the tick is `-`. It ends on TERM, after <idle> seconds with no request, and when its folder or its lock is gone.
+## or nothing where the tick is `-`. A tick that answers 2 counts as a request, for a thread whose work stands. It ends on TERM, after <idle>
+## seconds with no request, and when its folder or its lock is gone.
 ## <once> `yes` calls the tick alone and ends, for a caller that wants the work now rather than a request served.
 ## DESCRIPTOR 3 IS ALWAYS OPEN, at /dev/null except while one request's answer is served, so a handler prints its answer to descriptor
 ## 3 and never tests whether anyone is there. What the thread prints elsewhere is what its starter keeps: its log for a started thread,
 ## the caller's own output for a direct call. It runs with `set +e +u` and with the terminal's signals ignored, so no handler guards
-## either.
+## either. EVERY CALL OUT IS CHECKED, by `||`: a handler or tick that runs `set -e` leaves it on, and the next non-zero status would end the
+## thread with no end line. A non-zero answer is logged with its code, and a tick's 2 is a request.
 AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, once (yes|no)
 	local serveFolder="${1:-}" serveIdle="${2:-60}" serveHandler="${3:-}" serveTick="${4:--}" serveOnce="${5:-no}"
 	local serveEnd="" servePid="" serveMe="" serveHolder="" serveTook="" serveLine="" serveSplit="" serveLeave=""
-	local serveLoops=0 serveLast=0 serveFields=() serveReply=""
+	local serveLoops=0 serveLast=0 serveFields=() serveReply="" serveRc=0
 	if [ -z "$serveFolder" ] || [ -z "$serveHandler" ] ; then
 		printf '⛔ ERROR: the thread needs a folder and a handler\n' >&2
 		return 1
@@ -238,7 +241,7 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 	## thread reads the bound in force, and a caller is told which one governs.
 	printf '%s\n' "$serveIdle" > "$serveFolder/thread.idle" 2> /dev/null || :
 	if [ "$serveOnce" = yes ] ; then
-		[ "$serveTick" = "-" ] || "$serveTick"
+		[ "$serveTick" = "-" ] || "$serveTick" || printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveTick" "$?" >&2
 		exec 9>&-
 		AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
 		return 0
@@ -246,7 +249,7 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 	serveLast="$SECONDS"
 	while : ; do
 		serveLine=""
-		IFS= read -r -t 1 -u 9 serveLine
+		IFS= read -r -t 1 -u 9 serveLine || :
 		if [ -n "$serveLine" ] ; then
 			serveLast="$SECONDS"
 			case "$serveLine" in
@@ -254,11 +257,11 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 					serveReply="${serveLine##*$'\t'}"
 					serveSplit="${serveLine%$'\t'*}"
 					serveFields=()
-					IFS=$'\t' read -r -a serveFields <<< "$serveSplit"
+					IFS=$'\t' read -r -a serveFields <<< "$serveSplit" || :
 					if [ "$serveReply" = "-" ] ; then
-						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}"
+						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$?" >&2
 					elif [ -e "$serveReply" ] && exec 3<> "$serveReply" 2> /dev/null ; then
-						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}"
+						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$?" >&2
 						## THE TERMINATOR IS THE THREAD'S (S12.11 ruling 2), never the handler's to remember: a handler that
 						## ran and said nothing still ends its answer, so its caller reads served-and-empty, not no answer.
 						printf '.\n' >&3 2> /dev/null || :
@@ -271,8 +274,13 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 					printf '%s a request with no reply field is dropped: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveLine" >&2
 				;;
 			esac
-		else
-			[ "$serveTick" = "-" ] || "$serveTick"
+		elif [ "$serveTick" != "-" ] ; then
+			serveRc=0 ; "$serveTick" || serveRc=$?
+			case "$serveRc" in
+				0) ;;
+				2) serveLast="$SECONDS" ;;
+				*) printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveTick" "$serveRc" >&2 ;;
+			esac
 		fi
 		[ -z "$serveEnd" ] || { serveLeave="it was ended by $serveEnd" ; break ; }
 		[ "$(( SECONDS - serveLast ))" -lt "$serveIdle" ] || { serveLeave="no request came for ${serveIdle}s" ; break ; }

@@ -27,7 +27,8 @@
 ## run began (there for whoever reads the thread, never new to a floor), `reply:<member>` for a reply to a post of that
 ## member, `console` for the console's message to a session with no thread, `printback` for the root-native
 ## printback channel's (F2.2, AgentsTools.CommsPrintback.include), whose conversation is the channel-id
-## `printback:<session>` and which never opens a thread, and `notice` for a background notice the spawn proxy
+## `printback:<session>` and which never opens a thread, `delivered` for a message another session sent into this
+## session's thread, recorded here by its send (AgentsToolsSessionChatDeliverCopy), and `notice` for a background notice the spawn proxy
 ## recorded on that channel (F3.3, AgentsToolsCommsPrintbackNoticeRecord): the floor never delivers a notice
 ## block, and the next foreground call surfaces it as one line of the digest. <seen> is the members whose own
 ## Wait delivered the block itself, comma-joined, `-` for none; the notice digest marks a notice it printed in
@@ -182,6 +183,108 @@ AgentsToolsSessionChatSend(){ ## member, addressees (spaced; may be empty), body
 	## The origin is `own`, the run's; the writer of the console sends with MDAT_CHAT_ORIGIN=console.
 	sendNo="$( printf '%s' "$3" | AgentsToolsSessionChatAppend "$sendKey" "$1" "$( AgentsToolsSessionChatTo $2 )" - - "${MDAT_CHAT_ORIGIN:-own}" 2> /dev/null )" || return 0
 	[ -z "$sendNo" ] || printf '%s %s\n' "$sendKey" "$sendNo"
+	return 0
+}
+
+## THE CHAT FILE IS THE SESSION'S PRIMARY CHANNEL, ITS SLACK THREAD THE COPY (S12.15). A message one session sends into the thread
+## of ANOTHER session is recorded in that session's chat file as well as in the sender's own, before Slack is called, so it reaches
+## the runs of that session whatever Slack lets them read. The block is the receiving session's own: origin `delivered`, its
+## conversation that session's thread from the start, so its floor gives it at once (AgentsSessionChatRead.awk); it takes the ts
+## Slack gave the post once there is one (AgentsToolsSessionChatDeliverStamp), so a later read of the thread never records it twice.
+## A send whose post fails leaves the copy as it is: it was delivered where the session reads first.
+
+## The workspace roots a session thread is looked for in, one a line: this workspace's, then every other root the machine's
+## directories registry names (AgentsTools.TeamRegistry.include) that keeps sessions. A member of one workspace sends into the
+## sessions of another, so the thread is the session's address across them.
+AgentsToolsSessionChatThreadRoots(){
+	local rootsFile="" rootsName="" rootsPath=""
+	[ -n "${MMDAPP:-}" ] || return 0
+	printf '%s\n' "${MMDAPP%/}"
+	type AgentsToolsTeamSharedDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || return 0
+	rootsFile="$( AgentsToolsTeamSharedDir )/directories.registry"
+	[ -f "$rootsFile" ] || return 0
+	while IFS=$'\t' read -r rootsName rootsPath ; do
+		rootsPath="${rootsPath%/}"
+		case "$rootsPath" in /?*) ;; *) continue ;; esac
+		[ "$rootsPath" != "${MMDAPP%/}" ] && [ -d "$rootsPath/.local/agents/sessions" ] || continue
+		printf '%s\n' "$rootsPath"
+	done < "$rootsFile" | LC_ALL=C awk '! seen[$0]++'
+}
+
+## The sessions whose session thread is <conversation:thread>, one `<workspace root><TAB><session>` a line: those of this
+## workspace, and only where it holds none, those of the other roots (AgentsToolsSessionChatThreadRoots). The sending session
+## itself is never listed. rc 1, nothing printed, for a thread no other session keeps.
+AgentsToolsSessionChatThreadSessions(){ ## conversation:thread, the sending session (may be empty)
+	local ownerThread="$1" ownerSelf="${2:-}" ownerRoot="" ownerFile="" ownerSession="" ownerFound=""
+	case "$ownerThread" in [ABCDEFGHIJKLMNOPQRSTUVWXYZ]*:[0123456789]*.[0123456789]*) ;; *) return 1 ;; esac
+	while IFS= read -r ownerRoot ; do
+		[ -n "$ownerRoot" ] || continue
+		## The first match wins: this workspace's sessions are asked first, and another root only where it has none.
+		[ -z "$ownerFound" ] || break
+		for ownerFile in $( LC_ALL=C grep -l -x -F -- "$ownerThread" "$ownerRoot"/.local/agents/sessions/*/session.thread 2> /dev/null ) ; do
+			ownerSession="${ownerFile%/session.thread}" ; ownerSession="${ownerSession##*/}"
+			[ "$ownerRoot" != "${MMDAPP%/}" ] || [ "$ownerSession" != "$ownerSelf" ] || continue
+			printf '%s\t%s\n' "$ownerRoot" "$ownerSession"
+			ownerFound="true"
+		done
+	done <<< "$( AgentsToolsSessionChatThreadRoots )"
+	[ -n "$ownerFound" ]
+}
+
+## The run of <member> that is live in <session> of <workspace root>, by its newest spawn record still `spawn-started`: its spawn id.
+## Nothing printed, rc 1, for none.
+AgentsToolsSessionChatLiveRun(){ ## workspace root, session, member
+	local liveRecord=""
+	for liveRecord in $( ls -t "$1/.local/agents/spawned/$2/"*.spawn.md 2> /dev/null ) ; do
+		LC_ALL=C awk -v who="$3" '
+			$0 == "---" { fence++ ; if ( fence > 1 ) { exit ; } ; next ; }
+			$0 == "owner: " who { owner = 1 ; }
+			$0 == "status: spawn-started" { started = 1 ; }
+			END { exit ( owner && started ) ? 0 : 1 ; }' "$liveRecord" 2> /dev/null || continue
+		liveRecord="${liveRecord##*/}"
+		printf '%s' "${liveRecord%.spawn.md}"
+		return 0
+	done
+	return 1
+}
+
+## The copies of one message sent into the thread of another session (above): appended to the chat file of each session that keeps
+## <conversation:thread>, from the sender, to the addressees, origin `delivered`. Where the sender is among the addressees, one run
+## of a member dismissing another of the same member, the header names both runs (S27.8, AgentsHarnessWaitDismissed.awk): the
+## sender's, and the live run of that member in the receiving session. Prints one `<root><TAB><session><TAB><block><TAB><thread>`
+## for each copy, for AgentsToolsSessionChatDeliverStamp. Quiet, and never a reason for a send to fail.
+AgentsToolsSessionChatDeliverCopy(){ ## sending session (may be empty), member, addressees (spaced; may be empty), conversation:thread, body
+	local copyRows="" copyRoot="" copySession="" copyNo="" copyFrom="" copyTo="" copyRun="" copyTheirs=""
+	## A post into the sender's own session thread is that session's already: nothing is looked for.
+	[ -z "$1" ] || [ "$( AgentsToolsSessionChatThread "$1" 2> /dev/null )" != "$4" ] || return 0
+	copyRows="$( AgentsToolsSessionChatThreadSessions "$4" "$1" )" || return 0
+	copyRun="${MDAT_SPAWN_SESSION_ID:-${harnessSessionId:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	while IFS=$'\t' read -r copyRoot copySession ; do
+		[ -n "$copyRoot" ] && [ -n "$copySession" ] || continue
+		copyFrom="$2" copyTo="$( AgentsToolsSessionChatTo $3 )"
+		case " $3 " in
+			*" $2 "*)
+				copyTheirs="$( AgentsToolsSessionChatLiveRun "$copyRoot" "$copySession" "$2" )" || copyTheirs=""
+				if [ -n "$copyRun" ] && [ -n "$copyTheirs" ] && [ "$copyTheirs" != "$copyRun" ] ; then
+					copyFrom="$2 [author-run=$copyRun]" copyTo="$copyTo [addressee-run=$copyTheirs]"
+				fi
+			;;
+		esac
+		copyNo="$( printf '%s' "$5" | MMDAPP="$copyRoot" AgentsToolsSessionChatAppend "$copySession" "$copyFrom" "$copyTo" - "$4" delivered 2> /dev/null )" || continue
+		[ -z "$copyNo" ] || printf '%s\t%s\t%s\t%s\n' "$copyRoot" "$copySession" "$copyNo" "$4"
+	done <<< "$copyRows"
+	return 0
+}
+
+## The ts Slack gave the post, set on each of its copies (AgentsToolsSessionChatDeliverCopy's rows). Each keeps its conversation,
+## the receiving session's thread, so a read of that thread into the file knows the message as the block it holds already.
+AgentsToolsSessionChatDeliverStamp(){ ## the copies' rows, ts
+	local stampRoot="" stampSession="" stampNo="" stampThread=""
+	[ -n "$1" ] && [ -n "$2" ] || return 0
+	while IFS=$'\t' read -r stampRoot stampSession stampNo stampThread ; do
+		[ -n "$stampNo" ] && [ -n "$stampThread" ] || continue
+		( MMDAPP="$stampRoot" ; AgentsToolsSessionChatStamp "$stampSession" "$stampNo" "$2" "$stampThread" ) 2> /dev/null || :
+	done <<< "$1"
 	return 0
 }
 

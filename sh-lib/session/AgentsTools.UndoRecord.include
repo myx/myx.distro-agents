@@ -157,6 +157,105 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 		esac
 	}
 
+	## One value of a pending reply's own record, or empty.
+	AgentsToolsUndoAskField(){ ## pending file, key
+		local undoAskLine
+		[ -f "$1" ] || return 0
+		while IFS= read -r undoAskLine ; do
+			case "$undoAskLine" in "$2: "*) printf '%s' "${undoAskLine#"$2": }" ; return 0 ;; esac
+		done < "$1"
+	}
+
+	## The pending reply a record's ask is, live first and then among the closed.
+	AgentsToolsUndoAskPath(){ ## pending id
+		local undoAskId="$1" undoAskRoot="${MMDAPP%/}/.local/agents/pending"
+		case "$undoAskId" in ''|.|..|*/*) return 1 ;; esac
+		[ ! -f "$undoAskRoot/$undoAskId.md" ] || { printf '%s' "$undoAskRoot/$undoAskId.md" ; return 0 ; }
+		[ ! -f "$undoAskRoot/closed/$undoAskId.md" ] || { printf '%s' "$undoAskRoot/closed/$undoAskId.md" ; return 0 ; }
+		return 1
+	}
+
+	## The record one ask names, by the ask's id, or empty: the lane keeps the ask's id on the
+	## record, and this is the one walk back from an answer to the act it is about.
+	AgentsToolsUndoRecordOfAsk(){ ## pending id
+		local undoOfAskDir
+		case "${1:-}" in ''|.|..|*/*) return 0 ;; esac
+		for undoOfAskDir in "${MMDAPP%/}/.local/agents/sessions"/*/undo/* ; do
+			[ -f "$undoOfAskDir/record" ] || continue
+			[ "$( AgentsToolsUndoField "$undoOfAskDir" ask )" = "$1" ] || continue
+			printf '%s' "$undoOfAskDir"
+			return 0
+		done
+		return 0
+	}
+
+	## HIS WORD, AND NO OTHER. The verdict the record's ask was answered with, where it is the
+	## human-owner's and one of the words given; rc 1 with the reason where the record names no
+	## ask, the ask has no answer, the answer is another's, or it is another verdict. This is what
+	## keeps `--undo-run` and `--undo-purge` out of a member's own reach.
+	AgentsToolsUndoOwnerWord(){ ## record folder, the words that carry out, space-separated
+		local undoWordFile undoWordStatus undoWordVerdict undoWordBy undoWordAsk
+		undoWordAsk="$( AgentsToolsUndoField "$1" ask )"
+		undoWordFile="$( AgentsToolsUndoAskPath "$undoWordAsk" )" || {
+			printf 'the record names no ask of this workspace, so no answer of the human-owner reaches it\n' >&2 ; return 1 ; }
+		undoWordStatus="$( AgentsToolsUndoAskField "$undoWordFile" status )"
+		undoWordVerdict="$( AgentsToolsUndoAskField "$undoWordFile" verdict )"
+		undoWordBy="$( AgentsToolsUndoAskField "$undoWordFile" answered-by )"
+		[ "$undoWordStatus" = "reply-received" ] || {
+			printf '%s has no answer yet, so nothing is done on a member own word\n' "$( AgentsToolsUndoField "$1" ask )" >&2 ; return 1 ; }
+		case " $2 " in
+			*" ${undoWordVerdict%% *} "*) ;;
+			*) printf '%s was answered %s, and the words that carry this out are: %s\n' "$( AgentsToolsUndoField "$1" ask )" "${undoWordVerdict:-nothing}" "$2" >&2 ; return 1 ;;
+		esac
+		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+		AgentsToolsPermissionIsHumanOwner "$undoWordBy" || {
+			printf '%s was answered by %s, and only the answer of the human-owner is carried out\n' "$( AgentsToolsUndoField "$1" ask )" "${undoWordBy:-nobody}" >&2 ; return 1 ; }
+		printf '%s' "$undoWordVerdict"
+	}
+
+	## One part of the undo prompt, filled from its template by the filler the ask posts use: the
+	## template and the answer form the table of the asks names for `undo`. Its slots travel in the
+	## caller's environment as ASKP_F_<slot>, as they do for every ask.
+	AgentsToolsUndoAskFill(){ ## want (post|closed|reactions|block), template, answer form
+		ASKP_WANT="$1" ASKP_FORM="$3" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsAskPostFill.awk" "$2" 2> /dev/null
+	}
+
+	## The prompt of one record: posted to the human-owner's own conversation by the team bot, as
+	## the change prompt is, and recorded as that run's ask, so his answer arrives on its Wait and
+	## is carried out in one place. Prints the pending id; rc 1, the reason on stderr, where it
+	## could not be posted or recorded, so the act is not promised.
+	AgentsToolsUndoAskOpen(){ ## record folder, acting member, session id
+		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate
+		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
+		undoAskTemplate="$( AgentsToolsToolingTemplate "$agentsAskRowTemplate" )" || undoAskTemplate="$agentsAskRowTemplate"
+		undoAskBody="$( ASKP_F_member="$undoAskBy" \
+			ASKP_F_act="$( printf '`%s` on `%s`' "$( AgentsToolsUndoField "$undoAskDir" kind )" "$( AgentsToolsUndoField "$undoAskDir" target )" )" \
+			ASKP_F_inverse="$( AgentsToolsUndoSteps "$undoAskDir" | LC_ALL=C awk -F'\t' '{ printf "  step %s %s %s\n", $1, $2, $3 ; }' )" \
+			ASKP_F_hold="$( AgentsToolsUndoField "$undoAskDir" hold-dir )" \
+			AgentsToolsUndoAskFill post "$undoAskTemplate" "$agentsAskRowForm" )" || undoAskBody=""
+		[ -n "$undoAskBody" ] || { printf 'the prompt could not be filled from its template, so nothing is promised\n' >&2 ; return 1 ; }
+		undoAskOut="$( printf '%s\n' "$undoAskBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$undoAskBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+			printf 'the prompt could not be posted, so nothing is promised: %s\n' "$( printf '%s\n' "$undoAskOut" | LC_ALL=C grep -m1 'ERROR' )" >&2 ; return 1 ; }
+		undoAskChannel="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+		undoAskTs="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		undoAskAddressees="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+		undoAskAsking="$( printf '%s\n' "$undoAskOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || undoAskAsking=""
+		[ -n "$undoAskChannel" ] && [ -n "$undoAskTs" ] && [ -n "$undoAskAddressees" ] || {
+			printf 'the prompt was posted but its thread could not be named, so its answer could not be read\n' >&2 ; return 1 ; }
+		undoAskFields="$( AgentsToolsAskPostFieldsPack member "$undoAskBy" act "$undoAskBody" )"
+		undoAskPending="$( printf '%s\n' "$undoAskBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open "$undoAskBy" --to "$undoAskChannel" --session-id "$undoAskSession" \
+			--kind undo --address-to human-owner --blocked-on "reply from human-owner" --channel "$undoAskChannel" --question-ts "$undoAskTs" --thread-ts "$undoAskTs" \
+			--addressees "$undoAskAddressees" ${undoAskAsking:+--asking-accounts " $undoAskAsking"} --ask-identity bot --fields "$undoAskFields" --context undo-record 2> /dev/null )" || undoAskPending=""
+		[ -n "$undoAskPending" ] || { printf 'the prompt was posted, but its ask could not be recorded, so its answer could not be read\n' >&2 ; return 1 ; }
+		## Its click answers, the names its template gives, placed as the identity that posted it.
+		type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskPostReact "$undoAskBy" "$undoAskChannel:$undoAskTs" bot add $( AgentsToolsUndoAskFill reactions "$undoAskTemplate" "$agentsAskRowForm" )
+		printf '%s' "$undoAskPending"
+	}
+
 fi
 
 case "$1" in
@@ -232,6 +331,21 @@ case "$1" in
 		} > "$undoRecDir/record" || { rm -rf "$undoRecDir" ; echo "⛔ ERROR: $MDSC_CMD --undo-record: could not write the record" >&2 ; set +e ; return 1 ; }
 		[ -z "$undoRecBase" ] || cp -p "$undoRecBase" "$undoRecDir/base" || :
 		[ -z "$undoRecResult" ] || cp -p "$undoRecResult" "$undoRecDir/result" || :
+		## An open record is a promise, and a promise nobody was asked about is none: the prompt is
+		## posted and recorded as this run's ask, and a prompt that cannot be posted takes the
+		## record and its hold away again.
+		if [ "$undoRecState" = open ] ; then
+			undoRecAsk="$( AgentsToolsUndoAskOpen "$undoRecDir" "${undoRecActor:-none}" "$undoRecSession" 2> "$undoRecDir/ask.failed" )" || undoRecAsk=""
+			if [ -z "$undoRecAsk" ] ; then
+				cat "$undoRecDir/ask.failed" >&2 2> /dev/null || :
+				[ -z "$undoHoldDir" ] || AgentsToolsUndoHoldDrop "$undoHoldDir" "$undoRecSession" "$undoRecId"
+				rm -rf "$undoRecDir"
+				echo "⛔ ERROR: $MDSC_CMD --undo-record: the act is kept and nothing is promised for it" >&2
+				set +e ; return 1
+			fi
+			rm -f "$undoRecDir/ask.failed" 2> /dev/null || :
+			AgentsToolsUndoSet "$undoRecDir" ask "$undoRecAsk" || :
+		fi
 		printf 'RECORDED %s %s\n' "$undoRecId" "$undoRecState"
 		[ "$undoRecState" != refused ] || printf '  refused: %s\n' "$undoRecWhy" >&2
 		return 0
@@ -271,7 +385,7 @@ case "$1" in
 	--undo-run)
 		shift
 		local undoRunId="" undoRunSession="" undoRunDir="" undoRunWhy="" undoRunLock="${MMDAPP%/}/.local/temp/undo-run.lock" undoRunTries=0
-		local undoRunNo=0 undoRunTool undoRunOp undoRunArg undoRunRc=0
+		local undoRunNo=0 undoRunTool undoRunOp undoRunArg undoRunRc=0 undoRunWord=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id) undoRunSession="${2:-}" ; shift 2 ;;
@@ -280,6 +394,7 @@ case "$1" in
 			esac
 		done
 		undoRunDir="$( AgentsToolsUndoFind "$undoRunId" "$undoRunSession" )" || { set +e ; return 1 ; }
+		undoRunWord="$( AgentsToolsUndoOwnerWord "$undoRunDir" "reject" )" || { set +e ; return 1 ; }
 		case "$( AgentsToolsUndoField "$undoRunDir" state )" in
 			open) ;;
 			done|accepted) printf 'nothing to do: the record is already %s\n' "$( AgentsToolsUndoField "$undoRunDir" state )" ; return 0 ;;
@@ -318,10 +433,10 @@ case "$1" in
 	;;
 
 	## --undo-purge <record-id> [--session-id <id>]: the owner accepted the act, so the promise is
-	## purged: the record closes and the hold it made is released.
+	## purged: the record closes and the hold it made is released. Only his own answer carries it.
 	--undo-purge)
 		shift
-		local undoPurgeId="" undoPurgeSession="" undoPurgeDir="" undoPurgeHold=""
+		local undoPurgeId="" undoPurgeSession="" undoPurgeDir="" undoPurgeHold="" undoPurgeWord=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id) undoPurgeSession="${2:-}" ; shift 2 ;;
@@ -330,10 +445,40 @@ case "$1" in
 			esac
 		done
 		undoPurgeDir="$( AgentsToolsUndoFind "$undoPurgeId" "$undoPurgeSession" )" || { set +e ; return 1 ; }
+		undoPurgeWord="$( AgentsToolsUndoOwnerWord "$undoPurgeDir" "accept" )" || { set +e ; return 1 ; }
 		AgentsToolsUndoSet "$undoPurgeDir" state accepted || { echo "⛔ ERROR: $MDSC_CMD --undo-purge: could not close the record" >&2 ; set +e ; return 1 ; }
 		undoPurgeHold="$( AgentsToolsUndoField "$undoPurgeDir" hold-dir )"
 		[ -z "$undoPurgeHold" ] || AgentsToolsUndoHoldDrop "$undoPurgeHold" "$( AgentsToolsUndoField "$undoPurgeDir" session-id )" "$undoPurgeId"
 		printf 'PURGED %s\n' "$undoPurgeId"
+		return 0
+	;;
+
+	## --undo-rework <record-id> [--session-id <id>]: the owner asked for the act to be done
+	## differently. The promise stands and so does the hold, and his words are kept on the record
+	## as he wrote them. A rework with no words is no verdict and nothing is written: the words
+	## are the whole of the instruction.
+	--undo-rework)
+		shift
+		local undoReworkId="" undoReworkSession="" undoReworkDir="" undoReworkWord="" undoReworkText=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) undoReworkSession="${2:-}" ; shift 2 ;;
+				--*) echo "⛔ ERROR: $MDSC_CMD --undo-rework: invalid option: $1" >&2 ; set +e ; return 1 ;;
+				*) undoReworkId="$1" ; shift ;;
+			esac
+		done
+		undoReworkDir="$( AgentsToolsUndoFind "$undoReworkId" "$undoReworkSession" )" || { set +e ; return 1 ; }
+		undoReworkWord="$( AgentsToolsUndoOwnerWord "$undoReworkDir" "rework" )" || { set +e ; return 1 ; }
+		undoReworkText="${undoReworkWord#* -- }"
+		[ "$undoReworkText" != "$undoReworkWord" ] && [ -n "$undoReworkText" ] || {
+			printf 'not reworked: %s names a rework with no words, and a rework with no words is no verdict. The promise stands and the record stays %s\n' \
+				"$( AgentsToolsUndoField "$undoReworkDir" ask )" "$( AgentsToolsUndoField "$undoReworkDir" state )"
+			set +e ; return 1 ; }
+		## The state first, then his words: a reader that sees the one sees the other.
+		AgentsToolsUndoSet "$undoReworkDir" state rework-asked || { echo "⛔ ERROR: $MDSC_CMD --undo-rework: could not move the record" >&2 ; set +e ; return 1 ; }
+		AgentsToolsUndoSet "$undoReworkDir" rework-text "$undoReworkText" || {
+			echo "⛔ ERROR: $MDSC_CMD --undo-rework: the record moved and his words were not kept" >&2 ; set +e ; return 1 ; }
+		printf 'REWORK %s %s\n' "$undoReworkId" "$( AgentsToolsUndoField "$undoReworkDir" hold-dir )"
 		return 0
 	;;
 

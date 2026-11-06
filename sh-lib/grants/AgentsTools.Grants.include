@@ -54,7 +54,7 @@
 
 agentsGrantsHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
 agentsGrantsIndexVersion="myx.distro grants.index 1"
-agentsGrantsSessionVersion="myx.distro session.permissions.index 1"
+agentsGrantsSessionVersion="myx.distro session.permissions.index 2"
 agentsGrantsHeader=""
 agentsGrantsIndexFile=""
 agentsGrantsIndexText=""
@@ -722,14 +722,14 @@ AgentsToolsGrantsRunSeats(){ ## workspace, session id
 	done
 	case "$seatsOwn" in ''|*/*|.|..) return 1 ;; esac
 	## The runs it spawned: each of their records names this run as its parent.
-	for seatsRecord in "$seatsWs/.local/agents/spawned"/*/*.spawn.md ; do
+	## One grep over all the records: this runs on every gate call, so it never forks once per record.
+	while IFS= read -r seatsRecord ; do
 		[ -f "$seatsRecord" ] || continue
-		LC_ALL=C grep -qxF -- "parent-spawn-id: $seatsSession" "$seatsRecord" 2> /dev/null || continue
 		seatsReviewId="${seatsRecord##*/}" ; seatsReviewId="${seatsReviewId%.spawn.md}"
 		case "$seatsSeen" in *$'\n'"$seatsReviewId"$'\n'*) continue ;; esac
 		seatsSeen="$seatsSeen$seatsReviewId"$'\n'
 		printf '%s\n%s/output\n' "$seatsWs/.local/agents/sessions/$seatsReviewId" "${seatsRecord%/*}"
-	done
+	done < <( LC_ALL=C grep -l -x -F -- "parent-spawn-id: $seatsSession" "$seatsWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )
 	## The peers its own dispatch item cites, `references:` naming them in item-names form.
 	for seatsRecord in "${MDAT_DATA_ROOT:-}/board"/*/"$seatsOwn.md" ; do
 		[ -f "$seatsRecord" ] || continue
@@ -875,33 +875,10 @@ AgentsToolsGrantsItemRunsLines(){ ## the session's own stores, one per line; tas
 	done <<< "$agentsGrantsItemRunsStores"
 }
 
-## The header a session index is built under: its format, the member, and the floor it adds.
-## The run seats of S6.41 (AgentsToolsGrantsRunSeats) join it as one more field, by their
-## checksum where the run has any: a seat appears or goes with a spawn record or a dispatch
-## item, which touches no grants index and no store's `grants`, so without this field a
-## session index built before a review began would be read as current after it. A run with
-## no seat keeps the header it had, byte for byte.
-AgentsToolsGrantsSessionHeader(){ ## member, sandbox input, sandbox output, origin skillset, run seats (optional) -- sets agentsGrantsSessionHeader
+## The header a session file is written under: its format, the member, and the floor it adds.
+## AgentsToolsGrantsSessionRewrite reads these fields back, so a writer needs nothing else.
+AgentsToolsGrantsSessionHeader(){ ## member, sandbox input, sandbox output, origin skillset -- sets agentsGrantsSessionHeader
 	agentsGrantsSessionHeader="$agentsGrantsSessionVersion"$'\t'"$1"$'\t'"$2"$'\t'"$3"$'\t'"$4"
-	[ -n "${5:-}" ] || return 0
-	agentsGrantsSessionHeader="$agentsGrantsSessionHeader"$'\t'"seats-$( printf '%s\n' "$5" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
-}
-
-## Whether a session index is current, by builtins only: its header is this one, and it is
-## strictly newer than the grants index and than the `grants` of every store it joined -- a
-## grant opened in the very second it was built is never missed.
-AgentsToolsGrantsSessionFresh(){ ## session index file, header, grants index file
-	local sessionLine="" sessionKind sessionDir
-	[ -f "$1" ] && [ -n "$3" ] && [ "$1" -nt "$3" ] || return 1
-	{
-		IFS= read -r sessionLine || return 1
-		[ "$sessionLine" = "$2" ] || return 1
-		while IFS=$'\t' read -r sessionKind sessionDir ; do
-			[ "$sessionKind" = store ] || break
-			[ ! -e "$sessionDir/grants" ] || [ "$1" -nt "$sessionDir/grants" ] || return 1
-		done
-	} < "$1"
-	return 0
 }
 
 ## The session index on stdout, with one awk, from the current grants index, and for a session
@@ -913,6 +890,7 @@ AgentsToolsGrantsSessionFresh(){ ## session index file, header, grants index fil
 ## resolved here, at the rebuild only.
 AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input, sandbox output, origin skillset
 	local textStore textRest textFiles=() agentsGrantsEnded="" agentsGrantsStores agentsGrantsItemRuns="" agentsGrantsRunSeats=""
+	local textOwn="${1%/}/.local/agents/sessions/$3"
 	local agentsGrantsSessionHeader agentsGrantsSandboxIn="$4" agentsGrantsSandboxOut="$5" agentsGrantsOrigin=""
 	[ -z "$6" ] || agentsGrantsOrigin="$( cd "$6" 2> /dev/null && pwd -P )" || agentsGrantsOrigin=""
 	agentsGrantsStores="$( AgentsToolsGrantsSessionStores "$1" "$3" )"
@@ -926,55 +904,42 @@ AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input,
 		done <<< "$agentsGrantsItemRuns"
 	fi
 	while IFS= read -r textStore ; do
-		[ -n "$textStore" ] && [ -f "$textStore/grants" ] || continue
+		[ -n "$textStore" ] || continue
+		[ "$textStore" = "$textOwn" ] || AgentsToolsGrantsJoinedAdd "$textStore" "$textOwn"
+		[ -f "$textStore/grants" ] || continue
 		textFiles+=( "$textStore/grants" )
 		## A store whose session has ended: its session grants are dropped here.
 		! AgentsToolsGrantsSessionEnded "$textStore" || agentsGrantsEnded="$agentsGrantsEnded$textStore"$'\n'
 	done <<< "$agentsGrantsStores"
-	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6" "$agentsGrantsRunSeats"
+	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6"
 	export agentsGrantsEnded agentsGrantsStores agentsGrantsItemRuns agentsGrantsRunSeats
 	export agentsGrantsSessionHeader agentsGrantsSandboxIn agentsGrantsSandboxOut agentsGrantsOrigin
 	if [ -n "$agentsGrantsIndexFile" ] ; then
-		LC_ALL=C awk -v member="$2" \
+		LC_ALL=C awk -v member="$2" -v commonApart=1 \
 			-f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsSessionIndex.awk" \
 			"$agentsGrantsIndexFile" ${textFiles[@]+"${textFiles[@]}"}
 	else
-		printf '%s\n' "$agentsGrantsIndexText" | LC_ALL=C awk -v member="$2" \
+		printf '%s\n' "$agentsGrantsIndexText" | LC_ALL=C awk -v member="$2" -v commonApart=1 \
 			-f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsSessionIndex.awk" \
 			- ${textFiles[@]+"${textFiles[@]}"}
 	fi
 }
 
-## A current session index: agentsGrantsSessionFile names it, or agentsGrantsSessionText holds
-## it, in memory, where there is no session or its store cannot be written. Rebuilt
-## (AgentsToolsGrantsSessionText) only when the grants index or a joined store's grants are
-## newer, or its own run seats changed, in the sibling way: into a temp file of its own beside
-## it (mktemp, never $$), then mv -f, the old one kept on a failure.
-## rc 1 with neither.
+## The two files of a check, by name. A file that exists is used as it is: its writers keep it
+## current, so nothing here tests whether it is. A missing one is written once: the grants
+## index by its builder, the session file by AgentsToolsGrantsSessionWrite. Where that cannot
+## be written, or there is no session, the session rows are held in agentsGrantsSessionText.
+## rc 1 where there is no grants index to read.
 AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty), sandbox input, sandbox output, origin skillset
-	local ensureWs="${1%/}" ensureDir ensureFile ensureTemp agentsGrantsRunSeats
-	agentsGrantsSessionFile="" ; agentsGrantsSessionText=""
-	AgentsToolsGrantsIndexEnsure "$ensureWs" || return 1
-	agentsGrantsRunSeats="$( AgentsToolsGrantsRunSeats "$ensureWs" "$3" )" || agentsGrantsRunSeats=""
-	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6" "$agentsGrantsRunSeats"
-	case "$3" in
-		''|*/*|.|..) ensureFile="" ;;
-		*) ensureDir="$ensureWs/.local/agents/sessions/$3" ; ensureFile="$ensureDir/permissions.$2.index" ;;
-	esac
-	if [ -n "$ensureFile" ] && [ -n "$agentsGrantsIndexFile" ] ; then
-		if AgentsToolsGrantsSessionFresh "$ensureFile" "$agentsGrantsSessionHeader" "$agentsGrantsIndexFile" ; then
-			agentsGrantsSessionFile="$ensureFile" ; return 0
-		fi
-		[ -d "$ensureDir" ] || mkdir -p "$ensureDir" 2> /dev/null || :
-		if [ -d "$ensureDir" ] && [ -w "$ensureDir" ] ; then
-			ensureTemp="$( mktemp "$ensureFile.XXXXXX" 2> /dev/null )" || ensureTemp=""
-			if [ -n "$ensureTemp" ] && ( AgentsToolsGrantsSessionText "$ensureWs" "$2" "$3" "$4" "$5" "$6" ) > "$ensureTemp" ; then
-				chmod 644 "$ensureTemp" && mv -f -- "$ensureTemp" "$ensureFile" && { agentsGrantsSessionFile="$ensureFile" ; return 0 ; }
-			fi
-			[ -z "$ensureTemp" ] || rm -f -- "$ensureTemp"
-			echo "⛔ ERROR: grants: the session permission index of $3 could not be built -- $ensureFile left unchanged" >&2
-			[ ! -f "$ensureFile" ] || { agentsGrantsSessionFile="$ensureFile" ; return 0 ; }
-		fi
+	local ensureWs="${1%/}"
+	AgentsToolsGrantsSessionLocate "$ensureWs" "$2" "$3"
+	if [ ! -f "$agentsGrantsIndexFile" ] ; then
+		AgentsToolsGrantsIndexEnsure "$ensureWs" || return 1
+	fi
+	if [ -n "$agentsGrantsSessionFile" ] ; then
+		[ -f "$agentsGrantsSessionFile" ] && return 0
+		AgentsToolsGrantsSessionWrite "$ensureWs" "$2" "$3" "$4" "$5" "$6" && return 0
+		agentsGrantsSessionFile=""
 	fi
 	agentsGrantsSessionText="$( AgentsToolsGrantsSessionText "$ensureWs" "$2" "$3" "$4" "$5" "$6" )" || { agentsGrantsSessionText="" ; return 1 ; }
 	return 0
@@ -995,7 +960,7 @@ AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty
 ## agentsGrantsCheckFrom the origin of that row, for its caller to keep the change and show
 ## it, never to apply it (AgentsHarnessFileGate, AgentsUniversalHarness.sh).
 AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
-	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkState checkNow checkTtl checkApprove="" checkApproveFrom=""
+	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkState checkNow checkTtl checkApprove="${agentsGrantsCommonApprove:-}" checkApproveFrom="${agentsGrantsCommonApproveFrom:-}"
 	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace="" ; agentsGrantsCheckFrom=""
 	case " Edit Write Execute " in *" $1 "*) checkWrite=1 ;; esac
 	while IFS=$'\t' read -r checkKind checkA checkB checkC checkD checkE ; do
@@ -1063,12 +1028,112 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 	return 1
 }
 
-## The same decision against the current session index, file or memory.
+## One file-tool call decided by the grants index on stdin, by builtins only: the ceiling, then
+## the member's standing rows. rc 3 refused by a read-only ceiling, rc 0 admitted, rc 1 not
+## admitted here. An approve row covering the call stands over every allow, and is left in
+## agentsGrantsCommonApprove for the session rows, which alone may admit such a call.
+AgentsToolsGrantsCommonCheckRows(){ ## tool, resolved path, member
+	local rowWho rowVerb rowGlob rowPattern rowFifth rowSixth rowTools rowWrite="" rowCeiling="" rowAllow="" rowLayer="" rowFrom=""
+	agentsGrantsCommonApprove="" ; agentsGrantsCommonApproveFrom=""
+	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace="" ; agentsGrantsCheckFrom=""
+	case " Edit Write Execute " in *" $1 "*) rowWrite=1 ;; esac
+	while IFS=$'\t' read -r rowWho rowVerb rowGlob rowPattern rowFifth rowSixth ; do
+		case "$rowWho" in
+			"*")
+				[ "$rowVerb" = ceiling ] && [ -n "$rowWrite" ] && [ -z "$rowCeiling" ] || continue
+				[[ $2 == $rowPattern ]] || continue
+				rowCeiling=1
+				[ "$rowFifth" = read-only ] || continue
+				agentsGrantsCheckPlace="$rowSixth"
+				return 3
+			;;
+			"$3")
+				case "$rowVerb" in
+					read) rowTools=" Read Grep Glob " ;;
+					write) rowTools=" Read Edit Write Execute Grep Glob " ;;
+					approve) rowTools=" Edit Write " ;;
+					*) continue ;;
+				esac
+				case "$rowTools" in *" $1 "*) ;; *) continue ;; esac
+				[[ $2 == $rowPattern ]] || continue
+				if [ "$rowVerb" = approve ] ; then
+					[ -n "$agentsGrantsCommonApprove" ] || { agentsGrantsCommonApprove="$rowFifth" ; agentsGrantsCommonApproveFrom="$rowSixth" ; }
+				elif [ -z "$rowAllow" ] ; then
+					rowAllow=1 ; rowLayer="$rowFifth" ; rowFrom="$rowSixth"
+				fi
+			;;
+		esac
+	done
+	[ -z "$agentsGrantsCommonApprove" ] && [ -n "$rowAllow" ] || return 1
+	agentsGrantsCheckLayer="$rowLayer" ; agentsGrantsCheckFrom="$rowFrom"
+	return 0
+}
+
+## Where the two files of a check are. It tests and builds nothing: the session file is written
+## at run start and by whatever changes it, and the grants index by the builder.
+AgentsToolsGrantsSessionLocate(){ ## workspace, member, session id (may be empty)
+	local locateWs="${1%/}"
+	agentsGrantsCheckMember="$2" ; agentsGrantsSessionFile="" ; agentsGrantsSessionText="" ; agentsGrantsIndexText=""
+	AgentsToolsGrantsSkillsetRoot "$locateWs"
+	agentsGrantsIndexFile="$locateWs/.local/agents/grants.index"
+	[ "$agentsGrantsSkillsetRoot" = "$locateWs/.local/agents/members" ] || agentsGrantsIndexFile="$agentsGrantsIndexFile.${agentsGrantsSkillsetRoot//[!A-Za-z0-9._-]/_}"
+	case "$3" in
+		''|*/*|.|..) ;;
+		*) agentsGrantsSessionFile="$locateWs/.local/agents/sessions/$3/permissions.$2.index" ;;
+	esac
+}
+
+## Writes a session's own file, into a temp file beside it, then mv -f. Run start and every
+## writer of the session's grants call it, never a check.
+AgentsToolsGrantsSessionWrite(){ ## workspace, member, session id, sandbox input, sandbox output, origin skillset
+	local writeWs="${1%/}" writeFile writeTemp
+	AgentsToolsGrantsSessionLocate "$writeWs" "$2" "$3"
+	writeFile="$agentsGrantsSessionFile"
+	[ -n "$writeFile" ] && [ -f "$agentsGrantsIndexFile" ] || return 1
+	mkdir -p "${writeFile%/*}" 2> /dev/null || return 1
+	writeTemp="$( mktemp "$writeFile.XXXXXX" 2> /dev/null )" || return 1
+	if ( AgentsToolsGrantsSessionText "$writeWs" "$2" "$3" "$4" "$5" "$6" ) > "$writeTemp" && chmod 644 "$writeTemp" && mv -f -- "$writeTemp" "$writeFile" ; then
+		return 0
+	fi
+	rm -f -- "$writeTemp"
+	echo "⛔ ERROR: grants: the session permission file of $3 could not be written -- $writeFile left unchanged" >&2
+	return 1
+}
+
+## Writes one session file again, from the fields of its own header.
+AgentsToolsGrantsSessionRewrite(){ ## session permission file
+	local rewriteLine="" rewriteMember rewriteIn rewriteOut rewriteOrigin rewriteDir="${1%/*}"
+	[ -f "$1" ] || return 0
+	IFS= read -r rewriteLine < "$1" || return 0
+	rewriteLine="${rewriteLine#*$'\t'}"
+	rewriteMember="${rewriteLine%%$'\t'*}" ; rewriteLine="${rewriteLine#*$'\t'}"
+	rewriteIn="${rewriteLine%%$'\t'*}" ; rewriteLine="${rewriteLine#*$'\t'}"
+	rewriteOut="${rewriteLine%%$'\t'*}" ; rewriteLine="${rewriteLine#*$'\t'}"
+	rewriteOrigin="${rewriteLine%%$'\t'*}"
+	AgentsToolsGrantsSessionWrite "${rewriteDir%/.local/agents/sessions/*}" "$rewriteMember" "${rewriteDir##*/}" "$rewriteIn" "$rewriteOut" "$rewriteOrigin"
+}
+
+## A store whose grants another session's file joins records that session, so a change of its
+## grants rewrites that file too (AgentsToolsGrantsStoreTouch).
+AgentsToolsGrantsJoinedAdd(){ ## joined store, joining store
+	## A store with no grant yet has no folder: it is made here, or its first grant would never reach this session.
+	mkdir -p "$1" 2> /dev/null || return 0
+	LC_ALL=C grep -qxF -- "$2" "$1/grants.joined" 2> /dev/null || printf '%s\n' "$2" >> "$1/grants.joined" 2> /dev/null || :
+}
+
+## One file-tool call decided by the two files: the grants index, then the session's own.
 AgentsToolsGrantsSessionCheck(){ ## tool, resolved path, own session store
-	if [ -n "$agentsGrantsSessionFile" ] ; then
+	local commonRc=0
+	if [ -n "${agentsGrantsIndexFile:-}" ] && [ -f "$agentsGrantsIndexFile" ] ; then
+		AgentsToolsGrantsCommonCheckRows "$1" "$2" "${agentsGrantsCheckMember:-}" < "$agentsGrantsIndexFile" || commonRc=$?
+	else
+		AgentsToolsGrantsCommonCheckRows "$1" "$2" "${agentsGrantsCheckMember:-}" <<< "${agentsGrantsIndexText:-}" || commonRc=$?
+	fi
+	case "$commonRc" in 0|3) return "$commonRc" ;; esac
+	if [ -n "$agentsGrantsSessionFile" ] && [ -f "$agentsGrantsSessionFile" ] ; then
 		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" < "$agentsGrantsSessionFile"
 	else
-		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" <<< "$agentsGrantsSessionText"
+		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" <<< "${agentsGrantsSessionText:-}"
 	fi
 }
 
@@ -1080,11 +1145,21 @@ AgentsToolsGrantsCheckSkillset(){
 	return 1
 }
 
-## A session store's grants changed: opening, using up or revoking a grant touches the
-## store's `grants`, so every session index joining that store is rebuilt at its next check.
+## A session store's grants or seats changed: opening, using up or revoking a grant, or a spawn
+## that names this session its parent. Every session file holding them is written again now.
 AgentsToolsGrantsStoreTouch(){ ## session store directory
+	local touchFile touchJoined
 	[ -d "$1" ] || return 0
 	touch "$1/grants" 2> /dev/null || :
+	for touchFile in "$1"/permissions.*.index ; do
+		AgentsToolsGrantsSessionRewrite "$touchFile" || :
+	done
+	[ -f "$1/grants.joined" ] || return 0
+	while IFS= read -r touchJoined ; do
+		for touchFile in "$touchJoined"/permissions.*.index ; do
+			AgentsToolsGrantsSessionRewrite "$touchFile" || :
+		done
+	done < "$1/grants.joined"
 }
 
 ## --intern-op-permission-list's rows (AgentsGrantsSessionIndex.awk, mode list): the member's

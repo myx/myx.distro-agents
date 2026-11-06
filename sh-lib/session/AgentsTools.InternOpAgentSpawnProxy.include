@@ -1093,6 +1093,18 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
+		## ONE RIG'S TEAM DATA ONLY (S12.19): another workspace's own data root, inherited from whatever asked, is never this spawn's.
+		case "$MDAT_DATA_ROOT" in
+			*/.local/agents/team-data-root)
+				if [ "${MDAT_DATA_ROOT%/.local/agents/team-data-root}" != "${MMDAPP%/}" ] ; then
+					type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the inherited data root $MDAT_DATA_ROOT is another workspace's, so this spawn uses ${MMDAPP%/}'s own" >&2
+					MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" 2> /dev/null )" || MDAT_DATA_ROOT=""
+					[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
+					export MDAT_DATA_ROOT
+				fi
+			;;
+		esac
 
 		## PAYS. The CLI this spawn starts on and the credentials it is started with are spawn
 		## settings, read from the workspace its console runs in unless another workspace known
@@ -1496,6 +1508,9 @@ case "$1" in
 		local spawnerMember=""
 		type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include" 2> /dev/null || :
 		spawnerMember="$( AgentsToolsTeamMember 2> /dev/null )" || spawnerMember=""
+		## Who started it, as the posts say: a starter that is no member names itself, read once and dropped so the agent's spawns never inherit it.
+		local spawnStartedBy="${MDAT_SPAWN_STARTED_BY:-$spawnerMember}"
+		unset MDAT_SPAWN_STARTED_BY
 		## The member that makes this spawn call: the calling session's own, else the one its
 		## caller said the call is made as (--calling-member). Kept on the spawn's record
 		## (`parent-member:`), and who the lines this spawn posts for its caller are addressed to.
@@ -2064,7 +2079,7 @@ case "$1" in
 				rootStack="${rootStack:-$routineStackLines}"
 			fi
 			sessionThread="$(
-				AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnerMember" "$rootTarget" "$rootStack"
+				AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnStartedBy" "$rootTarget" "$rootStack"
 			)" || sessionThread=""
 			## Recorded at once as the session's, so the member brought in next finds it, and the
 			## session that brought this one in does (session-current, AgentsToolsSessionCurrentThreadFind).
@@ -2178,7 +2193,7 @@ case "$1" in
 		if [ "$sessionId" = "$MDAT_SPAWN_SESSION_ID" ] ; then
 			eventTrackStartedBy="$callerName" ; eventTrackSessionId="${sessionId:0:8}" ; eventTrackJoined="-"
 		elif [ -n "$sessionOfCaller" ] && [ -z "$( AgentsToolsEventTrackThreadRead "$MMDAPP/.local/agents/sessions/$sessionId" 2> /dev/null )" ] ; then
-			eventTrackStartedBy="${spawnerMember:-session ${parentSessionId:0:8}}" ; eventTrackSessionId="${sessionId:0:8}" ; eventTrackJoined="-"
+			eventTrackStartedBy="${spawnStartedBy:-session ${parentSessionId:0:8}}" ; eventTrackSessionId="${sessionId:0:8}" ; eventTrackJoined="-"
 		else
 			eventTrackSessionThread="-"
 		fi
@@ -2399,6 +2414,11 @@ case "$1" in
 		## Its member's seat in the session, taken at its start (F6.9): where a live run took it
 		## since the check above, this run starts without it, and takes it once that one has ended.
 		AgentsToolsSessionSeatTake "$sessionId" "$callerName" "$sandboxTracking" > /dev/null 2>&1 || :
+		## The parent now has this run as a seat to review: its permission files are written again here, once, so no check scans for it.
+		case "${parentSessionId:-}" in ''|none|*/*|.|..) ;; *)
+			type AgentsToolsGrantsStoreTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" 2> /dev/null || :
+			AgentsToolsGrantsStoreTouch "$MMDAPP/.local/agents/sessions/$parentSessionId" > /dev/null 2>&1 || :
+		;; esac
 		## A SESSION THAT STARTS AGAIN SHOWS NO END (S6.37): a run that restarts, or resumes, the session takes the
 		## end marks off its root message. A start that is neither asks nothing and reacts to nothing.
 		if [ -n "$restartedFromSaid$resumeFrom$resumeContextFile" ] ; then

@@ -10,6 +10,8 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --routine-completed [--team-member <team-member>] <routine> --since \"<YYYY-MM-DD HH:MM>\"
 📘 syntax: DistroAgentsDispatcher.fn.sh --current-flags [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>] [--days <n>]
+📘 syntax: DistroAgentsDispatcher.fn.sh --stop-sessions [--team-member <team-member>]
+📘 syntax: DistroAgentsDispatcher.fn.sh --close-failed-sessions [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --set-country [--team-member <team-member>] <iso-code-2-or-3-letters>
 📘 syntax: DistroAgentsDispatcher.fn.sh --set-timezone [--team-member <team-member>] <tz-spec>
 📘 syntax: DistroAgentsDispatcher.fn.sh --set-worktime [--team-member <team-member>] <start HH:MM> <until HH:MM> <days-of-week>
@@ -90,10 +92,29 @@
 
 		--override-flag [--no] <flag> [<ttl>] [--days <n>]
 			An override of a flag: emergency, with a TTL; overtime; holidays, with a
-			TTL or until cleared; or learning; or supervised, which while it is on
+			TTL or until cleared; holding, with a TTL or until cleared, under which
+			the schedule starts no routine, duty or supervision; or learning; or supervised, which while it is on
 			keeps one supervision session of this rig running. `--no` clears the
 			override. `--days <n>` belongs to overtime alone and ends it n worktime
 			starts ahead, the earlier end winning against a TTL.
+			A flag set here asks the schedule thread once, and the thread stays while
+			a flag that opens duties holds. `overtime` opens every standing member's
+			duty, as worktime does. `emergency` opens the coordinator's, and another
+			member's only for a direct task from the coordinator or a pending board
+			task it owns marked `mark: emergency` or `mark: urgent`.
+
+		--stop-sessions
+			Stops the rig in order. It refuses unless `holding` holds, so the schedule
+			starts nothing again. Then it ends every live session of this workspace
+			with the console stop (--manager-session-kill), a `finish` row each, and
+			the schedule thread last. To resume: the next ask starts a thread on the
+			current code, then --override-flag --no holding.
+
+		--close-failed-sessions
+			Closes every failed session of this workspace with the console stop
+			(--manager-session-kill), which reads it as finished from then on: a
+			`finish` row each, then `closed <n> of <m> failed sessions`. A failed
+			session has no process, so no `holding` is needed.
 
 		--set-country <iso-code-2-or-3-letters>
 		--set-timezone <tz-spec>

@@ -42,7 +42,8 @@
 ## event-track any more.
 ##
 
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+## The dispatcher is loaded on its first call, never at load: most loads of this file never call it.
+type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" && DistroAgentsTools "$@" ; }
 if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 
 	## The record written whole or not at all, by a rename: a write cut short must never read

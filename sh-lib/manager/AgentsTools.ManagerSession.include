@@ -633,7 +633,7 @@ AgentsToolsManagerKillWait(){ ## pids, space-separated
 ## (AgentsTools.SessionControlRequest.include).
 AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), the name the ending is recorded under where the console's user is another's (may be empty)
 	local killOp="$1" killId="$2" killOwn="${3:-}" killTab=$'\t' killFile killUser killStamp killAt killPid killSeen=" "
-	local killKind killSession killSpawn killMember killStatus killLive killRest killRecord killFound killLeft
+	local killKind killSession killSpawn killMember killStatus killLive killRest killRecord killFound killLeft killClosed
 	local killAny="" killHard="" killStuck=0 scopeFailed=""
 	local killSessions=() killSpawns=() killMembers=() killStatuses=() killOutcomes=() killPids=() killItems=() killBegan=()
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
@@ -704,11 +704,42 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		## now, and it may have ended since. And, alive or not, what an earlier stop or kill of
 		## it signalled and left, kept in its store (AgentsToolsRegistryRunLeftKept): a process
 		## the run had started, which no walk from the run finds any more.
+		## A start that died before it wrote its record has no process and no id but its session's: it is closed by that id. An open one is not.
+		if [ "$killSpawn" = "-" ] && [ "$killLive" != "running" ] && [ "$killStatus" = "spawn-failed" ] ; then
+			case "$killSession" in ''|-|*/*|.|..) continue ;; esac
+			killClosed="$MMDAPP/.local/agents/sessions/$killSession/control/closed"
+			AgentsToolsRegistryRunClosed "$killSession" - || { mkdir -p "${killClosed%/*}" && printf '%s %s %s\n' "$killSession" "$killUser" "$killStamp" >> "$killClosed" ; } 2> /dev/null \
+				|| { echo "⚠️ WARNING: $MDSC_CMD $killOp: session $killSession could not be named in $killClosed, so its run is not closed" >&2 ; continue ; }
+			killOutcomes[killAt]="closed"
+			continue
+		fi
 		case "$killLive" in running|gone) ;; *) continue ;; esac
 		killOutcomes[killAt]="no-process"
 		killRecord="$( AgentsToolsRegistrySpawnRecord "$killSpawn" < /dev/null )"
 		killFound="$( { [ "$killLive" != "running" ] || AgentsToolsRegistryRunProcesses "$killSpawn" "$killRecord" < /dev/null ; AgentsToolsRegistryRunLeftKept "$killSpawn" < /dev/null ; } | AgentsToolsManagerKillPids )"
-		[ -n "$killFound" ] || continue
+		if [ -z "$killFound" ] ; then
+			## No process left: the run is closed, named once in control/closed of its session, and reads finished.
+			case "$killSession:$killSpawn" in :*|-:*|*:-|*/*|.:*|..:*|*:.|*:..) continue ;; esac
+			killClosed="$MMDAPP/.local/agents/sessions/$killSession/control/closed"
+			if ! AgentsToolsRegistryRunClosed "$killSession" "$killSpawn" ; then
+				{ mkdir -p "${killClosed%/*}" && printf '%s %s %s\n' "$killSpawn" "$killUser" "$killStamp" >> "$killClosed" ; } 2>/dev/null \
+					|| { echo "⚠️ WARNING: $MDSC_CMD $killOp: run $killSpawn could not be named in $killClosed, so it is not closed" >&2 ; continue ; }
+			fi
+			killOutcomes[killAt]="closed"
+			## A closed run gives back the routine lock its session holds, once no other run of the session lives (F6.2).
+			if [ -n "$killRecord" ] ; then
+				type AgentsToolsRoutineLockRelease > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+				AgentsToolsRoutineLockRelease "$killRecord" closed-from-console - < /dev/null > /dev/null 2>&1 || :
+			fi
+			## Its ending is recorded once; an open record of a whole session is the finish's to mark and record.
+			[ -n "$killRecord" ] || continue
+			case "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$killRecord" )" killed-at )" in ''|-) ;; *) continue ;; esac
+			[ "$scopeRun" != "-" ] || [ "$killStatus" != "spawn-started" ] || continue
+			AgentsToolsManagerKillMark "$killRecord" "$killUser" "$killStamp" < /dev/null \
+				|| echo "⚠️ WARNING: $MDSC_CMD $killOp: the record of run $killSpawn could not be marked as killed" >&2
+			killItems[killAt]="$( AgentsToolsManagerKillRecord "$killSpawn" "$killUser" < /dev/null )"
+			continue
+		fi
 		## The ending first, then the signal: on its record, on its item, in its transcript.
 		[ -n "$killRecord" ] && AgentsToolsManagerKillMark "$killRecord" "$killUser" "$killStamp" < /dev/null \
 			|| echo "⚠️ WARNING: $MDSC_CMD $killOp: the record of run $killSpawn could not be marked as killed, so its handback retry may start it once more" >&2
@@ -783,7 +814,8 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 
 ## For how long the kill of a session waits for the supervising shells of the runs it ended
 ## to close their records, in seconds, before it says what state the session is in.
-agentsManagerFinishWaitSeconds=5
+## A ceiling, not a delay: the wait ends as soon as each supervising shell has closed its record, or has gone without closing it.
+agentsManagerFinishWaitSeconds=60
 
 ## WHAT THE KILL OF A SESSION FINISHES, once what lived of it is ended: the session is left
 ## with nothing pending. With "plan" nothing is done, and the same rows say what would be.
@@ -911,7 +943,10 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 			while [ "$finishWait" -gt 0 ] ; do
 				finishFound="" ; finishAt=0
 				while [ "$finishAt" -lt "${#finishSpawns[@]}" ] ; do
-					[ -z "${finishWaits[finishAt]}" ] || [ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "${finishRecords[finishAt]}" )" status )" != "spawn-started" ] || finishFound="yes"
+					if [ -n "${finishWaits[finishAt]}" ] && [ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "${finishRecords[finishAt]}" )" status )" = "spawn-started" ] ; then
+						## A shell that went without closing its record is waited on no longer: this call closes that record.
+						if [ "$( AgentsToolsRegistryRecordedSupervisor "${finishRecords[finishAt]}" )" = "alive" ] ; then finishFound="yes" ; else finishWaits[finishAt]="" ; fi
+					fi
 					finishAt=$(( finishAt + 1 ))
 				done
 				[ -n "$finishFound" ] || break

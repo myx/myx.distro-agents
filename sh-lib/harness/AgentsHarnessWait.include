@@ -241,6 +241,26 @@ AgentsHarnessWaitCheckListLine(){
 	fi
 }
 
+## THE RUN'S BACKGROUND JOBS, beside its CheckList: a job of the session's processes/ with no status, not closed and with a live pid
+## is still running, unfinished work of this run, so every Wait names it and how to collect it.
+AgentsHarnessWaitBackgroundLine(){
+	local bgSession bgDir bgFile bgName bgPid bgRest bgList="" bgCount=0
+	bgSession="$( AgentsHarnessSessionKey )" || return 0
+	[ -n "$bgSession" ] && AgentsHarnessBareName "$bgSession" || return 0
+	bgDir="$MMDAPP/.local/agents/sessions/$bgSession/processes"
+	for bgFile in "$bgDir"/process-*.pid ; do
+		[ -f "$bgFile" ] || continue
+		bgName="${bgFile##*/}" ; bgName="${bgName%.pid}"
+		[ ! -f "$bgDir/$bgName.status" ] && [ ! -f "$bgDir/$bgName.closed" ] || continue
+		bgPid="" ; read -r bgPid bgRest < "$bgFile" 2> /dev/null || :
+		case "$bgPid" in ''|*[!0123456789]*) continue ;; esac
+		kill -0 "$bgPid" 2> /dev/null || continue
+		bgCount=$(( bgCount + 1 )) ; bgList="$bgList $bgName"
+	done
+	[ "$bgCount" -gt 0 ] || return 0
+	printf 'BACKGROUND: %s running:%s -- collect each with TaskOutput, or Wait sources=process:<handle>\n' "$bgCount" "$bgList"
+}
+
 ## AN ITEM PAST ITS DUE TIME IS A FLOOR SOURCE (S13.9): the items of the caller's own CheckList whose due time
 ## has come are returned at once, ahead of every other source and before any probe, in a `CheckList pending:`
 ## block under one line saying what they are. The reaction layer puts a fresh state in front of the member
@@ -289,6 +309,20 @@ AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
 	else
 		printf 'CHECKLIST: %s pending. Finish or close them before you wait for DISMISSED.\n%s' "$idleCount" "$idleOpen"
 	fi
+}
+
+## A DISMISSAL IS NEVER HELD BEHIND THE CHECKLIST (S12.15): the session's chat file is its primary channel, and a DISMISSED for this
+## run that waits there makes the Wait read it, rather than give the open items first. Otherwise a run whose list holds an open item
+## -- a work duty's always may -- could never be dismissed by a message. A look at the floor the Wait would deliver (AgentsToolsSessionChatFloor,
+## with no delivery, so no pointer moves), with the one dismissal rule the Wait uses. rc 0 one is there. One local file, no network.
+AgentsHarnessWaitChatDismissal(){
+	local peekKey="" peekFloor=""
+	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	peekKey="$( AgentsToolsSessionChatKey )"
+	[ -n "$peekKey" ] && [ -n "$harnessAgent" ] || return 1
+	peekFloor="$( AgentsToolsSessionChatFloor "$peekKey" "$harnessAgent" 2> /dev/null )" || return 1
+	[ -n "$peekFloor" ] || return 1
+	printf '%s\n' "$peekFloor" | dismissalMember="$harnessAgent" dismissalRun="${MDAT_SPAWN_SESSION_ID:-}" LC_ALL=C awk -f "$harnessHere/questions/AgentsDismissalMatch.awk" -f "$harnessHere/harness/AgentsHarnessWaitDismissed.awk" > /dev/null 2>&1
 }
 
 ## A Wait that delivered an arrival answers whatever handback was given before it: the mark is cleared here, so the next idle Wait
@@ -494,7 +528,8 @@ AgentsHarnessToolWait(){
 		return 0
 	fi
 	[ -n "$waitOwnSources" ] || waitFloorOnly=1
-	if [ "$waitTool" = "true" ] ; then
+	## A DISMISSED for this run in its session's chat file comes before the CheckList (AgentsHarnessWaitChatDismissal): the wait reads it.
+	if [ "$waitTool" = "true" ] && ! AgentsHarnessWaitChatDismissal ; then
 		## An item past its due time comes first of all (S13.9): the floor, before the idle items and before any probe.
 		waitIdleReturn="$( AgentsHarnessWaitCheckListDue "$waitTool" )"
 		[ -z "$waitIdleReturn" ] || { printf '%s\n' "$waitIdleReturn" ; return 0 ; }
@@ -581,6 +616,7 @@ AgentsHarnessToolWait(){
 		## exactly like a wait that read everything and found it quiet.
 		LC_ALL=C grep -E '^WAIT-SOURCE-ERROR: |^# probes that could not run this wait' "$harnessScratch/wait.out" || :
 		AgentsHarnessWaitCheckListLine
+		AgentsHarnessWaitBackgroundLine
 		return 0
 	fi
 	cat "$harnessScratch/wait.out"
@@ -596,6 +632,7 @@ AgentsHarnessToolWait(){
 			## handback mark is cleared, since the arrival answers the handback that was given before it.
 			AgentsHarnessWaitCheckListAnswered
 			AgentsHarnessWaitCheckListLine
+			AgentsHarnessWaitBackgroundLine
 			## A message interrupts the wait, and the member decides: go on waiting, or drop the task (S5 item 4).
 			printf 'NEXT: this message interrupts your wait. Read it, then either call Wait mode=continue -- it resumes after what is shown here -- or cancel the task with TaskStop if it no longer applies\n'
 			[ -n "$waitFloorOnly" ] || return 0

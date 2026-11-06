@@ -330,8 +330,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	fi
 	## The autorun keys: `runs-at: <days> <HH:MM>` or `none`, days being workdays, weekend, daily or a list such as mon,thu; and
 	## `runs-after: <routine>`, one routine, kept apart from it.
-	## `runs-at:` is mandatory: a routine says when it auto-runs or `none`, so a reader tells one that never auto-runs from one nobody has considered.
-	[ -n "$routineRunsAt" ] || AgentsToolsDocValidateRow "$routineShown" "${routineRunsAtLine:-1}" runs-at "runs-at: is mandatory -- write runs-at: none, or runs-at: <days> <HH:MM>"
+	## `runs-at:` is optional: a routine without it runs on demand, as `none` says.
 	if [ -n "$routineRunsAt" ] && [ "$routineRunsAt" != "none" ] ; then
 		routineRunsDays="${routineRunsAt%% *}" ; routineRunsTime="${routineRunsAt#* }"
 		routineRunsOk="yes"

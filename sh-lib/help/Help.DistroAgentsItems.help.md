@@ -162,7 +162,9 @@
 			session goes on from there.
 
 		--reject-review <item-filename> (--message <text>|--from-stdin)
-			Rejects the work: it is not taken, and the item closes as rejected.
+			Rejects the work: it is not taken. The item goes back to `board-pending`,
+			with `status: review-rejected`, to be done again. Work that is not to be
+			done again is closed with --accept-review and a message saying so.
 
 		--follow-up-review <item-filename> <new-item-name> (--message <text>|--from-stdin)
 			Accepts the work and files a follow-up item under that name, its text from the

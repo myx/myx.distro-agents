@@ -17,6 +17,7 @@ managing blast radius when the run itself has real consequences.
 - A refusal for want of privilege reads exactly like an empty result
 - A probe answers its own predicate, not the question it was asked
 - A measurement carries its timestamp
+- A refusal and a failure share one status
 - A guard that fires is evidence. A guard that stays silent carries none
 - A check that leaves a process running signals it only while it is still that process
 - A check compares a tool's own result, not its whole reply
@@ -81,6 +82,17 @@ scan then hunts something that was never there. The clean answer that follows
 is about the decoy, rather than about the subject. Confirm the plant is visible to the instrument, through the
 instrument, before the negative counts.
 
+**Same call is not the same instrument.** A subject and its control read with
+different bounds, filters or formatting are two measurements, and the
+difference between them is the apparatus. One session read a subject with
+`head -14` and its control with `head -4`, and reported its own truncation as a
+property of the subject. Take the control through the identical shape.
+
+The second clause is polarity. A two-sided probe whose two poles agree has
+measured nothing: agreement across a deliberate flip is the signature of an
+instrument that never reached its subject. It is re-taken before anything is
+said about it, never read as weak evidence of no effect.
+
 ## Verify what stores, not what sends
 
 A write path's own success reports that the send happened. That covers an
@@ -99,6 +111,13 @@ So read back through a separate path: a fetch call, a fresh open of the file,
 a query against the store. Where the question concerns what a person sees,
 look at the rendered form as well. An answer to one of the three leaves the other
 two open.
+
+**A sweep that watches writes is blind to a move.** The rule above reads one
+write back. A sweep auditing a whole run records where `mv`, `cp` and `ln` put
+things, and never where they took them from. A move then reads as a no-op, and
+the sweep's clean result says nothing about the one operation that takes a file
+away. Record the source operand too, and put a move through the instrument
+before trusting a clean sweep.
 
 ## Byte-identical output over a full-grammar corpus, for a package that carries no checks
 
@@ -179,6 +198,15 @@ under test. Anything not shaped like the rule was never a candidate. Build the p
 listing, a broader grep, the schema itself. Then test membership against the
 rule. Never search for the rule's own shape to build the set being tested.
 
+**Before calling a count wrong, name the store it counted.** Two correct counts
+of two subjects look exactly like one wrong count, and the reading that follows
+is a hunt for a fault in a sound instrument. A scan reporting none of a kind
+against a full item count, where the same kind is plainly present, is the shape.
+One store held the items and no such file. A second store, untouched for two
+days, held them all. Without one item that only one store holds, every reading
+fits both answers. So find the subject the two instruments must disagree about,
+and let that decide between them.
+
 **A measurement's scope and the claim's scope are one sentence, or the number is
 wrong.** A count taken inside one package and reported as a property of the
 family is not an approximation of the family's number. It is a different
@@ -256,6 +284,16 @@ So state the claim, read the predicate the probe evaluates, and check the two
 are the same sentence. Where they differ, the fix is the stronger probe rather
 than a caveat attached to the report.
 
+**A prohibition on a named line states what must stay true of its behaviour,
+and the check reaches the guard deciding whether it runs.** A string held
+unchanged at line 66 is unchanged as text, and a guard change fifteen lines
+above it means the line is never consulted. A prohibition on a symbol holds
+where the symbol is not moved, and the changed line beside it can decide
+whether the block owning that symbol executes at all. Neither a text-identity
+check nor a substring check sees a guard. So state the behaviour the
+prohibition protects, and reach the guards above the guarded line. A text
+check answers about bytes, and is never reported as answering about behaviour.
+
 ## A measurement carries its timestamp
 
 Where several sessions edit one tree concurrently, a file read is true of a
@@ -268,6 +306,14 @@ contradicts another is re-measured against current state, before either is
 called wrong. Where the conclusion matters, capture the evidence with its instant: the
 command output plus the commit or mtime it was taken at. A disagreement then
 resolves by ordering, rather than by argument.
+
+**A refusal and a failure share one status.** A check that cannot reach its subject
+stops with a non-zero status, and so does a check that ran and found the defect.
+A suite result read by status alone cannot tell them apart. One check refused four
+times on a machine holding 18 to 24 other runs, saying in its own last line that
+the death it measures was never asked. It then passed whole on the same code at a
+quiet moment. So read the check's own last line, which names which of the two
+happened, and never count a refusal as a red.
 
 ## A guard that fires is evidence. A guard that stays silent carries none
 
@@ -319,6 +365,15 @@ gets a new, empty folder under `$MMDAPP/.local/agents/scratch/sh-test/`, made
 by `mktemp -d`. The folder sits beside the harness's own scratch and outside
 every member's floor, so no grant of the workspace reaches a path of a rig. With no workspace it makes nothing, says so
 on stderr and returns 1, for the check to end on before it reports a result.
+
+**A rig run under a stripped environment needs three things before any red is
+read.** Its origin, `MDLT_OPTION="--run-from-path <origin>"` with
+`MDLC_INMODE=extern`; a `source/` directory under the scratch `MMDAPP`, without
+which the run refuses to detect its input source; and `MDAT_SKILLSET_ROOT`
+holding copies of the members the rigs name. A run missing any of the three
+fails in shapes that read as product defects, so complete the environment
+before reading a red. The data root and every token stay out, so a rig cannot
+post or write real data.
 
 ## Establish which way a check errs before deciding whether it needs a fallback
 
@@ -457,3 +512,14 @@ per behaviour.
   access roots is refused by design. Run `chmod -R u+w` before `rm -rf` when the
   tree holds `u=rX` files. Never copy `ssh/`, secrets or keys into a scratch
   tree: use dummy files.
+- **A rig origin carries every package beside the tooling, never the ones a
+  check names.** One rig origin held two of them, and every mixed text then read
+  as unreadable while the product was sound. A grep over the tooling's own script
+  finds one package, and some package paths are built from a variable, so no
+  grep over literal paths sees them. List the sibling directories and keep the
+  packages. The listing over-reaches and needs the packages picked out: in the
+  `ws-myx-devops` source tree, `find "$MDLT_ORIGIN/myx" -maxdepth 1 -type d`
+  returns 14 directories, of which 7 carry a `project.inf` and 3 are dot
+  directories. Take the count in the tree that `MDLT_ORIGIN` names, and say
+  which tree that was. Meant for `ws-myx-devops/source/myx`, it is 7. Meant for
+  `ws-myx.prv-farm/.local/myx`, it is 6.

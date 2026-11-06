@@ -82,6 +82,15 @@ function scanLine( rawLine,    lineText, itemText ) {
 	## A quoted span carries text the writer did not write, so its length is the
 	## source's fact rather than the writer's choice.
 	if ( rawLine ~ /^[[:space:]]*(>|&gt;)/ ) { return ; }
+	## A pipe table's rows are cells, not the writer's sentences: a row is cut into columns
+	## wherever they read best, and the delimiter row is punctuation alone. So a row is no
+	## prose of its own and is skipped, its lines still ending the paragraph above and below it.
+	## The words around the table are measured as they always were.
+	if ( rawLine ~ /^[[:space:]]*[|]/ || rawLine ~ /[|][[:space:]]*$/ ) {
+		flushElement( paraText, 0 ) ;
+		paraText = "" ;
+		return ;
+	}
 	lineText = rawLine ;
 	gsub( /`[^`]*`/, " ", lineText ) ;
 	if ( lineText ~ /^[[:space:]]*$/ ) {

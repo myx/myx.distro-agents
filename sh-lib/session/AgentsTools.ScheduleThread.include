@@ -38,15 +38,23 @@ AgentsToolsScheduleThreadDir(){
 agentsScheduleThreadLastPass=-100000
 
 ## ONE PASS, when its interval is due: the schedule's steps, then the board's dependencies, which are computed for each change of the board and cost
-## nothing otherwise. It asks for nothing on its own, so the thread ends by idleness once the places that want the schedule stop asking, and the next
+## nothing otherwise. WHILE A FLAG THAT KEEPS DUTIES IS ON (worktime, overtime, emergency, read once a pass) it answers 2, which the shared thread
+## counts as a request, so the thread stays while duties are due with no session live to ask. Otherwise it asks for nothing on its own, so the thread
+## ends by idleness once the places that want the schedule stop asking, and the next
 ## ask starts it again. A pass that could not run says so in the thread's log, and the next one comes.
 AgentsToolsScheduleThreadPass(){
-	[ $(( SECONDS - agentsScheduleThreadLastPass )) -ge "$agentsScheduleThreadGap" ] || return 0
-	agentsScheduleThreadLastPass="$SECONDS"
-	type AgentsToolsScheduleLoop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" || return 0
-	AgentsToolsScheduleLoop
-	type AgentsToolsBoardDependencies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include" || return 0
-	AgentsToolsBoardDependencies
+	if [ $(( SECONDS - agentsScheduleThreadLastPass )) -ge "$agentsScheduleThreadGap" ] ; then
+		agentsScheduleThreadLastPass="$SECONDS"
+		type AgentsToolsScheduleLoop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" || return 0
+		AgentsToolsScheduleLoop
+		type AgentsToolsBoardDependencies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include" || return 0
+		AgentsToolsBoardDependencies
+		case "$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" in
+			*"worktime: yes"*|*"overtime: yes"*|*"emergency: yes"*) agentsScheduleThreadKeep=yes ;;
+			*) agentsScheduleThreadKeep=no ;;
+		esac
+	fi
+	[ "${agentsScheduleThreadKeep:-no}" != yes ] || return 2
 	return 0
 }
 

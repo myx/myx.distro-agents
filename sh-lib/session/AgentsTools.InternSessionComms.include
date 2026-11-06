@@ -232,6 +232,9 @@ case "$1" in
 			fi
 			commsAny=""
 			commsPick=""
+			## THE CONSOLE FIRST, every pass: a message a person left for any session is taken before the sessions' turns, so it waits
+			## one pass and never a queue of sessions. A local read of folders, and no network call of its own beyond its one send.
+			[ "$commsMode" = "--one" ] || AgentsToolsSessionCommsTakeAll
 			if [ "$commsMode" = "--one" ] ; then
 				while read -r commsOne commsThread ; do
 					[ -n "$commsOne" ] || continue
@@ -290,6 +293,8 @@ case "$1" in
 					commsRow="${commsRows[$commsIdx]}"
 					commsOne="${commsRow%% *}" ; commsRow="${commsRow#* }" ; commsThread="${commsRow%% *}"
 					[ -n "$commsOne" ] || continue
+					## THE PASS'S OWN SECONDS: a session left takes its turn in the next pass, which takes the console's messages at its top.
+					[ "$(( commsBase + SECONDS - commsPassNow ))" -lt "$agentsSessionCommsPassSeconds" ] || break
 					commsAny="yes"
 					[ "$commsThread" != "-" ] || commsThread=""
 					AgentsToolsSessionCommsTick "$commsOne" "$commsThread" $commsForce
@@ -297,19 +302,24 @@ case "$1" in
 				done
 			fi
 			[ -z "$commsAny" ] || commsIdleFrom="$SECONDS"
-			## What waits in the outboxes of the comms cache, pushed every pass: a pass with none starts no process (AgentsToolsCommsCachePushAll).
+			## What waits in the outboxes of the comms cache, pushed every pass, and only this pass's share of it: a backlog of posts is drained
+			## over passes, so the pass that drains it still takes the console's messages and reads the threads (AgentsToolsCommsCachePushAll).
 			if [ -z "$commsEnd" ] ; then
 				type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
-				! type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || AgentsToolsCommsCachePushAll "$commsPassNow"
+				! type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || AgentsToolsCommsCachePushAll "$commsPassNow" "$agentsSessionCommsPostsPerPass"
 			fi
-			## The rig's pull of the channels members read lately (AgentsToolsCommsCachePullWatched), every 5 s.
-			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ $(( SECONDS - ${commsPullAt:--100} )) -ge 5 ] ; then
+			## The rig's pull of the channels members read lately (AgentsToolsCommsCachePullWatched), every 30 s: it reads a mark a channel
+			## watched, and a workspace of hundreds of them would otherwise spend every pass on it, holding the console's messages behind it.
+			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ $(( SECONDS - ${commsPullAt:--100} )) -ge 30 ] ; then
 				commsPullAt="$SECONDS"
 				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
-				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow"
+				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
 			fi
 			commsLoops=$(( commsLoops + 1 ))
-			[ "$(( commsLoops % 60 ))" != 0 ] || { AgentsToolsSessionCommsLogBound ; AgentsToolsSessionCommsListSweep ; }
+			## The log is bounded on every pass: a pass that holds it to its size cannot be the long one, and a log grown past the bound is cut
+			## back the first pass after it, never the sixtieth. The list's sweep is the rarer check.
+			AgentsToolsSessionCommsLogBound
+			[ "$(( commsLoops % 60 ))" != 0 ] || AgentsToolsSessionCommsListSweep
 			[ "$commsMode" != "--one" ] || break
 			[ -z "$commsEnd" ] || break
 			## The ends of its own: nothing to do for the time set; its folder, or its lock, gone.

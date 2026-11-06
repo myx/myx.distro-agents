@@ -167,6 +167,8 @@ rigRunRecord stranger-folder rig-stranger magic-librarian none
 rigItem "$rigReview" magic-architect "status: dispatch-started"$'\n'"session-id: rig-arch"$'\n'"references: $rigPeerItem"
 rigItem "$rigPeerItem" magic-librarian "status: dispatch-started"$'\n'"session-id: rig-peer"
 rigItem "$rigStrangerItem" magic-librarian "status: dispatch-started"$'\n'"session-id: rig-stranger"
+## The items are written by hand here, so what the board writer does on a `references:` write is done here too: the citing session's files are written again.
+( . "$rigLib/grants/AgentsTools.Grants.include" && AgentsToolsGrantsStoreTouch "$rigSessions/rig-arch" ) > /dev/null 2>&1 || :
 rigAssert "the cited peer's session chat is read"              "$( rigRead magic-architect rig-arch "$rigSessions/rig-peer/session.chat" rig-chat )" read
 rigAssert "its output folder with it"                          "$( rigRead magic-architect rig-arch "$rigSpawned/peer-folder/output/report.md" rig-report )" read
 rigAssert "and the native client's index admits the peer's chat too" "$( rigHookSays magic-architect rig-arch Read "$rigSessions/rig-peer/session.chat" )" allow

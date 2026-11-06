@@ -446,6 +446,14 @@ AgentsToolsRegistryRunDead(){ ## session id, run id
 	LC_ALL=C awk -v want="$2" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "$MMDAPP/.local/agents/sessions/$1/control/dead" 2> /dev/null
 }
 
+## rc 0 where the session's control/closed names this run: its ending was ordered, so it reads finished once not running.
+AgentsToolsRegistryRunClosed(){ ## session id, run id (a run with no record of its own, `-`, goes by its session id)
+	local closedWant="${2:-}"
+	case "$closedWant" in ''|-) closedWant="${1:-}" ;; esac
+	[ -n "${1:-}" ] && [ -f "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/control/closed" ] || return 1
+	LC_ALL=C awk -v want="$closedWant" '$1 == want { found = 1 ; exit } END { exit ( found ? 0 : 1 ) }' "$MMDAPP/.local/agents/sessions/$1/control/closed" 2> /dev/null
+}
+
 ## thinking/tool/waiting/idling for a run with a process here, parked/failed/finished for one that ended, plus the case a guess would
 ## get wrong: unclosed (no process is seen, and no open ask exists against its session -- ended without closing its own record, or on
 ## another host, unmeasurable from here). status is
@@ -497,6 +505,8 @@ AgentsToolsRegistryRunActivity(){ ## spawn id, live word
 
 AgentsToolsRegistryDeriveState(){ ## status, live, session-id, run id
 	local dsStatus="$1" dsLive="$2" dsSession="$3" dsSpawn="${4:-}"
+	## A run not running that control/closed names is finished, before any other mark is read.
+	[ "$dsLive" = running ] || ! AgentsToolsRegistryRunClosed "$dsSession" "$dsSpawn" || { printf 'finished\n' ; return 0 ; }
 	## A PARKED RUN IS NEITHER RUNNING NOR FINISHED, BUT A LIVE RUN IS RUNNING (S27.2): the liveness
 	## check comes first, so a mark left by a run that started again is never the answer.
 	if [ "$dsLive" != running ] ; then
@@ -1112,6 +1122,8 @@ AgentsToolsRegistryRunLeftKeep(){ ## spawn id, the process ids still there (a sp
 ## AgentsToolsRegistryDeriveState without a fork: the same answer, into derivedState of the
 ## caller, the open asks read from AgentsToolsRegistryPendingOpenSessions's set.
 AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-session set, run id
+	## A run not running that control/closed names is finished, before any other mark is read.
+	[ "$2" = running ] || ! AgentsToolsRegistryRunClosed "$3" "${5:-}" || { derivedState="finished" ; return 0 ; }
 	## A parked run is neither running nor finished (S27.2), unless it is live: the liveness check
 	## comes first, so a mark left by a run that started again is never the answer.
 	if [ "$2" != running ] ; then
@@ -1378,6 +1390,22 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 				}
 				return index( deadRuns[session], " " runId " " ) > 0 ;
 			}
+			## Whether control/closed of the session names the run: its ending was ordered.
+			function closedNames( session, runId,   closedFile, closedLine, closedFields, closedCount ) {
+				if ( session == "" || session == "-" ) return 0 ;
+				if ( runId == "" || runId == "-" ) runId = session ;
+				if ( ! ( session in closedRead ) ) {
+					closedRead[session] = 1 ; closedRuns[session] = " " ;
+					closedFile = agentsDir "/sessions/" session "/control/closed" ;
+					while ( ( getline closedLine < closedFile ) > 0 ) {
+						sub( /^[ \t]+/, "", closedLine ) ;
+						closedCount = split( closedLine, closedFields, /[ \t]+/ ) ;
+						if ( closedCount >= 1 && closedFields[1] != "" ) { closedRuns[session] = closedRuns[session] closedFields[1] " " ; }
+					}
+					close( closedFile ) ;
+				}
+				return index( closedRuns[session], " " runId " " ) > 0 ;
+			}
 			## WHAT A LIVE RUN IS DOING (S27.4), from its own mark: `thinking`, `tool`, `waiting` or `idling`.
 			## A run whose mark is missing or unreadable is thinking, never a stale word.
 			function activityOf( rowSpawn,   actPath, actLine, actWord ) {
@@ -1427,6 +1455,8 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 			}
 			## The state a row comes to, exactly as AgentsToolsRegistryDeriveStateFromSet gives it.
 			function derivedOf( rowStatus, rowLive, rowSession, rowSpawn ) {
+				## A run not running that control/closed names is finished, before any other mark is read.
+				if ( rowLive != "running" && closedNames( rowSession, rowSpawn ) ) { return "finished" ; }
 				## A parked run is neither running nor finished (S27.2), unless it is live: the liveness
 				## check comes first, and the mark is looked for at both of the two ids the run carries.
 				if ( rowLive != "running" && parkedOf( rowSpawn, rowSession ) ) { return "parked" ; }
@@ -1499,7 +1529,8 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 				else if ( rowHost != thisHost ) { rowLive = "remote" ; }
 				else if ( rowSpawn == "" ) { rowLive = "running" ; }
 				else { rowLive = ( index( runSet, "\n" rowSpawn "\n" ) > 0 ) ? "running" : "gone" ; }
-				state = derivedOf( rowStatus, rowLive, session, rowSpawn ) ;
+				## A row whose launch never wrote its record has no session id but its tracking name, which the list shows and a close names.
+				state = derivedOf( rowStatus, rowLive, ( session == "-" || session == "" ) ? trackingName : session, rowSpawn ) ;
 				if ( state == "unclosed" && startingAsked ) {
 					if ( index( startingKeys, " work-duty." owner " " ) > 0 ) { state = "starting" ; }
 					else {

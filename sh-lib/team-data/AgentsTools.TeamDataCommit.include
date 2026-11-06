@@ -36,7 +36,8 @@ AgentsToolsTeamDataSettleDirty(){ ## -- the store's uncommitted tracked paths, o
 	git -C "$MDAT_DATA_ROOT" status --porcelain -z 2> /dev/null \
 		| while IFS= read -r -d '' settleEntry ; do
 			settleEntry="${settleEntry#???}"
-			case "$settleEntry" in ''|'??'*) continue ;; esac
+			## A live run's transcript is written by that run alone and committed on its own bound: no resync waits on it.
+			case "$settleEntry" in ''|'??'*|audit/*/session-*.log) continue ;; esac
 			printf '%s/%s\n' "${MDAT_DATA_ROOT%/}" "$settleEntry"
 		done
 }
@@ -182,9 +183,14 @@ AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
 	done <<< "$( AgentsToolsTeamDataCommitOwedTake )"
 	## A path that is gone and that git never knew fails `git add -A` for the whole commit, and its entry would then be owed for good: a moved
 	## item names both of its places, an item created and trashed before its commit names one that is no more. Git is asked for the one it knew.
-	local knownPaths=()
+	## A deletion already staged, gone from the index and held by HEAD, skips the add and is committed.
+	local knownPaths=() addPaths=()
 	for commitPath in ${commitPaths[@]+"${commitPaths[@]}"} ; do
-		[ -e "$commitPath" ] || git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 || continue
+		if [ -e "$commitPath" ] || git -C "$repoRoot" ls-files --error-unmatch -- "$commitPath" > /dev/null 2>&1 ; then
+			addPaths+=( "$commitPath" )
+		elif ! git -C "$repoRoot" ls-files --error-unmatch --with-tree=HEAD -- "$commitPath" > /dev/null 2>&1 ; then
+			continue
+		fi
 		knownPaths+=( "$commitPath" )
 	done
 	commitPaths=( ${knownPaths[@]+"${knownPaths[@]}"} )
@@ -204,12 +210,12 @@ AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
 		rm -f "$lockFile" 2> /dev/null || return 1
 		return 0
 	}
-	gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+	[ "${#addPaths[@]}" -eq 0 ] || gitOut="$( git -C "$repoRoot" add -A -- "${addPaths[@]}" 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
 		gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2> /dev/null )" || gitDir=""
 		if gitAddStale "${gitDir:+$gitDir/index.lock}" ; then
 			gitRc=0
-			gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			gitOut="$( git -C "$repoRoot" add -A -- "${addPaths[@]}" 2>&1 )" || gitRc=$?
 		fi
 	fi
 	if [ "$gitRc" -ne 0 ] ; then

@@ -316,17 +316,26 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 ## agentsRoutineLockTaken (yes where this call took at least one) and agentsRoutineLockOutput (what the routines' own acquire
 ## operations printed that the run reads).
 AgentsToolsRoutineLockAcquire(){ ## the routine-lock-document value (a list), the session id, the routine's short name
-	local acqOne acqTaken=()
+	local acqOne acqTaken=() acqRc=0 acqWaited=0 acqGate="$MMDAPP/.local/agents/locks/routine-lock-acquire"
 	agentsRoutineLockTaken="no" ; agentsRoutineLockOutput=""
+	## ONE ACQUIRE AT A TIME PER WORKSPACE (S12.13, interim): its git steps share the one team-data checkout.
+	mkdir -p "${acqGate%/*}" 2> /dev/null || :
+	until mkdir "$acqGate" 2> /dev/null ; do
+		[ -z "$( find "$acqGate" -maxdepth 0 -mmin +10 2> /dev/null )" ] || { rmdir "$acqGate" 2> /dev/null ; continue ; }
+		[ "$acqWaited" -lt 600 ] || { agentsRoutineLockOutput="the routine-lock acquire gate stayed held for 600s: $acqGate" ; echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $agentsRoutineLockOutput" >&2 ; return 1 ; }
+		sleep 2 ; acqWaited=$(( acqWaited + 2 ))
+	done
 	for acqOne in $( printf '%s' "$1" | LC_ALL=C tr ',' ' ' ) ; do
 		if ! AgentsToolsRoutineLockAcquireOne "$acqOne" "$2" "$3" ; then
 			for acqOne in ${acqTaken[@]+"${acqTaken[@]}"} ; do AgentsToolsRoutineLockUnlockOne "$acqOne" "$2" "the start failed at another lock" || : ; done
 			agentsRoutineLockTaken="no"
-			return 1
+			acqRc=1
+			break
 		fi
 		[ "$agentsRoutineLockTakenOne" != "yes" ] || { acqTaken+=( "$acqOne" ) ; agentsRoutineLockTaken="yes" ; }
 	done
-	return 0
+	rmdir "$acqGate" 2> /dev/null
+	return "$acqRc"
 }
 
 ## THE SPAWNER'S UNLOCK of a locking document held by a session: the end recorded in the document (a receipt: what ended,

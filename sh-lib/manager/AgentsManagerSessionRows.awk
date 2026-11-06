@@ -59,6 +59,12 @@
 ## parked: its handback waits for a verdict. Not `finished`;
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
+## A SESSION THAT ENDED IN THE LAST MINUTE STAYS IN THE ACTIVE LIST, as finished, so a run that dies between two refreshes is seen (S7.29).
+function recentlyEnded(sessionKey) {
+	if (nowMinutes == "") { nowMinutes = ENVIRON["MDAT_MANAGER_NOW_MINUTES"] ; if (nowMinutes == "") { srand() ; nowMinutes = int(srand() / 60) ; } }
+	return ( sessionState[sessionKey] == "finished" && sessionEnd[sessionKey] >= 0 && nowMinutes - sessionEnd[sessionKey] <= 1 ) ;
+}
+
 function activeState(stateWord) {
 	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "paused" || stateWord == "awaiting-review" || stateWord == "unclosed" || stateWord == "failed" ) ;
 }
@@ -151,7 +157,8 @@ NF != 16 && NF != 18 && NF != 19 { next ; }
 	}
 	## A RUN THAT IS STILL HERE IS RUNNING, whatever its record says (S21.4): a `spawn-failed` mark written before the run started
 	## cannot end it. Otherwise a settled status stands, and a run that died on its start reads `failed` (sketch 3.6).
-	runStateWord = ( $6 == "spawn-failed" && $12 != "running" ? "failed" : $13 ) ;
+	## A run whose ending was ordered (control/closed) is finished in $13, and that stands.
+	runStateWord = ( $6 == "spawn-failed" && $12 != "running" && $13 != "finished" ? "failed" : $13 ) ;
 	if (runStateWord == "failed") sessionFailed[sessionKey] = 1 ;
 	## A settled death and a clean advance-pass close share one status word (spawn-ended-without-close):
 	## $13 already tells them apart (S21.4), so this reads the derived word, never the raw status again.
@@ -214,7 +221,7 @@ END {
 		else sessionState[sessionKey] = "finished" ;
 		if (sessionState[sessionKey] == "running") sessionsRunning++ ;
 		if (sessionState[sessionKey] == "paused") sessionsPaused++ ;
-		if (activeOnly && !activeState(sessionState[sessionKey])) continue ;
+		if (activeOnly && !activeState(sessionState[sessionKey]) && !recentlyEnded(sessionKey)) continue ;
 		if (learnOnly && sessionState[sessionKey] != "finished") continue ;
 		stateTally = "" ;
 		for (stateAt = 1 ; stateAt <= stateTotal ; stateAt++) {
@@ -231,7 +238,7 @@ END {
 	}
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		sessionKey = runSession[runAt] ;
-		if (activeOnly && !activeState(sessionState[sessionKey])) continue ;
+		if (activeOnly && !activeState(sessionState[sessionKey]) && !recentlyEnded(sessionKey)) continue ;
 		if (learnOnly && sessionState[sessionKey] != "finished") continue ;
 		## A run with no date stands after the dated ones of its session.
 		print sessionStart[sessionKey], sessionPlace[sessionKey], 1, ( runMinutes[runAt] < 0 ? 99999999999 : runMinutes[runAt] ), runAt, "run", sessionKey, runRow[runAt], runActivity[runAt] ;

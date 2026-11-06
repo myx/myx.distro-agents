@@ -332,7 +332,7 @@ rigRun "$rigTmp/w3" bash -c '. "$1" ; . "$2" ; AgentsReviewWaitLeft rig-child-fb
 rigAssert "under the default 3600s limit, time is left"    "$( LC_ALL=C grep -c -E '^3[56][0-9]{2}$' "$rigTmp/w3" )" 1
 
 ## ---------------------------------------------------------------- verdicts
-echo "-- 7. accept: -> processed, DISMISSED to the live child, Decisions and transcript --"
+echo "-- 7. accept: -> processed, the child dismissed by the tooling's mark and its session chat, Decisions and transcript --"
 rigLive rig-live-acc-$$
 rigRecord rig-live-acc-$$ spawn-started CACC00001:1700000000.000300 dispatch-20261008T1200Z-acc
 rigItem review dispatch-20261008T1200Z-acc rig-live-acc-$$
@@ -341,7 +341,9 @@ sleep 1
 rigOp "$rigTmp/v1" --accept-review --team-member magic-coordinator dispatch-20261008T1200Z-acc --summary "good work"
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v1.rc" )" 0
 rigAssert "the item is processed"                          "$( rigLoc dispatch-20261008T1200Z-acc )" processed
-rigAssert "DISMISSED went to the child's thread"           "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CACC00001"' "$rigTmp/bodies" )" 1:1
+rigAssert "the child's dismissal is kept as the tooling's own mark (S6.25), naming the member that dismissed it" "$( LC_ALL=C sed -n 1p "$rigWs/.local/agents/sessions/rig-live-acc-$$/dismissed" 2> /dev/null | LC_ALL=C grep -c '^magic-coordinator' )" 1
+rigAssert "and as a block in the child's session chat, addressed to it" "$( LC_ALL=C grep -c 'DISMISSED' "$rigWs/.local/agents/sessions/rig-live-acc-$$/session.chat" 2> /dev/null || : )" 1
+rigAssert "and the thread carries none: a dismissal posts nothing (S6.25)" "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CACC00001"' "$rigTmp/bodies" 2> /dev/null || : )" 0:0
 rigAssert "Decisions: verdict accepted"                    "$( rigDecisions "$rigData/board/processed/dispatch-20261008T1200Z-acc.md" 'verdict: accepted: good work' )" 1
 rigAssert "transcript: VERDICT"                            "$( LC_ALL=C grep -c " VERDICT item=dispatch-20261008T1200Z-acc kind=verdict " "$rigTmp/tr-rig-live-acc-$$.log" )" 1
 
@@ -539,7 +541,12 @@ printf 'wrong approach\nstart over' | rigOp "$rigTmp/v4" --reject-review --team-
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v4.rc" )" 0
 rigAssert "the item is pending"                            "$( rigLoc dispatch-20261008T1200Z-rej )" pending
 rigAssert "status review-rejected"                         "$( LC_ALL=C grep -c -x 'status: review-rejected' "$rigData/board/pending/dispatch-20261008T1200Z-rej.md" )" 1
-rigAssert "DISMISSED went to the child's thread"           "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CREJ00001"' "$rigTmp/bodies" )" 1:1
+## A reject sends its dismissal through the accept's own function (`AgentsTools.ReviewFlow.include:1028`), so the
+## mark reads `the accept of ...` for a rejection too. The row matches its first line, which is the member that
+## dismissed it, so it holds whoever sent it.
+rigAssert "the child's dismissal is kept as the tooling's own mark (S6.25), naming the member that dismissed it" "$( LC_ALL=C sed -n 1p "$rigWs/.local/agents/sessions/rig-live-rej-$$/dismissed" 2> /dev/null | LC_ALL=C grep -c '^magic-coordinator' )" 1
+rigAssert "and as a block in the child's session chat, addressed to it" "$( LC_ALL=C grep -c 'DISMISSED' "$rigWs/.local/agents/sessions/rig-live-rej-$$/session.chat" 2> /dev/null || : )" 1
+rigAssert "and the thread carries none: a dismissal posts nothing (S6.25)" "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CREJ00001"' "$rigTmp/bodies" 2> /dev/null || : )" 0:0
 rigAssert "Decisions: verdict rejected, with the text"     "$( rigDecisions "$rigData/board/pending/dispatch-20261008T1200Z-rej.md" 'verdict: rejected: wrong approach start over' )" 1
 rigAssert "transcript: VERDICT"                            "$( LC_ALL=C grep -c " VERDICT item=dispatch-20261008T1200Z-rej " "$rigTmp/tr-rig-live-rej-$$.log" )" 1
 

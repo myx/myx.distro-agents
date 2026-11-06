@@ -13,7 +13,8 @@
 ## Each step is also appended to `launch.steps` beside the launcher's `launch` (and its bare `launch.noticed`), one `<step>=<n>s`
 ## a line. That record needs no data root, so a start is timed in a Just Agents workspace too, where the transcript milestone
 ## that carries the line is never written. `launch`'s own mtime is left alone: the Wait takes the session start from it.
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2> /dev/null
+## The dispatcher is loaded on its first call, never at load: most loads of this file never call it.
+type DistroAgentsTools > /dev/null 2>&1 || DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2> /dev/null && DistroAgentsTools "$@" ; }
 AgentsToolsStartStepBegin(){
 	agentsStartStepFirst="$( date +%s )" ; agentsStartStepAt="$agentsStartStepFirst" ; agentsStartSteps=""
 }

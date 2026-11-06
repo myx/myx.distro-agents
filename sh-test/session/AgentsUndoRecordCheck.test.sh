@@ -1,27 +1,38 @@
 #!/usr/bin/env bash
-## Behavioural check on the undo protocol's four beats (S13.19 stage 2): `--undo-record` keeps
-## the inverse of one act and writes the hold, `--undo-plan` is the dry run and refuses an
-## operand that moved, `--undo-run` takes the steps once and resumes after a stop, and
-## `--undo-purge` closes the record. The three hold readers ask the marker what it names, and
-## a marker naming no open record keeps the material and says which record it wanted.
-## Offline: no tree but this check's own rig.
+## Behavioural check on the undo protocol's beats (S13.19 stages 2 to 4): `--undo-record` keeps
+## the inverse of one act, writes the hold and posts the prompt of the act to the human-owner,
+## `--undo-plan` is the dry run and refuses an operand that moved, `--undo-run` takes the steps
+## once and resumes after a stop, `--undo-purge` closes the record, and `--undo-rework` keeps his
+## words and the hold. Run and purge carry HIS answer alone, so a member's own word is refused,
+## and so is a rework with no words. The three hold readers ask the marker what it names, and a
+## marker naming no open record keeps the material and says which record it wanted.
+## Offline: a Slack-shaped fake curl is first on PATH, and no tree but this check's own rig.
 set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigSweepLib="$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSimLib="$rigPackage/sh-lib/session/AgentsTools.SpawnSandbox.include"
+rigSweepLib="$rigSimLib"
+rigCurl="$rigPackage/sh-test/check-fixtures/change-approval.curl.stub.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigSweepLib" ] || rigRefuse "the sandbox include is missing from the package: $rigSweepLib"
+[ -f "$rigCurl" ] || rigRefuse "the fake curl fixture is missing: $rigCurl"
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsUndoRecordCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+mkdir -p "$rigTmp/bin" "$rigTmp/home"
+cp "$rigCurl" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
+for rigReal in date uuidgen awk sed grep cmp mkdir mktemp rm wc cut tr sort cat cp mv od dirname basename hostname ; do
+	[ ! -x "/usr/bin/$rigReal" ] || ln -sf "/usr/bin/$rigReal" "$rigTmp/bin/$rigReal" 2> /dev/null || :
+	[ ! -x "/bin/$rigReal" ] || ln -sf "/bin/$rigReal" "$rigTmp/bin/$rigReal" 2> /dev/null || :
+done
 
 rigPassCount=0
 rigFailCount=0
@@ -33,19 +44,30 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
+AgentsToolsUndoFieldRig(){ ## record id, key
+	LC_ALL=C awk -v key="$2" '$0 == "---" { exit } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit }' \
+		"$rigWs/.local/agents/sessions/rigrun/undo/$1/record" 2> /dev/null
+}
 
 ## A fresh rig: a workspace, its data root, and one sandbox of this rig's own, which is the
 ## acting run's sandbox -- the folder the record's hold is written in.
 rigNew(){ ## name
-	rigWs="$rigTmp/$1/ws" ; rigD="$rigTmp/$1/data" ; rigSp="$rigWs/.local/agents/spawned" ; rigRun="$rigSp/rigrun"
+	rigWs="$rigTmp/$1/ws" ; rigD="$rigTmp/$1/data" ; rigSp="$rigWs/.local/agents/spawned" ; rigRun="$rigSp/rigrun" ; rigDir="$rigTmp/$1"
+	mkdir -p "$rigDir" ; : > "$rigDir/curl.log"
 	mkdir -p "$rigD/inboxes/magic-coordinator/incoming" "$rigD/board/processed" "$rigWs/.local/agents/members/magic-coordinator" "$rigWs/.local/temp" "$rigRun/input" "$rigRun/output"
+	mkdir -p "$rigWs/.local/agents/members/rig-member" "$rigWs/.local/agents/members/human-owner" "$rigWs/.local/.agents"
+	printf '# human-owner\n' > "$rigWs/.local/agents/members/human-owner/SKILL.md"
+	printf 'SLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+	printf -- '---\nname: rig-member\ndescription: rig member\n---\n' > "$rigWs/.local/agents/members/rig-member/SKILL.md"
+	printf 'rig\n' > "$rigWs/.local/agents/members/rig-member/rig-member.basic.md"
 	printf '# magic-coordinator\n' > "$rigWs/.local/agents/members/magic-coordinator/SKILL.md"
 	printf 'rig\n' > "$rigRun/input/brief.md"
 	printf -- '---\nsession-id: rigrun\nspawn-id: rigrun\nhost: %s\nstatus: spawn-succeeded\n---\n' "$rigHost" > "$rigRun/rigrun.spawn.md"
 	touch -t 202001010000 "$rigRun/rigrun.spawn.md"
 }
 rigToolCall(){ ## arguments... -- the tool against this rig, rc in rigRc
-	( cd "$rigWs" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigWs" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+		MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
 		MDAT_DATA_ROOT="$rigD" MDAT_SPAWN_SANDBOX_ROOT="$rigRun" MDAT_SPAWN_SESSION_ID=rigrun MDAT_SPAWN_AGENT=rig-member \
 		bash "$rigTool" "$@" ) > "$rigTmp/call.out" 2>&1
 	rigRc=$?
@@ -62,6 +84,16 @@ rigPurge(){ ## result file, rc in rigRc
 	( cd "$rigWs" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" \
 		bash "$rigTool" --owner-cleanup-purge ) > "$1" 2>&1
 	rigRc=$?
+}
+## HIS ANSWER, written where the tool reads it: the record's own ask, closed with the verdict
+## the human-owner gave, in the one store both the live and the closed records are found in.
+rigAnswer(){ ## record id, verdict (accept|reject|rework), his words (may be empty), answered by (default: his account)
+	local answerAsk="rigask-$1" answerRecord="$rigWs/.local/agents/sessions/rigrun/undo/$1/record" answerBy="${4:-URIGOWNER}"
+	mkdir -p "$rigWs/.local/agents/pending"
+	printf -- '---\nstatus: reply-received\nowner: rig-member\nkind: undo\nverdict: %s%s\nanswered-by: %s\n---\n\n# Question asked\n\nthe prompt\n' \
+		"$2" "${3:+ -- $3}" "$answerBy" > "$rigWs/.local/agents/pending/$answerAsk.md"
+	LC_ALL=C awk -v line="ask: $answerAsk" 'BEGIN { done = 0 } index( $0, "ask: " ) == 1 { if ( ! done ) { print line ; done = 1 } ; next } { print } END { if ( ! done ) print line }' \
+		"$answerRecord" > "$answerRecord.new" && mv -f "$answerRecord.new" "$answerRecord"
 }
 rigRecord(){ ## the file as it stood, the file as the act left it, the live file -- record id in rigId
 	printf '%s\n' "$1" > "$rigTmp/base.txt"
@@ -108,6 +140,11 @@ rigAssert "a file that moved is not ready, and the reason names it" \
 echo "-- 5. the run --"
 printf 'two\n' > "$rigRun/output/live.txt"
 rigToolCall --undo-run "$rigId" --session-id rigrun
+rigAssert "a run nobody answered is refused, and the file stays as the act left it" \
+	"$rigRc:$( LC_ALL=C grep -c 'has no answer yet' "$rigTmp/call.out" ):$( cat "$rigRun/output/live.txt" )" "1:1:two"
+printf 'two\n' > "$rigRun/output/live.txt"
+rigAnswer "$rigId" reject
+rigToolCall --undo-run "$rigId" --session-id rigrun
 rigAssert "the base is put back" "$( cat "$rigRun/output/live.txt" )" "one"
 rigAssert "the record closes as done, and the hold it made is released" \
 	"$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "done:released"
@@ -119,10 +156,35 @@ echo "-- 6. the purge --"
 rigNew purge
 rigRecord one two
 rigToolCall --undo-purge "$rigId" --session-id rigrun
+rigAssert "a purge with no answer is refused, and the record and its hold stand" \
+	"$rigRc:$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "1:open:held"
+rigAnswer "$rigId" accept "" rig-member
+rigToolCall --undo-purge "$rigId" --session-id rigrun
+rigAssert "an answer that is not his is refused, and nothing is released" \
+	"$rigRc:$( LC_ALL=C grep -c 'only the answer of the human-owner' "$rigTmp/call.out" )" "1:1"
+rigAnswer "$rigId" reject
+rigToolCall --undo-purge "$rigId" --session-id rigrun
+rigAssert "his reject does not carry a purge" "$rigRc" 1
+rigAnswer "$rigId" accept
+rigToolCall --undo-purge "$rigId" --session-id rigrun
 rigAssert "an accept closes the record, and the hold it made is released" \
 	"$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" ):$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "accepted:released"
 
-echo "-- 7. the readers ask what the marker names --"
+echo "-- 7. the rework --"
+rigNew rework
+rigRecord one two
+rigAnswer "$rigId" rework "" 
+rigToolCall --undo-rework "$rigId" --session-id rigrun
+rigAssert "a rework with no words is no verdict, and nothing moves" \
+	"$rigRc:$( LC_ALL=C awk '$0 == "---" { exit } index( $0, "state: " ) == 1 { print substr( $0, 8 ) ; exit }' "$rigWs/.local/agents/sessions/rigrun/undo/$rigId/record" )" "1:open"
+rigAnswer "$rigId" rework "do it as a copy first, and tell me"
+rigToolCall --undo-rework "$rigId" --session-id rigrun
+rigAssert "his words are kept as he wrote them, and the record moves to rework-asked" \
+	"$( AgentsToolsUndoFieldRig "$rigId" state ):$( AgentsToolsUndoFieldRig "$rigId" rework-text )" "rework-asked:do it as a copy first, and tell me"
+rigAssert "and the hold stands, because the promise does" \
+	"$( [ -f "$rigRun/undo.hold" ] && printf held || printf released )" "held"
+
+echo "-- 8. the readers ask what the marker names --"
 rigNew readers
 printf 'rigrun/undo-record-that-is-not-there\n' > "$rigRun/undo.hold"
 rigSweep "$rigTmp/sweep.out"

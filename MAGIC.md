@@ -207,6 +207,9 @@ that the code and docs do not readily tell you.
   `SystemContext.SetInputSpec.include`, which reads `MDLT_CONSOLE_ORIGIN` and re-exports `MDLT_ORIGIN`.
   An operation arm cannot do this work: the bootstrap and the `MDAT_DATA_ROOT` preamble run before the
   `case`. A sourced caller must never trigger it.
+- **The workspace-root guard does not stop the script by itself.** At the head of `DistroAgentsTools.fn.sh`, a
+  missing `$MMDAPP/.local` is refused by an `exit 1` inside a subshell. What ends the script is the `set -e`
+  on the line above it. Remove or reorder that line and the guard becomes a message the run walks past.
 - **`MDLT_OPTION` is the only witness that resolution ran.** The file-load default always sets
   `MDLT_ORIGIN`, so a guard on `MDLT_ORIGIN` alone is dead code here. `DistroSourceTools.fn.sh` and
   `DistroDeployTools.fn.sh` do not default it, so the same test is live there.
@@ -282,6 +285,16 @@ that the code and docs do not readily tell you.
   text itself. The manager screen draws only that. A table in the text is laid out by that one renderer to the width given, or
   the terminal's. It fits the columns, wraps the cells, marks the header, and
   rules only a row that wraps. With no width the output is as it was. It is plain POSIX awk.
+- **A `DistroAgents*.fn.sh` sourced with an argument defines functions and runs nothing.** Its dispatcher
+  sits at the foot behind a `BASH_SOURCE` test, so an argument reaches no operation. Measured 2026-11-06:
+  sourced with `--help-syntax` it printed only the 64-byte `SystemContext: init:` line, and run as a
+  command the same call printed 53459 bytes of syntax. The sourced form's exit status is 0, and the
+  silence of a write that never ran reads exactly like success.
+- **An empty name probe is not an absent capability.** `command -v <name>` answers what a shell finds by a
+  name, and says nothing about a known path. macOS ships `jsc` at
+  `/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc`, and
+  `sh-test/check-fixtures/vscode-panel-check.node.stub.sh` runs a script on it. Before reporting a
+  capability absent, read the tree's own mechanism for it, and put one known positive through the probe.
 
 ## 4. Writing code here
 
@@ -1927,6 +1940,11 @@ contracts are here.
   `sleep` must redirect `>/dev/null`, or it holds the capture pipe for the whole timeout. Bound only
   where `MDAT_HARNESS_RUN_TIMEOUT` or the call's `timeout` sets one; Darwin has no `timeout` binary, so
   the shell watchdog is the live path.
+- **A harness path is absolute and already normalised, and its refusal does not say so.** `Bash`'s
+  `cwd`, and the paths `Read`, `Glob`, `Grep`, `Edit` and `Write` take, pass `AgentsHarnessPathAllowed`
+  first (`sh-lib/harness/AgentsHarnessAccess.include:67-73`): a relative path, a `.` or `..` segment,
+  and a bare name are refused before the access roots are read. The refusal quotes the path as typed,
+  so a dotted path under a granted root reads exactly like a genuine miss.
 - **`WorkspaceContextExecute` tool**: the harness's own analog of the MCP
   `execute`, a foreground run of one shell script. The myx.distro workspace
   context is established (`Distro`, `Require`, `Action`, `DistroSystemContext`
@@ -3311,6 +3329,15 @@ flag would be a silent no-op there -- refused instead, same shape as the
   `ws-myx.prv-farm`. A rig stores the team data in the folder its settings name in `TEAM_DATA_DIRECTORY`.
   For `ws-myx.prv-farm` that folder is `ws-myx-devops/source/myx/todo-sketchpad/magic-team-deployed`.
   `ws-myx-devops` is just-agents and stays so.
+- **`--get-inbox-item` is given the item alone, and its own name before it is dropped.** The branch at
+  `sh-lib/member/AgentsTools.Member.include:471-476` takes the first positional as the member and the
+  second as the item. The front door inserts the calling member there
+  (`sh-lib/harness/AgentsContext.FrontDoor.include:76-78`), and drops a name the caller spelled first
+  only where it is that same member. So the item alone reads, and so does the caller's own name before
+  it. Any other name stays the first positional and is read as the item, which the bare-name gate
+  refuses, naming that name as the item. Reading another member's inbox takes `--team-member <member>`
+  ahead of the item. Every flag comes after the item: a flag in the item's place is refused as a name.
+  Measured 2026-11-06 on both forms, with `<other-member> <item>` as the known negative.
 - **Every tooling writer commits** the paths it wrote through `AgentsToolsTeamDataCommitPaths`
   (`AgentsTools.TeamDataCommit.include`). A close point (spawn close, main-loop iteration)
   pushes through `AgentsToolsTeamDataPushIfAhead` under the `team-data-push` lock: fetch,
@@ -3976,6 +4003,13 @@ op's own option arm.
   DM under the user identity; `--resolved` to the bot's conversation with him (`--identity-bot`). Public
   wrappers: `--send-contact-digest` (origin given) and `--send-contact-digest` (origin is the
   caller). See the floor rule `non-owner-contact-tiers-and-escalation`.
+- **The session comms reader is bounded on every pass, and takes the console first**
+  (`AgentsTools.SessionComms.include`, `AgentsTools.InternSessionComms.include`). A pass takes every session's `chat.inbox`
+  before any session's turn, so a console message waits one pass. Its cache push is `agentsSessionCommsPostsPerPass`, a
+  running total over the channels. Its session turns stop at `agentsSessionCommsPassSeconds`. Its watched-channel pull is
+  every 30 s and `agentsSessionCommsPullsPerPass` channels. The log is bound on every pass. These numbers exist because an
+  unbounded push drained a backlog of thousands of event-track feed posts in one pass, and no console message or thread
+  read happened for the length of it. Raise one only with a measurement of the pass it makes.
 
 ## 19. Email, Trello, Atlassian
 
@@ -4634,12 +4668,24 @@ Each instrument states what it proves and its red recipe in its own header. What
   `$HOME/.agents/magic-team/suite-queue` before it makes its folder, the same
   line `AgentsRunTests.sh` stands in, so one check runs at a time however it was
   started. Six sessions running `bash <check>.test.sh` at once, around the
-  queue, took this machine to load 133 on 2026-11-03. A ticket held by an
-  ancestor of the waiter is no ticket ahead, which is why a check may start a
-  suite and its own tests need no shared variable. **There is no switch to keep
+  queue, took this machine to load 133 on 2026-11-03. A ticket of the waiter's
+  own session is no ticket ahead, which is why a check may start a suite and its
+  own tests need no shared variable. **There is no switch to keep
   a check out of the line**: one existed for an evening (`RIG_NO_QUEUE`) and was
   used to bypass the line for real work. The check of the line runs against a
   rig with its own `HOME`, which is another line.
+- **A place in the line is its run's, never a process's, and a place is given up rather than held by the gone.** A
+  ticket carries `session=<session-id>`, the run's own id, and a `since=` second. Pids are never written on it: a number
+  is given to another process, so a ticket naming one reads alive when its owner has long ended. A ticket standing ahead
+  is given up, and taken out, when the workspace's records say its run has ended -- a spawn record settled, or a session
+  store with the end marker -- and when it has held the line past `MDAT_SUITE_QUEUE_HOLD_SECONDS`, 21600 by default,
+  however alive its run looks. A ticket that names no session at all was never written whole, and holds nobody's place.
+  One naming `none`, a run the tooling gave no id, is judged by its age and beat alone, since no record of it exists to
+  read. A run that waits writes a `beat` line each pass, and a beat that has stood still past
+  `MDAT_SUITE_QUEUE_STALL_SECONDS`, 3600 by default, gives up its place: that bounds a holder that stopped working. A run
+  holding a lane is running, not waiting, and neither bound judges it. The line says who holds it, from which copy, and
+  for how long, and says so again when a place is given up. Measured on 2026-11-05: a full suite left by an ended run
+  held the head of the line for almost 27 hours. `AgentsRunTestsQueueCheck` sections 4, 5b and 9 hold it.
 - **A run refuses rather than waits for ever in the line.** It waits
   `MDAT_SUITE_QUEUE_LIMIT` seconds, 900 by default, then says in one line whom it
   waited behind, runs nothing, and gives its own ticket back. Two runs waited half
@@ -4693,6 +4739,11 @@ Each instrument states what it proves and its red recipe in its own header. What
   starts on Manuals (Help), so a screen check that needs the first root selected says `root dashboard`.
   `check-fixtures/rig-distro-workspace.include.sh` builds the distro workspace a check needs for
   `ListDistroProjects`; `AgentsManagerManualReadCheck` is its first user.
+- **A screen check passes against the stand-in dispatcher, so a dummy passes too.** Nothing in those 31
+  checks calls a real operation, so they prove the screen's own drawing and nothing downstream. A real
+  run is what finds a dummy: a clean `env -i` scratch workspace as
+  `sh-test/check-fixtures/rig-retest-machine.include.sh` builds, a real pseudo-terminal, and a logging
+  wrapper between the screen and `DistroAgentsTools.fn.sh`.
 - **Diff checks hold a rewrite to its previous implementation**, kept only as fixtures in
   `sh-test/check-fixtures/*.legacy.*`: `AgentsWireStreamDiffCheck`, `AgentsHarnessJsonFieldDiffCheck`,
   `AgentsHarnessHooksDiffCheck`, `AgentsRegistryRowsDiffCheck` (also `--live-copy-from <workspace>`).

@@ -21,6 +21,26 @@
 ## the one Python (AgentsKnowledgeStore.py) through the store's own Python.
 ##
 
+## The one place the workspace's knowledge index root is spelled. The build caller and the query both ask this, and
+## nothing else names the path, so a move of the index is one line.
+AgentsToolsKnowledgeIndexRoot(){ ## -- the index root on stdout
+	printf '%s\n' "${MMDAPP%/}/.local/knowledge-index"
+}
+
+## The embedding model the index was built with: its folder and its stamp `<name>@<revision>@<dim>`, as the install
+## wrote them in lancedb.env. rc 1 when the install does not stand, which is no index at all.
+AgentsToolsKnowledgeIndexModel(){ ## -- <model-dir>\n<model-stamp>; rc 1 when the install does not stand
+	local indexHome="${LANCEDB_HOME:-$MMDAPP/.local/lancedb}" indexEnv indexName indexRevision indexDim
+	indexEnv="$indexHome/lancedb.env"
+	[ -f "$indexEnv" ] || return 1
+	indexName="$( LC_ALL=C sed -n 's/^LANCEDB_MODEL_NAME=//p' "$indexEnv" | LC_ALL=C head -1 )"
+	indexRevision="$( LC_ALL=C sed -n 's/^LANCEDB_MODEL_REVISION=//p' "$indexEnv" | LC_ALL=C head -1 )"
+	indexDim="$( LC_ALL=C sed -n 's/^LANCEDB_MODEL_DIM=//p' "$indexEnv" | LC_ALL=C head -1 )"
+	[ -n "$indexName" ] && [ -n "$indexRevision" ] && [ -n "$indexDim" ] || return 1
+	[ -d "$indexHome/model/$indexName" ] || return 1
+	printf '%s\n%s\n' "$indexHome/model/$indexName" "$indexName@$indexRevision@$indexDim"
+}
+
 AgentsToolsKnowledgeStoreRefuse(){ ## text -- why, on stderr; rc 1
 	echo "$MDSC_CMD: ⛔ ERROR: $1" >&2
 	return 1

@@ -175,8 +175,64 @@ DistroAgentsDispatcher(){
 			local overrideOp="$1"
 			shift
 			DistroAgentsDispatcherSchedule
-			AgentsToolsScheduleOverride "$overrideOp" "$@"
-			return $?
+			AgentsToolsScheduleOverride "$overrideOp" "$@" || return $?
+			## A flag set by hand asks the schedule thread once, so a flag that keeps duties starts them with no session live to ask.
+			type AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include"
+			AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || :
+			return 0
+		;;
+
+		## The stop of a rig, in order (S12.15): it refuses unless `holding` holds, so nothing starts again; then every live session is ended
+		## with the console stop, and the schedule thread last. One line for each session ended.
+		--stop-sessions)
+			local stopOp="$1" stopId stopHolder stopRc=0
+			shift
+			[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $stopOp: takes no argument, got: $1" >&2 ; return 1 ; }
+			DistroAgentsDispatcherSchedule
+			case "$( AgentsToolsScheduleCurrentFlags --current-flags )" in
+				*"holding: yes"*) ;;
+				*) echo "⛔ ERROR: $MDSC_CMD $stopOp: holding is not set -- set it first with --override-flag holding, so the schedule starts nothing again" >&2 ; return 1 ;;
+			esac
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			## A START STILL IN FLIGHT JOINS AFTER THE PASS: the pass is repeated while one was in flight, each start waited for up to 120s.
+			local stopPass=0 stopFlight stopWaited
+			while [ "$stopPass" -lt 3 ] ; do
+				stopPass=$(( stopPass + 1 ))
+				for stopId in $( ( DistroAgentsDispatcher --active-sessions --scope all ) | LC_ALL=C awk -F'\t' '$1 == "session" && $4 != "failed" && $4 != "finished" { print $2 }' ) ; do
+					( DistroAgentsTools --manager-session-kill --session-id "$stopId" ) | LC_ALL=C grep '^finish' || { echo "⚠️ WARNING: $MDSC_CMD $stopOp: session $stopId could not be ended" >&2 ; stopRc=1 ; }
+				done
+				stopFlight="$( find "$MMDAPP/.local/agents/schedule/starting" -type f ! -name '*.hold' ! -name '*.out' ! -name '*.rc' 2> /dev/null )"
+				[ -n "$stopFlight" ] || break
+				stopWaited=0
+				while [ -n "$stopFlight" ] && [ "$stopWaited" -lt 120 ] ; do
+					sleep 5 ; stopWaited=$(( stopWaited + 5 ))
+					stopFlight="$( find "$MMDAPP/.local/agents/schedule/starting" -type f ! -name '*.hold' ! -name '*.out' ! -name '*.rc' 2> /dev/null )"
+				done
+			done
+			type AgentsToolsScheduleThreadDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include"
+			stopHolder="$( cat "$( AgentsToolsScheduleThreadDir )/thread.lock" 2> /dev/null )" || stopHolder=""
+			if [ -n "$stopHolder" ] && AgentsToolsThreadLockHolderLives "$stopHolder" 2> /dev/null ; then
+				kill -TERM "${stopHolder%% *}" 2> /dev/null && printf 'thread\t%s\tended\n' "${stopHolder%% *}"
+			fi
+			return "$stopRc"
+		;;
+
+		## The cleanup of the failed sessions of this workspace: each closed with the console kill, which reads it as finished from then on.
+		--close-failed-sessions)
+			local closeOp="$1" closeId closeDone=0 closeAll=0 closeRc=0
+			shift
+			[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $closeOp: takes no argument, got: $1" >&2 ; return 1 ; }
+			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			for closeId in $( ( DistroAgentsDispatcher --active-sessions --scope all ) | LC_ALL=C awk -F'\t' '$1 == "session" && $4 == "failed" { print $2 }' ) ; do
+				closeAll=$(( closeAll + 1 ))
+				if ( DistroAgentsTools --manager-session-kill --session-id "$closeId" ) | LC_ALL=C grep '^finish' ; then
+					closeDone=$(( closeDone + 1 ))
+				else
+					echo "⚠️ WARNING: $MDSC_CMD $closeOp: session $closeId could not be closed" >&2 ; closeRc=1
+				fi
+			done
+			printf 'closed\t%s\tof\t%s\tfailed sessions\n' "$closeDone" "$closeAll"
+			return "$closeRc"
 		;;
 
 		## The settings of the schedule, a person's configuration: --set-country <iso-code-2-or-3-letters>, --set-timezone <tz-spec>,

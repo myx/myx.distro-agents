@@ -56,6 +56,8 @@ Concrete, ready-to-execute work.
 | `participants` | optional | member | `members` | Who worked on it, added as they join. |
 | `restart-session` | optional | member | `members` | Members to spawn as a coworking session instead of running inline. |
 | `review-by` | optional | member | `reviewer` | The reviewer of a `board-review` item. Unset, it is the run's `reports-to`. `none` means no review: the item closes straight to `board-processed`. |
+| `handler-routine` | optional | member | `routine` | The routine that runs this item's next iteration, over its type's default. Never overrides a gate. Set only by grooming or `magic-coordinator`, with its reason in `## Decisions`. |
+| `mark` | optional | member | `enum important, urgent, emergency` | The item's tier (epic S16 stage 4 item 2). `emergency` and `urgent` are bound by time: needed as soon as possible, not as planned. They pass `holding`, and start the owner's duty under `emergency`. `important` goes first among normal work. A subtask inherits its parent's tier, and finishing the item ends it. |
 | `archive` | optional | member | `flag` | Keep this processed item permanently. |
 | `outcome` | optional | member | `text` | What an advance pass did. Written by `magic-coordinator`. |
 | `execution-receipt` | optional | member | `text` | The evidence for `outcome`, and for a move into `board-blocked`. Written by `magic-coordinator`. |

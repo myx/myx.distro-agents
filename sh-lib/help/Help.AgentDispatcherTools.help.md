@@ -128,7 +128,10 @@
 
 		--supervise-scan [--workspace <path>]... [--since <epoch>]
 			The supervisor's read of the rigs, one line a finding, for each
-			workspace named, else this one. Its kinds: `ask`, `unposted`,
+			workspace named, else this one. With no finding it prints one
+			line, `none - - no finding: nothing needs a coordinator's hand`. Its kinds:
+			`rig-orphan` (a control thread inside a run's output folder, a test rig,
+			alive after that run's record closed), `ask`, `unposted`,
 			`orphan-ask`, `parent-ask` (an open question to the owner whose asking
 			run's parent is a live coordinator's, so the parent can settle it),
 			`msg`, `track`, `dead`, `run` (where each live run stands, with its

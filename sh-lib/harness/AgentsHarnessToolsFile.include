@@ -586,11 +586,12 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	fi
 	## ripgrep class escapes become POSIX classes; an escaped backslash and every other escape pass through untouched.
 	toolRegex="$( GREP_PATTERN="$toolPattern" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGrepPatternToPosix.awk" )" || { printf '%s\n' "$toolRegex" ; return 0 ; }
+	## `-D skip` keeps a fifo met in the walk, such as a thread's request.fifo, from blocking the search for good.
 	## The mode picks the output shape; -E, -C/-B/-A, -i, -o, -H and --include are carried by BSD and GNU grep alike.
 	case "$toolMode" in
-		content)            grepFlags=( -rE ) ;;
-		files_with_matches) grepFlags=( -rlE ) ;;
-		count)              grepFlags=( -rcE ) ;;
+		content)            grepFlags=( -rE -D skip ) ;;
+		files_with_matches) grepFlags=( -rlE -D skip ) ;;
+		count)              grepFlags=( -rcE -D skip ) ;;
 		*)
 			printf 'ERROR: output_mode must be content, files_with_matches or count, got: %s\n' "$toolMode" ; return 0
 		;;

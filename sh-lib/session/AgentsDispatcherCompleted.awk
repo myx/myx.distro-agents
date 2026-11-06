@@ -5,7 +5,7 @@
 ## start in it. Called by AgentsTools.Dispatcher.include with dateMinutes loaded before it (AgentsManagerDateMinutes.awk). The input
 ## is the spawn records to read, one path a line. In the environment: DISPATCH_ROUTINE, the routine's file name as a record writes it
 ## (`routine:`); DISPATCH_MODE, `completed` (the default: a run that closed spawn-succeeded, by its resolved-at) or `started` (a
-## run of any status, by its started-at); the stretch's start, DISPATCH_SINCE_MINUTES (minutes since 1970, UTC) or else
+## run of any status but spawn-failed, by its started-at: a start that failed never ran, so it neither makes a routine not due nor hides a broken chain); the stretch's start, DISPATCH_SINCE_MINUTES (minutes since 1970, UTC) or else
 ## DISPATCH_SINCE, `YYYY-MM-DD HH:MM`, with DISPATCH_ZONE, the offset that time is in, `+0300`; and, where there is one, its end,
 ## DISPATCH_UNTIL_MINUTES, which no run may reach.
 ##
@@ -59,6 +59,7 @@ NF {
 		if (recordStatus != "spawn-succeeded") next ;
 		closedMinutes = dateMinutes( registryDate( recordResolved ) ) ;
 	} else {
+		if (recordStatus == "spawn-failed") next ;
 		closedMinutes = dateMinutes( registryDate( recordStarted ) ) ;
 	}
 	if (closedMinutes < 0 || closedMinutes < sinceMinutes) next ;

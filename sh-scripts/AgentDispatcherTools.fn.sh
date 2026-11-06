@@ -184,8 +184,12 @@ AgentDispatcherTools(){
 			shift
 			AgentsToolsSurfaceCaller --supervise-scan read || return 1
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseScan.include"
-			AgentsToolsSuperviseScan "$@"
-			return $?
+			local scanFound scanRc=0
+			scanFound="$( AgentsToolsSuperviseScan "$@" )" || scanRc=$?
+			## AN EMPTY SCAN SAYS SO: no finding is a result, and a blank would read as a failure.
+			[ -n "$scanFound" ] || [ "$scanRc" != 0 ] || scanFound="none - - no finding: nothing needs a coordinator's hand"
+			[ -z "$scanFound" ] || printf '%s\n' "$scanFound"
+			return "$scanRc"
 		;;
 
 		## [--workspace <path>]...: the runs that ended with no handback, resumed once the fixed sleep has passed, one line each.

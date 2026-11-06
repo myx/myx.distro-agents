@@ -193,6 +193,8 @@ AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 	[ "$listOwn" = $'\n' ] || AgentsToolsManagerTeamMemberNamesSay "$listOp"
 	while read -r listMember listRest ; do
 		[ -n "$listMember" ] || continue
+		## A MEMBER IS A FOLDER HOLDING ITS SKILL.md: a stray file or a left-over folder of the members view is no row (S10.21).
+		[ -f "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}/$listMember/SKILL.md" ] || continue
 		AgentsToolsManagerTeamMemberRow "$listMember" here "${MDAT_SKILLSET_ROOT:-}" "${MMDAPP%/}" "$listLive"
 	done <<< "$ownRows"
 	listDirectory="$( AgentsToolsTeamMemberDirectoryText )" || listDirectory=""
@@ -201,6 +203,7 @@ AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 		case "$listOwn$listSeen" in *$'\n'"$listMember"$'\n'*) continue ;; esac
 		listSeen="$listSeen$listMember"$'\n'
 		AgentsToolsManagerTeamMemberPlace "$listMember" "$listOwn" "$listDirectory"
+		[ -z "$placedRoot" ] || [ -f "$placedRoot/$listMember/SKILL.md" ] || continue
 		AgentsToolsManagerTeamMemberRow "$listMember" "${placedSetUp:-not-present}" "$placedRoot" "$placedWorkspace" "$listLive"
 	done <<< "$listDirectory"
 	return 0

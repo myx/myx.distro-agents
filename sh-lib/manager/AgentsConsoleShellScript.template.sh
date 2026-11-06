@@ -382,6 +382,14 @@ fi
 ## every provider: the set already carries every vendor CLI and every leg, and
 ## a leg's own -harness spelling is accepted here even though only its canonical
 ## name is advertised above.
+## A preset names its service in the user's own spelling, such as standard-v1. A leg's name comes from its file,
+## with no hyphen, such as standardv1. So a name this console does not know selects the leg its hyphen-less form names.
+case " $DAGC_SELECTABLE_CLIS " in
+	*" $DAGC_CLI "*) ;;
+	*)
+		! DagcCliIsLeg "${DAGC_CLI//-/}" || DAGC_CLI="${DAGC_CLI//-/}"
+	;;
+esac
 case " $DAGC_SELECTABLE_CLIS " in
 	*" $DAGC_CLI "*) ;;
 	*)

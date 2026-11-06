@@ -35,7 +35,11 @@
 # is older than pendingBefore (F9.3: a post the writer will still deliver reaches every floor once it is delivered). A post of
 # the reading member's own stops nothing. A block whose origin is `notice` is never the floor: it is a notice the spawn proxy
 # recorded for the session (F3.3, AgentsTools.CommsPrintback.include), and the next foreground call's digest alone surfaces it,
-# one line, so the reader passes it and moves on. Every closing brace is preceded by a `;`.
+# one line, so the reader passes it and moves on. A block whose origin is `delivered` is a message another session sent into this
+# session's thread, recorded here by its send (S12.15, AgentsToolsSessionChatDeliverCopy): the chat file is the session's primary
+# channel, so such a block is given from here even where a source of the same Wait reads that thread from Slack (`covered`), and a
+# post of the reading member's own from another session, addressed to it, is no own post. The tags a header may carry after a name,
+# such as `[author-run=<id>]` (S27.8), are not part of the name. Every closing brace is preceded by a `;`.
 
 function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
 function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
@@ -72,6 +76,12 @@ FILENAME == ARGV[1] {
 FILENAME == ARGV[2] {
 	if ( firstAt > 0 && FNR >= idxLine[firstAt] ) { text[FNR] = $0 ; last = FNR ; }
 	next ;
+}
+
+# Whether the block at <at> is left to the source of the same Wait that reads its thread: covered, and not a `delivered` block,
+# which the session's own file gives first (S12.15).
+function leftToSource(at) {
+	return ( isCovered(idxWhere[at]) && idxOrigin[at] != "delivered" ) ;
 }
 
 function isCovered(whereValue,   at) {
@@ -122,6 +132,8 @@ END {
 		to = who ;
 		sub(/^.* -> /, "", to) ;
 		sub(/:$/, "", to) ;
+		sub(/ ?\[[^]]*\]/, "", from) ;
+		sub(/ ?\[[^]]*\]/, "", to) ;
 		take = 0 ;
 		origin = idxOrigin[at] ;
 		if ( origin != "history" && idxWhere[at] == "-" && from != member && ! listHas(idxSeen[at], member) && ( pendingBefore == "" || substr(head, 1, 20) >= pendingBefore ) ) {
@@ -129,7 +141,7 @@ END {
 			break ;
 		}
 		# a post of the same member from another session (read in from its thread, addressed to it) is no own post
-		selfPost = ( from == member && ! ( origin == "slack" && listHas(to, member) ) ) ;
+		selfPost = ( from == member && ! ( ( origin == "slack" || origin == "delivered" ) && listHas(to, member) ) ) ;
 		if ( origin == "history" || origin == "notice" || idxWhere[at] == "-" ) {
 			take = 0 ;
 		} else if ( listHas(idxSeen[at], member) || selfPost ) {
@@ -150,9 +162,9 @@ END {
 		}
 		newest = idxNo[at] ;
 		if ( filtered ) {
-			floorOwed = ( take && ! isCovered(idxWhere[at]) ) ;
+			floorOwed = ( take && ! leftToSource(at) ) ;
 			sel = 0 ;
-			if ( ! ( origin == "history" || idxWhere[at] == "-" || listHas(idxSeen[at], member) || selfPost || origin ~ /^reply:/ ) && ownThread(idxWhere[at]) && ! isCovered(idxWhere[at]) ) {
+			if ( ! ( origin == "history" || idxWhere[at] == "-" || listHas(idxSeen[at], member) || selfPost || origin ~ /^reply:/ ) && ownThread(idxWhere[at]) && ! leftToSource(at) ) {
 				source = sourceOf(idxWhere[at]) ;
 				if ( wantAny ) { sel = 1 ; }
 				if ( wantHere && listHas(to, "all") ) { sel = 1 ; }
@@ -169,7 +181,7 @@ END {
 			take = 1 ;
 		}
 		if ( ! take ) { continue ; }
-		if ( isCovered(idxWhere[at]) && idxTs[at] != "-" ) { continue ; }
+		if ( leftToSource(at) && idxTs[at] != "-" ) { continue ; }
 		## THE SESSION'S OWN THREAD'S NEWEST TS, among what this call actually delivers: a live Wait's own
 		## slack:<channel>:<ts>:conversation source keeps its floor on this same unit (AgentsWaitStateStore), never
 		## on this block's own idxNo, which is local to this chat file alone and means nothing to that source.

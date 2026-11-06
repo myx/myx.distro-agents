@@ -163,7 +163,7 @@ rigPre=()
 rigRunIn(){ ## workspace, tool arguments... -- one dispatcher call from that workspace; rc in rigRc, stdout in out, stderr in err
 	local runWs="$1" ; shift
 	rigRc=0
-	( cd "$runWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$runWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$runWs" && env -i MDAT_MANAGER_NOW_MINUTES=99999999999 HOME="$rigHome" PATH="$PATH" MMDAPP="$runWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigRun(){ ## tool arguments... -- in the rig workspace

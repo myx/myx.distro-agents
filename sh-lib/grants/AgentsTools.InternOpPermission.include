@@ -1003,6 +1003,8 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 					|| { echo "$MDSC_CMD: ⛔ ERROR: can't write the set grants for $applySetPart" >&2 ; set +e ; return 1 ; }
 				applySetWrote=$(( applySetWrote + 1 ))
 			done <<< "$applySetEntries"
+			## Interim, until the grants move into the session file itself: that file is written again now.
+			[ "$applySetWrote" -eq 0 ] || AgentsToolsGrantsStoreTouch "$applySetDir"
 			## The set's grants for this participant, said once in the session's tracking-thread.
 			[ "$applySetWrote" -gt 0 ] || continue
 			AgentsToolsPermissionAnswerPost grant "$applySetPart" "$applySetDir" "$applySetSession" "$applySetRef" "" "" "$applySetBy" \
@@ -1412,6 +1414,8 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal, so nothing is granted" >&2
 			set +e ; return 1
 		}
+		## Interim, until the grants move into the session file itself: that file is written again now.
+		AgentsToolsGrantsStoreTouch "$grantDir"
 		## Said where its refusal was, in the session's tracking-thread: one post per grant written.
 		local grantScope="$grantKind"
 		case "$grantKind" in

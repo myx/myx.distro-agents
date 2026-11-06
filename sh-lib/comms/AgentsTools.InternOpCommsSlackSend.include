@@ -1204,6 +1204,15 @@ blocks|verbatim|caller|stdin file"
 			chatRecord="$( AgentsToolsSessionChatSend "$memberName" "$addressToList" "$chatBody" 2> /dev/null )" || chatRecord=""
 			chatKey="${chatRecord%% *}" ; chatNo="${chatRecord##* }"
 		fi
+		## THE RECEIVING SESSION'S CHAT FILE IS ITS PRIMARY CHANNEL (S12.15, AgentsToolsSessionChatDeliverCopy): a message into the thread
+		## of another session is recorded in that session's file too, before Slack is called, so a report or a DISMISSED addressed to a
+		## member there reaches its run whatever Slack lets that run read. Our own organisation's threads only, and never an edit.
+		local chatCopies=""
+		if [ -z "$updateTs" ] && [ -n "${threadTs:-}" ] && [ -n "${channel:-}" ] && ! AgentsToolsSlackClientSide "$memberName" ; then
+			type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			! type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 \
+				|| chatCopies="$( AgentsToolsSessionChatDeliverCopy "$( AgentsToolsSessionChatKey )" "$memberName" "$addressToList" "$channel:$threadTs" "$chatBody" 2> /dev/null )" || chatCopies=""
+		fi
 		## THE SESSION THREAD IS ASYNC (owner 2026-10-28), for a caller that asks (MDAT_SEND_ASYNC=true, the SendMessage tool): a post
 		## to the run's own session thread, recorded above, goes to the session's outbox while the comms reader runs, and the call
 		## returns at once. The reader posts it and stamps its ts in the chat file, which every reader of the session reads.
@@ -1444,6 +1453,8 @@ blocks|verbatim|caller|stdin file"
 				AgentsToolsCommsSlackUnreachableReport "$addressedMembers" "$memberName"
 			## The block recorded before the post takes the ts and the thread Slack gave it, so a later read of the thread knows it.
 			[ -z "$chatRecord" ] || [ -z "$sentTs" ] || AgentsToolsSessionChatStamp "$chatKey" "$chatNo" "$sentTs" "${sentChannel#client:}:$sentThreadTs" 2> /dev/null || :
+			## Its copies in the receiving sessions' files take the same ts, and keep their thread (AgentsToolsSessionChatDeliverStamp).
+			[ -z "$chatCopies" ] || [ -z "$sentTs" ] || AgentsToolsSessionChatDeliverStamp "$chatCopies" "$sentTs" 2> /dev/null || :
 			AgentsToolsSlackSendLogLine ok "$( [ -n "$updateTs" ] && printf 'edited' || printf 'posted' ) ts=$sentTs"
 			## THE ARRIVAL IS WRITTEN WHERE THE WAIT WATCHES IT (AgentsTools.WakeMarker.include): a message to a member
 			## wakes that member's waiting session in about a second, on a source it reads out of a file, instead of it
