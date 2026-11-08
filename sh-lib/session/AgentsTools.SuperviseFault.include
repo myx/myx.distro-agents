@@ -12,7 +12,10 @@
 ##
 
 ## --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>|standard input]
-AgentsToolsSuperviseFault(){ ## <run-id> --owner <member> --title <text> [--from-file <path>|stdin]
+type AgentsToolsSuperviseInWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseWorkspace.include"
+AgentsToolsSuperviseFault(){ ## <run-id> --owner <member> --title <text> [--from-file <path>|stdin] [--workspace <path>]
+	## `--workspace <path>`: the run is of that workspace, and this runs again there without it (AgentsTools.SuperviseWorkspace.include).
+	! AgentsToolsSuperviseWorkspaceGiven "$@" || { AgentsToolsSuperviseInWorkspace AgentsToolsSuperviseFault "$@" ; return $? ; }
 	local faultWs="${MMDAPP%/}" faultRun="" faultOwner="" faultTitle="" faultFrom="" faultBody="" faultRecord faultMember
 	local faultSession faultFolder faultItem faultName faultEvidence faultSaid faultLinked
 	while [ $# -gt 0 ] ; do

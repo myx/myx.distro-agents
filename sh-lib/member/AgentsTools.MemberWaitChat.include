@@ -37,8 +37,10 @@ AgentsWaitChatTopUp(){ ## member, session, thread (channel:ts), a name for the r
 	[ $(( topNow - topLast )) -ge "$topTtl" ] || return 0
 	## The communications reader (F9.3) keeps the file up to date while it is current: a look of its own within the TTL and ten seconds
 	## more stands this one down, and only a reader that is late, or not running, leaves the reading to the wait.
+	## A slow reader is still the reader: the wait takes the reading over only once the reader has not looked for two TTLs and a minute, so a loaded
+	## machine does not send every wait to read the thread itself, which loads it further.
 	topReader="$( AgentsToolsSessionChatReaderLooked "$2" )"
-	[ -z "$topReader" ] || [ $(( topNow - topReader )) -ge $(( topTtl + 10 )) ] || return 0
+	[ -z "$topReader" ] || [ $(( topNow - topReader )) -ge $(( topTtl * 2 + 60 )) ] || return 0
 	AgentsWaitReadRendered "$1" "$3" thread "" "$4" || return 1
 	AgentsToolsSessionChatImport "$2" "$3" "$4" slack -
 	AgentsToolsSessionChatPointerSet "$2" "topup:$3" "$topNow"

@@ -237,6 +237,15 @@ AgentDispatcherTools(){
 			return $?
 		;;
 
+		## [--execute] [--workspace <path>]...: the test rigs left running after their run closed, a readout by default, closed with --execute after a pid-identity check.
+		--supervise-close-orphans)
+			shift
+			AgentsToolsSurfaceCaller --supervise-close-orphans write || return 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseClose.include"
+			AgentsToolsSuperviseCloseOrphans "$@"
+			return $?
+		;;
+
 		## <from-run> <source> <to-run> <destination>: one file copied between two session sandboxes, a real copy and never a
 		## link, reaching a read-only input/ folder (epic S13.6).
 		--supervise-copy)

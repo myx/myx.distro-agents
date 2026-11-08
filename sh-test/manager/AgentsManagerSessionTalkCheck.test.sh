@@ -213,6 +213,11 @@ rigAssert "nothing is left in an inbox, and no call was made to Slack" "$( rigIn
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-local --to keeper-rig
 rigAssert "a second is the second block, to the participant" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $4, $6 }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigAgents/sessions/s-local/session.chat.index" )" "0 keeper-rig 2 2"
 
+## A session whose only record has no member has no reader: a message left in its chat file would be reported delivered and read by nobody (epic S10.22).
+rigRec s-agentless s-agentless "-" spawn-succeeded "$rigHost" "" ; rigFolder s-agentless ""
+rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-agentless
+rigAssert "a session with no run of a member is refused, and says why, and nothing is left in its chat file" "$rigRc $( LC_ALL=C grep -c 'session s-agentless has no run of a member, so nobody would read a message left in it' "$rigTmp/err" ) $( [ -f "$rigAgents/sessions/s-agentless/session.chat" ] && echo kept || echo none )" "1 1 none"
+
 echo "-- 4. what is refused leaves nothing --"
 rigBefore="$( rigMade ) $( ls "$rigAgents/sessions" | LC_ALL=C grep -c . ) $( rigInbox s-thread )"
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-nowhere

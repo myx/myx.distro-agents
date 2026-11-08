@@ -11,7 +11,8 @@
 
 SCHEDULE_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 ## The flags a person sets by hand: the five that take an override, and the two that are derived from a setting of their own.
-SCHEDULE_OVERRIDABLE = ("emergency", "overtime", "holidays", "learning", "supervised")
+## A row `vacation:<member>` or `overtime:<member>` is one member's own flag (its member after the colon): the base word before it is what the operation is given, the member after `--member`.
+SCHEDULE_OVERRIDABLE = ("emergency", "overtime", "holidays", "learning", "supervised", "vacation")
 SCHEDULE_WRITE_SAYS = {
     "override": "Set stores the override, and Clear takes it out: the read gives its line afterwards.",
     "worktime": "The start and the until are HH:MM, the start first, and the days are workdays, weekend, daily, or a list such as mon,thu.",
@@ -179,7 +180,8 @@ CALLS["schedule-weekend"] = ["--manager-schedule-set-weekend"]
 
 DIALOGS["schedule-override"] = {"title": "Set the flag", "feeds": "scheduleflag", "first": "ttl",
                                 "controls": ({"name": "about", "kind": "text"},
-                                             {"name": "ttl", "kind": "input", "label": "How long it holds, in seconds, or none"}),
+                                             {"name": "ttl", "kind": "input", "label": "How long it holds, in seconds, or none"},
+                                             {"name": "member", "kind": "input", "label": "Member, for one member's own flag: vacation needs one, overtime takes one, or none for the team"}),
                                 "buttons": (("set", "Set"), ("clear", "Clear"), ("cancel", "Cancel"))}
 DIALOGS["schedule-worktime"] = {"title": "Set the worktime", "feeds": "scheduleflag", "first": "start",
                                 "controls": ({"name": "about", "kind": "text"},
@@ -199,11 +201,12 @@ def askScheduleFlag(state, row):
     if flag is None:
         return ""
     name = flag[0]
+    base, _, member = name.partition(":")
     state.answer = None
-    if name in SCHEDULE_OVERRIDABLE:
+    if base in SCHEDULE_OVERRIDABLE:
         openDialog(state, "schedule-override",
                    {"about": {"lines": [("flag", "%s, now %s" % (name, flag[1])), SCHEDULE_WRITE_SAYS["override"]]}},
-                   {"name": name, "viewKey": viewKeyOf(state)}, "Set %s" % name)
+                   {"name": base, "member": member, "viewKey": viewKeyOf(state)}, "Set %s" % name)
     elif name == "worktime":
         openDialog(state, "schedule-worktime", {"about": {"lines": [("flag", "worktime"), SCHEDULE_WRITE_SAYS["worktime"]]}},
                    {"name": name, "viewKey": viewKeyOf(state)}, "Set the worktime")
@@ -219,13 +222,16 @@ def askScheduleFlag(state, row):
 def submitScheduleFlag(state, dialog, button):
     about = dialog["about"]
     name = about["name"]
+    ## One member's own flag takes `--member <member>`: the member of its row, or the one typed. A vacation with none is refused by the operation, and nothing is stored.
+    member = (dialogValue(dialog, "member").strip() if name in SCHEDULE_OVERRIDABLE else "") or about.get("member", "")
+    memberWords = ["--member", member] if member else []
     if name in SCHEDULE_OVERRIDABLE and button == "clear":
-        words = callWords("schedule-override") + ["--no", name]
-        said = "cleared %s" % name
+        words = callWords("schedule-override") + ["--no", name] + memberWords
+        said = "cleared %s" % (name + (" of " + member if member else ""))
     elif name in SCHEDULE_OVERRIDABLE:
         ttl = dialogValue(dialog, "ttl").strip()
-        words = callWords("schedule-override") + [name] + ([ttl] if ttl else [])
-        said = "set %s" % name
+        words = callWords("schedule-override") + [name] + ([ttl] if ttl else []) + memberWords
+        said = "set %s" % (name + (" of " + member if member else ""))
     elif name == "worktime":
         words = callWords("schedule-worktime") + [dialogValue(dialog, "start").strip(), dialogValue(dialog, "until").strip(), dialogValue(dialog, "days").strip()]
         said = "saved the worktime"

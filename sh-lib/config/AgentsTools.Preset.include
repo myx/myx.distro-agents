@@ -171,7 +171,7 @@ AgentsToolsPresetEffective(){ ## workspace root, preset name, key
 	local effName="$2" effKey="$3" effDepth=0 effParent effValue
 	while [ "$effDepth" -lt "$agentsPresetChainLimit" ] ; do
 		if [ ! -f "${1%/}/.local/.agents/preset-$effName.agent.env" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: preset $effName is not there (${1%/}/.local/.agents/preset-$effName.agent.env)" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: preset $effName is not configured" >&2
 			return 1
 		fi
 		effParent="$( AgentsToolsPresetRead "$1" "preset-$effName" PRESET_EXTEND )"

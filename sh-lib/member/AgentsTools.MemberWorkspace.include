@@ -23,6 +23,8 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 	local switchStale switchOrigin="${MDLT_ORIGIN:-}" switchOption="${MDLT_OPTION:-}" switchInmode="${MDLC_INMODE:-}"
 	## the member set root, worked out against the previous root before MMDAPP moves
 	MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$1" )"
+	## the caller's own workspace, kept once, so a spawn made after the switch can name the session that made it
+	[ -n "${MDAT_CALLER_WORKSPACE:-}" ] || export MDAT_CALLER_WORKSPACE="${MMDAPP:-}"
 	export MMDAPP="$1"
 	## all derived from the previous root, and an index path is matched before MDSC_CACHED
 	unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY

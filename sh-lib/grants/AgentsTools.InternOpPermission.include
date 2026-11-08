@@ -721,10 +721,12 @@ AgentsToolsPermissionSetSpawnHeader(){ ## coworking session id, member (empty: i
 			spawnFound="$spawnFile" ; break
 		done
 	else
+		## The records of the session come from the kept per-session list (AgentsTools.StartedRecords.include), never a read of every record on a gate call.
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
 		while IFS= read -r spawnFile ; do
-			[ -f "$spawnFile" ] && [ "$( AgentsToolsPermissionField "$spawnFile" owner )" = "$2" ] || continue
+			[ -n "$spawnFile" ] && [ -f "$spawnFile" ] && [ "$( AgentsToolsPermissionField "$spawnFile" owner )" = "$2" ] || continue
 			[ -n "$spawnFound" ] && [ ! "$spawnFile" -nt "$spawnFound" ] || spawnFound="$spawnFile"
-		done < <( LC_ALL=C grep -l -x -F "session-id: $1" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2>/dev/null )
+		done < <( AgentsToolsSpawnedSessionRecords "$1" own )
 	fi
 	[ -n "$spawnFound" ] || return 0
 	AgentsToolsPermissionField "$spawnFound" "$3"

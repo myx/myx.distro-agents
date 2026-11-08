@@ -71,9 +71,17 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 	## every workspace's, from the member directory (AgentsTools.TeamRegistry.include).
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	## Who a message's Slack account is: the team's own account cache, read only, `<id>=<name>` each.
-	local renderUsers=""
-	[ ! -s "${MMDAPP:-}/.local/.agents/slack-mention-ids.cache" ] \
-		|| renderUsers="$( LC_ALL=C awk -F= 'NR > 1 && $1 ~ /^[A-Za-z0-9_.-]+$/ && $2 ~ /^[A-Z0-9]+$/ { printf " %s=%s", $2, $1 }' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2>/dev/null )"
+	## THE ROSTER, THE ACCOUNT CACHE AND THE CLOCK ARE READ ONCE FOR A PROCESS, not once for each record of a group: a drain renders up to a
+	## group of records, and each read them again. The clock moves with $SECONDS from the one reading.
+	if [ -z "${agentsEventTrackPostRenderMemo:-}" ] || [ $(( SECONDS - agentsEventTrackPostSeconds0 )) -ge 300 ] ; then
+		agentsEventTrackPostUsers=""
+		[ ! -s "${MMDAPP:-}/.local/.agents/slack-mention-ids.cache" ] \
+			|| agentsEventTrackPostUsers="$( LC_ALL=C awk -F= 'NR > 1 && $1 ~ /^[A-Za-z0-9_.-]+$/ && $2 ~ /^[A-Z0-9]+$/ { printf " %s=%s", $2, $1 }' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2>/dev/null )"
+		agentsEventTrackPostMembers=" $( [ -z "${MDAT_SKILLSET_ROOT:-}" ] || AgentsToolsTeamMemberDirectoryText 2>/dev/null | LC_ALL=C cut -f1 | tr '\n' ' ' )"
+		agentsEventTrackPostEpoch0="$( date +%s )" ; agentsEventTrackPostSeconds0="$SECONDS"
+		agentsEventTrackPostRenderMemo=1
+	fi
+	local renderUsers="$agentsEventTrackPostUsers"
 	## A feed post's session keeps its previous Wait set beside its feed, so a Wait shows what it
 	## waited on only where that changed (AgentsTools.EventTrackFeed.include); only for a session
 	## whose directory is already there.
@@ -86,8 +94,8 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 	## helper, for every time a post shows. ETP_NOW is the moment the post is made: the time
 	## of a kind's own lines, which its box's subtitle shows.
 	ETP_KIND="$renderKind" ETP_MEMBER="$renderMember" ETP_SESSION="$renderSession" ETP_FIELDS="$renderFields" \
-		ETP_DIR="$renderDir" ETP_MEMBERS=" $( [ -z "${MDAT_SKILLSET_ROOT:-}" ] || AgentsToolsTeamMemberDirectoryText 2>/dev/null | LC_ALL=C cut -f1 | tr '\n' ' ' )" \
-		ETP_USERS="$renderUsers" ETP_WAIT_STATE="$renderWaitState" ETP_NOW="$( date +%s )" \
+		ETP_DIR="$renderDir" ETP_MEMBERS="$agentsEventTrackPostMembers" \
+		ETP_USERS="$renderUsers" ETP_WAIT_STATE="$renderWaitState" ETP_NOW="$(( agentsEventTrackPostEpoch0 + SECONDS - agentsEventTrackPostSeconds0 ))" \
 		LC_ALL=C awk -f "$agentsEventTrackPostLib/session/AgentsSessionTranscriptFormat.awk" -f "$agentsEventTrackPostLib/comms/AgentsSlackDate.awk" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$agentsEventTrackPostLib/session/AgentsEventTrackPostFill.awk" \
 		"$( AgentsEventTrackPostTemplate )" "$renderLines"
@@ -146,6 +154,29 @@ AgentsEventTrackPostPack(){ ## out dir, .blocks files...
 	AgentsEventTrackPostPackFlush
 	unset -f AgentsEventTrackPostPackFlush
 	return 0
+}
+
+## ONE WINDOW OF A RUN'S ACTIVITY, rendered in this process and appended to the comms outbox of its thread, as the thread branch of the sender below does it,
+## but with no queue of its own, no collection window and no process: the comms service thread is the one sender, and it calls this once for a run in a window
+## (AgentsToolsCommsActivityPass). rc 1 where nothing could be rendered or appended.
+AgentsEventTrackPostQueueLines(){ ## member, session id, channel, thread, lines file, kind (activity or feed; activity where none is given)
+	local queueMember="$1" queueSession="$2" queueChannel="$3" queueThread="$4" queueLines="$5" queueKind="${6:-activity}" queueDir queueFile queueText queuePayload queueMeta queueNo queueCount=0
+	queueDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-event-track-queue.XXXXXX" )" || return 1
+	mkdir -p "$queueDir/posts"
+	AgentsEventTrackPostRender "$queueKind" "$queueMember" "$queueSession" "$queueDir/posts" "$queueLines" || { rm -rf "$queueDir" ; return 1 ; }
+	type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+	AgentsToolsCommsCacheSlackDir "$queueMember" true "$queueChannel" "$queueThread" || { rm -rf "$queueDir" ; return 1 ; }
+	queueMeta="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$queueMember\",\"tracking\":\"$queueKind\"${queueSession:+,\"session\":\"$queueSession\"}}}"
+	queueNo="$( date +%s )$$"
+	for queueFile in "$queueDir/posts"/*.blocks ; do
+		[ -f "$queueFile" ] || continue
+		queueText="$( LC_ALL=C awk -f "$agentsEventTrackPostLib/mcp/AgentsMcpJsonEscape.awk" < "${queueFile%.blocks}.text" )"
+		queuePayload="{\"channel\":\"$queueChannel\",\"text\":\"$queueText\",\"blocks\":$( cat "$queueFile" ),\"thread_ts\":\"$queueThread\",\"metadata\":$queueMeta}"
+		AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "${queueSession:-event-track}" "$queueNo$queueCount" "$queueMember" bot chat.postMessage "$queuePayload" "queued for the comms reader" || { rm -rf "$queueDir" ; return 1 ; }
+		queueCount=$(( queueCount + 1 ))
+	done
+	rm -rf "$queueDir"
+	[ "$queueCount" -gt 0 ]
 }
 
 ## The sender of the outbox: one queued record, rendered and posted, its output on stdout and

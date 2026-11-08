@@ -278,7 +278,8 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 	AgentsToolsAssertBareName "$1" "the session" AgentsToolsRunRouteAvailable 2> /dev/null && AgentsToolsAssertBareName "$2" "the member" AgentsToolsRunRouteAvailable 2> /dev/null || return 1
 	availOwn="${availRecord##*/}" ; availOwn="${availOwn%.spawn.md}"
 	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
-	for availCandidate in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for availCandidate in $( AgentsToolsSpawnedSessionRecords "$1" own ) ; do
 		availId="${availCandidate##*/}" ; availId="${availId%.spawn.md}"
 		[ "$availId" != "$availOwn" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" owner )" = "$2" ] || continue
@@ -566,7 +567,8 @@ AgentsToolsSpawnSessionParentTick(){ ## parent record
 	## The children it names keep their order; a record found that it does not name yet is added after them.
 	tickKnown="$( AgentsToolsSpawnSandboxRecordHeader "$tickRecord" children )"
 	tickChildren="$tickKnown"
-	for tickFile in $( LC_ALL=C grep -l -x -F "parent-session-id: $tickId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for tickFile in $( AgentsToolsSpawnedSessionRecords "$tickId" parent ) ; do
 		tickChild="$( AgentsToolsSpawnSandboxRecordHeader "$tickFile" session-id )"
 		AgentsToolsAssertBareName "$tickChild" "a child's session" AgentsToolsSpawnSessionParentTick 2> /dev/null || continue
 		case " $tickChildren " in *" $tickChild "*) ;; *) tickChildren="$tickChildren${tickChildren:+ }$tickChild" ;; esac
@@ -767,7 +769,8 @@ AgentsToolsSessionSeatHolder(){ ## session, member
 ## rc 1 it is not, and nothing is printed.
 AgentsToolsSessionMemberPresent(){ ## session, member
 	local presentRecord presentRecords
-	presentRecords="$( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || return 1
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	presentRecords="$( AgentsToolsSpawnedSessionRecords "$1" own )"
 	[ -n "$presentRecords" ] || return 1
 	while IFS= read -r presentRecord ; do
 		[ -n "$presentRecord" ] && [ -f "$presentRecord" ] || continue
@@ -783,7 +786,8 @@ AgentsToolsSessionMemberPresent(){ ## session, member
 ## first time. rc 0 it has a record there; rc 1 it has none.
 AgentsToolsSessionMemberHasRecord(){ ## session, member
 	local hadRecord hadRecords
-	hadRecords="$( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || return 1
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	hadRecords="$( AgentsToolsSpawnedSessionRecords "$1" own )"
 	while IFS= read -r hadRecord ; do
 		[ -n "$hadRecord" ] && [ -f "$hadRecord" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$hadRecord" owner )" = "$2" ] && return 0
@@ -883,7 +887,8 @@ AgentsToolsSessionOthersRunning(){ ## spawn record
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$othersSession" "the session" AgentsToolsSessionOthersRunning 2> /dev/null || return 1
 	othersOwn="${1##*/}" ; othersOwn="${othersOwn%.spawn.md}"
-	for othersCandidate in $( LC_ALL=C grep -l -x -F "session-id: $othersSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for othersCandidate in $( AgentsToolsSpawnedSessionRecords "$othersSession" own ) ; do
 		othersId="${othersCandidate##*/}" ; othersId="${othersId%.spawn.md}"
 		[ "$othersId" != "$othersOwn" ] || continue
 		AgentsToolsSessionRecordLive "$othersCandidate" || continue
@@ -929,7 +934,8 @@ AgentsToolsSessionRunNamedBy(){ ## spawn record
 	namedOwn="${1##*/}" ; namedOwn="${namedOwn%.spawn.md}"
 	! AgentsToolsSessionRunExecutor "$1" || namedExecutor="executor"
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" 2> /dev/null || :
-	for namedCandidate in $( LC_ALL=C grep -l -x -F -e "session-id: $namedSession" -e "parent-session-id: $namedSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for namedCandidate in $( AgentsToolsSpawnedSessionRecords "$namedSession" any ) ; do
 		namedId="${namedCandidate##*/}" ; namedId="${namedId%.spawn.md}"
 		[ "$namedId" != "$namedOwn" ] || continue
 		AgentsToolsSessionRecordLive "$namedCandidate" || continue
@@ -1871,7 +1877,8 @@ AgentsToolsSpawnProxyRootMarks(){ ## tracking file of the run that just closed
 	case "$markSession" in ''|-|.|..|*/*) return 0 ;; esac
 	AgentsToolsSpawnProxyRootMarkTarget "$markSession" > /dev/null || return 0
 	[ ! -f "$MMDAPP/.local/agents/sessions/$markSession/root.end" ] || return 0
-	for markCandidate in $( LC_ALL=C grep -l -x -F "session-id: $markSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for markCandidate in $( AgentsToolsSpawnedSessionRecords "$markSession" own 2> /dev/null ) ; do
 		markStatus="$( AgentsToolsSpawnSandboxRecordHeader "$markCandidate" status )"
 		case "$markStatus" in
 			''|spawn-started) return 0 ;;
@@ -2328,7 +2335,8 @@ AgentsToolsSessionParticipantsUninvited(){ ## session id
 	for uninvitedOne in $uninvitedLine ; do
 		[ "$uninvitedOne" != none ] || continue
 		uninvitedHas=""
-		for uninvitedRun in $( LC_ALL=C grep -l -x -F "session-id: $1" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		for uninvitedRun in $( AgentsToolsSpawnedSessionRecords "$1" own ) ; do
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRun" agent-less )" != true ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$uninvitedRun" owner )" = "$uninvitedOne" ] || continue
 			uninvitedHas="yes" ; break

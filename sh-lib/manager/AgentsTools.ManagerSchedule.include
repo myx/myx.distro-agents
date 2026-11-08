@@ -23,7 +23,7 @@ case "$1" in
 	##   cell    <weekday> <hour 00-23> <flags, or ->    one row for each weekday (mon..sun) and hour, 168 rows
 	--manager-schedule-read)
 		local scheduleOp="$1" scheduleEpoch scheduleOffset scheduleDay scheduleSeconds scheduleName scheduleFlag scheduleLine scheduleZone
-		local scheduleWork scheduleWeekend scheduleStart scheduleUntil scheduleDays scheduleNext scheduleWhat="none" scheduleLeft scheduleOverride scheduleKey
+		local scheduleWork scheduleWeekend scheduleStart scheduleUntil scheduleDays scheduleNext scheduleWhat="none" scheduleLeft scheduleOverride scheduleKey scheduleMember scheduleDir scheduleMemberFlag scheduleMemberLeft
 		if [ $# -gt 1 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $scheduleOp: takes no argument, got: $2" >&2
 			set +e ; return 1
@@ -41,6 +41,22 @@ case "$1" in
 				*) printf 'flag\t%s\t%s\t-\n' "$scheduleFlag" "$scheduleLine" ;;
 			esac
 		done
+		## THE MEMBERS' OWN FLAGS (AgentsToolsScheduleMemberFlag): the entry row of vacation, which is set for one member, and a row `<flag>:<member>` for each member whose
+		## vacation or overtime holds now, so a person sees who is on one and clears it from its own row.
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+		printf 'flag\tvacation\tper member\t-\n'
+		while IFS=$'\t' read -r scheduleMember scheduleDir ; do
+			[ -n "$scheduleDir" ] || continue
+			case "$scheduleMember" in human-owner|magic-team) continue ;; esac
+			for scheduleMemberFlag in vacation overtime ; do
+				scheduleMemberLeft="$( AgentsToolsScheduleMemberFlag "$scheduleMemberFlag" "$scheduleMember" "$scheduleEpoch" )"
+				case "$scheduleMemberLeft" in
+					'') ;;
+					on) printf 'flag\t%s:%s\tyes\t-\n' "$scheduleMemberFlag" "$scheduleMember" ;;
+					*) printf 'flag\t%s:%s\tyes\t(%s seconds left)\n' "$scheduleMemberFlag" "$scheduleMember" "$scheduleMemberLeft" ;;
+				esac
+			done
+		done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
 		scheduleWork="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WORKTIME )" || :
 		scheduleWeekend="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WEEKEND )" || :
 		## The nearest change: worktime's next boundary and the end of each override that has a TTL.

@@ -42,14 +42,14 @@ AgentsToolsGoogleResolveMember() {
 		googleRefreshToken="${GOOGLE_REFRESH_TOKEN:-}" ; [ -n "$googleRefreshToken" ] || googleRefreshToken="$( AgentsToolsConfigOption "$memberName" --select GOOGLE_REFRESH_TOKEN )" || googleRefreshToken=""
 	fi
 	if [ -z "$googleClientId" ] || [ -z "$googleClientSecret" ] || [ -z "$googleRefreshToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --$opName: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		echo "⛔ ERROR: $MDSC_CMD --$opName: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN not fully set in ${memberName}'s own scope" >&2
 		return 1
 	fi
 
 	local googleNewline=$'\n'
 	case "$googleClientId$googleClientSecret$googleRefreshToken" in
 		*"$googleNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --$opName: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Google credential never legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting failure would surface as invalid_grant and be misread as a revoked credential needing a fresh human consent" >&2
+			echo "⛔ ERROR: $MDSC_CMD --$opName: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN in ${memberName}'s own scope contains a newline -- a Google credential never legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting failure would surface as invalid_grant and be misread as a revoked credential needing a fresh human consent" >&2
 			return 1
 		;;
 	esac

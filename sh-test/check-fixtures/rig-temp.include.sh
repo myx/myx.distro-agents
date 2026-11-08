@@ -113,7 +113,7 @@ rigQueueTicketWhom(){ ## ticket file -- that phrase
 ## `alive`, so a rule added here answers one of those two and never a word of its own: a sixth state word is a rule that
 ## loop makes invisible.
 rigQueueTicketState(){ ## ticket file -- `alive`, `own`, `gone`, `ended`, `stalled` or `held`
-	local ticketSession ticketSince ticketStamp ticketClock ticketAge ticketBeat
+	local ticketSession ticketSince ticketStamp ticketClock ticketAge ticketBeat ticketPid ticketPstart ticketWon
 	local ticketHold=${MDAT_SUITE_QUEUE_HOLD_SECONDS:-21600} ticketStall=${MDAT_SUITE_QUEUE_STALL_SECONDS:-3600}
 	case "$ticketHold" in ''|*[!0123456789]*) ticketHold=21600 ;; esac
 	case "$ticketStall" in ''|*[!0123456789]*) ticketStall=3600 ;; esac
@@ -127,12 +127,26 @@ rigQueueTicketState(){ ## ticket file -- `alive`, `own`, `gone`, `ended`, `stall
 	if [ "$ticketSession" != none ] ; then
 		rigQueueSessionEnded "$ticketSession" && { printf 'ended' ; return 0 ; }
 	fi
+	## A ticket that names its process is given up where that process is gone, or where the number now belongs to a process that started at another
+	## moment. A ticket of a run, which names none, is judged as before.
+	ticketPid="$( LC_ALL=C sed -n 's/^pid=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	ticketPstart="$( LC_ALL=C sed -n 's/^pstart=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	if [ -n "$ticketPid" ] && [ -n "$ticketPstart" ] ; then
+		[ "$( ps -o lstart= -p "$ticketPid" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" = "$ticketPstart" ] || { printf 'gone' ; return 0 ; }
+	fi
 	ticketSince="$( LC_ALL=C sed -n 's/^since=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2> /dev/null || date -u -d "$ticketSince" '+%s' 2> /dev/null )" || ticketStamp=""
 	ticketClock="$( date +%s )" || { printf 'alive' ; return 0 ; }
 	case "$ticketStamp" in
 		''|*[!0123456789]*) ticketStamp="" ;;
 		*) ticketAge=$(( ticketClock - ticketStamp )) ; [ "$ticketAge" -le "$ticketHold" ] || { printf 'held' ; return 0 ; } ;;
+	esac
+	## A holder that has won its turn writes `turn-won=<epoch>` and is at work, not waiting: it writes no beat any more, so a stale beat is no evidence that it
+	## stopped. Only the hold limit, counted from the turn it won, ends its place.
+	ticketWon="$( LC_ALL=C sed -n 's/^turn-won=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	case "$ticketWon" in
+		''|*[!0123456789]*) ;;
+		*) [ "$(( ticketClock - ticketWon ))" -le "$ticketHold" ] && printf 'alive' || printf 'held' ; return 0 ;;
 	esac
 	## The beat is the second of the last pass of a holder's wait, so a run that stopped waiting gives up the place a
 	## process alone would go on holding. A ticket with no beat at all carries no evidence that its holder stopped, so
@@ -186,7 +200,9 @@ rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one lin
 	turnStamp="$( python3 -I -B -c 'import time; print("%017.6f" % time.time(), end="")' 2> /dev/null )" || turnStamp=""
 	[ -n "$turnStamp" ] || turnStamp="$( date +%s ).000000"
 	turnTicket="$turnStamp.$$.ticket"
-	printf 'session=%s\norigin=%s\nkind=check\nsince=%s\n' "${rigQueueSession:-none}" "${MDLT_ORIGIN:-}" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$rigQueueDir/.$turnTicket" 2> /dev/null \
+	## The ticket names the check's process by its pid and its start, so a ticket whose check was killed or stopped is given up at once, and a pid
+	## handed to another process later is never read as the holder (rigQueueTicketState).
+	printf 'session=%s\norigin=%s\nkind=check\nsince=%s\npid=%s\npstart=%s\n' "${rigQueueSession:-none}" "${MDLT_ORIGIN:-}" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$$" "$( ps -o lstart= -p "$$" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" > "$rigQueueDir/.$turnTicket" 2> /dev/null \
 		&& mv -f "$rigQueueDir/.$turnTicket" "$rigQueueDir/$turnTicket" 2> /dev/null || {
 		echo "⛔ ERROR: $0: cannot stand in the machine's line of test runs: $rigQueueDir" >&2
 		return 1
@@ -210,7 +226,7 @@ rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one lin
 			turnAhead=$(( turnAhead + 1 ))
 			[ -n "$turnWhom" ] || turnWhom="$( rigQueueTicketWhom "$turnFile" )"
 		done
-		[ "$turnAhead" -gt 0 ] || break
+		[ "$turnAhead" -gt 0 ] || { printf 'turn-won=%s\n' "$( date +%s )" >> "$rigQueueDir/$turnTicket" 2> /dev/null || : ; break ; }
 		## said once each time whom it waits behind changes: the age is left out of that comparison, since it moves every pass
 		if [ "${turnWhom%, in the line for *}" != "$turnSaid" ] ; then
 			echo "# $0: one check runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2

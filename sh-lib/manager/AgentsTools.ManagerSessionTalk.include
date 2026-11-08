@@ -94,6 +94,12 @@ case "$1" in
 			[ "$messageKind" = "run" ] && [ -n "$messageMember" ] && [ "$messageMember" != "-" ] || continue
 			case "$messageKnown" in *" $messageMember "*) ;; *) messageKnown="$messageKnown$messageMember " ;; esac
 		done <<< "$scopeListed"
+		## A session with no run of a member has no reader: its lead runs under its own session id and never reads this session's chat file, so a message left here
+		## would be reported as delivered and read by nobody (epic S10.22). It is refused, and the console is told what to do instead.
+		if [ "$messageKnown" = " " ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $messageOp: session $scopeSession has no run of a member, so nobody would read a message left in it; send it to the session that holds the run (its lead's own session id) -- nothing was left" >&2
+			set +e ; return 1
+		fi
 		for messageOne in ${messageTo//,/ } ; do
 			case "$messageKnown" in
 				*" $messageOne "*) ;;

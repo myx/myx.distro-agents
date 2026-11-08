@@ -12,6 +12,8 @@
 ##   6. THE BOARD HOLDERS: a holder whose run is gone holds nothing; a holder that cannot be told either way, and one that lives, still hold.
 ## Offline: the workspace, the board and every record are this rig's own tree; the processes are this check's own and are ended with it.
 set -u
+## The list of started records is kept for MDAT_STARTED_RECORDS_SECONDS in the product, and this check makes records between its asks, so it reads them fresh.
+export MDAT_STARTED_RECORDS_SECONDS=0 MDAT_DUTY_RECORDS_SECONDS=0
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
@@ -63,7 +65,7 @@ rigRecord(){ ## file, spawn id, owner, status, host, run pid (may be empty), she
 rigFn(){ ## the function and its arguments... -- run in the loop's include: `<rc>:<what it printed>`
 	local fnOut fnRc
 	fnOut="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_TMP="$rigTmp" AGENTS_LIVENESS_TTL=300 \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_TMP="$rigTmp" AGENTS_LIVENESS_TTL=300 MDAT_STARTED_RECORDS_SECONDS=0 MDAT_DUTY_RECORDS_SECONDS=0 \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			set +e

@@ -51,5 +51,25 @@ AgentsToolsWakeTouch(){ ## team member, who wrote it (may be empty)
 	wakeTemp="$( mktemp "$wakeFile.tmp.XXXXXX" )" || return 0
 	{ printf '%s %s %s\n' "$wakeAt" "$(( wakeSeq + 1 ))" "$wakeFrom" > "$wakeTemp" && chmod 644 "$wakeTemp" && mv -f "$wakeTemp" "$wakeFile" ; } 2> /dev/null \
 		|| { rm -f "$wakeTemp" 2> /dev/null ; return 0 ; }
+	AgentsToolsWakePoke "$wakeTarget"
+	return 0
+}
+
+## POKES THE NAP OF THE WAITS: a wait naps on a fifo it holds both ends of (nap.fifo in its folder, AgentsTools.MemberWaitRun.include), and a line written
+## into it ends that nap at once, so the wait looks at its sources now and not at the end of its nap. This is what lets a wait nap long: the writers of
+## what it watches poke it, and the nap's length is only the fallback for a writer that does not. A poke is one newline; a wait that wakes reads its
+## sources (a pointer against a file size, for a chat file) and naps again. With a member, the waits of that member; with none, every wait of the workspace.
+## The fifo is opened read-write, which never blocks, in a subshell so the descriptor is never kept; a wait that is gone leaves a pipe nobody reads, which
+## the system frees when this one closes. Quiet and best effort.
+AgentsToolsWakePoke(){ ## team member (may be empty: every wait)
+	local pokeMember="${1:-}" pokeFifo
+	[ -n "${MMDAPP:-}" ] || return 0
+	case "$pokeMember" in */*|*[[:space:]]*) return 0 ;; esac
+	## The star is outside the quotes, where a glob works.
+	if [ -n "$pokeMember" ] ; then pokeFifo="$MMDAPP/.local/temp/mdat-member-wait.$pokeMember" ; else pokeFifo="$MMDAPP/.local/temp/mdat-member-wait" ; fi
+	for pokeFifo in "$pokeFifo".*/nap.fifo ; do
+		[ -p "$pokeFifo" ] || continue
+		( exec 7<> "$pokeFifo" && printf '\n' >&7 ) 2> /dev/null || :
+	done
 	return 0
 }

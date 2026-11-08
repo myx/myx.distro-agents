@@ -7192,7 +7192,7 @@
 			with no weekend set read `no (weekend not set)`. An override that has an end
 			shows the seconds left, `yes (3600 seconds left)`. Read-only.
 
-		--override-flag [--no] <flag> [<ttl>] [--days <n>]
+		--override-flag [--no] <flag> [<ttl>] [--days <n>] [--member <member>]
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). An override of a flag,
 			kept as a setting of the `magic-team` scope: `emergency` is set with a TTL in
 			whole seconds (`emergency 3600`), prolonged by a second call (its end is the TTL
@@ -7202,6 +7202,9 @@
 			is cleared, at any hour, and while it holds `worktime` is off (`no (holiday)`);
 			`holding` is set the same way, and while it holds the schedule starts no
 			routine, duty or supervision, while running sessions go on;
+			`vacation` and `overtime` with `--member <member>` are one member's own flags,
+			each set with a TTL or until cleared: a member on vacation holds no duty and the
+			schedule starts nothing for it, a member on overtime holds a duty out of worktime;
 			`learning` is on or off and takes no TTL. `--days <n>`, `overtime`'s alone, ends
 			overtime n worktime starts ahead instead, the earlier end winning against a TTL. `--no`
 			clears the override and takes no TTL and no `--days`. `worktime` and `weekend` are derived and

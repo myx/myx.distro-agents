@@ -328,7 +328,7 @@ rigList(){
 		'AgentsRunTests.sh|1|kill "-$endSignal" "$endPid"|@at-once' \
 		'AgentsRunTests.sh|1|kill "$watchSleep"|the one sleep this watch waits on at that very moment: the variable is emptied as soon as that wait returns' \
 		'AgentsRunTests.sh|1|kill "$runStallPid"|@running-job' \
-		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -TERM "$rigTicketB"|the pid of its ticket, read in the statement before from the line of a run this rig started and holds waiting behind a lock' \
+		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -TERM "$rigPidB"|@at-once' \
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -KILL "$rigSlotGiver" "$rigPidA"|@at-once' \
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -KILL "$rigSlotPid"|@at-once' \
 		'common/AgentsRunTestsIdentityCheck.test.sh|1|kill -KILL $rigStray|@at-once' \
@@ -380,6 +380,7 @@ rigList(){
 		'member/AgentsWaitWakeLatencyCheck.test.sh|1|kill -TERM "$rigScanPid"|@probed' \
 		'questions/AgentsEscalationWaitTrapCheck.test.sh|1|kill -"$2" "$waitPid"|@uncollected' \
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch' \
+		'comms/AgentsWakePokeCheck.test.sh|1|kill $( jobs -pr )|@running-job' \
 		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill -TERM $$ 2|the own pid of the top-level script, read by $$, which a subshell never shadows with its own, so the number is this very process while it is still the one running this line' \
 		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill -KILL $$ 2|the same own pid as just above, five seconds later if the first signal did not already end the script' \
 		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill "${rigWatchdog:-}" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the watchdog started at the top of this check, read by $! at that moment, with no start kept beside it to recheck at the trap that signals it' \
@@ -425,7 +426,7 @@ rigToolingList(){
 		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -TERM $endFound|the polite end of a check past its bound, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: the check while it is still the process that began when it was started, and every process it started that stayed in its group, each by its own pid, never the group by its number' \
 		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -KILL $endLeft|the hard end of a check past its bound, two seconds after the polite one, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: of the processes signalled, those that are still the processes they were, each kept with when it began, and what those started since, each by its own pid' \
 		'sh-lib/manager/AgentsTools.ManagerSession.include|1|kill -TERM "$hostPid"|@probed' \
-		'sh-lib/manager/AgentsTools.ManagerSession.include|1|kill -TERM "$killPid"|@walk-now' \
+		'sh-lib/manager/AgentsTools.ManagerSession.include|2|kill -TERM "$killPid"|@walk-now' \
 		'sh-lib/manager/AgentsTools.ManagerSession.include|1|kill -KILL "$killPid"|@walk-now' \
 		'sh-lib/comms/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
 		'sh-lib/comms/AgentsTools.MemberCommsSlackPresence.include|1|pkill -USR1 -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
@@ -460,7 +461,11 @@ rigToolingList(){
 		'sh-lib/session/AgentsTools.ToolTask.include|3|kill -TERM "$callPid" 2|NOT SAFE, LEFT: the fallback plain-pid form of the same end, for a shell with no real process group, the same gap' \
 		'sh-lib/session/AgentsTools.ToolTask.include|2|kill -KILL -- "-$callPid"|NOT SAFE, LEFT: the hard end of the same task, with no start kept beside its pid to recheck' \
 		'sh-lib/session/AgentsTools.ToolTask.include|2|kill -KILL "$callPid" 2|NOT SAFE, LEFT: the fallback plain-pid form of the hard end, for a shell with no real process group, the same gap' \
-		'sh-lib/session/AgentsTools.ToolTask.include|1|timeout_action=kill|@text'
+		'sh-lib/session/AgentsTools.ToolTask.include|1|timeout_action=kill|@text' \
+		'sh-lib/member/AgentsTools.Incoming.include|1|kill -TERM -- "-$syncPid"|@probed' \
+		'sh-lib/member/AgentsTools.Incoming.include|1|kill -TERM "$syncPid"|@probed' \
+		'sh-lib/session/AgentsTools.SuperviseClose.include|1|kill -TERM "$closePid"|the pid a run keeps in its `<pid> <start>` file under spawned/, signalled on the one branch where AgentsToolsRegistryProcessesBegan, read three lines above, gave the start the file holds; a file with no start, or a start that differs, takes another branch and sends nothing' \
+		'sh-scripts/DistroAgentsDispatcher.fn.sh|1|kill -TERM "${stopHolder%% *}"|the schedule thread that holds `thread.lock`, kept there as `<pid> <start>` by one write as it took the lock, and signalled only when AgentsToolsThreadLockHolderLives, in the statement before, found that pid still the process that began then (AgentsToolsRegistryProcessesBegan); its other answers, gone or alive with no start to compare, send nothing'
 }
 ## THE READER. A signal is the word of a command that sends one, where it stands as a command: first of its line,
 ## after what ends or opens a command, or after a word that takes a command; or a call of that name in
@@ -525,7 +530,9 @@ rigList > "$rigTmp/list"
 rigReasons > "$rigTmp/reasons"
 ## Every file of sh-test but two: the helper, where the signals of a kept pid are meant to stand, and this check, whose
 ## list and controls are the texts of signals. What this check itself sends is read further down.
-rigSelf="${0#*/sh-test/}"
+## Its own path is resolved, so the check started by a relative path (`bash sh-test/common/...`) still leaves itself out.
+case "$0" in */*) rigSelf="$( cd "${0%/*}" && pwd -P )/${0##*/}" ;; *) rigSelf="$( pwd -P )/$0" ;; esac
+rigSelf="${rigSelf#"$( cd "$rigTest" && pwd -P )"/}"
 ( cd "$rigTest" && find . -type f | LC_ALL=C sed 's|^\./||' | LC_ALL=C grep -v -x -F -e 'check-fixtures/rig-processes.include.sh' -e "$rigSelf" | LC_ALL=C sort ) > "$rigTmp/files"
 rigAssert "control: the files of sh-test are read, the runner, the fixtures and the checks among them, and none has a space in its name" \
 	"$( [ "$( wc -l < "$rigTmp/files" | LC_ALL=C tr -d ' ' )" -ge 200 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'AgentsRunTests.sh' -e 'check-fixtures/manager-screen.driver.py' -e 'check-fixtures/AgentsHarnessHooks.legacy.sh' -e 'board/AgentsReviewFlowCheck.test.sh' "$rigTmp/files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/files" || : )" "many 4 0"

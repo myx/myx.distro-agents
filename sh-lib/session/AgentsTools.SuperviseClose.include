@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseClose.include -- the supervisor's close of a test rig left running (S5.2): a control thread alive inside a
+## run's own output folder after that run's record closed, the `rig-orphan` row of --supervise-scan. Sourced, never run.
+##
+## --supervise-close-orphans [--execute] [--workspace <path>]...: one line an orphan, `rig-orphan <workspace> <id> pid=<pid> <path> <verdict>`.
+## Without --execute it is a readout: `would-close` for one whose process is the one its pid file names, `kept-unverified` for a pid
+## file with no began moment to check against, `kept-mismatch` for a pid the host has given to another process since. With --execute a
+## `would-close` one is sent TERM and reads `closed`, or `still-alive` where it did not end within two seconds; nothing is killed harder here.
+## THE PID IS CHECKED AGAINST THE PROCESS BEFORE A SIGNAL: the pid file holds `<pid> <began>`, as AgentsToolsRegistryProcessesBegan
+## writes it, and the began moment of the live process must be the same, or the number names a stranger.
+## A workspace with nothing to close says so: `none - - no rig-orphan`. The walk over spawned/ is the scan's own (S10.37 names it).
+type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+
+AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
+	local closeWorkspaces=() closeWs closeAgents closeExecute="" closeFile closePid closeRest closeNow closeSpid closeVerdict closeFound=0 closeWait
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--execute) closeExecute=yes ; shift ;;
+			--workspace) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --workspace requires a path" >&2 ; return 1 ; } ; closeWorkspaces+=( "${2%/}" ) ; shift 2 ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --supervise-close-orphans: invalid option: $1" >&2 ; return 1 ;;
+		esac
+	done
+	[ ${#closeWorkspaces[@]} -gt 0 ] || closeWorkspaces=( "${MMDAPP%/}" )
+	for closeWs in "${closeWorkspaces[@]}" ; do
+		closeAgents="$closeWs/.local/agents"
+		[ -d "$closeAgents/spawned" ] || { printf 'error %s - no .local/agents/spawned here\n' "${closeWs##*/}" ; continue ; }
+		while IFS= read -r closeFile ; do
+			[ -n "$closeFile" ] || continue
+			closePid="" ; closeRest=""
+			{ read -r closePid closeRest < "$closeFile" ; } 2> /dev/null || continue
+			case "${closePid:-}" in ''|*[!0123456789]*) continue ;; esac
+			kill -0 "$closePid" 2> /dev/null || continue
+			closeSpid="${closeFile#"$closeAgents"/spawned/}" ; closeSpid="${closeSpid%%/*}"
+			! LC_ALL=C grep -q -x 'status: spawn-started' "$closeAgents/spawned/$closeSpid/$closeSpid.spawn.md" 2> /dev/null || continue
+			closeFound=$(( closeFound + 1 ))
+			closeNow="$( printf '%s\n' "$closePid" | AgentsToolsRegistryProcessesBegan )" ; closeNow="${closeNow#"$closePid" }"
+			if [ -z "$closeRest" ] ; then
+				closeVerdict="kept-unverified"
+			elif [ "$closeRest" != "$closeNow" ] ; then
+				closeVerdict="kept-mismatch"
+			elif [ -z "$closeExecute" ] ; then
+				closeVerdict="would-close"
+			else
+				kill -TERM "$closePid" 2> /dev/null || :
+				closeWait=0
+				while [ "$closeWait" -lt 20 ] && kill -0 "$closePid" 2> /dev/null ; do sleep 0.1 ; closeWait=$(( closeWait + 1 )) ; done
+				if kill -0 "$closePid" 2> /dev/null ; then closeVerdict="still-alive" ; else closeVerdict="closed" ; fi
+			fi
+			printf 'rig-orphan %s %s pid=%s %s %s\n' "${closeWs##*/}" "$( printf '%s' "$closeSpid" | cut -c1-8 )" "$closePid" "${closeFile#"$closeAgents"/spawned/"$closeSpid"/}" "$closeVerdict"
+		done <<< "$( find "$closeAgents/spawned" -mindepth 6 -maxdepth 14 -path '*/output/*' -path '*/control/pid' -type f 2> /dev/null )"
+	done
+	[ "$closeFound" -gt 0 ] || printf 'none - - no rig-orphan\n'
+	return 0
+}

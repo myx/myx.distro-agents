@@ -1467,7 +1467,7 @@ AgentsHarnessAskRecordField(){ ## pending reply id, field name
 ## session's next Wait mode=continue covers an answer nobody waited for in the asking call.
 ## Through the team's own wait operation, never by writing its state from here. rc 1 when it
 ## could not be added; a drop of an item the stored wait does not hold starts nothing.
-AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id
+AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id, and `chat` for the session's own chat source beside that ask
 	local itemTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" itemSession itemLine
 	[ -n "$2" ] && [ -n "$harnessAgent" ] && [ -x "$itemTools" ] || return 1
 	itemSession="$( AgentsHarnessSessionKey )"
@@ -1479,7 +1479,7 @@ AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id
 			*) return 0 ;;
 		esac
 	fi
-	case "$2" in
+	case "${3:-}" in
 		## The chat of the session itself joins the same stored wait, so an ask is woken by a floor message.
 		chat) "$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "chat:$itemSession" > /dev/null 2>&1 ;;
 		*) "$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1 ;;

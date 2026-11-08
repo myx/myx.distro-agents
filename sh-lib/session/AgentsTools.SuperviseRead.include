@@ -20,7 +20,10 @@
 ##
 
 ## --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log]
-AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-thread] [--no-checklist] [--log]
+type AgentsToolsSuperviseInWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseWorkspace.include"
+AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]
+	## `--workspace <path>`: the run is of that workspace, and this runs again there without it (AgentsTools.SuperviseWorkspace.include).
+	! AgentsToolsSuperviseWorkspaceGiven "$@" || { AgentsToolsSuperviseInWorkspace AgentsToolsSuperviseRead "$@" ; return $? ; }
 	local readRun="" readTail=40 readThreadLines=30 readThread=yes readChecklist=yes readLog=no
 	local readTab=$'\t' readRecord readMember readSession readStatus readFolder readPath readLine readAny readThreadValue
 	local readChatDir readMemberId readParts=()

@@ -219,7 +219,7 @@ case "$1" in
 					type AgentsToolsCommsChannelSlackKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
 					targetKey="$( AgentsToolsCommsChannelSlackKey "${target%%:*}" )" || targetKey=""
 					if [ -n "$targetKey" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
+						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: could not resolve a channel for target '$target' -- check the $targetKey setting" >&2
 					else
 						echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
 					fi

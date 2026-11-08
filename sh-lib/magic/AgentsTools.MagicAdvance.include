@@ -206,9 +206,10 @@ case "$1" in
 			## IS this window's round, and a different value now would overwrite what that round decided.
 			## Outside the window the document is due a new round, and this call is that round's proof:
 			## the guard must never hold a document out of its own next round.
-			priorOutcome="$( LC_ALL=C awk '/^outcome: /{ print substr($0, 10) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
-			priorReceipt="$( LC_ALL=C awk '/^execution-receipt: /{ print substr($0, 20) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
-			priorRound="$( LC_ALL=C awk '/^last-round-at: /{ print substr($0, 16) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			## The three are read from the frontmatter only (the lines between the first two `---`), so a body line cannot pose as the prior value (epic S10.7).
+			priorOutcome="$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^outcome: /{ print substr($0, 10) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorReceipt="$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^execution-receipt: /{ print substr($0, 20) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
+			priorRound="$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^last-round-at: /{ print substr($0, 16) ; exit }' "$MDAT_DATA_ROOT/board/$itemState/$itemName" 2> /dev/null )" || :
 			priorRoundEpoch="$( AgentsToolsBoardItemEpoch "$priorRound" )"
 			roundRecorded=0
 			case "$priorRoundEpoch" in

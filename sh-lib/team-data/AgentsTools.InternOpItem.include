@@ -555,6 +555,9 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		echo "$MDSC_CMD: item-upsert: ⛔ ERROR: could not write $target" >&2
 		set +e ; return 1
 	fi
+	## An item is written: the waits of the workspace are poked, so one that naps long still reads it at once (AgentsToolsWakePoke).
+	type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+	! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke
 	if [ "$unlockLock" = "true" ] && ! unlockVerifyOut="$( AgentsToolsItemUnlockVerify "$target" "$headerOps" )" ; then
 		AgentsToolsItemUnlockKeep restore "the written note does not read back the close: $unlockVerifyOut" ; set +e ; return 1
 	fi

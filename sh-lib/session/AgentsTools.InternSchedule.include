@@ -67,6 +67,9 @@ case "$1" in
 		local -x MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" 2> /dev/null )"
 		[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
 
+		## The once-a-day `runs-at` markers are written by nothing since `runs-at:` became optional (S12.12): what a rig still holds goes here, once a start.
+		rm -f "${MMDAPP%/}/.local/agents/schedule/said/runs-at."* 2> /dev/null || :
+
 		if [ "$schMode" = "--one" ] ; then
 			AgentsToolsScheduleThreadPass
 			return 0

@@ -307,6 +307,18 @@ case "$1" in
 			if [ -z "$commsEnd" ] ; then
 				type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
 				! type AgentsToolsCommsCachePushAll > /dev/null 2>&1 || AgentsToolsCommsCachePushAll "$commsPassNow" "$agentsSessionCommsPostsPerPass"
+				## A pass that posted is work: the thread does not end in the middle of draining a backlog (it ended with 18,884 posts waiting, after ten minutes
+				## in which it had only posted them). A backlog that posts nothing -- Slack down, a record refused -- is no work, and the thread ends as it did.
+				[ "${agentsCommsCachePushAllMade:-0}" -le 0 ] || commsIdleFrom="$SECONDS"
+			fi
+			## The activity of the live runs, from their logs (AgentsToolsCommsActivityPass): this thread is the one sender, and the spawner only adds to
+			## the log. A pass that posted some counts as something done, so the thread does not end while runs are tracked.
+			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] ; then
+				type AgentsToolsCommsActivityPass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+				if type AgentsToolsCommsActivityPass > /dev/null 2>&1 ; then
+					AgentsToolsCommsActivityPass "$commsNow"
+					[ -z "${agentsCommsActivityPosted:-}" ] || commsIdleFrom="$SECONDS"
+				fi
 			fi
 			## The rig's pull of the channels members read lately (AgentsToolsCommsCachePullWatched), every 30 s: it reads a mark a channel
 			## watched, and a workspace of hundreds of them would otherwise spend every pass on it, holding the console's messages behind it.

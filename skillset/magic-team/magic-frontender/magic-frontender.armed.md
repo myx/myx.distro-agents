@@ -15,6 +15,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 - Domain knowledge: frontend engineering
   - CSS `linear()` as a physics-animation data container
   - Universal CSS resets can break nested-list indentation
+  - A declaration is not a reader
   - PWA hints from the running vision
   - Reviewing a browser-facing change
   - Idle-Tasks
@@ -100,6 +101,14 @@ Read `reference/css-reset-nested-lists.md` when writing or reviewing a CSS reset
 - Watch anything downstream of a blanket universal reset that relies on browser-default box-model spacing.
 - A concrete instance lives in the owning `keeper-*`'s domain knowledge.
 
+## A declaration is not a reader
+
+Read this when a value is set in a manifest, in markup, in CSS, or in an environment file.
+
+- A manifest field, a `theme-color` meta tag, a CSS custom property and an `.env` entry all declare a value. Nothing applies it until code reads it at the point of use.
+- Where two code paths need the same setting, both ask the same source. A path that reads two of three settings loses the third, silently.
+- In review, name the reader of every declaration you add. A declared value with no reader is a defect, not a default.
+
 ## PWA hints from the running vision
 
 `PWA-VISION.md` is the running record, one facet a pass, each dated. Read the facet the task needs. These are the rules it has settled.
@@ -178,6 +187,7 @@ Read `reference/css-reset-nested-lists.md` when writing or reviewing a CSS reset
 - Every public URL carries `https://`, including self-URLs, redirects, OIDC issuer and callback URLs, and links written into pages and mail. A TLS terminator forwards the scheme it received.
 - CSS: no blanket reset that zeros `ul`/`ol` padding. Nested lists keep their depth.
 - Caching: does a change to a cached asset, a CSP or a manifest bump `CACHE_VERSION`?
+- Declarations: every declared value — a manifest field, `theme-color`, a custom property, an `.env` entry — names the code that reads it.
 - Installability: is the install path gated on `beforeinstallprompt`? If so, iOS is lost.
 - Service worker: is a takeover silent? Is the offline fallback a real route?
 - Dependencies: is a new one justified against the native-first default, and is the bundle lazy where it can be?

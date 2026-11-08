@@ -49,10 +49,37 @@ def settingAnswered(text, about, width):
     return ("the save",) + settingAnswer(text, about.get("says", ""), width)
 
 
+## What `--manager-session-pause` and `--manager-session-resume` printed (S7.19): a `pause` row, the session and the file that
+## holds the pause, or a `resume` row, the session, the file and what it held, `<when> <by>` with its spaces as `_`, or `-`.
+def pauseAnswer(text, which, width):
+    lines = []
+    said = []
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] != which or len(fields) < 3:
+            continue
+        words = "%s: the session %s" % ("paused" if which == "pause" else "resumed", fields[1][:8])
+        if which == "resume" and len(fields) >= 4 and fields[3] not in ("", "-"):
+            words += ", held since " + unspaced(fields[3])
+        said.append(words)
+        lines.extend("  " + part for part in wrapToCells(words, max(10, width - 3)))
+    return lines, "%s: " % which + ("; ".join(said) if said else "the operation named no session")
+
+
+def pauseAnswered(text, about, width):
+    return ("the pause",) + pauseAnswer(text, "pause", width)
+
+
+def resumeAnswered(text, about, width):
+    return ("the resume",) + pauseAnswer(text, "resume", width)
+
+
 ACTION_ANSWERS["kill"] = killAnswered
 ACTION_ANSWERS["control"] = controlAnswered
 ACTION_ANSWERS["start"] = startAnswered
 ACTION_ANSWERS["setting"] = settingAnswered
+ACTION_ANSWERS["pause"] = pauseAnswered
+ACTION_ANSWERS["resume"] = resumeAnswered
 
 
 ## The answer of an action, taken into the state. What the operation printed is set out

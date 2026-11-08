@@ -29,10 +29,14 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## The check is bounded: an operation that never returns fails here, said on stderr, instead of
 ## holding the batch that runs it. Measured 2026-10-31: one permission-holds call takes 7s, and
 ## the whole check ran past twenty minutes without a bound of its own.
+## The watch ticks once a second and ends by itself once the check is gone: a plain sleep for the
+## whole bound outlived the check, held the pipe of whatever ran it until the bound ran out, and
+## would signal a pid the check no longer owned.
 rigDeadline="${RIG_DEADLINE_SECONDS:-1800}"
-( sleep "$rigDeadline" ; printf '%s: no result within %ss, so an operation never returned\n' "PERMISSION_HOLDS" "$rigDeadline" >&2 ; kill -TERM $$ 2> /dev/null ; sleep 5 ; kill -KILL $$ 2> /dev/null ) &
+( rigLeft="$rigDeadline" ; while [ "$rigLeft" -gt 0 ] ; do kill -0 $$ 2> /dev/null || exit 0 ; sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+  printf '%s: no result within %ss, so an operation never returned\n' "PERMISSION_HOLDS" "$rigDeadline" >&2 ; kill -TERM $$ 2> /dev/null ; sleep 5 ; kill -KILL $$ 2> /dev/null ) &
 rigWatchdog=$!
-trap 'kill "${rigWatchdog:-}" 2> /dev/null || : ; chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'kill "${rigWatchdog:-}" 2> /dev/null || : ; wait "${rigWatchdog:-}" 2> /dev/null || : ; chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home"
 cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"

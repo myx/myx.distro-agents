@@ -62,7 +62,7 @@ AgentsHarnessProcessRender(){ ## processes dir, handle, out cap, err cap -- the 
 	fi
 }
 
-## One report of a detached process, posted into the session thread by the team's send operation, which keeps the credential. The
+## One report of a detached process, posted as a notice into the event-track thread, else the session thread, which keeps the credential. The
 ## sentence is the tooling's own words and is what the plain-language floor measures; the output lines after it are the process's.
 ## Every failure goes to the process's own report log, never to nowhere.
 AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, sentence, output lines
@@ -70,8 +70,23 @@ AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, senten
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this run has no team identity to post under, so the report was NOT posted: %s\n' "$5" >> "$postDir/$postHandle.report" ; return 1
 	fi
+	## A process's progress and end are tracking notices of this run. They go into its coworking session's event-track thread,
+	## with no addressee, as every tracking post does (AgentsTools.EventTrackThread.include). Its output stays in the process's
+	## own files, which the run reads with TaskOutput. Only where no event-track channel is configured does the notice go
+	## into the session thread, still with no addressee.
+	if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+		(
+			type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include"
+			AgentsToolsEventTrackThreadPost "$harnessAgent" "$( AgentsToolsEventTrackThreadOwnDir )" --kind notice \
+				--session-id "$MDAT_SPAWN_SESSION_ID" --field what="$5" < /dev/null
+		) >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
+		case "$postRc" in
+			0) return 0 ;;
+			2) postRc=0 ;;
+			*) printf 'ERROR: the notice was NOT posted to event-track (rc=%s): %s\n' "$postRc" "$5" >> "$postDir/$postHandle.report" ; return "$postRc" ;;
+		esac
+	fi
 	postArgs=( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message --team-member "$harnessAgent" "$3" )
-	[ -z "$4" ] || postArgs+=( --address-to "$4" )
 	printf '%s' "$5" > "$postDir/$postHandle.report.prose"
 	{ printf '%s\n' "$5" ; [ -z "$6" ] || printf '\n%s\n' "$6" ; } | MDAT_SEND_PROSE_FILE="$postDir/$postHandle.report.prose" "${postArgs[@]}" --from-stdin >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
 	[ "$postRc" = 0 ] || printf 'ERROR: the report was NOT posted (rc=%s): %s\n' "$postRc" "$5" >> "$postDir/$postHandle.report"
@@ -336,7 +351,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		if [ -n "$processReportThread" ] ; then
 			( AgentsHarnessProcessReporter "$processDir" "$toolHandle" "$processPid" "$processReportThread" "$( AgentsHarnessCallerMember 2> /dev/null )" ) > /dev/null 2>&1 < /dev/null &
 			disown "$!" 2> /dev/null || :
-			processReportNote="Its progress and its end are reported into the session thread."
+			processReportNote="Its progress and its end are posted as notices into the session's event-track thread."
 		else
 			processReportNote="This session has no session thread, so no progress will be posted; watch the process with Wait."
 		fi

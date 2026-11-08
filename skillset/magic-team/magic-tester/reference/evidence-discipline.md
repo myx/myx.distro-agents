@@ -258,10 +258,9 @@ false positive lives in the distance between that condition and the claim it
 gets quoted for. Two shapes it takes, each producing a wrong
 report to the owner:
 
-- **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. In a workspace where most `.agent.env` files are empty, a `[ -f ]` probe
-reports every one of them as configured. A member whose files are all 0 bytes
-then reads the same as a fully configured one. The
-  discriminator is `[ -s ]`, or parsing the file for the key the claim is about.
+- **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Where most files of a kind are empty, a `[ -f ]` probe
+reports every one of them as configured, and an empty one reads the same as a full one. The
+  discriminator is `[ -s ]`, or reading the key the claim is about.
   Where a layer creates the file on first access, existence carries no
   information at all by construction. `myx.distro-agents`' `MAGIC.md` records
   that as a contract of `--agents-config-option`.

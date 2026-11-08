@@ -52,6 +52,10 @@ rigAgents="$rigWs/.local/agents"
 rigSp="$rigAgents/spawned" ; rigStores="$rigAgents/sessions"
 mkdir -p "$rigTmp/bin" "$rigTmp/pids" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigSkills" "$rigData/board/running" "$rigData/board/review"
 rigHost="$( hostname -s 2>/dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
+## HOW LONG A STAND-IN LIVES. The check takes about 74 minutes on an unmodified machine, so a stand-in that slept five
+## minutes was gone by the section that measured it: sections 6, 9c, 10, 11 and 13 read processes that no longer existed
+## (measured 2026-11-07, 23 failures against 18 with stand-ins that outlive it). One value, exported for the children.
+rigStandSeconds=14400 ; export rigStandSeconds
 : > "$rigTmp/ps.list" ; : > "$rigTmp/started" ; : > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 
 ## THE RIG'S OWN PROCESS LIST. A line of it is `<pid> <when that process began> <command line>`. The ps first on
@@ -149,7 +153,7 @@ rigList(){ ## pid, command line -- a process the rig started, into the rig's pro
 	printf '%s %s %s\n' "$1" "$( rigBegan "$1" )" "$2" >> "$rigTmp/ps.list"
 }
 rigLive(){ ## name, command line (default: a CLI that runs as that name by its own --session-id word)
-	sleep 300 > /dev/null 2>&1 < /dev/null &
+	sleep "$rigStandSeconds" > /dev/null 2>&1 < /dev/null &
 	printf '%s\n' "$!" > "$rigTmp/pids/$1"
 	rigKeep "$!"
 	rigList "$!" "${2:-claude --verbose --session-id $1 --agent rig-member the brief}"
@@ -359,7 +363,7 @@ echo "-- 9. a run with no session word: the process its record names, and what t
 ## A stand-in console that started two processes: one of its own, and one that runs as another spawn by its
 ## own word, as a member this run brought in and waits for. No line of the rig's list runs as the run itself.
 rm -f "$rigTmp/stand.children"
-bash -c 'sleep 300 > /dev/null 2>&1 < /dev/null & rigOwn=$! ; sleep 300 > /dev/null 2>&1 < /dev/null & echo "$rigOwn $!" > "$1" ; wait' rig-stand "$rigTmp/stand.children" > /dev/null 2>&1 < /dev/null &
+bash -c 'sleep "$rigStandSeconds" > /dev/null 2>&1 < /dev/null & rigOwn=$! ; sleep "$rigStandSeconds" > /dev/null 2>&1 < /dev/null & echo "$rigOwn $!" > "$1" ; wait' rig-stand "$rigTmp/stand.children" > /dev/null 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$rigTmp/pids/stand-console" ; rigKeep "$!" ; disown "$!" 2> /dev/null || :
 rigWaitFor 20 test -s "$rigTmp/stand.children" || rigRefuse "the stand-in console did not start, so nothing below would be measured"
 read -r rigStandOwn rigStandOther < "$rigTmp/stand.children"
@@ -374,7 +378,7 @@ rigAssert "it is ended: the process its record names and the process that one st
 	"0 kill sess-noword run-noword keeper-rig ended spawn-started - $( printf '%s\n%s\n' "$( rigPid stand-console )" "$rigStandOwn" | LC_ALL=C sort -n | LC_ALL=C tr '\n' ' ' ) 0"
 rigAssert "a process it started that runs as another spawn is another member's run: not signalled" "$( rigAlive stand-other )" "1"
 ## The same pid begun at another time is another process, and is never signalled.
-bash -c 'sleep 300 > /dev/null 2>&1 < /dev/null & echo "$!" > "$1" ; wait' rig-stand "$rigTmp/stand.reused" > /dev/null 2>&1 < /dev/null &
+bash -c 'sleep "$rigStandSeconds" > /dev/null 2>&1 < /dev/null & echo "$!" > "$1" ; wait' rig-stand "$rigTmp/stand.reused" > /dev/null 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$rigTmp/pids/reused-console" ; rigKeep "$!" ; disown "$!" 2> /dev/null || :
 rigWaitFor 20 test -s "$rigTmp/stand.reused" || rigRefuse "the second stand-in console did not start"
 rigKeep "$( cat "$rigTmp/stand.reused" )"
@@ -389,11 +393,11 @@ echo "-- 9b. what the run started ends with it, to any depth, and no run of anot
 mkdir -p "$rigTmp/tree"
 cat > "$rigTmp/bin/rig-cli-tree" <<'RIGTREE'
 #!/usr/bin/env bash
-sleep 300 > /dev/null 2>&1 < /dev/null &
+sleep "$rigStandSeconds" > /dev/null 2>&1 < /dev/null &
 echo "$!" > "$1/server"
-bash -c 'python3 -I -B "$RIG_HOLD" ignore-term-pid "$1" 300 ; :' rig-tool "$1/hung" > /dev/null 2>&1 < /dev/null &
+bash -c 'python3 -I -B "$RIG_HOLD" ignore-term-pid "$1" 14400 ; :' rig-tool "$1/hung" > /dev/null 2>&1 < /dev/null &
 echo "$!" > "$1/tool"
-bash -c 'sleep 300 > /dev/null 2>&1 < /dev/null & echo "$!" > "$1" ; wait' rig-supervisor "$1/brought" > /dev/null 2>&1 < /dev/null &
+bash -c 'sleep "$rigStandSeconds" > /dev/null 2>&1 < /dev/null & echo "$!" > "$1" ; wait' rig-supervisor "$1/brought" > /dev/null 2>&1 < /dev/null &
 echo "$!" > "$1/supervisor"
 wait
 RIGTREE
@@ -506,9 +510,9 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'rigBegan="$( LC_ALL=C "$RIG_TMP/bin/ps.real" -o lstart= -p $$ | LC_ALL=C awk "NF { \$1 = \$1 ; gsub( / /, \"_\" ) ; print ; exit ; }" )"' \
 	'[ ! -e "$RIG_SCENARIO/with-word" ] || printf "%s %s rig-cli --session-id %s\n" "$$" "$rigBegan" "$MDAT_SPAWN_SESSION_ID" >> "$RIG_TMP/ps.list"' \
 	'if [ -e "$RIG_SCENARIO/with-tree" ] ; then' \
-	'	sleep 300 > /dev/null 2>&1 < /dev/null &' \
+	'	sleep '"$rigStandSeconds"' > /dev/null 2>&1 < /dev/null &' \
 	'	echo "$!" > "$RIG_SCENARIO/server.raw"' \
-	'	bash -c "sleep 300 > /dev/null 2>&1 < /dev/null & echo \$! > \"\$1\" ; wait" rig-tool "$RIG_SCENARIO/hung.raw" > /dev/null 2>&1 < /dev/null &' \
+	'	bash -c "sleep '"$rigStandSeconds"' > /dev/null 2>&1 < /dev/null & echo \$! > \"\$1\" ; wait" rig-tool "$RIG_SCENARIO/hung.raw" > /dev/null 2>&1 < /dev/null &' \
 	'	echo "$!" > "$RIG_SCENARIO/tool.raw"' \
 	'	while [ ! -s "$RIG_SCENARIO/hung.raw" ] ; do sleep 1 ; done' \
 	'fi' \
@@ -615,7 +619,7 @@ rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1"
 }
 rigAssert "the processes of a run are asked of the one place a run is recognised, when it is signalled and when what is left of it is read, and the family lists no process a second way: the plan of a kill reads a run by the same walk" \
-	"$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsRegistryRunProcesses "' -e 'AgentsToolsRegistryRunLeft "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E '^AgentsToolsRegistryRunProcesses\(\)\{' || : )" "4 0 1"
+	"$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsRegistryRunProcesses "' -e 'AgentsToolsRegistryRunLeft "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E '^AgentsToolsRegistryRunProcesses\(\)\{' || : )" "5 0 1"
 rigAssert "no process group is signalled, anywhere in the family" "$( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'kill +(-[A-Za-z0-9]+ +)?(-- +)?"?-[$"]' || : )" "0"
 rigAssert "the polite time is set in one place, two seconds" "$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -x -e 'agentsManagerKillPoliteSeconds=2' || : )" "1"
 rigAssert "the handback retry reads the mark of a kill on the record of its run" "$( rigCode "$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F -e 'AgentsToolsSpawnSandboxRecordHeader "$1" killed-at' || : )" "1"

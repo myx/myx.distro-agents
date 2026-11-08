@@ -399,6 +399,11 @@ AgentsHarnessCheckListAppendLines(){ ## folder, member -- stdin: the item texts,
 		appendCount=$(( appendCount + 1 ))
 	done
 	AgentsHarnessCheckListUnlock "$appendFile"
+	## AN ADDED ITEM WAKES ITS OWNER (S10.34): the owner's wait naps on a fifo, and a poke ends the nap, so the item is read now and not at the nap's end.
+	if [ "$appendCount" -gt 0 ] ; then
+		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke "$2" || :
+	fi
 	printf '%s\n' "$appendCount"
 }
 

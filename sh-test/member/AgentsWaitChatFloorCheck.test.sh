@@ -3,8 +3,10 @@
 ## run beside the replies to its own posts, read from the file by pointer; Wait brings the file up to date itself; both paths run
 ## together and a message comes once; the floor first, then the rest of what arrived in one group sorted by time, each message
 ## naming its source. Held, run and not read:
-##   1. THE FLOOR IS IN. No TTL is said in the return. A plain Wait of a session that has a chat file carries `chat:<session>` after the replies, ahead of the
-##      sources it names; a session with no folder carries none.
+##   1. THE FLOOR IS IN. No TTL is said in the return. A plain Wait of a session that has a chat file carries `chat:<session>` and no replies
+##      source; a session with no folder carries the replies and no chat. The sources are listed as the Wait reads them, shortest TTL first
+##      (S5.7, AgentsTools.MemberWaitRun.include): the file named and the wake marker (0), then the chat file or the replies, then the
+##      DMs and the mentions (15); the floor still leads what the return carries (section 5).
 ##   2. THE FILE IS BROUGHT UP TO DATE. The session thread is read into the file by the floor where the call names its own set (sketch 3.2); the
 ##      messages from before the run's launch are history and are not returned, a later one is, behind the source it is of; its
 ##      TTL (5s and 1s more for 20 quiet) keeps a second wait inside it from reading the thread again; the pointer moves, so a
@@ -155,12 +157,12 @@ echo "-- 1. the floor is in --"
 rigScene floor
 rigSeed
 rigPlain floor-in 2 --wait-source "file:$rigDir/none"
-rigAssert "a session that has a folder: no replies source, the chat file, then the sources named, then the rest of the floor" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "chat:$rigSession file:$rigDir/none dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "a session that has a folder: no replies source; the sources as read, shortest TTL first: the file named, the wake marker, the chat file, the DMs, the mentions" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "file:$rigDir/none wake:$rigMember chat:$rigSession dms:$rigMember mentions:$rigMember"
 rigAssert "no TTL is said in the return: an agent never needs them"  "$( LC_ALL=C grep -c '^# ttl:' "$rigOut" )" 0
 rigKey="rig-sess-nofolder"
 rigWait floor-none --wait-default --wait-session-id "rig-sess-nofolder" --wait-timeout 2 --wait-source "file:$rigDir/none"
 rigKey=""
-rigAssert "a session with no folder: no chat source (the replies alone, as ever)" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:rig-sess-nofolder file:$rigDir/none dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "a session with no folder: no chat source (the replies alone, as ever), in the same read order" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "file:$rigDir/none replies:rig-sess-nofolder wake:$rigMember dms:$rigMember mentions:$rigMember"
 
 echo "-- 2. the file is brought up to date by the wait --"
 rigScene topup

@@ -112,6 +112,20 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 	liveLeft=3000
 	while [ "$liveLeft" -gt 0 ] && ! LC_ALL=C grep -q ' end$' "$rigStores/$liveSpawn/milestones" 2> /dev/null ; do sleep 0.2 ; liveLeft=$(( liveLeft - 1 )) ; done
 	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-started/' -e '/^resolved-at: /d' "$liveRecord" && rm -f "$liveRecord.bak"
+	## THE ITEM OF A LIVE DUTY IS A RUNNING DISPATCH. The real start of this rig ends at once (no agent CLI), so the proxy put its dispatch item in processed as
+	## dispatch-failed. A run whose item is processed is ended by its session's control thread once SESSION_CONTROL_CLOSING_SECONDS have passed
+	## (AgentsTools.SessionControlRelease.include), on the rig's own clock: a check that moves that clock hours ahead would lose every stand-in to that rule.
+	## The item goes back to running as dispatch-started, which is what a live duty's item is, so the stand-in is a live duty in every record the tooling reads.
+	local liveStem liveItem liveField
+	for liveField in spawns spawned-by ; do
+		liveStem="$( LC_ALL=C awk -v wantHeader="$liveField" '$0 == "---" { fmCount++ ; if ( fmCount > 1 ) exit ; next } fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit }' "$liveRecord" 2> /dev/null )"
+		[ -n "$liveStem" ] || continue
+		for liveItem in "$rigData"/board/processed/"${liveStem%.md}.md" "$rigData"/board/archived/"${liveStem%.md}.md" ; do
+			[ -f "$liveItem" ] || continue
+			mkdir -p "$rigData/board/running"
+			LC_ALL=C sed -e 's/^status: .*/status: dispatch-started/' -e '/^resolved-at: /d' -e '/^processed-at: /d' -e '/^execution-receipt: /d' "$liveItem" > "$rigData/board/running/${liveItem##*/}" && rm -f "$liveItem"
+		done
+	done
 	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
 		LC_ALL=C awk '{ print } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
 	fi
@@ -135,7 +149,8 @@ rigAt(){ printf '%s' "$1" > "$rigDir/now.epoch" ; }
 
 rigOneRc=0
 rigOneRun(){ ## name of its output files -- one iteration of the real loop
-	env -i MDAT_WORKSPACE_MODE=team-rig MDAT_SCHEDULE_THREAD=off HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	## The lists of started, duty and routine records are kept for seconds in the product (AgentsTools.StartedRecords.include), and a check makes records between its iterations, so it reads them fresh.
+	env -i MDAT_WORKSPACE_MODE=team-rig MDAT_SCHEDULE_THREAD=off MDAT_STARTED_RECORDS_SECONDS=0 MDAT_DUTY_RECORDS_SECONDS=0 MDAT_ROUTINE_RECORDS_SECONDS=0 HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigScn" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '

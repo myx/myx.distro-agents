@@ -149,7 +149,7 @@ printf 'PRESET_EXTEND=mel-claude\nPRESET_CLI_SERVICE=grok\n' > "$rigAgents/prese
 rigAssert "a CLI service planted in an extending preset is ignored: the parent's is the value" "$( rigEffective mel-hand PRESET_CLI_SERVICE )" "claude rc=0"
 printf 'PRESET_EXTEND=mel-loop-b\n' > "$rigAgents/preset-mel-loop-a.agent.env" ; printf 'PRESET_EXTEND=mel-loop-a\n' > "$rigAgents/preset-mel-loop-b.agent.env"
 rigAssert "a loop planted by hand ends, with the reason, and not at the end of time" "$( rigEffective mel-loop-a PRESET_MODEL_OR_MACRO | LC_ALL=C sed -e 's/.*longer than [0-9]*: .*loops/LOOP/' )" "LOOP rc=1"
-rigAssert "a parent that is not there is said"                                    "$( printf 'PRESET_EXTEND=mel-gone\n' > "$rigAgents/preset-mel-lost.agent.env" ; rigEffective mel-lost PRESET_EFFORT | LC_ALL=C grep -c -e 'preset mel-gone is not there' )" 1
+rigAssert "a parent that is not there is said"                                    "$( printf 'PRESET_EXTEND=mel-gone\n' > "$rigAgents/preset-mel-lost.agent.env" ; rigEffective mel-lost PRESET_EFFORT | LC_ALL=C grep -c -e 'preset mel-gone is not configured' )" 1
 
 echo "-- F. the model or macro, the effort, the two numbers, the endpoint, the extra spawn line --"
 rigOk=0

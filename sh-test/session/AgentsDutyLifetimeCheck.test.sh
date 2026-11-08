@@ -127,7 +127,7 @@ rigAssert "the others, with the cache read or unknown, are not told" "$( rigTold
 
 echo "-- 3. holidays --"
 rigDispatch --override-flag holidays
-rigAssert "the holidays flag is on today, and worktime off" "$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigPackage/sh-scripts/DistroAgentsDispatcher.fn.sh" --current-flags 2> /dev/null | LC_ALL=C grep -e '^holidays: ' -e '^worktime: ' | tr '\n' '|' )" "worktime: no (holiday)|holidays: yes|"
+rigAssert "the holidays flag is on today, and worktime off" "$( cd "$rigWs" && env -i MDAT_STARTED_RECORDS_SECONDS=0 MDAT_DUTY_RECORDS_SECONDS=0 MDAT_ROUTINE_RECORDS_SECONDS=0 MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigPackage/sh-scripts/DistroAgentsDispatcher.fn.sh" --current-flags 2> /dev/null | LC_ALL=C grep -e '^holidays: ' -e '^worktime: ' | tr '\n' '|' )" "worktime: no (holiday)|holidays: yes|"
 rigIdle keeper-rig-06 3500 ; rigIdle keeper-rig-07 3700
 rigAt $(( rigMon13 + 240 ))
 rigOneRun hol1

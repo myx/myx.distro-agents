@@ -251,6 +251,23 @@ AgentsToolsInstallReportIcon(){
 ## for any other slot, which the rules after it decide as before.
 AgentsToolsInstallSlotClaim(){ ## scope, workspace, slot, this workspace's own copy, member
 	local claimScope="$1" claimWorkspace="$2" claimSlot="$3" claimOwn="$4" claimMember="$5" claimLinked
+	## In the workspace scope the same rule holds: an installed copy never takes the slot from a source one. A member link
+	## into any .local/myx install, this workspace's own included, is relinked to the bundled copy where that is a source copy.
+	if [ "$claimScope" = "workspace" ] && [ -L "$claimSlot" ] && [ ! "$claimSlot" -ef "$claimOwn" ] ; then
+		claimLinked="$( readlink "$claimSlot" )"
+		case "$claimLinked" in
+			/*/.local/myx/*)
+				case "$claimOwn" in
+					*/.local/myx/*) ;;
+					*)
+						echo "# $MDSC_CMD --install-skillset-symlinks: $claimSlot links to the installed copy $claimLinked -- relinking to the source copy $claimOwn" >&2
+						printf '%s\n' claim
+					;;
+				esac
+			;;
+		esac
+		return 0
+	fi
 	[ "$claimScope" = "user-home" ] && [ -L "$claimSlot" ] || return 0
 	[ ! "$claimSlot" -ef "$claimOwn" ] || return 0
 	claimLinked="$( readlink "$claimSlot" )"

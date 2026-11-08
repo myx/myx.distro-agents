@@ -19,7 +19,7 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsWorkDutyInputScanCheck )" || exit 1
+rigTmp="$( rigTempDir AgentsDmWakeLatencyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/keeper-rig"

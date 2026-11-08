@@ -25,10 +25,11 @@
 📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-scan [--workspace <path>]... [--since <epoch>]
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-resume [--workspace <path>]...
-📘 syntax: AgentDispatcherTools.fn.sh --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log]
-📘 syntax: AgentDispatcherTools.fn.sh --supervise-guide <run-id> [--text <text>|--from-file <path>]
-📘 syntax: AgentDispatcherTools.fn.sh --supervise-checklist-add <run-id> (--item <text>)...
-📘 syntax: AgentDispatcherTools.fn.sh --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-guide <run-id> [--text <text>|--from-file <path>] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-checklist-add <run-id> (--item <text>)... [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-close-orphans [--execute] [--workspace <path>]...
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-commit-transcripts [--dry-run]
 📘 syntax: AgentDispatcherTools.fn.sh [--help-syntax [<op>]]
@@ -149,7 +150,11 @@
 			scheduler's own case) and an item waiting for its reviewer. The sleep
 			is `SUPERVISE_RESUME_SECONDS`, else `DUTY_RESTART_SECONDS`, else 300.
 
-		--supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log]
+		--supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]
+			A run of another workspace is read with `--workspace <path>`, as the scan reads
+			the workspaces it is given. The same option stands on --supervise-guide,
+			--supervise-checklist-add and --supervise-fault. A workspace this machine does
+			not know is refused, and nothing is done.
 			One run read by its id, as its supervisor reads it, one section a row:
 			`run` the record's member, session, status and liveness; `transcript`
 			and its last `--tail` lines (40); `thread` and its last
@@ -159,23 +164,33 @@
 			sections are not wanted. The console's own --manager-session-* reads
 			are refused to a member's session, and a supervisor is one.
 
-		--supervise-guide <run-id> [--text <text>|--from-file <path>]
+		--supervise-guide <run-id> [--text <text>|--from-file <path>] [--workspace <path>]
 			Guidance posted into that run's session thread, as magic-coordinator,
 			addressed to its member. A run with no thread takes the message in its
 			session chat file. The text is the standard input where neither
 			option gives it; an empty one is refused.
 
-		--supervise-checklist-add <run-id> (--item <text>)...
+		--supervise-checklist-add <run-id> (--item <text>)... [--workspace <path>]
 			Pending items added at the end of that run's own CheckList, under the
 			list's own lock, and noted in `<member>.checklist.md.added` so the
 			member's next whole-list write keeps them. `CheckList append` does the
 			same for a session the caller started; a supervisor founds none.
 
-		--supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>]
+		--supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>] [--workspace <path>]
 			A tooling fault filed as an inquiry in that member's inbox, with the
 			run, its member, its session and its dispatch item above the evidence,
 			and one line in that item's `## Decisions` linking the two. The
 			evidence is the standard input where `--from-file` gives none.
+
+		--supervise-close-orphans [--execute] [--workspace <path>]...
+			The test rigs the scan reports as `rig-orphan`: a control thread alive
+			inside a run's own output folder after that run's record closed. One
+			line each, ending in a verdict. Without `--execute` it is a readout:
+			`would-close`, `kept-unverified` where the pid file holds no began
+			moment, `kept-mismatch` where the pid now belongs to another process.
+			With `--execute` a `would-close` one is sent TERM and reads `closed`,
+			or `still-alive` after two seconds; nothing is killed harder. The pid
+			is checked against the process before any signal.
 
 		--supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
 			One file copied from one run's sandbox to another's, always a real copy

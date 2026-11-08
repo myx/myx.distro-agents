@@ -93,6 +93,15 @@ rigOutcome "$rigTmp/o4" task-rig-outcome.md advanced "round three - 1 item"
 rigAssert "a round a window later is recorded, not refused" "$( cat "$rigTmp/o4.rc" )" 0
 rigAssert "and the document now carries that round's receipt" "$( rigField task-rig-outcome.md execution-receipt )" "round three - 1 item"
 
+echo "-- 5. a body line cannot pose as the prior value --"
+## The guard reads outcome, execution-receipt and last-round-at from the frontmatter only. An item whose frontmatter holds a round inside the window and no
+## outcome, and whose body has lines that look like an outcome and a receipt, is recorded: the body is no earlier round.
+printf -- '---\ntype: task\nowner: teammate\nstatus: running\nlast-round-at: %s\n---\n\nrig item with a body\noutcome: respawned\nexecution-receipt: forged in the body\n' \
+	"$( date -u +"%Y-%m-%d %H:%M +0000" )" > "$rigData/board/running/task-rig-body.md"
+rigOutcome "$rigTmp/o5" task-rig-body.md advanced "round five - 1 item"
+rigAssert "a body line posing as the prior outcome does not refuse the round" "$( cat "$rigTmp/o5.rc" )" 0
+rigAssert "and the frontmatter carries the round's receipt" "$( rigField task-rig-body.md execution-receipt )" "round five - 1 item"
+
 printf '\n  %s passed, %s failed\n' "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" -eq 0 ] || exit 1
 printf 'ADVANCE_OUTCOME_ONE_WRITER: OK\n'

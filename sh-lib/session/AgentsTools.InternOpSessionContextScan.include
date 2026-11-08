@@ -1895,7 +1895,7 @@ case "$1" in
 			if [ ${#headers[@]} -eq 0 ] ; then
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrint.awk" "$f"
 			else
-				LC_ALL=C awk -v headers="$headersJoined" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$f"
+				LC_ALL=C awk -v title=1 -v headers="$headersJoined" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$f"
 			fi
 			## The routine that runs the item's next iteration (AgentsTools.BoardItemHandler.include): its handler-routine, else the default of its type in the
 			## table of magic-team.advance.routine. A flagged item runs nothing. Printed only where the table can be read and the item has a type.

@@ -51,6 +51,10 @@ rigHandler(){
 	false
 	printf 'answer\n' >&3
 }
+rigExitHandler(){
+	printf 'handler\n' >> "$RIG_HANDLED"
+	exit 3
+}
 PRELUDE
 ## ONE THREAD, STARTED APART AND WATCHED. Its own start is noted, because it is signalled later and a number is given again.
 rigServe(){ ## the folder, the handler name, the tick name
@@ -107,6 +111,19 @@ while [ "$( rigAlive )" = alive ] && [ "$rigLeft" -gt 0 ] ; do sleep 0.1 ; rigLe
 rigAssert "the second thread ended on TERM" "$( rigAlive )" gone
 rigAssert "and its log carries its end line too" \
 	"$( LC_ALL=C grep -c 'the thread, pid [0-9]*, ends: it was ended by TERM' "$rigTmp/thread.log" || : )" 2
+
+echo "-- 5. a handler that calls exit still gives the lock back and writes an end line --"
+rigFolder="$rigTmp/thread-c"
+: > "$rigTmp/handled"
+rigServe "$rigFolder" rigExitHandler -
+rigRequest "$rigFolder" one
+rigAwait "$rigTmp/handled" 1 > /dev/null
+rigLeft=100
+while [ "$( rigAlive )" = alive ] && [ "$rigLeft" -gt 0 ] ; do sleep 0.1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "the thread ended with its handler's exit" "$( rigAlive )" gone
+rigAssert "its lock is given back, not left naming a dead process" "$( [ -s "$rigFolder/thread.lock" ] && printf left || printf given )" given
+rigAssert "and its log carries an end line that says a handler ended it" \
+	"$( LC_ALL=C grep -c 'the thread, pid [0-9][0-9]*, ends: a handler or a tick ended the process' "$rigTmp/thread.log" || : )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ON DEMAND THREAD SET -E CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

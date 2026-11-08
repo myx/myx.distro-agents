@@ -132,7 +132,7 @@ AgentsToolsAtlassianCall() {
 	local configNewline=$'\n'
 	case "$siteHost$userEmail$apiToken" in
 		*"$configNewline"*)
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in the ${credentialScope:-$actingMember} scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in the ${credentialScope:-$actingMember} scope contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
 			return 1
 		;;
 	esac

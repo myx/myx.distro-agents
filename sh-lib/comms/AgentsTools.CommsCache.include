@@ -124,12 +124,19 @@ AgentsToolsCommsCachePullGive(){ ## cache folder
 
 ## THE PULL ANOTHER HOLDS, waited for: a read that misses where another pull of the same channel runs waits for that one, at most
 ## its bound (default 30 s), by the shell itself, and is then served from what it brought. rc 0 once no pull holds the channel.
+## A pull older than 60 s is dead, as AgentsToolsCommsCachePullTake reads it, so it is not waited for, and no wait lasts longer than its life.
 AgentsToolsCommsCachePullAwait(){ ## cache folder, bound in seconds (optional)
-	local awaitUntil=$(( SECONDS + ${2:-30} ))
+	local awaitBound="${2:-30}" awaitAt="" awaitLeft awaitUntil
+	{ read -r awaitAt ; } 2> /dev/null < "$1/.pulling.txt" || return 0
+	case "$awaitAt" in ''|*[!0-9]*) awaitAt=0 ;; esac
+	awaitLeft=$(( 60 - ( $( date +%s ) - awaitAt ) ))
+	[ "$awaitLeft" -gt 0 ] || return 0
+	[ "$awaitBound" -le "$awaitLeft" ] || awaitBound="$awaitLeft"
+	awaitUntil=$(( SECONDS + awaitBound ))
 	while [ -f "$1/.pulling.txt" ] && [ "$SECONDS" -lt "$awaitUntil" ] ; do
 		sleep 1 2> /dev/null || return 1
 	done
-	[ ! -f "$1/.pulling.txt" ]
+	[ ! -f "$1/.pulling.txt" ] || [ $(( $( date +%s ) - awaitAt )) -ge 60 ]
 }
 
 ## A WHOLE SLACK THREAD THROUGH THE CACHE, slack/slack-<channel>-<thread ts>, rendered into a file: served from it within its TTL,
@@ -211,7 +218,7 @@ AgentsToolsCommsCacheOutboxAppend(){ ## cache folder, session, block, member, id
 ## passes, so the pass that drains it still takes the console's messages and reads the threads.
 AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no bound)
 	local pushDir="$1" pushNow="$2" pushMost="${3:-0}" pushLock="" pushSent=0 pushRetry=0 pushTries=0 pushNo pushWork pushRc=0 pushWhy pushSep=$'\037' pushFull=""
-	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload pushPauseDir pushPauseUntil
+	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload pushPauseDir pushPauseUntil pushMerged
 	case "$pushMost" in ''|*[!0123456789]*) pushMost=0 ;; esac
 	agentsCommsCachePushMade=0
 	[ -f "$pushDir/outbox.pushing.txt" ] || [ -s "$pushDir/outbox.messages.txt" ] || return 0
@@ -230,6 +237,17 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 		fi
 		{ read -r pushSent pushRetry pushTries < "$pushDir/.push.txt" ; } 2> /dev/null || :
 		case "$pushSent:$pushRetry:$pushTries" in *[!0-9:]*|:*|*::*|*:) pushSent=0 pushRetry=0 pushTries=0 ;; esac
+		## THE TRACKING POSTS OF A FILE ARE JOINED, once for the file, under this lock: consecutive posts of one member's activity become one message up to Slack's
+		## weight, so a backlog drains at the rate of messages the channel takes and not at one line a message (AgentsCommsOutboxCoalesce.awk). The posts already
+		## sent are kept as they are, so `sent` still points at the same record. A merge that fails leaves the file as it was.
+		if [ ! -f "$pushDir/.merged.txt" ] ; then
+			pushMerged="$( mktemp "$pushDir/.merge.XXXXXX" 2> /dev/null )" || pushMerged=""
+			if [ -n "$pushMerged" ] ; then
+				LC_ALL=C awk -v sent="$pushSent" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCommsOutboxCoalesce.awk" "$pushDir/outbox.pushing.txt" > "$pushMerged" 2> /dev/null \
+					&& [ -s "$pushMerged" ] && mv -f "$pushMerged" "$pushDir/outbox.pushing.txt" 2> /dev/null || rm -f "$pushMerged"
+			fi
+			: > "$pushDir/.merged.txt" 2> /dev/null || :
+		fi
 		[ "$pushNow" -ge "$pushRetry" ] || break
 		pushWork="$( mktemp -d "$pushDir/.post.XXXXXX" 2> /dev/null )" || break
 		pushNo=0 pushRc=0
@@ -275,7 +293,7 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 		[ "$pushRc" != 1 ] || break
 		[ -z "$pushFull" ] || break
 		## All of it sent: the outbox is cut back, and the next one, where a send came meanwhile, is taken.
-		rm -f "$pushDir/outbox.pushing.txt" "$pushDir/.push.txt"
+		rm -f "$pushDir/outbox.pushing.txt" "$pushDir/.push.txt" "$pushDir/.merged.txt"
 	done
 	rm -f "$pushDir/.pushlock.txt"
 	return 0
@@ -285,7 +303,8 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 ## is the posts of the whole pass, spent channel by channel in turn: a backlog of one channel never spends it all, and a workspace with
 ## many channels still makes only that many posts, so the pass that drains them still takes the console's messages and reads the threads.
 AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
-	local allOut allSeen=" " allMost="${2:-0}" allLeft
+	local allOut allSeen=" " allMost="${2:-0}" allLeft allMade=0
+	agentsCommsCachePushAllMade=0
 	[ -n "${MMDAPP:-}" ] || return 0
 	case "$allMost" in ''|*[!0123456789]*) allMost=0 ;; esac
 	allLeft="$allMost"
@@ -295,8 +314,11 @@ AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
 		allSeen="$allSeen${allOut%/*} "
 		[ "$allMost" = 0 ] || [ "$allLeft" -gt 0 ] || break
 		AgentsToolsCommsCachePush "${allOut%/*}" "$1" "$allLeft"
+		allMade=$(( allMade + agentsCommsCachePushMade ))
 		[ "$allMost" = 0 ] || allLeft=$(( allLeft - agentsCommsCachePushMade ))
 	done
+	## What the pass posted in all, for the thread's own end: a thread that is posting is at work.
+	agentsCommsCachePushAllMade="$allMade"
 	return 0
 }
 

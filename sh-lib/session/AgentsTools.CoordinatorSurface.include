@@ -66,6 +66,28 @@ AgentsToolsSurfaceSpawns(){ ## the operation, its arguments...
 AgentsToolsSurfaceFlags(){ ## the operation, its arguments...
 	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
 	AgentsToolsSurfaceTool DistroAgentsDispatcher --current-flags
+	## The pace of a tool call on this rig, the measure a start is gated on (the median against 7 s), read with the flags on every loop.
+	( type AgentsToolsSchedulePaceText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 ; AgentsToolsSchedulePaceText 2> /dev/null ) || :
+	## The members' own flags that hold now, a line each as `<flag>: <member> (<seconds left>)`, or `member flags: none` where there is none.
+	(
+		type AgentsToolsScheduleMemberFlag > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || exit 0
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" > /dev/null 2>&1 || exit 0
+		memberEpoch="$( date +%s )"
+		memberShown=""
+		while IFS=$'\t' read -r memberName memberDir ; do
+			[ -n "$memberDir" ] || continue
+			case "$memberName" in human-owner|magic-team) continue ;; esac
+			for memberFlag in vacation overtime ; do
+				memberLeft="$( AgentsToolsScheduleMemberFlag "$memberFlag" "$memberName" "$memberEpoch" 2> /dev/null )"
+				case "$memberLeft" in
+					'') ;;
+					on) printf '%s: %s\n' "$memberFlag" "$memberName" ; memberShown=yes ;;
+					*) printf '%s: %s (%s seconds left)\n' "$memberFlag" "$memberName" "$memberLeft" ; memberShown=yes ;;
+				esac
+			done
+		done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
+		[ -n "$memberShown" ] || printf 'member flags: none\n'
+	) || :
 }
 
 ## --tasks: the board as the coordinator reads it: the count of each state and the active items with their tokens, the board's own readers.

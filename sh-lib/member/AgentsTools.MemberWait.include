@@ -13,7 +13,10 @@ agentsWaitKindLocal="file inbox board process chat replies checklist wake"
 ## The local kinds minus chat and replies, which still make a real Slack call and need the bound wrapper.
 agentsWaitKindUnbounded="file inbox board process checklist wake"
 ## The seconds of the tick, when no interval was named: an arrival in a local source is woken on within it.
-agentsWaitTickSeconds=3
+agentsWaitTickSeconds=10
+## The fallback nap of a wait that is woken by pokes (AgentsToolsWakePoke): the seconds it naps when no interval was named and none of its sources is a file,
+## a process or an ask, which no writer pokes. The chat file and the wake marker end the nap at once, so only a writer that does not poke waits this long.
+agentsWaitIdleSeconds="${MDAT_WAIT_IDLE_SECONDS:-30}"
 ## Kinds whose rendering holds arrivals only start from an empty baseline, so an arrival already there returns at once.
 agentsWaitKindEmptyBaseline="ask replies chat scan tagged dms mentions"
 ## The kinds of THE FLOOR: delivered ahead of every other source of a return, and by every plain Wait.
@@ -52,7 +55,7 @@ AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the fl
 	type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 	idleDefaults=" slack:magic-team slack:human-owner $( AgentsToolsWaitDefaultSources 2> /dev/null | LC_ALL=C tr '\n' ' ' ) "
 	for idleOne in $1 ; do
-		case "$idleOne" in replies:*|chat:*|dms:*|mentions:*|wake:*|scan:*|tagged:*) continue ;; esac
+		case "$idleOne" in replies:*|chat:*|dms:*|mentions:*|wake:*|scan:*|tagged:*|inbox:*|board:*|checklist*) continue ;; esac
 		case "$idleDefaults" in *" $idleOne "*) continue ;; esac
 		return 0
 	done
@@ -593,9 +596,10 @@ case "$1" in
 				;;
 			esac
 		done
-		if [ -n "$waitCollect" ] && { [ -n "$waitMode" ] || [ -n "$waitTimeout" ] ; } ; then
+		## A --wait-timeout that names the window itself says nothing new and is taken (the work-duty scan passes both); another bound is refused.
+		if [ -n "$waitCollect" ] && { [ -n "$waitMode" ] || { [ -n "$waitTimeout" ] && [ "$waitTimeout" != "$waitCollect" ] ; } ; } ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-collect is a call of its own: the window is its bound, and the floors it resumes from are the pointers of the session (session.chat.pointers), not a stored wait. It takes no --wait-timeout and no mode. Nothing was waited on." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-collect is a call of its own: the window is its bound, and the floors it resumes from are the pointers of the session (session.chat.pointers), not a stored wait. It takes no mode, and no --wait-timeout other than its own window. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 		[ -z "$waitCollect" ] || waitTimeout="$waitCollect"

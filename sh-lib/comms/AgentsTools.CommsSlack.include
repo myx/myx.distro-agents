@@ -885,7 +885,7 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 			local targetKey=""
 			targetKey="$( AgentsToolsCommsChannelSlackKey "${target%%:*}" )" || targetKey=""
 			if [ -n "$targetKey" ] ; then
-				echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- check the $targetKey setting" >&2
 			else
 				echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
 			fi

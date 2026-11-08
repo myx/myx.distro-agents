@@ -549,7 +549,7 @@ case "$1" in
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 		reportTo="$( AgentsToolsConfigOption human-owner --select EMAIL_USER 2>/dev/null )"
 		if [ -z "$reportTo" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --send-report: EMAIL_USER is not set in human-owner's own scope in .local/.agents -- nowhere to send the report" >&2
+			echo "⛔ ERROR: $MDSC_CMD --send-report: EMAIL_USER is not set in human-owner's own scope -- nowhere to send the report" >&2
 			set +e ; return 1
 		fi
 		local reportStamp reportSubject reportBody

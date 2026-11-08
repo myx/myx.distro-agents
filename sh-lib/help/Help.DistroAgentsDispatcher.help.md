@@ -9,7 +9,7 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --session-record [--team-member <team-member>] <session-id> [--run]
 📘 syntax: DistroAgentsDispatcher.fn.sh --routine-completed [--team-member <team-member>] <routine> --since \"<YYYY-MM-DD HH:MM>\"
 📘 syntax: DistroAgentsDispatcher.fn.sh --current-flags [--team-member <team-member>]
-📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>] [--days <n>]
+📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>] [--days <n>] [--member <member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --stop-sessions [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --close-failed-sessions [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --set-country [--team-member <team-member>] <iso-code-2-or-3-letters>
@@ -90,7 +90,7 @@
 			worktime, weekend, holidays, emergency, overtime, learning and
 			supervised, a line each, `<flag>: yes|no`. Read-only.
 
-		--override-flag [--no] <flag> [<ttl>] [--days <n>]
+		--override-flag [--no] <flag> [<ttl>] [--days <n>] [--member <member>]
 			An override of a flag: emergency, with a TTL; overtime; holidays, with a
 			TTL or until cleared; holding, with a TTL or until cleared, under which
 			the schedule starts no routine, duty or supervision; or learning; or supervised, which while it is on
@@ -98,8 +98,13 @@
 			override. `--days <n>` belongs to overtime alone and ends it n worktime
 			starts ahead, the earlier end winning against a TTL.
 			A flag set here asks the schedule thread once, and the thread stays while
-			a flag that opens duties holds. `overtime` opens every standing member's
-			duty, as worktime does. `emergency` opens the coordinator's, and another
+			a flag that opens duties holds. `overtime` opens the duty of every magic
+			member, as worktime does for every standing member (a magic or keeper member;
+			no other member holds a duty). `vacation --member <member>` and
+			`overtime --member <member>` are one member's own flags, each with a TTL or
+			until cleared: a member on vacation holds no duty and the schedule starts
+			nothing for it, and a member on overtime holds a duty out of worktime.
+			`--days` is not for them. `emergency` opens the coordinator's, and another
 			member's only for a direct task from the coordinator or a pending board
 			task it owns marked `mark: emergency` or `mark: urgent`.
 

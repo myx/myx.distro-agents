@@ -43,13 +43,13 @@ AgentsToolsCommsTrelloCheck(){ ## <team-member>
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 	[ -n "$trelloToken" ] || trelloToken="$( AgentsToolsConfigOption "$memberName" --select TRELLO_TOKEN )" || trelloToken=""
 	if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --trello-check: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-check: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope" >&2
 		set +e ; return 1
 	fi
 	local trelloNewline=$'\n'
 	case "$trelloKey$trelloToken" in
 		*"$trelloNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --trello-check: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second directive line and silently hiding a corrupted credential is worse than failing" >&2
+			echo "⛔ ERROR: $MDSC_CMD --trello-check: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second directive line and silently hiding a corrupted credential is worse than failing" >&2
 			set +e ; return 1
 		;;
 	esac
@@ -92,13 +92,13 @@ AgentsToolsCommsTrelloWhoami(){ ## <team-member>
 	trelloKey="$( AgentsToolsConfigOption "$memberName" --select TRELLO_KEY )"
 	trelloToken="$( AgentsToolsConfigOption "$memberName" --select TRELLO_TOKEN )"
 	if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --trello-whoami: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-whoami: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope" >&2
 		set +e ; return 1
 	fi
 	local trelloNewline=$'\n'
 	case "$trelloKey$trelloToken" in
 		*"$trelloNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --trello-whoami: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+			echo "⛔ ERROR: $MDSC_CMD --trello-whoami: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
 			set +e ; return 1
 		;;
 	esac
@@ -201,13 +201,13 @@ case "$1" in
 			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 			[ -n "$trelloToken" ] || trelloToken="$( AgentsToolsConfigOption "$memberName" --select TRELLO_TOKEN )" || trelloToken=""
 			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope" >&2
 				set +e ; return 1
 			fi
 			local trelloNewline=$'\n'
 			case "$trelloKey$trelloToken" in
 				*"$trelloNewline"*)
-					echo "⛔ ERROR: $MDSC_CMD --trello-read: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+					echo "⛔ ERROR: $MDSC_CMD --trello-read: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -343,13 +343,13 @@ case "$1" in
 			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 			[ -n "$trelloToken" ] || trelloToken="$( AgentsToolsConfigOption "$callingMember" --select TRELLO_TOKEN )" || trelloToken=""
 			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD $postOp: TRELLO_KEY/TRELLO_TOKEN not fully set in ${callingMember}'s own scope in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD $postOp: TRELLO_KEY/TRELLO_TOKEN not fully set in ${callingMember}'s own scope" >&2
 				set +e ; return 1
 			fi
 			local trelloNewline=$'\n'
 			case "$trelloKey$trelloToken" in
 				*"$trelloNewline"*)
-					echo "⛔ ERROR: $MDSC_CMD $postOp: TRELLO_KEY/TRELLO_TOKEN in ${callingMember}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+					echo "⛔ ERROR: $MDSC_CMD $postOp: TRELLO_KEY/TRELLO_TOKEN in ${callingMember}'s own scope contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
 					set +e ; return 1
 				;;
 			esac

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseWorkspace.include -- `--workspace <path>` on the supervisor's run operations. Sourced, never run; functions only.
+##
+## WHY. A supervisor reads and guides a run by its id, and looks for the run in its own workspace. The root harness supervises the
+## rigs it is not in, so the read, the guide, the CheckList add, the fault and the copy could never reach a run of a rig: only the scan, the
+## resume and the transcript commit took a workspace. This gives the other five the same option, as the scan has it: the run is looked for in that
+## workspace, whose team data store the operation then works in. A workspace this machine does not know is refused, and nothing is done.
+##
+
+## Whether an argument is the option itself: rc 0 where one is `--workspace` exactly, so a text that holds the word is no option.
+AgentsToolsSuperviseWorkspaceGiven(){ ## the arguments...
+	local givenArg
+	for givenArg in "$@" ; do
+		[ "$givenArg" != "--workspace" ] || return 0
+	done
+	return 1
+}
+
+## <operation function> <its arguments...> where `--workspace <path>` may stand anywhere: the function runs for that workspace, in a subshell, so this
+## session's own MMDAPP and team data are never moved. With no `--workspace` it runs here as it always did.
+AgentsToolsSuperviseInWorkspace(){ ## function, arguments...
+	local onFn="$1" onWs="" onRoot="" onArgs=()
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--workspace)
+				[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --workspace requires a path" >&2 ; return 1 ; }
+				onWs="${2%/}" ; shift 2
+			;;
+			*) onArgs+=( "$1" ) ; shift ;;
+		esac
+	done
+	if [ -z "$onWs" ] || [ "$onWs" = "${MMDAPP%/}" ] ; then
+		"$onFn" ${onArgs[@]+"${onArgs[@]}"}
+		return $?
+	fi
+	case "$onWs" in /*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: --workspace is an absolute path, got: $onWs" >&2 ; return 1 ;; esac
+	type AgentsToolsCommonWorkspaceKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+	AgentsToolsCommonWorkspaceKnown "$onWs" || { echo "$MDSC_CMD: ⛔ ERROR: --workspace $onWs is no workspace this machine knows -- nothing was done" >&2 ; return 1 ; }
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+	onRoot="$( AgentsToolsTeamDataRootOf "$onWs" )" || { echo "$MDSC_CMD: ⛔ ERROR: --workspace $onWs keeps no team data store -- nothing was done" >&2 ; return 1 ; }
+	(
+		export MMDAPP="$onWs" MDAT_DATA_ROOT="$onRoot"
+		"$onFn" ${onArgs[@]+"${onArgs[@]}"}
+	)
+}

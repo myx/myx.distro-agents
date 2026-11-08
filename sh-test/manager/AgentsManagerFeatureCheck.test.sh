@@ -109,6 +109,13 @@ rigRun "" --manager-feature-list
 rigAssert "the features and the parts: the lancedb feature, the local AI feature, and a row for each of the four models, each of eleven fields" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1 ":" NF }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0 feature:11 feature:11 part:11 part:11 part:11 part:11 "
 rigAssert "local AI, from its check: broken as its first line says, the bytes on disk, the memory of the parts that run (116 and 60), running, and no command of its own" "$( rigRow feature "$rigAi_" 2-11 | LC_ALL=C cut -d' ' -f1-8 )" "setup.feature-local-ai - broken 5000 176 yes - -"
 rigAssert "its detail is the host and the profile, whitespace read _" "$( rigRow feature "$rigAi_" 11 )" "host.os=FreeBSD;_host.profile=shared-cpu"
+## S7.25: the local console's own tool answers the same list, through the same include, so its `Optional Features` is not empty.
+rigLocalTool="$rigOrigin/myx/myx.distro-.local/sh-scripts/DistroLocalTools.fn.sh"
+cp "$rigTmp/out" "$rigTmp/out.agents" ; cp "$rigState/calls" "$rigTmp/calls.agents"
+rigToolKept="$rigTool" ; rigTool="$rigLocalTool" ; rigRun "" --manager-feature-list ; rigTool="$rigToolKept"
+rigAssert "DistroLocalTools --manager-feature-list ends 0 and prints the rows the agents tool printed (S7.25)" "$rigRc $( cmp -s "$rigTmp/out" "$rigTmp/out.agents" && printf same || printf differ )" "0 same"
+## The rows and the calls of the agents run stand again, so what follows reads that run alone.
+cp "$rigTmp/out.agents" "$rigTmp/out" ; cp "$rigTmp/calls.agents" "$rigState/calls"
 rigAssert "chat-a installed: its bytes, its memory, running, an update and an uninstall and no install" "$( rigRow part chat-a 4-10 )" "installed 100 116 yes - $rigCmd update $rigAi_ chat-a $rigCmd uninstall $rigAi_ chat-a"
 rigAssert "chat-b broken: the same two commands, and why in its detail" "$( rigRow part chat-b 4-4 ) $( rigRow part chat-b 11 )" "broken part=chat;_why=the_file_size_differs_from_the_manifest"
 rigAssert "stt-a not installed: only an install, nothing running, the memory it would take" "$( rigRow part stt-a 4-10 )" "not-installed 0 50 no $rigCmd install $rigAi_ stt-a - -"

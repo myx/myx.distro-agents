@@ -23,6 +23,10 @@ rigRefuse(){
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDutyHandbackReadyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
+## An origin that holds this rig is refused: the rig copies its origin whole, so a rig inside it would be copied into itself.
+case "$rigTmp/" in
+	"$( cd "${rigHere%/myx/myx.distro-agents/sh-lib}" && pwd -P )/"*) rmdir "$rigTmp" 2> /dev/null ; rigRefuse "the origin ${rigHere%/myx/myx.distro-agents/sh-lib} holds this rig's folder, so its copy would copy the rig into itself; run the check from the source tree (MDLT_ORIGIN)" ;;
+esac
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"

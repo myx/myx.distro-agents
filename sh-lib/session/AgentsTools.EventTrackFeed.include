@@ -109,6 +109,10 @@ AgentsEventTrackFeedDrop(){ ## taken feed, bytes read from it
 ## whole, renamed to feed.posting, and removes that at the next poll once every line in it is
 ## read and so held here to post: the file on disk only ever holds what is not yet posted.
 AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the session's thread
+	## THE COMMS SERVICE THREAD POSTS THE FEED (AgentsToolsCommsActivityPass): it takes each live run's feed whole once a window and posts it as one
+	## message, in its own process, so no run keeps a poster that polls every 4 seconds and starts a tooling process for each post. The writers of the feed are
+	## unchanged. A caller that sets MDAT_SPAWN_PROXY_OWN_FEED has the poster below, as it was.
+	[ -n "${MDAT_SPAWN_PROXY_OWN_FEED:-}" ] || return 0
 	local LC_ALL=C
 	local runFeed runTaken runOffset=0 runSize runNew runOpen="" runWas runSince=0 runPoll=4 runNow runCut runNap
 	[ -n "$3" ] && [ -n "${MMDAPP:-}" ] || return 0

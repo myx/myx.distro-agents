@@ -16,7 +16,10 @@
 ##
 
 ## --supervise-guide <run-id> [--text <text> | --from-file <path> | standard input]
-AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>]
+type AgentsToolsSuperviseInWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseWorkspace.include"
+AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>] [--workspace <path>]
+	## `--workspace <path>`: the run is of that workspace, and this runs again there without it (AgentsTools.SuperviseWorkspace.include).
+	! AgentsToolsSuperviseWorkspaceGiven "$@" || { AgentsToolsSuperviseInWorkspace AgentsToolsSuperviseGuide "$@" ; return $? ; }
 	local guideWs="${MMDAPP%/}" guideRun="" guideText="" guideFrom="" guideRecord guideMember guideSession guideFolder
 	local guideThread guideBody guideDir guideOut guideKept
 	while [ $# -gt 0 ] ; do
@@ -71,7 +74,8 @@ AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>]
 }
 
 ## --supervise-checklist-add <run-id> (--item <text>)...: pending items at the end of that run's own list.
-AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)...
+AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace <path>]
+	! AgentsToolsSuperviseWorkspaceGiven "$@" || { AgentsToolsSuperviseInWorkspace AgentsToolsSuperviseChecklistAdd "$@" ; return $? ; }
 	local addWs="${MMDAPP%/}" addRun="" addRecord addMember addFolder addFile addLine addItem addCount=0 addKept addLeft=50
 	local addItems=()
 	while [ $# -gt 0 ] ; do
@@ -106,6 +110,11 @@ AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)...
 			|| addCount=$(( addCount + 1 ))
 	done
 	rmdir "$addFile.lock" 2> /dev/null || :
+	## AN ADDED ITEM WAKES ITS OWNER (S10.34): the run's wait naps on a fifo under its own workspace, and a poke there ends the nap.
+	if [ "$addCount" -gt 0 ] ; then
+		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+		! type AgentsToolsWakePoke > /dev/null 2>&1 || MMDAPP="$addWs" AgentsToolsWakePoke "$addMember" || :
+	fi
 	printf 'checklist\t%s\t%s\t%s\n' "$addRun" "$addMember" "$addCount"
 	return 0
 }

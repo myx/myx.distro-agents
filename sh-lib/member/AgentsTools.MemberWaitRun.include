@@ -58,6 +58,19 @@
 		## What a probe reads from is not what the baseline is taken against. With no cut-off, a source that can narrow reads from the wait's start.
 		local waitReadFloor="${waitSince:-$waitStart}"
 
+		## Sources are read shortest check interval first (S5.7), sorted once: no interval changes while one wait runs. The sort comes before
+		## the floors, the baselines and the probe functions below, which are kept by position: sorted after them, a source read the floor
+		## and the baseline of the one that had stood at its new index, and the session thread's new message was dropped as older than a
+		## floor that was never its own.
+		local roundPlan="" roundPlanSource roundPlanTtl roundPlanGap
+		for roundPlanSource in $waitSources ; do
+			roundPlanTtl="$( AgentsWaitTtlOwn "$roundPlanSource" )"
+			[ -n "$roundPlanTtl" ] || roundPlanTtl="$( AgentsWaitTtlOf "$roundPlanSource" )"
+			case "$roundPlanTtl" in ''|*[!0-9]*) roundPlanTtl=0 ;; esac
+			roundPlan="$roundPlan$( printf '%05d %s\n' "$roundPlanTtl" "$roundPlanSource" )"$'\n'
+		done
+		waitSources="$( printf '%s' "$roundPlan" | LC_ALL=C sort -n | LC_ALL=C awk 'NF { sub(/^[0-9]+ /, "") ; printf "%s%s", ( n++ ? " " : "" ), $0 }' ) "
+
 		## One floor per source, and a stored floor is never dropped. The rules that combine it with a since are in MAGIC.md.
 		local waitFloorOf=() waitFloorNew=() waitFloorsUsed="" floorIndex=0 floorStored floorStoredIndex floorStoredSource
 		[ "$waitMode" != "continue" ] || waitBaselineMode="stored"
@@ -152,15 +165,6 @@
 			{ exec 6<> "$waitDir/nap.fifo" ; } 2> /dev/null && waitNapFifo="yes"
 		fi
 
-		## Sources are read shortest check interval first (S5.7), sorted once: no interval changes while one wait runs.
-		local roundPlan="" roundPlanSource roundPlanTtl roundPlanGap
-		for roundPlanSource in $waitSources ; do
-			roundPlanTtl="$( AgentsWaitTtlOwn "$roundPlanSource" )"
-			[ -n "$roundPlanTtl" ] || roundPlanTtl="$( AgentsWaitTtlOf "$roundPlanSource" )"
-			case "$roundPlanTtl" in ''|*[!0-9]*) roundPlanTtl=0 ;; esac
-			roundPlan="$roundPlan$( printf '%05d %s\n' "$roundPlanTtl" "$roundPlanSource" )"$'\n'
-		done
-		waitSources="$( printf '%s' "$roundPlan" | LC_ALL=C sort -n | LC_ALL=C awk 'NF { sub(/^[0-9]+ /, "") ; printf "%s%s", ( n++ ? " " : "" ), $0 }' ) "
 		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
 		local waitProbeFailures="" waitReadSources="" waitRemindNext=0 waitProbedAt=() waitDeferred="" waitReturned="" waitPermissionErrors="" waitDetachedTask=""
 		## The TTL holds across Waits. A source is checked only once its TTL has passed since any Wait of the session last checked it.
@@ -205,10 +209,11 @@
 			roundNow=$(( waitStart + SECONDS - waitSecs0 ))
 			for roundSource in $waitSources ; do
 				roundIndex=$(( roundIndex + 1 ))
-				## A hit ends the round, so a slow source after it is never read and is named WAIT-NEVER-READ.
-				[ "$waitOutcome" != "RECEIVED" ] || break
+				## A round reads every source it holds (MAGIC.md, THE RETURN BOUND): a hit does not end it, so a return carries the floor and the
+				## messages of the other sources together. A scan alone stays unbegun once something has arrived (below).
 				## The bound is looked at before each source: one slow source read past it held the whole call past it.
-				[ -z "$waitDeadline" ] || [ $(( waitStart + SECONDS - waitSecs0 )) -lt "$waitDeadline" ] || break
+				## A timeout of 0 reads every source once and returns after the round (below): its bound is spent at the start, and a check here would read none.
+			[ -z "$waitDeadline" ] || [ "${waitTimeout:-0}" = "0" ] || [ $(( waitStart + SECONDS - waitSecs0 )) -lt "$waitDeadline" ] || break
 				roundKind="${roundSource%%:*}"
 				roundTarget="${roundSource#*:}"
 				roundFn="${waitRoundFn[$roundIndex]}"
@@ -418,6 +423,10 @@
 			## THE NAP IS THE NEAREST PENDING CHECK (S5.7), never longer than the caller's own interval: with nothing due a
 			## wait sleeps up to the first source that comes due, so a costly source is not re-read on every tick.
 			waitNap="$waitPoll"
+			## A wait woken by pokes naps its long fallback: the interval was not named, the nap is a fifo, and no source is one that no writer pokes.
+			if [ -n "$waitNapFifo" ] && [ "$waitBackoff" = "true" ] && [ "$waitNap" -lt "${agentsWaitIdleSeconds:-0}" ] 2> /dev/null ; then
+				case " $waitSources" in *" file:"*|*" process:"*|*" ask:"*) ;; *) waitNap="$agentsWaitIdleSeconds" ;; esac
+			fi
 			local napIndex=0 napNext="" napGap
 			for roundPlanSource in $waitSources ; do
 				napIndex=$(( napIndex + 1 ))

@@ -680,6 +680,17 @@ User steps are in [docs/installation.md](docs/installation.md).
   development layout through `../../skillset/magic-team/magic-team/`. It is
   read again from disk whenever it has changed.
   A panel change needs the install and a click on `Reload` in the panel; nothing is restarted.
+- **The panel's webview gets its CSP as a `<meta>` tag, and that is the only path it has.** A webview is
+  handed a string, not an HTTP response, so the team's header rule has no premise here. `panel.js` carries
+  one meta with `default-src 'none'` and no `script-src`, and sets `enableScripts: false` beside it
+  (`panel.js:122` and `:42`). Both keep the surface script-free; a header rewrite would drop the only
+  policy it holds. The meta form cannot carry `frame-ancestors`, `sandbox` or a report target, and the
+  host supplies those.
+- **The panel's identity block is read from the skillset on every draw.** `draw()` rebuilds it from
+  `magic-team.basic.md`'s `## Public Information` section, at the installed copy beside `panel.js` or at
+  the development layout through `../../skillset/magic-team/magic-team/` (`panel.js:38` to `:58`). To
+  change what the panel says about the team, edit that skillset section: the next redraw shows it, with
+  no extension change and no reload.
 - **VS Code skill discovery** (read from the installed build; re-read before relying on it):
   - one directory level, a literal `SKILL.md`; built-in locations are `.agents/skills`, `.github/skills`,
     `.claude/skills` per folder and the same three under `~`;
@@ -899,6 +910,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   the paths its declarations write follow it. A test that walks a level moves with it: a row leaving a level shifts
   both a pane line number and a key step, and a blanket shift of the key steps breaks the step taken after landing
   on a row. `AgentsManagerScreenFeaturesCheck` and `AgentsManagerScreenSubsystemsCheck` are the two that moved.
+- **An unmounted plugin takes its whole level with it, and a dropped place leaves no note.** `pluginsOrdered`
+  (`AgentsManagerScreen.Plugins.py:191`) takes a plugin only where its `mount` is absent or names a plugin
+  already built, and returns the rest as `PLUGIN_UNMOUNTED` (`:205`). Only the ordered plugins are walked into
+  the build (`:217`), so an unmounted one contributes no root, row, command or registry at all: its level is
+  absent rather than empty, and no row survives to press on. A place in a command's `on` that names a level of
+  an unregistered plugin expands to `None` (`pluginPlaceOf`, `:170`) and is filtered out at `:298` with no
+  entry in `PLUGIN_NOTES`. Those notes fire on two cases only, a read naming an unregistered plugin (`:265`)
+  and an `integrates` registry no plugin offers (`:283`), so the place drop is silent by construction.
+  Compare a command's place count across two apps before reading a difference as a mount fault: a plugin's
+  own `apps` declaration moves that count too.
 - **`--manager-session-list [--active]`** is the `--manager-*` family's first operation: it lists the
   coworking sessions with their runs, ending with one row of counters. It is the only one of the three
   session operations that rebuilds the `spawned-sessions` and `pending-replies` registries at every
@@ -3537,6 +3558,12 @@ flag would be a silent no-op there -- refused instead, same shape as the
   `state` is `<routine>-running`, each write refreshes `recheck-date`. Each is committed, and
   pushed where a remote is set, before it returns. The per-routine `--magic-<routine>-state-and-lock-upsert`
   are retired under the shim rule: gone from help and from the skillset, kept in the dispatcher.
+- **A whole-record state write carries only the headers its body names.** `--update-routine-state
+  --from-file <body>` rebuilds the frontmatter from the seven lock-owned fields plus the body's own
+  non-lock headers (`AgentsToolsRoutineStateWrite`). A header the body leaves out is gone, silently,
+  `phase` and `last-round` included. Copy the stored header block into any body you send, and use
+  `--header:upsert:<name>:<value>` alone for a header change, since `--from-file` and `--header:` are
+  refused together.
 - **`--magic-<routine>-close-state-and-unlock`** writes closing content, finished state and unlock in one
   `AgentsToolsItemUpsert` call. Unlock order: GC, lock write, one push, resync. No routine calls it any more: the spawner's unlock does, for the five standing
   notes (`AgentsToolsRoutineLockOwnWord`), so what it does under the lock
@@ -4663,6 +4690,16 @@ Each instrument states what it proves and its red recipe in its own header. What
   (`check-fixtures/rig-blocking-stand-in.include.sh`, `rigBlockingStandIn`): the
   kernel closes that end when the check's process ends, however it ends, and
   the stand-in exits by itself. No trap is relied on for it.
+- **Four rig traps make a check lie.** A stand-in session needs `--session-id <id>` on its own command
+  line, because the registry finds a session by it, and `bash -c 'sleep N'` alone execs the sleep and
+  loses the flag: `bash -c 'sleep 600; :' <id> --session-id <id>` keeps bash in place
+  (`check-fixtures/manager-screen.live-rig.include.sh`). A liveness answer is served from
+  `.local/agents/liveness/` for `AGENTS_LIVENESS_TTL` seconds, 30 by default, so a check that starts a
+  stand-in and reads at once fails by timing: settle first, or read again. A scratch origin holds only the
+  levelled packages, so a test that reads another package fails for no reason of the change: compare each
+  failure against a run on live from the same hour. A new empty
+  `.local/agents/spawned/.housekeeping.txt` breaks every "nothing else was written" assertion: treat it as
+  baseline, or assert on content rather than on the file set.
 - **A check run by hand stands in the machine's line of test runs.**
   `rigTempDir` (`check-fixtures/rig-temp.include.sh`) takes a ticket in
   `$HOME/.agents/magic-team/suite-queue` before it makes its folder, the same
@@ -4811,6 +4848,10 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - A tool that calls its own family's context, such as `DistroDeployContext`, loads that context both in its function and in its `.fn.sh` arm. Any console can call the function, and the arm sets it at the root. One comment line in the arm marks it as special. A generic tool needs only SystemContext, which every console has.
 - A change that replaces working code names what the old code does, what the new code does, and why, before it lands.
 - A change goes through a sandbox and `DistroAgentsTesting.fn.sh --apply-tool`. A file a running session reads is never rewritten in place.
+- **`--apply-tool` without `--repository` prints `LEVEL: OK` and levels nothing.** The default repository is
+  `$MMDAPP`, which holds no `source/` in a workspace without the packages. `level` skips every package it
+  cannot find live (`DistroAgentsTestingApplyLevel`) and still ends at `OK`. Pass `--repository` with the
+  root that holds `source/`, and read the returned state rather than its success word.
 - `DistroAgentsTools.fn.sh` loads its context at file scope. It is called as `Distro DistroAgentsTools`, by name, or by full path.
 
 **Organisations**

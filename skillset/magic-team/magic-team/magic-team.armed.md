@@ -744,7 +744,8 @@ One message, one topic. A message that wants something opens with the decision, 
 ## Every message is addressed, tagged, and sent on a real channel
 
 - Every message has an addressee. A message left in a session has not reached him.
-- `magic-coordinator` sends to the human-owner's direct conversation. Any other member sends to the team conversation or its session thread.
+- A question asked in a channel is answered in its thread there.
+- Team channels are open: people come there with questions, and stakeholders read them to stay calm. Anything secret or under NDA goes to the bot channel or a DM, never there.
 - An addressee is tagged with a real mention the platform renders, never a mention typed into the body. That is `--address-to`, or `address_to` on `SendMessage`, `SubagentHandback`, `ReportFindings`, `PushNotification` and `Artifact`, as the ask tools already take it. A thread post naming nobody there is headed `@here`. A member reads that as a post for nobody. Check what was stored, not the send's success. A send that cannot tag is a defect to report.
 
 ## A reply threads onto the message it answers

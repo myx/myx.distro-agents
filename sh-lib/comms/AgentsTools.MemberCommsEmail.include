@@ -45,7 +45,7 @@ AgentsToolsCommsEmailMarkSeen(){ ## <team-member> <uid>
 	imapUser="${EMAIL_USER:-}" ; [ -n "$imapUser" ] || imapUser="$( AgentsToolsConfigOption "$memberName" --select EMAIL_USER )" || imapUser=""
 	imapPass="${EMAIL_APP_PASSWORD:-}" ; [ -n "$imapPass" ] || imapPass="$( AgentsToolsConfigOption "$memberName" --select EMAIL_APP_PASSWORD )" || imapPass=""
 	if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --email-mark-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		echo "⛔ ERROR: $MDSC_CMD --email-mark-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope" >&2
 		set +e ; return 1
 	fi
 
@@ -129,7 +129,7 @@ case "$1" in
 			imapUser="${EMAIL_USER:-}" ; [ -n "$imapUser" ] || imapUser="$( AgentsToolsConfigOption "$memberName" --select EMAIL_USER )" || imapUser=""
 			imapPass="${EMAIL_APP_PASSWORD:-}" ; [ -n "$imapPass" ] || imapPass="$( AgentsToolsConfigOption "$memberName" --select EMAIL_APP_PASSWORD )" || imapPass=""
 			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope" >&2
 				set +e ; return 1
 			fi
 			## Password on curl's stdin, never argv and never the disk. /dev/fd/0
@@ -199,7 +199,7 @@ case "$1" in
 			imapUser="${EMAIL_USER:-}" ; [ -n "$imapUser" ] || imapUser="$( AgentsToolsConfigOption "$memberName" --select EMAIL_USER )" || imapUser=""
 			imapPass="${EMAIL_APP_PASSWORD:-}" ; [ -n "$imapPass" ] || imapPass="$( AgentsToolsConfigOption "$memberName" --select EMAIL_APP_PASSWORD )" || imapPass=""
 			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --email-read: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --email-read: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope" >&2
 				set +e ; return 1
 			fi
 
@@ -437,7 +437,7 @@ case "$1" in
 			smtpPort="${EMAIL_SMTP_PORT:-}" ; [ -n "$smtpPort" ] || smtpPort="$( AgentsToolsConfigOption "$memberName" --select EMAIL_SMTP_PORT )" || smtpPort=""
 
 			if [ -z "$emailUser" ] || [ -z "$emailPass" ] || [ -z "$smtpHost" ] || [ -z "$smtpPort" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --email-send: EMAIL_USER/EMAIL_APP_PASSWORD/EMAIL_SMTP_HOST/EMAIL_SMTP_PORT not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --email-send: EMAIL_USER/EMAIL_APP_PASSWORD/EMAIL_SMTP_HOST/EMAIL_SMTP_PORT not fully set in ${memberName}'s own scope" >&2
 				set +e ; return 1
 			fi
 

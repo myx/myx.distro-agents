@@ -418,7 +418,9 @@ echo "📘 syntax: DistroAgentsDispatcher.fn.sh --camunda-diagram-sync-stale [--
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --session-record [--team-member <team-member>] <session-id> [--run]" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --routine-completed [--team-member <team-member>] <routine> --since \"<YYYY-MM-DD HH:MM>\"" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --current-flags [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>] [--days <n>]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --override-flag [--team-member <team-member>] [--no] <flag> [<ttl>] [--days <n>] [--member <member>]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --stop-sessions [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --close-failed-sessions [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --set-country [--team-member <team-member>] <iso-code-2-or-3-letters>" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --set-timezone [--team-member <team-member>] <tz-spec>" >&2
 echo "📘 syntax: DistroAgentsDispatcher.fn.sh --set-worktime [--team-member <team-member>] <start HH:MM> <until HH:MM> <days-of-week>" >&2

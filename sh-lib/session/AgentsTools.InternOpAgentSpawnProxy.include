@@ -563,28 +563,38 @@ AgentsToolsSpawnProxyOpenQuestionWarn(){
 ## forward.
 AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
 	local batchThread="$1" batchMember="$2" batchLog="$3"
-	local batchIntervalSeconds=20 lastLineCount=0 totalLineCount newLines
+	## One post a minute for a run, where it was one every 20 s: a post is a process of the whole tooling, a render and a Slack message, and a
+	## hundred runs made that many a minute into one channel.
+	## THE SPAWNER ONLY ADDS TO THE LOG. The comms service thread reads what is new in a run's log and posts it, one post a run each minute
+	## (AgentsToolsCommsActivityPass), so no run keeps a poller of its own. The loop below is kept for a caller that sets MDAT_SPAWN_PROXY_OWN_ACTIVITY.
+	[ -n "${MDAT_SPAWN_PROXY_OWN_ACTIVITY:-}" ] || return 0
+	local batchIntervalSeconds=60 lastLineCount=0 batchRead batchNew newLines
 	[ -n "$batchThread" ] || return 0
 	while : ; do
 		sleep "$batchIntervalSeconds"
 		[ -f "$batchLog" ] || continue
-		## awk counts records, not newlines -- unlike wc -l, it doesn't miss a
-		## final line that has no trailing newline yet.
-		totalLineCount="$( LC_ALL=C awk 'END{ print NR + 0 }' "$batchLog" 2>/dev/null )"
-		[ -n "$totalLineCount" ] || totalLineCount=0
-		[ "$totalLineCount" -gt "$lastLineCount" ] || continue
+		## Only the lines after the last one seen go through awk: `tail` skips the rest in one cheap pass, where the log was read through awk
+		## twice a tick, whole. awk counts records, not newlines -- unlike wc -l, it doesn't miss a final line that has no trailing newline yet:
+		## its last line is the count of lines read, after \037.
 		## Every line break here falls right after a binary operator and right
 		## before a real token -- never right after "(" and never right before
 		## ")" on its own line. One-true-awk 20200816 (this fleet's floor, per
 		## reference/shell.md) hard-fails to parse either of those two shapes,
 		## confirmed by running this exact program against a sample log.
-		newLines="$( LC_ALL=C awk -v fromLine="$(( lastLineCount + 1 ))" '
-			NR >= fromLine && ( index( $0, "  -> tool: " ) == 1 ||
+		batchRead="$( tail -n +"$(( lastLineCount + 1 ))" "$batchLog" 2>/dev/null | LC_ALL=C awk '
+			{ n++ }
+			index( $0, "  -> tool: " ) == 1 ||
 				index( $0, "  <- tool result" ) == 1 ||
 				( substr( $0, 1, 3 ) == "   " && substr( $0, 4, 1 ) != " " &&
-				  substr( $0, 4, 4 ) != "🧠" ) )
-		' "$batchLog" )"
-		lastLineCount="$totalLineCount"
+				  substr( $0, 4, 4 ) != "🧠" ) { print }
+			END { printf "\037%d\n", n + 0 }
+		' )"
+		batchNew="${batchRead##*$'\037'}"
+		case "$batchNew" in ''|*[!0123456789]*) continue ;; esac
+		[ "$batchNew" -gt 0 ] || continue
+		newLines="${batchRead%$'\037'*}"
+		newLines="${newLines%$'\n'}"
+		lastLineCount=$(( lastLineCount + batchNew ))
 		[ -n "$newLines" ] || continue
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		printf '%s\n' "$newLines" | DistroAgentsTools --intern-op-event-track-post "$batchMember" "$batchThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" --from-stdin > /dev/null 2>&1 || :
@@ -1509,7 +1519,22 @@ case "$1" in
 		type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include" 2> /dev/null || :
 		spawnerMember="$( AgentsToolsTeamMember 2> /dev/null )" || spawnerMember=""
 		## Who started it, as the posts say: a starter that is no member names itself, read once and dropped so the agent's spawns never inherit it.
-		local spawnStartedBy="${MDAT_SPAWN_STARTED_BY:-$spawnerMember}"
+		local spawnStartedBy="${MDAT_SPAWN_STARTED_BY:-}" startedRecord="" startedRoutine="" startedFolder=""
+		## Else the calling session names itself: a spawned run by its member and routine, the root harness by its member.
+		if [ -z "$spawnStartedBy" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+			startedRecord="${MDAT_CALLER_WORKSPACE:-$MMDAPP}/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID/$MDAT_SPAWN_SESSION_ID.spawn.md"
+			startedRoutine="$( LC_ALL=C sed -n 's/^routine: //p' "$startedRecord" 2> /dev/null | head -1 )" || startedRoutine=""
+			[ -z "$spawnerMember" ] || [ -z "$startedRoutine" ] || spawnStartedBy="$spawnerMember, ${startedRoutine%.routine.md}"
+		elif [ -z "$spawnStartedBy" ] && [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] ; then
+			startedFolder="${MDAT_CALLER_WORKSPACE:-$MMDAPP}/.local/agents/sessions/$CLAUDE_CODE_SESSION_ID"
+			for startedRecord in "$startedFolder"/*.checklist.md ; do
+				[ -f "$startedRecord" ] || continue
+				startedRecord="${startedRecord##*/}"
+				spawnStartedBy="${startedRecord%.checklist.md}, root harness"
+				break
+			done
+		fi
+		[ -n "$spawnStartedBy" ] || spawnStartedBy="$spawnerMember"
 		unset MDAT_SPAWN_STARTED_BY
 		## The member that makes this spawn call: the calling session's own, else the one its
 		## caller said the call is made as (--calling-member). Kept on the spawn's record

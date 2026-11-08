@@ -296,6 +296,9 @@ case "$1" in
 		}
 		printf '%s\n' "$content" > "$target"
 		[ -z "$movedFrom" ] || rm -f -- "$movedFrom"
+		## The waits of the member are poked, so one that naps long still reads the new item at once (AgentsToolsWakePoke).
+		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
+		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke "$memberName"
 		echo "# $MDSC_CMD: member-inbox-upsert: wrote $itemName ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 
 		## The commit and the push are the team-data thread's (AgentsToolsTeamDataCommitPaths): this op writes files.

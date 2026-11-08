@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.StartedRecords.include -- the run records that say `status: spawn-started`, read from the `spawned/` tree at most once in MDAT_STARTED_RECORDS_SECONDS (30).
+##
+## WHY. Asking which runs are started is a read of every record of the tree: `grep` over `spawned/*/*.spawn.md`, which on a workspace of thousands of run folders is
+## the most expensive thing a pass can do, and a schedule pass, a start-pending pass and the comms thread each asked it, an item or a run at a time. Here it is asked once
+## and kept in `.local/agents/schedule/started.records`: the first line is the epoch it was read, the others the record paths. A reader checks each record it gets
+## for being live (AgentsToolsSessionRecordLive) as it did before, so a list up to 30 seconds old only misses a run that began in that time, which the next pass finds.
+## Sourced, never run. Functions only.
+##
+
+## The records of every work-duty run of any member (`routine: <member>.work-duty.routine.md`), kept the same way for MDAT_DUTY_RECORDS_SECONDS (10) in
+## `.local/agents/schedule/duty.records`. The schedule pass asks for a member's duty record once for each member of the roster, and each ask was a `grep`
+## of every record. A duty that began a moment ago is missing from a list that old, and the start's own held marker (AgentsToolsScheduleSpawn) is what
+## keeps a second duty from starting in that time.
+AgentsToolsSpawnedDutyRecords(){ ## -- the paths of the work-duty records, a line each
+	local dutyCache="$MMDAPP/.local/agents/schedule/duty.records" dutyTtl="${MDAT_DUTY_RECORDS_SECONDS:-10}" dutyAt="" dutyNow="" dutyList="" dutyTemp
+	case "$dutyTtl" in ''|*[!0123456789]*) dutyTtl=10 ;; esac
+	if [ "$dutyTtl" -gt 0 ] ; then
+		{ IFS= read -r dutyAt < "$dutyCache" ; } 2> /dev/null || dutyAt=""
+		dutyNow="$( date +%s )" || dutyNow=""
+		case "$dutyAt$dutyNow" in
+			''|*[!0123456789]*) ;;
+			*)
+				if [ "$(( dutyNow - dutyAt ))" -ge 0 ] && [ "$(( dutyNow - dutyAt ))" -lt "$dutyTtl" ] ; then
+					LC_ALL=C sed 1d "$dutyCache" 2> /dev/null
+					return 0
+				fi
+			;;
+		esac
+	fi
+	dutyList="$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )" || dutyList=""
+	if [ "$dutyTtl" -gt 0 ] && mkdir -p "${dutyCache%/*}" 2> /dev/null && dutyTemp="$( mktemp "$dutyCache.XXXXXX" 2> /dev/null )" ; then
+		{ printf '%s\n' "${dutyNow:-$( date +%s )}" ; [ -z "$dutyList" ] || printf '%s\n' "$dutyList" ; } > "$dutyTemp" 2> /dev/null \
+			&& mv -f "$dutyTemp" "$dutyCache" 2> /dev/null || rm -f "$dutyTemp" 2> /dev/null
+	fi
+	[ -z "$dutyList" ] || printf '%s\n' "$dutyList"
+	return 0
+}
+
+## The records of the runs of one routine, any status, kept like the lists above: `AgentsToolsSpawnedRecordsOfRoutine <routine file name> <cache name>`, the routine as it stands in
+## the record (`routine: <name>`, matched whole), kept in `.local/agents/schedule/routine.<cache name>.records` for MDAT_ROUTINE_RECORDS_SECONDS (10).
+AgentsToolsSpawnedRecordsOfRoutine(){ ## routine file name, cache name -- the paths, a line each
+	local routineName="$1" routineCache="$MMDAPP/.local/agents/schedule/routine.$2.records" routineTtl="${MDAT_ROUTINE_RECORDS_SECONDS:-10}" routineAt="" routineNow="" routineList="" routineTemp
+	case "$routineTtl" in ''|*[!0123456789]*) routineTtl=10 ;; esac
+	case "$2" in ''|*[!A-Za-z0-9._-]*) routineTtl=0 ;; esac
+	if [ "$routineTtl" -gt 0 ] ; then
+		{ IFS= read -r routineAt < "$routineCache" ; } 2> /dev/null || routineAt=""
+		routineNow="$( date +%s )" || routineNow=""
+		case "$routineAt$routineNow" in
+			''|*[!0123456789]*) ;;
+			*)
+				if [ "$(( routineNow - routineAt ))" -ge 0 ] && [ "$(( routineNow - routineAt ))" -lt "$routineTtl" ] ; then
+					LC_ALL=C sed 1d "$routineCache" 2> /dev/null
+					return 0
+				fi
+			;;
+		esac
+	fi
+	routineList="$( LC_ALL=C grep -l -x -F "routine: $routineName" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )" || routineList=""
+	if [ "$routineTtl" -gt 0 ] && mkdir -p "${routineCache%/*}" 2> /dev/null && routineTemp="$( mktemp "$routineCache.XXXXXX" 2> /dev/null )" ; then
+		{ printf '%s\n' "${routineNow:-$( date +%s )}" ; [ -z "$routineList" ] || printf '%s\n' "$routineList" ; } > "$routineTemp" 2> /dev/null \
+			&& mv -f "$routineTemp" "$routineCache" 2> /dev/null || rm -f "$routineTemp" 2> /dev/null
+	fi
+	[ -z "$routineList" ] || printf '%s\n' "$routineList"
+	return 0
+}
+
+## THE RECORDS OF ONE SESSION, kept exact: `AgentsToolsSpawnedSessionRecords <session> own|parent|any` prints the paths of the records whose `session-id:` is the
+## session (own), whose `parent-session-id:` is (parent), or either (any), a line each. Six readers of a Wait round and a spawn tick asked this with a `grep` over
+## every record (AgentsTools.SpawnSandbox.include). Which records belong to a session never changes after a record is made, and a record is made as a new folder
+## under spawned/ or as a new file in the folder of its session (spawned/<session>/<run>.spawn.md), and either touches the modification time of the folder it lands
+## in: so the list is kept in `.local/agents/sessions/<session>/records.kept` with the newest modification time of the folders under spawned/ on its first line, and
+## read as long as that time stands. One `stat` over the folders a call (a process, however many folders), and a walk of the records only when one was made since.
+## No TTL takes part. The lines are `<kind><TAB><path>`.
+AgentsToolsSpawnedSessionRecords(){ ## session, kind (own|parent|any)
+	local sessionId="${1:-}" sessionKind="${2:-any}" sessionRoot="${MMDAPP:-}/.local/agents/spawned" sessionCache sessionStamp="" sessionKept="" sessionLine sessionList sessionTemp
+	case "$sessionId" in ''|-|*/*|.|..|*[[:space:]]*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] && [ -d "$sessionRoot" ] || return 0
+	sessionCache="$MMDAPP/.local/agents/sessions/$sessionId/records.kept"
+	sessionStamp="$( { LC_ALL=C stat -f '%m' "$sessionRoot" "$sessionRoot"/*/ 2> /dev/null || LC_ALL=C stat -c '%Y' "$sessionRoot" "$sessionRoot"/*/ 2> /dev/null ; } | LC_ALL=C sort -n | tail -n 1 )" || sessionStamp=""
+	case "$sessionStamp" in ''|*[!0123456789]*) sessionStamp="" ;; esac
+	{ IFS= read -r sessionKept < "$sessionCache" ; } 2> /dev/null || sessionKept=""
+	if [ -z "$sessionStamp" ] || [ "$sessionKept" != "$sessionStamp" ] ; then
+		sessionList="$( LC_ALL=C awk -v want="$sessionId" '
+			FNR == 1 { fence = 0 ; own = "" ; parent = "" }
+			$0 == "---" { fence++ ; if ( fence > 1 ) { if ( own == want ) print "own\t" FILENAME ; else if ( parent == want ) print "parent\t" FILENAME ; nextfile } ; next }
+			fence == 1 && index( $0, "session-id: " ) == 1 && own == "" { own = substr( $0, 13 ) }
+			fence == 1 && index( $0, "parent-session-id: " ) == 1 && parent == "" { parent = substr( $0, 20 ) }
+		' "$sessionRoot"/*/*.spawn.md 2> /dev/null )" || sessionList=""
+		if [ -n "$sessionStamp" ] && mkdir -p "${sessionCache%/*}" 2> /dev/null && sessionTemp="$( mktemp "$sessionCache.XXXXXX" 2> /dev/null )" ; then
+			{ printf '%s\n' "$sessionStamp" ; [ -z "$sessionList" ] || printf '%s\n' "$sessionList" ; } > "$sessionTemp" 2> /dev/null \
+				&& mv -f "$sessionTemp" "$sessionCache" 2> /dev/null || rm -f "$sessionTemp" 2> /dev/null
+		fi
+		printf '%s\n' "$sessionList"
+	else
+		LC_ALL=C sed 1d "$sessionCache" 2> /dev/null
+	fi | while IFS= read -r sessionLine ; do
+		[ -n "$sessionLine" ] || continue
+		case "$sessionKind:${sessionLine%%	*}" in any:*|own:own|parent:parent) printf '%s\n' "${sessionLine#*	}" ;; esac
+	done
+	return 0
+}
+
+AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a line each
+	local startedCache="$MMDAPP/.local/agents/schedule/started.records" startedTtl="${MDAT_STARTED_RECORDS_SECONDS:-30}" startedAt="" startedNow="" startedList="" startedTemp
+	case "$startedTtl" in ''|*[!0123456789]*) startedTtl=30 ;; esac
+	if [ "$startedTtl" -gt 0 ] ; then
+		{ IFS= read -r startedAt < "$startedCache" ; } 2> /dev/null || startedAt=""
+		startedNow="$( date +%s )" || startedNow=""
+		case "$startedAt$startedNow" in
+			''|*[!0123456789]*) ;;
+			*)
+				if [ "$(( startedNow - startedAt ))" -ge 0 ] && [ "$(( startedNow - startedAt ))" -lt "$startedTtl" ] ; then
+					LC_ALL=C sed 1d "$startedCache" 2> /dev/null
+					return 0
+				fi
+			;;
+		esac
+	fi
+	startedList="$( LC_ALL=C grep -l -x -F 'status: spawn-started' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )" || startedList=""
+	if [ "$startedTtl" -gt 0 ] && mkdir -p "${startedCache%/*}" 2> /dev/null && startedTemp="$( mktemp "$startedCache.XXXXXX" 2> /dev/null )" ; then
+		{ printf '%s\n' "${startedNow:-$( date +%s )}" ; [ -z "$startedList" ] || printf '%s\n' "$startedList" ; } > "$startedTemp" 2> /dev/null \
+			&& mv -f "$startedTemp" "$startedCache" 2> /dev/null || rm -f "$startedTemp" 2> /dev/null
+	fi
+	[ -z "$startedList" ] || printf '%s\n' "$startedList"
+	return 0
+}

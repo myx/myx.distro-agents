@@ -17,6 +17,7 @@
 ## minutes, which is a thread that should have ended itself and did not (S5.6); `rig-orphan` a control thread inside a run's output folder,
 ## a test rig, alive after that run's record closed (S5.2); `track` an event of a run's
 ## event-track thread since --since: a failed or refused tool call, an ask, an answer, a handback, a final answer, a model change.
+## Last, `checklist`, `checklist-doing` and `checklist-open`: the calling supervisor's own CheckList as a digest, once a scan.
 ## A `run` line reads no file's date: its age is the run's own activity mark, else the stamp of its own transcript. The transcript is
 ## read for a name alone between tools, since a long call leaves no line there until it returns, and every part of it is read.
 ## Liveness is the process and the record's own `run-process`, never the status word, which answers one question only: whether the
@@ -343,6 +344,23 @@ AgentsToolsSuperviseScan(){
 			! LC_ALL=C grep -q -x 'status: spawn-started' "$scanAgents/spawned/$scanSpid/$scanSpid.spawn.md" 2> /dev/null || continue
 			printf 'rig-orphan %s %s pid=%s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanCtlPid" "${scanCtlFile#"$scanAgents"/spawned/"$scanSpid"/}"
 		done <<< "$( find "$scanAgents/spawned" -mindepth 6 -maxdepth 14 -path '*/output/*' -path '*/control/pid' -type f 2> /dev/null )"
+	done
+	## The calling supervisor's own CheckList, as a digest, so every supervisor loop reports it beside its findings:
+	## `checklist <member> done=<n> in-progress=<n> open=<n>`, then one `checklist-doing` or `checklist-open` line an item.
+	local scanOwnHome="${MDAT_CALLER_WORKSPACE:-$MMDAPP}" scanOwnList
+	for scanOwnList in "${scanOwnHome%/}/.local/agents/sessions/${CLAUDE_CODE_SESSION_ID:-none}"/*.checklist.md "${scanOwnHome%/}/.local/agents/spawned/${MDAT_SPAWN_SESSION_ID:-none}"/*.checklist.md ; do
+		[ -f "$scanOwnList" ] || continue
+		LC_ALL=C awk -v who="$( basename "$scanOwnList" .checklist.md )" '
+			/^- \[x\] / { done++ ; next ; }
+			/^- \[~\] / { item = substr( $0, 7 ) ; sub( / \(in progress: .*\)$/, "", item ) ; doing[++doingN] = substr( item, 1, 140 ) ; next ; }
+			/^- \[ \] / { open[++openN] = substr( $0, 7, 140 ) ; next ; }
+			END {
+				printf "checklist %s done=%d in-progress=%d open=%d\n", who, done, doingN, openN
+				for ( i = 1 ; i <= doingN ; i++ ) printf "checklist-doing %s\n", doing[i]
+				for ( i = 1 ; i <= openN ; i++ ) printf "checklist-open %s\n", open[i]
+			}
+		' "$scanOwnList"
+		break
 	done
 	return 0
 }

@@ -64,6 +64,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **write-the-duty-list**: Write these recurring duties to your `CheckList`, one item each:
    - watch the human-owner's replies.
+   - read the pace: the `pace:` line of `--flags` is the median tool call against the 7 s gate, the measure of how slow the tools are. Load average is not the measure. Report it first.
    - read the live runs.
    - unstall the stuck.
    - clear the strays.
@@ -109,6 +110,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - classify each: simple or profitable, then offer it or do it. Complicated or a minor improvement, then discuss it or record it.
    - each takes one of three ways, chosen by "Choosing a move" in `magic-team.basic.md`:
      - do it inline yourself, and record the rework or finishing it still needs.
+       - an inline fix follows **inline-mvp-and-rework**, in this file's local procedures.
      - dispatch it, or record it for an immediate or queued session.
      - record it to the process flow, for planned grooming and implementation.
    - a fault met is fixed forward in the tooling. No private script, wrapper or one-time patch stands in for the fix.
@@ -123,7 +125,14 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - the critical work has landed.
    - otherwise wait for the next tick, with `Wait` (wait-never-quit).
 10. **check-all-and-report**: Check everything the supervision touched, steps:
-   - review every change landed during the supervision against `code-craft.md` and `shell.md`.
+   - review every change landed during the supervision against `code-craft.md` and `shell.md`. Scan each changed line that a call, a tick, a gate or a loop runs for these shapes, each of which has made every teammate's call slower. A change that holds one is returned, whoever accepted it, and the session that accepted it is told which shape it let through:
+     - a glob, `grep` or `find` over every record of a workspace (the spawn records, the sessions, the inboxes, the board) where one record's path is known.
+     - a process started for each record or each tick (`$( )`, `awk`, `date`, `tr`, `cut`, `sleep`) where a shell builtin or a value read once would do.
+     - a growing file read whole on each pass, where the lines after a pointer would do.
+     - a wait on a lock or a flag with no rule for a holder that is dead.
+     - a poller, a loop or a process kept for each run, where one process of the workspace could do the work for all.
+     - a queue that is written faster than its one drainer sends, with no bound on its size.
+     - something every call does that need only be done once and kept.
    - move every proven item to the epic's Done.
    - validate the epic.
    - post the full report to the human-owner.
@@ -147,6 +156,36 @@ Steps:
 2. End that run alone with `--manager-session-kill`, by its own run id. Never signal its processes by hand.
 3. Return its item with `--return-review`, so it restarts and resumes its own conversation where that is possible. The return message says why it was ended, and gives its next step.
 4. Dismiss, in its session thread, a run that a restart replaced.
+
+## `inline-mvp-and-rework` — fix a fault now, and leave its proper fix to its owners
+
+Takes one fault that blocks or slows work. The supervisor makes the smallest fix that unblocks it: the MVP. The members who own the code make it proper later, through a rework task. The MVP never waits for that rework, and the rework never assumes the MVP was right.
+
+Steps:
+1. Investigate by reading. Read the spec first: the package's `MAGIC.md`, the operation's help, and the routine or rule that names the behaviour. Then read the code the fault runs through.
+   - a function's own comment is not its spec. Its author may have broken the rules too.
+2. Find the defect against the spec. Make the code do what the spec says.
+   - code that matches the spec is no defect: look further.
+   - never redesign, and never invent behaviour the spec does not state. A gap in the spec is asked, not filled.
+3. Build the fix outside the source. Copy what it needs into your own output folder with `cp -RL`, and change the copy.
+4. Check it there:
+   - construct the input the fault makes fail, and watch it fail.
+   - apply the fix, and watch it pass.
+   - check that each case it must not change still gives its old answer.
+5. Apply it to the source, by `--apply-tool`, or by a direct edit where that is broken. Check every changed file with `bash -n` or its own check.
+6. Verify the effect in the running system, by what changed, never by the call's own success. Then remove the sandbox.
+7. File the rework as an urgent-class board task: one for each member the change concerns, or one coworking task for `magic-coordinator`. It carries:
+   - the goal: the behaviour the spec requires, with the spec's file and line.
+   - what was measured: the fault, its evidence, and its cause by file and line.
+   - the MVP as applied: each change, why it was made, and how it was checked.
+   - the supervisor's view of the proper fix: what the MVP leaves out, and how it should be reworked.
+   - what is still missing: the tests, the cases, and the member each concerns.
+8. In the same task, instruct the rework session:
+   - make its own investigation. The MVP and its reasoning are input, not a decision.
+   - where it agrees, it reworks as planned, completes what is missing, and hands it back for review.
+   - where it finds a better solution, it offers the options to grooming or `magic-coordinator`, and builds only the approved one.
+   - a different fix replaces the MVP forward. The MVP is never reverted to leave the fault open.
+9. Report the fix and its rework task in one line, in this tick's **report-on-change**.
 
 # Routine's local rules
 

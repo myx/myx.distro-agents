@@ -95,8 +95,8 @@ rigStore(){ ## -- the settings file of the rig, as its sum
 
 echo "-- 1. --current-flags, nothing set --"
 rigRun "$rigDispatcher" --current-flags
-rigAssert "seven lines in the order of the epic, worktime and weekend by their defaults on Monday 13:00, the others no" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
-	"0:worktime: yes (default)|weekend: no (default)|holidays: no|emergency: no|overtime: no|learning: no|supervised: no"
+rigAssert "eight lines in the order of the epic, worktime and weekend by their defaults on Monday 13:00, the others no" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
+	"0:worktime: yes (default)|weekend: no (default)|holidays: no|holding: no|emergency: no|overtime: no|learning: no|supervised: no"
 rigBefore="$( rigStore )" ; rigRun "$rigDispatcher" --current-flags
 rigAssert "it writes nothing" "$( rigStore )" "$rigBefore"
 rigRun "$rigDispatcher" --current-flags --everything
@@ -180,6 +180,27 @@ rigRun "$rigDispatcher" --override-flag emergency 0
 rigAssert "a TTL is whole seconds, 1 or more: 0 is refused" "$rigRc" "1"
 rigRun "$rigDispatcher" --override-flag emergency soon
 rigAssert "a TTL that is no number is refused" "$rigRc" "1"
+echo "-- 4b. a member's own flags --"
+rigRun "$rigDispatcher" --override-flag vacation --member client-ndm
+rigAssert "vacation --member: yes, kept as a setting of that member alone" "$rigRc:$rigOut:$( rigSetting MDAT_SCHEDULE_VACATION_CLIENT_NDM )" "0:vacation client-ndm: yes:on"
+rigRun "$rigDispatcher" --override-flag overtime --member magic-developer 600
+rigAssert "overtime --member <ttl>: yes with its seconds left, and no team overtime is set" "$rigRc:$rigOut:$( rigSetting MDAT_SCHEDULE_OVERTIME_MAGIC_DEVELOPER ):$( rigFlag overtime )" "0:overtime magic-developer: yes (600 seconds left):until $(( rigMon13 + 600 )):overtime: no"
+rigRun "$rigDispatcher" --override-flag vacation --member rig-member
+rigRun "$rigDispatcher" --override-flag overtime --member rig-member 600
+rigRun "$rigTool" --manager-schedule-read
+rigAssert "the read lists the roster's member with its overtime and its vacation, a row each" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -E '^flag	overtime:rig-member	yes	\(' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -E '^flag	vacation:rig-member	yes	-' )" "1:1"
+rigAt $(( rigMon13 + 601 ))
+rigRun "$rigTool" --manager-schedule-read
+rigAssert "a member's overtime is gone from the read at its end, and its vacation, with none, stands" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -E '^flag	overtime:rig-member	' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -E '^flag	vacation:rig-member	yes' )" "0:1"
+rigAt "$rigMon13"
+rigRun "$rigDispatcher" --override-flag --no vacation --member client-ndm
+rigAssert "--no --member clears that member's flag alone: no, and the setting gone" "$rigRc:$rigOut:$( rigSetting MDAT_SCHEDULE_VACATION_CLIENT_NDM )" "0:vacation client-ndm: no:-"
+rigRun "$rigDispatcher" --override-flag vacation
+rigAssert "vacation with no member is refused, rc 1" "$rigRc" "1"
+rigRun "$rigDispatcher" --override-flag holding --member client-ndm
+rigAssert "--member with a team flag is refused, rc 1" "$rigRc" "1"
+rigRun "$rigDispatcher" --override-flag overtime --member client-ndm --days 2
+rigAssert "--days with --member is refused, rc 1" "$rigRc" "1"
 rigRun "$rigDispatcher" --override-flag learning
 rigAssert "learning is on: yes, kept as a setting" "$rigRc:$( rigFlag learning ):$( rigSetting MDAT_SCHEDULE_LEARNING )" "0:learning: yes:on"
 rigRun "$rigDispatcher" --override-flag supervised

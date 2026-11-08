@@ -192,6 +192,29 @@ AgentsToolsScheduleFlagLine(){ ## flag, weekday name, seconds into the day, epoc
 	esac
 }
 
+## A member's own flag, `vacation` or `overtime`, set with `--override-flag <flag> --member <member>`: the setting key is the flag and the member, as
+## MDAT_SCHEDULE_<FLAG>_<MEMBER>, the member upper-cased and its hyphens as underscores. A member on vacation holds no duty and the schedule starts
+## nothing for it; a member on overtime holds a duty out of worktime. Both end at their TTL, or stand until cleared.
+AgentsToolsScheduleMemberKey(){ ## flag, member
+	printf 'MDAT_SCHEDULE_%s_%s\n' "$( printf '%s' "$1" | LC_ALL=C tr 'a-z' 'A-Z' )" "$( printf '%s' "$2" | LC_ALL=C tr 'a-z-' 'A-Z_' )"
+}
+
+## What a member's flag says now, as AgentsToolsScheduleOverrideLeft does: `on`, the seconds left, or nothing.
+## A pass asks this for every member of the roster, and each ask is a name made with `tr` and a read of the settings, a dozen processes: so the settings file is
+## looked at once for the second of the pass, with one `grep`, and where no member has a vacation or overtime stored the answer is nothing, at no cost.
+AgentsToolsScheduleMemberFlag(){ ## flag, member, epoch now
+	if [ "${agentsScheduleMemberFlagsAt:-}" != "$MMDAPP:$3" ] ; then
+		agentsScheduleMemberFlagsAt="$MMDAPP:$3"
+		if LC_ALL=C grep -q -e '^MDAT_SCHEDULE_VACATION_' -e '^MDAT_SCHEDULE_OVERTIME_' "$MMDAPP/.local/.agents/magic-team.agent.env" 2> /dev/null ; then
+			agentsScheduleMemberFlagsAny=yes
+		else
+			agentsScheduleMemberFlagsAny=no
+		fi
+	fi
+	[ "$agentsScheduleMemberFlagsAny" = yes ] || return 0
+	AgentsToolsScheduleOverrideLeft "$( AgentsToolsScheduleMemberKey "$1" "$2" )" "$3"
+}
+
 ## --current-flags: worktime, weekend, holidays, holding, emergency, overtime, learning and supervised, a line each, `<flag>: yes|no`. Read-only.
 AgentsToolsScheduleCurrentFlags(){ ## the operation as it was called, its arguments...
 	local flagsOp="$1" flagsEpoch flagsOffset flagsDay flagsSeconds flagsFlag
@@ -269,13 +292,20 @@ AgentsToolsScheduleSet(){ ## the operation as it was called, its arguments...
 ## it is cleared, at any hour, and makes worktime read `no (holiday)` while it holds; learning and supervised are on or off and take no
 ## TTL. --no clears the override. Prints the flag's line as --current-flags would.
 AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments...
-	local overOp="$1" overNo="" overFlag="" overTtl="" overDays="" overCount overEpoch overOffset overDay overSeconds overName overNext overEnd overKey
+	local overOp="$1" overNo="" overFlag="" overTtl="" overDays="" overCount overEpoch overOffset overDay overSeconds overName overNext overEnd overKey overMember="" overLeft
 	shift
 	[ "${1:-}" != "--no" ] || { overNo="no" ; shift ; }
 	overFlag="${1:-}"
 	[ $# -eq 0 ] || shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
+			--member)
+				overMember="${2:-}"
+				if [ -z "$overMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $overOp: --member is a member name, got: nothing" >&2 ; return 1
+				fi
+				shift 2
+			;;
 			--days)
 				overDays="${2:-}"
 				if [ -z "$overDays" ] ; then
@@ -290,15 +320,24 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 		esac
 	done
 	if [ -z "$overFlag" ] || [ $# -gt 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $overOp: syntax is [--no] <flag> [<ttl>] [--days <n>], the flag emergency, overtime, holidays, holding, learning or supervised" >&2 ; return 1
+		echo "⛔ ERROR: $MDSC_CMD $overOp: syntax is [--no] <flag> [<ttl>] [--days <n>], the flag emergency, overtime, holidays, holding, learning or supervised, or vacation or overtime with --member <member>" >&2 ; return 1
 	fi
 	case "$overFlag" in
-		emergency|overtime|holidays|holding|learning|supervised) ;;
+		emergency|overtime|holidays|holding|vacation|learning|supervised) ;;
 		worktime|weekend)
 			echo "⛔ ERROR: $MDSC_CMD $overOp: $overFlag is derived from the settings and the clock and has no override -- set it with --set-$overFlag" >&2 ; return 1
 		;;
 		*)
 			echo "⛔ ERROR: $MDSC_CMD $overOp: no flag $overFlag -- the flags are worktime, weekend, holidays, holding, emergency, overtime, learning and supervised, and all but worktime and weekend are overridable" >&2 ; return 1
+		;;
+	esac
+	case "$overFlag:$overMember" in
+		vacation:) echo "⛔ ERROR: $MDSC_CMD $overOp: vacation is the flag of one member -- syntax is vacation --member <member> [<ttl>]" >&2 ; return 1 ;;
+		?*:?*)
+			case "$overFlag" in
+				vacation|overtime) [ -z "$overDays" ] || { echo "⛔ ERROR: $MDSC_CMD $overOp: --days belongs to the team overtime, and a member's flag takes none" >&2 ; return 1 ; } ;;
+				*) echo "⛔ ERROR: $MDSC_CMD $overOp: --member belongs to vacation and overtime alone, and $overFlag is a team flag" >&2 ; return 1 ;;
+			esac
 		;;
 	esac
 	if [ -n "$overDays" ] && [ "$overFlag" != overtime ] ; then
@@ -314,6 +353,7 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 		echo "⛔ ERROR: $MDSC_CMD $overOp: --no clears the override and takes no TTL and no --days" >&2 ; return 1
 	fi
 	overKey="MDAT_SCHEDULE_$( printf '%s' "$overFlag" | LC_ALL=C tr 'a-z' 'A-Z' )"
+	[ -z "$overMember" ] || overKey="$( AgentsToolsScheduleMemberKey "$overFlag" "$overMember" )"
 	AgentsToolsScheduleTools || return 1
 	read -r overEpoch overOffset overDay overSeconds <<< "$( AgentsToolsScheduleClock )"
 	overName="$( AgentsToolsScheduleDayName "$overDay" )"
@@ -321,7 +361,10 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 		AgentsToolsConfigOption magic-team --delete "$overKey" > /dev/null 2>&1 || :
 	else
-		case "$overFlag" in
+		case "${overMember:+member-}$overFlag" in
+			member-vacation|member-overtime)
+				if [ -n "$overTtl" ] ; then overEnd="until $(( overEpoch + overTtl ))" ; else overEnd="on" ; fi
+			;;
 			emergency)
 				[ -n "$overTtl" ] || { echo "⛔ ERROR: $MDSC_CMD $overOp: emergency is set with a TTL in seconds -- syntax is emergency <ttl>" >&2 ; return 1 ; }
 				overEnd="until $(( overEpoch + overTtl ))"
@@ -361,6 +404,15 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 		AgentsToolsConfigOption magic-team --upsert "$overKey" "$overEnd" > /dev/null || {
 			echo "⛔ ERROR: $MDSC_CMD $overOp: $overKey could not be stored" >&2 ; return 1
 		}
+	fi
+	if [ -n "$overMember" ] ; then
+		overLeft="$( AgentsToolsScheduleMemberFlag "$overFlag" "$overMember" "$overEpoch" )"
+		case "$overLeft" in
+			'') printf '%s %s: no\n' "$overFlag" "$overMember" ;;
+			on) printf '%s %s: yes\n' "$overFlag" "$overMember" ;;
+			*) printf '%s %s: yes (%s seconds left)\n' "$overFlag" "$overMember" "$overLeft" ;;
+		esac
+		return 0
 	fi
 	AgentsToolsScheduleFlagLine "$overFlag" "$overName" "$overSeconds" "$overEpoch"
 }
@@ -516,6 +568,49 @@ AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder
 ## again after a cache-keep, a demand or a tag posts into its thread and opens no new header in the team channel. The first start,
 ## and one after the proxy refused the join, starts a session and keeps its id: THE REFUSED JOIN IS FOLLOWED BY A START WITH NO --join-session, in the
 ## same attempt, and the stale id is dropped.
+## A START THAT FAILS AGAIN AND AGAIN IS ESCALATED, NEVER RETRIED FOREVER (S12.12). The key's failures in a row are counted in
+## starting/<key>.fails. At MDAT_SCHEDULE_START_FAILS_ESCALATE of them (3) one inquiry goes to magic-coordinator's inbox and the key
+## is held, starting/<key>.escalated, for MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES (360). A start the routine's own lock refused is a
+## wait, not a failure, and counts for nothing. A success clears the count and the hold. The pass report names every held key.
+AgentsToolsScheduleStartFailed(){ ## key, the start's output
+	local failStore="$MMDAPP/.local/agents/schedule/starting" failCount=0 failLimit="${MDAT_SCHEDULE_START_FAILS_ESCALATE:-3}" failWhy
+	case "$failLimit" in ''|*[!0123456789]*|0) failLimit=3 ;; esac
+	! printf '%s\n' "$2" | LC_ALL=C grep -q -F 'the routine is already running: its locking document' || return 0
+	[ ! -s "$failStore/$1.fails" ] || IFS= read -r failCount < "$failStore/$1.fails" || failCount=0
+	case "$failCount" in ''|*[!0123456789]*) failCount=0 ;; esac
+	failCount=$(( failCount + 1 ))
+	printf '%s\n' "$failCount" > "$failStore/$1.fails" 2> /dev/null || :
+	[ "$failCount" -ge "$failLimit" ] || return 0
+	[ ! -f "$failStore/$1.escalated" ] || return 0
+	failWhy="$( printf '%s\n' "$2" | LC_ALL=C grep -m 1 -A 4 'ERROR' 2> /dev/null | LC_ALL=C tr -s '\n' ' ' | LC_ALL=C cut -c1-600 )"
+	[ -n "$failWhy" ] || failWhy="$( printf '%s\n' "$2" | LC_ALL=C grep -v '^[[:space:]]*$' | LC_ALL=C tail -n 1 | LC_ALL=C cut -c1-200 )"
+	[ -n "$failWhy" ] || failWhy="it printed nothing"
+	: > "$failStore/$1.escalated" 2> /dev/null || :
+	AgentsToolsScheduleStartEscalate "$1" "$failCount" "$failWhy" || :
+	return 0
+}
+
+## The inquiry, in magic-coordinator's inbox, as --supervise-fault files one: written for the coordinator who reads it cold.
+AgentsToolsScheduleStartEscalate(){ ## key, failures in a row, the last failure's words
+	local escName escHold="${MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES:-360}" escSaid
+	case "$escHold" in ''|*[!0123456789]*|0) escHold=360 ;; esac
+	escName="inquiry-$( date -u +%Y%m%dT%H%M%SZ )-schedule-cannot-start-$( printf '%s' "$1" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' | cut -c1-50 ).md"
+	escSaid="$( printf '# Inquiry: the schedule cannot start %s\n\nThe start of `%s` failed %s times in a row on %s. The schedule holds it for %s minutes, then tries again. While it is held, what it starts stays down.\n\n## The last failure\n\n%s\n\n## Next step\n\nFind the cause and fix it. A start that succeeds clears the hold. Until the hold ends, nothing starts this key.\n' \
+		"$1" "$1" "$2" "${MMDAPP##*/}" "$escHold" "$3" \
+		| bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --upsert-inbox-inquiry magic-coordinator "$escName" 2>&1 )" || :
+	case "$escSaid" in *ERROR*) echo "schedule: the inquiry on the failing start of $1 could not be filed: $( printf '%s' "$escSaid" | LC_ALL=C grep -m1 'ERROR' | cut -c1-300 )" ;; esac
+	return 0
+}
+
+## rc 0 while the key is held after repeated failures; a hold past its minutes is lifted, with the count, so the next start is a fresh streak.
+AgentsToolsScheduleStartHeld(){ ## key
+	local heldStore="$MMDAPP/.local/agents/schedule/starting" heldHold="${MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES:-360}"
+	case "$heldHold" in ''|*[!0123456789]*|0) heldHold=360 ;; esac
+	[ -f "$heldStore/$1.escalated" ] || return 1
+	[ -z "$( find "$heldStore/$1.escalated" -mmin +"$heldHold" 2> /dev/null )" ] || { rm -f "$heldStore/$1.escalated" "$heldStore/$1.fails" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
 AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile="" spawnDayFirst="" spawnKeptRoot=""
 	shift
@@ -542,6 +637,8 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 	## A THREAD TOLD TO END STARTS NOTHING MORE: TERM sets serveEnd (AgentsTools.OnDemandThread.include), and the pass in hand stops starting.
 	[ -z "${serveEnd:-}" ] || return 1
 	mkdir -p "$spawnStore" 2> /dev/null || return 1
+	## A KEY HELD AFTER REPEATED FAILURES IS NOT STARTED (S12.12): the inquiry on it is in the coordinator's inbox, and the report names it.
+	! AgentsToolsScheduleStartHeld "$spawnKey" || return 1
 	[ -z "$( find "$spawnStore" -name "$spawnKey" -o -name "$spawnKey.hold" 2> /dev/null | while IFS= read -r spawnFound ; do
 		[ -z "$( find "$spawnFound" -mmin -10 2> /dev/null )" ] || printf 'held\n'
 	done )" ] || return 1
@@ -566,8 +663,9 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 		## THE HOLD: one that ends with a failure keeps its key quiet for the same ten minutes, and one that succeeds clears it.
 		if [ "$spawnRc" != 0 ] ; then
 			{ mkdir -p "$spawnStore" && : > "$spawnStore/$spawnKey.hold" ; } 2> /dev/null || :
+			AgentsToolsScheduleStartFailed "$spawnKey" "$spawnOut" || :
 		else
-			rm -f "$spawnStore/$spawnKey.hold" 2> /dev/null || :
+			rm -f "$spawnStore/$spawnKey.hold" "$spawnStore/$spawnKey.fails" "$spawnStore/$spawnKey.escalated" 2> /dev/null || :
 		fi
 		printf '%s\n' "$spawnOut" > "$spawnStore/$spawnKey.out"
 		printf '%s\n' "$spawnRc" > "$spawnStore/$spawnKey.rc"
@@ -579,7 +677,13 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 
 ## What the starts that ended since the last look came to: a line for each that failed, the first error it gave. Their files go.
 AgentsToolsScheduleSpawnReport(){
-	local reportStore="$MMDAPP/.local/agents/schedule/starting" reportFile reportKey reportRc reportWhy
+	local reportStore="$MMDAPP/.local/agents/schedule/starting" reportFile reportKey reportRc reportWhy reportHeld
+	## THE KEYS HELD AFTER REPEATED FAILURES (S12.12), each pass, so a reader of the thread log sees why nothing starts them.
+	for reportHeld in "$reportStore"/*.escalated ; do
+		[ -f "$reportHeld" ] || continue
+		reportKey="${reportHeld##*/}" ; reportKey="${reportKey%.escalated}"
+		! AgentsToolsScheduleStartHeld "$reportKey" || printf 'schedule: the start of %s is held after %s failures in a row; magic-coordinator has the inquiry\n' "$reportKey" "$( cat "$reportStore/$reportKey.fails" 2> /dev/null || printf '?' )"
+	done
 	for reportFile in "$reportStore"/*.rc ; do
 		[ -f "$reportFile" ] || continue
 		reportKey="${reportFile##*/}" ; reportKey="${reportKey%.rc}"
@@ -643,15 +747,43 @@ AgentsToolsScheduleAutorun(){
 ## MDAT_TOOL_PACE_WINDOW_SECONDS (1800), across every live run of this workspace. A duty start waits while that median is 7 s or more, because a
 ## start on a machine this slow is what the owner's throttle forbids. NO MEASURE IS A PERMIT: a rig with no calls in the window has nothing to
 ## say the machine is slow, and a schedule stopped for want of data is worse than a start. Tool-call time gates a start, never load.
-## The files are read once a pass, mtime-filtered first, so a run's whole history is never walked.
+## THE MEASURE IS A WALK OF THE WHOLE `spawned/` TREE, which on a workspace with thousands of run folders is the most expensive thing on the call path (a schedule pass,
+## a start-pending pass and each duty of a pass ask for it), so it is taken at most once in MDAT_TOOL_PACE_CACHE_SECONDS (60) and kept in
+## `.local/agents/schedule/pace.measure` as `<epoch> <window> <median> <count>`. A caller reads that file, one read and no walk; the verdict is worked out
+## from the measure on each call, so a threshold of the caller's own (MDAT_TOOL_PACE_MS) still applies. 0 takes the measure on every call, as the checks do.
 AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decides
-	local paceLimit="${MDAT_TOOL_PACE_MS:-7000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-1800}" paceFile paceCount paceMedian
+	local paceLimit="${MDAT_TOOL_PACE_MS:-7000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-1800}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-60}" paceFile paceCount paceMedian
+	local paceCache="$MMDAPP/.local/agents/schedule/pace.measure" paceNow="" paceAt="" paceWin="" paceHeld="" paceTemp
 	case "$paceLimit" in ''|*[!0123456789]*|0) paceLimit=7000 ;; esac
 	case "$paceWindow" in ''|*[!0123456789]*|0) paceWindow=1800 ;; esac
+	case "$paceTtl" in ''|*[!0123456789]*) paceTtl=60 ;; esac
+	paceMedian=""
+	if [ "$paceTtl" -gt 0 ] ; then
+		{ read -r paceAt paceWin paceMedian paceHeld < "$paceCache" ; } 2> /dev/null || paceAt=""
+		paceNow="$( date +%s )" || paceNow=""
+		case "$paceAt$paceNow" in ''|*[!0123456789]*) paceMedian="" ;; *)
+			if [ "$paceWin" = "$paceWindow" ] && [ "$(( paceNow - paceAt ))" -ge 0 ] && [ "$(( paceNow - paceAt ))" -lt "$paceTtl" ] && [ -n "$paceMedian" ] && [ -n "$paceHeld" ] ; then
+				paceMedian="$paceMedian $paceHeld"
+			else
+				paceMedian=""
+			fi
+		;; esac
+	fi
+	if [ -z "$paceMedian" ] ; then
 	paceMedian="$( LC_ALL=C find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name context.jsonl -mmin "-$(( paceWindow / 60 ))" 2> /dev/null \
 		| while IFS= read -r paceFile ; do
 			LC_ALL=C grep -o '"dur_ms":[0-9]*' "$paceFile" 2> /dev/null | LC_ALL=C sed 's/^"dur_ms"://'
 		done | LC_ALL=C sort -n | LC_ALL=C awk '{ call[NR] = $1 } END { if ( NR == 0 ) { printf "- 0\n" ; exit } ; printf "%s %s\n", call[int( (NR + 1) / 2 )], NR }' )"
+	## Kept for the next callers: written beside, then moved in, so a reader never sees half of it.
+	case "$paceMedian" in
+		''|*[!0123456789\ -]*) ;;
+		*)
+			if [ "$paceTtl" -gt 0 ] && mkdir -p "${paceCache%/*}" 2> /dev/null && paceTemp="$( mktemp "$paceCache.XXXXXX" 2> /dev/null )" ; then
+				printf '%s %s %s\n' "${paceNow:-$( date +%s )}" "$paceWindow" "$paceMedian" > "$paceTemp" 2> /dev/null && mv -f "$paceTemp" "$paceCache" 2> /dev/null || rm -f "$paceTemp" 2> /dev/null
+			fi
+		;;
+	esac
+	fi
 	case "$paceMedian" in
 		''|*[!0123456789\ -]*) printf 'pace: not read -- a duty start is allowed\n' ; return 0 ;;
 	esac
@@ -678,15 +810,17 @@ AgentsToolsSchedulePaceAllows(){
 ## Prints the record path; rc 1 for none.
 AgentsToolsScheduleWorkDutyRecord(){ ## member
 	local dutyRecord dutySpawn
+	## Only a started record can be a live duty, so the kept list of started records is read (AgentsTools.StartedRecords.include), not every duty record there ever was.
 	while IFS= read -r dutyRecord ; do
 		[ -f "$dutyRecord" ] || continue
+		case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" routine )" in *.work-duty.routine.md) ;; *) continue ;; esac
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" owner )" = "$1" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" status )" = "spawn-started" ] || continue
 		dutySpawn="${dutyRecord##*/}" ; dutySpawn="${dutySpawn%.spawn.md}"
 		type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		[ "$( AgentsToolsLivenessOf "$dutySpawn" "$dutyRecord" )" = alive ] || continue
 		printf '%s\n' "$dutyRecord"
 		return 0
-	done <<< "$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null ; AgentsToolsSpawnedStartedRecords )"
 	return 1
 }
 
@@ -706,18 +840,27 @@ AgentsToolsScheduleDutyRestartDue(){ ## member
 	## is when the run ended. The first closed record that is dismissed is the member's last word on the
 	## matter, and no older one is looked at.
 	dueBest="" dueBestAt=0
-	while IFS= read -r dueRecord ; do
-		[ -f "$dueRecord" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dueRecord" owner )" = "$1" ] || continue
-		case "$( AgentsToolsSpawnSandboxRecordHeader "$dueRecord" status )" in ''|spawn-started) continue ;; esac
+	## ONE `awk` AND ONE `stat` FOR ALL THE DUTY RECORDS, NOT THREE PROCESSES FOR EACH: the roster asks this for each member of it in each pass, and a
+	## workspace holds hundreds of closed duty records. The awk prints `<path> <owner> <status>` for every record of the kept list
+	## (AgentsTools.StartedRecords.include), the member's closed ones are taken from that, and one `stat` gives their mtimes.
+	local dueRows dueMine dueLine
+	type AgentsToolsSpawnedDutyRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null
+	dueRows="$( AgentsToolsSpawnedDutyRecords | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 awk '
+		FNR == 1 { if ( NR > 1 && name != "" ) print name "\t" owner "\t" status ; name = FILENAME ; owner = "" ; status = "" ; fence = 0 }
+		$0 == "---" { fence++ ; next }
+		fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) }
+		fence == 1 && index( $0, "status: " ) == 1 && status == "" { status = substr( $0, 9 ) }
+		END { if ( name != "" ) print name "\t" owner "\t" status }
+	' 2> /dev/null )" || dueRows=""
+	dueMine="$( printf '%s\n' "$dueRows" | LC_ALL=C awk -F'\t' -v member="$1" '$2 == member && $3 != "" && $3 != "spawn-started" { print $1 }' )"
+	if [ -n "$dueMine" ] ; then
 		case "$dueStat" in
-			bsd) dueMtime="$( stat -f '%m' "$dueRecord" 2> /dev/null )" || dueMtime="" ;;
-			*) dueMtime="$( stat -c '%Y' "$dueRecord" 2> /dev/null )" || dueMtime="" ;;
+			bsd) dueLine="$( printf '%s\n' "$dueMine" | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 stat -f '%m %N' 2> /dev/null | LC_ALL=C sort -rn | LC_ALL=C sed -n '1p' )" ;;
+			*) dueLine="$( printf '%s\n' "$dueMine" | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 stat -c '%Y %n' 2> /dev/null | LC_ALL=C sort -rn | LC_ALL=C sed -n '1p' )" ;;
 		esac
-		case "$dueMtime" in ''|*[!0123456789]*) continue ;; esac
-		[ "$dueMtime" -gt "$dueBestAt" ] || continue
-		dueBest="$dueRecord" dueBestAt="$dueMtime"
-	done <<< "$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
+		dueMtime="${dueLine%% *}"
+		case "$dueMtime" in ''|*[!0123456789]*) ;; *) dueBest="${dueLine#* }" ; dueBestAt="$dueMtime" ;; esac
+	fi
 	[ -n "$dueBest" ] || return 1
 	dueSpawn="${dueBest##*/}" ; dueSpawn="${dueSpawn%.spawn.md}"
 	[ ! -e "$MMDAPP/.local/agents/schedule/dismissed/$dueSpawn" ] || return 1
@@ -935,7 +1078,8 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 		[ -n "$dmFloor" ] || dmFloor="$dmNow.000000"
 		dmId="$( AgentsToolsSessionChatMemberId "$dmMember" )"
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		dmRoster="$( DistroAgentsTools --slack-conversations-roster "$dmMember" --types im 2> /dev/null < /dev/null )" || dmRoster=""
+		## The member is the operation's --team-member: the front names the acting member, and a bare name after the operation is refused as an option.
+		dmRoster="$( DistroAgentsTools --slack-conversations-roster --team-member "$dmMember" --types im 2> /dev/null < /dev/null )" || dmRoster=""
 		dmSeen="" dmNewest=""
 		while IFS= read -r dmLine ; do
 			case "$dmLine" in "CONV|"*) ;; *) continue ;; esac
@@ -1017,12 +1161,12 @@ AgentsToolsScheduleDismiss(){ ## spawn record, why (a clause of the line printed
 	return 0
 }
 
-## Whether a member of the roster is a standing member: a member of the team (magic, keeper, warden, partner or client) that is not an identity
-## record (human-owner) and not the team itself; the oncall and expert ones are no standing members.
+## Whether a member of the roster is a standing member, one that holds a work-duty: a magic or keeper member that is not the team itself and not a
+## reference-only record. A partner, warden or client member holds no duty: it is tasked or invited when needed, and its run ends with its task.
 AgentsToolsScheduleStanding(){ ## member, its directory
 	case "$1" in
 		magic-team) return 1 ;;
-		magic-*|keeper-*|warden-*|partner-*|client-*) ;;
+		magic-*|keeper-*) ;;
 		*) return 1 ;;
 	esac
 	! AgentsToolsTeamMemberReferenceOnly "$2"
@@ -1050,10 +1194,11 @@ AgentsToolsScheduleInSession(){ ## the duty's spawn record, member
 	! AgentsToolsSessionDismissHeld "$1" > /dev/null || return 0
 	while IFS= read -r sessionOther ; do
 		[ -f "$sessionOther" ] && [ "$sessionOther" != "$1" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" owner )" = "$2" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" status )" = "spawn-started" ] || continue
 		case "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine )" in *.work-duty.routine.md) continue ;; esac
 		AgentsToolsSessionRecordLive "$sessionOther" && return 0
-	done <<< "$( LC_ALL=C grep -l -x -F "owner: $2" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null ; AgentsToolsSpawnedStartedRecords )"
 	return 1
 }
 
@@ -1106,8 +1251,19 @@ AgentsToolsScheduleDayFirst(){ ## ask|record
 ## a mention of it in the team channel (AgentsToolsScheduleTagNews) starts its duty at any hour, and an untagged message, an inbox item or the board's news do
 ## not; the team channel is read once in a TTL for all of them. What the flags do to a run that stands is not a dismissal at once:
 ## AgentsToolsScheduleDutyLifetime decides, at each iteration, how long it lives (a mention newer than its idle start keeps it, out of its flags too).
+## The started records of work-duty runs, a path a line: the kept list of started records (AgentsTools.StartedRecords.include) cut to those whose routine is a work-duty one,
+## so a pass looks at the few runs that stand and never at every duty record there ever was.
+AgentsToolsScheduleStartedDutyRecords(){
+	local startedAll
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || return 0
+	startedAll="$( AgentsToolsSpawnedStartedRecords )"
+	[ -n "$startedAll" ] || return 0
+	printf '%s\n' "$startedAll" | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' 2> /dev/null
+	return 0
+}
+
 AgentsToolsScheduleWorkDuty(){
-	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt="" dutyStale dutyPace="" dutyOwners dutyUrgent=""
+	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt="" dutyStale dutyPace="" dutyOwners dutyUrgent="" dutyMagic="" dutyNow dutyVacation
 	## THE PACE IS READ ONCE A PASS (S12.13), before any start is decided, and said in one line: a person can then tell a slow machine from a
 	## stopped schedule. It gates a start; it is never a load average and never a count of what runs.
 	dutyPace="$( AgentsToolsSchedulePaceText )"
@@ -1116,10 +1272,21 @@ AgentsToolsScheduleWorkDuty(){
 	while IFS= read -r dutyStale ; do
 		[ -n "$dutyStale" ] || continue
 		AgentsToolsScheduleDutyStaleClose "$dutyStale"
-	done <<< "$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
+	done <<< "$( AgentsToolsScheduleStartedDutyRecords )"
+	## A live work-duty of a member that holds none (partner, warden, client, AgentsToolsScheduleStanding) is told to go at its idle point.
+	while IFS= read -r dutyStale ; do
+		[ -n "$dutyStale" ] && [ -f "$dutyStale" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyStale" status )" = "spawn-started" ] || continue
+		case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyStale" owner )" in
+			magic-team|'') ;;
+			magic-*|keeper-*) continue ;;
+		esac
+		AgentsToolsScheduleDismiss "$dutyStale" "its member holds no work-duty: partner, warden and client members are tasked or invited when needed"
+	done <<< "$( AgentsToolsScheduleStartedDutyRecords )"
 	dutyFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || dutyFlags=""
-	## Overtime is worktime out of hours; emergency is the coordinator, and a member only for its own urgent-tier pending task.
-	case "$dutyFlags" in *"worktime: yes"*|*"overtime: yes"*) dutyWork=yes ; dutyCoordinator=yes ;; esac
+	## Team overtime is a duty out of hours for the magic members alone; emergency is the coordinator, and a member only for its own urgent-tier pending task.
+	case "$dutyFlags" in *"worktime: yes"*) dutyWork=yes ; dutyCoordinator=yes ;; esac
+	case "$dutyFlags" in *"overtime: yes"*) dutyMagic=yes ; dutyCoordinator=yes ;; esac
 	case "$dutyFlags" in *"emergency: yes"*) dutyCoordinator=yes ; [ "$dutyWork" = yes ] || dutyUrgent=yes ;; esac
 	## The owners of the pending board items, dispatch-* aside, read once a pass; in emergency out of hours, of the urgent tier alone.
 	dutyOwners=$'\n'"$( set -- "$MDAT_DATA_ROOT/board/pending"/*.md ; [ -f "$1" ] || exit 0 ; LC_ALL=C awk -v marks=" ${dutyUrgent:+emergency urgent} " '
@@ -1128,6 +1295,7 @@ AgentsToolsScheduleWorkDuty(){
 		index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; }
 		index( $0, "mark: " ) == 1 { mark = substr( $0, 7 ) ; }
 	' "$@" 2> /dev/null )"$'\n'
+	dutyNow="$( date +%s )"
 	## The members whose mentions are looked for: those within their flags that have no duty running -- a member with inbox work is looked at too, so a
 	## mention that arrives while its work waits is kept for its duty -- and every standing member out of its flags, for a mention starts or keeps its
 	## duty. The team channel is read once for all.
@@ -1135,9 +1303,13 @@ AgentsToolsScheduleWorkDuty(){
 		[ -n "$dutyDir" ] || continue
 		AgentsToolsScheduleStanding "$dutyMember" "$dutyDir" || continue
 		dutyAllowed="$dutyWork"
+		[ "$dutyAllowed" = yes ] || [ -z "$dutyMagic" ] || case "$dutyMember" in magic-*) dutyAllowed=yes ;; esac
 		[ "$dutyMember" != magic-coordinator ] || dutyAllowed="$dutyCoordinator"
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || case "$dutyOwners" in *$'\n'"$dutyMember"$'\n'*) dutyAllowed=yes ;; esac
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || ! LC_ALL=C grep -q -x -F 'from: magic-coordinator' "$( AgentsToolsInboxDir "$dutyMember" )"/*.md 2> /dev/null || dutyAllowed=yes
+		[ "$dutyAllowed" = yes ] || [ -z "$( AgentsToolsScheduleMemberFlag overtime "$dutyMember" "$dutyNow" )" ] || dutyAllowed=yes
+		## A member on vacation is looked at for nothing: no tag, no mention, no duty.
+		[ -z "$( AgentsToolsScheduleMemberFlag vacation "$dutyMember" "$dutyNow" )" ] || continue
 		if [ "$dutyAllowed" = yes ] ; then
 			! AgentsToolsScheduleWorkDutyRecord "$dutyMember" > /dev/null || continue
 			dutyLook="$dutyLook $dutyMember"
@@ -1151,14 +1323,20 @@ AgentsToolsScheduleWorkDuty(){
 		[ -n "$dutyDir" ] || continue
 		AgentsToolsScheduleStanding "$dutyMember" "$dutyDir" || continue
 		dutyAllowed="$dutyWork"
+		[ "$dutyAllowed" = yes ] || [ -z "$dutyMagic" ] || case "$dutyMember" in magic-*) dutyAllowed=yes ;; esac
 		[ "$dutyMember" != magic-coordinator ] || dutyAllowed="$dutyCoordinator"
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || case "$dutyOwners" in *$'\n'"$dutyMember"$'\n'*) dutyAllowed=yes ;; esac
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || ! LC_ALL=C grep -q -x -F 'from: magic-coordinator' "$( AgentsToolsInboxDir "$dutyMember" )"/*.md 2> /dev/null || dutyAllowed=yes
+		[ "$dutyAllowed" = yes ] || [ -z "$( AgentsToolsScheduleMemberFlag overtime "$dutyMember" "$dutyNow" )" ] || dutyAllowed=yes
+		dutyVacation=""
+		[ -z "$( AgentsToolsScheduleMemberFlag vacation "$dutyMember" "$dutyNow" )" ] || { dutyAllowed=no ; dutyVacation=yes ; }
 		dutyRecord="$( AgentsToolsScheduleWorkDutyRecord "$dutyMember" )" || dutyRecord=""
 		if [ -n "$dutyRecord" ] ; then
 			AgentsToolsScheduleDutyLifetime "$dutyRecord" "$dutyMember" "$dutyAllowed"
 			continue
 		fi
+		## A member on vacation is started by nothing the schedule holds, a mention in the team channel included: it is invited or tasked by hand.
+		[ -z "$dutyVacation" ] || continue
 		dutyWhy=""
 		## A WORK-DUTY STARTS ON FIRST DEMAND AND IS NEVER STARTED TO KEEP A CACHE WARM (sketch 10.4, 7.3): it is a loop in one session, and
 		## its cache is kept inside that session by the keepalive round of its --idle-wait, never by ending the run and starting another.
@@ -1255,6 +1433,7 @@ AgentsToolsScheduleEmergencyConfirm(){ ## the emergency item's file name
 agentsScheduleSupervisionRoutine="magic-coordinator.supervision-session.routine.md"
 AgentsToolsScheduleSupervision(){ ## --
 	local supFlags supOn=no supLive supRecord supSpawn supNewest supNewestAt supStat="" supWait supNow supDismissed
+	type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null
 	supFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || supFlags=""
 	case "$supFlags" in *"supervised: yes"*) supOn=yes ;; esac
 	supLive=""
@@ -1266,7 +1445,7 @@ AgentsToolsScheduleSupervision(){ ## --
 		type AgentsToolsLivenessOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		[ "$( AgentsToolsLivenessOf "$supSpawn" "$supRecord" )" = alive ] || continue
 		supLive="$supRecord" ; break
-	done <<< "$( LC_ALL=C grep -l -x "routine: $agentsScheduleSupervisionRoutine" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
+	done <<< "$( type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null ; AgentsToolsSpawnedRecordsOfRoutine "$agentsScheduleSupervisionRoutine" supervision )"
 	if [ -n "$supLive" ] ; then
 		if [ "$supOn" != yes ] ; then
 			supSpawn="${supLive##*/}" ; supSpawn="${supSpawn%.spawn.md}"
@@ -1296,7 +1475,7 @@ AgentsToolsScheduleSupervision(){ ## --
 		case "$supNow" in ''|*[!0123456789]*) continue ;; esac
 		[ "$supNow" -gt "$supNewestAt" ] || continue
 		supNewest="$supRecord" ; supNewestAt="$supNow"
-	done <<< "$( LC_ALL=C grep -l -x "routine: $agentsScheduleSupervisionRoutine" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
+	done <<< "$( AgentsToolsSpawnedRecordsOfRoutine "$agentsScheduleSupervisionRoutine" supervision )"
 	if [ -n "$supNewest" ] ; then
 		supSpawn="${supNewest##*/}" ; supSpawn="${supSpawn%.spawn.md}"
 		if [ -e "$MMDAPP/.local/agents/schedule/dismissed/$supSpawn" ] ; then
@@ -1367,6 +1546,86 @@ AgentsToolsScheduleLearning(){
 }
 
 ## The steps, in order. One line for each thing done.
+## Whether a member runs a session now: a record it owns that is started and still a process.
+AgentsToolsScheduleMemberRuns(){ ## member
+	local runsRecord
+	## The started records come from the kept list (AgentsTools.StartedRecords.include), never a read of the whole spawned/ tree for each call.
+	while IFS= read -r runsRecord ; do
+		[ -f "$runsRecord" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$runsRecord" owner )" = "$1" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$runsRecord" status )" = "spawn-started" ] || continue
+		AgentsToolsSessionRecordLive "$runsRecord" && return 0
+	done <<< "$( type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null ; AgentsToolsSpawnedStartedRecords )"
+	return 1
+}
+
+## THE START OF APPROVED PENDING WORK, with no agent: at most one item a pass, the oldest by file name. A candidate is a `board-pending` item that
+## carries `approved-by:`, whose `recheck-date:` is absent or due, and whose next-iteration routine resolves (AgentsToolsBoardItemHandler rc 0,
+## naming a routine). The start is `magic-coordinator.work-duty.routine`'s **start-pending** done by the thread: the item moves to `board-running`
+## first, then its `restart-session` group, else its `owner`, is spawned on that routine. A move refused starts nothing, and says why.
+AgentsToolsScheduleStartPending(){
+	local pendFile pendName pendNow pendRecheck pendEpoch pendRoutine pendRc pendMembers pendOut pendMark pendOne pendFast=""
+	type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include" || return 0
+	## The pace gate holds this start as it holds a duty start: a slow machine gets no new session.
+	case "$( AgentsToolsSchedulePaceText 2> /dev/null )" in *' is held'*) printf 'start-pending: held by the pace gate, nothing started\n' ; return 0 ;; esac
+	pendNow="$( date +%s )"
+	for pendFile in "$MDAT_DATA_ROOT/board/pending"/*.md ; do
+		[ -f "$pendFile" ] || continue
+		pendName="${pendFile##*/}"
+		case "$pendName" in dispatch-*) continue ;; esac
+		[ -n "$( AgentsToolsBoardItemKey "$pendFile" approved-by )" ] || continue
+		pendRecheck="$( AgentsToolsBoardItemKey "$pendFile" recheck-date )"
+		if [ -n "$pendRecheck" ] ; then
+			pendEpoch="$( printf '%s\n' "$pendRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
+			case "$pendEpoch" in ''|*[!0123456789]*) continue ;; esac
+			[ "$pendEpoch" -le "$pendNow" ] || continue
+		fi
+		pendRc=0
+		pendRoutine="$( AgentsToolsBoardItemHandler "$pendFile" 2> /dev/null )" || pendRc=$?
+		[ "$pendRc" = 0 ] || continue
+		pendRoutine="$( printf '%s\n' "$pendRoutine" | LC_ALL=C awk -F '\t' '$1 == "routine" { print $2 ; exit ; }' )"
+		case "$pendRoutine" in ''|-) continue ;; esac
+		pendMembers="$( AgentsToolsBoardItemKey "$pendFile" restart-session )"
+		[ -n "$pendMembers" ] || pendMembers="$( AgentsToolsBoardItemKey "$pendFile" owner )"
+		pendMembers="$( printf '%s\n' "$pendMembers" | LC_ALL=C tr ',' ' ' )"
+		[ -n "${pendMembers// /}" ] || continue
+		## ONE SESSION PER MEMBER UNLESS THE MACHINE IS FAST: a member that runs a session already gets another only while the median tool call is 5 s or
+		## less, or for an urgent or emergency item, or while the emergency flag is on. Otherwise the item waits in pending.
+		pendMark="$( AgentsToolsBoardItemKey "$pendFile" mark )"
+		case "$pendMark" in
+			urgent|emergency) ;;
+			*)
+				[ -z "$( AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_EMERGENCY "$pendNow" )" ] || pendMark=emergency
+				## BATCH INTO THE DUTY: an item whose start is its owner alone, and whose owner holds a live work-duty, is not started. The duty's input
+				## scan carries the board items its member owns, pending and running, and its idle Wait rereads that scan, so the duty works the item in its loop.
+				[ "$pendMark" = emergency ] || [ -n "$( AgentsToolsBoardItemKey "$pendFile" restart-session )" ] || ! AgentsToolsScheduleWorkDutyRecord "$( AgentsToolsBoardItemKey "$pendFile" owner )" > /dev/null || continue
+				[ "$pendMark" = emergency ] || for pendOne in $pendMembers ; do
+					AgentsToolsScheduleMemberRuns "$pendOne" || continue
+					if [ -z "$pendFast" ] ; then
+						if MDAT_TOOL_PACE_MS=5000 AgentsToolsSchedulePaceText 2> /dev/null | LC_ALL=C grep -q 'a duty start is allowed' ; then pendFast=yes ; else pendFast=no ; fi
+					fi
+					[ "$pendFast" = yes ] || continue 2
+				done
+			;;
+		esac
+		pendOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --advance-to-running --team-member magic-coordinator "$pendName" --from-state:pending 2>&1 < /dev/null )" || {
+			printf 'start-pending: %s not moved to running, nothing started: %s\n' "$pendName" "$( printf '%s\n' "$pendOut" | LC_ALL=C grep -m 1 -E 'ERROR|REFUS' | LC_ALL=C cut -c1-300 )"
+			return 0
+		}
+		## The members are split on purpose: each is one argument of the spawner.
+		# shellcheck disable=SC2086
+		if AgentsToolsScheduleSpawn "pending.${pendName%.md}" --routine "$pendRoutine" \
+			--description "Board item $pendName, approved, started from board-pending by the schedule: run its next iteration by $pendRoutine. The item is in board-running; record this spawn's receipt as its execution-receipt." \
+			$pendMembers ; then
+			printf 'start-pending: started %s by %s for %s\n' "$pendName" "$pendRoutine" "$pendMembers"
+		else
+			printf 'start-pending: %s moved to running, its start is held: the spawner will retry it from running\n' "$pendName"
+		fi
+		return 0
+	done
+	return 0
+}
+
 AgentsToolsScheduleLoop(){
 	AgentsToolsScheduleSpawnReport
 	## HOLDING STARTS NOTHING: no routine, no duty, no supervision; what ended is still reported and learned from.
@@ -1377,6 +1636,7 @@ AgentsToolsScheduleLoop(){
 	fi
 	AgentsToolsScheduleAutorun
 	AgentsToolsScheduleWorkDuty
+	AgentsToolsScheduleStartPending
 	AgentsToolsScheduleSupervision
 	AgentsToolsScheduleImportantEmergency
 	AgentsToolsScheduleLearning

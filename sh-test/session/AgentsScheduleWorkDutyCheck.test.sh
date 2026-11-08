@@ -99,12 +99,14 @@ rigAssert "in worktime every standing member with work is started, the coordinat
 
 echo "-- 2. overtime alone --"
 rigOvertime ; rigNoPending
-rigAssert "with overtime on and worktime off, they are started as in worktime" "$( rigRun )" "keeper-rig-one keeper-rig-two magic-coordinator "
+## Team overtime gives a duty to a magic-* member alone (the owner's ruling): the keepers are started in worktime, or for a task of their own marked urgent or emergency.
+rigAssert "with overtime on and worktime off, the magic members with work are started and the keepers are not" "$( rigRun )" "magic-coordinator "
 
 echo "-- 3. emergency alone, a marked pending task --"
 rigEmergency
 rigNoPending ; rigPending task-20261106T000000Z-rig keeper-rig-one important
-rigAssert "out of hours a member starts for the pending task it owns that carries an important mark" "$( rigRun )" "keeper-rig-one magic-coordinator "
+## The marks that pass out of hours are bound by time and not by importance: urgent and emergency pass, important does not (AgentsToolsScheduleWorkDuty, dutyOwners).
+rigAssert "out of hours a member does not start for a pending task it owns that carries an important mark" "$( rigRun )" "magic-coordinator "
 rigNoPending ; rigPending task-20261106T000001Z-rig keeper-rig-two emergency
 rigAssert "and for one that carries an emergency mark" "$( rigRun )" "keeper-rig-two magic-coordinator "
 

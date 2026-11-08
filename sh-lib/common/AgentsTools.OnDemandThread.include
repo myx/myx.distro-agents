@@ -235,6 +235,10 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 		printf '⛔ ERROR: the thread could not open its request fifo: %s\n' "$serveFolder/request.fifo" >&2
 		return 1
 	}
+	## A HANDLER OR A TICK THAT CALLS `exit` ENDS THIS PROCESS WITH NO END LINE AND ITS LOCK STILL NAMING IT: the exit trap says so and gives the lock back. The
+	## trap reads three globals, not this function's locals, which a shell on the fleet's bash 3.2 does not keep in scope at an exit. The normal ends below clear the trap first.
+	agentsOnDemandExitPid="$servePid" agentsOnDemandExitLock="$serveFolder/thread.lock" agentsOnDemandExitMe="$serveMe"
+	trap 'printf "%s the thread, pid %s, ends: a handler or a tick ended the process\n" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$agentsOnDemandExitPid" >&2 ; [ -z "$agentsOnDemandExitMe" ] || AgentsToolsThreadLockGive "$agentsOnDemandExitLock" "$agentsOnDemandExitMe"' EXIT
 	printf '%s the thread runs as pid %s: it serves %s, and ends after %ss with no request, or on TERM\n' \
 		"$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$servePid" "$serveFolder" "$serveIdle" >&2
 	## THE BOUND IS THE FOLDER'S (S12.11 ruling 4): the thread that took it writes it here, so a start over a living
@@ -242,6 +246,7 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 	printf '%s\n' "$serveIdle" > "$serveFolder/thread.idle" 2> /dev/null || :
 	if [ "$serveOnce" = yes ] ; then
 		[ "$serveTick" = "-" ] || "$serveTick" || printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveTick" "$?" >&2
+		trap - EXIT
 		exec 9>&-
 		AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
 		return 0
@@ -294,6 +299,7 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 			fi
 		fi
 	done
+	trap - EXIT
 	printf '%s the thread, pid %s, ends: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$servePid" "$serveLeave" >&2
 	exec 9>&-
 	[ -z "$serveMe" ] || AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"

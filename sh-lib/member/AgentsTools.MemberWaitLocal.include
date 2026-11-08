@@ -153,10 +153,23 @@ AgentsWaitProbeChecklist(){
 	local probeOut="$4" probeSpawn="${waitSessionId:-${MDAT_SPAWN_SESSION_ID:-}}" probeFolder="" probeFile="" probeLine probeDue="" probeOpen="" probeNow="" probeDueText="" probeDueAt=""
 	[ "$2" = "$1" ] || return 2
 	case "$probeSpawn" in ''|*/*|.|..) return 2 ;; esac
-	for probeFile in "$MMDAPP/.local/agents/spawned"/*/"$probeSpawn.spawn.md" ; do
-		[ -f "$probeFile" ] || continue
-		probeFolder="${probeFile%/*}" ; break
-	done
+	## The folder is found once for the wait, and by the places a run's own record lies before any glob: this probe runs once a tick in every wait, and a
+	## glob over every spawn folder of the workspace, hundreds of them, made a tick cost as many directories as the workspace had sessions, in every wait.
+	if [ "${agentsWaitChecklistSpawn:-}" = "$probeSpawn" ] && [ -n "${agentsWaitChecklistFolder:-}" ] ; then
+		probeFolder="$agentsWaitChecklistFolder"
+	else
+		if [ -f "${MDAT_SPAWN_SANDBOX_ROOT:-/nonexistent}/$probeSpawn.spawn.md" ] ; then
+			probeFolder="$MDAT_SPAWN_SANDBOX_ROOT"
+		elif [ -f "$MMDAPP/.local/agents/spawned/$probeSpawn/$probeSpawn.spawn.md" ] ; then
+			probeFolder="$MMDAPP/.local/agents/spawned/$probeSpawn"
+		else
+			for probeFile in "$MMDAPP/.local/agents/spawned"/*/"$probeSpawn.spawn.md" ; do
+				[ -f "$probeFile" ] || continue
+				probeFolder="${probeFile%/*}" ; break
+			done
+		fi
+		[ -z "$probeFolder" ] || { agentsWaitChecklistSpawn="$probeSpawn" ; agentsWaitChecklistFolder="$probeFolder" ; }
+	fi
 	[ -n "$probeFolder" ] || probeFolder="$MMDAPP/.local/agents/sessions/$probeSpawn"
 	probeFile="$probeFolder/$1.checklist.md"
 	if [ ! -f "$probeFile" ] ; then

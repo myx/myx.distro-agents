@@ -95,6 +95,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-session-context-scan "$workMember" --all-types \
 			--do-inbox-reflections --do-inbox-notes --do-inbox-inquiry-active --do-inbox-other \
 			--no-slack --no-email --no-trello --do-board-related-startable \
+			--header type --header owner --header mark --header restart-session \
 			--context --intern-op-work-duty-input-scan > "$workWork/inbox.out" 2> "$workWork/inbox.err" || workInboxRc=$?
 		if [ "$workInboxRc" != "0" ] ; then
 			printf 'The inbox could not be read (exit %s):\n\n' "$workInboxRc"
@@ -183,7 +184,7 @@ case "$1" in
 		else
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			## Bounded by the window: a quiet Slack returns when the window ends, never at the Wait's own long bound.
-			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-timeout "$workWindow" --wait-source "tagged:$workMember" --wait-source "mentions:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
+			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source "mentions:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
 		fi
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then
 			## A message of the team channel that names someone (`<@id>`) and not this member is kept, for the member to know of it, and labelled by the

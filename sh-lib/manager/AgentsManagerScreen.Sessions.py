@@ -831,6 +831,29 @@ def askControl(state, row):
     return "control thread asked of the tooling: the session %s" % row["label"]
 
 
+## `p` and `r` (S7.19): ask the tooling to pause the selected session, or to resume it, through `--manager-session-pause` and
+## `--manager-session-resume` (S19.1). No confirmation is asked: a pause holds the runs at their next pause point and ends nothing,
+## and a resume lets them go on. A row that is no session says so in a box. One asked for and not answered yet is not asked again.
+def askPauseOrResume(state, row, which):
+    key = "p" if which == "pause" else "r"
+    title = "Pause" if which == "pause" else "Resume"
+    session = controlTargetOf(state, row)
+    if session is None:
+        return tell(state, title, "%s: nothing to %s here: %s acts on a session, or on an agent of one" % (key, which, key))
+    if "action:%s:%s" % (which, session["id"]) in state.asked:
+        return tell(state, title, "%s: the %s of this session is asked for already, and its answer has not come" % (key, which))
+    askCall(state, which, session["id"], callWords(which, session["id"]), None)
+    return "%s asked of the tooling: the session %s" % (which, row["label"])
+
+
+def askPause(state, row):
+    return askPauseOrResume(state, row, "pause")
+
+
+def askResume(state, row):
+    return askPauseOrResume(state, row, "resume")
+
+
 ## What each <outcome> of a `control` row means, in words. An outcome that is not listed
 ## here shows as it is printed.
 CONTROL_OUTCOMES = {
@@ -1089,6 +1112,8 @@ def startAnswer(text, name, width):
 
 ACTION_HANDLERS["kill"] = askKill
 ACTION_HANDLERS["control"] = askControl
+ACTION_HANDLERS["pause"] = askPause
+ACTION_HANDLERS["resume"] = askResume
 ACTION_HANDLERS["launch"] = askLaunch
 ACTION_HANDLERS["prompt"] = askPrompt
 ACTION_HANDLERS["unstarted"] = askUnstarted
@@ -1153,9 +1178,13 @@ def lingers(row):
     return ended is not None and 0 <= nowEpoch() - ended < LINGER_SECONDS
 
 
-## The row as the active list draws it: a session that has ended is dim, the list's own row untouched.
+## The row as the active list draws it: a session that has ended is dim and its tail says so with its age, `ended just now` under
+## a minute and `ended <age> ago` after (S7.29), so a reader sees why a closed session still stands here. The list's own row is untouched.
 def lingering(row):
-    return dict(row, look=DIM) if row["session"]["state"] in SESSION_CLOSED_STATES else row
+    if row["session"]["state"] not in SESSION_CLOSED_STATES:
+        return row
+    age = ageText(registryEpoch(row["session"]["stateAt"]), nowEpoch())
+    return dict(row, look=DIM, tail="ended just now" if age in ("", "0m") else "ended %s ago" % age)
 
 
 ## The sessions that are closed: those that are finished or failed.
