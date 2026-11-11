@@ -51,7 +51,8 @@ type AgentsToolsBoardItemKey > /dev/null 2>&1 || rigRefuse "the board item key r
 export MDLT_ORIGIN="$rigOrigin"
 
 ## The stubs: what the function asks of the rest of the tooling.
-rigMedian=1000 rigDutyMembers="" rigRunMembers="" rigEmergency=no
+rigMedian=1000 rigDutyMembers="" rigRunMembers="" rigEmergency=no rigWorktime=yes
+AgentsToolsScheduleCurrentFlags(){ printf 'worktime: %s\novertime: no\nemergency: %s\n' "$rigWorktime" "$rigEmergency" ; }
 AgentsToolsBoardItemHandler(){ printf 'routine\tmagic-team.verify.routine.md\tstub\n' ; }
 AgentsToolsScheduleSpawn(){ printf '%s\n' "$*" >> "$rigSpawnLog" ; }
 AgentsToolsSchedulePaceText(){ ## the median the check sets, against the limit the caller sets
@@ -68,7 +69,7 @@ rigItem(){ ## file name, then header lines -- one board item
 	shift
 	{ printf '%s\n' '---' ; printf '%s\n' "$@" ; printf '%s\n' '---' '' '# an item' ; } > "$rigPending/$itemName"
 }
-rigReset(){ rm -f "$rigPending"/*.md "$rigSpawnLog" "$rigItemsLog" ; rigMedian=1000 rigDutyMembers="" rigRunMembers="" rigEmergency=no ; unset RIG_ITEMS_FAIL ; }
+rigReset(){ rm -f "$rigPending"/*.md "$rigSpawnLog" "$rigItemsLog" ; rigMedian=1000 rigDutyMembers="" rigRunMembers="" rigEmergency=no rigWorktime=yes ; unset RIG_ITEMS_FAIL ; }
 rigSpawned(){ [ -f "$rigSpawnLog" ] && wc -l < "$rigSpawnLog" | tr -d ' ' || printf '0' ; }
 rigRunPass(){ rigOut="$( AgentsToolsScheduleStartPending 2>&1 )" ; }
 
@@ -82,7 +83,7 @@ rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
 rigRunPass
 rigAssert "a fast machine starts an approved item, once, with its routine and its member" "$( rigSpawned ):$( awk '{ print $1, $2, $3, $4 }' "$rigSpawnLog" )" "1:pending.task-a --routine magic-team.verify.routine.md --description"
 rigAssert "the spawn names the member as its last word" "$( awk '{ print $NF }' "$rigSpawnLog" )" "magic-developer"
-rigAssert "the item was moved to running first, by the items tool, from pending" "$( cat "$rigItemsLog" | cut -c1-100 )" "--advance-to-running --team-member magic-coordinator task-a.md --from-state:pending"
+rigAssert "the item was moved to running first (the first call), by the items tool, from pending" "$( head -1 "$rigItemsLog" | cut -c1-100 )" "--advance-to-running --team-member magic-coordinator task-a.md --from-state:pending"
 
 rigReset
 rigItem task-a.md 'owner: magic-developer'
@@ -161,6 +162,24 @@ rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
 rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester'
 rigRunPass
 rigAssert "one item is started a pass, the oldest by name" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-developer"
+
+## OUT OF WORKTIME ONLY THE COORDINATOR RUNS: with worktime, overtime and emergency off, only an urgent or emergency item is started.
+rigReset
+rigWorktime=no
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
+rigRunPass
+rigAssert "worktime off: an approved item with no mark starts nothing, and is not moved" "$( rigSpawned ):$( [ -f "$rigItemsLog" ] && echo moved || echo untouched )" "0:untouched"
+rigReset
+rigWorktime=no
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'mark: urgent'
+rigRunPass
+rigAssert "worktime off: an urgent item is still started" "$( rigSpawned )" "1"
+rigReset
+rigWorktime=no
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer' 'mark: important'
+rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester' 'mark: emergency'
+rigRunPass
+rigAssert "worktime off: an important item waits, the emergency one after it is started" "$( rigSpawned ):$( awk '{ print $NF }' "$rigSpawnLog" )" "1:magic-tester"
 
 if [ "$rigFails" -ne 0 ] ; then echo "⛔ START PENDING CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1 ; fi
 echo "START_PENDING: OK ($rigPasses assertions, offline)"

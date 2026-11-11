@@ -261,6 +261,25 @@ AgentsToolsTeamDataChangeStamp(){ ## file
 ##     with no marker.
 ## A file that one side deleted and the other changed keeps the changed one. The merge is then committed. rc 0 where no merge was in
 ## progress or it was settled; rc 1, the merge left as it was and one warning, where it could not be.
+## THE MERGE TAKEN AGAIN, where the sync gave up on a conflict: cloneSync aborts a merge it cannot settle and leaves no MERGE_HEAD behind,
+## so origin's branch is merged here by the tooling's own merge, which the settling engine (AgentsToolsTeamDataMergeSettle) can work, and a
+## merge left with no conflict is committed. One step for every caller that integrates origin: the close push and the checkout repair.
+## rc 0 where the merge is committed and nothing is open; rc 1 where a conflict stays, the merge aborted and the checkout as before.
+AgentsToolsTeamDataMergeAgain(){ ## where, repository root, branch
+	local againWhere="$1" againRoot="$2" againBranch="$3" againGit=""
+	againGit="$( git -C "$againRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 1
+	git -C "$againRoot" fetch -q origin "+refs/heads/$againBranch:refs/remotes/origin/$againBranch" > /dev/null 2>&1 || :
+	git -C "$againRoot" merge --no-commit --no-ff "refs/remotes/origin/$againBranch" > /dev/null 2>&1 || :
+	AgentsToolsTeamDataMergeSettle "$againWhere" || :
+	if [ -e "$againGit/MERGE_HEAD" ] && [ -z "$( git -C "$againRoot" diff --name-only --diff-filter=U 2>/dev/null )" ] ; then
+		git -C "$againRoot" commit -q -m "* team-data merge committed by the tooling, no conflict in it" > /dev/null 2>&1 || :
+	fi
+	if [ -e "$againGit/MERGE_HEAD" ] ; then
+		git -C "$againRoot" merge --abort > /dev/null 2>&1
+		return 1
+	fi
+	return 0
+}
 AgentsToolsTeamDataMergeSettle(){ ## where
 	local settleRoot="" settleGit="" settlePath="" settleCount=0 settleOut="" settleWork="" settleOurs="" settleBase="" settleTheirs=""
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
@@ -463,16 +482,9 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 		## committed too, so the push below runs on a store with nothing left open.
 		pushOut="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
 			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$pushBranch" 2>&1 )" || {
-			git -C "$repoRoot" fetch -q origin "+refs/heads/$pushBranch:refs/remotes/origin/$pushBranch" > /dev/null 2>&1 || :
-			git -C "$repoRoot" merge --no-commit --no-ff "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 || :
-			AgentsToolsTeamDataMergeSettle "$pushWhere" || :
-			if [ -e "$gitDir/MERGE_HEAD" ] && [ -z "$( git -C "$repoRoot" diff --name-only --diff-filter=U 2>/dev/null )" ] ; then
-				git -C "$repoRoot" commit -q -m "* team-data merge committed by the tooling, no conflict in it" > /dev/null 2>&1 || :
-			fi
-			if [ ! -e "$gitDir/MERGE_HEAD" ] ; then
+			if AgentsToolsTeamDataMergeAgain "$pushWhere" "$repoRoot" "$pushBranch" ; then
 				pushOut=""
 			else
-				git -C "$repoRoot" merge --abort > /dev/null 2>&1
 				echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected and integrating origin failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
 				return 0
 			fi

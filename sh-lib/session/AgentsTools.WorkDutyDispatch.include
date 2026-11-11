@@ -80,8 +80,12 @@ AgentsToolsWorkDutyDispatchHead(){ ## routine file path, skillset root, member
 ## 4. The variables of this run, last: session id, spawn id, started-at, the day-first mark the schedule
 ## set for it, and the input scan's result. A scan result is named by its file, its size and its line count
 ## -- never by its content, which the run reads by line range itself.
-AgentsToolsWorkDutyDispatchVariables(){ ## session id, spawn id, started-at, scan file (may be empty)
-	local dutySession="$1" dutySpawn="$2" dutyStarted="$3" dutyScan="${4:-}" dutyBytes="" dutyLines=""
+AgentsToolsWorkDutyDispatchVariables(){ ## session id, spawn id, started-at, scan file (may be empty), member (optional)
+	local dutySession="$1" dutySpawn="$2" dutyStarted="$3" dutyScan="${4:-}" dutyMember="${5:-}" dutyBytes="" dutyLines="" dutyScanName="input-scan.md"
+	## THE FILE NAMED IS THE ONE COUNTED: the scan of this start is kept as input/input-scan.<member>.md, and input/input-scan.md is
+	## the session's first scan, so on a later start the two differ (AgentsToolsSpawnSandboxFillInput). With no member given the
+	## old name stands.
+	[ -z "$dutyMember" ] || dutyScanName="input-scan.$dutyMember.md"
 	printf '## This run -- its own variables\n\n'
 	printf 'session-id: %s\n' "$dutySession"
 	printf 'spawn-id: %s\n' "$dutySpawn"
@@ -89,7 +93,24 @@ AgentsToolsWorkDutyDispatchVariables(){ ## session id, spawn id, started-at, sca
 	printf 'day-first: %s\n' "${MDAT_SPAWN_DAY_FIRST:-no}"
 	if [ -n "$dutyScan" ] && [ -f "$dutyScan" ] ; then
 		dutyBytes="$( wc -c < "$dutyScan" | tr -d ' ' )" ; dutyLines="$( wc -l < "$dutyScan" | tr -d ' ' )"
-		printf 'scan-result: input/input-scan.md (%s bytes, %s lines)\n' "$dutyBytes" "$dutyLines"
+		printf 'scan-result: input/%s (%s bytes, %s lines)\n' "$dutyScanName" "$dutyBytes" "$dutyLines"
+		## THE SCAN IS IN THE RUN'S OWN CACHED PREFIX (the human-owner: a second, in-session cache after the armed one): a capped copy of it
+		## stands here, in the first message, after the armed block, so the run's opening checkpoint holds it and no loop or rewind re-reads
+		## it by a tool call. The cap is MDAT_INPUT_SCAN_INLINE_BYTES (16384 by default), cut at a whole line; past it the file is read by
+		## line range from the line said. Later changes arrive as input-scan updates.
+		local dutyCap="${MDAT_INPUT_SCAN_INLINE_BYTES:-16384}" dutyShown="" dutyShownLines=0
+		case "$dutyCap" in ''|*[!0-9]*) dutyCap=16384 ;; esac
+		if [ "$dutyCap" -gt 0 ] ; then
+			dutyShown="$( head -c "$dutyCap" "$dutyScan" 2> /dev/null )"
+			[ "$dutyBytes" -le "$dutyCap" ] 2> /dev/null || dutyShown="${dutyShown%$'\n'*}"
+			dutyShownLines="$( printf '%s\n' "$dutyShown" | LC_ALL=C awk 'END { print NR }' )"
+			if [ "$dutyBytes" -le "$dutyCap" ] 2> /dev/null ; then
+				printf '\n## The input scan of this start, whole (input/%s): read it here, never again by a tool\n\n' "$dutyScanName"
+			else
+				printf '\n## The input scan of this start, its first %s of %s lines (input/%s): read the rest by line range from line %s, never this part again\n\n' "$dutyShownLines" "$dutyLines" "$dutyScanName" "$(( dutyShownLines + 1 ))"
+			fi
+			printf '%s\n' "$dutyShown"
+		fi
 	else
 		printf 'scan-result: none\n'
 	fi
@@ -100,6 +121,6 @@ AgentsToolsWorkDutyDispatchVariables(){ ## session id, spawn id, started-at, sca
 AgentsToolsWorkDutyDispatchText(){ ## routine file path, skillset root, member, session id, spawn id, started-at, scan file
 	local dutyText=""
 	dutyText="$( AgentsToolsWorkDutyDispatchHead "$1" "$2" "$3" )" || return 1
-	dutyText="$dutyText"$'\n\n'"$( AgentsToolsWorkDutyDispatchVariables "$4" "$5" "$6" "${7:-}" )"
+	dutyText="$dutyText"$'\n\n'"$( AgentsToolsWorkDutyDispatchVariables "$4" "$5" "$6" "${7:-}" "$3" )"
 	printf '%s\n' "$dutyText"
 }

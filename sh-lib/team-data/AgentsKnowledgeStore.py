@@ -119,28 +119,37 @@ def _add(argv):
     if store is None or source is None or manifest is None:
         return _refuse("add: --store, --source and --manifest are needed")
     import lancedb
-    db = lancedb.connect(store)
-    rows = []
+    # A row's key is its source and its caption: a later line of one caption wins inside the manifest.
+    by_caption = {}
     with open(manifest, "r") as handle:
         for line in handle:
             line = line.rstrip("\n")
             caption, body_file = line.split("\t", 1)
             with open(body_file, "r") as body:
-                rows.append({"source": source, "section": caption, "text": body.read()})
-    if not rows:
+                by_caption[caption] = {"source": source, "section": caption, "text": body.read()}
+    if not by_caption:
         return 0
-    # Merge, not replace: the records already there stay, a record of the same caption is replaced by the new one, so a
-    # spread of one MAGIC.md leaves the records another MAGIC.md put in the store untouched.
-    by_caption = {}
-    if "sections" in db.table_names():
-        for row in _all_rows(db.open_table("sections")):
-            by_caption[row.get("section", "")] = row
-    for row in rows:
-        by_caption[row.get("section", "")] = row
-    if "sections" in db.table_names():
-        db.drop_table("sections")
-    db.create_table("sections", list(by_caption.values()))
+    lockDir = store.rstrip("/") + ".lock"
+    if not _lockIndex(lockDir):
+        return _refuse("add: another write holds the store lock: " + lockDir)
+    try:
+        db = lancedb.connect(store)
+        # Merge, not replace: only the rows of this source with these captions are replaced. Every other row, of this
+        # source or another one, stays as it was, and the table is never rewritten whole.
+        if "sections" in db.table_names():
+            table = db.open_table("sections")
+            table.delete("source = " + _sqlText(source) + " AND section IN (" + ", ".join(_sqlText(caption) for caption in by_caption) + ")")
+            table.add(list(by_caption.values()))
+        else:
+            db.create_table("sections", list(by_caption.values()))
+    finally:
+        _unlockIndex(lockDir)
     return 0
+
+
+def _sqlText(value):
+    # One SQL string literal: a quote inside it is doubled, so a caption never ends the literal it stands in.
+    return "'" + value.replace("'", "''") + "'"
 
 
 def _remove(argv):
@@ -164,20 +173,20 @@ def _remove(argv):
         patterns = [re.compile(_glob_regex(line.rstrip("\n"))) for line in handle if line.rstrip("\n")]
     if not patterns:
         return 0
-    db = lancedb.connect(store)
-    table = db.open_table("sections")
-    rows = _all_rows(table)
-    kept = []
-    removed = 0
-    for row in rows:
-        caption = row.get("section", "")
-        if any(pattern.match(caption) for pattern in patterns):
-            removed += 1
-        else:
-            kept.append(row)
-    db.drop_table("sections")
-    if kept:
-        db.create_table("sections", kept)
+    lockDir = store.rstrip("/") + ".lock"
+    if not _lockIndex(lockDir):
+        return _refuse("remove: another write holds the store lock: " + lockDir)
+    try:
+        db = lancedb.connect(store)
+        table = db.open_table("sections")
+        # Only the matching rows are deleted; the rest of the table is never rewritten.
+        matched = sorted({row.get("section", "") for row in _all_rows(table) if any(pattern.match(row.get("section", "")) for pattern in patterns)})
+        removed = 0
+        if matched:
+            removed = table.count_rows("section IN (" + ", ".join(_sqlText(caption) for caption in matched) + ")")
+            table.delete("section IN (" + ", ".join(_sqlText(caption) for caption in matched) + ")")
+    finally:
+        _unlockIndex(lockDir)
     sys.stdout.write(str(removed) + "\n")
     return 0
 
@@ -319,7 +328,8 @@ def _query(argv):
             lines = lines[1:]
         with open(scratch, "w") as handle:
             handle.write("## " + hit.get("heading-path", "") + "\n" + "\n".join(lines).strip("\n") + "\n")
-        sys.stdout.write(scratch + "\t" + hit.get("source", "") + "\t" + hit.get("group", "") + "\n")
+        # The fourth column is the reranker's fused score, so a caller can weigh or cut hits by it.
+        sys.stdout.write(scratch + "\t" + hit.get("source", "") + "\t" + hit.get("group", "") + "\t" + "%.6f" % float(hit.get("_relevance_score", 0.0)) + "\n")
     return 0
 
 
@@ -389,7 +399,9 @@ def _build(argv):
     if indexDir is None or modelDir is None or modelStamp is None:
         return _refuse("build: --index, --model-dir and --model-stamp are needed")
     try:
-        sections = json.load(sys.stdin).get("sections", [])
+        # The splitter passes file bytes through, and a file may hold an invalid UTF-8 sequence: each one becomes U+FFFD
+        # here, so one bad byte never stops the whole build.
+        sections = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace")).get("sections", [])
     except ValueError:
         return _refuse("build: the splitter's sections could not be read on stdin")
     lockDir = indexDir + ".lock"

@@ -375,7 +375,9 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	fi
 	[ -n "$rsMember" ] || rsMember="$( AgentsToolsDecisionsField "$rsPath" owner )"
 	[ -n "$rsMember" ] || { printf 'RETURN: not restarted: no member is recorded for %s\n' "${rsItem%.md}" ; return 1 ; }
-	set -- --intern-op-agent-spawn-proxy "$rsMember" --from-board "$rsItem" --board-state running --dispatch-doc:reuse
+	## The item is read where it stands: running, or still in review while the return that restarts it has not moved it yet. Reading running alone failed
+	## "document not found in lookup folders" in whichever restart case came first, a race, not a case.
+	set -- --intern-op-agent-spawn-proxy "$rsMember" --from-board "$rsItem" --board-state running --board-state review --dispatch-doc:reuse
 	[ -z "$rsTracking" ] || set -- "$@" --tracking-name "$rsTracking"
 	## Paid from the workspace that paid for the run it replaces, and on the service that run
 	## was started on by name: both off its record (above), neither asked for again.
@@ -561,7 +563,9 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 		[ ! -s "$MMDAPP/.local/agents/sessions/$ptOne/session.thread" ] || IFS= read -r ptThread < "$MMDAPP/.local/agents/sessions/$ptOne/session.thread" || :
 		AgentsToolsSpawnConversationThreadValid "$ptThread" && ! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" && { printf '%s\n' "$ptThread" ; return 0 ; }
 	done
-	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/*.spawn.md ; do
+	## The coordinator's started runs from the kept started list (AgentsTools.StartedRecords.include), never every record on a post; status is read off each record as it is.
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for ptRecord in $( AgentsToolsSpawnedStartedRecords 2> /dev/null ) ; do
 		[ -f "$ptRecord" ] || continue
 		case "${ptRecord##*/}" in "$ptOwn.spawn.md") continue ;; esac
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" owner )" = magic-coordinator ] || continue
@@ -640,10 +644,22 @@ AgentsReviewWaitExpire(){ ## who, spawn id
 }
 
 ## Every live spawn dismissed with reason shutdown, by the tooling's own state (AgentsToolsRunDismiss), and its
-## ending recorded on the item it works. One SHUTDOWN line per spawn, then a count.
+## ending recorded on the item it works. One SHUTDOWN line per spawn, then a count. The bare form is a readout: one
+## SHUTDOWN-PLAN line per spawn it would end, and nothing is ended. Ending needs --execute (agentsReviewExecute).
 AgentsReviewShutdown(){ ## sending member
 	local sdBy="$1" sdRecord sdSpawn sdItem sdWhy sdSent=0 sdSeen=0
 	AgentsReviewLoad
+	if [ -z "${agentsReviewExecute:-}" ] ; then
+		for sdRecord in "$MMDAPP/.local/agents/spawned"/*/*.spawn.md ; do
+			[ -f "$sdRecord" ] || continue
+			AgentsReviewChildLive "$sdRecord" > /dev/null || continue
+			sdSpawn="${sdRecord##*/}" ; sdSpawn="${sdSpawn%.spawn.md}"
+			sdSeen=$(( sdSeen + 1 ))
+			printf 'SHUTDOWN-PLAN: spawn %s: would be ended\n' "$sdSpawn"
+		done
+		printf 'SHUTDOWN-PLAN: %s live spawn(s) would be ended, and none was. Pass --execute to end them all now.\n' "$sdSeen"
+		return 0
+	fi
 	for sdRecord in "$MMDAPP/.local/agents/spawned"/*/*.spawn.md ; do
 		[ -f "$sdRecord" ] || continue
 		sdWhy="$( AgentsReviewChildLive "$sdRecord" )" || continue
@@ -900,7 +916,9 @@ AgentsReviewChildrenDismiss(){ ## the closing run's record path, the member clos
 		printf 'CHILDREN-CLOSE: no run was spawned by this one\n'
 		return 0
 	fi
-	chChilds="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $chParent" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || chChilds=""
+	## The children from the parent's list where the lists are marked complete, else one grep over all the records (AgentsToolsSpawnedChildRecords).
+	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	chChilds="$( AgentsToolsSpawnedChildRecords "$chParent" )" || chChilds=""
 	while IFS= read -r chChild ; do
 		[ -n "$chChild" ] && [ -f "$chChild" ] || continue
 		chOwn="${chChild##*/}" ; chOwn="${chOwn%.spawn.md}"

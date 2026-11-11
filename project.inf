@@ -34,7 +34,6 @@ Declares: \
 	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:execute \
 	--magic-team:permissions:workspace:*:deny-tool:magic-coordinator:WorkspaceContextExecute \
 	--magic-team:permissions:workspace:*:allow-tool:magic-coordinator:AgentDispatcherTools \
-	--magic-team:permissions:workspace:*:allow-read:magic-coordinator:source/myx/todo-sketchpad/** \
 	\
 	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebFetch \
 	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebSearch \

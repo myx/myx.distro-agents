@@ -857,7 +857,7 @@ case "$1" in
 		## member directory.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 		case "$scope" in
-			user-home) registryFile="$( AgentsToolsTeamSharedMembers )" ;;
+			user-home) registryFile="${HOME:-}/.agents/magic-team/members.registry" ;;
 			*) registryFile="$( AgentsToolsTeamLocalFile "$workspace" members.registry )" ;;
 		esac
 		mkdir -p "${registryFile%/*}" || {

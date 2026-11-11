@@ -190,7 +190,7 @@ AgentsToolsSessionThreadFind(){
 AgentsToolsSessionCurrentThreadFind(){
 	AgentsToolsSessionThreadFind && return 0
 	local currentSession="" currentLine=""
-	currentSession="$( AgentsToolsSessionCurrentId )"
+	currentSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	case "$currentSession" in ''|*/*|.|..) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
 	[ -f "$MMDAPP/.local/agents/sessions/$currentSession/session.thread" ] && IFS= read -r currentLine < "$MMDAPP/.local/agents/sessions/$currentSession/session.thread" || return 1
@@ -289,7 +289,9 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 && AgentsToolsRegistrySpawnRuns "$availId" "$availCandidate" > /dev/null 2>&1 || continue
 		return 0
 	done
-	[ -z "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" 2> /dev/null )" ] || return 1
+	## The record is found by a glob, never by an `ls` process (call-path audit row 44).
+	local availAny
+	for availAny in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" ; do [ ! -e "$availAny" ] || return 1 ; done
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$availRecord" parent-member )" = "$2" ] || return 1
 	return 0
 }
@@ -305,14 +307,25 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 ## 3. else magic-coordinator, where a run of it is there, in that session, else in the session
 ##    of this run, as `<session>:magic-coordinator`: never this run itself, so a coordinator is
 ##    never handed its own matter back;
-## 4. else the human-owner.
+## 4. else the coordinator's current duty session (AgentsToolsRunRouteDuty), where a coordinator run is there;
+## 5. else the human-owner.
 ## The member is named, never a run: whichever run of it is there takes the matter.
 ## AN AGENT-LESS PARENT takes no matter itself: a run whose address in 1 or 2 is such a parent's
 ## session reports where that parent does, its own route read the same way, one hop and no more.
+## THE LADDER BEFORE THE HUMAN-OWNER: a matter with no parent left to take it goes to the coordinator's current duty session, where a
+## run of magic-coordinator is there, as `<session>:magic-coordinator`; rc 1 where none is. Every route that would end at the
+## human-owner asks this first, so he is reached only when the coordinator rung is exhausted.
+AgentsToolsRunRouteDuty(){ ## the spawn record the route is read for
+	local dutyId=""
+	dutyId="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/schedule/duty-session/magic-coordinator" 2> /dev/null )" || dutyId=""
+	case "$dutyId" in ''|*/*|.|..) return 1 ;; esac
+	AgentsToolsRunRouteAvailable "$dutyId" magic-coordinator "${1:-}" 2> /dev/null || return 1
+	printf '%s:magic-coordinator\n' "$dutyId"
+}
 AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has where it names none itself (may be empty)
 	local routeRecord="${1:-}" routeValue="" routeSession="" routeInitiator="" routeExecutor="" routeOne routeHop
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
-	[ -n "$routeRecord" ] && [ -f "$routeRecord" ] || { printf 'human-owner\n' ; return 0 ; }
+	[ -n "$routeRecord" ] && [ -f "$routeRecord" ] || { AgentsToolsRunRouteDuty "" || printf 'human-owner\n' ; return 0 ; }
 	## The hop: the session named by its reports-to, else its parent session; never from a parent itself, so no cycle.
 	if [ -z "${agentsRunRouteHopped:-}" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" agent-less )" != true ] ; then
 		routeHop=""
@@ -333,7 +346,7 @@ AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has wh
 			## The cycle guard: a parent whose own route names an agent-less session again ends in steps 3-4, of this run's session.
 			routeOne="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" session-id )"
 			! AgentsToolsRunRouteAvailable "$routeOne" magic-coordinator "$routeRecord" || { printf '%s:magic-coordinator\n' "$routeOne" ; return 0 ; }
-			printf 'human-owner\n' ; return 0
+			AgentsToolsRunRouteDuty "$routeRecord" || printf 'human-owner\n' ; return 0
 		fi
 	fi
 	if [ "${2:-}" != default ] ; then
@@ -360,7 +373,7 @@ AgentsToolsRunRoute(){ ## spawn record path, `default` for the address it has wh
 		printf '%s:magic-coordinator\n' "$routeOne"
 		return 0
 	done
-	printf 'human-owner\n'
+	AgentsToolsRunRouteDuty "$routeRecord" || printf 'human-owner\n'
 }
 
 ## THE CLOSE OF AN AGENT-LESS PARENT (AgentsToolsSpawnSessionParent, below), once every child
@@ -702,10 +715,17 @@ AgentsToolsItemReviewer(){ ## item path
 ## one lives. The close of a run gives up the seat it holds.
 
 ## The seat's file, printed. rc 1 for a session or member that is no bare name.
-AgentsToolsSessionSeatFile(){ ## session, member
+## Sets the variable named and prints nothing: the form a seat take or release takes on a call path (call-path audit row 50).
+AgentsToolsSessionSeatFileInto(){ ## variable name, session, member
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
-	AgentsToolsAssertBareName "$1" "the session" AgentsToolsSessionSeatFile 2> /dev/null && AgentsToolsAssertBareName "$2" "the member" AgentsToolsSessionSeatFile 2> /dev/null || return 1
-	printf '%s' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$1/seats/$2"
+	AgentsToolsAssertBareName "$2" "the session" AgentsToolsSessionSeatFile 2> /dev/null && AgentsToolsAssertBareName "$3" "the member" AgentsToolsSessionSeatFile 2> /dev/null || return 1
+	printf -v "$1" '%s' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$2/seats/$3"
+}
+## The same path printed, for a one-off reader.
+AgentsToolsSessionSeatFile(){ ## session, member
+	local seatPath
+	AgentsToolsSessionSeatFileInto seatPath "$1" "$2" || return 1
+	printf '%s' "$seatPath"
 }
 
 ## The spawn record of a run, by its spawn id: printed, rc 0; rc 1 where none is found here.
@@ -753,7 +773,7 @@ AgentsToolsSessionRecordLive(){ ## spawn record
 ## that still runs; rc 1, nothing printed, where nobody holds it.
 AgentsToolsSessionSeatHolder(){ ## session, member
 	local holderFile holderId="" holderRecord
-	holderFile="$( AgentsToolsSessionSeatFile "$1" "$2" )" || return 1
+	AgentsToolsSessionSeatFileInto holderFile "$1" "$2" || return 1
 	[ -f "$holderFile" ] || return 1
 	IFS= read -r holderId < "$holderFile" || :
 	holderRecord="$( AgentsToolsSessionRunRecord "$holderId" )" || return 1
@@ -833,7 +853,7 @@ AgentsToolsSessionSeatLock(){ ## seat file
 ## read or written now: nothing is taken, and the next read or post asks again.
 AgentsToolsSessionSeatTake(){ ## session, member, the run's spawn record
 	local takeFile takeRun takeHolder="" takeHolderRecord takeTemp="" takeRc=0
-	takeFile="$( AgentsToolsSessionSeatFile "$1" "$2" )" || return 2
+	AgentsToolsSessionSeatFileInto takeFile "$1" "$2" || return 2
 	takeRun="${3##*/}" ; takeRun="${takeRun%.spawn.md}"
 	AgentsToolsSessionSeatLock "$takeFile" || return 2
 	[ ! -f "$takeFile" ] || IFS= read -r takeHolder < "$takeFile" || :
@@ -853,7 +873,7 @@ AgentsToolsSessionSeatTake(){ ## session, member, the run's spawn record
 ## The seat a run holds, given up as it closes: only where the seat still names that run.
 AgentsToolsSessionSeatRelease(){ ## session, member, spawn id
 	local releaseFile releaseHolder=""
-	releaseFile="$( AgentsToolsSessionSeatFile "$1" "$2" )" || return 0
+	AgentsToolsSessionSeatFileInto releaseFile "$1" "$2" || return 0
 	[ -f "$releaseFile" ] || return 0
 	AgentsToolsSessionSeatLock "$releaseFile" || return 0
 	IFS= read -r releaseHolder < "$releaseFile" || :
@@ -1136,7 +1156,7 @@ AgentsToolsWaitDefaultSources(){
 	type AgentsToolsCommsPrintbackSessionInUse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
 	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
-	defaultChat="$( AgentsToolsSessionChatKey 2> /dev/null )" || defaultChat=""
+	AgentsToolsSessionChatKeyInto ; defaultChat="$agentsSessionChatKey"
 	if [ -n "$defaultChat" ] ; then
 		## THE KIND THE SESSION RECORDED (F3.1), before any thread or conversation: `none` and `track` are read
 		## from the one chat file, and only another kind reaches the Slack sources.
@@ -1752,7 +1772,13 @@ AgentsToolsSpawnProxyStaleHandbackTell(){ ## the member the scan acts as, the re
 	local staleBy="$1" staleTo="$2" staleItem="$3" staleWaited="${4:-}" staleArgs staleText
 	[ -n "$staleBy" ] && [ -n "$staleTo" ] && [ -n "$staleItem" ] || return 0
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	staleArgs=( "$staleBy" "$staleTo" --identity-bot --address-to "$staleTo" --from-stdin )
+	## A post to the DM of magic-coordinator opens with its mention, which is the human-owner's own account: he got every notice as an alert, 289 in a day.
+	## The coordinator's notices go to the event-track thread, named by no one. Another member's notice is still a DM that names it.
+	if [ "$staleTo" = magic-coordinator ] ; then
+		staleArgs=( "$staleBy" event-track --identity-bot --from-stdin )
+	else
+		staleArgs=( "$staleBy" "$staleTo" --identity-bot --address-to "$staleTo" --from-stdin )
+	fi
 	staleText="A handback nobody read: ${staleItem%.md} has waited ${staleWaited}s for a verdict. Its run ended and its record waits in review."
 	printf '%s\n' "$staleText" | DistroAgentsTools --intern-op-comms-slack-send-message "${staleArgs[@]}" > /dev/null 2>&1 || :
 	return 0

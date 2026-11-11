@@ -204,7 +204,7 @@ AgentsHarnessIdleDropNext(){ ## the Wait result
 AgentsHarnessIdleRoutineSources(){
 	local sourcesFile="" sourcesLine sourcesOne
 	type AgentsToolsSessionRoutineFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include" 2> /dev/null || return 0
-	sourcesFile="$( AgentsToolsSessionRoutineFile "$( AgentsHarnessSessionKey )" 2> /dev/null )" || sourcesFile=""
+	sourcesFile="$( AgentsToolsSessionRoutineFile "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" 2> /dev/null )" || sourcesFile=""
 	[ -n "$sourcesFile" ] && [ -f "$sourcesFile" ] || return 0
 	while IFS= read -r sourcesLine ; do
 		sourcesOne="${sourcesLine%%[[:space:]]*}"
@@ -212,6 +212,24 @@ AgentsHarnessIdleRoutineSources(){
 		printf 'scan:%s\n' "$sourcesOne"
 	done <<< "$( AgentsToolsRoutineKeyLines "$sourcesFile" input-scan-def )"
 	AgentsToolsRoutineWaitWords "$sourcesFile" "$harnessAgent"
+}
+
+## A DUTY COMES BACK ON NEW CODE AT A REWIND (the human-owner: the run keeps its start code with its prefix, a rewind takes the new one; in
+## place, not through the schedule): where any code of the tooling is newer than this process's start (code.stamp), a work duty that is about
+## to rewind executes the harness again in place -- the same process, session and arguments -- with its start prompt and, after it, the
+## input the rewind would have given (an arrival, a keepalive), so nothing taken from the floor is lost. Returns where nothing changed or the
+## run is no duty; never returns otherwise. The check is one find over the tooling, made only at a rewind.
+AgentsHarnessCodeRestart(){ ## the input the rewind carries (may be empty)
+	[ -f "${harnessScratch:-/nonexistent}/code.stamp" ] && [ -n "${harnessStartSelf:-}" ] && [ -f "$harnessStartSelf" ] || return 0
+	type AgentsHarnessWorkDuty > /dev/null 2>&1 && AgentsHarnessWorkDuty || return 0
+	## In an emergency no restart is made (AgentsToolsEmergencyHolds).
+	{ type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include" 2> /dev/null ; } ; ! AgentsToolsEmergencyHolds || return 0
+	[ -n "$( find "$harnessHere" -type f \( -name '*.include' -o -name '*.sh' -o -name '*.awk' -o -name '*.py' \) -newer "$harnessScratch/code.stamp" -print 2> /dev/null | head -1 )" ] || return 0
+	local restartPrompt="${harnessPrompt:-}"
+	[ -z "${1:-}" ] || printf -v restartPrompt '%s\n\n%s' "$restartPrompt" "$1"
+	printf '%s\n' "${harnessValue}🔄 new tooling code${harnessOff} ${harnessDim}-- the tooling changed since this duty started; it starts again in place at this rewind on the new code, with what the rewind carried${harnessOff}" >&2
+	rm -rf -- "$harnessScratch" 2> /dev/null || :
+	exec "$BASH" "$harnessStartSelf" ${harnessStartArgv[@]+"${harnessStartArgv[@]}"} <<< "$restartPrompt"
 }
 
 AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading `signal` asking for no return
@@ -223,7 +241,7 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading 
 	idleShown="the floor${idleSources:+ and ${idleSources// /, }}"
 	idleWaitSources="$idleSources"
 	if [ -z "$idleSources" ] ; then
-		idleKey="$( AgentsHarnessSessionKey )"
+		idleKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 		[ -z "$idleKey" ] || idleWaitSources="chat:$idleKey"
 	fi
 	## The checkpoint the run returns to, where it holds one: `opening` first, else `armed`. Taken before the wait, for an arrival and for
@@ -261,6 +279,7 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading 
 			idleArrival="$harnessReply"
 			if [ -n "$idleTarget" ] ; then
 				printf -v idleText '%s\n\n%s' "Your --idle-wait returned: a message arrived while this run was idle, and it may be new work, an ask or news. The conversation is returned to its checkpoint $idleTarget, so none of the work after it is in front of you; the files are as that work left them. What arrived:" "$idleArrival"
+				AgentsHarnessCodeRestart "A message arrived while this run was idle. Read your CheckList and the Decisions of the items you work before you act on it. What arrived:"$'\n\n'"$idleArrival"
 				if AgentsHarnessRewindTo "$idleTarget" "$idleText" ; then
 					return 0
 				fi
@@ -279,6 +298,7 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources, a leading 
 				## request over the cached prefix (the model spends a little to refresh the cache, never the whole history).
 				if [ -n "$idleTarget" ] ; then
 					printf -v idleText '%s' "Your --idle-wait made its keepalive round before the input cache expired: nothing arrived. The task above is the one you already worked. The conversation is returned to its checkpoint $idleTarget so the next turn is read from the cache. Do not redo that work: call --idle-wait again to keep waiting."
+					AgentsHarnessCodeRestart "Your --idle-wait made its keepalive round: nothing arrived. Read your CheckList and the Decisions of the items you work before you act, then call --idle-wait again to keep waiting."
 					if AgentsHarnessRewindTo "$idleTarget" "$idleText" ; then
 						return 0
 					fi
@@ -331,6 +351,7 @@ AgentsHarnessCheckpointRound(){
 					roundInput="$( cat "$harnessCheckpointDir/checkpoint.dispatch" 2> /dev/null )" || roundInput=""
 					rm -f "$harnessCheckpointDir/checkpoint.dispatch" 2> /dev/null
 				fi
+				AgentsHarnessCodeRestart "$roundInput"
 				AgentsHarnessRewindTo "$roundName" "$roundInput" || :
 			;;
 			exit)

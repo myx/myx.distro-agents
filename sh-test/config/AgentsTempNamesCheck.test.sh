@@ -116,6 +116,7 @@ rigList(){
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-remind.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|pid=$$|no file name: said in a log line' \
+		'sh-lib/comms/AgentsTools.CommsSlack.include|2|-p $$|no file name: the pid of this shell handed to ps, which reads its real parent now, before and during a bound Slack read' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|--intern-mcp-request "$$"|no file name: the server names itself to its request' \
 		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a receipt id, made its own by the first eight of the spawn id' \
 		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|dispatch-$timestamp-spawn-proxy-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a dispatch item name, made its own by the first eight of the spawn id' \

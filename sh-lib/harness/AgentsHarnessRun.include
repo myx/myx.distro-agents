@@ -91,18 +91,19 @@ AgentsHarnessArgExact(){ ## raw arguments, key, alias key read only when the key
 ## the start is what identifies it. The sanitiser runs over the whole value either
 ## way -- with no cut first, so the control-byte guard sees every byte before any of
 ## it is dropped.
-AgentsHarnessTruncateArg(){
+## The same, into harnessTruncated and no subshell (call-path audit row 38): the announce of every tool call reads its values
+## through this one. The sanitiser is the shell's: every C0 byte and DEL folds to a space, as the renderer's awk
+## (AgentsProgressLineSafe.awk) folds them, and a cut lands on a UTF-8 boundary as its cut does; that awk stays for the renderers.
+AgentsHarnessTruncateArgInto(){ ## value -- sets harnessTruncated
 	## LC_ALL=C for the whole body, so ${#var} and ${var: -N} count the same bytes the
 	## renderer's cap is expressed in. Under the ambient UTF-8 locale they count
 	## characters instead, and a 383-byte path then passes the byte test and emits
-	## 334 bytes on one line.
+	## 334 bytes on one line. The [[:cntrl:]] class is the C0 bytes and DEL under it.
 	local LC_ALL=C
-	## A big cap, never 0: in standalone mode that renderer emits nothing at all for
-	## a cap of 0 -- the fold-without-cut meaning belongs to its function form only.
-	local truncSafe truncTail truncHead="" truncBase truncWsParent="${MMDAPP%/*}" truncCap=110
-	truncSafe="$( printf '%s' "$1" | LC_ALL=C awk -v progressLineCap=1000000 -f "$harnessHere/session/AgentsProgressLineSafe.awk" )"
+	local truncSafe truncTail truncHead="" truncBase truncWsParent="${MMDAPP%/*}" truncCap=110 truncNext
+	truncSafe="${1//[[:cntrl:]]/ }"
+	harnessTruncated="$truncSafe"
 	if [ "${#truncSafe}" -le "$truncCap" ] ; then
-		printf '%s' "$truncSafe"
 		return 0
 	fi
 	## Starts with a separator, not merely contains one: a JSON argument object
@@ -127,10 +128,34 @@ AgentsHarnessTruncateArg(){
 					*) break ;;
 				esac
 			done
-			printf '%s...%s' "$truncHead" "$truncTail"
+			harnessTruncated="$truncHead...$truncTail"
 		;;
-		*) printf '%s' "$1" | LC_ALL=C awk -v progressLineCap="$truncCap" -f "$harnessHere/session/AgentsProgressLineSafe.awk" ;;
+		*)
+			## The right-hand cut at the cap, as the renderer cuts: where the byte after the cut continues a UTF-8 sequence, the
+			## sequence's bytes before it go too, its lead byte last, so no broken character is emitted; then `...`.
+			truncHead="${truncSafe:0:$truncCap}"
+			truncNext="${truncSafe:$truncCap:1}"
+			case "$truncNext" in
+				[$'\x80'-$'\xbf'])
+					while : ; do
+						case "$truncHead" in
+							*[$'\x80'-$'\xbf']) truncHead="${truncHead%?}" ;;
+							*) break ;;
+						esac
+					done
+					case "$truncHead" in *[$'\xc0'-$'\xff']) truncHead="${truncHead%?}" ;; esac
+				;;
+			esac
+			harnessTruncated="$truncHead..."
+		;;
 	esac
+	return 0
+}
+
+## The printing form, for a caller that reads it in a command substitution: the cold error paths.
+AgentsHarnessTruncateArg(){
+	AgentsHarnessTruncateArgInto "$1"
+	printf '%s' "$harnessTruncated"
 }
 
 ## Announced immediately before the call executes, so a Bash call that might hang is
@@ -141,7 +166,7 @@ AgentsHarnessTruncateArg(){
 ## tell it from one it wrote itself. The chat source of a Wait is read every second, so the dismissal
 ## lands within the wait's own check interval. Never fails the send.
 AgentsHarnessDismissalChatRecord(){
-	local chatTo chatSession chatName chatMine chatTheirs chatRecord
+	local chatTo chatSession chatName chatMine chatTheirs chatRecord chatWhere
 	chatSession="${MDAT_SESSION_ID:-}"
 	chatTo="${harnessArgV_address_to:-}"
 	[ -n "$chatSession" ] && [ -n "$chatTo" ] || return 0
@@ -149,15 +174,21 @@ AgentsHarnessDismissalChatRecord(){
 	for chatName in $chatTo ; do
 		[ "$chatName" = "$harnessAgent" ] || continue
 		chatTheirs="none"
-		for chatRecord in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never every record on a dismissal.
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		for chatRecord in $( AgentsToolsSpawnedSessionRecords "$chatSession" own 2> /dev/null ) ; do
 			[ -f "$chatRecord" ] || continue
-			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" session-id )" = "$chatSession" ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" owner )" = "$chatName" ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$chatRecord" status )" = spawn-started ] || continue
 			chatTheirs="${chatRecord##*/}" ; chatTheirs="${chatTheirs%.spawn.md}"
 			done
 		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
-		printf 'DISMISSED\n' | AgentsToolsSessionChatAppend "$chatSession" "$harnessAgent [author-run=$chatMine]" "$chatName [addressee-run=$chatTheirs]" - chat own > /dev/null 2>&1 || :
+		## Recorded as a message delivered into the session (AgentsToolsSessionChatDeliverCopy's form): its conversation the session thread,
+		## else the session's printback channel, and origin `delivered`. The floor hands such a block to the member it names, and the
+		## dismissal match reads the two runs off its header. Under conversation `chat` and origin `own` no floor ever delivered it.
+		chatWhere="$( AgentsToolsSessionChatThread "$chatSession" 2> /dev/null )" || chatWhere=""
+		[ -n "$chatWhere" ] || chatWhere="printback:$chatSession"
+		printf 'DISMISSED\n' | AgentsToolsSessionChatAppend "$chatSession" "$harnessAgent [author-run=$chatMine]" "$chatName [addressee-run=$chatTheirs]" - "$chatWhere" delivered > /dev/null 2>&1 || :
 		return 0
 	done
 	return 0
@@ -172,13 +203,13 @@ AgentsHarnessAnnounceTool(){
 			announceIcon="📖"
 			announcePath="${harnessArgV_file_path}"
 			[ -n "$announcePath" ] || announcePath="${harnessArgV_path}"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
+			AgentsHarnessTruncateArgInto "$announcePath" ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		Write)
 			announceIcon="📝"
 			announcePath="${harnessArgV_file_path}"
 			[ -n "$announcePath" ] || announcePath="${harnessArgV_path}"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
+			AgentsHarnessTruncateArgInto "$announcePath" ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		Glob)
 			announceIcon="📁"
@@ -186,8 +217,8 @@ AgentsHarnessAnnounceTool(){
 			## other off the terminal, and the path is the half that identifies the
 			## call. Two spaces past the tool line, not aligned to the detail column --
 			## a wide gutter on a continuation reads as a second column that is not there.
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_path}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_pattern}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_path}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_pattern}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			## Only when there is one: the announce prints before the call validates its
 			## arguments, so a missing path would otherwise render a second line holding
 			## an indent, the word `in`, and nothing.
@@ -197,37 +228,37 @@ AgentsHarnessAnnounceTool(){
 			announceIcon="✏️"
 			announcePath="${harnessArgV_file_path}"
 			[ -n "$announcePath" ] || announcePath="${harnessArgV_path}"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
+			AgentsHarnessTruncateArgInto "$announcePath"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		Grep)
 			announceIcon="🔍"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_path}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_pattern}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_path}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_pattern}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim in$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		Bash)
 			announceIcon="💻"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_cwd}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_command}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_cwd}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_command}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim in$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		WorkspaceContextExecute)
 			announceIcon="💻"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_workspace}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_command}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_workspace}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_command}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim in$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		WebSearch)
 			announceIcon="🔎"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_query}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_query}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		WebFetch)
 			announceIcon="🌐"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_url}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_url}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		[Ss]endMessage)
 			announceIcon="✉️"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_to}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_to}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			## A DISMISSED is recorded in the session chat file FIRST (S27.8), with both runs in it, so a
 			## run of the dismissing member's own can tell it from one it wrote itself.
 			case "${harnessArgV_message:-}" in
@@ -244,26 +275,27 @@ AgentsHarnessAnnounceTool(){
 		Wait)
 			announceIcon="⏳"
 			## Its mode and bound, never the raw object: what it is for follows on the why line.
-			announceDetail="$harnessValue${harnessArgV_mode:-default}$harnessOff${harnessArgV_timeout:+$harnessDim, ${harnessArgV_timeout} s$harnessOff}${harnessArgV_sources:+$harnessDim, sources$harnessOff $harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_sources}" )$harnessOff}"
+			AgentsHarnessTruncateArgInto "${harnessArgV_sources:-}"
+			announceDetail="$harnessValue${harnessArgV_mode:-default}$harnessOff${harnessArgV_timeout:+$harnessDim, ${harnessArgV_timeout} s$harnessOff}${harnessArgV_sources:+$harnessDim, sources$harnessOff $harnessValue$harnessTruncated$harnessOff}"
 		;;
 		## The four report tools are SendMessage with a fixed shape, so each announces the
 		## one field that identifies the call rather than the whole body it composed.
 		SubagentHandback)
 			announceIcon="📦"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_to}" )${harnessOff}"
+			AgentsHarnessTruncateArgInto "${harnessArgV_to}" ; announceDetail="$harnessValue$harnessTruncated${harnessOff}"
 			[ -n "${harnessArgV_to}" ] || announceDetail="${harnessValue}${harnessParentName}${harnessOff}"
 		;;
 		ReportFindings)
 			announceIcon="📊"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_subject}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_subject}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		PushNotification)
 			announceIcon="📣"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_headline}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_headline}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		Artifact)
 			announceIcon="🔗"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_url:-${harnessArgV_file}}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_url:-${harnessArgV_file}}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		## The tools that ask, each announced the same way (AgentsHarnessAskAnnounce).
 		AskQuestion)
@@ -285,36 +317,36 @@ AgentsHarnessAnnounceTool(){
 		## than announcing an empty detail that reads as a stall.
 		ListMcpResourcesTool)
 			announceIcon="🗂️"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_server}" )"
+			AgentsHarnessTruncateArgInto "${harnessArgV_server}"  ; announcePath="$harnessTruncated"
 			announceDetail="$harnessDim every MCP server this run enumerated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$harnessValue$announcePath$harnessOff"
 		;;
 		ReadMcpResourceTool)
 			announceIcon="📄"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_server}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_uri}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_server}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_uri}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim on$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		ReadMcpResourceDirTool)
 			announceIcon="🗃️"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_server}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_uri_prefix}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_server}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_uri_prefix}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim on$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		Skill)
 			announceIcon="📚"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_file}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_name}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_file}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_name}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim file$harnessOff $harnessValue$announcePath$harnessOff"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_skill}" )"
+			AgentsHarnessTruncateArgInto "${harnessArgV_skill}"  ; announcePath="$harnessTruncated"
 			[ -z "$announcePath" ] || announceDetail="$harnessValue$announcePath$harnessOff"
 		;;
 		## The member being spawned, then the brief on its own line: this call starts a
 		## session that outlives the turn, so who it starts has to be visible at a glance.
 		Agent)
 			announceIcon="🚀"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_prompt}" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_agent}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_prompt}"  ; announcePath="$harnessTruncated"
+			AgentsHarnessTruncateArgInto "${harnessArgV_agent}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim brief$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		TaskStop)
@@ -322,25 +354,25 @@ AgentsHarnessAnnounceTool(){
 			announcePath="${harnessArgV_task_id}"
 			[ -n "$announcePath" ] || announcePath="${harnessArgV_shell_id}"
 			[ -n "$announcePath" ] || announcePath="${harnessArgV_handle}"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
+			AgentsHarnessTruncateArgInto "$announcePath"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		TaskOutput)
 			announceIcon="📜"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_handle}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_handle}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		ToolSearch)
 			announceIcon="🧰"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_query}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_query}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		SessionTranscriptAppend)
 			announceIcon="🗒️"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_note}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_note}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		## The session's own thread: the operation, then the text it puts there.
 		ThisSession)
 			announceIcon="📮"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
-			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_message}" )"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_message}"  ; announcePath="$harnessTruncated"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail $harnessValue$announcePath$harnessOff"
 		;;
 		## The list is an array, so its length is shown rather than one field of it.
@@ -362,51 +394,51 @@ AgentsHarnessAnnounceTool(){
 		## line shows. Each arm is a name of its own, because the site check reads one arm per tool.
 		DistroAgentsSlack)
 			announceIcon="💬"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsAtlassian)
 			announceIcon="🧭"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsGoogle)
 			announceIcon="📗"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsMail)
 			announceIcon="📧"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsTrello)
 			announceIcon="🗂️"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsContacts)
 			announceIcon="👤"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		AgentDispatcherTools)
 			announceIcon="🎛️"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsDispatcher)
 			announceIcon="🚦"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsQuestions)
 			announceIcon="❓"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsItems)
 			announceIcon="🗄️"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsKnowledge)
 			announceIcon="🧠"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		DistroAgentsTesting)
 			announceIcon="🧪"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_operation}" )$harnessOff"
+			AgentsHarnessTruncateArgInto "${harnessArgV_operation}"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		## A call carrying a command is announced like Bash/Grep/Glob above: the command
@@ -417,11 +449,11 @@ AgentsHarnessAnnounceTool(){
 			announceIcon="🔌"
 			announcePath="${harnessArgV_command}"
 			if [ -n "$announcePath" ]; then
-				announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
-				announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_comment}" )"
+				AgentsHarnessTruncateArgInto "$announcePath"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
+				AgentsHarnessTruncateArgInto "${harnessArgV_comment}"  ; announcePath="$harnessTruncated"
 				[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim comment$harnessOff $harnessValue$announcePath$harnessOff"
 			else
-				announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announceArgsRaw" )$harnessOff"
+				AgentsHarnessTruncateArgInto "$announceArgsRaw"  ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 			fi
 		;;
 	esac
@@ -429,9 +461,13 @@ AgentsHarnessAnnounceTool(){
 	## without the reader hunting back through scrollback for the announce line.
 	## What the call is for, as the model said it, on its own labelled line below, for every tool that carries one:
 	## a native run shows it the same way (AgentsClaudeStreamJsonFormat.awk).
-	[ -z "${harnessArgV_description:-}" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim why$harnessOff $harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_description}" )$harnessOff"
+	if [ -n "${harnessArgV_description:-}" ] ; then
+		AgentsHarnessTruncateArgInto "${harnessArgV_description}"
+		announceDetail="$announceDetail"$'\n'"     $harnessDim why$harnessOff $harnessValue$harnessTruncated$harnessOff"
+	fi
 	AgentsHarnessTitleState "$announceFuncName"
-	printf '   %s %s%-*s%s %s\n' "$announceIcon" "$harnessTool" "$harnessLabelWidth" "$( AgentsHarnessTruncateArg "$announceFuncName" )" "$harnessOff" "$announceDetail" >&2
+	AgentsHarnessTruncateArgInto "$announceFuncName"
+	printf '   %s %s%-*s%s %s\n' "$announceIcon" "$harnessTool" "$harnessLabelWidth" "$harnessTruncated" "$harnessOff" "$announceDetail" >&2
 }
 
 AgentsHarnessArmGate(){ ## tool name -- prints the redirect when the call must wait for arming
@@ -520,7 +556,16 @@ AgentsHarnessRunToolNow(){ ## tool name, arguments JSON -- sets harnessResult
 		WorkspaceContextExecute) harnessResult="$( AgentsHarnessToolWorkspaceContextExecute "${harnessArgV_command}" "${harnessArgV_workspace}" "${harnessArgV_timeout}" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "${harnessArgV_query}" "$harnessFuncArgsRaw" )" ;;
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "${harnessArgV_url}" "${harnessArgV_prompt}" )" ;;
-		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "" "" reply )" ;;
+		SendMessage)
+			## answers is a communication-channel-id, <service>:<address>[:<ts>] (AgentsTools.CommsChannel.include). SendMessage reaches the slack driver today.
+			harnessResult=""
+			case "${harnessArgV_answers:-}" in
+				'') ;;
+				slack:*) harnessArgV_to="${harnessArgV_answers#slack:}" ;;
+				*) harnessResult="ERROR: answers names the channel ${harnessArgV_answers%%:*}, and SendMessage has no driver for it yet, only slack. Nothing was sent. Answer it with the tool of that channel." ;;
+			esac
+			[ -n "$harnessResult" ] || harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "" "" reply "" "${harnessArgV_again}" )"
+		;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
 		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" "" "${harnessArgV_unwait}" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "${harnessArgV_checklist_pending_count}" )" ;;
@@ -582,6 +627,21 @@ AgentsHarnessToolSecondary(){ ## tool file name, arguments JSON -- prints the re
 	fi
 	if [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$secondaryName.fn.sh" ] ; then
 		printf 'ERROR: there is no tool file %s.fn.sh in the package this workspace resolves, so nothing ran.\n' "$secondaryName"
+		return 0
+	fi
+	## A KEY THE TOOL DOES NOT DECLARE IS REFUSED, never dropped: a call with `workspace` or `arguments` ran as if it had neither, so
+	## --flags answered for the server's own workspace and --supervise-read ran with no run id, and the caller read both as answers.
+	## The keys are the mirror's schema (AgentsMcpSecondaryMirror.sh) and the task wrapper's own.
+	local secondaryPath secondaryKey secondaryUnknown=""
+	for secondaryPath in ${harnessArgPaths[@]+"${harnessArgPaths[@]}"} ; do
+		secondaryKey="${secondaryPath%%.*}"
+		case "$secondaryKey" in
+			operation|args|description|sync|async|background|timeout|timeout_action) ;;
+			*) case " $secondaryUnknown " in *" $secondaryKey "*) ;; *) secondaryUnknown="${secondaryUnknown:+$secondaryUnknown }$secondaryKey" ;; esac ;;
+		esac
+	done
+	if [ -n "$secondaryUnknown" ] ; then
+		printf 'ERROR: %s does not take: %s. It takes operation, args (the words, one each), description, sync, async, background, timeout and timeout_action. The workspace is the one this server runs in. Nothing was done.\n' "$secondaryName" "$secondaryUnknown"
 		return 0
 	fi
 	AgentsHarnessArgFind args.__count || harnessArgFound=""

@@ -74,7 +74,7 @@ AgentsToolsMemberHomesWeights(){
 ## that registry's lock: its old ones go, the rows on stdin come in. Every other row stays.
 AgentsToolsMemberHomesDeclaredWrite(){ ## workspace -- rows on stdin
 	local writeWs="${1%/}" writeFile writeNew writeTry=0 writeRc=0
-	writeFile="$( AgentsToolsTeamSharedMembers )"
+	writeFile="${HOME:-}/.agents/magic-team/members.registry"
 	writeNew="$( LC_ALL=C awk -F'\t' 'NF >= 5' )"
 	[ -f "$writeFile" ] || [ -n "$writeNew" ] || return 0
 	mkdir -p "${writeFile%/*}" || return 1
@@ -205,7 +205,7 @@ AgentsToolsMemberHomesNewest(){ ## candidate rows
 AgentsToolsMemberHomesWrite(){
 	local homesRegistry homesFile homesRows homesMembers homesMember homesCands homesTied homesRoot homesDone=$'\n'
 	local homesWeights="" homesChoice homesOut="" homesState homesTry=0 homesRc=0
-	homesRegistry="$( AgentsToolsTeamSharedMembers )"
+	homesRegistry="${HOME:-}/.agents/magic-team/members.registry"
 	homesFile="$( AgentsToolsMemberHomesFile )"
 	[ -f "$homesRegistry" ] || return 0
 	homesRows="$( LC_ALL=C awk -F'\t' 'NF >= 5 && $1 != "" && $1 != "trash" && $3 != "rules-symlink" && !( ( $1 SUBSEP $2 ) in seen ) { seen[$1 SUBSEP $2] = 1 ; print $1 "\t" $2 "\t" $3 "\t" $5 ; }' "$homesRegistry" )"

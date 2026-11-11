@@ -87,6 +87,7 @@ rigAssert "the item is in that member's inbox" "$( rigIn inquiry-20261104T0900Z-
 rigAssert "and it is the caller's own store that holds it: the workspace it runs from, not the member's" \
 	"$( [ -f "$rigWsC/.local/agents/team-data-root/inboxes/rig-there/incoming/inquiry-20261104T0900Z-rig-cross.md" ] && printf member-store || printf caller-store )" caller-store
 rigAssert "no refusal was said" "$( rigSaid x 'cannot be brought into the workspace' )" 0
+rigAssert "the write stamped the writer's workspace on it (S12.18)" "$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "from-workspace: ") == 1 { print substr($0, 17) }' "$rigData/inboxes/rig-there/incoming/inquiry-20261104T0900Z-rig-cross.md" )" "${rigWsA##*/}"
 
 echo "-- 2. a note and a reflection from a session whose own member is set up there alone --"
 rigOp rig-there --upsert-inbox-note note-20261104T0901Z-rig-own.md --from-file "$rigTmp/note.md"

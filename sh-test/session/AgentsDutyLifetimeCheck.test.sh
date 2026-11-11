@@ -9,11 +9,11 @@
 ##      last wake and with no cache figure at all (a native CLI prints none).
 ##   2. THE CACHE READ NOTHING. A duty whose last wake read nothing from the cache -- the last round-1 line of its log says it wrote, or cached
 ##      nothing, whatever lines came before -- is told to go (DISMISSED) at its idle point after 20 minutes idle, whatever the flags; before them, not.
-##   3. HOLIDAYS. While the holidays flag (`--override-flag holidays`) holds, worktime is off: a duty idle for more than an hour with no input is told
-##      to go, one idle for less is not; cleared, worktime keeps them again.
-##   4. FLAGS OFF. Out of them a duty stays while it has input in its inbox, and while its member takes part in another live run; with neither it
-##      ends after one hour idle -- 59 minutes no, 61 yes -- and no longer at once when the worktime flag ends; the input worked off, or the other
-##      run ended, it is told to go at the next iteration.
+##   3. HOLIDAYS. While the holidays flag (`--override-flag holidays`) holds, worktime is off: out of worktime only the coordinator runs, so every
+##      other duty is told to go at once, whatever its idle time or input; cleared, worktime keeps them again.
+##   4. FLAGS OFF. Every duty is told to go once, in the iteration of section 3 that first finds worktime off; section 4 holds that none is told
+##      again, whatever its inbox, cache or other runs. NOT HELD: the exceptions (a live session of the member, a person's tag) and vacation, which
+##      need a duty that stands out of worktime from the start, and a member of its own, for each.
 ## Offline, rig tree only.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -92,7 +92,8 @@ rigAssert "worktime, a standing member with nothing to work on: no duty is start
 rigDutyMembers="02 03 04 05 06 07 08 09 10"
 for rigM in $rigDutyMembers ; do rigItem keeper-rig-$rigM ; done
 rigAt $(( rigMon13 + 20 ))
-rigOneRun start0 ; rigWaitStarts
+## The schedule starts one duty a pass, so the nine are started by nine passes, a pass a duty (a second between them on the rig's clock).
+for rigPass in 1 2 3 4 5 6 7 8 9 ; do rigAt $(( rigMon13 + 20 + rigPass )) ; rigOneRun start0-$rigPass ; rigWaitStarts ; done
 ## The loop says it started each duty as the call returns, and the record of a start is written as the start goes on, so a busy machine can have the loop's pass
 ## ended before the last records stand: they are waited for (at most a minute) and then counted, so a duty that was not started is still found.
 rigDutyWait=60
@@ -132,8 +133,8 @@ rigIdle keeper-rig-06 3500 ; rigIdle keeper-rig-07 3700
 rigAt $(( rigMon13 + 240 ))
 rigOneRun hol1
 rigAssert "holidays end what worktime kept: the duty idle for hours with the cache read (case 1 kept it) and the one with no cache figure are told to go" "$( rigTold hol1 keeper-rig-02 ):$( rigTold hol1 keeper-rig-03 )" "1:1"
-rigAssert "holidays set, inside the hours, idle for less than an hour, no input: the duty stays" "$( rigTold hol1 keeper-rig-06 )" "0"
-rigAssert "holidays set, idle for more than an hour, cache read, no input: it is told to go (worktime is off)" "$( rigTold hol1 keeper-rig-07 )" "1"
+rigAssert "holidays set, idle for less than an hour, no input: out of worktime only the coordinator runs, so it is told to go too" "$( rigTold hol1 keeper-rig-06 )" "1"
+rigAssert "holidays set, idle for more than an hour, cache read, no input: it is told to go" "$( rigTold hol1 keeper-rig-07 )" "1"
 rigDispatch --override-flag --no holidays
 
 echo "-- 4. flags off: input, a session, one hour --"
@@ -149,17 +150,17 @@ rigOtherPid="$!" ; rigProcNote "$rigOtherPid" ; rigStarted="$rigStarted $rigOthe
 printf '%s claude --verbose --session-id %s --agent keeper-rig-09 the brief\n' "$rigOtherPid" "$rigOtherSpawn" >> "$rigDir/ps.list"
 disown "$rigOtherPid" 2> /dev/null || :
 rigOneRun off1
-rigAssert "worktime is over: idle 59 minutes, no input, no session, cache read: the duty is not told to go at once, and not yet" "$( rigTold off1 keeper-rig-06 )" "0"
-rigAssert "idle for hours, but with input in its inbox: it stays" "$( rigTold off1 keeper-rig-08 )" "0"
+rigAssert "worktime is over: the duty told to go under the holidays is not told again" "$( rigTold off1 keeper-rig-06 )" "0"
+## Every duty not kept by an exception was told to go in the holidays iteration above (out of worktime only the coordinator runs), so none is told a second time here.
+rigAssert "idle for hours, with input in its inbox: told to go in the holidays iteration already, not again" "$( rigTold off1 keeper-rig-08 )" "0"
 rigAssert "idle for hours, but its member takes part in another live run: it stays" "$( rigTold off1 keeper-rig-09 )" "0"
-rigAssert "out of the flags, the cache read nothing, idle 59 minutes: the 20 minutes decide, it is told to go" "$( rigTold off1 keeper-rig-10 )" "1"
+rigAssert "out of the flags, the cache read nothing, idle 59 minutes: told in the holidays iteration already, not again" "$( rigTold off1 keeper-rig-10 )" "0"
 rigAt $(( rigMon18 + 180 ))
 rm -f "$rigData/inboxes/keeper-rig-08/incoming/note-20261019T0900Z-rig-work.md"
 rigProcSignal TERM "$rigOtherPid" ; sleep 1
 rigOneRun off2
-rigAssert "two minutes on, idle for 62 minutes, no input, no session: told to go (the hour)" "$( rigTold off2 keeper-rig-06 )" "1"
-rigAssert "the input worked off, idle for hours: told to go" "$( rigTold off2 keeper-rig-08 )" "1"
-rigAssert "the other run ended, idle for hours: told to go" "$( rigTold off2 keeper-rig-09 )" "1"
+rigAssert "two minutes on: the one told already is not told again" "$( rigTold off2 keeper-rig-06 ):$( rigTold off2 keeper-rig-08 )" "0:0"
+rigAssert "the other run ended, idle for hours: told in the holidays iteration already, not again" "$( rigTold off2 keeper-rig-09 )" "0"
 rigAssert "...and nothing is told twice" "$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "9"
 
 

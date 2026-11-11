@@ -27,7 +27,7 @@ AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typ
 	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId="" openSession openIdentity="member"
 	[ -x "$openTools" ] || return 0
 	[ -n "$harnessAgent" ] || return 0
-	openSession="$( AgentsHarnessSessionKey )"
+	openSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	## Kept on the record, so the tooling's reminders post under the identity the question did.
 	case "${14:-}" in
 		true|1|yes) openIdentity="bot" ;;
@@ -73,7 +73,7 @@ AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict,
 AgentsHarnessAskEarlier(){ ## kind, question, question key, address_to, refusal id, task ref
 	local earlyTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" earlyFound earlyId earlyAnswer
 	[ -x "$earlyTools" ] && [ -n "$harnessAgent" ] || return 1
-	earlyFound="$( printf '%s' "$2" | "$BASH" "$earlyTools" --intern-op-pending-reply-earlier "$harnessAgent" --session-id "$( AgentsHarnessSessionKey )" \
+	earlyFound="$( printf '%s' "$2" | "$BASH" "$earlyTools" --intern-op-pending-reply-earlier "$harnessAgent" --session-id "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" \
 		--kind "$1" ${3:+--question-key "$3"} ${4:+--address-to "$4"} ${5:+--refusal-id "$5"} ${6:+--task-ref "$6"} 2>/dev/null \
 		| LC_ALL=C grep -m1 -E '^EARLIER-(RECORD|DECISION) ' )" || earlyFound=""
 	[ -n "$earlyFound" ] || return 1
@@ -237,6 +237,30 @@ AgentsHarnessAskForm(){
 ## What a proposal lacks is a correction its caller makes, so its line starts with CORRECTION,
 ## and so does the line for options given with no answer form.
 AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
+	## OPTIONS ARE ONE PER LINE, AND A CALLER THAT SENT A JSON LIST OF STRINGS ON ONE LINE MEANT THAT (2026-11-10 11:13: a question to
+	## the human-owner showed one option holding the whole list, and one click answered nothing): a single line shaped ["a", "b"] is
+	## split into its strings, one per line, their escapes read. Any other shape stays as given.
+	case "$toolOptions" in
+		"["*"]")
+			if [ "$( printf '%s\n' "$toolOptions" | LC_ALL=C grep -c . )" = "1" ] ; then
+				toolOptions="$( printf '%s' "$toolOptions" | LC_ALL=C awk '
+					{
+						s = $0 ; sub( /^[[:space:]]*\[[[:space:]]*/, "", s ) ; sub( /[[:space:]]*\][[:space:]]*$/, "", s )
+						n = 0 ; inStr = 0 ; cur = ""
+						for ( i = 1 ; i <= length( s ) ; i++ ) {
+							c = substr( s, i, 1 )
+							if ( inStr ) {
+								if ( c == "\\" && i < length( s ) ) { i++ ; e = substr( s, i, 1 ) ; cur = cur ( e == "n" ? " " : e ) }
+								else if ( c == "\"" ) { inStr = 0 ; out[++n] = cur ; cur = "" }
+								else cur = cur c
+							} else if ( c == "\"" ) inStr = 1
+						}
+						for ( i = 1 ; i <= n ; i++ ) print out[i]
+					}
+				' )"
+			fi
+		;;
+	esac
 	case "$toolSelect" in
 		''|yes-no|one|many) ;;
 		*) printf 'ERROR: %s: select must be yes-no, one or many, got: %s. Nothing was sent.\n' "$harnessAskName" "$toolSelect" ; return 1 ;;
@@ -288,7 +312,7 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 			[ -n "$toolRefusalId" ] && [ -n "$toolReason" ] && [ -n "$toolTaskRef" ] || {
 				printf 'ERROR: %s: kind permission needs refusal_id, reason and task_ref, and one was empty. Nothing was sent.\n' "$harnessAskName" ; return 1
 			}
-			askSession="$( AgentsHarnessSessionKey )"
+			askSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 			askRecord=""
 			AgentsHarnessBareName "$toolRefusalId" && [ -n "$askSession" ] && askRecord="$MMDAPP/.local/agents/sessions/$askSession/$toolRefusalId.md"
 			if [ -z "$askRecord" ] || [ ! -f "$askRecord" ] ; then
@@ -606,8 +630,8 @@ AgentsHarnessToolProposeApprove(){ AgentsHarnessAskCall ProposeApprove ; }
 ## announce* fields.
 AgentsHarnessAskAnnounce(){
 	announceIcon="❔"
-	announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_to}" )"
-	announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_question}" )$harnessOff"
+	AgentsHarnessTruncateArgInto "${harnessArgV_to}" ; announcePath="$harnessTruncated"
+	AgentsHarnessTruncateArgInto "${harnessArgV_question}" ; announceDetail="$harnessValue$harnessTruncated$harnessOff"
 	[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim to$harnessOff $harnessValue$announcePath$harnessOff"
 }
 
@@ -658,7 +682,7 @@ AgentsHarnessAsk(){
 		fi
 		## The verdict feeds grants keyed to the asking session, so no other session collects it, and none is told whether the record is open.
 		rewaitSession="$( LC_ALL=C awk -F': ' '$1 == "session-id" { print $2 ; exit ; }' "$rewaitRecord" 2>/dev/null )"
-		if [ -n "$rewaitSession" ] && [ "$rewaitSession" != "$( AgentsHarnessSessionKey )" ] ; then
+		if [ -n "$rewaitSession" ] && [ "$rewaitSession" != "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" ] ; then
 			printf 'ERROR: %s: pending reply %s belongs to session %s, not this one, so this session may not wait on it. Nothing was posted.\n' "$harnessAskName" "$toolPendingId" "$rewaitSession" ; return 0
 		fi
 		rewaitStatus="$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rewaitRecord" 2>/dev/null )"
@@ -1098,7 +1122,7 @@ AgentsHarnessAsk(){
 				return 0
 			fi
 			printf 'ASK-RESULT: ALREADY-OPEN\nThe same question to %s is already open as pending reply %s, asked by %s%s, so it was not posted again.\n' "$toolAddressTo" "$askDupId" "${askDupOwner:-an unknown member}" "${askDupSession:+ in session $askDupSession}"
-			if [ -n "$askDupSession" ] && [ "$askDupSession" = "$( AgentsHarnessSessionKey )" ] ; then
+			if [ -n "$askDupSession" ] && [ "$askDupSession" = "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" ] ; then
 				AgentsHarnessAskWaitNext "$askDupId"
 				printf '%s pending_id=%s\n' "$harnessAskName" "$askDupId"
 			fi
@@ -1300,7 +1324,7 @@ AgentsHarnessAsk(){
 	askStarted="$( date +%s )"
 	if [ -n "$askSessionWait" ] ; then
 		type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include" 2> /dev/null || :
-		! type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || askRound="$( AgentsToolsCliServiceWaitRound "$( AgentsToolsCliServiceOfSession "$( AgentsHarnessSessionKey )" )" )"
+		! type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || askRound="$( AgentsToolsCliServiceWaitRound "$( AgentsToolsCliServiceOfSession "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" )" )"
 		AgentsHarnessWholeNumber "$askRound" || askRound=""
 		## A served call comes back by its own bound too, where that is the shorter.
 		[ -z "$askRound" ] || [ -z "$harnessServedWaitBound" ] || [ "$askRound" -le "$harnessServedWaitBound" ] || askRound="$harnessServedWaitBound"
@@ -1470,7 +1494,7 @@ AgentsHarnessAskRecordField(){ ## pending reply id, field name
 AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id, and `chat` for the session's own chat source beside that ask
 	local itemTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" itemSession itemLine
 	[ -n "$2" ] && [ -n "$harnessAgent" ] && [ -x "$itemTools" ] || return 1
-	itemSession="$( AgentsHarnessSessionKey )"
+	itemSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	AgentsHarnessBareName "$itemSession" || return 1
 	if [ "$1" = "drop" ] ; then
 		itemLine="$( LC_ALL=C sed -n 's/^sources: //p' "$MMDAPP/.local/agents/sessions/$itemSession/wait/state" 2>/dev/null | head -1 )"

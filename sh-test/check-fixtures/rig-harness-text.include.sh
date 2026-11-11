@@ -5,6 +5,8 @@
 rigHarnessCat(){ ## origin (default: MDLT_ORIGIN)
 	local catDir="${1:-${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}}/myx/myx.distro-agents/sh-lib/harness" catPart
 	cat "$catDir/AgentsUniversalHarness.sh" || return 1
-	LC_ALL=C sed -n -E 's#^\. "\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/(AgentsHarness(Display|Access|ToolsFile|ToolsBash|Search|Messages|Wait|Batch|Spawn|Reports|Ask|McpResources|Skills|Run)\.include)"$#\1#p' "$catDir/AgentsUniversalHarness.sh" \
-		| while IFS= read -r catPart ; do cat "$catDir/$catPart" || exit 1 ; done
+	## A part sourced at the top (`. "..."` alone on its line) or lazily, inside a stub function on the same line (the Ask
+	## part, from AgentsUniversalHarness.sh:1049 on): the include is taken wherever its sourcing stands, once.
+	LC_ALL=C sed -n -E 's#.*\. "\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/(AgentsHarness(Display|Access|ToolsFile|ToolsBash|Search|Messages|Wait|Batch|Spawn|Reports|Ask|McpResources|Skills|Run)\.include)".*#\1#p' "$catDir/AgentsUniversalHarness.sh" \
+		| LC_ALL=C awk '! seen[$0]++' | while IFS= read -r catPart ; do cat "$catDir/$catPart" || exit 1 ; done
 }

@@ -26,7 +26,7 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsHarnessEscalationEdgeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
-mkdir -p "$rigTmp/bin"
+mkdir -p "$rigTmp/bin" "$rigTmp/home"
 cp "$rigTest/check-fixtures/harness-escalation-edge.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -67,13 +67,24 @@ rigTool(){ ## session id, tool, argument object, output file
 rigRefusalId(){ ## output file
 	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | head -1
 }
-## Posts that carry text, and how many of them sit outside any thread.
+## THE TWO WAYS A TRACKING POST LEAVES (AgentsTools.InternOpEventTrackPost.include): a root post, whose ts opens the session's thread, is
+## sent to Slack and waited for; a post into a thread is queued in that thread's comms-cache outbox, one line a post, for the comms loop
+## to push. The rig runs no comms loop, so a reply is read where it is queued.
+rigOutboxLines(){
+	cat "$rigScenarioDir"/ws/.local/cache/comms/slack/*/outbox.messages.txt 2> /dev/null || :
+}
+rigAllPosts(){ ## -> how many posts left, either way
+	printf '%s' "$(( $( LC_ALL=C grep -c '^chat.postMessage$' "$RIG_CURL_LOG" ) + $( rigOutboxLines | LC_ALL=C grep -c 'chat.postMessage' ) ))"
+}
+## How many times posts, sent or queued, carry a text. The outbox packs the records queued behind one into a single message
+## (AgentsTools.EventTrackSend.include), so one message can carry several reports: they are counted where they stand, not by message.
 rigPostsWith(){ ## fixed text
 	local postCount=0 postFile
 	for postFile in "$rigScenarioDir"/post.[0-9]* ; do
 		[ -f "$postFile" ] || continue
-		LC_ALL=C grep -q -F -- "$1" "$postFile" && postCount=$(( postCount + 1 ))
+		postCount=$(( postCount + $( LC_ALL=C grep -o -F -- "$1" "$postFile" | LC_ALL=C wc -l ) ))
 	done
+	postCount=$(( postCount + $( rigOutboxLines | LC_ALL=C grep -o -F -- "$1" | LC_ALL=C wc -l ) ))
 	printf '%s' "$postCount"
 }
 rigTopLevelPosts(){
@@ -100,7 +111,14 @@ for rigRound in 1 2 3 ; do
 	rigTool "rig-race-$rigRound" Write "{\"path\":\"$rigScenarioDir/ws/OUT/b\",\"content\":\"x\"}" "$rigScenarioDir/out.b" &
 	wait
 	rigThreadFile="$rigScenarioDir/ws/.local/agents/sessions/rig-race-$rigRound/event-track.thread"
-	rigAssert "round $rigRound: two posts"               "$( LC_ALL=C grep -c '^chat.postMessage$' "$RIG_CURL_LOG" )" 2
+	## A tracking post goes out through the session's outbox after the tool call has returned, so the round waits for the two posts
+	## and the thread record, a bounded while, before it counts them: a count taken at once reads an outbox not yet sent.
+	for rigTick in $( seq 1 60 ) ; do
+		[ "$( rigAllPosts )" -ge 2 ] && [ -s "$rigThreadFile" ] && break
+		sleep 0.5
+	done
+	sleep 1
+	rigAssert "round $rigRound: two posts"               "$( rigAllPosts )" 2
 	rigAssert "round $rigRound: one of them opens the thread" "$( rigTopLevelPosts )" 1
 	rigAssert "round $rigRound: the thread is recorded once" "$( LC_ALL=C awk 'END { print NR ; }' "$rigThreadFile" 2>/dev/null || printf none )" 1
 	rigThreadTs="$( sed -n 's/^[^:]*:\([0-9.]*\)$/\1/p' "$rigThreadFile" 2>/dev/null )"
@@ -115,8 +133,17 @@ rigBad="$rigScenarioDir/ws/OUT/bad"
 printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-plan\naccess-control: rig-garbage,participants:allow-once:%s:magic-coordinator:20260928T2200Z,participants:allow-write:%s::20260928T2200Z,participants:allow-write:%s:%s:20260928T2200Z,participants:allow-write:%s:magic-coordinator:20260928T2200Z\n---\n\n# Dispatch\n' \
 	"$rigMember" "$rigBad" "$rigBad" "$rigBad" "$rigMember" "$rigOk" > "$rigScenarioDir/ws/DATA/board/running/dispatch-rig.md"
 RIG_DATA_ROOT="$rigScenarioDir/ws/DATA"
+## A home of the rig's own for the planned allows: the machine-wide grants are every workspace's registry through
+## $HOME/.agents/magic-team, and the real ones deny magic-coordinator writes in the workspace this rig lies in, so the signer
+## would never hold what the rig's registry gives it. Kept to this section: the answers below read the members the real home names.
+rigHomeKept="$HOME" ; HOME="$rigTmp/home" ; export HOME
 rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioDir/out.1"
 rigAssert "the malformed entries admit nothing"        "$( [ -e "$rigBad" ] && printf written || printf refused )" refused
+## The first report opens the session's thread; the rest are queued into it after the call returns, one window of the outbox apart.
+for rigTick in $( seq 1 80 ) ; do
+	[ "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" -ge 5 ] && break
+	sleep 0.5
+done
 rigAssert "each malformed row is reported, and a row of two tools once for each" "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 5
 rigAssert "three say they are no row of access-control (garbage, a verb that is not one, no signer)" "$( rigPostsWith 'it is not a row participants:' )" 3
 rigAssert "two say it is self-signed (allow-write is Edit and Write)" "$( rigPostsWith "signed by the session's own member" )" 2
@@ -124,6 +151,7 @@ rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioD
 rigAssert "the same session is not told twice"         "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 5
 rigTool rig-plan Write "{\"path\":\"$rigOk\",\"content\":\"x\"}" "$rigScenarioDir/out.3"
 rigAssert "control: the well-formed entry admits its call" "$( LC_ALL=C sed -n '1s/^\(OK: wrote\).*/\1/p' "$rigScenarioDir/out.3" )" "OK: wrote"
+HOME="$rigHomeKept" ; export HOME
 RIG_DATA_ROOT=""
 
 echo "-- a backtick in a target stays out of the post's fence --"

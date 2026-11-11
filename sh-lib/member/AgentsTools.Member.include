@@ -50,6 +50,36 @@ case "$1" in
 		set -- ${inquiryArgs[@]+"${inquiryArgs[@]}"}
 		[ -z "$inquiryFrom" ] || AgentsToolsActingMemberCheck "$inquiryFrom" upsert-inbox-inquiry || { set +e ; return 1 ; }
 		[ -n "$inquiryFrom" ] || inquiryFrom="$( AgentsToolsActingMember )"
+		## AN INQUIRY GOES TO ONE EXACT PLACE (the human-owner's routing): magic-coordinator by default, which files it, resolves it or starts a
+		## session. A target alias names the kind of inquiry, never a list; several targets are one inquiry to the coordinator, never a fan-out.
+		## A member target stays where it is only for the clear cases: the coordinator writing, the coordinator or the librarian addressed, a
+		## domain owner addressed (keeper-*, partner-*, client-*), or a reply to a member that wrote to the sender within the last day.
+		local inquiryTarget="${1:-}" inquiryRouted=""
+		case "$inquiryTarget" in
+			*,*) inquiryRouted="magic-coordinator" ;;
+			@coordinator|@all|@team|@grooming|@default) inquiryRouted="magic-coordinator" ;;
+			@retro|@docs|@conventions|@librarian) inquiryRouted="magic-librarian" ;;
+			@design|@architecture) inquiryRouted="magic-architect" ;;
+			@ops|@deploy|@infra) inquiryRouted="magic-devops" ;;
+			@tests|@verify) inquiryRouted="magic-tester" ;;
+			@code) inquiryRouted="magic-developer" ;;
+			@ui|@frontend) inquiryRouted="magic-frontender" ;;
+			@*) echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryTarget is no target alias: @coordinator (default, also @all @team @grooming), @retro @docs @conventions (librarian), @design, @ops, @tests, @code, @ui -- nothing was written" >&2 ; set +e ; return 1 ;;
+			''|magic-coordinator|magic-librarian|keeper-*|partner-*|client-*) ;;
+			*)
+				if [ "$inquiryFrom" != "magic-coordinator" ] ; then
+					local inquiryRecent=""
+					[ -z "${MDAT_DATA_ROOT:-}" ] || [ -z "$inquiryFrom" ] || inquiryRecent="$( find "$MDAT_DATA_ROOT/inboxes/$inquiryFrom" -name '*.md' -mtime -1 -exec grep -l -x "from: $inquiryTarget" {} + 2> /dev/null | head -1 )" || inquiryRecent=""
+					[ -n "$inquiryRecent" ] || inquiryRouted="magic-coordinator"
+				fi
+			;;
+		esac
+		## In an emergency a member target stays direct: no detour through the coordinator (AgentsToolsEmergencyHolds); an alias still resolves.
+		case "$inquiryTarget" in @*|*,*) ;; *) { type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include" 2> /dev/null ; } ; ! AgentsToolsEmergencyHolds || inquiryRouted="" ;; esac
+		if [ -n "$inquiryRouted" ] && [ "$inquiryRouted" != "$inquiryTarget" ] ; then
+			echo "# $MDSC_CMD --upsert-inbox-inquiry: routed to $inquiryRouted, not $inquiryTarget: an inquiry goes to one place, the coordinator by default; a member is written to directly only as the reply to its own inquiry, or as a domain owner." >&2
+			shift ; set -- "$inquiryRouted" "$@"
+		fi
 		## The reflection is checked before anything is written: a bare name of a reflection still in the filing member's own incoming/.
 		if [ -n "$inquiryReflection" ] ; then
 			AgentsToolsAssertBareName "$inquiryReflection" "<reflection-file>" upsert-inbox-inquiry || { set +e ; return 1 ; }
@@ -63,6 +93,44 @@ case "$1" in
 			if [ -z "$inquiryFrom" ] || [ ! -f "$( AgentsToolsInboxDir "$inquiryFrom" )/$inquiryReflection" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryReflection is not an unprocessed reflection in ${inquiryFrom:-the filing member}'s own inbox -- nothing was done" >&2
 				set +e ; return 1
+			fi
+		fi
+		## ONE SUBJECT, ONE OPEN INQUIRY (the human-owner: match, then append): where the target's open inbox holds an inquiry from the same
+		## sender whose title shares 0.7 or more of its words with this one's, the new text is appended to it under a dated heading instead
+		## of a second item. Only an inquiry given whole by --from-file is matched.
+		local inquirySource="" inquiryAt=0 inquiryWord inquiryNewTitle="" inquirySame="" inquiryMerged=""
+		for inquiryWord in "$@" ; do
+			[ "$inquiryAt" = 1 ] && { inquirySource="$inquiryWord" ; break ; }
+			[ "$inquiryWord" = "--from-file" ] && inquiryAt=1
+		done
+		if [ -n "$inquirySource" ] && [ -f "$inquirySource" ] && [ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "$inquiryFrom" ] && [ -d "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming" ] ; then
+			inquiryNewTitle="$( LC_ALL=C awk '/^# / { print substr( $0, 3 ) ; exit }' "$inquirySource" )"
+			[ -z "$inquiryNewTitle" ] || inquirySame="$( LC_ALL=C awk -v want="$inquiryNewTitle" -v from="$inquiryFrom" -v self="${2:-}" '
+				function words( t, set,   n, i, w ) { t = tolower( t ) ; gsub( /[^a-z0-9]+/, " ", t ) ; n = split( t, w, " " ) ; for ( i = 1 ; i <= n ; i++ ) if ( length( w[i] ) > 2 ) set[w[i]] = 1 }
+				function jac(   k, i, u ) { i = 0 ; u = 0 ; for ( k in A ) { u++ ; if ( k in B ) i++ } ; for ( k in B ) if ( !( k in A ) ) u++ ; return u ? i / u : 0 }
+				BEGIN { words( want, A ) }
+				FNR == 1 { hdr = 0 ; fr = "" ; ty = "" ; name = FILENAME ; sub( /.*\//, "", name ) }
+				/^---$/ { hdr++ ; next }
+				hdr == 1 && /^from: / { fr = substr( $0, 7 ) } hdr == 1 && /^type: / { ty = substr( $0, 7 ) }
+				hdr >= 2 && /^# / { if ( fr == from && ty == "inquiry" && name != self ) { delete B ; words( substr( $0, 3 ), B ) ; if ( jac() >= 0.7 ) { print name ; exit } } nextfile }
+			' "$MDAT_DATA_ROOT/inboxes/${1:-}/incoming/"inquiry-*.md 2> /dev/null )" || inquirySame=""
+			if [ -n "$inquirySame" ] ; then
+				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+				inquiryMerged="$( mktemp "$MMDAPP/.local/temp/mdat-inquiry-append.XXXXXX" 2> /dev/null )" || inquiryMerged=""
+				if [ -n "$inquiryMerged" ] ; then
+					{ LC_ALL=C awk '/^---$/ { hdr++ ; next } hdr >= 2' "$MDAT_DATA_ROOT/inboxes/$1/incoming/$inquirySame"
+					  printf '\n## Added %s\n\n' "$( date '+%Y-%m-%d %H:%M %z' )"
+					  LC_ALL=C awk 'done || !/^# / { print ; next } { done = 1 }' "$inquirySource" ; } > "$inquiryMerged"
+					echo "# $MDSC_CMD --upsert-inbox-inquiry: appended to $inquirySame in $1's inbox, the open inquiry from $inquiryFrom on the same subject, instead of a second item ${2:-}." >&2
+					local inquiryRebuilt=() inquiryNextIsSource=""
+					for inquiryWord in "$@" ; do
+						if [ -n "$inquiryNextIsSource" ] ; then inquiryRebuilt+=( "$inquiryMerged" ) ; inquiryNextIsSource="" ; continue ; fi
+						[ "$inquiryWord" = "--from-file" ] && inquiryNextIsSource=1
+						inquiryRebuilt+=( "$inquiryWord" )
+					done
+					inquiryRebuilt[1]="$inquirySame"
+					set -- "${inquiryRebuilt[@]}"
+				fi
 			fi
 		fi
 		case "${1:-}:${2:-}" in
@@ -80,7 +148,8 @@ case "$1" in
 			;;
 		esac
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || { [ -z "$inquiryMerged" ] || rm -f "$inquiryMerged" ; return 1 ; }
+		[ -z "$inquiryMerged" ] || rm -f "$inquiryMerged"
 		if [ -n "$inquiryReflection" ] ; then
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-inbox-to-processed "$inquiryFrom" "$inquiryReflection" \
@@ -491,6 +560,45 @@ case "$1" in
 		return $?
 	;;
 
+	## THE ITEMS OF AN INBOX, ONE ROW EACH, in one call: what a run otherwise found by cd, ls and cat over the inbox folders. A row is
+	## `<state> <item> <type> <from> <date> <title>`, newest first; --of <member> lists another member's inbox, --include-processed its
+	## processed items too, --grep <text> keeps the items whose title or name holds the text. Read only. An item is read whole with
+	## --get-inbox-item, several at once in one BatchTools call.
+	--list-inbox-items)
+		shift
+		local listMember="" listOf="" listProcessed="no" listGrep="" listFolder listState
+		case "${1:-}" in ''|-*) ;; *) listMember="$1" ; shift ;; esac
+		[ -n "$listMember" ] || listMember="$( AgentsToolsTeamMember 2> /dev/null )" || listMember=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--of) listOf="${2:-}" ; shift 2 ;;
+				--include-processed) listProcessed="yes" ; shift ;;
+				--grep) listGrep="${2:-}" ; shift 2 ;;
+				*) echo "⛔ ERROR: $MDSC_CMD --list-inbox-items: syntax is [--team-member <member>] [--of <member>] [--include-processed] [--grep <text>], got: $1" >&2 ; set +e ; return 1 ;;
+			esac
+		done
+		listMember="${listOf:-$listMember}"
+		[ -n "$listMember" ] || { echo "⛔ ERROR: $MDSC_CMD --list-inbox-items: whose inbox is not known: give --team-member or --of" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$listMember" "<member>" list-inbox-items || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --list-inbox-items: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
+		type AgentsToolsInboxFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		while IFS= read -r listFolder ; do
+			[ -d "$listFolder" ] || continue
+			listState="${listFolder##*/}"
+			LC_ALL=C awk -v state="$listState" -v want="$( printf '%s' "$listGrep" | LC_ALL=C tr 'A-Z' 'a-z' )" '
+				function emit() { if ( name == "" ) return ; line = state "\t" name "\t" ( type != "" ? type : "-" ) "\t" ( from != "" ? from : "-" ) "\t" ( date != "" ? date : "-" ) "\t" ( title != "" ? title : "-" )
+					if ( want == "" || index( tolower( name "\t" title ), want ) ) print line }
+				FNR == 1 { emit() ; name = FILENAME ; sub( /.*\//, "", name ) ; type = "" ; from = "" ; date = "" ; title = "" ; hdr = 0 }
+				/^---$/ { hdr++ ; next }
+				hdr == 1 && /^type: / { type = substr( $0, 7 ) }
+				hdr == 1 && /^from: / { from = substr( $0, 7 ) }
+				hdr == 1 && /^date: / { date = substr( $0, 7, 16 ) }
+				hdr >= 2 && title == "" && /^# / { title = substr( $0, 3 ) }
+				END { emit() }' "$listFolder"/*.md 2> /dev/null
+		done < <( AgentsToolsInboxFolders "$listMember" "$listProcessed" ) | LC_ALL=C sort -t "$( printf '\t' )" -k5,5r
+		return 0
+	;;
+
 	--get-inbox-item)
 		shift
 		local memberName="$1"
@@ -498,7 +606,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: syntax is <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --get-inbox-item: syntax is [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" get-inbox-item || { set +e ; return 1 ; }
@@ -608,7 +716,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: syntax is <member> <item-filename> [--exclude-incoming]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: syntax is [--team-member <member>] <item-filename> [--exclude-incoming]" >&2
 			set +e ; return 1
 		fi
 		local trashOnly=()
@@ -635,6 +743,41 @@ case "$1" in
 		return $?
 	;;
 
+	## The coordinator removes a board item that must not stand: one written under a name that is no item's (an extensionless one), or a stray
+	## of an older kind. Through the board's own trash (--intern-op-board-trash), so a git store commits the deletion through the team-data
+	## thread and keeps the item in its history, and any other store keeps it in trash/. The coordinator alone writes the board.
+	--trash-board-item)
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		local trashFromState=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:?*) trashFromState="${1#--from-state:}" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --trash-board-item: invalid option: $1 -- syntax is [--team-member <team-member>] <item-filename> --from-state:<state>" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$memberName" ] || [ -z "$itemName" ] || [ -z "$trashFromState" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --trash-board-item: syntax is [--team-member <team-member>] <item-filename> --from-state:<state>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" trash-board-item || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" trash-board-item || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$memberName" trash-board-item || { set +e ; return 1 ; }
+		if [ "$memberName" != magic-coordinator ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --trash-board-item: only magic-coordinator writes the board; $memberName asks it with an inquiry" >&2
+			set +e ; return 1
+		fi
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-board-trash "$memberName" "$trashFromState" "$itemName" --context --trash-board-item
+		return $?
+	;;
+
 	## Any member marks its own inbox item handled: `processed-at` stamped, and the item moved
 	## to processed/ of the inbox, through the same
 	## primitive --librarian-inbox-to-processed uses.
@@ -647,7 +790,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: syntax is <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: syntax is [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local passthrough=()

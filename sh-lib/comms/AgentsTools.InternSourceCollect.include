@@ -125,7 +125,7 @@ case "$1" in
 			esac
 		fi
 
-		colThreadDir="$( AgentsToolsCollectThreadDir )" || { echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: no workspace is selected -- nothing was started" >&2 ; return 1 ; }
+		[ -n "${MMDAPP:-}" ] && colThreadDir="$MMDAPP/.local/agents/collect" || { echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: no workspace is selected -- nothing was started" >&2 ; return 1 ; }
 		colThreadLock="$colThreadDir/thread.lock"
 		mkdir -p "$colThreadDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: could not make $colThreadDir -- nothing was started" >&2 ; return 1 ; }
 		AgentsToolsCollectThreadLockTake ; colThreadRc=$?

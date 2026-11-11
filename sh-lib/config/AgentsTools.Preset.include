@@ -166,7 +166,7 @@ AgentsToolsPresetCredentialKeys(){ ## cli service
 ## The value of a key of a preset with what it inherits: its own where it holds one, else its parent's, up the
 ## chain of PRESET_EXTEND. PRESET_EXTEND itself is never inherited. A preset that extends has no CLI service of
 ## its own: the inherited one is the value. Prints nothing where no preset up the chain holds the key. rc 1,
-## with a message, where the chain is longer than agentsPresetChainLimit (a loop) or names a preset that is not there.
+## with a message, where the chain is longer than agentsPresetChainLimit (a loop) or names a preset that is not configured.
 AgentsToolsPresetEffective(){ ## workspace root, preset name, key
 	local effName="$2" effKey="$3" effDepth=0 effParent effValue
 	while [ "$effDepth" -lt "$agentsPresetChainLimit" ] ; do

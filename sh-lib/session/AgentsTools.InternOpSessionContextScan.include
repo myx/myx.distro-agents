@@ -38,6 +38,10 @@ case "$1" in
 		local states=() headers=() typePrefixes=() items=()
 		local allTypes="false" owner=""
 		local commsCutoffKind="" commsCutoffValue=""
+		## A FLOOR FOR ONE NAMED SOURCE, beside the pass-wide cut-off. Two parallel
+		## arrays rather than an associative one: this family runs on bash 3.2,
+		## which has no `declare -A`.
+		local commsSourceFloorKeys=() commsSourceFloorValues=()
 		local commsDoAll="false" commsDoSlack="false" commsDoEmail="false" commsDoTrello="false"
 		local commsDoSlackTags="false"
 		local commsMemberScopeOnly="false"
@@ -185,6 +189,27 @@ case "$1" in
 					commsCutoffKind="$1"
 					commsCutoffValue="$2"
 					shift 2
+				;;
+				--comms-source-floor)
+					if [ -z "${2:-}" ] || [ -z "${3:-}" ] ; then
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-source-floor: needs <source-key> <epoch-seconds>" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*[!A-Za-z0-9._-]*)
+							echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-source-floor: <source-key> must be the scan's own source key, letters, digits, dot, underscore and hyphen only: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					case "$3" in
+						''|*[!0123456789.]*|*.*.*|.*|*.)
+							echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-source-floor: the floor must be epoch seconds, optionally with a fractional part (e.g. 1786140114): $3" >&2
+							set +e ; return 1
+						;;
+					esac
+					commsSourceFloorKeys+=( "$2" )
+					commsSourceFloorValues+=( "$3" )
+					shift 3
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
@@ -480,7 +505,23 @@ case "$1" in
 
 			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial="" imCapped=""
 			local imFailed="false" imAnySourceFailed="false"
-			local imNotReached=0 imNotReachedList=""
+			local imNotReached=0 imNotReachedList="" imDropped="" imDroppedTotal=0 imDroppedSources=0
+			## THE FLOOR ONE SOURCE READS FROM: its own where the caller stated one,
+			## the pass-wide cut-off otherwise. A caller holding a stored position per
+			## source states one per source; a caller holding only a pass position
+			## states none and gets today's behaviour exactly. Resolved here, once, so
+			## the paging bound, the item trim and the thread floors cannot disagree.
+			AgentsSessionContextSourceFloor(){ ## source-key
+				local floorKey="$1" floorIndex=0
+				while [ "$floorIndex" -lt ${#commsSourceFloorKeys[@]} ] ; do
+					if [ "${commsSourceFloorKeys[$floorIndex]}" = "$floorKey" ] ; then
+						printf '%s\n' "${commsSourceFloorValues[$floorIndex]}"
+						return 0
+					fi
+					floorIndex=$(( floorIndex + 1 ))
+				done
+				printf '%s\n' "$cutoffEpoch"
+			}
 			## THE SLACK LEG HAS ITS OWN BOUND, inside the caller's window. Measured 2026-11-04:
 			## a 60-day cut-off read 20 conversations in 130 s and a stored one 215 s.
 			local slackLegSeconds="${ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS:-240}"
@@ -488,6 +529,22 @@ case "$1" in
 				*[!0123456789]*|''|0) slackLegSeconds=240 ;;
 			esac
 			local slackLegDeadline=$(( SECONDS + slackLegSeconds ))
+			## THE EMAIL AND TRELLO LEGS HAVE ONE EACH, on the same terms: the bound stops
+			## the leg being LAUNCHED once the pass is past it, and the section then says
+			## so instead of reporting an empty source. It is checked before the call, so
+			## it bounds a leg that would have queued behind the Slack reads -- it does not
+			## interrupt a call already in flight. What bounds one call is that source's own
+			## transport bound, and the two are stated apart in the section.
+			local emailLegSeconds="${ENV_MAGIC_SWEEP_EMAIL_LEG_SECONDS:-240}"
+			case "$emailLegSeconds" in
+				*[!0123456789]*|''|0) emailLegSeconds=240 ;;
+			esac
+			local trelloLegSeconds="${ENV_MAGIC_SWEEP_TRELLO_LEG_SECONDS:-120}"
+			case "$trelloLegSeconds" in
+				*[!0123456789]*|''|0) trelloLegSeconds=120 ;;
+			esac
+			local emailLegDeadline=$(( SECONDS + emailLegSeconds )) trelloLegDeadline=$(( SECONDS + trelloLegSeconds ))
+			local emailOutOfTime="false" trelloOutOfTime="false"
 			if [ "$wantSlack" = "true" ] ; then
 				if [ "$commsCutoffDefaulted" = "true" ] ; then
 					imInstrument="cut-off defaulted to the last $sessionContextDefaultCutoffDays days -- no --comms-since-date-time or --comms-since-utime was given (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
@@ -513,8 +570,11 @@ case "$1" in
 				##              correspondent writing to two personas stays two groups.
 				##   source-key `<auth-id>-<conversation-id>`, this source's stable
 				##              name for a caller that wants to speak about one source
-				##              in its own records. The scan itself reads nothing by
-				##              it: it holds no per-source position to look up.
+				##              in its own records, and the name a per-source floor is
+				##              stated under. The roster composes it from the token's own
+				##              auth id; a source named by config rather than enumerated
+				##              from Slack carries `<identity>-<target>` instead, because
+				##              nothing here asks Slack who the token is before the read.
 				## The X-Request-Detail workspace domain every Slack call below writes
 				## on stderr, resolved once for the whole scan rather than by two
 				## config lookups per call -- see AgentsToolsResolveSlackWorkspaceDomain.
@@ -558,7 +618,7 @@ case "$1" in
 					type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 					configuredSources="$( AgentsToolsConfigOption "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
 					for configuredSource in ${configuredSources//,/ } ; do
-						slackSourceSpecs+=( "user|$configuredSource|$configuredSource|" )
+						slackSourceSpecs+=( "user|$configuredSource|$configuredSource|user-$configuredSource" )
 					done
 
 					if [ "$slackOwnCredentials" != "true" ] ; then
@@ -568,7 +628,7 @@ case "$1" in
 						imPartial="$imPartial**NOTE:** partial -- Slack not scanned, $actingMember holds no Slack credentials of its own; this scan never reads Slack under the team's shared credentials"$'\n'
 					fi
 				else
-					slackSourceSpecs=( "bot|magic-team|magic-team|" "bot|human-owner|human-owner|" )
+					slackSourceSpecs=( "bot|magic-team|magic-team|bot-magic-team" "bot|human-owner|human-owner|bot-human-owner" )
 				fi
 				local ownSlackId="" ownResolveOutput=""
 				if [ "$slackOwnCredentials" = "true" ] ; then
@@ -921,11 +981,16 @@ case "$1" in
 						return 0
 					fi
 					local fetchSpec="${slackSourceSpecs[$1]}" fetchIdentity fetchTarget fetchLabel fetchResolved fetchChannel fetchRc=0
+					local fetchKey fetchFloor="" fetchOrigin="pass cut-off"
 					fetchIdentity="${fetchSpec%%|*}"
 					fetchTarget="${fetchSpec#*|}"
 					fetchLabel="${fetchTarget#*|}"
 					fetchLabel="${fetchLabel%%|*}"
 					fetchTarget="${fetchTarget%%|*}"
+					fetchKey="${fetchSpec##*|}"
+					fetchFloor="$( AgentsSessionContextSourceFloor "$fetchKey" )"
+					[ -z "$fetchKey" ] || [ "$fetchFloor" = "$cutoffEpoch" ] || fetchOrigin="this source's own floor"
+					printf '%s\n' "$fetchKey" > "$sourcePrefetchDir/key.$1"
 					fetchResolved="$( DistroAgentsToolsResolveTarget "$fetchTarget" )" || {
 						printf 'unresolved\n' > "$sourcePrefetchDir/state.$1"
 						return 0
@@ -948,8 +1013,8 @@ case "$1" in
 					## straddles the cut-off still arrives whole and thread
 					## discovery keeps seeing parents older than it.
 					local fetchPageUntilArgs=()
-					if [ -n "$cutoffEpoch" ] ; then
-						fetchPageUntilArgs=( --page-until "$cutoffEpoch" )
+					if [ -n "$fetchFloor" ] ; then
+						fetchPageUntilArgs=( --page-until "$fetchFloor" )
 					fi
 					## The spec names which token reads this source. `bot` keeps the
 					## identity every team-side source has always been read under; `user`
@@ -961,7 +1026,7 @@ case "$1" in
 						AgentsToolsSlackCheck "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
 					fi
 					if [ "$fetchRc" = "0" ] || [ "$fetchRc" = "3" ] ; then
-						local parseRaw="" parseJson="" parseRows="" parseBlocks="" parseFound="" parseFail=""
+						local parseRaw="" parseJson="" parseRows="" parseBlocks="" parseFound="" parseFail="" parseKept=-1 parseAll=-1
 						parseRaw="$( cat "$sourcePrefetchDir/raw.$1" 2>/dev/null )" || parseRaw=""
 						parseJson="$( printf '%s\n' "$parseRaw" | sed '1d' )"
 						parseRaw=""
@@ -971,19 +1036,32 @@ case "$1" in
 						## Trimmed against THIS source's resume point, the same value the
 						## paging was bounded by -- two different cut-offs over one read is
 						## how a message ends up fetched and then silently dropped.
-						if [ -z "$parseFail" ] && [ -n "$cutoffEpoch" ] && [ -n "$parseBlocks" ] ; then
-							parseBlocks="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx=0 "$commsCutoffTrimAwkProgram" )" || parseFail="trim"
+						if [ -z "$parseFail" ] && [ -n "$fetchFloor" ] && [ -n "$parseBlocks" ] ; then
+							parseAll="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk '/^## / { n++ } END { print n + 0 }' )" || parseAll=-1
+							parseBlocks="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk -v cut="$fetchFloor" -v ctx=0 "$commsCutoffTrimAwkProgram" )" || parseFail="trim"
+							parseKept="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk '/^## / { n++ } END { print n + 0 }' )" || parseKept=-1
 						fi
 						if [ -n "$parseFail" ] ; then
 							printf '%s\n' "$parseFail" > "$sourcePrefetchDir/fail.$1"
 						else
 							[ -z "$parseBlocks" ] || printf '%s' "$parseBlocks" > "$sourcePrefetchDir/blocks.$1"
+							## WHAT THE TRIM DROPPED, counted where it dropped it: the read
+							## beside this source is the only place both numbers exist. A
+							## trim that kept everything writes 0, so an absent count file
+							## is a source never trimmed and never a drop of unknown size.
+							if [ "$parseAll" -ge 0 ] && [ "$parseKept" -ge 0 ] && [ "$parseAll" -gt "$parseKept" ] ; then
+								printf '%s %s %s\n' "$parseAll" "$parseKept" "$(( parseAll - parseKept ))" > "$sourcePrefetchDir/dropped.$1"
+							fi
 							## Fresh targets carry their latest reply, for the display cap
 							## below; known-stale ones are kept apart -- see that awk.
-							if parseFound="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -v channel="$fetchChannel" -v oldest="$cutoffEpoch" -v vaneId="$ownSlackId" -v stale=1 -v latest=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+							if parseFound="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -v channel="$fetchChannel" -v oldest="$fetchFloor" -v vaneId="$ownSlackId" -v stale=1 -v latest=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 							-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackHistoryThreadTargets.awk" )" ; then
 								if [ -n "$parseFound" ] ; then
-									printf '%s\n' "$parseFound" | LC_ALL=C awk -v stalePath="$sourcePrefetchDir/stale.$1" '$1 == "stale" { print $2 > stalePath ; next } { print }' | sort -u > "$sourcePrefetchDir/threads.$1"
+									## THE DISCOVERING SOURCE IS KEPT BESIDE EACH TARGET, not thrown
+									## away by a de-duplication later. Two sources finding one thread
+									## hold two floors for it, and the read that follows has to choose
+									## between them instead of being handed one and told nothing.
+									printf '%s\n' "$parseFound" | LC_ALL=C awk -v stalePath="$sourcePrefetchDir/stale.$1" -v srcIndex="$1" '$1 == "stale" { print $2 > stalePath ; next } NF >= 2 { print srcIndex "\t" $1 "\t" $2 ; next } NF { print srcIndex "\t" $1 }' | sort -u > "$sourcePrefetchDir/threads.$1"
 								fi
 							else
 								printf 'discovery\n' > "$sourcePrefetchDir/disc.$1"
@@ -1018,16 +1096,24 @@ case "$1" in
 				## Thread targets found in a source, with the latest reply where the
 				## parent states one (`<channel>:<ts> <latest>`), and the known-stale
 				## ones the thread fetch below counts as assessed without reading.
-				local threadLatest="" staleTargets=() dtLatest sourceFail sourceBlockCount=0
+				local threadLatest="" staleTargets=() threadSources=() dtLatest sourceFail sourceBlockCount=0
 				local slackSpec slackName slackChannel slackBlocks
-				local specIdentity specTarget sourceIndex=-1 sourceState
+				local specIdentity specTarget specKey specFloor specOrigin sourceIndex=-1 sourceState
 				for slackSpec in ${slackSourceSpecs[@]+"${slackSourceSpecs[@]}"} ; do
 					sourceIndex=$(( sourceIndex + 1 ))
+					local specRest=""
 					specIdentity="${slackSpec%%|*}"
-					slackName="${slackSpec#*|}"
-					specTarget="${slackName%%|*}"
-					slackName="${slackName#*|}"
-					slackName="${slackName%%|*}"
+					specRest="${slackSpec#*|}"
+					specTarget="${specRest%%|*}"
+					specRest="${specRest#*|}"
+					slackName="${specRest%%|*}"
+					case "$specRest" in
+						*"|"*) specKey="${specRest#*|}" ;;
+						*) specKey="" ;;
+					esac
+					specFloor="$( AgentsSessionContextSourceFloor "$specKey" )"
+					specOrigin="pass cut-off"
+					[ -z "$specKey" ] || [ "$specFloor" = "$cutoffEpoch" ] || specOrigin="this source's own floor"
 
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
 					sourceState=""
@@ -1054,14 +1140,12 @@ case "$1" in
 					slackChannel=""
 					[ ! -f "$sourcePrefetchDir/channel.$sourceIndex" ] || read -r slackChannel < "$sourcePrefetchDir/channel.$sourceIndex" || slackChannel=""
 
-					## WHERE THIS SOURCE RESUMES FROM: the cut-off this pass was GIVEN,
-					## the same one for every source. This scan holds no position of
-					## its own and reads none -- it is stateless, and a caller wanting
-					## a different floor states a different --comms-since-*. Recording
-					## how far a read got is the calling reader's own business, kept in
-					## the calling reader's own state-and-lock note, and the scan
-					## neither reads nor writes it.
-					imSourceResume="$imSourceResume$slackName	$slackChannel	$specIdentity	$cutoffEpoch	pass cut-off"$'\n'
+					## WHERE THIS SOURCE RESUMES FROM: its own floor where the caller
+					## stated one for its key, the pass cut-off otherwise. This scan still
+					## holds no position of its own and writes none -- a per-source floor
+					## is stated by the caller that keeps them, and a caller that keeps
+					## only a pass position states none and reads what it always read.
+					imSourceResume="$imSourceResume$slackName	$slackChannel	$specIdentity	$specFloor	$specOrigin"$'\n'
 
 					## Read by this source's worker above, under the identity its spec names.
 					local slackCheckRc=1
@@ -1097,14 +1181,33 @@ case "$1" in
 						imBlocks="$imBlocks$slackBlocks"$'\n\n'
 						sourceBlockCount=$(( sourceBlockCount + 1 ))
 					fi
+					## WHAT THIS SOURCE'S FLOOR DROPPED, before the blocks were thrown away.
+					if [ -f "$sourcePrefetchDir/dropped.$sourceIndex" ] ; then
+						local dropAll="" dropKept="" dropCount=""
+						read -r dropAll dropKept dropCount < "$sourcePrefetchDir/dropped.$sourceIndex" || :
+						case "$dropCount" in
+							''|*[!0123456789]*) : ;;
+							0) : ;;
+							*)
+								imDroppedTotal=$(( imDroppedTotal + dropCount ))
+								imDroppedSources=$(( imDroppedSources + 1 ))
+								imDropped="$imDropped  - $slackName: $dropCount of $dropAll dropped by the $specOrigin"$'\n'
+							;;
+						esac
+					fi
 
 					if [ -f "$sourcePrefetchDir/disc.$sourceIndex" ] ; then
 						imPartial="$imPartial**NOTE:** partial -- thread discovery failed for $slackName, watched-channel read above unaffected"$'\n'
 					fi
 					if [ -f "$sourcePrefetchDir/threads.$sourceIndex" ] ; then
-						while read -r dt dtLatest ; do
+						local dtSource=""
+						while IFS="$( printf '\t' )" read -r dtSource dt dtLatest ; do
 							[ -n "$dt" ] || continue
 							threadTargets+=( "$dt" )
+							## The floor this discovering source reads from travels WITH
+							## the target. Two sources finding one thread hold two floors,
+							## and the read below has to choose between them.
+							threadSources+=( "$dt"$'\034'"$specKey"$'\034'"$specFloor"$'\034'"$specOrigin" )
 							[ -z "$dtLatest" ] || threadLatest="$threadLatest$dt $dtLatest"$'\n'
 						done < "$sourcePrefetchDir/threads.$sourceIndex"
 					fi
@@ -1147,7 +1250,7 @@ case "$1" in
 				## Real function, not inline, only because a backgrounded job
 				## needs a callable unit -- single-consumer otherwise.
 				AgentsSessionContextThreadFetchOne(){
-					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8" identityMap="$9" outBase="${10}"
+					local memberName="$1" dt="$2" threadFloor="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8" identityMap="$9" outBase="${10}"
 					local dtChannel="${dt%%:*}"
 					local blocksFile="$workDir/blocks.$outBase" statusFile="$workDir/status.$outBase"
 					local fetchRaw fetchJson fetchBlocks
@@ -1156,11 +1259,11 @@ case "$1" in
 						dtIdentity="$( LC_ALL=C awk -v ch="$dtChannel" '$1 == ch { print $2 ; exit }' <<< "$identityMap" )"
 					fi
 					## Same paging bound as the watched-source read above: a long
-					## thread is paged to its end, but only back as far as this
-					## scan's own cut-off needs.
+					## thread is paged to its end, but only back as far as the floor
+					## this thread actually reads from needs.
 					local dtPageUntilArgs=()
-					if [ -n "$cutoffEpoch" ] ; then
-						dtPageUntilArgs=( --page-until "$cutoffEpoch" )
+					if [ -n "$threadFloor" ] ; then
+						dtPageUntilArgs=( --page-until "$threadFloor" )
 					fi
 					fetchRaw="$( if [ "$memberScopeOnly" = "true" ] ; then
 						AgentsToolsSlackCheck "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --raw
@@ -1181,8 +1284,8 @@ case "$1" in
 						printf 'FAIL:response was an API failure, not an empty thread\n' > "$statusFile"
 						return 0
 					}
-					if [ -n "$cutoffEpoch" ] && [ -n "$fetchBlocks" ] ; then
-						fetchBlocks="$( printf '%s\n' "$fetchBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx="$ctxBefore" -f "$trimAwkFile" )" || {
+					if [ -n "$threadFloor" ] && [ -n "$fetchBlocks" ] ; then
+						fetchBlocks="$( printf '%s\n' "$fetchBlocks" | LC_ALL=C awk -v cut="$threadFloor" -v ctx="$ctxBefore" -f "$trimAwkFile" )" || {
 							printf 'FAIL:cut-off filter over the reply set failed\n' > "$statusFile"
 							return 0
 						}
@@ -1239,8 +1342,37 @@ case "$1" in
 
 				## Each target is named by its line number in the sorted list, not by
 				## a checksum of its name: one counter, no fork per target.
-				local uniqueThreads dt dtIndex
+				local uniqueThreads dt dtIndex threadFloors="" threadOwnFloors=0
 				uniqueThreads="$( printf '%s\n' "${threadTargets[@]+"${threadTargets[@]}"}" | LC_ALL=C sort -u )" || uniqueThreads=""
+				## ONE FLOOR PER DERIVED READ, CHOSEN FROM THE SOURCES THAT FOUND IT.
+				## A thread two sources discover is one read and two floors. The older
+				## floor wins: it reads more and trims less, so the choice never loses a
+				## reply either source would have shown. A target with no discovering
+				## source -- a mention hit, a board item -- takes the pass cut-off, which
+				## is what it always took. Comparison is the trim's own string key, never
+				## `+ 0`: at this magnitude a double resolves about 2e-7 apart.
+				threadFloors="$( printf '%s\n' "${threadSources[@]+"${threadSources[@]}"}" | LC_ALL=C awk -F '\034' '
+					function tskey(v,   d, sec, frac) {
+						gsub(/^[ \t]+|[ \t\r]+$/, "", v)
+						d = index(v, ".")
+						if (d == 0) { sec = v ; frac = "" ; }
+						else { sec = substr(v, 1, d - 1) ; frac = substr(v, d + 1) ; }
+						if (sec !~ /^[0-9]+$/ || length(sec) > 16) return ""
+						frac = substr(frac "000000", 1, 6)
+						if (frac !~ /^[0-9]+$/) return ""
+						while (length(sec) < 16) sec = "0" sec
+						return sec frac
+					}
+					NF >= 4 && $1 != "" {
+						t = $1 ; f = $3 ; o = $4
+						k = tskey(f)
+						if (k == "") next
+						if (!(t in seen)) { seen[t] = 1 ; order[++n] = t ; kfloor[t] = k ; floor[t] = f ; origin[t] = o ; next }
+						if (k < kfloor[t]) { kfloor[t] = k ; floor[t] = f ; origin[t] = o }
+					}
+					END { for (i = 1 ; i <= n ; i++) printf "%s\t%s\t%s\n", order[i], floor[order[i]], origin[order[i]] }
+				' | LC_ALL=C sort )" || threadFloors=""
+				[ -z "$threadFloors" ] || threadOwnFloors="$( printf '%s\n' "$threadFloors" | LC_ALL=C awk -F '\t' '$3 != "pass cut-off" { n++ } END { print n + 0 }' )" || threadOwnFloors=0
 
 				## KNOWN-STALE THREADS ARE ASSESSED, NOT READ. A thread the history
 				## shows with its latest reply at or before the cut-off holds nothing
@@ -1271,8 +1403,10 @@ case "$1" in
 				if [ $(( sourceBlockCount + threadUniqueCount )) -gt "$sessionContextCapIm" ] ; then
 					threadCapEngaged="true"
 				fi
-				## `<index> <target> <latest-or-empty>`, in launch order.
-				threadOrder="$( printf '%s\n' "$uniqueThreads" | THREAD_LATEST="$threadLatest" LC_ALL=C awk '
+				## `<index> <target> <latest-or-empty> <floor> <floor-origin>`, in launch
+				## order. The floor comes from the discovering sources, and from the pass
+				## cut-off for a target no source discovered.
+				threadOrder="$( printf '%s\n' "$uniqueThreads" | THREAD_LATEST="$threadLatest" THREAD_FLOORS="$threadFloors" PASS_CUTOFF="$cutoffEpoch" LC_ALL=C awk -F '\t' '
 					function tskey(v,   d, sec, frac) {
 						d = index(v, ".")
 						if (d == 0) { sec = v ; frac = "" ; }
@@ -1292,21 +1426,30 @@ case "$1" in
 							if (tskey(f[2]) == "") continue
 							if (!(f[1] in late) || tskey(f[2]) > tskey(late[f[1]])) late[f[1]] = f[2]
 						}
+						n = split(ENVIRON["THREAD_FLOORS"], fr, "\n")
+						for (i = 1; i <= n; i++) {
+							if (fr[i] == "") continue
+							split(fr[i], tf, "\t")
+							if (tf[1] == "") continue
+							floorOf[tf[1]] = tf[2] ; originOf[tf[1]] = tf[3]
+						}
+						passCut = ENVIRON["PASS_CUTOFF"]
 					}
-					NF { idx++ ; if ($1 in late) { kn++ ; kt[kn] = $1 ; ki[kn] = idx ; } else { print idx, $1 ; } }
+					NF { idx++ ; if ($1 in late) { kn++ ; kt[kn] = $1 ; ki[kn] = idx ; } else { printf "%s\t%s\t\t%s\t%s\n", idx, $1, (($1 in floorOf) ? floorOf[$1] : passCut), (($1 in originOf) ? originOf[$1] : "pass cut-off") ; } }
 					END {
 						for (x = 2; x <= kn; x++) {
 							v = kt[x] ; w = ki[x] ; j = x - 1
 							while (j >= 1 && tskey(late[kt[j]]) < tskey(late[v])) { kt[j + 1] = kt[j] ; ki[j + 1] = ki[j] ; j-- ; }
 							kt[j + 1] = v ; ki[j + 1] = w
 						}
-						for (x = 1; x <= kn; x++) print ki[x], kt[x], late[kt[x]]
+						for (x = 1; x <= kn; x++) printf "%s\t%s\t%s\t%s\t%s\n", ki[x], kt[x], late[kt[x]], ((kt[x] in floorOf) ? floorOf[kt[x]] : passCut), ((kt[x] in originOf) ? originOf[kt[x]] : "pass cut-off")
 					}
 				' )" || threadOrder=""
 
 				local threadEst threadCheckedDone=-1 threadCheckedEst="" threadDone threadAbove threadInFlight
 				local threadNotReachedSet=$'\n'
-				while read -r dtIndex dt threadEst ; do
+				local dtFloor dtFloorOrigin
+				while IFS="$( printf '\t' )" read -r dtIndex dt threadEst dtFloor dtFloorOrigin ; do
 					[ -n "$dt" ] || continue
 					if [ "$SECONDS" -ge "$slackLegDeadline" ] ; then
 						imNotReached=$(( imNotReached + 1 ))
@@ -1346,7 +1489,7 @@ case "$1" in
 					while [ "$( jobs -pr | wc -l | tr -d '[:space:]' )" -ge "$threadFetchWorkers" ] ; do
 						sleep 0.2
 					done
-					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMap" "$dtIndex" &
+					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$dtFloor" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMap" "$dtIndex" &
 				done <<< "$threadOrder"
 				wait
 
@@ -1439,8 +1582,15 @@ case "$1" in
 					[ -z "$emailSince" ] || emailInstrument="unread-semantics (IMAP UID SEARCH UNSEEN SINCE $emailSince)"
 				fi
 				if [ "$emailNotConfigured" = "false" ] && [ "$emailFailed" = "false" ] ; then
+					## THE EMAIL LEG'S OWN BOUND, checked before the call for the same
+					## reason as the Slack leg's: past it the call is not launched, so a
+					## mailbox that would have queued behind a long Slack pass is reported
+					## unreached rather than left to hold the whole pass open.
+					if [ "$SECONDS" -ge "$emailLegDeadline" ] ; then
+						emailOutOfTime="true"
+						emailFailed="true"
 					## Collected now if its TTL has passed; the cut-off narrows the search and what is shown.
-					if AgentsToolsCollectEnsure "$actingMember" mail "$emailSince" ; then
+					elif AgentsToolsCollectEnsure "$actingMember" mail "$emailSince" ; then
 						AgentsToolsCollectBlocks mail "$actingMember" "${emailSinceIso//-/}" "$sessionContextCapEmail" emailBlocks emailUidsTotal
 					else
 						emailFailed="true"
@@ -1468,7 +1618,11 @@ case "$1" in
 					trelloIdentity="@$trelloUser / $trelloId"
 				fi
 				if [ "$trelloNotConfigured" = "false" ] ; then
-					if AgentsToolsCollectEnsure "$actingMember" trello "" ; then
+					## The Trello leg carries the same launch bound as the mailbox.
+					if [ "$SECONDS" -ge "$trelloLegDeadline" ] ; then
+						trelloOutOfTime="true"
+						trelloFailed="true"
+					elif AgentsToolsCollectEnsure "$actingMember" trello "" ; then
 						AgentsToolsCollectBlocks trello "$actingMember" "" "$sessionContextCapTrello" trelloBlocks trelloTotal
 					else
 						trelloFailed="true"
@@ -1527,6 +1681,17 @@ case "$1" in
 
 			local imNotReachedText=""
 			[ "$imNotReached" -eq 0 ] || imNotReachedText="$( printf 'leg-bound: %s s (ENV_MAGIC_SWEEP_SLACK_LEG_SECONDS) -- launching stopped there, and the reads already in flight were allowed to finish\nnot-reached: %s source(s), which the next pass reads\n%s' "$slackLegSeconds" "$imNotReached" "$imNotReachedList" )"
+			## WHAT THE TRIM DROPPED, said whenever it dropped anything: a message
+			## fetched and then filtered out is the one loss a reader cannot see, and
+			## the count per source is what sizes it. A pass that dropped nothing says
+			## nothing at all, so this line never reads as a standing warning.
+			## Each of these is printed with its own trailing newline rather than
+			## carrying one: a command substitution strips every trailing newline,
+			## which would run the next field onto this one's last line.
+			local imDroppedText=""
+			[ "$imDroppedTotal" -eq 0 ] || imDroppedText="$( printf 'trim-dropped: %s message(s) across %s source(s) -- fetched and then filtered out by that source'"'"'s own floor, newest first\n%s' "$imDroppedTotal" "$imDroppedSources" "$imDropped" )"
+			local imFloorText=""
+			[ "$threadOwnFloors" -eq 0 ] || imFloorText="$( printf 'thread-floor: %s derived thread read(s) took a discovering source'"'"'s own floor, the rest took the pass cut-off' "$threadOwnFloors" )"
 			[ "$noSlack" = "true" ] || printf '## Incoming IM Updates\n\n'
 			if [ "$wantSlack" != "true" ] ; then
 				[ "$noSlack" = "true" ] || printf '**NOTE:** not requested\n\n'
@@ -1545,6 +1710,8 @@ case "$1" in
 				printf 'sort: oldest first -- conversations ordered by their own newest message, messages oldest first within each conversation (no message-level merge across conversations)\n'
 				printf 'cap: %s conversations -- a thread, channel or DM is ONE unit however many messages it carries\n' "$sessionContextCapIm"
 				printf 'messages-read: %s\n' "$imCount"
+				[ -z "$imFloorText" ] || printf '%s\n' "$imFloorText"
+				[ -z "$imDroppedText" ] || printf '%s\n' "$imDroppedText"
 				[ "$imNotReached" -eq 0 ] || printf '%s' "$imNotReachedText"
 				[ -z "$imPartial" ] || printf '%s' "$imPartial"
 				[ -z "$imCapped" ] || printf '%s' "$imCapped"
@@ -1583,7 +1750,12 @@ case "$1" in
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
 				printf 'sources-scanned: 0 of 1\n'
-				printf '**NOTE:** no scan was made -- the IMAP session (login, EXAMINE or UID SEARCH) failed\n\n'
+				if [ "$emailOutOfTime" = "true" ] ; then
+					printf 'leg-bound: %s s (ENV_MAGIC_SWEEP_EMAIL_LEG_SECONDS) -- the pass was past it, so this leg was not launched; the next pass reads the mailbox\n' "$emailLegSeconds"
+					printf '**NOTE:** no scan was made -- the pass reached this leg after its own bound, not a mailbox fault\n\n'
+				else
+					printf '**NOTE:** no scan was made -- the IMAP session (login, EXAMINE or UID SEARCH) failed\n\n'
+				fi
 			else
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
@@ -1623,7 +1795,12 @@ case "$1" in
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"
 				printf 'sources-scanned: 0 of 1\n'
-				printf '**NOTE:** no scan was made -- --trello-check failed or did not answer with JSON\n\n'
+				if [ "$trelloOutOfTime" = "true" ] ; then
+					printf 'leg-bound: %s s (ENV_MAGIC_SWEEP_TRELLO_LEG_SECONDS) -- the pass was past it, so this leg was not launched; the next pass reads the notifications\n' "$trelloLegSeconds"
+					printf '**NOTE:** no scan was made -- the pass reached this leg after its own bound, not a Trello fault\n\n'
+				else
+					printf '**NOTE:** no scan was made -- --trello-check failed or did not answer with JSON\n\n'
+				fi
 			else
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"

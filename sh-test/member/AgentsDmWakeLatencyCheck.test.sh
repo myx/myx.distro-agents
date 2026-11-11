@@ -21,7 +21,7 @@ rigRefuse(){
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDmWakeLatencyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigCommsThreadEnd ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/keeper-rig"
 printf 'rig\n' > "$rigTmp/skills/keeper-rig/keeper-rig.basic.md" ; printf 'rig\n' > "$rigTmp/skills/keeper-rig/keeper-rig.armed.md"
 cp "$rigTest/check-fixtures/work-duty.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
@@ -40,6 +40,7 @@ rigAssert(){ ## what is asserted, got, want
 rigNow="$( date +%s )"
 rigWs="" rigData="" rigDir="" rigSession="rig-wd-session"
 rigScene(){ ## name, the collect window in seconds
+	rigCommsThreadEnd
 	rigNow="$( date +%s )"
 	rigDir="$rigTmp/$1"
 	rigWs="$rigDir/ws" rigData="$rigDir/data"
@@ -51,6 +52,8 @@ rigScene(){ ## name, the collect window in seconds
 	: > "$rigDir/api.log"
 	## The pointers of the session, a little behind now: what the last collect of this session had got to.
 	printf 'collect:keeper-rig:slack:magic-team\t%s.000000\ncollect:keeper-rig:tagged:keeper-rig\t%s.000000\n' "$(( rigNow - 100 ))" "$(( rigNow - 100 ))" > "$rigWs/.local/agents/sessions/$rigSession/session.chat.pointers"
+	## THE RIG'S COMMS SERVICE THREAD (the owner's design): the Wait reads the cache this thread fills through the fake Slack, and never Slack itself.
+	rigCommsThreadStart MDAT_WORKSPACE_MODE=team-rig "HOME=$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_DATA_ROOT=$rigData" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "RIG_SCENARIO=$rigDir"
 }
 rigMsg(){ ## ts user text [thread ts]
 	printf '{"ts":"%s","user":"%s","text":"%s"%s}' "$1" "$2" "$3" "${4:+,\"thread_ts\":\"$4\"}"
@@ -145,7 +148,12 @@ rigScan ttl-1
 rigTtlOne="$( rigSearches ttl )"
 rigScan ttl-2
 rigTtlTwo="$( rigSearches ttl )"
-rigTtlLeft=$(( rigTtlStart + 62 - $( date +%s ) )) ; [ "$rigTtlLeft" -le 0 ] || sleep "$rigTtlLeft"
+## THE MARGIN COUNTS FROM THE PULL, NOT FROM THE SCAN'S START: the comms thread writes the folder's stamp when its search lands, and
+## the product reads the folder stale past 60 s from that stamp. Counted from the scan's start the margin is short by the pull's delay,
+## so the third scan read a folder still inside its TTL and made no search. A folder with no stamp is no measurement, never a pass.
+rigTtlPulled="" ; { read -r rigTtlPulled rigTtlCovered rigTtlNewest < "$rigWs/.local/cache/comms/slack/slack-mentions-keeper-rig/.state.txt" ; } 2> /dev/null || rigTtlPulled=""
+case "$rigTtlPulled" in ''|*[!0-9]*) rigRefuse "the mentions cache folder carries no pull stamp, so the TTL row has no clock to count from" ;; esac
+rigTtlLeft=$(( rigTtlPulled + 62 - $( date +%s ) )) ; [ "$rigTtlLeft" -le 0 ] || sleep "$rigTtlLeft"
 rigScan ttl-3
 rigAssert "a 20 s collect searches once; a second Wait inside the 60 s does not; one after it does, once" "$rigTtlOne:$rigTtlTwo:$( rigSearches ttl )" "1:1:2"
 
@@ -170,11 +178,13 @@ rigScan searcher
 rigAssert "the setting's member searches, not the coordinator" \
 	"$( rigHolds searcher RIG-SET-MENTION ):$( LC_ALL=C grep -c '^search.messages rig-user-SEARCHER ' "$rigDir/search.log" ):$( LC_ALL=C grep -c '^search.messages rig-user-COORD ' "$rigDir/search.log" )" "1:1:0"
 
-echo "-- no identity may search: an error in the Wait's header, never an empty result --"
+echo "-- no identity may search: the source is never read, never an empty result, and the comms thread's log says why --"
+## THE WAIT CALLS NO SERVICE (the owner's design): the comms service thread searches, and where no identity may, the folder stays
+## unserved. The Wait then names the source as never read, not as an error it cannot know, and the thread's own log carries the why.
 rigScene noscope 60
-rigCall noscope --intern-op-wait-for-input keeper-rig --wait-source mentions:keeper-rig --wait-timeout 2
-rigAssert "an error of its own in the header, why said, and no source never read" \
-	"$( LC_ALL=C grep -c '^WAIT-SOURCE-ERROR: \[mentions:keeper-rig\] no identity may search' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c '^WAIT-NEVER-READ: .*mentions' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c -F 'no identity may search its mentions' "$rigDir/noscope.err" )" "1:0:1"
+rigCall noscope --intern-op-wait-for-input keeper-rig --wait-source mentions:keeper-rig --wait-timeout 4
+rigAssert "no error of the Wait's own, the source never read, and the thread's log says no identity may search" \
+	"$( LC_ALL=C grep -c '^WAIT-SOURCE-ERROR: \[mentions:keeper-rig\]' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c '^WAIT-NEVER-READ: .*mentions' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c -F 'no identity may search its mentions' "$rigWs/.local/agents/comms/log" 2> /dev/null )" "0:1:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DM WAKE LATENCY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

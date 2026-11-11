@@ -276,7 +276,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local stateDir="$( AgentsToolsInboxDir magic-coordinator )"
+		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-note-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
@@ -498,7 +498,7 @@ case "$1" in
 		}
 		## Same document --state-note-lock-acquire/-refresh/-close-unlock
 		## and --intern-op-state-note-upsert all write -- must match exactly.
-		local target="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		local target="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else
@@ -530,7 +530,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --send-report: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local reportNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		local reportNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ ! -f "$reportNote" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --send-report: $reportNote does not exist -- acquire the lock first (--state-note-lock-acquire)" >&2
 			set +e ; return 1

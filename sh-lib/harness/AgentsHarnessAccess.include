@@ -171,7 +171,7 @@ AgentsHarnessSessionKey(){
 ## looks): the addressees comma-joined, a word not known yet `-`, the siblings and the check time 0.
 AgentsHarnessOwnPostRecord(){ ## send output file
 	local ownSession ownChannel ownTs ownThread ownAddressees ownDir ownTmp ownLock=""
-	ownSession="$( AgentsHarnessSessionKey )"
+	ownSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	[ -n "$ownSession" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$ownSession" || return 0
 	ownChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$1" | head -1 )"
 	ownTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' "$1" | head -1 )"
@@ -198,7 +198,7 @@ AgentsHarnessOwnPostRecord(){ ## send output file
 AgentsHarnessGranted(){ ## tool, resolved target
 	local grantTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" grantSession grantLine
 	harnessGrantOpen="" ; harnessGrantOpenFor="" ; harnessGrantLayer=""
-	grantSession="$( AgentsHarnessSessionKey )"
+	grantSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	[ -n "$2" ] && [ -n "$grantSession" ] && [ -n "$harnessAgent" ] && [ -x "$grantTools" ] || return 1
 	if ! "$BASH" "$grantTools" --intern-op-permission-grant-read "$harnessAgent" --session-id "$grantSession" --tool "$1" --target "$2" \
 		> "$harnessScratch/grant.out" 2> /dev/null ; then
@@ -229,7 +229,7 @@ AgentsHarnessRefusal(){ ## tool, target, error line
 	[ "$harnessGrantOpenFor" != "$1"$'\t'"$2" ] || refusalOpen="$harnessGrantOpen"
 	harnessGrantOpen="" ; harnessGrantOpenFor=""
 	printf '%s\n' "$3"
-	refusalSession="$( AgentsHarnessSessionKey )"
+	refusalSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -z "$refusalSession" ] || [ -z "$harnessAgent" ] || [ ! -x "$refusalTools" ] ; then
 		printf 'REFUSAL-ID: none -- this session has no session id or team identity, so the refusal was not recorded and cannot be escalated by id.\n'
 		return 0
@@ -262,6 +262,29 @@ AgentsHarnessRefusal(){ ## tool, target, error line
 	LC_ALL=C grep '⚠️' "$harnessScratch/refusal.err" 2>/dev/null || :
 }
 
+## THE STALE TREE IS NEVER READ OR WRITTEN (human-owner, 8 November): `$MMDAPP/.local/myx/**` is a copy of the tooling that this workspace
+## does not run from whenever `$MDLT_ORIGIN` points elsewhere, so no content tool reads it, writes it, searches it or runs in it
+## then. A path of this run alone is tested by two string compares, no process, and refused ahead of every root and grant, as a
+## plain error: it is no permission matter, there is nothing to ask for. rc 0 where it is refused and said, 1 where the path is
+## not the stale tree, or the workspace runs from `.local`.
+AgentsHarnessStaleTree(){ ## tool, path
+	local stalePath staleHome="${MMDAPP:-}"
+	[ -n "$staleHome" ] || return 1
+	staleHome="${staleHome%/}"
+	## Only an origin that is set and points elsewhere makes the tree stale: with no origin known, nothing is refused.
+	[ -n "${MDLT_ORIGIN:-}" ] || return 1
+	[ "${MDLT_ORIGIN%/}" != "$staleHome/.local" ] || return 1
+	AgentsHarnessPathAllowed "$2" "$harnessRoots" > /dev/null 2>&1 || :
+	stalePath="${harnessResolvedPath:-$2}"
+	case "$stalePath/" in
+		"$staleHome/.local/myx/"*|"$2/") ;;
+		*) case "$2/" in "$staleHome/.local/myx/"*) ;; *) return 1 ;; esac ;;
+	esac
+	case "$stalePath/" in "$staleHome/.local/myx/"*) ;; *) case "$2/" in "$staleHome/.local/myx/"*) ;; *) return 1 ;; esac ;; esac
+	printf 'ERROR: %s is under %s/.local/myx, a stale copy of the tooling this workspace does not run from (MDLT_ORIGIN is %s): nothing there is read, written, searched or run. Use the tree MDLT_ORIGIN names.\n' "$2" "$staleHome" "${MDLT_ORIGIN:-unset}"
+	return 0
+}
+
 ## The deny rows of the member this run is: a path or tool a row covers is refused ahead of every root and grant, with the refusal recorded and the hint printed.
 ## The session's own sandbox (input/, output/) is exempt. rc 0 where it is denied, 1 where no row covers the call.
 AgentsHarnessDeniedPath(){ ## tool, path
@@ -273,7 +296,7 @@ AgentsHarnessDeniedPath(){ ## tool, path
 		[ -z "$deniedRoot" ] || case "$deniedPath/" in "${deniedRoot%/}"/*) return 1 ;; esac
 	done
 	type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || return 1
-	deniedSession="$( AgentsHarnessSessionKey )"
+	deniedSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	deniedText="$( AgentsToolsPermissionDenyRefusal "$harnessAgent" "$1" "$deniedPath" "$deniedSession" 2> /dev/null )" || return 1
 	AgentsHarnessRefusal "$1" "$deniedPath" "$deniedText"
 	return 0
@@ -281,6 +304,9 @@ AgentsHarnessDeniedPath(){ ## tool, path
 
 AgentsHarnessFileGate(){ ## tool, path, read|write
 	local gateRoots gateRootsOk=1 gateRc=0 gateSession gateOwn
+	if AgentsHarnessStaleTree "$1" "$2" ; then
+		return 1
+	fi
 	if AgentsHarnessDeniedPath "$1" "$2" ; then
 		return 1
 	fi
@@ -348,6 +374,13 @@ AgentsHarnessReadGate(){ ## tool, path
 ## The refusal names Bash, the tool the member is refused.
 AgentsHarnessCwdAllowed(){ ## cwd
 	local cwdGateRc=0 cwdPath
+	## A RELATIVE cwd IS THE RUN'S OWN FOLDER (129 refused calls on 2026-11-10 named `.`): `.` and a relative path mean where this run works,
+	## so they are made absolute against it before the gate decides, as the gate decides every other folder. Every cwd check comes here.
+	case "$1" in
+		.|./) set -- "$PWD" ;;
+		''|/*) ;;
+		*) set -- "$PWD/${1#./}" ;;
+	esac
 	AgentsHarnessFileGate Read "$1" read || cwdGateRc=$?
 	case "$cwdGateRc" in
 		0) return 0 ;;

@@ -65,7 +65,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$inboxMember" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: syntax is <member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: syntax is <member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$inboxMember" "<member>" inbox-to-processed || { set +e ; return 1 ; }
@@ -262,6 +262,21 @@ case "$1" in
 			body="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemPatchApply.py" )"
 		else
 			body="$( cat "$sourcePath" )"
+		fi
+
+		## A body write keeps what another run recorded: a whole body puts the stored section back, and a
+		## body derived from the item refuses rather than drop a recorded line. Contract: ItemDecisions.
+		if [ -n "$bodyMode" ] ; then
+			type AgentsToolsDecisionsKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			case "$bodyMode" in
+				patch|script)
+					body="$( printf '%s\n' "$body" | AgentsToolsDecisionsKeep "$sourcePath" edit "$itemName" )" || { set +e ; return 1 ; }
+				;;
+				*)
+					body="$( printf '%s\n' "$body" | AgentsToolsDecisionsKeep "$sourcePath" keep "$itemName" )" || { set +e ; return 1 ; }
+					echo "$MDSC_CMD: inbox-to-processed: $itemName existed, so the decisions recorded on it were kept. To change part of it, use --edit-patch-from-stdin with [{\"old\":\"<exact old text>\",\"new\":\"<new text>\"}]" >&2
+				;;
+			esac
 		fi
 
 		## The processed marker: this op's whole effect is fixed in its own name.

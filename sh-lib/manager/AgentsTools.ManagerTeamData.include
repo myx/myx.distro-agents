@@ -201,6 +201,38 @@ case "$1" in
 		return 0
 	;;
 
+	## THE CONTACTS OF THE TEAM DATA, for the console's Contacts: with no id, a row per organisation and per person, read from the store's
+	## records in one awk pass; with an id, that record's text whole. A person's row: its id, its name, its organisation, its e-mails, its
+	## tier for the whole team (its own `tier:`, else tier-contact as a member of an organisation, else none) and its project and product
+	## tiers (`scope-tiers`), so the table shows who is who and who stands where without opening a record.
+	--manager-team-data-contacts)
+		local contactsRoot="${MDAT_DATA_ROOT:-}/contacts" contactsWant="${2:-}"
+		if [ -z "${MDAT_DATA_ROOT:-}" ] || [ ! -d "$contactsRoot" ] ; then
+			printf 'store\tcontacts\tabsent\t0\t0\n'
+			return 0
+		fi
+		if [ -n "$contactsWant" ] ; then
+			case "$contactsWant" in *[!a-z0-9-]*|'') echo "⛔ ERROR: $MDSC_CMD $1: an id is lowercase letters, digits and hyphens: $contactsWant" >&2 ; set +e ; return 1 ;; esac
+			if [ -f "$contactsRoot/persons/$contactsWant.md" ] ; then cat "$contactsRoot/persons/$contactsWant.md" ; return 0 ; fi
+			if [ -f "$contactsRoot/organisations/$contactsWant.md" ] ; then cat "$contactsRoot/organisations/$contactsWant.md" ; return 0 ; fi
+			echo "⛔ ERROR: $MDSC_CMD $1: no contact or organisation $contactsWant in this team data" >&2
+			set +e ; return 1
+		fi
+		printf 'store\tcontacts\tpresent\t%s\t%s\n' "$( ls "$contactsRoot/organisations/"*.md 2> /dev/null | wc -l | tr -d ' ' )" "$( ls "$contactsRoot/persons/"*.md 2> /dev/null | wc -l | tr -d ' ' )"
+		LC_ALL=C awk -v orgDir="$contactsRoot/organisations/" 'function emit() { if ( !n ) return
+				if ( kind == "organisation" ) printf "organisation\t%s\t%s\t%s\n", id, nm, dom
+				else printf "contact\t%s\t%s\t%s\t%s\t%s\t%s\n", id, ( nm != "" ? nm : id ), ( org != "" ? org : "-" ), ( mail != "" ? mail : "-" ), ( owner == "yes" ? "human-owner" : ( tier != "" ? tier : ( org != "" && org != "none" ? "tier-contact" : "-" ) ) ), ( scopes != "" ? scopes : "-" ) }
+			FNR == 1 { emit() ; n = 1 ; hdr = 0 ; id = "" ; nm = "" ; org = "" ; mail = "" ; tier = "" ; scopes = "" ; dom = "" ; owner = "" ; kind = ( index( FILENAME, orgDir ) == 1 ? "organisation" : "contact" ) }
+			/^---$/ { hdr++ ; next }
+			hdr != 1 { next }
+			/^contact-id: / { id = substr( $0, 13 ) } /^organisation-id: / { id = substr( $0, 18 ) }
+			/^display-name: / { nm = substr( $0, 15 ) } /^organisation: / { org = substr( $0, 15 ) }
+			/^email: / { mail = substr( $0, 8 ) } /^tier: / { tier = substr( $0, 7 ) } /^scope-tiers: / { scopes = substr( $0, 14 ) }
+			/^domain: / { dom = substr( $0, 9 ) } /^is-owner: / { owner = substr( $0, 11 ) }
+			END { emit() }' "$contactsRoot/organisations/"*.md "$contactsRoot/persons/"*.md 2> /dev/null
+		return 0
+	;;
+
 	*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1

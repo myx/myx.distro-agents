@@ -72,8 +72,11 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 	local batchRunner="$1" batchServes="$2" batchArgs="$3" batchMode batchWorkers batchFormat batchCount batchAt batchTool
 	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine
 	batchMode="$( AgentsToolsBatchArg "$batchArgs" mode )"
-	case " $agentsBatchModes " in
-		*" ${batchMode:-none} "*) ;;
+	## NO MODE IS AUTO: every call that only reads (Read, Grep, Glob, a Bash command that is a pure read) runs at once, and any batch
+	## holding one call that may write runs one call after another, every one. A Bash call is a write unless it matches a known read.
+	case "${batchMode:-auto}" in auto) batchMode="" ;; esac
+	[ -z "$batchMode" ] || case " $agentsBatchModes " in
+		*" ${batchMode} "*) ;;
 		*) printf 'ERROR: BatchTools: mode %s is none of: %s -- nothing was run.\n' "${batchMode:-<none>}" "${agentsBatchModes// /, }" ; return 0 ;;
 	esac
 	batchWorkers="$( AgentsToolsBatchArg "$batchArgs" workers )"
@@ -99,6 +102,23 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 		fi
 		batchAt=$(( batchAt + 1 ))
 	done
+	if [ -z "$batchMode" ] ; then
+		local batchAllReads=yes batchCommand=""
+		batchAt=0
+		while [ "$batchAt" -lt "$batchCount" ] ; do
+			case "$( AgentsToolsBatchArg "$batchArgs" "calls.$batchAt.tool" )" in
+				Read|Grep|Glob) ;;
+				Bash)
+					batchCommand="$( AgentsToolsBatchArg "$batchArgs" "calls.$batchAt.arguments.command" )"
+					if ! type AgentsHarnessBashReadOnly > /dev/null 2>&1 || ! AgentsHarnessBashReadOnly "$batchCommand" ; then batchAllReads=no ; fi
+				;;
+				*) batchAllReads=no ;;
+			esac
+			[ "$batchAllReads" = yes ] || break
+			batchAt=$(( batchAt + 1 ))
+		done
+		if [ "$batchAllReads" = yes ] ; then batchMode="parallel-all-through" ; else batchMode="sequence-all-through" ; fi
+	fi
 	mkdir -p "$MMDAPP/.local/agents/scratch" 2> /dev/null && batchDir="$( mktemp -d "$MMDAPP/.local/agents/scratch/AgentsBatchTools.XXXXXX" )" || {
 		printf 'ERROR: BatchTools: no folder in the workspace scratch to run the calls in -- nothing was run.\n' ; return 0
 	}

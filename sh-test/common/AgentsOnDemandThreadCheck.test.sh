@@ -29,6 +29,7 @@ rigRefuse(){
 [ -f "$rigFn" ] || rigRefuse "the tooling is not at the origin this workspace resolves: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOnDemandThreadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigThreadsStop ; rm -rf -- "$rigTmp"' EXIT
@@ -63,7 +64,7 @@ RIGOWNER
 ## stopped by its pid. Its folder is what the cases read.
 rigThreadPid="" rigThreadDir=""
 rigThreadsStop(){
-	for rigPid in ${rigThreadPids:-} ; do kill -TERM "$rigPid" 2> /dev/null || : ; done
+	[ -z "${rigThreadPids:-}" ] || rigProcSignal TERM $rigThreadPids
 	rigThreadPids=""
 	return 0
 }
@@ -75,7 +76,7 @@ rigServe(){ ## folder, idle seconds, handler, tick -- starts a serving thread th
 		. "$rigOwner" || exit 1
 		AgentsToolsOnDemandThreadServe "$1" "$2" "$3" "$4" no
 	) >> "$1.log" 2>&1 &
-	rigThreadPids="$rigThreadPids $!"
+	rigThreadPids="$rigThreadPids $!" ; rigProcNote "${rigThreadPids##* }"
 	set -- "$1"
 	rigWaitForFifo "$1"
 }
@@ -198,9 +199,9 @@ export RIG_TICK_FILE="$rigTmp/ticks7"
 	. "$rigOwner" || exit 1
 	AgentsToolsOnDemandThreadServe "$rigDir7" 300 rigAnswerHandler rigTickCount no
 ) >> "$rigDir7.log" 2>&1 &
-rigSeven="$!"
+rigSeven="$!" ; rigProcNote "$rigSeven"
 rigWaitForFifo "$rigDir7"
-kill -TERM "$rigSeven" 2> /dev/null
+rigProcSignal TERM "$rigSeven"
 rigWaited=0
 while [ "$rigWaited" -lt 10 ] && kill -0 "$rigSeven" 2> /dev/null ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "7. the thread ended on TERM within 10s" "$([ "$rigWaited" -lt 10 ] && printf ended || printf alive)" ended
@@ -220,7 +221,7 @@ rigWaitForFifo "$rigDir8"
 	. "$rigOwner" || exit 1
 	AgentsToolsOnDemandThreadServe "$rigDir8" 30 rigAnswerHandler rigTickCount no
 ) >> "$rigDir8.log" 2>&1 &
-rigThreadPids="$rigThreadPids $!"
+rigThreadPids="$rigThreadPids $!" ; rigProcNote "${rigThreadPids##* }"
 rigWaited=0
 while [ "$rigWaited" -lt 20 ] && [ "$( rigLocks "$rigDir8" )" != 1 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "8. a start over a living thread says alive" \
@@ -265,7 +266,7 @@ rigAssert "9. and the item's own path is committed" \
 ## The store's thread is this rig's, and it is ended here rather than left behind.
 if [ -f "$rigThreadFolder/thread.lock" ] ; then
 	rigStoreThread="$( cat "$rigThreadFolder/thread.lock" 2> /dev/null )"
-	kill -TERM "${rigStoreThread%% *}" 2> /dev/null || :
+	rigProcNoteFrom "$rigThreadFolder/thread.lock" ; rigProcSignal TERM "${rigStoreThread%% *}"
 	rigWaited=0
 	while [ "$rigWaited" -lt 15 ] && [ -f "$rigThreadFolder/thread.lock" ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 fi
@@ -301,7 +302,8 @@ while [ "$rigRound" -le 3 ] ; do
 	printf 'round %s waited %ss: %s\n' "$rigRound" "$rigWaited" "$( cat "$rigTmp/ask10.out" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" >> "$rigTmp/ask10.detail"
 	rm -f "$rigTmp/ask10.ok"
 	if [ -f "$rigData10/.git/team-data-commit/thread.lock" ] ; then
-		kill -TERM "$( LC_ALL=C cut -d' ' -f1 "$rigData10/.git/team-data-commit/thread.lock" )" 2> /dev/null || :
+		rigProcNoteFrom "$rigData10/.git/team-data-commit/thread.lock"
+		rigProcSignal TERM "$( LC_ALL=C cut -d' ' -f1 "$rigData10/.git/team-data-commit/thread.lock" )"
 		rigWaited=0
 		while [ "$rigWaited" -lt 10 ] && [ -f "$rigData10/.git/team-data-commit/thread.lock" ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 	fi
@@ -323,6 +325,18 @@ printf '%s %s\n' "$$" "Sun_Nov__1_00:00:00_2026" > "$rigDir11/thread.lock"
 rigAssert "11. a lock that cannot be told reads as a failed start, not an alive one" \
 	"$( PATH="$rigTmp/bin11:$PATH" ; . "$rigInc" ; . "$rigOwner" ; AgentsToolsOnDemandThreadStart "$rigDir11" --intern-team-data-commit --one | LC_ALL=C awk '{ print $1 }' )" "failed"
 rigAssert "11. and nothing was started there" "$([ -p "$rigDir11/request.fifo" ] && printf fifo || printf none)" none
+
+echo "-- 12. a lock whose holder is gone is taken over, and the start says so (S12.14) --"
+rigDir12="$rigTmp/t12" ; mkdir -p "$rigDir12"
+## The holder: a process that ended, its pid and start kept as the lock names them.
+rigGone12="$( sleep 0 & echo $! )" ; wait "$rigGone12" 2> /dev/null || :
+printf '%s %s\n' "$rigGone12" "Sun_Nov__1_00:00:00_2026" > "$rigDir12/thread.lock"
+rigSaid12="$( . "$rigInc" ; . "$rigOwner" ; AgentsToolsOnDemandThreadStart "$rigDir12" --intern-team-data-commit --one )"
+rigAssert "12. the first line is the start, as its readers match it" "$( printf '%s\n' "$rigSaid12" | LC_ALL=C sed -n '1p' | LC_ALL=C sed -n 's/^started [0-9][0-9]*$/started/p' )" started
+rigAssert "12. the second line names the lock that outlived its process" "$( printf '%s\n' "$rigSaid12" | LC_ALL=C sed -n '2p' )" "the lock of $rigGone12 outlived its process: taken over"
+rigAssert "12. and the thread's log records the take-over" "$( LC_ALL=C grep -c -F "the lock of $rigGone12 Sun_Nov__1_00:00:00_2026 outlived its process: taken over by this start" "$rigDir12/thread.log" 2> /dev/null )" 1
+rigPid12="$( printf '%s\n' "$rigSaid12" | LC_ALL=C sed -n '1s/^started //p' )"
+[ -z "$rigPid12" ] || { rigThreadPids="$rigThreadPids $rigPid12" ; rigProcNoteFrom "$rigDir12/thread.lock" ; }
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf '⛔ ON_DEMAND_THREAD CHECK FAILED: %s of %s assertion(s)\n' "$rigFailCount" "$(( rigPassCount + rigFailCount ))" >&2

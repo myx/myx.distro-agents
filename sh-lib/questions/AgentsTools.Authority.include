@@ -106,7 +106,9 @@ AgentsToolsAuthorityCaller(){
 AgentsToolsAuthorityFounder(){ ## session
 	local founderRecord
 	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-	for founderRecord in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on an ask.
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for founderRecord in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		! AgentsToolsSessionRunExecutor "$founderRecord" || { printf '%s' "$founderRecord" ; return 0 ; }
 	done
 	return 1
@@ -120,7 +122,8 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 	local sessionRecord="" sessionCandidate sessionAny=""
 	sessionRecord="$( AgentsToolsAuthorityFounder "$1" )" && { printf '%s' "$sessionRecord" ; return 0 ; }
 	AgentsToolsAuthorityCaller
-	for sessionCandidate in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for sessionCandidate in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -n "$sessionAny" ] || sessionAny="$sessionCandidate"
 		AgentsToolsAuthorityHolds "$( AgentsToolsRunRoute "$sessionCandidate" )" "$1" || { printf '%s' "$sessionCandidate" ; return 0 ; }
 	done
@@ -132,7 +135,8 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 ## where it has one; the routine is the founding run's; the members are those that have a run in it.
 AgentsToolsAuthoritySessionWords(){ ## session
 	local wordsFile wordsName="" wordsRoutine="" wordsMembers="" wordsOwner
-	for wordsFile in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for wordsFile in $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -n "$wordsName" ] || wordsName="$( AgentsToolsAuthorityField "$wordsFile" session-comment )"
 		[ -n "$wordsRoutine" ] || wordsRoutine="$( AgentsToolsAuthorityField "$wordsFile" routine )"
 		wordsOwner="$( AgentsToolsAuthorityField "$wordsFile" owner )"
@@ -178,7 +182,8 @@ AgentsToolsAuthorityLadderUp(){ ## spawn record of the run whose authority is as
 	local ladderParent ladderRun ladderSeen=0
 	ladderParent="$( AgentsToolsAuthorityField "$1" parent-session-id )"
 	case "$ladderParent" in ''|-|.|..|*/*) return 1 ;; esac
-	for ladderRun in $( LC_ALL=C grep -l -x -F "session-id: $ladderParent" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for ladderRun in $( AgentsToolsSpawnedSessionRecords "$ladderParent" own 2> /dev/null ) ; do
 		ladderSeen=1
 		[ "$( AgentsToolsAuthorityField "$ladderRun" status )" = spawn-started ] || continue
 		AgentsToolsSessionRecordLive "$ladderRun" && return 1
@@ -204,11 +209,21 @@ AgentsToolsAuthorityHolds(){ ## holder, session of the run acted on, the run's r
 	AgentsToolsAuthorityGranted "$2" && return 0
 	## THE LADDER, WHERE THE PARENT SESSION HAS ENDED (S27.6): the holder named by a session that has
 	## ended holds nothing, so what it held passes to its own parent, and from there to the root
-	## coordinator and the owners role. Read only where the run's parent session has ended.
-	[ -z "${3:-}" ] || ! AgentsToolsAuthorityLadderUp "$3" || return 0
+	## coordinator, the owners role and the console mapped to the owner. Read only where the run's
+	## parent session has ended: elsewhere a console is gated as the gate says, the owner's
+	## console confirming, another refused or asking the holder.
 	[ "$agentsAuthorityCallerId" = magic-coordinator ] && { AgentToolsAuthorityLadderSaid=1 ; return 0 ; }
-	case "$agentsAuthorityCallerKind" in person) return 0 ;; esac
-	AgentsToolsAuthorityRoleHeld && return 0
+	## THE TOP OF THE LADDER WITH NO LADDER: a holder of `none`, or a run with no parent session (the schedule started
+	## it), has nobody above it but the owners role, so the role's members and the console mapped to the owner hold
+	## it. Without this a `--stop-sessions` by the owner's console was refused with "needs the authority of none".
+	if [ "$1" = none ] || { [ -n "${3:-}" ] && [ -z "$( AgentsToolsAuthorityField "$3" parent-session-id )" ] ; } ; then
+		AgentsToolsAuthorityRoleHeld && return 0
+		! AgentsToolsAuthorityOwnerMapped || return 0
+	fi
+	if [ -n "${3:-}" ] && AgentsToolsAuthorityLadderUp "$3" ; then
+		AgentsToolsAuthorityRoleHeld && return 0
+		! AgentsToolsAuthorityOwnerMapped || return 0
+	fi
 	return 1
 }
 

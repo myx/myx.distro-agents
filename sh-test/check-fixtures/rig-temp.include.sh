@@ -113,46 +113,62 @@ rigQueueTicketWhom(){ ## ticket file -- that phrase
 ## `alive`, so a rule added here answers one of those two and never a word of its own: a sixth state word is a rule that
 ## loop makes invisible.
 rigQueueTicketState(){ ## ticket file -- `alive`, `own`, `gone`, `ended`, `stalled` or `held`
-	local ticketSession ticketSince ticketStamp ticketClock ticketAge ticketBeat ticketPid ticketPstart ticketWon
+	local ticketSession="" ticketSince="" ticketStamp ticketClock ticketAge ticketBeat="" ticketPid="" ticketPstart="" ticketWon="" ticketKey ticketValue ticketLine
 	local ticketHold=${MDAT_SUITE_QUEUE_HOLD_SECONDS:-21600} ticketStall=${MDAT_SUITE_QUEUE_STALL_SECONDS:-3600}
 	case "$ticketHold" in ''|*[!0123456789]*) ticketHold=21600 ;; esac
 	case "$ticketStall" in ''|*[!0123456789]*) ticketStall=3600 ;; esac
-	ticketSession="$( LC_ALL=C sed -n 's/^session=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	## THE LINE'S OWN LOAD: every waiter judges every ticket ahead of it at every pass. Each judgement here is shell reads and
+	## at most one process (the ps of a named pid), never a process per field: with a long line and many waiters the sed, date
+	## and tail per field were hundreds of processes a second on the machine (S12).
+	while IFS='=' read -r ticketKey ticketValue ; do
+		case "$ticketKey" in
+			session) [ -n "$ticketSession" ] || ticketSession="$ticketValue" ;;
+			since) [ -n "$ticketSince" ] || ticketSince="$ticketValue" ;;
+			pid) [ -n "$ticketPid" ] || ticketPid="$ticketValue" ;;
+			pstart) [ -n "$ticketPstart" ] || ticketPstart="$ticketValue" ;;
+			turn-won) [ -n "$ticketWon" ] || ticketWon="$ticketValue" ;;
+		esac
+	done 2> /dev/null < "$1"
 	## A ticket with no session line was never written whole, and holds nobody's place.
 	[ -n "$ticketSession" ] || { printf 'gone' ; return 0 ; }
 	case "$ticketSession" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*) printf 'gone' ; return 0 ;; esac
 	if [ -n "$rigQueueSession" ] && [ "$ticketSession" = "$rigQueueSession" ] ; then printf 'own' ; return 0 ; fi
-	## A ticket that names a run is given up when this workspace's records say that run has ended. One naming `none` is
-	## judged by its own age and beat: no record of a run with no id is no evidence that the place is unheld.
+	## The round's clock, set once per pass by the waiter; a reader called alone takes its own.
+	ticketClock="${rigQueueClock:-}"
+	case "$ticketClock" in ''|*[!0123456789]*) ticketClock="$( date +%s )" || { printf 'alive' ; return 0 ; } ;; esac
+	## A ticket that names a run is given up when this workspace's records say that run has ended (a glob over the records, no
+	## process). One naming `none` is judged by its own age and beat: no record of a run with no id is no evidence that the place is unheld.
 	if [ "$ticketSession" != none ] ; then
 		rigQueueSessionEnded "$ticketSession" && { printf 'ended' ; return 0 ; }
 	fi
-	## A ticket that names its process is given up where that process is gone, or where the number now belongs to a process that started at another
-	## moment. A ticket of a run, which names none, is judged as before.
-	ticketPid="$( LC_ALL=C sed -n 's/^pid=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
-	ticketPstart="$( LC_ALL=C sed -n 's/^pstart=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
-	if [ -n "$ticketPid" ] && [ -n "$ticketPstart" ] ; then
-		[ "$( ps -o lstart= -p "$ticketPid" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" = "$ticketPstart" ] || { printf 'gone' ; return 0 ; }
-	fi
-	ticketSince="$( LC_ALL=C sed -n 's/^since=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
-	ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2> /dev/null || date -u -d "$ticketSince" '+%s' 2> /dev/null )" || ticketStamp=""
-	ticketClock="$( date +%s )" || { printf 'alive' ; return 0 ; }
+	## THE HOLD LIMIT FIRST, from the second the ticket joined the line: the first field of its name, `<epoch>.<micro>.<pid>.ticket`,
+	## zero-padded and so read in base ten (a leading zero is octal to the shell), with no process; a name that carries no epoch (a
+	## ticket made by hand) is dated by its `since`, one date process. A place held past the limit is given up, beating or not.
+	ticketStamp="${1##*/}" ; ticketStamp="${ticketStamp%%.*}"
+	case "$ticketStamp" in ''|*[!0123456789]*) ticketStamp="" ;; *) ticketStamp="$(( 10#$ticketStamp ))" ; [ "$ticketStamp" -ge 1000000000 ] || ticketStamp="" ;; esac
+	[ -n "$ticketStamp" ] || [ -z "$ticketSince" ] || ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2> /dev/null || date -u -d "$ticketSince" '+%s' 2> /dev/null )" || ticketStamp=""
 	case "$ticketStamp" in
 		''|*[!0123456789]*) ticketStamp="" ;;
 		*) ticketAge=$(( ticketClock - ticketStamp )) ; [ "$ticketAge" -le "$ticketHold" ] || { printf 'held' ; return 0 ; } ;;
 	esac
+	## The beat is the second of the last pass of a waiter's loop (its last line, where an older file holds several). A beat
+	## within the last two minutes is a waiter alive at its loop: nothing else is read for it, and no process is spent on it.
+	[ ! -f "$1.beat" ] || while read -r ticketLine ; do ticketBeat="$ticketLine" ; done 2> /dev/null < "$1.beat"
+	case "$ticketBeat" in ''|*[!0123456789]*) ticketBeat="" ;; *) [ "$(( ticketClock - ticketBeat ))" -gt 120 ] || { printf 'alive' ; return 0 ; } ;; esac
+	## A ticket that names its process is given up where that process is gone, or where the number now belongs to a process that started at another
+	## moment. A ticket of a run, which names none, is judged as before.
+	if [ -n "$ticketPid" ] && [ -n "$ticketPstart" ] ; then
+		[ "$( ps -o lstart= -p "$ticketPid" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" = "$ticketPstart" ] || { printf 'gone' ; return 0 ; }
+	fi
 	## A holder that has won its turn writes `turn-won=<epoch>` and is at work, not waiting: it writes no beat any more, so a stale beat is no evidence that it
 	## stopped. Only the hold limit, counted from the turn it won, ends its place.
-	ticketWon="$( LC_ALL=C sed -n 's/^turn-won=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	case "$ticketWon" in
 		''|*[!0123456789]*) ;;
 		*) [ "$(( ticketClock - ticketWon ))" -le "$ticketHold" ] && printf 'alive' || printf 'held' ; return 0 ;;
 	esac
-	## The beat is the second of the last pass of a holder's wait, so a run that stopped waiting gives up the place a
-	## process alone would go on holding. A ticket with no beat at all carries no evidence that its holder stopped, so
-	## the hold limit above alone judges it.
-	ticketBeat="$( LC_ALL=C tail -1 "$1.beat" 2> /dev/null )"
-	case "$ticketBeat" in ''|*[!0123456789]*) printf 'alive' ; return 0 ;; esac
+	## A run that stopped waiting gives up the place a process alone would go on holding. A ticket with no beat at all
+	## carries no evidence that its holder stopped, so the hold limit above alone judges it.
+	[ -n "$ticketBeat" ] || { printf 'alive' ; return 0 ; }
 	[ "$(( ticketClock - ticketBeat ))" -le "$ticketStall" ] && printf 'alive' || printf 'stalled'
 }
 
@@ -187,7 +203,7 @@ rigCheckSecondsLeft(){ ## -- the seconds this check has left before its deadline
 }
 
 rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one line whom it waits behind
-	local turnStamp turnTicket turnFile turnAhead turnWhom turnState turnSaid=""
+	local turnStamp turnTicket turnFile turnAhead turnWhom turnState turnSaid="" turnSleep rigQueueClock=""
 	## A test the runner started is inside the run's own turn (AgentsRunTests.sh exports MDAT_SUITE_QUEUE_TURN), and so is
 	## a check a test starts: taking a ticket there would wait behind a run that is itself waiting for this test, which is
 	## a deadlock of the whole line. The run's turn already covers everything under it.
@@ -209,8 +225,10 @@ rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one lin
 	}
 	while : ; do
 		turnAhead=0 ; turnWhom=""
-		## the beat of a waiting ticket, written at every pass, so a holder that stops beating gives up its place while its run lives
-		printf '%s\n' "$( date +%s )" >> "$rigQueueDir/$turnTicket.beat" 2> /dev/null || :
+		## one clock per pass, read by every judgement of it; the beat of a waiting ticket is that second, written over at every pass,
+		## so a holder that stops beating gives up its place while its run lives, and the beat file stays one line
+		rigQueueClock="$( date +%s )" || rigQueueClock=""
+		printf '%s\n' "$rigQueueClock" > "$rigQueueDir/$turnTicket.beat" 2> /dev/null || :
 		for turnFile in "$rigQueueDir"/*.ticket ; do
 			[ -f "$turnFile" ] || continue
 			[ "${turnFile##*/}" \< "$turnTicket" ] || continue
@@ -226,15 +244,51 @@ rigQueueTurn(){ ## -- waits its turn in the machine's line; says once in one lin
 			turnAhead=$(( turnAhead + 1 ))
 			[ -n "$turnWhom" ] || turnWhom="$( rigQueueTicketWhom "$turnFile" )"
 		done
-		[ "$turnAhead" -gt 0 ] || { printf 'turn-won=%s\n' "$( date +%s )" >> "$rigQueueDir/$turnTicket" 2> /dev/null || : ; break ; }
+		## the turn won: the holder is at work and beats no more, so its beat file goes; the ticket stays until a later waiter judges it gone
+		[ "$turnAhead" -gt 0 ] || { printf 'turn-won=%s\n' "${rigQueueClock:-$( date +%s )}" >> "$rigQueueDir/$turnTicket" 2> /dev/null || : ; rm -f "$rigQueueDir/$turnTicket.beat" 2> /dev/null ; break ; }
 		## said once each time whom it waits behind changes: the age is left out of that comparison, since it moves every pass
 		if [ "${turnWhom%, in the line for *}" != "$turnSaid" ] ; then
 			echo "# $0: one check runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2
 			turnSaid="${turnWhom%, in the line for *}"
 		fi
-		sleep 2
+		## the pass is slower the longer the line: a waiter far back has nothing to gain from a quick look, and a long line
+		## looked at quickly by every waiter is load on the very machine the line protects
+		turnSleep=$(( 5 + turnAhead * 3 )) ; [ "$turnSleep" -le 30 ] || turnSleep=30
+		sleep "$turnSleep"
 	done
 	return 0
+}
+
+## A RIG'S COMMS SERVICE THREAD (the owner's design: a Wait reads the cache the service threads fill, and never a service itself). A
+## check whose Wait reads a fake Slack starts the rig's thread first, with the rig's own environment given as NAME=value words (its PATH
+## with the fake curl, MMDAPP, MDAT_DATA_ROOT, MDAT_SKILLSET_ROOT), so the thread pulls through that Slack and the Wait's probes are served
+## within their bound. The thread is noted with when it began (rig-processes.include.sh) and ended by rigCommsThreadEnd, from the trap.
+rigCommsThreadPids=""
+rigCommsThreadStart(){ ## env words, NAME=value, the rig's own
+	local threadLog threadPid
+	type rigProcNote > /dev/null 2>&1 || . "$( dirname "${BASH_SOURCE[0]}" )/rig-processes.include.sh" 2> /dev/null || :
+	threadLog="${rigTmp:-${TMPDIR:-/tmp}}/rig-comms-thread.log"
+	env -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS -u CLAUDE_CODE_SESSION_ID "$@" \
+		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-comms --run >> "$threadLog" 2>&1 < /dev/null &
+	threadPid=$!
+	rigCommsThreadPids="$rigCommsThreadPids $threadPid"
+	! type rigProcNote > /dev/null 2>&1 || rigProcNote "$threadPid"
+	## The thread is up once it holds its lock and has written its first pass: waited for, up to eight seconds, so a want that follows
+	## wakes a thread that is there and is not a second start racing it for the lock.
+	local threadMmdapp="" threadWord threadLeft=40
+	for threadWord in "$@" ; do case "$threadWord" in MMDAPP=*) threadMmdapp="${threadWord#MMDAPP=}" ;; esac ; done
+	while [ "$threadLeft" -gt 0 ] ; do
+		[ -n "$threadMmdapp" ] && [ -e "$threadMmdapp/.local/agents/comms/lock" ] && LC_ALL=C grep -q 'runs as pid' "$threadMmdapp/.local/agents/comms/log" 2> /dev/null && break
+		sleep 0.2 ; threadLeft=$(( threadLeft - 1 ))
+	done
+	sleep 1
+}
+rigCommsThreadEnd(){
+	local threadPid
+	for threadPid in $rigCommsThreadPids ; do
+		if type rigProcSignal > /dev/null 2>&1 ; then rigProcSignal TERM "$threadPid" ; else kill -TERM "$threadPid" 2> /dev/null ; fi
+	done
+	rigCommsThreadPids=""
 }
 
 rigTempDir(){

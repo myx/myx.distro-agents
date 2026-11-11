@@ -121,9 +121,28 @@ AgentsToolsLnGuard(){ ## the arguments of ln
 
 AgentsToolsLnGuardMake(){ ## folder -- writes the guard `ln` there, for a run to put first on its PATH; a guard already there is kept
 	local guardHere="$( cd -P "${BASH_SOURCE[0]%/*}" && pwd -P )/${BASH_SOURCE[0]##*/}" guardText guardTemp
-	guardText="#!/bin/bash"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
+	## The guard runs under the bash that wrote it, never a fixed path (AgentsBashPathGuardCheck).
+	guardText="#!${BASH:-/usr/bin/env bash}"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
 	[ "$( cat "$1/ln" 2> /dev/null )" = "$guardText" ] && [ -x "$1/ln" ] && return 0
 	mkdir -p "$1" && guardTemp="$( mktemp "$1/ln.XXXXXX" )" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/ln"
+}
+
+## The guard `grep` (epic S10.26): a shell `grep -r` over a `.local` tree blocks for ever on a session's request fifo. The
+## guard puts `-D skip` before the arguments, which BSD and GNU grep both take and which skips a fifo, a socket and a device
+## and reads stdin as before, then runs the first `grep` on PATH outside the guard folder. One `sh`, no include read: a grep
+## stands in many a member's pipeline. A guard already there is kept.
+AgentsToolsGrepGuardMake(){ ## folder -- writes the guard `grep` there, for a run to put first on its PATH
+	local guardText guardTemp
+	guardText='#!/bin/sh
+## The guard grep of the served Bash tool (AgentsTools.SandboxLinks.include, AgentsToolsGrepGuardMake): -D skip, then the real grep.
+IFS=:
+for guardDir in $PATH ; do
+	case "$guardDir" in */.local/agents/guard-bin) continue ;; esac
+	[ -x "$guardDir/grep" ] && exec "$guardDir/grep" -D skip "$@"
+done
+exec /usr/bin/grep -D skip "$@"'
+	[ "$( cat "$1/grep" 2> /dev/null )" = "$guardText" ] && [ -x "$1/grep" ] && return 0
+	mkdir -p "$1" && guardTemp="$( mktemp "$1/grep.XXXXXX" )" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/grep"
 }
 
 AgentsToolsSandboxLinkScan(){ ## roots, folder...

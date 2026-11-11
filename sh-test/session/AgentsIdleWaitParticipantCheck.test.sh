@@ -122,6 +122,15 @@ rigAssert "the duty's own list item passes too, as the two duty routines word it
 rm -f "$rigStore/checkpoint.request" ; rigList '- [ ] Wait for the next arrival, then answer it'
 rigOp --idle-wait
 rigAssert "so does the wording a live duty wrote on it"                                  "$rigRc:$( rigRequests )" "0:idle - scan:work-duty inbox:rig-a board:running wake:rig-a"
+## The wordings live duties wrote, with a capital and no dashes: taken for open work, they turned every idle wait of the leg back, so
+## the run never returned to its checkpoint and its history only grew.
+for rigItem in '- [~] Wait for more: idle-wait, which brings the open answers and any new inquiry (in progress: waiting)' \
+	'- [~] Wait for more: call ThisSession idle-wait (in progress: Waiting for more)' \
+	'- [~] Wait for more: idle-wait (in progress: Waiting for more with idle-wait)' ; do
+	rm -f "$rigStore/checkpoint.request" ; rigList "$rigItem"
+	rigOp --idle-wait
+	rigAssert "a live wording passes: ${rigItem:6:40}"                                     "$rigRc:$( rigRequests )" "0:idle - scan:work-duty inbox:rig-a board:running wake:rig-a"
+done
 
 echo "-- 7. a closed list, and no list at all --"
 rigBind duty ; rigHarnessRun yes ; rigList '- [x] Work the round'

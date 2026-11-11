@@ -35,7 +35,10 @@ rigRefuse(){
 . "$rigTest/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWorkDutyInputScanCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## Each scene's scan starts the workspace's communications reader on the team rig, and a reader whose folder is gone says its
+## leave line through the writer that makes the folder again, so a reader outliving the rm paints its comms folder back.
+. "$rigTest/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's control-thread fixture is missing from the package"
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/keeper-rig"
 printf 'rig\n' > "$rigTmp/skills/keeper-rig/keeper-rig.basic.md" ; printf 'rig\n' > "$rigTmp/skills/keeper-rig/keeper-rig.armed.md"
 cp "$rigTest/check-fixtures/work-duty.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
@@ -168,7 +171,7 @@ rigHistory CRIG00001 "$( rigMsg "$(( rigNow - 50 )).000001" URIGOTHER RIG-TEAM-O
 rigScan p1
 rigScan p2
 rigAssert "the first scan returns the message, the second of the session does not"  "$( rigHolds p1 RIG-TEAM-ONCE ):$( rigHolds p2 RIG-TEAM-ONCE )" "1:0"
-rigAssert "the pointer is kept in the session, at the last message returned"        "$( LC_ALL=C awk -F'\t' '$1 == "collect:keeper-rig:slack:magic-team" { print $2 ; }' "$rigWs/.local/agents/sessions/$rigSession/session.chat.pointers" )" "$(( rigNow - 50 )).000001"
+rigAssert "the pointer is kept for the member, at the last message returned"        "$( LC_ALL=C awk -F'\t' '$1 == "collect:keeper-rig:slack:magic-team" { print $2 ; }' "$rigWs/.local/agents/member-pointers/keeper-rig.pointers" )" "$(( rigNow - 50 )).000001"
 
 echo "-- 8. what the tooling posted itself is no input --"
 ##   The tooling marks what it posts itself (tracking and the spawn id of the session, AgentsSlackMessagesFormat.awk): the collect does not end on such a post,

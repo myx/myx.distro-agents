@@ -66,7 +66,7 @@ BEGIN {
 		for (i = 1; i <= nKeys; i++) {
 			if (!(keys[i] in h)) continue
 			v = h[keys[i]]
-			if (length(v) > width) v = substr(v, 1, width) "..."
+			if (length(v) > width) { v = substr(v, 1, width) ; sub(/[\300-\377][\200-\277]*$/, "", v) ; v = v "..." ; }
 			text = text "    " keys[i] ": " v "\n"
 		}
 		sample[rule] = sample[rule] text

@@ -161,18 +161,18 @@ cells row1 3 85 119
 cells row2 4 85 119
 cells gap 5 85 119
 cells row3 6 85 119
-table list:pending --read-pending-reply magic-coordinator --any-owner
+table list:pending --read-pending-reply --team-member magic-coordinator --any-owner
 at @pending
 wait list 30
 rowids pend
 RIGSCRIPT
 rigAssert "the roots, in order: the Dashboard, Pending Questions second, Magic-Team (Agents), and none of Sessions, Team Members, Team Data" \
-	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace machine settings configuration manuals features"
+	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace machine settings configuration features manuals"
 rigAssert "Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and Team Data only where the team data is there" \
 	"$( rigVal team )" ".. activity launch team routines schedule"
 rigAssert "each shows by its name, and a spacer stands under Launchpad, setting it apart from the members (sketch 14.5)" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal gap | sed 's/ *$//' )][$( rigVal row3 )]" "[ Activity                        ►][ Launchpad                       ►][][ Team Members                    ►]"
 rigAssert "Pending Questions at the root reads the questions, and Magic-Team holds no copy of it" \
-	"$( rigCalled "--read-pending-reply magic-coordinator --any-owner" ) $( printf '%s\n' "$( rigVal team )" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -- 'pending' )" "1 0"
+	"$( rigCalled "--read-pending-reply --team-member magic-coordinator --any-owner" ) $( printf '%s\n' "$( rigVal team )" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -- 'pending' )" "1 0"
 
 echo "-- 2. Activity: the lists; Launchpad stands above, under Magic-Team; its left pane is the table of the sessions --"
 rigCase activity

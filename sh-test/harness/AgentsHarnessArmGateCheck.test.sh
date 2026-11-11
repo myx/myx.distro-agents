@@ -88,6 +88,16 @@ rigLoop(){ ## spawn id or empty
 }
 ## The newest tool result in the request for round N+1, which answers round N's call. The tool message has its
 ## result and, beside it, the date: rigReplyBare gives the result alone, as the message had it before the date part.
+## A tracking post is queued in the thread's comms-cache outbox and pushed by the communications reader, never sent by the
+## harness itself: one push of every channel's outbox, through the rig's fake curl, as the reader makes it.
+rigPush(){
+	## The record reaches the outbox through the chat writer thread a moment after the harness has returned: wait for it, ten seconds at most.
+	local pushLeft=40
+	while [ "$pushLeft" -gt 0 ] && [ -z "$( cat "$rigDir"/ws/.local/cache/comms/slack/*/outbox.messages.txt 2> /dev/null )" ] ; do sleep 0.25 ; pushLeft=$(( pushLeft - 1 )) ; done
+	( cd "$rigDir/ws" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
+		RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" RIG_TMP="$rigTmp" \
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" || exit 9 ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" || exit 9 ; AgentsToolsCommsCachePushAll "$( date +%s )"' ) > "$rigDir/push.out" 2>&1 || :
+}
 rigResult(){ ## round whose call it answers
 	rigReplyBare < "$rigDir/req.$(( $1 + 1 ))" 2>/dev/null | LC_ALL=C awk '
 		{
@@ -142,6 +152,7 @@ rigCall Write "{\"path\":\"$rigTmp/tracked/ws/OUT/a.txt\",\"content\":\"rig\"}"
 rigEnd
 rigLoop rig-session-tracked
 rigAssert "control: the unarmed Write is redirected" "$( rigRedirected 1 )" yes
+rigPush
 rigAssert "in a session that has a tracking thread the redirect is posted once, as a reply there" \
 	"$( LC_ALL=C grep -c 'Unarmed call redirected' "$rigDir/slack.bodies" 2>/dev/null || : ):$( LC_ALL=C grep 'Unarmed call redirected' "$rigDir/slack.bodies" 2>/dev/null | LC_ALL=C grep -c -F '"thread_ts":"1699999999.000900"' )" "1:1"
 rigAssert "and the session's thread stays the one it had" \

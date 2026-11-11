@@ -9,7 +9,9 @@
 ##   - the caller asked for `background`
 ##   - the window of this tool passes (10 to 300 s, AgentsHarnessToolWindow.include; MDAT_TOOL_TASK_SECONDS overrides it)
 ##   - the caller's own `timeout` passes and its `timeout_action` is `return` (the default action)
-##   - a message addressed to the member arrives in the session chat (the one source the specs class as immediate, sketch 7.1)
+##   - a message addressed to the member arrives in the session chat (the one source the specs class as immediate, sketch 7.1), unless the
+##     call is itself a read of what reaches the member (MDAT_TOOL_TASK_NO_MESSAGE=yes, a Wait's probe): the message is what that call
+##     reads, so a watcher that detached it on the message would leave the source never read.
 ## A `timeout_action` of `kill` ends the task at the caller's timeout instead, and returns what it wrote. A task that returned early and
 ## still runs is ended after the ceiling (3600 s, MDAT_TOOL_TASK_CEILING).
 ##
@@ -57,7 +59,7 @@ AgentsToolsTaskMessagePending(){ ## session, member
 	local pendingText pendingSession
 	[ -n "$2" ] || return 1
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
-	pendingSession="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; pendingSession="$agentsSessionChatKey"
 	[ -n "$pendingSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$pendingSession/session.chat" ] || pendingSession="$1"
 	type AgentsToolsSessionChatWaiting > /dev/null 2>&1 && AgentsToolsSessionChatWaiting "$pendingSession" 2> /dev/null || :
 	pendingText="$( AgentsToolsSessionChatFloor "$pendingSession" "$2" 2> /dev/null )" || pendingText=""
@@ -90,7 +92,9 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	fi
 	agentsTaskOut="" agentsTaskRc=0 agentsTaskDetached="no" agentsTaskHandle=""
 	callSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-	case "$callSession" in ''|*/*|.|..) callSession="" ;; esac
+	## A session word that is no folder name -- the same case the chat folder refuses (AgentsToolsSessionChatDir) -- gets no
+	## processes folder, so an id the floor refuses is not made a folder by the task (F9.2, `AgentsReplyFloorCheck` 3).
+	case "$callSession" in ''|*/*|.|..|*[[:space:]]*) callSession="" ;; esac
 	case "$callDefault" in ''|*[!0123456789]*|0) callDefault=300 ;; esac
 	case "$callCeiling" in ''|*[!0123456789]*|0) callCeiling=3600 ;; esac
 	case "$callPoll" in ''|*[!0123456789]*|0) callPoll=2 ;; esac
@@ -127,6 +131,7 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	( set +m ; AgentsToolsTaskTick "$callEffective" "$callSelf" && ( set -C ; printf 'timeout\n' > "$callRun/flag" ) 2> /dev/null && kill -USR1 "$callSelf" 2> /dev/null ) > /dev/null 2>&1 3>&- < /dev/null &
 	callTimer=$!
 	disown "$callTimer" 2> /dev/null || :
+	if [ "${MDAT_TOOL_TASK_NO_MESSAGE:-}" != yes ] ; then
 	( set +m
 	  while :; do
 		AgentsToolsTaskTick "$callPoll" "$callSelf" || break
@@ -137,6 +142,7 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	  done ) > /dev/null 2>&1 3>&- < /dev/null &
 	callMessenger=$!
 	disown "$callMessenger" 2> /dev/null || :
+	fi
 	set +m
 	if [ -n "$callBackground" ] ; then
 		( set -C ; printf 'background\n' > "$callRun/flag" ) 2> /dev/null || :
@@ -147,8 +153,8 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	done
 	trap - USR1
 	kill -TERM -- "-$callTimer" 2> /dev/null || :
-	kill -TERM -- "-$callMessenger" 2> /dev/null || :
-	kill -TERM "$callTimer" "$callMessenger" 2> /dev/null || :
+	[ -z "$callMessenger" ] || kill -TERM -- "-$callMessenger" 2> /dev/null || :
+	kill -TERM "$callTimer" ${callMessenger:+"$callMessenger"} 2> /dev/null || :
 	callElapsed=$(( $( date +%s ) - callStart ))
 	if [ -f "$callRun/status" ] ; then
 		## Ended in time: the result is the function's own, and its stderr is said here.

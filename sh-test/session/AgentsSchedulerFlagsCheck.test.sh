@@ -95,8 +95,9 @@ rigStore(){ ## -- the settings file of the rig, as its sum
 
 echo "-- 1. --current-flags, nothing set --"
 rigRun "$rigDispatcher" --current-flags
-rigAssert "eight lines in the order of the epic, worktime and weekend by their defaults on Monday 13:00, the others no" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
-	"0:worktime: yes (default)|weekend: no (default)|holidays: no|holding: no|emergency: no|overtime: no|learning: no|supervised: no"
+## The eight flags, then the one picture's two more lines: the pace a start is gated on (no run in this rig) and the members' own flags (none here).
+rigAssert "eight lines in the order of the epic, worktime and weekend by their defaults on Monday 13:00, the others no, then the pace and the member flags" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
+	"0:worktime: yes (default)|weekend: no (default)|holidays: no|holding: no|emergency: no|overtime: no|learning: no|supervised: no|pace: no live run made a call in 5 minutes -- a duty start is allowed, one a pass|member flags: none"
 rigBefore="$( rigStore )" ; rigRun "$rigDispatcher" --current-flags
 rigAssert "it writes nothing" "$( rigStore )" "$rigBefore"
 rigRun "$rigDispatcher" --current-flags --everything

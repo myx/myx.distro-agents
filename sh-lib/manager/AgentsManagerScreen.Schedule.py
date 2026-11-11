@@ -4,15 +4,15 @@
 ## A part of the manager screen (LocalManagerScreen.py of `myx.distro-.local`): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ##
-## IT RENDERS AND DECIDES NOTHING. `--manager-schedule-read` (AgentsTools.ManagerSchedule.include) prints the rows: `now`, a `flag` row for each of the seven flags with its answer and what the
+## IT RENDERS AND DECIDES NOTHING. `--manager-schedule-read` (AgentsTools.ManagerSchedule.include) prints the rows: `now`, a `flag` row for each of the eight flags with its answer and what the
 ## answer is from, the `switch` row (the seconds to the next change of a flag and what changes), and a `cell` row for each day and hour with the flag that stands there. The autorun table is the
 ## rows of `Routines` (their `runs-at` and `runs-after` as the listing gives them). The screen sums, derives and guesses none of it.
 ##
 
 SCHEDULE_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-## The flags a person sets by hand: the five that take an override, and the two that are derived from a setting of their own.
+## The flags a person sets by hand: the six that take an override, holding among them, and the two that are derived from a setting of their own.
 ## A row `vacation:<member>` or `overtime:<member>` is one member's own flag (its member after the colon): the base word before it is what the operation is given, the member after `--member`.
-SCHEDULE_OVERRIDABLE = ("emergency", "overtime", "holidays", "learning", "supervised", "vacation")
+SCHEDULE_OVERRIDABLE = ("holding", "emergency", "overtime", "holidays", "learning", "supervised", "vacation")
 SCHEDULE_WRITE_SAYS = {
     "override": "Set stores the override, and Clear takes it out: the read gives its line afterwards.",
     "worktime": "The start and the until are HH:MM, the start first, and the days are workdays, weekend, daily, or a list such as mon,thu.",

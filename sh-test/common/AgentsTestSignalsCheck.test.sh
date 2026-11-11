@@ -254,6 +254,10 @@ rigList(){
 		'session/AgentsAdvanceInputScanStatesCheck.test.sh|1|kill -TERM "$( cat "$rigTmp/b10/console.pid" )"|read from the pid file its stand-in console wrote seconds before, in the statement after the tooling'"'"'s own reading found that pid and its start to be the process the record names; the signal is what the check asserts on' \
 		'session/AgentsAdvanceInputScanStatesCheck.test.sh|1|kill "$rigMcpPid"|@probed' \
 		'session/AgentsConsoleSessionSignalsCheck.test.sh|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@text' \
+		'manager/AgentsConsoleHelpViewerFindCheck.test.sh|1|os.kill(pid, 9)|@uncollected' \
+		'manager/AgentsManagerScreenRestartCheck.test.sh|1|stop or kill it first|@text' \
+		'manager/AgentsManagerSessionRestartCheck.test.sh|1|stop or kill it first|@text' \
+		'manager/AgentsManagerScreenKillLiveCheck.test.sh|1|--plan$'"'"' kill )|@text' \
 		'manager/AgentsConsoleStreamTrapCheck.test.sh|1|kill(){|no signal of the check: the stand-in of the rig for the `kill` of the console under test, which keeps what is asked of it, hands a probe on as it came, and a signal only while the stub CLI of the rig has not ended' \
 		'manager/AgentsConsoleStreamTrapCheck.test.sh|2|builtin kill "$@"|no signal of the check: the stand-in of the rig for the `kill` of the console under test, which keeps what is asked of it, hands a probe on as it came, and a signal only while the stub CLI of the rig has not ended' \
 		'manager/AgentsConsoleStreamTrapCheck.test.sh|1|builtin kill -TERM "$$"|@self' \
@@ -381,6 +385,67 @@ rigList(){
 		'questions/AgentsEscalationWaitTrapCheck.test.sh|1|kill -"$2" "$waitPid"|@uncollected' \
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch' \
 		'comms/AgentsWakePokeCheck.test.sh|1|kill $( jobs -pr )|@running-job' \
+		'harness/AgentsToolWindowCheck.test.sh|1|kill -TERM -- "-$reapPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort reap at the rig'"'"'s end of the group from a pid file the rig'"'"'s session wrote, with no start kept beside it; the check'"'"'s result never depends on it, only a stray process of the rig does' \
+		'member/AgentsWaitRepliesFirstLookCheck.test.sh|1|kill "$watchSleep" 2> /dev/null|the watchdog subshell'"'"'s own sleep, started by & and read into watchSleep by $! in that subshell, waited on right after, signalled from the subshell'"'"'s own TERM trap: a child whose number the subshell keeps' \
+		'member/AgentsWaitRepliesFirstLookCheck.test.sh|1|kill -0 "$waitPid" 2> /dev/null|a probe that ends nothing, of the wait the parent shell started by & and waits on' \
+		'member/AgentsWaitRepliesFirstLookCheck.test.sh|1|kill -TERM "$waitPid" 2> /dev/null ; sleep 2 ; kill -KILL "$waitPid" 2> /dev/null|the wait the parent shell started by & and read into waitPid by $!, which the parent is waiting on while this watchdog runs, so the system keeps its number until that wait returns' \
+		'member/AgentsWaitRepliesFirstLookCheck.test.sh|1|kill -TERM "$waitWatch" 2>/dev/null|the watchdog subshell this shell started by & and read into waitWatch by $!, waited on in the next line, its number kept' \
+		'member/AgentsWaitSharedThreadLeakCheck.test.sh|1|kill -0 "$waitPid" 2> /dev/null|a probe that ends nothing, of the wait the parent shell started by & and waits on' \
+		'member/AgentsWaitSharedThreadLeakCheck.test.sh|1|kill -TERM "$waitPid" 2> /dev/null ; sleep 2 ; kill -KILL "$waitPid" 2> /dev/null|the wait the parent shell started by & and read into waitPid by $!, which the parent is waiting on while this watchdog runs, so the system keeps its number until that wait returns' \
+		'member/AgentsWaitSharedThreadLeakCheck.test.sh|1|kill -TERM "$waitWatch" 2> /dev/null|the watchdog subshell this shell started by & and read into waitWatch by $!, waited on in the next line, its number kept' \
+		'session/AgentsAcceptEndsRunCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort KILL at the rig'"'"'s end of the processes this check started by & and disowned, read by $! with no start kept beside them; a disowned child is reaped as it ends, so its number may be another'"'"'s by the exit; the check'"'"'s result never depends on it' \
+		'session/AgentsActivityStatesCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same best-effort KILL at the rig'"'"'s end of disowned processes read by $!, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsAuthorityUpCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same best-effort KILL at the rig'"'"'s end of disowned processes read by $!, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsCloseChildrenCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same best-effort KILL at the rig'"'"'s end of disowned processes read by $!, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsCloseOwnsRunsCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same best-effort KILL at the rig'"'"'s end of disowned processes read by $!, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsControlEndsCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same best-effort KILL at the rig'"'"'s end of disowned processes read by $!, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsSuperviseScanCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the same best-effort KILL at the rig'"'"'s end of disowned processes read by $!, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsSuperviseRigCheck.test.sh|1|for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort KILL at the rig'"'"'s end of processes this check started by & and kept by $!, no start kept beside them; the check'"'"'s result never depends on it' \
+		'session/AgentsSuperviseRigCheck.test.sh|1|for rigOne in $rigPids ; do kill -TERM "$rigOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the TERM before the KILL of the same best-effort end' \
+		'session/AgentsBusyRunImmediateMessageCheck.test.sh|1|kill -TERM -- "-$reapPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort reap at the rig'"'"'s end of the group from a pid file the rig'"'"'s session wrote, with no start kept beside it; the check'"'"'s result never depends on it' \
+		'session/AgentsBusyRunImmediateMessageCheck.test.sh|1|kill -TERM "$reapPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the plain-pid form of the same reap, for a run with no process group of its own' \
+		'session/AgentsBusyRunImmediateMessageCheck.test.sh|1|for reapOne in $rigPids ; do kill -KILL "$reapOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort KILL at the rig'"'"'s end of processes this check started by & and kept by $!, no start kept beside them; the check'"'"'s result never depends on it' \
+		'session/AgentsBusyRunImmediateMessageCheck.test.sh|1|kill -TERM -- "-$endPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort end of a run'"'"'s group from a pid file the rig'"'"'s session wrote, with no start kept beside it; the check'"'"'s result never depends on it' \
+		'session/AgentsBusyRunImmediateMessageCheck.test.sh|1|kill -TERM "$endPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the plain-pid form of the same end, for a run with no process group of its own' \
+		'session/AgentsSuperviseResumeCheck.test.sh|1|for cleanOne in $rigPids ; do kill -TERM "$cleanOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort TERM at the rig'"'"'s end of processes this check started by & and kept by $!, no start kept beside them; the check'"'"'s result never depends on it' \
+		'session/AgentsSuperviseResumeCheck.test.sh|1|for cleanOne in $rigPids ; do kill -KILL "$cleanOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the KILL after the TERM of the same best-effort end' \
+		'session/AgentsSuperviseStallCheck.test.sh|1|for reapOne in $rigPids ; do kill -TERM "$reapOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort TERM at the rig'"'"'s end of disowned processes read by $!, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsSuperviseStallCheck.test.sh|1|for reapOne in $rigPids ; do kill -KILL "$reapOne" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the KILL after the TERM of the same best-effort end' \
+		'check-fixtures/rig-temp.include.sh|1|rigProcSignal TERM "$threadPid" ; else kill -TERM "$threadPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the plain kill is the fallback of rigCommsThreadEnd where the processes helper is not loaded; every check that sources this fixture has it, and the signal then goes through rigProcSignal, which keeps the thread by when it began' \
+		'session/AgentsDutyKillRestartCheck.test.sh|1|for rigEach in $rigPids ; do kill -9 "$rigEach" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort KILL at the rig'"'"'s end of the check'"'"'s own sleeps, read by $! in rigProcess, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsSpawnQueueCheck.test.sh|1|for rigEach in $rigPids ; do kill -9 "$rigEach" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort KILL at the rig'"'"'s end of the check'"'"'s own sleep, read by $! in a subshell, no start kept; the check'"'"'s result never depends on it' \
+		'session/AgentsDutyKillRestartCheck.test.sh|1|kill -9 "$killPid" 2> /dev/null|a sleep 600 of the check'"'"'s own, started in rigProcess a few statements before and read by $! there, each killed once and then waited for until gone: the check ends long before the sleep would, so its number cannot have come round' \
+		'session/AgentsSpawnQueueCheck.test.sh|1|kill -9 "$rigDutyPid" 2> /dev/null|a sleep 600 of the check'"'"'s own, started in a subshell a few statements before and read by $! there, killed once and then waited for until gone: the check ends long before the sleep would, so its number cannot have come round' \
+		'session/AgentsRegistryTtlCheck.test.sh|1|kill -KILL "$rigLivePid" 2> /dev/null|@uncollected' \
+		'session/AgentsScheduleOneThreadCheck.test.sh|1|kill -TERM "$rigServe1" 2> /dev/null|@uncollected' \
+		'session/AgentsScheduleOneThreadCheck.test.sh|1|kill -TERM "$rigSchThread" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the schedule thread'"'"'s pid read from its thread.lock, which holds no start beside it; the thread was shown holding that lock in the statement before, and serves until this TERM' \
+		'team-data/AgentsKnowledgeStoreCheck.test.sh|1|kill "$rigHoldPid" 2> /dev/null|@uncollected' \
+		'team-data/AgentsTeamDataWriteUnderLockCheck.test.sh|1|kill -TERM "$stopPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the pid of a thread this rig left running, read from its lock file in rigThreadStop, which holds no start beside it; the rig made that thread and waits for its lock to go after the TERM' \
+		'session/AgentsScheduleThreadCheck.test.sh|1|kill -9 "$rigPid1" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the schedule thread'"'"'s pid read from its thread.lock by rigThreadPid, which holds no start beside it; a probe in the statement before found it alive, and the thread serves until this KILL' \
+		'member/AgentsIncomingSyncBoundCheck.test.sh|1|for rigOne in $rigPids ; do kill -TERM "$rigOne" 2> /dev/null|no signal of the check: rigPids is set empty once and never filled, so the trap'"'"'s loop runs over nothing; a stand-in of the check that keeps a pid there would have to note it through rig-processes' \
+		'harness/AgentsToolWindowCheck.test.sh|1|pkill -TERM -f "$rigTmp"|@own-path' \
+		'harness/AgentsToolWindowCheck.test.sh|1|kill -TERM "$reapPid" 2> /dev/null|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the plain-pid form of the same reap, for a run with no process group of its own; the same gap as the group kill before it' \
+		'harness/AgentsInterruptedStatesCheck.test.sh|1|kill -KILL "$1" $( rigUnder "$1" ) 2> /dev/null|a background job of this shell (jobs -pr) that is still running, not waited on, so its number is kept for it, with what runs under it read from the process list in the same statement' \
+		'harness/AgentsInterruptedStatesCheck.test.sh|1|kill -TERM -- "-$rigStopPid"|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: a best-effort reap at the rig'"'"'s end of a process group from a pid file the rig'"'"'s sessions wrote, with no start kept beside it; the check'"'"'s result never depends on it' \
+		'harness/AgentsBashKillGuardCheck.test.sh|2|pkill -f rig-nothing-named-so|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|killall rig-nothing-named-so|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|kill -TERM $(pgrep -f rig-nothing-named-so)|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|xargs kill|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|kill -9 -1|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|pkill -TERM -f rig-nothing-named-so|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|pkill is a word here|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|kill -0 99999999|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|# pkill nothing|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|2|kill -TERM $rigSleep|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|kill -0 $rigSleep|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|kill -TERM -- -$rigSleep|@text' \
+		'harness/AgentsBashKillGuardCheck.test.sh|1|kill -0 "$rigSleep" 2> /dev/null|a probe that ends nothing, of the sleep this check started by & and has not waited on yet' \
+		'harness/AgentsBashKillGuardCheck.test.sh|2|kill "$rigSleep" 2> /dev/null|the sleep this check started by & as the process no run owns, read into rigSleep by $!, signalled at the end of its section and once more in the EXIT trap; the shell has not waited on it before the first, so the system keeps its number for this child, and it sleeps 300 s while the check runs under a minute' \
+		'AgentsRunTestsSweepCheck.test.sh|2|kill "$rigBusyPid" 2> /dev/null|the sleep this check started as the process that names its busy rig, read into rigBusyPid by $! at its start, signalled at the end of its last section and once more in the EXIT trap; it sleeps 300 s and the check runs under a minute, so its number is not given again before' \
+		'grants/AgentsPassPermissionUrlTargetCheck.test.sh|1|kill -0 "$boundPid"|a probe that ends nothing, of a child this shell started by & and has not waited on yet' \
+		'grants/AgentsPassPermissionUrlTargetCheck.test.sh|1|kill -TERM "$boundPid" 2> /dev/null ; sleep 1 ; kill -KILL "$boundPid" 2> /dev/null|the child this shell started by & the statement before and read into boundPid by $!; the shell has not waited on it, so the system keeps its number for this child, dead or alive, until the wait that follows the signals' \
+		'grants/AgentsPermissionSetRecordCheck.test.sh|2|kill -0 "$askPid" 2>/dev/null|a probe that ends nothing, of a child this shell started by & and has not waited on yet' \
+		'grants/AgentsPermissionSetRecordCheck.test.sh|1|kill -TERM "$askPid" 2>/dev/null ; sleep 1 ; kill -KILL "$askPid" 2>/dev/null|the ask this shell started by & and read into askPid by $!; the shell has not waited on it, so the system keeps its number for this child, dead or alive, until the wait on the line after' \
 		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill -TERM $$ 2|the own pid of the top-level script, read by $$, which a subshell never shadows with its own, so the number is this very process while it is still the one running this line' \
 		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill -KILL $$ 2|the same own pid as just above, five seconds later if the first signal did not already end the script' \
 		'grants/AgentsPermissionHoldsCheck.test.sh|1|kill "${rigWatchdog:-}" 2|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the watchdog started at the top of this check, read by $! at that moment, with no start kept beside it to recheck at the trap that signals it' \
@@ -400,6 +465,8 @@ rigToolingList(){
 		'sh-lib/harness/AgentsHarnessMcpClient.sh|1|= "$runBegan" ] && kill -TERM "$runPid"|@still-itself' \
 		'sh-lib/harness/AgentsHarnessMcpClient.sh|1|kill -TERM "$runWatchPid"|@own-watch' \
 		'sh-lib/manager/AgentsManagerScreen.Sessions.py|1|kill asked of the tooling: the %s %s|@text' \
+		'sh-lib/manager/AgentsTools.ManagerSession.include|1|the run still lives: stop or kill it first|@text' \
+		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|kill -TERM "$1" 2> /dev/null|the end of the MCP server alone (S12.3): a request handler kept in flight as pid and start, signalled only while AgentsToolsRegistryProcessesBegan still gives that start, and below it each process the ps of that moment lists as its child, deepest first, as the myx.common server ends its own handlers' \
 		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|call["process"].terminate()|@uncollected' \
 		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|call["process"].kill()|@uncollected' \
 		'sh-lib/manager/AgentsManagerScreen.Terminal.py|1|os.killpg(process.pid, signal.SIGCONT)|@uncollected' \
@@ -437,6 +504,11 @@ rigToolingList(){
 		'sh-lib/session/AgentsTools.SessionControlDeath.include|1|kill -KILL -- "-$postPid"|@probed' \
 		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|= "$wakeLine" ] && kill -USR1 "$wakePid"|the wake of a control thread, which holds USR1 and ends nothing on it: the pid its pid file names, kept there with when it began by one rename, and signalled only while that pid is still the process that began then (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal; before it the command line of that process is read as the thread of that session, never a call of one tick, and its file of what it takes names the kind, which a thread empties before its shell is replaced' \
 		'sh-lib/magic/AgentsTools.SpawnHousekeeping.include|1|kill -TERM -- "-$leftoverPid" 2> /dev/null|@file-start' \
+		'sh-lib/comms/AgentsTools.CommsCache.include|1|kill -USR1 "$wantPid" 2> /dev/null|@file-start' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|2|kill $( jobs -p ) 2>/dev/null ; exit 0'"'"' TERM|@uncollected' \
+		'sh-lib/harness/AgentsHarnessMcpClient.sh|1|kill $( jobs -p ) 2>/dev/null ; exit 0'"'"' TERM|@uncollected' \
+		'sh-lib/harness/AgentsHarnessHooks.sh|1|kill "$watchSleep" 2>/dev/null ; exit 0'"'"' TERM|@waited-on' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill "$watchSleep" 2>/dev/null ; exit 0'"'"' TERM|@waited-on' \
 		'sh-lib/magic/AgentsTools.SpawnHousekeeping.include|1|kill -TERM "$leftoverPid" 2> /dev/null|the pid of the same leftover, after its group was signalled: kept beside it with when it began (AgentsToolsRegistryProcessesBegan), and signalled only while it is still that process' \
 		'sh-lib/magic/AgentsTools.SpawnHousekeeping.include|1|kill -KILL -- "-$leftoverPid" 2> /dev/null|the hard end of the same leftover, two seconds after the polite one: the pid is signalled at once, only while it is still the process that began when the Bash tool started it, kept beside it (AgentsToolsRegistryProcessesBegan), and a file that holds no start is not signalled by the number alone' \
 		'sh-lib/magic/AgentsTools.SpawnHousekeeping.include|1|kill -KILL "$leftoverPid" 2> /dev/null|the hard end of that same pid, after its group: the number kept beside the process it began as, signalled at once' \
@@ -462,6 +534,11 @@ rigToolingList(){
 		'sh-lib/session/AgentsTools.ToolTask.include|2|kill -KILL -- "-$callPid"|NOT SAFE, LEFT: the hard end of the same task, with no start kept beside its pid to recheck' \
 		'sh-lib/session/AgentsTools.ToolTask.include|2|kill -KILL "$callPid" 2|NOT SAFE, LEFT: the fallback plain-pid form of the hard end, for a shell with no real process group, the same gap' \
 		'sh-lib/session/AgentsTools.ToolTask.include|1|timeout_action=kill|@text' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|harnessKillPattern="pkill or killall"|@text' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|harnessKillPattern="kill of what pgrep or ps lists"|@text' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|xargs([[:space:]]+-[^[:space:]]+)*[[:space:]]+kill|@text' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|harnessKillPattern="kill through xargs"|@text' \
+		'sh-lib/harness/AgentsHarnessToolsBash.include|1|harnessKillPattern="kill of every process"|@text' \
 		'sh-lib/member/AgentsTools.Incoming.include|1|kill -TERM -- "-$syncPid"|@probed' \
 		'sh-lib/member/AgentsTools.Incoming.include|1|kill -TERM "$syncPid"|@probed' \
 		'sh-lib/session/AgentsTools.SuperviseClose.include|1|kill -TERM "$closePid"|the pid a run keeps in its `<pid> <start>` file under spawned/, signalled on the one branch where AgentsToolsRegistryProcessesBegan, read three lines above, gave the start the file holds; a file with no start, or a start that differs, takes another branch and sends nothing' \

@@ -12,9 +12,9 @@
 ## AgentsRoutinePerMemberLockCheck and AgentsRoutineLockOwnOpsCheck hold what the inner step does with a document.
 ## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06, one mutation per guarded line of
 ## `AgentsToolsRoutineLockAcquire`:
-##   the whole `until mkdir` gate loop at :323-327 deleted — the acquires overlap, and row 1 fails.
-##   `rmdir "$acqGate"` at :337 deleted — the gate is never given back, and every row after row 1 fails.
-##   the ten-minute takeover line at :324 deleted — row 4 fails alone.
+##   the whole `until mkdir "$acqGate"` gate loop deleted — the acquires overlap, and row 1 fails (:334-343 at 2026-11-09 02:47).
+##   the `rmdir "$acqGate"` that gives the gate back after the last acquire, deleted — the gate is never given back, and every row after row 1 fails (:353).
+##   the takeover line that clears a gate held over 600s, deleted — row 4 fails alone (:340).
 ## Every acquire here is bounded, so the second mutation reports red rather than standing still.
 ## Offline: the include this check loads, and a rig of its own; no spawner, git or network is reached.
 set -u

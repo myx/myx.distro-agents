@@ -6,7 +6,8 @@
 ##   3. the window (MDAT_TOOL_TASK_SECONDS, which replaces every row of the table) returns the task early, naming the window
 ##   4. the caller's own timeout returns it early (the default action), naming the timeout
 ##   5. timeout_action kill ends the task at the timeout and returns what it wrote, the process gone
-##   6. a message addressed to the member in the session chat returns it early, and the message is still there afterwards (nothing consumed)
+##   6. a message addressed to the member in the session chat returns it early, and the message is still there afterwards (nothing consumed);
+##      a call that is itself a read of what reaches the member (MDAT_TOOL_TASK_NO_MESSAGE=yes, a Wait's probe) runs to its end with it pending
 ##   7. a returned task is ended after the ceiling (MDAT_TOOL_TASK_CEILING)
 ##   8. a call from inside a task, or from no session, runs plain
 ##   9. the early return names the task's output so far in F2.4's form: its file, its size in bytes and lines, a preview, and how to read the rest
@@ -101,6 +102,9 @@ rigAssert "the message returns the call early, and the text says why" "$( rigHea
 rigAssert "the message was not consumed: the member's floor still holds it" "$( rigChatRun "AgentsToolsSessionChatFloor $rigSession keeper-rig | grep -c 'hello @keeper-rig'" 2> /dev/null )" "1"
 rigOut="$( rigCall harnessAgent=keeper-rig "rig quiet" "" "" "" 'echo done' )"
 rigAssert "a call that ends in time is not held back by a message waiting" "$( rigHead "$rigOut" ):$( rigText "$rigOut" )" "no|0|:done"
+## The message still waits, so a watcher polling each second would return this call early, as it did the first one above.
+rigOut="$( rigCall MDAT_TOOL_TASK_POLL=1 MDAT_TOOL_TASK_NO_MESSAGE=yes harnessAgent=keeper-rig "rig probe" "" "" "" 'sleep 3 ; echo read' )"
+rigAssert "a call that reads what reaches the member is not returned early by the message: it runs to its end" "$( rigHead "$rigOut" ):$( rigText "$rigOut" )" "no|0|:read"
 
 echo "-- 7. the ceiling --"
 rigOut="$( rigCall MDAT_TOOL_TASK_CEILING=2 "rig slow" true "" "" 'sleep 25' )"

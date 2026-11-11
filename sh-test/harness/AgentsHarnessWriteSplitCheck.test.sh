@@ -66,7 +66,7 @@ export HARNESS_TOKEN_MAIN="rig-not-a-credential"
 rigWrite(){ ## target path, then the root flags for this scenario
 	local rigTarget="$1" rigLine ; shift
 	rigLine="$( printf '{"path":"%s","content":"x"}' "$rigTarget" \
-		| MMDAPP="$rigTmp" "$rigHarness" --intern-tool Write "$@" 2>/dev/null \
+		| MMDAPP="$rigTmp" MDAT_SPAWN_AGENT=rig-member "$rigHarness" --intern-tool Write "$@" 2>/dev/null \
 		| LC_ALL=C grep -m1 '^OK:\|^ERROR:' )" || rigLine=""
 	[ -n "$rigLine" ] || rigRefuse "no verdict line from a Write call on $rigTarget, so the write gate was never exercised"
 	printf '%s' "$rigLine"
@@ -91,7 +91,7 @@ rigRead(){ ## target path, then the root flags for this scenario
 	## BY DESIGN, so treating a non-zero status as "no output" throws away the very
 	## answer being asked for and reports it as a rig fault.
 	rigOut="$( printf '{"path":"%s"}' "$rigTarget" \
-		| MMDAPP="$rigTmp" "$rigHarness" --intern-tool Read "$@" 2>/dev/null )" || :
+		| MMDAPP="$rigTmp" MDAT_SPAWN_AGENT=rig-member "$rigHarness" --intern-tool Read "$@" 2>/dev/null )" || :
 	[ -n "$rigOut" ] || rigRefuse "no output from a Read call on $rigTarget, so the read gate was never exercised"
 	case "$rigOut" in
 		*'not in the allowed access-root set'*) printf 'refused-not-granted' ;;
@@ -208,7 +208,7 @@ rigLeaf=( --access-read-root "$rigLeafIn" --access-write-root "$rigLeafIn" )
 rigEdit(){ ## target path, new text, then the root flags for this scenario
 	local rigTarget="$1" rigNew="$2" rigLine ; shift 2
 	rigLine="$( printf '{"path":"%s","old_text":"orig","new_text":"%s"}' "$rigTarget" "$rigNew" \
-		| MMDAPP="$rigTmp" "$rigHarness" --intern-tool Edit "$@" 2>/dev/null \
+		| MMDAPP="$rigTmp" MDAT_SPAWN_AGENT=rig-member "$rigHarness" --intern-tool Edit "$@" 2>/dev/null \
 		| LC_ALL=C grep -m1 '^OK:\|^ERROR:' )" || rigLine=""
 	[ -n "$rigLine" ] || rigRefuse "no verdict line from an Edit call on $rigTarget, so the write gate was never exercised"
 	printf '%s' "$rigLine"
@@ -296,12 +296,12 @@ rigStoreCall(){ ## unattended marker, spawn session id, tool (write|edit), targe
 	if [ "$storeTool" = "edit" ] ; then
 		env -u MDAT_SESSION_UNATTENDED -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT MDAT_DATA_ROOT="$rigStoreData" \
 			${1:+MDAT_SESSION_UNATTENDED="$1"} ${2:+MDAT_SPAWN_SESSION_ID="$2"} ${RIG_ENTRYPOINT:+CLAUDE_CODE_ENTRYPOINT="$RIG_ENTRYPOINT"} \
-			bash -c 'rigHarness="$1" rigTmp="$2" ; shift 2 ; printf "{\"path\":\"%s\",\"old_text\":\"orig\",\"new_text\":\"rig-edited\"}" "$1" | MMDAPP="$rigTmp" "$rigHarness" --intern-tool Edit "${@:2}" 2>/dev/null | LC_ALL=C grep -m1 "^OK:\|^ERROR:"' \
+			bash -c 'rigHarness="$1" rigTmp="$2" ; shift 2 ; printf "{\"path\":\"%s\",\"old_text\":\"orig\",\"new_text\":\"rig-edited\"}" "$1" | MMDAPP="$rigTmp" MDAT_SPAWN_AGENT=rig-member "$rigHarness" --intern-tool Edit "${@:2}" 2>/dev/null | LC_ALL=C grep -m1 "^OK:\|^ERROR:"' \
 			rig "$rigHarness" "$rigTmp" "$storeTarget" "${rigWide[@]}"
 	else
 		env -u MDAT_SESSION_UNATTENDED -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT MDAT_DATA_ROOT="$rigStoreData" \
 			${1:+MDAT_SESSION_UNATTENDED="$1"} ${2:+MDAT_SPAWN_SESSION_ID="$2"} ${RIG_ENTRYPOINT:+CLAUDE_CODE_ENTRYPOINT="$RIG_ENTRYPOINT"} \
-			bash -c 'rigHarness="$1" rigTmp="$2" ; shift 2 ; printf "{\"path\":\"%s\",\"content\":\"x\"}" "$1" | MMDAPP="$rigTmp" "$rigHarness" --intern-tool Write "${@:2}" 2>/dev/null | LC_ALL=C grep -m1 "^OK:\|^ERROR:"' \
+			bash -c 'rigHarness="$1" rigTmp="$2" ; shift 2 ; printf "{\"path\":\"%s\",\"content\":\"x\"}" "$1" | MMDAPP="$rigTmp" MDAT_SPAWN_AGENT=rig-member "$rigHarness" --intern-tool Write "${@:2}" 2>/dev/null | LC_ALL=C grep -m1 "^OK:\|^ERROR:"' \
 			rig "$rigHarness" "$rigTmp" "$storeTarget" "${rigWide[@]}"
 	fi
 }

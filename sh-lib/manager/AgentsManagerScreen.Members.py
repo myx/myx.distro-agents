@@ -474,7 +474,7 @@ registerPlugin({
                                         "rows": "session-read", "needs": "session"},
         ## The settings of a member are lines of the digest of the settings, which the root `Settings` reads: the same read fills them.
         "list:team/*/settings": {"from": "list:@settings"},
-        "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True, "also": ("list:help",)},
+        "list:team/*/help": {"operation": ["--member-help", "--team-member", "{parent}"], "rows": "member-help", "once": True, "also": ("list:help",)},
         ## The chapters of the help of this tool, which a member's `Member Help` shows around its own
         ## syntax lines. It is no level of the list: a read of its own, made beside that folder.
         "list:help": {"operation": ["--manager-help-read"], "rows": "chapters", "once": True},

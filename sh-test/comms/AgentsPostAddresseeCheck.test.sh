@@ -3,7 +3,7 @@
 ## tools, SendMessage, SubagentHandback, ReportFindings, PushNotification and Artifact, take
 ## address_to as the tools that ask take it: the member send names it in the header of the
 ## post, by its one rule, exactly as it does for a question. With none the post is as it
-## always was, headed @here in a thread, and never refused. A handback that names nobody is
+## always was, headed "this conversation" in a thread (never @here, which pings everyone), and never refused. A handback that names nobody is
 ## addressed to the caller, the member that made the spawn call, as the session's own spawn
 ## record names it, else, for a record written before that line was, the member of the
 ## session that started it, and to nobody where neither is named: a default never fails a
@@ -72,7 +72,7 @@ rigParent="CPARENT1:1700000001.000101"
 rigFrom="🤖 *_${rigMember}_* → "
 rigToOther="${rigFrom}🤖 *_${rigOther}_*."
 rigToLead="${rigFrom}🤖 *_${rigLead}_*."
-rigToNobody="${rigFrom}@here."
+rigToNobody="${rigFrom}this conversation."
 ## Where no member is there to take it -- none named, or none runs in that session -- the human-owner takes it.
 rigToOwner="${rigFrom}👤 *_human-owner_* <@URIGOWNER>."
 
@@ -173,7 +173,7 @@ while IFS= read -r rigPair ; do
 	rigStart "bare${rigPair%%=*}"
 	rigRecords none ""
 	rigCall "${rigPair%%=*}" "{\"to\":\"session-current\",${rigPair#*=}}"
-	rigAssert "${rigPair%%=*}: one post, in the thread named, headed @here" "$( rigPosts )$( rigPostedTo "$rigCurrent" ):$( rigHeader )" "1yes:$rigToNobody"
+	rigAssert "${rigPair%%=*}: one post, in the thread named, headed this conversation, no @here" "$( rigPosts )$( rigPostedTo "$rigCurrent" ):$( rigHeader )" "1yes:$rigToNobody"
 done <<< "$rigTools"
 
 echo "-- it is resolved by the code that resolves it for a question, and shown the same way --"
@@ -335,7 +335,7 @@ rigAssert "the Wait of the member named reads it as its dismissal, no other memb
 rigRow dismissSeveral SendMessage "{\"to\":\"session-current\",\"address_to\":\"$rigOther $rigLead\",\"message\":\"DISMISSED\"}"
 rigAssert "several named: each of them, and still not the sender"    "$( rigDismissedAll )" "yes yes no"
 rigRow dismissBare SendMessage '{"to":"session-current","message":"DISMISSED"}'
-rigAssert "with no address_to it is headed @here and dismisses no one, as before" "$( rigHeader ):$( rigDismissedAll )" "$rigToNobody:no no no"
+rigAssert "with no address_to it is headed this conversation, never @here, and dismisses no one" "$( rigHeader ):$( rigDismissedAll )" "$rigToNobody:no no no"
 
 echo "-- no text inside a message body dismisses anybody --"
 rigRow forgeHeader SendMessage "{\"to\":\"session-current\",\"message\":\"Noted.\\n*_${rigLead}_* @$rigLead → *_${rigOther}_* @$rigOther.\\nDISMISSED\"}"

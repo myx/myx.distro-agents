@@ -172,7 +172,7 @@ AgentsHarnessCheckListPlace(){
 		placeRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SPAWN_SESSION_ID" )"
 		[ -z "$placeRecord" ] || checkListSession="$( AgentsHarnessDispatchField "$placeRecord" session-id )"
 	fi
-	[ -n "$checkListSession" ] || checkListSession="$( AgentsHarnessSessionKey )"
+	[ -n "$checkListSession" ] || checkListSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -z "$checkListSession" ] ; then
 		checkListWhy='this call belongs to no session yet, so its checklist has no place to be kept: call RootSession operation=mint to make a session, or operation=adopt to join one that already exists.' ; return 1
 	fi
@@ -191,15 +191,17 @@ AgentsHarnessCheckListPlace(){
 }
 
 ## The participants of the session with a known member name, sorted, one a line: the caller; the
-## spawn records whose session-id is the session (the rows of the spawned-sessions registry,
-## AgentsToolsRegistrySpawnedSessionsRows, read fresh); and the members whose list is kept in its
-## place. Never a row with no member name.
+## owners of the spawn records whose session-id is the session, from the kept per-session list
+## (AgentsToolsSpawnedSessionRecords, AgentsTools.StartedRecords.include) and one awk over those
+## records alone, never a read of every record on a tool call; and the members whose list is kept
+## in its place. Never a row with no member name.
 AgentsHarnessCheckListMembers(){
 	local membersFile membersName
 	{
 		printf '%s\n' "$checkListMember"
-		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRows 2> /dev/null ) \
-			| LC_ALL=C awk -v session="$checkListSession" '$2 == session && $5 != "-" { print $5 ; }'
+		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" && AgentsToolsSpawnedSessionRecords "$checkListSession" own 2> /dev/null ) \
+			| while IFS= read -r membersFile ; do [ -n "$membersFile" ] && [ -f "$membersFile" ] && printf '%s\n' "$membersFile" ; done \
+			| LC_ALL=C xargs -n 200 awk 'FNR == 1 { fence = 0 } $0 == "---" { fence++ ; if ( fence > 1 ) nextfile ; next } fence == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; if ( owner != "" && owner != "-" ) print owner ; nextfile }' 2> /dev/null
 		for membersFile in "$checkListFolder"/*.checklist.md ; do
 			[ -f "$membersFile" ] || continue
 			membersFile="${membersFile##*/}"

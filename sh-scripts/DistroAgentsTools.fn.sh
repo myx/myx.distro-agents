@@ -15,8 +15,12 @@ fi
 : "${MDLT_ORIGIN:=$MMDAPP/.local}"
 export MDLT_ORIGIN
 
-## Sourced into a console (`Distro DistroAgentsTools ...`), the context functions come from here.
-type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+## Sourced into a console (`Distro DistroAgentsTools ...`), the context functions come from here. An origin with no
+## tooling is left to the executed arm below, which refuses it by name rather than here by a bare path.
+type DistroAgentsContext > /dev/null 2>&1 || {
+	[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" ] || \
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
+}
 
 ## Every child finds the bash this runs in. Where the PATH holds no `bash`, the directory of the running one
 ## goes at its END, once: where one is found nothing changes, and nothing on the PATH is ever shadowed. And a
@@ -58,7 +62,7 @@ DistroAgentsTools(){
 		local agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read
 			--intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume
 			--intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks
-			--intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index"
+			--intern-op-review-end --intern-op-review-handback --intern-op-review-next --intern-op-spawn-prepare-brief --intern-op-tool-index"
 		case "${2:-}" in
 			json) shift 2 ;;
 			*) echo "⛔ ERROR: $MDSC_CMD: --mdat-output-format takes json, got: ${2:-<none>}" >&2 ; set +e ; return 1 ;;
@@ -347,8 +351,8 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		## The librarian's spread and retire of the knowledge store (F8.3), beside the installer.
-		--knowledge-store-spread|--knowledge-store-retire)
+		## The librarian's spread and retire of the knowledge store (F8.3), beside the installer, and the build of its index.
+		--knowledge-store-spread|--knowledge-store-retire|--knowledge-index-build)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.KnowledgeStore.include"
 			return $?
 		;;
@@ -358,6 +362,21 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+
+		## The stray store of a workspace that keeps no team data (S12.18, S12.19): listed and returned by a tool, never a hand. These two
+		## stand ahead of the `--owner-*` family below, whose arm takes every owner name and refuses the ones its include does not serve.
+		--owner-stray-store-list)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.StrayStore.include"
+			shift
+			AgentsToolsStrayStoreList "$@"
+			return $?
+		;;
+		--owner-stray-store-return)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.StrayStore.include"
+			shift
+			AgentsToolsStrayStoreReturn "$@"
+			return $?
+		;;
 
 		--owner-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Owner.include"
@@ -515,6 +534,23 @@ DistroAgentsTools(){
 		## The event ids of the comms cache, minted by one thread holding last time and sequence (S12.11, its first use on an event).
 		--intern-comms-event-id)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternCommsEventId.include"
+			return $?
+		;;
+
+		## The tooling commands of this workspace, each with the path the shell runs it by (S12.26): the list a member reads to learn
+		## that a name is a command with a .fn.sh suffix, never a function, and where it stands.
+		--commands-list)
+			shift
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommandsList.include"
+			AgentsToolsCommandsList "$@"
+			return $?
+		;;
+
+		## The one hand that appends to the session chat files (S5.8), on the shared on-demand thread.
+		--intern-session-chat-writer)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include"
+			shift
+			AgentsToolsInternSessionChatWriter "$@"
 			return $?
 		;;
 
@@ -679,7 +715,7 @@ DistroAgentsTools(){
 				;;
 			esac
 			type AgentsToolsSessionChatFloorRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-			floorRemoveKey="$( AgentsToolsSessionChatKey )"
+			AgentsToolsSessionChatKeyInto ; floorRemoveKey="$agentsSessionChatKey"
 			floorRemoveMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-magic-coordinator}}"
 			if [ -z "$floorRemoveKey" ] ; then
 				echo "$MDSC_CMD: ⛔ ERROR: --session-floor-remove: the call belongs to no session, so there is no floor to remove" >&2
@@ -808,11 +844,28 @@ DistroAgentsTools(){
 	esac
 }
 
+## A relative or symlinked path to this very file dispatches too: it is resolved to the real file before the match, and only a path that
+## resolves elsewhere is refused. Sourced ($0 differs from BASH_SOURCE[0]), nothing is resolved.
+selfPath="$0"
 case "$0" in
+	*/myx/myx.distro-agents/sh-scripts/*.fn.sh) ;;
+	*) [ "${BASH_SOURCE[0]:-}" != "$0" ] || selfPath="$( cd "$( dirname "$0" )" 2> /dev/null && pwd -P )/${0##*/}" ;;
+esac
+case "$selfPath" in
 	*/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh)
 
 		set -e
 
+		## An exported MDLT_OPTION says the origin needs no resolution, and no resolution is what leaves that origin
+		## unchecked: the launch then loads every include from a tree nothing verified (MAGIC.md, "MDLT_OPTION").
+		if [ -n "$MDLT_OPTION" ] && { [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" ] || [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include" ] ; } ; then
+			printf '%s\n' "⛔ ERROR: DistroAgentsTools.fn.sh: MDLT_OPTION is set, so no origin resolution runs and MDLT_ORIGIN is taken as already resolved." >&2
+			printf '%s\n' "    origin: $MDLT_ORIGIN" >&2
+			printf '%s\n' "    option: $MDLT_OPTION" >&2
+			printf '%s\n' "    the launch loads AgentsContext.include and AgentsContext.FrontTable.include, and this tree lacks one." >&2
+			printf '%s\n' "    Unset MDLT_OPTION and MDLT_ORIGIN to let this workspace resolve its own origin, or point MDLT_ORIGIN at a tree carrying the tooling." >&2
+			exit 1
+		fi
 		if [ -z "$MDLT_ORIGIN" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
 			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
 		fi

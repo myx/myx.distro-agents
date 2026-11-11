@@ -81,7 +81,7 @@ cat > "$rigTmp/golden.source" <<'RIGEOF'
 			{
 				"label": "⬇️ Pull/Sync All Known Sources...",
 				"type": "shell",
-				"command": "bash -c 'echo \"Distro DistroImageSync --all-tasks --execute-source-prepare-pull\" | /rig/ws-golden/DistroSourceConsole.sh --non-interactive'",
+				"command": "bash -c 'echo \"DistroImageSync.fn.sh --all-tasks --execute-source-prepare-pull\" | /rig/ws-golden/DistroSourceConsole.sh --non-interactive'",
 				"group": {
 					"kind": "build",
 					"isDefault": true
@@ -99,7 +99,7 @@ cat > "$rigTmp/golden.source" <<'RIGEOF'
 			{
 				"label": "🛫 Ingest Source Changes...",
 				"type": "shell",
-				"command": "bash -c 'echo \"Distro DistroSourcePrepare --ingest-distro-index-from-source\" | /rig/ws-golden/DistroSourceConsole.sh --non-interactive'",
+				"command": "bash -c 'echo \"DistroSourcePrepare.fn.sh --ingest-distro-index-from-source\" | /rig/ws-golden/DistroSourceConsole.sh --non-interactive'",
 				"group": {
 					"kind": "build",
 					"isDefault": true

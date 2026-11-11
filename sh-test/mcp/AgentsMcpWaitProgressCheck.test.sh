@@ -21,7 +21,7 @@ rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroA
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsMcpWaitProgressCheck )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap '[ -n "${RIG_KEEP:-}" ] || rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 mkdir -p "$rigTmp/ws/.local/temp" "$rigTmp/home" "$rigTmp/skills/magic-coordinator"
 printf 'rig\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.basic.md"
@@ -64,7 +64,12 @@ rigFrames(){ ## scenario name -- how many progress frames
 ## The rig has no Slack, so the two default sources (the team channel, the owner DM) stand in WAIT-NEVER-READ beside the one line,
 ## and the CheckList's own line may stand after them (a Wait adds it on every return).
 rigTimeoutLine(){ ## scenario name -- the result text, with its seconds masked
-	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal\)\(\\nWAIT-NEVER-READ: [^"]*\)*\(\\nCHECKLIST: [^"\\]*\)*\(\\n\)*".*/\1/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/'
+	## The NEXT words depend on the member's CheckList (AgentsHarnessWait.include: `finish your CheckList, then run --idle-wait`
+	## while it has open items, `run --idle-wait` otherwise), which is the CheckList's business, not this check's: both forms
+	## are the one line, and read here as the plain one. The lines the Wait may add under it -- a source never read, a source
+	## in error (the member's default mentions source has no token in this rig), the CheckList's and the background tasks'
+	## lines -- are each the Wait's own and pass over; the one line is what is compared.
+	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s) NEXT: \(finish your CheckList, then \)\{0,1\}run --idle-wait, if you are waiting for new work or a dismissal\)\(\\nWAIT-NEVER-READ: [^"]*\)*\(\\nWAIT-SOURCE-ERROR: [^"]*\)*\(\\nCHECKLIST: [^"\\]*\)*\(\\nBACKGROUND: [^"\\]*\)*\(\\n\)*".*/\1/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/; s/NEXT: finish your CheckList, then run/NEXT: run/'
 }
 rigWaited(){ ## scenario name -- the seconds the TIMEOUT line names
 	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*WAIT-RESULT: TIMEOUT (\([0-9]*\)s).*/\1/p'

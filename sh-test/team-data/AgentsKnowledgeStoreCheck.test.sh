@@ -13,7 +13,8 @@
 ##      the moved section through the store
 ##   5. retire: the records a --section names are deleted, and the query no longer finds them
 ##   6. refused, rc 1, nothing written: spread with no --keep, a keep that would remove every section, and either
-##      operation with the store off
+##      operation with the store off; the index build with the store off (under its own label), with an argument,
+##      and with no model in the store's environment
 ##   7. the engine: one row a section, keyed by the source and the heading path, with the eleven columns, and the
 ##      full-text index the fusion needs
 ##   8. a repeat of one heading path inside a file takes ~2 and ~3
@@ -143,6 +144,12 @@ rigStoreOffRun(){ ## result name, words... -- a store operation, the store off
 rigStoreOffRun offspread --knowledge-store-spread source/rig/rig.alpha/MAGIC.md --keep 'Alpha rules'
 rigStoreOffRun offretire --knowledge-store-retire source/rig/rig.alpha/MAGIC.md --section 'Stored note'
 rigAssert "with the store off both refuse, naming --install-knowledge-store" "$( cat "$rigTmp/offspread.rc" ):$( LC_ALL=C grep -c -F -e 'is off' "$rigTmp/offspread.err" || : ):$( cat "$rigTmp/offretire.rc" ):$( LC_ALL=C grep -c -F -e 'is off' "$rigTmp/offretire.err" || : )" "1:1:1:1"
+rigStoreOffRun offbuild --knowledge-index-build
+rigAssert "the index build refuses with the store off, under its own label, and builds nothing" "$( cat "$rigTmp/offbuild.rc" ):$( LC_ALL=C grep -c -F -e 'is off' "$rigTmp/offbuild.err" || : ):$( LC_ALL=C grep -c -F -e '--install-knowledge-store:' "$rigTmp/offbuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:0:none"
+rigStoreRun argbuild --knowledge-index-build stray
+rigAssert "the index build refuses an argument" "$( cat "$rigTmp/argbuild.rc" ):$( LC_ALL=C grep -c -F -e 'takes no arguments' "$rigTmp/argbuild.err" || : )" "1:1"
+rigStoreRun nomodelbuild --knowledge-index-build
+rigAssert "the index build refuses while the store names no model, and builds nothing" "$( cat "$rigTmp/nomodelbuild.rc" ):$( LC_ALL=C grep -c -F -e 'embedding model' "$rigTmp/nomodelbuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:none"
 
 echo "-- 7 to 15. the index engine: one row a section, keyed by source and heading path --"
 ## The engine's own Python is the store's stand-in, so its `lancedb` and `model2vec` are staged side by side and imported

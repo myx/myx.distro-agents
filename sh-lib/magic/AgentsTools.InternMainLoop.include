@@ -212,7 +212,14 @@ case "$1" in
 			## reaches the remote (AgentsToolsTeamDataRemoteAlign).
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 			[ ! -e "$MDAT_DATA_ROOT/.git" ] || AgentsToolsTeamDataRemoteAlign "main-loop iteration" "$mainLoopDataRemote" || :
-			if [ -d "$MDAT_DATA_ROOT" ] && [ ! -d "$MDAT_DATA_ROOT/.git" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+			## The store holds content: read by a glob, never by an `ls` process at every loop (call-path audit row 44).
+			mainLoopStoreHeld=""
+			if [ -d "$MDAT_DATA_ROOT" ] && [ ! -d "$MDAT_DATA_ROOT/.git" ] ; then
+				for mainLoopStoreEntry in "$MDAT_DATA_ROOT"/* "$MDAT_DATA_ROOT"/.[!.]* "$MDAT_DATA_ROOT"/..?* ; do
+					[ ! -e "$mainLoopStoreEntry" ] || { mainLoopStoreHeld=yes ; break ; }
+				done
+			fi
+			if [ -n "$mainLoopStoreHeld" ] ; then
 				syncCommand="cloneSync"
 			fi
 			if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$mainLoopDataBranch" \

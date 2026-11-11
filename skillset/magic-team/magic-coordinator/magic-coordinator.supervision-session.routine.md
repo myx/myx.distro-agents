@@ -7,6 +7,7 @@ requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
 runs-at: none
+access-control: executors:allow-read:@team-data/**
 ---
 # magic-coordinator.supervision-session.routine — the actual procedure
 
@@ -87,6 +88,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **watch-human-owner-replies**: Read his `human-owner` conversation and the team bot's conversation with him, from the saved floor, and every thread with a reply newer than the floor. Read the clarifications on open asks too. That reading covers the session threads and the team conversations, following each reaction and reply to its effect, or steering the member until it has. Answer what he said before anything else, and store the new floor in the session.
 
    Before listing anything as waiting on him, read its current state.
+
+   - **each-answer-in-its-thread**: many unrelated threads run at once, so every answer goes into the thread of the message it answers, `to=<conversation>:<ts>` from that message's `[reply-to]` address. For each supervised run, read this tick its sends to a bare conversation target (its session log's `SendMessage human-owner` and `SendMessage magic-team` lines): each one is a new subject at the top of that conversation, and one that answers a message of his is a fault. Stop the run with one guide naming the thread to answer in, and record the fault.
+   - **his-correction-closes**: a correction of his gets one readback in the thread he wrote it in, from the run it corrects, and nothing more on that subject there until he writes again. A run that re-answers after his correction is stopped the same way.
+   - **record-before-answer**: an instruction, ruling or correction of his is written first, then answered. It goes into the Decisions of the tracking item of its subject (the board item the thread belongs to) through the board operation, and into the coordinator's state note where it binds the team. A readback or answer that goes out before the record is written is the fault this step prevents: what is not written is lost with the leg.
+   - **reload-state**: before the first action of a tick, read the coordinator's state note and the Decisions of every tracking item in play this tick, and read them again before any readback to him. A tick acts on what is recorded, never on what a leg remembers.
 2. **read-every-live-run**: For each live run of a session that is not held, read these before acting:
    - its latest tool calls, with their times.
    - the item in progress on its `CheckList`.
@@ -242,11 +248,11 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--current-flags` (`DistroAgentsDispatcher`)
-- `--manager-session-list [--active]`
-- `--manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]`
-- `--manager-session-checklist-read --session-id <id> <member>`
-- `--manager-session-kill --session-id <id> [--run] [--plan]`
-- `--manager-session-control-start (--session-id <id>|--all)`
+- `--manager-session-list [--active]` (`DistroAgentsTools`, run at the shell: `DistroAgentsTools.fn.sh --manager-session-list`; no MCP tool carries the `--manager-*` operations, and `DistroAgentsDispatcher` refuses them as an invalid option)
+- `--manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]` (`DistroAgentsTools`, at the shell)
+- `--manager-session-checklist-read --session-id <id> <member>` (`DistroAgentsTools`, at the shell)
+- `--manager-session-kill --session-id <id> [--run] [--plan]` (`DistroAgentsTools`, at the shell; the caller gate admits the acting magic-coordinator)
+- `--manager-session-control-start (--session-id <id>|--all)` (`DistroAgentsTools`, at the shell)
 - `--spawn-session` (`DistroAgentsDispatcher`)
 - `--return-review <item-filename> (--message <text>|--from-stdin)` (`DistroAgentsItems`)
 - `--email-send <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)` (`DistroAgentsMail`)

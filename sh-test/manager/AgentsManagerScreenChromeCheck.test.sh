@@ -362,7 +362,7 @@ rigAssert "Alt with the letter of a menu that is not in the bar opens nothing" "
 rigAssert "in a view every command of it stands in its menu, and none of another view: the sessions" "$( rigHas ss '│ Kill ' ) $( rigHas ss '│ Control thread' ) $( rigHas ss '│ Pause' ) $( rigHas ss '│ Restart' ) $( rigHas ss 'Start the routine' ) $( rigHas ss 'Free prompt' )" "1 1 1 1 0 0"
 rigAssert "and Launchpad, whose menu of the same name holds its two alone: the routine and the starts" "$( rigHas sl '│ Start the routine' ) $( rigHas sl '│ Start a session' ) $( rigHas sl '│ Kill ' ) $( rigHas sl '│ Pause' )" "1 1 0 0"
 rigAssert "one that does not apply to the row selected is greyed" "$( rigRole ssr 6 9 14 )" "xxxxxx"
-rigAssert "clicked, it is not chosen: the menu stays, and the status line says why" "$( rigVal clicked.menu ) [$( rigVal clicked.notice )] [$( rigVal clicked.dialog )]" "session:pause [Pause is not built yet] []"
+rigAssert "clicked, it is not chosen: the menu stays, and the status line says why" "$( rigVal clicked.menu ) [$( rigVal clicked.notice )] [$( rigVal clicked.dialog )]" "session:pause [Pause: for a session or an agent, not for what is selected] []"
 rigAssert "tried by its key, it says why in the status line, and no box opens" "[$( rigVal byKey.notice )] [$( rigVal byKey.dialog )]" "[Kill: for a session or an agent, not for what is selected] []"
 rigAssert "the key of a command of another view is no key here: nothing opens, and the status line keeps what it said" "[$( rigVal otherView.notice )] [$( rigVal otherView.dialog )]" "[Kill: for a session or an agent, not for what is selected] []"
 

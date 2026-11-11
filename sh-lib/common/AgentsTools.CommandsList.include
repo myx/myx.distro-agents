@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommandsList.include -- THE TOOLING COMMANDS OF THIS WORKSPACE, listed (epic S12.26): every `<Name>.fn.sh` of the
+## family's own sh-scripts and of every command folder the prepared index names, each name once, with the path the shell runs it
+## by. The one list a member reads to learn that `DeployRouting` or `DistroAgentsSlack` is a command with a `.fn.sh` suffix, never a
+## function, and where it stands. Sourced, never run. Functions only.
+##
+## THE FOLDERS are the ones the command path holds, in its order (myx.distro-.local/sh-lib/console-.local-path.include): the family's
+## `.local`, `system`, `agents`, `deploy`, `source` and `remote` sh-scripts, then the folders of `$MMDAPP/.local/distro-commands.txt`
+## (`<project> <command> <sh-scripts folder>`, written by the source-prepare builder). A name met twice keeps its first folder, as the
+## shell would. A ONE-OFF TOOL: seven globs and one file read, for a reader that asks once; nothing here runs on a call path.
+##
+## ROWS, tab-separated: `<name> <path>`, sorted by name. `--names` prints the names alone.
+##
+
+AgentsToolsCommandsList(){ ## --names (optional)
+	local listNames="" listFolder listFile listName listSeen=" " listRows=""
+	case "${1:-}" in
+		'') ;;
+		--names) listNames=yes ;;
+		*) echo "⛔ ERROR: --commands-list takes --names or nothing, not $1" >&2 ; return 1 ;;
+	esac
+	[ -n "${MDLT_ORIGIN:-}" ] || { echo "⛔ ERROR: --commands-list: MDLT_ORIGIN is not set, so the family's folders are unknown" >&2 ; return 1 ; }
+	for listFolder in \
+		"$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts" \
+		"$MDLT_ORIGIN/myx/myx.distro-deploy/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-source/sh-scripts" "$MDLT_ORIGIN/myx/myx.distro-remote/sh-scripts" \
+		$( [ -z "${MMDAPP:-}" ] || [ ! -f "$MMDAPP/.local/distro-commands.txt" ] || LC_ALL=C awk '$3 != "" { print $3 }' "$MMDAPP/.local/distro-commands.txt" ) ; do
+		[ -d "$listFolder" ] || continue
+		for listFile in "$listFolder"/*.fn.sh ; do
+			[ -f "$listFile" ] || continue
+			listName="${listFile##*/}" ; listName="${listName%.fn.sh}"
+			case "$listSeen" in *" $listName "*) continue ;; esac
+			listSeen="$listSeen$listName "
+			listRows="$listRows$listName"$'\t'"$listFile"$'\n'
+		done
+	done
+	if [ -n "$listNames" ] ; then
+		printf '%s' "$listRows" | LC_ALL=C cut -f 1 | LC_ALL=C sort
+	else
+		printf '%s' "$listRows" | LC_ALL=C sort
+	fi
+	return 0
+}

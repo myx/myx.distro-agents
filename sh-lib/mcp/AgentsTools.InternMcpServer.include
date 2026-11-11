@@ -61,9 +61,38 @@ case "$1" in
 			return 1
 		fi
 		AGENTS_MCP_REQ_SEQ=0
+		## NO REQUEST OUTLIVES ITS SERVER (S12.3), as the myx.common server has it: each request handler is kept in flight as
+		## `<pid> <start>` under inflight/, and the server's end signals each that is still the process it kept, what it started
+		## first, deepest first, then the handler. A background job a call detached is a process of the session, not of a request: it
+		## is kept under jobs/ and is not in flight here.
+		mkdir -p "$mcpScratchRoot/inflight" 2> /dev/null || :
+		type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+		## Every pid below one, deepest first: a grandchild a request forked goes with it. One ps a level, at the end alone.
+		AgentsToolsMcpServerEndDescendants(){ ## pid
+			local endChild
+			## The children are read a line each, whatever the field separator of this shell is at the end: a trap runs with the one the loop left.
+			while IFS= read -r endChild ; do
+				case "$endChild" in ''|*[!0-9]*) continue ;; esac
+				AgentsToolsMcpServerEndDescendants "$endChild"
+			done <<< "$( ps -ax -o pid=,ppid= 2> /dev/null | LC_ALL=C awk -v parent="$1" '$2 == parent { print $1 }' )"
+			kill -TERM "$1" 2> /dev/null || :
+		}
+		## Ends every request still in flight: one kept as `<pid> <start>`, signalled only while its pid is still the process that began then.
+		AgentsToolsMcpServerEndInflight(){
+			local endFile endPid endBegan endNow
+			[ -d "$mcpScratchRoot/inflight" ] || return 0
+			for endFile in "$mcpScratchRoot/inflight"/* ; do
+				[ -f "$endFile" ] || continue
+				IFS=' ' read -r endPid endBegan < "$endFile" 2> /dev/null || continue
+				case "$endPid" in ''|*[!0-9]*) continue ;; esac
+				endNow="$( printf '%s\n' "$endPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+				[ -n "$endNow" ] && [ "$endNow" = "$endPid $endBegan" ] || continue
+				AgentsToolsMcpServerEndDescendants "$endPid"
+			done
+		}
 		## A signal ends the server: removing the scratch root and reading on would leave
 		## every later request with nowhere to answer from, and the host waiting on it.
-		trap 'rm -rf "$mcpScratchRoot"' EXIT
+		trap 'AgentsToolsMcpServerEndInflight ; rm -rf "$mcpScratchRoot"' EXIT
 		trap 'exit 130' INT
 		trap 'exit 143' TERM
 
@@ -109,6 +138,8 @@ case "$1" in
 				for mcpStaleIndex in ${!MDSC_ID*} ; do unset "$mcpStaleIndex" ; done
 				printf '%s\n' "$mcpLine" | exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-request "$$" "$AGENTS_MCP_REQ_SEQ" 3>&1 1>&2
 			) < /dev/null &
+			## The handler is kept in flight with when it began, so the end signals this process and never a later one of the same number.
+			printf '%s\n' "$!" | AgentsToolsRegistryProcessesBegan 2> /dev/null > "$mcpScratchRoot/inflight/$AGENTS_MCP_REQ_SEQ" || :
 		done
 		wait
 

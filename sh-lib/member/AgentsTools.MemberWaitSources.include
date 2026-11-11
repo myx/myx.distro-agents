@@ -79,8 +79,9 @@
 			fi
 			waitStateDir="$MMDAPP/.local/agents/sessions/$waitSessionId/wait"
 			echo "# --wait-for-input: mode=$waitMode member=$memberName session=$waitSessionId" >&2
-			## Abandoned state is swept on the way in, as the working directories below are.
-			find "$MMDAPP/.local/agents/sessions" -maxdepth 2 -type d -name wait -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+			## Abandoned state is swept on a session's first wait, the one that finds no state folder of its own yet, as the working
+			## directories below are: a walk over every session's folder on every Wait call is a hot-path fault (call-path audit row 59).
+			[ -d "$waitStateDir" ] || find "$MMDAPP/.local/agents/sessions" -maxdepth 2 -type d -name wait -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 			if [ "$waitMode" = "continue" ] && [ ! -f "$waitStateDir/state" ] ; then
 				echo "WAIT-RESULT: ERROR"
 				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-continue found no stored wait for session $waitSessionId. Nothing was waited on, and no default wait was started in its place: call --wait-default." >&2
@@ -191,7 +192,7 @@
 		if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then
 			local floorChatKey=""
 			type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
-			floorChatKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || floorChatKey=""
+			AgentsToolsSessionChatKeyInto ; floorChatKey="$agentsSessionChatKey"
 			## The chat file is no substitute for the replies: a reply to one of the run's own posts elsewhere is the replies source's.
 			local floorOwnElsewhere="" floorOwnLine floorOwnThread=""
 			if [ -f "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" ] ; then

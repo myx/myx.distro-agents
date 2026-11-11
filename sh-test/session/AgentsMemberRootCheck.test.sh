@@ -98,10 +98,11 @@ rigReportHas(){ printf '%s\n' "$( rigDepReport )" | LC_ALL=C grep -c -F -- "$1" 
 
 echo "-- 1. an inherited data root is resolved again --"
 rigOne pass1
-## THE PASS RAN. Its own contract (AgentsTools.ScheduleThread.include:40-44) answers 2 while a flag that keeps duties is on, which worktime
-## is at this hour, and 0 otherwise. Either is a pass that ran. A pass that could not run says so on its error stream, which is the row below.
-rigAssert "the pass ran: its answer is one of the two its contract gives, not a call that never started" \
-	"$( [ "$rigOneRc" = 0 ] || [ "$rigOneRc" = 2 ] && printf ran || printf other )" "ran"
+## THE PASS RAN, read from its product and not from its status alone. Its contract answers 2 while a flag that keeps duties is on, which
+## worktime is at this hour, and 0 otherwise. But 0 is also what a pass that did nothing answers, so the status proves no work on its own:
+## the dependencies report is the product that only a pass which reached its board step writes.
+rigAssert "the pass ran: its answer is one its contract gives, and its board step wrote the report" \
+	"$( { [ "$rigOneRc" = 0 ] || [ "$rigOneRc" = 2 ] ; } && printf ran || printf other ):$( [ -s "$rigWs/.local/agents/board-dependencies.last" ] && printf report || printf none )" "ran:report"
 rigAssert "and it reported no error of its own" "$( LC_ALL=C grep -c -E 'ERROR' "$rigDir/pass1.err" || : )" "0"
 rigAssert "its report is written in the workspace's own state folder, whatever store was inherited" \
 	"$( [ -s "$rigWs/.local/agents/board-dependencies.last" ] && printf report )" "report"

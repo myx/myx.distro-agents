@@ -51,13 +51,17 @@ AgentsToolsMagicEpicCaller(){ ## the operation, write (the default) or read
 
 ## The path in the vault of the epic item a call names, rc 1 where the argument is no vault epic name.
 AgentsToolsMagicEpicVaultPath(){ ## the argument
-	case "$1" in
+	local vaultName="$1"
+	case "$vaultName" in
 		*/*|'') return 1 ;;
 		epic-blueprint-*.md) ;;
+		## a name with no extension is the Markdown document of that name (the ruling in AgentsTools.InternOpVaultAudit.include)
+		epic-blueprint-*.*) return 1 ;;
+		epic-blueprint-*) vaultName="$vaultName.md" ;;
 		*) return 1 ;;
 	esac
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
-	printf '%s/vault/%s\n' "$MDAT_DATA_ROOT" "$1"
+	printf '%s/vault/%s\n' "$MDAT_DATA_ROOT" "$vaultName"
 }
 
 ## A vault epic's edited copy becomes the item through the one vault write, which checks it and commits it. A plain source
@@ -70,7 +74,9 @@ AgentsToolsMagicEpicPut(){ ## the built copy, the file it was built from, the va
 	fi
 	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 	putMember="$( AgentsToolsActingMember )" ; putMember="${putMember:-magic-coordinator}"
-	"${MDAT_BASH:-bash}" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --upsert-vault-epic-blueprint "$putMember" "$3" --from-file "$1" || { rm -f -- "$1" ; return 1 ; }
+	## The member goes as --team-member (S21.3): the front door places the acting member first for this operation, and a positional one here
+	## was read as the item name ("magic-coordinator.md does not start with the type word").
+	"${MDAT_BASH:-bash}" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --upsert-vault-epic-blueprint --team-member "$putMember" "$3" --from-file "$1" || { rm -f -- "$1" ; return 1 ; }
 	rm -f -- "$1"
 }
 
@@ -98,6 +104,10 @@ case "$1" in
 
 	--epic-update)
 		shift
+		## The member comes first, placed by the common layer from --team-member or the environment (S21.3): the syntax index declares it,
+		## and a body that did not take it read the member's name as the epic file.
+		local epicMember="${1:-}"
+		shift || true
 		local epicFile="${1:-}" epicMode="${2:-}"
 		shift 2 || true
 		if [ -z "$epicFile" ] || [ -z "$epicMode" ] ; then
@@ -155,9 +165,10 @@ case "$1" in
 					}
 					statusDoneLine="- $statusItemId: $statusDoneText"
 					statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
-					LC_ALL=C awk -v want="## $featureId " -v n="$statusItemN" -v line="$statusDoneLine" '
+					## The line goes through the environment, never -v, which decodes a backslash in it (MAGIC.md section 3).
+					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v want="## $featureId " -v n="$statusItemN" '
 						function emit(lineIn) { print lineIn ; lastBlank = ( lineIn ~ /^[ \t]*$/ ) ; }
-						BEGIN { inFeature = 0 ; seenDone = 0 ; skipping = 0 ; heldBlank = 0 ; closed = 0 ; lastBlank = 0 }
+						BEGIN { line = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; seenDone = 0 ; skipping = 0 ; heldBlank = 0 ; closed = 0 ; lastBlank = 0 }
 						{
 							if ( $0 == "## Done" ) { seenDone = 1 }
 							if ( skipping ) {
@@ -201,8 +212,8 @@ case "$1" in
 					statusDoneText="$( AgentsToolsMagicEpicDoneText "$epicFile" "$featureId" )"
 					statusDoneLine="- $featureId: $statusDoneText"
 					statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
-					LC_ALL=C awk -v want="## $featureId " -v line="$statusDoneLine" '
-						BEGIN { inFeature = 0 ; seenDone = 0 }
+					EPIC_LINE="$statusDoneLine" LC_ALL=C awk -v want="## $featureId " '
+						BEGIN { line = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; seenDone = 0 ; }
 						{
 							if ( $0 == "## Done" ) { seenDone = 1 }
 							if ( inFeature ) {
@@ -218,8 +229,8 @@ case "$1" in
 					set +e ; return 0
 				fi
 				statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
-				LC_ALL=C awk -v want="## $featureId " -v new="Status: $featureStatus" '
-					BEGIN { inFeature = 0 ; placed = 0 }
+				EPIC_LINE="Status: $featureStatus" LC_ALL=C awk -v want="## $featureId " '
+					BEGIN { new = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; placed = 0 ; }
 					{
 						if ( ! inFeature ) {
 							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }
@@ -258,8 +269,8 @@ case "$1" in
 				}
 				settledLine="$settledText"
 				settledTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
-				LC_ALL=C awk -v want="## $featureId " -v line="$settledLine" '
-					BEGIN { inFeature = 0 ; placed = 0 }
+				EPIC_LINE="$settledLine" LC_ALL=C awk -v want="## $featureId " '
+					BEGIN { line = ENVIRON["EPIC_LINE"] ; inFeature = 0 ; placed = 0 ; }
 					{
 						if ( ! inFeature ) {
 							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }

@@ -46,10 +46,10 @@ MDAT_SCHEDULE_EMERGENCY=until $(( rigNow + 90 ))
 rigBefore="$( find "$rigTmp/set" -type f | LC_ALL=C sort | xargs cksum )"
 rigRead set
 rigAssert "it ends 0, and its stdout is rows only" "$rigRc:$( LC_ALL=C grep -c -v -E '^(now|flag|switch|cell)	' "$rigTmp/set.out" )" "0:0"
-rigAssert "the rows are now, seven flags and the vacation entry row, one switch and 168 cells, in that order of kinds" \
+rigAssert "the rows are now, eight flags and the vacation entry row, one switch and 168 cells, in that order of kinds" \
 	"$( LC_ALL=C awk -F'\t' '{ if ( $1 != last ) { kinds = kinds ( kinds == "" ? "" : " " ) $1 ; last = $1 } count[$1]++ } END { print kinds ":" count["now"] ":" count["flag"] ":" count["switch"] ":" count["cell"] }' "$rigTmp/set.out" )" \
-	"now flag switch cell:1:8:1:168"
-rigAssert "the flags are worktime, weekend, holidays, emergency, overtime, learning, supervised, then the vacation entry row" "$( LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 }' "$rigTmp/set.out" )" "worktime weekend holidays emergency overtime learning supervised vacation "
+	"now flag switch cell:1:9:1:168"
+rigAssert "the flags are worktime, weekend, holidays, holding, emergency, overtime, learning, supervised, then the vacation entry row" "$( LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 }' "$rigTmp/set.out" )" "worktime weekend holidays holding emergency overtime learning supervised vacation "
 rigAssert "now names the zone the settings give" "$( rigRow set now | LC_ALL=C cut -f5 )" "UTC"
 rigAssert "an override with a TTL reads yes with its seconds left" \
 	"$( rigRow set flag emergency | LC_ALL=C cut -f3 ):$( rigRow set flag emergency | LC_ALL=C cut -f4 | LC_ALL=C grep -c 'seconds left' )" "yes:1"

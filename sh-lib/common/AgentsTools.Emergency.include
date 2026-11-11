@@ -1,0 +1,23 @@
+##
+## AgentsTools.Emergency.include -- whether the emergency flag holds, cheap enough for the harness to ask on its hot path. Sourced, never run.
+##
+## THE EMERGENCY COMES BEFORE ECONOMY AND PROCESS (the human-owner, S12.181): while it holds, the measures that save tokens or add a process
+## step stand aside -- the batching steer of a lone read (S12.159), the floor-wait rewind (S12.172), the in-place restart on new code
+## (S12.189) and the routing of an inquiry through the coordinator (S12.168) -- so a
+## tooling fault or a board step does not become the emergency's blocker. A verify of unchanged work stays held in an emergency too. The flag is the team setting MDAT_SCHEDULE_EMERGENCY: `on`, or
+## `until <epoch>` while that moment is ahead (--override-flag emergency <ttl>), read straight from the team's agent settings.
+AgentsToolsEmergencyHolds(){
+	local emergencyValue="" emergencyEnd=""
+	emergencyValue="$( LC_ALL=C sed -n 's/^MDAT_SCHEDULE_EMERGENCY=//p' "${MMDAPP:-/nonexistent}/.local/.agents/magic-team.agent.env" 2> /dev/null | tail -1 )"
+	emergencyValue="${emergencyValue#\"}" ; emergencyValue="${emergencyValue%\"}"
+	case "$emergencyValue" in
+		on) return 0 ;;
+		"until "[0-9]*)
+			emergencyEnd="${emergencyValue#until }"
+			case "$emergencyEnd" in *[!0-9]*) return 1 ;; esac
+			[ "$emergencyEnd" -gt "$( date +%s )" ]
+			return
+		;;
+	esac
+	return 1
+}

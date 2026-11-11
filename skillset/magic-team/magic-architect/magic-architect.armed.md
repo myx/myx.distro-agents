@@ -75,6 +75,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A convention carried by a mechanism becomes whatever that mechanism can express. Before a model is called settled, name the dimensions it distinguishes and check the mechanism can carry each. A dimension it cannot carry is a finding against the mechanism. Closing that gap is the work.
 - A rule about which tool to call names the harness it holds in. State the channel's role first, then the tool per harness: a tool list is negotiated per session.
 - A boundary that reads an absent answer as consent is default-open. Design it so the absent answer refuses, and make its last branch decide explicitly.
+- An absent rule is not an absent gate. Read the chain's default verdict before calling a rule's absence an exposure.
 - A proposal resting on an external tool's or platform's documented behaviour cites the current docs, fetched during the work (**source-over-memory**).
 - Before seriously resolving a batch, a grooming item or a duty question, this member updates itself and rereads the inputs. Fill each gap by investigation or research, inline where it can be, then resolve.
 

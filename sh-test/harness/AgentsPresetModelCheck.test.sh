@@ -11,6 +11,8 @@
 ##   3. the console calls it for a harness leg only, after the credentials; and it passes a vendor CLI no model option
 ##   5. the console's DagcHarnessContextExport: the preset's PRESET_CONTEXT_MAX_SIZE is exported for a harness leg,
 ##      a parent's is dropped, an extending preset inherits it, and the call sits beside the models and the cache time
+##   6. the console's DagcHarnessEndpointExport: the preset's PRESET_ENDPOINT_URL is exported for a harness leg, a parent's
+##      is dropped, an extending preset inherits it, and the call sits beside the other four
 ## Red before F10.2: all fail. Offline: the rig workspace alone.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -130,6 +132,30 @@ rigAssert "a caller-named service is no preset's: none"                       "$
 printf 'SPAWN_TIER_NORMAL=rig-context\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigContextExport )" "context=200000"
 rigAssert "the call is for a harness leg, in the console, once, beside the models and the cache" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessContextExport$/ { if ( gate > 0 && gate == NR - 3 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
+
+echo "-- 6. the console's export of the endpoint the preset names --"
+rigFunction="$( LC_ALL=C awk '/^DagcHarnessEndpointExport\(\)\{/ { on = 1 } on { print } on && /^}/ { exit }' "$rigTemplate" )"
+rigAssert "the console defines it"                                          "$( printf '%s' "$rigFunction" | LC_ALL=C grep -c -e '^DagcHarnessEndpointExport(){' )" 1
+rigEndpointExport(){ ## env assignments for the call -- `endpoint=<value|unset>` after the function ran
+	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
+		bash -c "$rigFunction"'
+			DagcHarnessEndpointExport
+			printf "endpoint=%s" "${HARNESS_ENDPOINT_URL-unset}"
+		' 2> /dev/null )
+}
+printf 'SPAWN_CLI_SERVICE=claude-native\n' > "$rigAgents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\nPRESET_ENDPOINT_URL=https://rig-endpoint.invalid/v1\n' > "$rigAgents/preset-rig-endpoint.agent.env"
+printf 'PRESET_EXTEND=rig-endpoint\n' > "$rigAgents/preset-rig-endpoint-ext.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\n' > "$rigAgents/preset-rig-noendpoint.agent.env"
+chmod 770 "$rigAgents" ; chmod 660 "$rigAgents"/*.agent.env
+rigAssert "no tier setting: none is exported, and a parent's is dropped"      "$( rigEndpointExport HARNESS_ENDPOINT_URL=https://leak.invalid/v1 )" "endpoint=unset"
+rigAssert "the spawn's own preset: its endpoint is exported"                  "$( rigEndpointExport MDAT_SPAWN_PRESET=rig-endpoint )" "endpoint=https://rig-endpoint.invalid/v1"
+rigAssert "one that extends it inherits it"                                  "$( rigEndpointExport MDAT_SPAWN_PRESET=rig-endpoint-ext )" "endpoint=https://rig-endpoint.invalid/v1"
+rigAssert "a preset that names none: none, a parent's dropped"                "$( rigEndpointExport MDAT_SPAWN_PRESET=rig-noendpoint HARNESS_ENDPOINT_URL=https://leak.invalid/v1 )" "endpoint=unset"
+rigAssert "a caller-named service is no preset's: none"                       "$( rigEndpointExport MDAT_SPAWN_PRESET=-claude HARNESS_ENDPOINT_URL=https://leak.invalid/v1 )" "endpoint=unset"
+printf 'SPAWN_TIER_NORMAL=rig-endpoint\n' >> "$rigAgents/magic-team.agent.env"
+rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigEndpointExport )" "endpoint=https://rig-endpoint.invalid/v1"
+rigAssert "the call is for a harness leg, in the console, once, beside the four" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessEndpointExport$/ { if ( gate > 0 && gate == NR - 5 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PRESET MODEL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

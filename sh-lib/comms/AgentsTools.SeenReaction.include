@@ -31,6 +31,17 @@ AgentsToolsSeenLog(){ ## member, target, identity:account, ok|failed, the reason
 	return 0
 }
 
+## A message the member was handed through a session thread it takes part in (the session source, `chat:`): its ts, one a line, in
+## schedule/seen/<member>.session. A mentions read leaves such a message out (AgentsWaitSessionReceivedDrop.awk), since the member
+## has it already. Quiet; rc 0 always.
+AgentsWaitSessionReceivedNote(){ ## member, <conversation>:<ts> of the message
+	local noteTs="${2##*:}"
+	case "$noteTs" in ''|*[!0123456789.]*|.*|*.) return 0 ;; esac
+	[ -n "${1:-}" ] && mkdir -p "${MMDAPP:-/nonexistent}/.local/agents/schedule/seen" 2> /dev/null || return 0
+	printf '%s\n' "$noteTs" >> "$MMDAPP/.local/agents/schedule/seen/$1.session" 2> /dev/null || :
+	return 0
+}
+
 AgentsToolsSeenReact(){ ## member, <conversation>:<ts> of the message
 	local seenMember="$1" seenTarget="$2" seenTs seenDir seenAccount seenIdentity seenRc seenDiag seenReason seenActor
 	seenTs="${seenTarget##*:}"

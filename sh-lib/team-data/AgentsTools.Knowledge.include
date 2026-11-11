@@ -164,7 +164,7 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 		return 0
 	fi
 	local knowIndex="" knowIndexRc=0 knowIndexScratch="" knowIndexModel knowIndexModelDir knowIndexText knowIndexHits knowIndexLine
-	local knowIndexFile knowIndexRef knowIndexStore knowIndexMember knowIndexPath knowIndexDropped=0
+	local knowIndexFile knowIndexRef knowIndexStore knowIndexScore knowIndexMember knowIndexPath knowIndexDropped=0
 	## The index stands when the store is on, its Python stands, and the index resolver's own root holds a table. The
 	## rows the fused call ranks are then the answer; with it off, uninstalled or absent, the text alone answers.
 	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
@@ -207,7 +207,7 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 				type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 				knowIndexMember="$( AgentsToolsActingMember )"
 				knowFiles="" knowStoreMap=""
-				while IFS=$'\t' read -r knowIndexFile knowIndexRef knowIndexStore ; do
+				while IFS=$'\t' read -r knowIndexFile knowIndexRef knowIndexStore knowIndexScore ; do
 					[ -n "$knowIndexFile" ] || continue
 					case "$knowIndexStore" in
 						docs) case "$knowSources " in *" --add-source-docs "*) ;; *) knowIndexDropped=$(( knowIndexDropped + 1 )) ; continue ;; esac ;;

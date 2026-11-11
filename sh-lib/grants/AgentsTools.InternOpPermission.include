@@ -580,8 +580,16 @@ AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the cowo
 	runCow="$( AgentsToolsPermissionShareStore "${1:-}" )"
 	[ -n "$runCow" ] || return 0
 	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	## The registry as it stands (AgentsToolsSpawnedRegistryFile), measured for this session's rows: this
+	## runs on each ask routed, so it never rebuilds the registry from every record itself. The measure is
+	## the render's own (AgentsToolsRegistryMeasureRows): one process list, live is never stored.
+	local runRegistry measuredRows="" measuredDated="" measuredAny="false"
+	runRegistry="$( AgentsToolsSpawnedRegistryFile )"
+	[ -n "$runRegistry" ] || return 0
+	AgentsToolsRegistryMeasureRows "$runRegistry" "" "$runCow"
 	## An agent-less parent runs no member: its owner is not running there by it.
-	AgentsToolsRegistryRenderSpawnedSessions agents "$runCow" 2> /dev/null | LC_ALL=C awk -v cow="$runCow" '
+	printf '%s\n' "$measuredRows" | LC_ALL=C awk -v cow="$runCow" '
 		NF == 13 && $2 == cow && $12 == "running" { print $1 "\t" $8 "\t" $5 ; }' \
 	| while IFS=$'\t' read -r runTracking runSpawn runOwner ; do
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$runTracking/$runSpawn.spawn.md" agent-less )" != true ] || continue
@@ -1614,7 +1622,26 @@ case "$1" in
 		## and an entry to Edit or Write a path reads it too (AgentsToolsGrantsToolCovers).
 		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] || { set +e ; return 1 ; }
 		local readItem readDispatch="" readTracks="" readPlanned="" readLine readState readItemSession readItemSpawn readItemOwner readItemAllows readItemTracks
-		for readItem in "$MDAT_DATA_ROOT"/board/*/dispatch-*.md ; do
+		## The session's dispatch item by name: a run's record names the dispatch it works in `spawns:` (else
+		## `spawned-by:`), and the session's records come from the kept per-session list
+		## (AgentsTools.StartedRecords.include), so an ask reads one item and never every dispatch item of the
+		## board. Where no record of the session is here, every dispatch item is read, as before.
+		local readRecord readNamed readCandidates=()
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		for readRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$readSession.spawn.md" $( AgentsToolsSpawnedSessionRecords "$readSession" own 2> /dev/null ) ; do
+			[ -f "$readRecord" ] || continue
+			[ "$( AgentsToolsPermissionField "$readRecord" owner )" = "$readMember" ] || continue
+			readNamed="$( AgentsToolsPermissionField "$readRecord" spawns )"
+			[ -n "$readNamed" ] || readNamed="$( AgentsToolsPermissionField "$readRecord" spawned-by )"
+			readNamed="${readNamed%%,*}" ; readNamed="${readNamed%% *}" ; readNamed="${readNamed%.md}"
+			case "$readNamed" in dispatch-*) ;; *) continue ;; esac
+			case "$readNamed" in */*|.|..) continue ;; esac
+			for readItem in "$MDAT_DATA_ROOT"/board/*/"$readNamed.md" ; do
+				[ ! -f "$readItem" ] || readCandidates+=( "$readItem" )
+			done
+		done
+		[ "${#readCandidates[@]}" -gt 0 ] || readCandidates=( "$MDAT_DATA_ROOT"/board/*/dispatch-*.md )
+		for readItem in "${readCandidates[@]}" ; do
 			[ -f "$readItem" ] || continue
 			readItemSession="" ; readItemSpawn="" ; readItemOwner="" ; readItemAllows="" ; readItemTracks="" ; readState=""
 			while IFS= read -r readLine ; do

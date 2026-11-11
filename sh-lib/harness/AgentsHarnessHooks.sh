@@ -235,7 +235,12 @@ AgentsHarnessHooksRefusal(){
 				(
 					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 					hookRunBegan="$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
-					sleep 60
+					## The sleep is a child of this watchdog: the TERM that ends the watchdog once the hook returned must end the
+					## sleep too, else one `sleep 60` outlives every hook under launchd.
+					watchSleep="" ; trap '[ -z "$watchSleep" ] || kill "$watchSleep" 2>/dev/null ; exit 0' TERM
+					sleep 60 & watchSleep=$!
+					wait "$watchSleep" || exit 0
+					watchSleep=""
 					[ -n "$hookRunBegan" ] && [ "$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$hookRunBegan" ] && kill -TERM "$hookRunPid" 2>/dev/null
 				) >/dev/null &
 				hookWatchPid=$!

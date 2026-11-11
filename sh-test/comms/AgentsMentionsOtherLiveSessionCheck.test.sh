@@ -123,6 +123,11 @@ cat > "$rigDir/.local/agents/spawned/spawnB/spawnB.spawn.md" <<-EOF
 	# fake live record, session B (the sibling, with its own thread)
 	EOF
 
+## The member's mention pointer and its check stamp are the member's, one for all its sessions (member-pointers/<member>.pointers).
+## Assertions 1 to 3 test the sibling-thread exclusion as a member's first read sees it, so each starts from no pointer.
+rigFreshMember(){
+	rm -f "$rigDir/.local/agents/member-pointers/rig-member.pointers"
+}
 rigProbe(){ ## session id probing
 	local probeFile
 	probeFile="$( mktemp "$rigDir/probe.XXXXXX" )" ; rm -f "$probeFile"
@@ -135,20 +140,21 @@ rigProbe(){ ## session id probing
 }
 
 echo "-- 1. the bug, reproduced: a mention sitting only in sibling session B's own thread is still returned to A --"
+rigFreshMember
 rigOut="$( rigProbe rig-sess-a )"
 rigAssert "THE FIX (not yet built): a mention in a live sibling's own thread must NOT be returned here too" \
 	"$( rigTextHas "$rigOut" RIG-MENTION-IN-B )" no
 
 echo "-- 2. same scene, probed from B's own session: its own mention, kept --"
+rigFreshMember
 rigOut2="$( rigProbe rig-sess-b )"
 rigAssert "the session whose own thread this is still gets it (nothing here should ever suppress that)" \
 	"$( rigTextHas "$rigOut2" RIG-MENTION-IN-B )" yes
 
 echo "-- 3. a second record of B's own thread, a different session-id, does not make B lose its own mention --"
-## Clears the TTL this same session's own probe just set (mentions-checked:rig-member, line 2 above), so this
-## third probe searches again instead of reading its own round's own "checked within the TTL" skip as if it
-## were the fix's own exclusion -- a test-rig artifact of reusing one session twice, not the code under test.
-MMDAPP="$rigDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c ". '$rigHere/session/AgentsTools.SessionChat.include' ; AgentsToolsSessionChatPointerSet rig-sess-b mentions-checked:rig-member 0"
+## Clears the member's pointer and check stamp that probe 2 just set, so this third probe searches again instead of reading
+## the "checked within the TTL" skip as if it were the fix's own exclusion -- a test-rig artifact, not the code under test.
+rigFreshMember
 cat > "$rigDir/.local/agents/spawned/spawnB/spawnBChild.spawn.md" <<-EOF
 	---
 	session-id: rig-sess-b-child
@@ -167,6 +173,23 @@ cat > "$rigDir/.local/agents/spawned/spawnB/spawnBChild.spawn.md" <<-EOF
 rigOut3="$( rigProbe rig-sess-b )"
 rigAssert "THE FIX: B's own mention survives a second record of its own thread under another session-id" \
 	"$( rigTextHas "$rigOut3" RIG-MENTION-IN-B )" yes
+
+echo "-- 4. one read per member: what B read is not handed to A, another session of the same member --"
+## B's Wait returned the mention, so it commits it as the member's read (AgentsWaitMentionsCommit), as a Wait does.
+printf '%s\n' "$rigMatchTs" > "$rigDir/commit.newest"
+env -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID MMDAPP="$rigDir" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SESSION_ID=rig-sess-b \
+	bash -c ". '$rigHere/member/AgentsTools.MemberWaitMentions.include' ; AgentsWaitMentionsCommit rig-member '$rigDir/commit.newest'"
+rm -f "$rigDir/commit.newest"
+## B's live records go, so A no longer excludes B's thread, and the check stamp alone is cleared, so A searches again: only the
+## member's mention pointer can keep the message from it. With a pointer per session, A's own would still be behind it.
+rm -f "$rigDir/.local/agents/spawned/spawnB/"*.spawn.md
+for rigStamps in "$rigDir/.local/agents/member-pointers/rig-member.pointers" "$rigDir/.local/agents/sessions/rig-sess-a/session.chat.pointers" ; do
+	[ -f "$rigStamps" ] || continue
+	LC_ALL=C awk -F'\t' '$1 != "mentions-checked:rig-member"' "$rigStamps" > "$rigStamps.tmp" && mv -f "$rigStamps.tmp" "$rigStamps"
+done
+rigOut4="$( rigProbe rig-sess-a )"
+rigAssert "a mention one session of the member read is not returned to another session of it" \
+	"$( rigTextHas "$rigOut4" RIG-MENTION-IN-B )" no
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MENTIONS OTHER LIVE SESSION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

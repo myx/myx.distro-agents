@@ -60,11 +60,11 @@ AgentsToolsDecisionsItemFromRef(){ ## task ref text, session id
 	return 1
 }
 
-## Text as one line: whitespace runs to one space, trimmed, cut at <max> characters (default 300).
+## Text as one line: whitespace runs to one space, trimmed, cut at <max> bytes (default 300) on a UTF-8 boundary.
 AgentsToolsDecisionsOneLine(){ ## text, max
-	printf '%s' "$1" | LC_ALL=C tr -s ' \t\r\n' '    ' | LC_ALL=C awk -v max="${2:-300}" '
-		{ text = text ( NR > 1 ? " " : "" ) $0 ; }
-		END { sub( /^ +/, "", text ) ; sub( / +$/, "", text ) ; if ( length( text ) > max ) { text = substr( text, 1, max - 3 ) "..." ; } print text ; }'
+	printf '%s' "$1" | LC_ALL=C tr -s ' \t\r\n' '    ' | LC_ALL=C awk -v max="${2:-300}" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsProgressLineSafe.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsDecisionsOneLine.awk"
 }
 
 ## The first line of a question, as both sides of a re-ask compare it: the first line that
@@ -111,6 +111,80 @@ agentsDecisionsOwnAwk='
 		return last ;
 	}
 '
+
+## The awk program the body writes run (AgentsToolsDecisionsKeep): the stored item first, the new
+## body second. It takes the own section of each by the reader's own functions, so a line the
+## reader sees is a line this keeps. A refusal exits before anything reaches stdout.
+agentsDecisionsKeepAwk="$agentsDecisionsOwnAwk"'
+	{ if ( FILENAME == ENVIRON["MDAT_KEEP_STORED"] ) { storedLine[++storedCount] = $0 ; } else { bodyLine[++bodyCount] = $0 ; } }
+	END {
+		bodyEnd = bodyCount ;
+		while ( bodyEnd > 0 && bodyLine[bodyEnd] ~ /^[ \t]*$/ ) { bodyEnd-- ; }
+		if ( bodyEnd == 0 ) { exit 0 ; }
+		if ( storedCount > 0 ) {
+			for ( i = 1 ; i <= storedCount ; i++ ) { line[i] = storedLine[i] ; }
+			storedStart = decisionsOwn( storedCount, marker ) ;
+		}
+		if ( storedStart > 0 ) {
+			storedLast = decisionsEnd( storedCount, storedStart ) ;
+			for ( i = storedStart ; i <= storedLast ; i++ ) { keptLine[++keptCount] = line[i] ; }
+			for ( i = storedStart + 1 ; i <= storedLast ; i++ ) { if ( line[i] ~ /^- / ) { recorded[++recordedCount] = line[i] ; } }
+		}
+		if ( bodyCount > 0 ) {
+			for ( i = 1 ; i <= bodyCount ; i++ ) { line[i] = bodyLine[i] ; }
+			bodyStart = decisionsOwn( bodyCount, marker ) ;
+		}
+		if ( bodyStart > 0 ) {
+			bodyLast = decisionsEnd( bodyCount, bodyStart ) ;
+			for ( i = bodyStart + 1 ; i <= bodyLast ; i++ ) { if ( line[i] ~ /^- / ) { carried[++carriedCount] = line[i] ; } }
+		}
+		if ( keepMode == "edit" ) {
+			for ( i = 1 ; i <= recordedCount ; i++ ) {
+				storedTimes = 0 ; carriedTimes = 0 ;
+				for ( j = 1 ; j <= recordedCount ; j++ ) { if ( recorded[j] == recorded[i] ) { storedTimes++ ; } }
+				for ( j = 1 ; j <= carriedCount ; j++ ) { if ( carried[j] == recorded[i] ) { carriedTimes++ ; } }
+				if ( carriedTimes >= storedTimes ) { continue ; }
+				printf "⛔ ERROR: %s: %s: this write would drop a recorded decision, so nothing was written: %s\n", cmdName, keepLabel, recorded[i] > "/dev/stderr" ;
+				dropped++ ;
+			}
+			if ( dropped > 0 ) { exit 1 ; }
+		}
+		if ( recordedCount == 0 ) {
+			for ( i = 1 ; i <= bodyCount ; i++ ) { print bodyLine[i] ; }
+			exit 0 ;
+		}
+		for ( j = 1 ; j <= carriedCount ; j++ ) {
+			known = 0 ;
+			for ( i = 1 ; i <= recordedCount ; i++ ) { if ( recorded[i] == carried[j] ) { known = 1 ; } }
+			if ( ! known ) { extra[++extraCount] = carried[j] ; }
+		}
+		if ( bodyStart > 0 ) {
+			for ( i = 1 ; i < bodyStart ; i++ ) { print bodyLine[i] ; }
+			for ( i = 1 ; i <= keptCount ; i++ ) { print keptLine[i] ; }
+			for ( i = 1 ; i <= extraCount ; i++ ) { print extra[i] ; }
+			for ( i = bodyLast + 1 ; i <= bodyCount ; i++ ) { print bodyLine[i] ; }
+			exit 0 ;
+		}
+		bodyEnd = bodyCount ;
+		while ( bodyEnd > 0 && bodyLine[bodyEnd] ~ /^[ \t]*$/ ) { bodyEnd-- ; }
+		for ( i = 1 ; i <= bodyEnd ; i++ ) { print bodyLine[i] ; }
+		print "" ;
+		for ( i = 1 ; i <= keptCount ; i++ ) { print keptLine[i] ; }
+		for ( i = 1 ; i <= extraCount ; i++ ) { print extra[i] ; }
+	}
+'
+
+## A body write keeps the item's recorded Decisions: the new body on stdin, the kept one on stdout.
+## `keep` is a whole body, and puts the recorded block back with any decision line the body carries
+## merged into it; `edit` is a body derived from the item, and refuses where a recorded line would go.
+## A refusal names each such line on stderr, prints nothing on stdout, and returns 1.
+AgentsToolsDecisionsKeep(){ ## stored item path, mode (keep|edit), label
+	local keepPath="$1" keepMode="$2" keepLabel="${3:-decision-keep}"
+	if [ ! -f "$keepPath" ] ; then cat ; return 0 ; fi
+	LC_ALL=C MDAT_KEEP_STORED="$keepPath" awk -v keepMode="$keepMode" -v keepLabel="$keepLabel" \
+		-v cmdName="${MDSC_CMD:-board-upsert-move-edit}" -v marker="$( AgentsToolsDecisionsMarker "$keepPath" )" \
+		"$agentsDecisionsKeepAwk" "$keepPath" -
+}
 
 ## The section's lines, newest first, at most <cap> (default 30).
 AgentsToolsDecisionsLines(){ ## item path, cap

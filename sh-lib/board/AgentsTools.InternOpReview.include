@@ -24,6 +24,7 @@ case "$1" in
 		esac
 		shift
 		MDSC_CMD="$MDSC_CMD $reviewOp"
+		agentsReviewExecute=""
 		local reviewWho="${1:-}" reviewItem="" reviewNew="" reviewText="" reviewReason="" reviewSession="" reviewDismiss=yes reviewStdin=""
 		[ $# -eq 0 ] || shift
 		case "$reviewVerb" in
@@ -44,6 +45,10 @@ case "$1" in
 				;;
 				--from-stdin) reviewStdin=1 ; shift ;;
 				--no-dismiss) reviewDismiss=no ; shift ;;
+				--execute)
+					[ "$reviewVerb" = shutdown ] || { echo "$MDSC_CMD: ⛔ ERROR: --execute belongs to --shutdown-runs alone" >&2 ; set +e ; return 1 ; }
+					agentsReviewExecute=yes ; shift
+				;;
 				*)
 					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1

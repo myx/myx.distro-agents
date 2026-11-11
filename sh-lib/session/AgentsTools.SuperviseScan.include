@@ -31,9 +31,28 @@ type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ##           parent can settle it: `<ws> <id> <to> by <member> parent <id> <member>`. The plain `ask` line stays beside it,
 ##           since the question is open either way.
 ## The bound is MDAT_SUPERVISE_STALL_SECONDS (600 where unset, and the same one the `stuck` verdict reads).
+## THE WALK FOR A RIG'S CONTROL PID FILES RUNS ONCE IN FIFTEEN MINUTES (call-path audit): a find over spawned/ to depth 14 ran for
+## minutes under load, twice a supervision tick, from the scan and from the close. Its result is kept in schedule/supervise.rig-pids and
+## reread within MDAT_SUPERVISE_RIG_WALK_SECONDS (900, 0 for every call). Every path it returns is still tested by its caller (the pid
+## is alive, the record is closed), so a kept list delays a new rig orphan's detection by at most the TTL and never names a wrong one.
+AgentsToolsSuperviseRigPidFiles(){ ## the agents folder
+	local walkCache="$1/schedule/supervise.rig-pids" walkTtl="${MDAT_SUPERVISE_RIG_WALK_SECONDS:-900}" walkAt walkNow
+	case "$walkTtl" in ''|*[!0123456789]*) walkTtl=900 ;; esac
+	walkNow="$( date +%s )"
+	if [ "$walkTtl" -gt 0 ] && [ -f "$walkCache" ] ; then
+		walkAt="$( stat -f %m "$walkCache" 2> /dev/null || stat -c %Y "$walkCache" 2> /dev/null )" || walkAt=0
+		case "$walkAt" in ''|*[!0123456789]*) walkAt=0 ;; esac
+		if [ $(( walkNow - walkAt )) -lt "$walkTtl" ] ; then cat "$walkCache" 2> /dev/null ; return 0 ; fi
+	fi
+	mkdir -p "$1/schedule" 2> /dev/null
+	find "$1/spawned" -mindepth 6 -maxdepth 14 \( -name .git -o -name node_modules \) -prune -o -path '*/output/*' -path '*/control/pid' -type f -print 2> /dev/null > "$walkCache.tmp" && mv -f "$walkCache.tmp" "$walkCache" 2> /dev/null
+	cat "$walkCache" 2> /dev/null
+	return 0
+}
+
 AgentsToolsSuperviseScan(){
 	local scanWorkspaces=() scanWs scanAgents scanFile scanSpid scanSid scanMember scanLog scanDir scanPs scanSince="" scanTo scanTs scanChat
-	local scanCtlFile scanCtlPid scanCtlSid scanCtlRest scanNoRunMin scanOpen
+	local scanCtlFile scanCtlPid scanCtlSid scanCtlRest scanNoRunMin scanOpen scanSinceIso scanChatDir scanChatSess scanRosterFile scanDirName
 	local scanNow scanRunDir scanMark scanMarkFile scanMarkEpoch scanMarkWord scanAgeSec scanAgeText scanTool scanStamp scanName scanEpoch
 	local scanBase scanLine scanParts scanOpen scanRuns scanAsk scanAskSid scanAsks scanMsg scanPlan scanWord scanVerdict scanPaused scanSetAside
 	local scanRow scanTable scanStatus scanRunNamed scanBegan scanLive scanAskSet scanTab
@@ -127,12 +146,16 @@ AgentsToolsSuperviseScan(){
 				"$( LC_ALL=C sed -n 's/^owner: //p' "$scanFile" | head -1 )" "$( printf '%s' "$scanAskParent" | cut -c1-8 )" "$scanAskParentMember"
 		done
 		if [ -n "$scanSince" ] ; then
+			## The since moment is rendered once per scan, the session names by parameter expansion: no date, basename, dirname or cut
+			## process per session (call-path audit row 50).
+			scanSinceIso="$( date -u -r "$scanSince" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )"
 			## One post shows once: each participant's chat holds its own copy of it.
 			{
 				for scanChat in "$scanAgents"/sessions/*/session.chat ; do
 					[ -f "$scanChat" ] || continue
 					[ "$( stat -f %m "$scanChat" 2> /dev/null || echo 0 )" -ge "$scanSince" ] || continue
-					LC_ALL=C awk -v since="$( date -u -r "$scanSince" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )" -v ws="${scanWs##*/}" -v sess="$( basename "$( dirname "$scanChat" )" | cut -c1-8 )" '
+					scanChatDir="${scanChat%/*}" ; scanChatSess="${scanChatDir##*/}"
+					LC_ALL=C awk -v since="$scanSinceIso" -v ws="${scanWs##*/}" -v sess="${scanChatSess:0:8}" '
 						/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z [a-z-]+ -> [^:]*magic-coordinator[^:]*:/ {
 							if ($2 != "magic-coordinator" && $1 >= since) { getline body ; if (body ~ /^Process process-[0-9]+ ended with exit status/) next ; print "msg " ws " " sess " from " $2 ": " substr(body, 1, 160) ; fflush() }
 						}' "$scanChat"
@@ -145,8 +168,10 @@ AgentsToolsSuperviseScan(){
 					[ -f "$scanChat" ] || continue
 					[ "$( stat -f %m "$scanChat" 2> /dev/null || echo 0 )" -ge "$scanSince" ] || continue
 					scanDir="${scanChat%/*}"
-					scanMember="$( ls "$scanDir" 2> /dev/null | LC_ALL=C sed -n 's/^dms-roster\.//p' | head -1 )"
-					LC_ALL=C awk -v since="$( date -u -r "$scanSince" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )" -v ws="${scanWs##*/}" -v sess="$( basename "$scanDir" | cut -c1-8 )" -v member="${scanMember:--}" '
+					scanMember=""
+					for scanRosterFile in "$scanDir"/dms-roster.* ; do [ ! -e "$scanRosterFile" ] || { scanMember="${scanRosterFile##*/dms-roster.}" ; break ; } ; done
+					scanDirName="${scanDir##*/}"
+					LC_ALL=C awk -v since="$scanSinceIso" -v ws="${scanWs##*/}" -v sess="${scanDirName:0:8}" -v member="${scanMember:--}" '
 						/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z / && $1 >= since {
 							if ($2 == "TOOL" && $0 !~ / -> (error|refused)/) next
 							if ($2 != "TOOL" && $2 != "ASK" && $2 != "ANSWER" && $2 != "HANDBACK" && $2 != "FINAL" && $2 != "MODEL") next
@@ -194,7 +219,7 @@ AgentsToolsSuperviseScan(){
 				## Only an open record is a run that should have started: a closed one with no process is a finished run.
 				[ "$scanOpen" = yes ] || continue
 				[ -n "$( find "$scanFile" -mmin +5 2> /dev/null )" ] || continue
-				[ "$( LC_ALL=C sed -n 's/^agent-less: //p' "$scanFile" | head -1 )" = true ] || printf 'dead %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+				[ "$( LC_ALL=C sed -n 's/^agent-less: //p' "$scanFile" | head -1 )" = true ] || printf 'dead %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember"
 				continue
 			fi
 			scanPaused=no
@@ -248,12 +273,12 @@ AgentsToolsSuperviseScan(){
 				## Idle after its handback: no tool but Wait since the last one, so a run that took new work is not idle.
 				if LC_ALL=C grep -q '📦 SubagentHandback' "$scanLog" 2> /dev/null && ! cat "$scanDir"/*.checklist.md 2> /dev/null | LC_ALL=C grep -q '^- \[ \]' \
 					&& awk '/📦 SubagentHandback/ { busy = 0 ; next } /^   [^ ]+ +[A-Za-z]/ && !/ Wait / && !/prompt cache/ { busy = 1 } END { exit busy }' "$scanLog" ; then
-					printf 'idle-done %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+					printf 'idle-done %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember"
 				elif [ ! -f "$scanDir/$scanMember.checklist.md" ] && [ -n "$( find "$scanFile" -mmin +10 2> /dev/null )" ] ; then
-					printf 'no-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+					printf 'no-plan %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember"
 				## A run working for the last ten minutes whose own CheckList has not changed for an hour.
 				elif [ -n "$( find "$scanDir/$scanMember.checklist.md" -mmin +60 2> /dev/null )" ] && [ -n "$( find "$scanLog" -mmin -10 2> /dev/null )" ] ; then
-					printf 'stale-plan %s %s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember"
+					printf 'stale-plan %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember"
 				fi
 			fi
 			## Where the run stands (S13.18): its tool and its age, its latest message, its item in progress, its pause, its open asks.
@@ -293,7 +318,7 @@ AgentsToolsSuperviseScan(){
 			scanAgeText="-"
 			[ -z "$scanAgeSec" ] || scanAgeText="$(( scanAgeSec / 60 ))m"
 			printf 'run %s %s %s %s tool=%s age=%s paused=%s asks=%s msg %s plan: %s\n' "${scanWs##*/}" \
-				"$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanMember" "$scanVerdict" "${scanTool:-none}" "$scanAgeText" \
+				"${scanSpid:0:8}" "$scanMember" "$scanVerdict" "${scanTool:-none}" "$scanAgeText" \
 				"$scanPaused" "$scanAsks" "$scanMsg" "$scanPlan"
 			## A STALL: NOTHING IS COMING TO A RUN THAT STILL HAS WORK (S13.2). It is not working, it has been silent past the
 			## bound, and its own list still holds items, so it is neither a run resting on a wait it asked for nor a run that
@@ -306,7 +331,7 @@ AgentsToolsSuperviseScan(){
 				scanPending="$( LC_ALL=C awk '/^- \[ \] / { n++ } END { print n + 0 }' "$scanDir/$scanMember.checklist.md" 2> /dev/null )" || scanPending=0
 			fi
 			[ "$scanPending" -gt 0 ] || continue
-			printf 'stall %s %s %s age=%s pending=%s plan: %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" \
+			printf 'stall %s %s %s age=%s pending=%s plan: %s\n' "${scanWs##*/}" "${scanSpid:0:8}" \
 				"$scanMember" "$scanAgeText" "$scanPending" "$scanPlan"
 		done <<< "$scanTable"
 		## A CONTROL THREAD THAT SHOULD HAVE ENDED ITSELF (S5.6, item 6). It ends by itself when no run of its session has been alive
@@ -319,13 +344,17 @@ AgentsToolsSuperviseScan(){
 			scanCtlPid=""
 			{ read -r scanCtlPid scanCtlRest < "$scanCtlFile" ; } 2> /dev/null || continue
 			case "${scanCtlPid:-}" in ''|*[!0123456789]*) continue ;; esac
-			kill -0 "$scanCtlPid" 2> /dev/null || continue
 			scanCtlSid="${scanCtlFile%/control/pid}" ; scanCtlSid="${scanCtlSid##*/}"
+			## Alive as the list of sessions reads it (AgentsToolsSessionControlLive): the pid the file names, begun when the file says.
+			## A bare pid test took a later process that reused the number for a thread that died days before.
+			type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" 2> /dev/null || continue
+			[ -n "$( printf '%s\n' "$scanCtlSid" | MMDAPP="$scanWs" AgentsToolsSessionControlLive 2> /dev/null )" ] || continue
 			[ -n "$( find "${scanCtlFile%/*}/log" -mmin +"$scanNoRunMin" 2> /dev/null )" ] || continue
 			scanOpen=""
-			for scanFile in "$scanAgents"/spawned/*/*.spawn.md ; do
+			## The session's own records come from the kept per-session list, never a grep over every record (call-path audit row 50).
+			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+			for scanFile in $( MMDAPP="$scanWs" AgentsToolsSpawnedSessionRecords "$scanCtlSid" own 2> /dev/null ) ; do
 				[ -f "$scanFile" ] || continue
-				LC_ALL=C grep -q -x -- "session-id: $scanCtlSid" "$scanFile" 2> /dev/null || continue
 				LC_ALL=C grep -q -x 'status: spawn-started' "$scanFile" 2> /dev/null || continue
 				scanOpen="yes" ; break
 			done
@@ -342,8 +371,8 @@ AgentsToolsSuperviseScan(){
 			kill -0 "$scanCtlPid" 2> /dev/null || continue
 			scanSpid="${scanCtlFile#"$scanAgents"/spawned/}" ; scanSpid="${scanSpid%%/*}"
 			! LC_ALL=C grep -q -x 'status: spawn-started' "$scanAgents/spawned/$scanSpid/$scanSpid.spawn.md" 2> /dev/null || continue
-			printf 'rig-orphan %s %s pid=%s %s\n' "${scanWs##*/}" "$( printf '%s' "$scanSpid" | cut -c1-8 )" "$scanCtlPid" "${scanCtlFile#"$scanAgents"/spawned/"$scanSpid"/}"
-		done <<< "$( find "$scanAgents/spawned" -mindepth 6 -maxdepth 14 -path '*/output/*' -path '*/control/pid' -type f 2> /dev/null )"
+			printf 'rig-orphan %s %s pid=%s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanCtlPid" "${scanCtlFile#"$scanAgents"/spawned/"$scanSpid"/}"
+		done <<< "$( AgentsToolsSuperviseRigPidFiles "$scanAgents" )"
 	done
 	## The calling supervisor's own CheckList, as a digest, so every supervisor loop reports it beside its findings:
 	## `checklist <member> done=<n> in-progress=<n> open=<n>`, then one `checklist-doing` or `checklist-open` line an item.

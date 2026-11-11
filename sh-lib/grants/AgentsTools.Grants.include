@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
+## rc 0 where the folder holds at least one directory of its own, a package: a glob, never a `find` process (call-path audit
+## row 12). A link is not a directory of its own, as `find -type d` read it.
+AgentsToolsGrantsHoldsDir(){ ## folder
+	local holdsDir
+	for holdsDir in "$1"/*/ ; do
+		[ -d "$holdsDir" ] && [ ! -L "${holdsDir%/}" ] && return 0
+	done
+	return 1
+}
+
 ##
 ## AgentsTools.Grants.include -- the grants: declared, unrolled, and per session.
 ##
@@ -420,7 +430,7 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 		declLocal="$( LC_ALL=C awk -v pkg="$declWs/.local/myx/" '{ t = $2 ; if ( sub( /^--magic-team:permissions:workspace:/, "", t ) ) { n = split( $1, id, "/" ) ; print pkg id[n] " " t ; } }' "$declInf" )" \
 			|| { echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: cannot read $declInf" >&2 ; return 2 ; }
 		[ -z "$declLocal" ] || declLocal="$declLocal"$'\n'
-	elif [ -n "$( find "$declWs/.local/myx" -mindepth 1 -maxdepth 1 -type d 2> /dev/null | head -1 )" ] ; then
+	elif AgentsToolsGrantsHoldsDir "$declWs/.local/myx" ; then
 		## A PACKAGE IS A DIRECTORY: `.local/myx` holding only a `MAGIC.md`, a note or a temporary file has no package whose
 		## declares a missing index could hide, so it is not the fault the row below reports (owner 2026-10-30: a test scratch
 		## carrying that one file stopped `--make-harness-indices`).
@@ -721,15 +731,17 @@ AgentsToolsGrantsRunSeats(){ ## workspace, session id
 		break
 	done
 	case "$seatsOwn" in ''|*/*|.|..) return 1 ;; esac
-	## The runs it spawned: each of their records names this run as its parent.
-	## One grep over all the records: this runs on every gate call, so it never forks once per record.
+	## The runs it spawned: each of their records names this run as its parent. From the parent's
+	## children list where the lists are marked complete, else one grep over all the records
+	## (AgentsToolsSpawnedChildRecords): this runs on every gate call, so it never forks once per record.
+	type AgentsToolsSpawnedChildRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
 	while IFS= read -r seatsRecord ; do
 		[ -f "$seatsRecord" ] || continue
 		seatsReviewId="${seatsRecord##*/}" ; seatsReviewId="${seatsReviewId%.spawn.md}"
 		case "$seatsSeen" in *$'\n'"$seatsReviewId"$'\n'*) continue ;; esac
 		seatsSeen="$seatsSeen$seatsReviewId"$'\n'
 		printf '%s\n%s/output\n' "$seatsWs/.local/agents/sessions/$seatsReviewId" "${seatsRecord%/*}"
-	done < <( LC_ALL=C grep -l -x -F -- "parent-spawn-id: $seatsSession" "$seatsWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )
+	done < <( AgentsToolsSpawnedChildRecords "$seatsSession" "$seatsWs" )
 	## The peers its own dispatch item cites, `references:` naming them in item-names form.
 	for seatsRecord in "${MDAT_DATA_ROOT:-}/board"/*/"$seatsOwn.md" ; do
 		[ -f "$seatsRecord" ] || continue
@@ -825,7 +837,7 @@ AgentsToolsGrantsSessionEnded(){ ## session store directory
 ## A task grant given to one run is read from those same stores, and lives as ever while the
 ## item it names is open, whatever became of that session.
 AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
-	local runsWs="${1%/}" runsRecord runsFound="" runsKind runsValue runsItem="" runsSession="" runsStores=""
+	local runsWs="${1%/}" runsRecord runsFound="" runsKind runsValue runsItem="" runsSession="" runsStores="" runsCow="" runsCandidate runsFiles=()
 	agentsGrantsItemRunsItem="" ; agentsGrantsItemRunsSession="" ; agentsGrantsItemRunsStores=""
 	case "$2" in ''|*/*|.|..) return 1 ;; esac
 	[ -n "$runsWs" ] && [ -n "$3" ] || return 1
@@ -834,13 +846,24 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 		[ ! -f "$runsRecord" ] || { runsFound=1 ; break ; }
 	done
 	[ -n "$runsFound" ] || return 1
+	## The awk shares only within the run's own coworking session, so its candidates are that session's
+	## records, from the kept per-session list (AgentsTools.StartedRecords.include), never every record
+	## on a gate call. The session that one of these runs started is in the list too: its id is that run's.
+	runsCow="$( LC_ALL=C awk '$0 == "---" { if ( ++fence > 1 ) exit ; next } fence == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) ; exit }' "$runsRecord" 2> /dev/null )" || runsCow=""
+	case "$runsCow" in ''|*/*|.|..) return 1 ;; esac
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	while IFS= read -r runsCandidate ; do
+		[ -n "$runsCandidate" ] && [ -f "$runsCandidate" ] || continue
+		runsFiles+=( "$runsCandidate" )
+	done < <( MMDAPP="$runsWs" AgentsToolsSpawnedSessionRecords "$runsCow" own )
+	[ "${#runsFiles[@]}" -gt 0 ] || return 1
 	while IFS=$'\t' read -r runsKind runsValue ; do
 		case "$runsKind" in
 			item) runsItem="$runsValue" ;;
 			session) [ "$runsValue" = "-" ] || runsSession="$runsWs/.local/agents/sessions/$runsValue" ;;
 			store) runsStores="$runsStores$runsWs/.local/agents/sessions/$runsValue"$'\n' ;;
 		esac
-	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$runsWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )
+	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "${runsFiles[@]}" 2> /dev/null )
 	[ -n "$runsItem" ] && [ -n "$runsStores" ] || return 1
 	agentsGrantsItemRunsItem="$runsItem" ; agentsGrantsItemRunsSession="$runsSession" ; agentsGrantsItemRunsStores="${runsStores%$'\n'}"
 	return 0

@@ -137,6 +137,15 @@ AgentsWaitTsNewer(){ ## candidate, floor
 ## for the collection of the sources a scan reads (F4.2).
 ## Prints the seconds a source of the loop waits between its checks; 0 is every pass. Nothing of it is said in a return: an agent never needs the TTLs.
 ## The table itself is AgentsTools.SourceTtl.include's, the one the collection of the sources a scan reads (F4.2) reads too.
+## The order of the round plan (S5.7, call-path audit row 58): rc 0 where the kept source stands after the new one, its interval
+## longer, or the same and its name later in byte order, which is where `sort -n` over `<interval> <source>` lines placed them.
+AgentsWaitPlanAfter(){ ## kept interval, kept source, new interval, new source
+	local LC_ALL=C
+	[ "$1" -gt "$3" ] 2> /dev/null && return 0
+	[ "$1" -eq "$3" ] 2> /dev/null && [ "$2" \> "$4" ] && return 0
+	return 1
+}
+
 AgentsWaitTtlOf(){ ## source
 	type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
 	AgentsToolsSourceTtlOf "$1"
@@ -186,6 +195,12 @@ AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags r
 		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( [ "$3" = mentions ] && printf 1 || printf 0 )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
 		< "$5" 2> /dev/null )" || return 1
+	## A mention the member already received through a session thread it takes part in is left out (AgentsWaitSessionReceivedDrop.awk).
+	## A DM part is never one: a DM is no session thread.
+	if [ "$3" = mentions ] && [ -n "$partText" ] && [ -s "${MMDAPP:-/nonexistent}/.local/agents/schedule/seen/$1.session" ] ; then
+		partText="$( printf '%s\n' "$partText" | SEEN_SESSION_FILE="$MMDAPP/.local/agents/schedule/seen/$1.session" LC_ALL=C awk \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitSessionReceivedDrop.awk" )" || return 1
+	fi
 	## The part is written only where it differs (AgentsWaitPut): a probe that found the same messages again leaves the file, and the watch on
 	## it, alone.
 	AgentsWaitPut "$partOut" "$partText"

@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Monitoring.include -- THE HEALTH READING OF A WORKSPACE (epic S14, monitoring for magic-devops): one reading over the
+## assets S14 names, machine, rig daemons, comms thread, Slack, the flags, the runs and their pace, the comms outbox and the team data,
+## as pure tooling a human operator reads without the supervisor. Sourced, never run. Functions only.
+##
+## LINES, tab-separated: `health <workspace> <asset> <state> <detail>`. An `alarm <workspace> <asset> <detail>` line follows a dead daemon
+## or an outbox backlog over MDAT_MONITORING_OUTBOX_ALARM (1000). While the planned-maintenance flag holds (S14: magic-devops does planned
+## work without an alarm spawning anyone, and setting it is never silent) an alarm prints as `muted` with the seconds left, never
+## dropped. The trigger that spawns magic-devops on an alarm, the asset inventory of every instance and the dashboard panels are S14's
+## open items 2 to 4, not here.
+##
+## A ONE-OFF TOOL, NOT A CALL PATH: a reading starts a handful of processes (load, disk, git, a process check per daemon), which a reading
+## a human or a supervisor asks for once may. Nothing here runs on a pass or a Wait round.
+##
+
+agentsMonitoringOutboxAlarm="${MDAT_MONITORING_OUTBOX_ALARM:-1000}"
+case "$agentsMonitoringOutboxAlarm" in ''|*[!0-9]*) agentsMonitoringOutboxAlarm=1000 ;; esac
+## What the last lock read left: its state and its holder, set in this shell so a caller under `set -u` reads them.
+agentsMonitoringHolder="" agentsMonitoringState=""
+
+## One line of the reading.
+AgentsToolsMonitoringLine(){ ## kind (health|alarm|muted), workspace name, asset, state, detail
+	printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "${5:-}"
+}
+
+## A daemon's state from its lock file `<pid> <start>`: none (no lock), alive, dead, or unknown (cannot be told). Sets
+## agentsMonitoringState and agentsMonitoringHolder in this shell, never in a subshell.
+AgentsToolsMonitoringLockState(){ ## lock file
+	local lockLine="" lockRc
+	agentsMonitoringHolder="" agentsMonitoringState="none"
+	[ -f "$1" ] || return 0
+	{ IFS= read -r lockLine < "$1" ; } 2> /dev/null || lockLine=""
+	agentsMonitoringHolder="${lockLine%% *}"
+	[ -n "$lockLine" ] || { agentsMonitoringState="dead" ; return 0 ; }
+	type AgentsToolsThreadLockHolderLives > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.ThreadLock.include"
+	lockRc=0 ; AgentsToolsThreadLockHolderLives "$lockLine" || lockRc=$?
+	case "$lockRc" in 0) agentsMonitoringState="alive" ;; 1) agentsMonitoringState="dead" ;; *) agentsMonitoringState="unknown" ;; esac
+	return 0
+}
+
+## THE READING of one workspace, every line to stdout. rc 1 where the path is no workspace.
+AgentsToolsMonitoringHealth(){ ## workspace (default MMDAPP)
+	local healthWs="${1:-${MMDAPP:-}}" healthName healthNow healthState healthDetail healthMaint="" healthMaintLeft="" healthHold="" healthRoot=""
+	local healthCount healthFile healthLine healthAlarms="" healthLoad="" healthDisk="" healthPace="" healthMode="" healthModeSource=""
+	healthWs="${healthWs%/}"
+	[ -n "$healthWs" ] && [ -d "$healthWs/.local" ] || { echo "⛔ ERROR: not a workspace with a .local: ${1:-${MMDAPP:-}}" >&2 ; return 1 ; }
+	healthName="${healthWs##*/}"
+	healthNow="$( date +%s )"
+
+	## THE FLAGS FIRST: planned maintenance decides how an alarm prints, holding says the schedule starts nothing.
+	type AgentsToolsScheduleOverrideLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || :
+	if type AgentsToolsScheduleOverrideLeft > /dev/null 2>&1 ; then
+		healthMaintLeft="$( MMDAPP="$healthWs" AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_PLANNED_MAINTENANCE "$healthNow" 2> /dev/null )" || healthMaintLeft=""
+		healthHold="$( MMDAPP="$healthWs" AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_HOLDING "$healthNow" 2> /dev/null )" || healthHold=""
+	fi
+	case "$healthMaintLeft" in '') healthMaint="" ;; on) healthMaint="on" ;; *) healthMaint="$healthMaintLeft" ;; esac
+	if [ -n "$healthMaint" ] ; then AgentsToolsMonitoringLine health "$healthName" planned-maintenance yes "$healthMaint seconds left" ; else AgentsToolsMonitoringLine health "$healthName" planned-maintenance no "" ; fi
+	if [ -n "$healthHold" ] ; then AgentsToolsMonitoringLine health "$healthName" holding yes "$healthHold" ; else AgentsToolsMonitoringLine health "$healthName" holding no "" ; fi
+
+	## THE MACHINE: load and the disk the workspace sits on.
+	if [ -r /proc/loadavg ] ; then
+		read -r healthLoad healthDisk healthFile healthLine < /proc/loadavg 2> /dev/null || :
+		healthLoad="$healthLoad $healthDisk $healthFile" ; healthDisk=""
+	else
+		healthLoad="$( sysctl -n vm.loadavg 2> /dev/null | LC_ALL=C tr -d '{}' | LC_ALL=C sed 's/^ *//;s/ *$//' )" || healthLoad=""
+	fi
+	AgentsToolsMonitoringLine health "$healthName" machine-load "${healthLoad:-unknown}" "1 5 15 minutes"
+	healthDisk="$( df -Pk "$healthWs" 2> /dev/null | LC_ALL=C awk 'NR == 2 { printf "%s free, %s used", $4 * 1024, $5 }' )" || healthDisk=""
+	AgentsToolsMonitoringLine health "$healthName" machine-disk "${healthDisk:-unknown}" "bytes"
+
+	## THE RIG DAEMONS: the schedule thread and the communications reader, by their locks; a lock whose holder is gone is an alarm.
+	AgentsToolsMonitoringLockState "$healthWs/.local/agents/schedule-thread/thread.lock" ; healthState="$agentsMonitoringState"
+	AgentsToolsMonitoringLine health "$healthName" schedule-thread "$healthState" "${agentsMonitoringHolder:+pid $agentsMonitoringHolder}"
+	[ "$healthState" != dead ] || healthAlarms="${healthAlarms}schedule-thread"$'\t'"the lock names pid ${agentsMonitoringHolder:--}, which is gone"$'\n'
+	AgentsToolsMonitoringLockState "$healthWs/.local/agents/comms/lock" ; healthState="$agentsMonitoringState"
+	AgentsToolsMonitoringLine health "$healthName" comms-reader "$healthState" "${agentsMonitoringHolder:+pid $agentsMonitoringHolder}"
+	[ "$healthState" != dead ] || healthAlarms="${healthAlarms}comms-reader"$'\t'"the lock names pid ${agentsMonitoringHolder:--}, which is gone"$'\n'
+	## The control threads of the sessions: how many live, how many left a dead lock.
+	healthCount=0 ; healthLine=0
+	for healthFile in "$healthWs"/.local/agents/sessions/*/control/pid ; do
+		[ -f "$healthFile" ] || continue
+		AgentsToolsMonitoringLockState "$healthFile"
+		case "$agentsMonitoringState" in alive) healthCount=$(( healthCount + 1 )) ;; dead) healthLine=$(( healthLine + 1 )) ;; esac
+	done
+	AgentsToolsMonitoringLine health "$healthName" control-threads "$healthCount alive" "$healthLine dead"
+
+	## THE RUNS: the started records kept by the tooling, and the pace of their tool calls.
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	healthCount=0
+	if type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 ; then
+		while IFS= read -r healthLine ; do [ -z "$healthLine" ] || healthCount=$(( healthCount + 1 )) ; done <<< "$( MMDAPP="$healthWs" AgentsToolsSpawnedStartedRecords 2> /dev/null )"
+	fi
+	AgentsToolsMonitoringLine health "$healthName" runs-started "$healthCount" "records with status spawn-started"
+	if type AgentsToolsSchedulePaceText > /dev/null 2>&1 ; then
+		healthPace="$( MMDAPP="$healthWs" AgentsToolsSchedulePaceText 2> /dev/null )" || healthPace=""
+	fi
+	AgentsToolsMonitoringLine health "$healthName" tool-pace "${healthPace:-unknown}" ""
+
+	## THE COMMS: the outbox of every channel, records a send queued and the reader has not posted.
+	healthCount=0
+	for healthFile in "$healthWs"/.local/cache/comms/*/*/outbox.messages.txt ; do
+		[ -f "$healthFile" ] || continue
+		while IFS= read -r healthLine || [ -n "$healthLine" ] ; do [ -z "$healthLine" ] || healthCount=$(( healthCount + 1 )) ; done < "$healthFile"
+	done
+	AgentsToolsMonitoringLine health "$healthName" comms-outbox "$healthCount" "records queued, alarm over $agentsMonitoringOutboxAlarm"
+	[ "$healthCount" -le "$agentsMonitoringOutboxAlarm" ] || healthAlarms="${healthAlarms}comms-outbox"$'\t'"$healthCount records queued, over $agentsMonitoringOutboxAlarm"$'\n'
+
+	## SLACK: whether the team bot has a token here, never the token.
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include" 2> /dev/null || :
+	healthState="absent"
+	if type AgentsToolsConfigOption > /dev/null 2>&1 && [ -n "$( MMDAPP="$healthWs" AgentsToolsConfigOption magic-team --select SLACK_BOT_TOKEN 2> /dev/null )" ] ; then healthState="present" ; fi
+	AgentsToolsMonitoringLine health "$healthName" slack-bot-token "$healthState" "of the magic-team scope"
+
+	## THE TEAM DATA: the store the workspace runs on, its git state where it has one.
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" 2> /dev/null || :
+	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null || :
+	read -r healthMode healthModeSource <<< "$( MMDAPP="$healthWs" AgentsToolsWorkspaceMode 2> /dev/null )" || :
+	AgentsToolsMonitoringLine health "$healthName" workspace-mode "${healthMode:-unknown}" "${healthModeSource:-}"
+	healthRoot="$( AgentsToolsTeamDataRootOf "$healthWs" 2> /dev/null )" || healthRoot=""
+	if [ -n "$healthRoot" ] && [ -d "$healthRoot/.git" ] ; then
+		healthCount="$( git -C "$healthRoot" status --porcelain 2> /dev/null | LC_ALL=C grep -c '' )" || healthCount="?"
+		healthDetail="$healthCount uncommitted"
+		healthLine="$( git -C "$healthRoot" rev-list --count 'HEAD..@{u}' 2> /dev/null )" && healthDetail="$healthDetail, $healthLine behind upstream"
+		healthLine="$( git -C "$healthRoot" rev-list --count '@{u}..HEAD' 2> /dev/null )" && healthDetail="$healthDetail, $healthLine ahead"
+		AgentsToolsMonitoringLine health "$healthName" team-data "git" "$healthDetail"
+	elif [ -n "$healthRoot" ] && [ -d "$healthRoot" ] ; then
+		AgentsToolsMonitoringLine health "$healthName" team-data "no-git" "$healthRoot"
+	else
+		AgentsToolsMonitoringLine health "$healthName" team-data "none" ""
+	fi
+
+	## THE ALARMS, last: muted while planned maintenance holds, said either way.
+	[ -n "$healthAlarms" ] || return 0
+	while IFS=$'\t' read -r healthState healthDetail ; do
+		[ -n "$healthState" ] || continue
+		if [ -n "$healthMaint" ] ; then
+			AgentsToolsMonitoringLine muted "$healthName" "$healthState" "planned-maintenance ${healthMaint}" "$healthDetail"
+		else
+			AgentsToolsMonitoringLine alarm "$healthName" "$healthState" "" "$healthDetail"
+		fi
+	done <<< "$healthAlarms"
+	return 0
+}

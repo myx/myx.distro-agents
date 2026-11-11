@@ -291,12 +291,14 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	[ -n "$doneOutcome" ] || doneOutcome="$( AgentsTranscriptOutcomeOf "$doneResult" "" "$doneFirst" )"
 	## A harness loop whose context is kept (AgentsHarnessContext.include): its tool lines and
 	## message events are written from that log as it gains records (AgentsHarnessContextFeed), so only the milestone is here.
+	## THE MILESTONE WAITS FOR THE FEED: taken here it committed before the feed wrote this tool's lines, with nothing new (the ask's
+	## ASK and ANSWER landed in a later commit). It is left for the context sync, which commits it right after the feed.
 	if [ "$doneSource" = "loop" ] && [ -n "${agentsTranscriptFromLog:-}" ] ; then
 		case "$doneBase:$doneOutcome" in
-			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok|AskQuestion:ok|ConfirmReadback:ok|EscalateDecision:ok|RequestPermission:ok|ProposeApprove:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
-			AskUserQuestion:*|AskQuestion:*|ConfirmReadback:*|EscalateDecision:*|RequestPermission:*|ProposeApprove:*) AgentsTranscriptMilestone "$doneSession" "ask ended" ;;
-			SubagentHandback:ok) AgentsTranscriptMilestone "$doneSession" "handback" ;;
-			Wait:*) case "$doneFirst" in 'WAIT-RESULT: DISMISSED'*) AgentsTranscriptMilestone "$doneSession" "dismissed" ;; esac ;;
+			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok|AskQuestion:ok|ConfirmReadback:ok|EscalateDecision:ok|RequestPermission:ok|ProposeApprove:ok) agentsTranscriptMilestoneAfterFeed="message out" ;;
+			AskUserQuestion:*|AskQuestion:*|ConfirmReadback:*|EscalateDecision:*|RequestPermission:*|ProposeApprove:*) agentsTranscriptMilestoneAfterFeed="ask ended" ;;
+			SubagentHandback:ok) agentsTranscriptMilestoneAfterFeed="handback" ;;
+			Wait:*) case "$doneFirst" in 'WAIT-RESULT: DISMISSED'*) agentsTranscriptMilestoneAfterFeed="dismissed" ;; esac ;;
 		esac
 		return 0
 	fi
@@ -396,6 +398,22 @@ AgentsTranscriptHarnessStart(){
 	## Only the spawn proxy opens a transcript: a run it did not start writes none, so a
 	## harness run by hand, or by a check, never reaches the team data.
 	AgentsTranscriptBase "$hsSession" > /dev/null || return 0
+	## A HARNESS STARTED FROM INSIDE A RUN (a Bash call of the run testing a preset, a check) inherits the run's
+	## environment and so its session key, and would write the run's model file and MODEL event with its own
+	## model. The run exports the pid of its harness here; a harness that finds another live pid in it is nested
+	## in that run and writes nothing of the run's. A restarted leg of the same run finds the pid dead, or its
+	## own, and writes as before.
+	if [ -n "${MDAT_HARNESS_RUN_PID:-}" ] && [ "$MDAT_HARNESS_RUN_PID" != "$$" ] && kill -0 "$MDAT_HARNESS_RUN_PID" 2> /dev/null ; then
+		return 0
+	fi
+	## A run started before this export existed leaves no pid: its ancestry tells the same, once, at this start alone.
+	local hsAncestor="$PPID" hsAncestorCmd
+	while [ "${hsAncestor:-0}" -gt 1 ] 2> /dev/null ; do
+		hsAncestorCmd="$( ps -o command= -p "$hsAncestor" 2> /dev/null )" || break
+		case "$hsAncestorCmd" in *"/sh-lib/harness/Agents"*"Harness.sh"*) return 0 ;; esac
+		hsAncestor="$( ps -o ppid= -p "$hsAncestor" 2> /dev/null | tr -d ' ' )" || break
+	done
+	export MDAT_HARNESS_RUN_PID="$$"
 	printf '%s\n' "${harnessModel:-}" > "$hsDir/model" 2>/dev/null || :
 	AgentsTranscriptEvent "$hsSession" MODEL "" 0 model "${harnessModel:-}" service "${harnessProviderName:-}" host "${harnessHost:-}" tier "${harnessTier:-}" member "${harnessAgent:-}"
 	return 0
@@ -551,9 +569,17 @@ AgentsSessionTokensHeaderUpdate(){ ## session id
 ## (AgentsSessionTokensRollup.awk). Board items and spawn records are read once.
 AgentsSessionTokensRollupRows(){ ## item name...
 	[ $# -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	## EVERY BOARD ITEM AND EVERY RUN RECORD, BY GLOB (call-path audit row 31): the sum of an item takes in the items that track it
+	## or follow it up and the records whose parent is its session, relations only the files carry, so a read of the named items alone
+	## sums an item on its own. Two globs, no find: no process, one read per file; the record count paid per call is S10.37's debt.
+	local rollupPath
 	{
-		find "$MDAT_DATA_ROOT/board" -mindepth 2 -maxdepth 2 -name '*.md' 2>/dev/null
-		[ -z "${MMDAPP:-}" ] || find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' 2>/dev/null
+		for rollupPath in "$MDAT_DATA_ROOT"/board/*/*.md ; do
+			[ ! -f "$rollupPath" ] || printf '%s\n' "$rollupPath"
+		done
+		[ -z "${MMDAPP:-}" ] || for rollupPath in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+			[ ! -f "$rollupPath" ] || printf '%s\n' "$rollupPath"
+		done
 	} | LC_ALL=C awk -v want="$*" -f "$agentsTranscriptLib/session/AgentsSessionTokensRollup.awk" 2>/dev/null
 	return 0
 }
@@ -599,12 +625,14 @@ AgentsSessionTokensLine(){ ## item name, or empty; session id
 ## item of an MCP result's content, a separate part of the model loop's tool message. It is never
 ## inside a tool's output, so every tool's own output stays exactly as printed. A kept file is a
 ## printed value as a reply is: whatever is done to the one is done to the other.
-agentsReplyLongBytes=8192
+## Halved from 8192 by the human-owner's ruling of 2026-11-10: a result stays in a run's context and is re-read on every later turn, which
+## made half of a day's DeepSeek tokens; the rest of a kept result is read by line range when it is needed.
+agentsReplyLongBytes=4096
 
 ## The reference to a result kept in a file. The preview comes first, so the reply opens as the
 ## result does (WAIT-RESULT:, ERROR:, OK: ...), then the file, its size and how to read the rest.
-## The preview is the whole lines that fit in 2 KB, or the first 20, whichever is more, and never
-## over 7 KB, so the reply stays under the threshold. Writes nothing: a caller with a file of its
+## The preview is the whole lines that fit in 1 KB, or the first 10, whichever is more, and never
+## over 3.5 KB, so the reply stays under the threshold. Writes nothing: a caller with a file of its
 ## own, such as a kept report, names it here as it is. For a Read's result, the file the Read read
 ## is the second argument: the hint to read the rest names that file and the next line of it to read,
 ## and not the kept copy.
@@ -614,13 +642,13 @@ AgentsTranscriptReplyRef(){ ## file, the file a Read read (optional)
 	refBytes="$( LC_ALL=C wc -c < "$1" | tr -d ' ' )"
 	refLines="$( LC_ALL=C wc -l < "$1" | tr -d ' ' )"
 	LC_ALL=C awk -v refPath="$1" -v refOrigin="${2:-}" -v refBytes="$refBytes" -v refLines="$refLines" '
-		{ total += length( $0 ) + 1 ; if ( NR > 20 && total > 7168 ) { exit } ; if ( total <= 2048 ) { fit = NR } ; if ( total <= 7168 ) { cap = NR } ; kept[ NR ] = $0 ; seen = NR ; }
+		{ total += length( $0 ) + 1 ; if ( NR > 10 && total > 3584 ) { exit } ; if ( total <= 1024 ) { fit = NR } ; if ( total <= 3584 ) { cap = NR } ; kept[ NR ] = $0 ; seen = NR ; }
 		END {
-			shown = ( fit > 20 ) ? fit : 20 ; if ( shown > seen ) { shown = seen } ; if ( shown > cap ) { shown = cap } ;
+			shown = ( fit > 10 ) ? fit : 10 ; if ( shown > seen ) { shown = seen } ; if ( shown > cap ) { shown = cap } ;
 			for ( n = 1 ; n <= shown ; n++ ) { print kept[ n ] ; }
 			if ( shown == 0 && seen > 0 ) {
-				print substr( kept[ 1 ], 1, 2048 )
-				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- its line 1 is too long to show, and its first 2048 bytes are shown above ...\n", refBytes, refLines, refPath
+				print substr( kept[ 1 ], 1, 1024 )
+				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- its line 1 is too long to show, and its first 1024 bytes are shown above ...\n", refBytes, refLines, refPath
 				if ( refOrigin != "" ) { printf "... read it by line range: Read file_path=%s offset=1 limit=1 ...\n", refOrigin ; }
 				else { printf "... read it by line range: Read file_path=%s offset=1 limit=%d ...\n", refPath, refLines ; }
 			} else if ( shown >= refLines ) {
@@ -696,7 +724,7 @@ AgentsTranscriptReplyFloor(){
 	floorMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-magic-coordinator}}"
 	[ -n "${MMDAPP:-}" ] || return 0
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
-	floorKey="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; floorKey="$agentsSessionChatKey"
 	[ -n "$floorKey" ] || return 0
 	## A workspace that is selected -- the tooling stands in its .local -- and a run with a session id: the session's folder is made
 	## here, where it can be, before the run is served from it (F9.2). Without it those sessions lose their reads.

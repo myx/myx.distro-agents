@@ -70,9 +70,10 @@ cells row11 12 85 119
 cells row12 13 85 119
 cells row13 14 85 119
 cells row14 15 85 119
+cells row15 16 85 119
 RIGSCRIPT
-rigAssert "the root holds the nine sections in their order, the dashboard first, a spacer between its five groups: Dashboard and Pending Questions, Magic-Team, Locations, Consoles and Workspace, Settings and Configuration, Manuals" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )][$( rigVal row14 )]" "[ Dashboard (Monitor)             ►][ Pending Questions               ►][][ Magic-Team (Agents)             ►][][ Locations (Places)              ►][ Consoles                        ►][ Workspace (System)              ►][ This Machine                    ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►]"
-rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 9 list 10"
+rigAssert "the root holds the ten sections in their order, the dashboard first, a spacer between its five groups: Dashboard and Pending Questions, Magic-Team, Locations, Consoles, Workspace and This Machine, Settings, Configuration and Optional Features, Manuals" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )][$( rigVal row14 )][$( rigVal row15 )]" "[ Dashboard (Monitor)             ►][ Pending Questions               ►][][ Magic-Team (Agents)             ►][][ Locations (Places)              ►][ Consoles                        ►][ Workspace (System)              ►][ This Machine                    ►][][ Settings                        ►][ Configuration                   ►][ Optional Features               ►][][>Manuals (Help)                  ►]"
+rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 10 list 11"
 
 echo "-- Enter dives in, the first row and Backspace go up --"
 rigScript <<'RIGSCRIPT'
@@ -221,7 +222,7 @@ root dashboard
 keys RIGHT
 get root
 rowsgen pending 100
-keys UP UP UP UP UP UP UP UP UP DOWN ENTER
+keys UP UP UP UP UP UP UP UP UP UP DOWN ENTER
 get in
 keys RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT
 get bottom
@@ -368,7 +369,7 @@ get handledLeft
 RIGSCRIPT
 rigAssert "each key of an action is a key in its view alone, and at the root none is; in its view it says in the status line why it does nothing: that it is not built, until its handler is; k, which is, that this row is nothing it acts on; l, the key of a mode of the Transcript, and n, the key of another view, say nothing: the status line keeps what it said" \
 	"[$( rigVal k.notice )] [$( rigVal p.notice )][$( rigVal r.notice )][$( rigVal s.notice )][$( rigVal R.notice )][$( rigVal kIn.notice )][$( rigVal l.notice )][$( rigVal n.notice )] [$( rigVal n.dialog )]" \
-	"[] [Pause is not built yet][Resume is not built yet][Stop is not built yet][Restart is not built yet][Kill: this session is finished][Kill: this session is finished][Kill: this session is finished] []"
+	"[] [pause asked of the tooling: the session one session][resume asked of the tooling: the session one session][stop asked of the tooling: the session one session][restart asked of the tooling: the session one session][Kill: this session is finished][Kill: this session is finished][Kill: this session is finished] []"
 rigAssert "none of them moved or quit anything"                      "$( rigVal l.selected ) $( rigVal l.quit ) $( rigVal l.focus )" "s1 no list"
 rigAssert "with a handler, the key goes to it with the row that is selected" "[$( rigVal handled.notice )]" "[handled kill on s1]"
 rigAssert "also while the left pane has the focus"                   "$( rigVal handledLeft.focus ) [$( rigVal handledLeft.notice )]" "view [handled kill on s1]"

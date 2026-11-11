@@ -20,7 +20,9 @@
 ## as waiting when that word says a call that waits on a person, and as working otherwise; no milestone file is read for it, and an
 ## ended run is not counted. The chapter of a session, the one line its store keeps, is the last field of its row. The open asks are counted
 ## from the store, the paused sessions read 0. The call rebuilds both session registries, a record written after
-## the last rebuild among them, and writes nothing else. A workspace with no session store prints the counters
+## the last rebuild among them, and writes nothing else but the tooling's 10 s kept process list. The registry's
+## own housekeeping thread, started by a rebuild at most every 5 minutes and detached (AgentsToolsRegistryHousekeepingDue),
+## is held off with AGENTS_REGISTRY_HOUSEKEEPING: its writes are its own, checked where it is. A workspace with no session store prints the counters
 ## row alone and one note. THE STATE A CONTROL THREAD STORED, AND WHETHER THAT THREAD LIVES: three more fields at
 ## the end of each `session` row, after the eight of step one, which stand where they stood. The stored state and
 ## its date are what control/state in the session's folder holds, as the registry stored them at this rebuild, `-`
@@ -147,9 +149,12 @@ rigRec(){ ## sandbox, record name, session id, spawn id ("" for none), host, own
 rigAsk(){ ## record name, session id, status
 	printf -- '---\nstatus: %s\nowner: keeper-rig\nsession-id: %s\nkind: question\n---\nq\n' "$3" "$2" > "$rigPend/$1.md"
 }
+## The tooling keeps the process list it read for 10 s (AgentsToolsRegistryProcessArgs, .local/temp/ps-args.txt): a change of
+## the rig's list drops the kept one, so the next call reads the list as it stands.
+rigPsChanged(){ rm -f "$rigWs/.local/temp/ps-args.txt" ; }
 rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --session-id word
 	local liveId livePid=900100
-	: > "$rigTmp/ps.list"
+	: > "$rigTmp/ps.list" ; rigPsChanged
 	for liveId in "$@" ; do
 		livePid=$(( livePid + 1 ))
 		printf '%s claude --verbose --session-id %s --agent rig-member the brief\n' "$livePid" "$liveId" >> "$rigTmp/ps.list"
@@ -163,7 +168,7 @@ rigPre=()
 rigRunIn(){ ## workspace, tool arguments... -- one dispatcher call from that workspace; rc in rigRc, stdout in out, stderr in err
 	local runWs="$1" ; shift
 	rigRc=0
-	( cd "$runWs" && env -i MDAT_MANAGER_NOW_MINUTES=99999999999 HOME="$rigHome" PATH="$PATH" MMDAPP="$runWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$runWs" && env -i AGENTS_REGISTRY_HOUSEKEEPING=1 MDAT_MANAGER_NOW_MINUTES=99999999999 HOME="$rigHome" PATH="$PATH" MMDAPP="$runWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigRun(){ ## tool arguments... -- in the rig workspace
@@ -185,8 +190,8 @@ rigPrint(){ ## file -- its inode and the sum of its bytes; no-file where there i
 	[ -f "$1" ] || { printf 'no-file\n' ; return 0 ; }
 	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
 }
-rigOthers(){ ## -- every file of the rig workspace but the two session registries, each with the sum of its bytes, as one sum
-	( cd "$rigWs" && find . -type f ! -name spawned-sessions.registry ! -name pending-replies.registry | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
+rigOthers(){ ## -- every file of the rig workspace but the two session registries and the kept process list, each with the sum of its bytes, as one sum
+	( cd "$rigWs" && find . -type f ! -name spawned-sessions.registry ! -name pending-replies.registry ! -name ps-args.txt | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
 }
 
 ## THE STORES. Every date is another minute, and two of a session are written with another offset, so the
@@ -316,7 +321,7 @@ rigAssert "each kept session has all its runs, the ended ones among them, and th
 	"sess-run2 run-e run-d sess-run run-c run-b sess-ask sess-unclosed - / same-rows"
 rigAssert "it leaves out the sessions that have finished, and the one of another host, with which nothing can be done from here" "$( rigRows session | LC_ALL=C awk '$4 == "finished" || $4 == "unknown-foreign" || $2 == "sess-fin" || $2 == "sess-nospawn" || $2 == "sess-foreign" { n++ } END { print n + 0 }' )" "0"
 rigAssert "the counters count the whole workspace either way" "$( rigRows counters )" "counters 2 0 3 2 3 3.25 $rigFull"
-: > "$rigTmp/ps.list"
+: > "$rigTmp/ps.list" ; rigPsChanged
 rigRun "$rigOp" --active
 rigAssert "with no live process at all no session reads running, and --active still keeps those left unclosed, the two that ran among them; the counters are those of the whole list" "$rigRc $( rigStates )/ $( rigRows counters )" \
 	"0 sess-run2=unclosed sess-run=unclosed sess-ask=waiting sess-unclosed=unclosed box-empty=unclosed / counters 0 0 0 0 3 3.25 $rigFull"

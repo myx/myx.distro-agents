@@ -66,6 +66,8 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" || { set +e ; return 1 ; }
 		local -x MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" 2> /dev/null )"
 		[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
+		## The workspace the root is for goes with it, so the thread's every call keeps it on one compare (AgentsContext.UseAgentsTools.include).
+		local -x MDAT_DATA_ROOT_OF="${MMDAPP%/}"
 
 		## The once-a-day `runs-at` markers are written by nothing since `runs-at:` became optional (S12.12): what a rig still holds goes here, once a start.
 		rm -f "${MMDAPP%/}/.local/agents/schedule/said/runs-at."* 2> /dev/null || :
@@ -83,8 +85,14 @@ case "$1" in
 		mkdir -p "$schDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-schedule: $schDir could not be made -- nothing was started" >&2 ; return 1 ; }
 		exec < /dev/null >> "$schDir/thread.log" 2>&1
 		case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
-		AgentsToolsOnDemandThreadServe "$schDir" "$schIdle" AgentsToolsScheduleThreadPass AgentsToolsScheduleThreadPass no
-		return $?
+		## The code this thread runs for hours: a change to one of these ends it, and the next ask starts one on the current code (AgentsToolsOnDemandThreadServe).
+		agentsOnDemandCodeFiles="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSchedule.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include ${MDAT_SCHEDULE_CODE_EXTRA:-}"
+		local schServeRc=0
+		agentsOnDemandLeft=""
+		AgentsToolsOnDemandThreadServe "$schDir" "$schIdle" AgentsToolsScheduleThreadPass AgentsToolsScheduleThreadPass no || schServeRc=$?
+		## A thread that ended because its own code changed starts again on the current code; the lock was given up, so the ask starts one.
+		case "${agentsOnDemandLeft:-}" in "its code changed"*) AgentsToolsScheduleThreadAsk > /dev/null 2>&1 || : ;; esac
+		return $schServeRc
 	;;
 
 	*)

@@ -213,9 +213,12 @@ rigRec(){ ## sandbox, record name, session id, spawn id, owner, status, started-
 		printf -- '---\n\n# Spawn session: %s\n' "$3"
 	} > "$rigSp/$1/$2.spawn.md"
 }
+## The tooling keeps the process list it read for 10 s (AgentsToolsRegistryProcessArgs, .local/temp/ps-args.txt): a change of
+## the rig's list drops the kept one, so the next call reads the list as it stands.
+rigPsChanged(){ rm -f "$rigWs/.local/temp/ps-args.txt" ; }
 rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --session-id word
 	local liveId livePid=900100
-	: > "$rigTmp/ps.list"
+	: > "$rigTmp/ps.list" ; rigPsChanged
 	for liveId in "$@" ; do
 		livePid=$(( livePid + 1 ))
 		printf '%s claude --verbose --session-id %s --agent rig-member the brief\n' "$livePid" "$liveId" >> "$rigTmp/ps.list"
@@ -257,7 +260,7 @@ rigPrint(){ ## file -- its inode and the sum of its bytes; no-file where there i
 	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
 }
 rigOthers(){ ## -- every file of the workspace we run from but the registries a call here rebuilds and the grants index, each with the sum of its bytes, as one sum
-	( cd "$rigWs" && find . -type f ! -name team-members.registry ! -name spawned-sessions.registry ! -name pending-replies.registry ! -name 'grants.index*' ! -name 'permissions*.registry' | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
+	( cd "$rigWs" && find . -type f ! -name team-members.registry ! -name spawned-sessions.registry ! -name pending-replies.registry ! -name 'grants.index*' ! -name 'permissions*.registry' ! -name ps-args.txt | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
 }
 
 echo "-- 1. the list: each member of the workspace is one row --"
@@ -273,7 +276,7 @@ rigAssert "a member that is not to be started is marked: the SKILL.md of human-o
 rigAssert "a member with no names shows -: the names registry holds - for the three names of human-owner, and so does its row" "$( LC_ALL=C awk '$1 == "human-owner" { print $3, $4, $5 }' "$rigNames" ) / $( rigRowOf member human-owner | LC_ALL=C awk '{ print $4, $5, $6 }' )" "- - - / - - -"
 rigAssert "the prefix group of each member is its kind" "$( rigRows member | LC_ALL=C awk '{ printf "%s ", $7 }' )" "human magic keeper "
 rigAssert "a member with a run that has a live process reads running, and one whose runs have none reads no-process" "$( rigRowOf member keeper-rig | LC_ALL=C awk '{ print $11 }' ) $( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $11 }' )" "running no-process"
-: > "$rigTmp/ps.list"
+: > "$rigTmp/ps.list" ; rigPsChanged
 rigRun "$rigListOp"
 rigAssert "with no live process no member reads running: alive is measured now, by the process list" "$rigRc $( rigRows member | LC_ALL=C awk '$11 == "running" { n++ } END { print n + 0 }' )" "0 0"
 rigLive run-k1 run-f1
@@ -518,7 +521,7 @@ rigAssert "control: the registry is the file it was, and the list runs again" "$
 echo "-- 8. the caller rule of the family --"
 rigRegBefore="$( rigPrint "$rigAgents/team-members.registry" ) $( rigPrint "$rigAgents/spawned-sessions.registry" )"
 rigCallerBad=""
-for rigCaller in "MDAT_SPAWN_AGENT=keeper-rig keeper-rig" "MDAT_SPAWN_AGENT=magic-coordinator magic-coordinator" "MDAT_SPAWN_SESSION_ID=run-k1 keeper-rig" ; do
+for rigCaller in "MDAT_SPAWN_AGENT=keeper-rig keeper-rig" "MDAT_SPAWN_SESSION_ID=run-k1 keeper-rig" ; do
 	rigPre=( "${rigCaller% *}" )
 	rigRun "$rigListOp"
 	[ "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = "1 0 1" ] || rigCallerBad="$rigCallerBad [$rigCaller list: rc $rigRc]"
@@ -526,8 +529,14 @@ for rigCaller in "MDAT_SPAWN_AGENT=keeper-rig keeper-rig" "MDAT_SPAWN_AGENT=magi
 	[ "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" = "1 0 1" ] || rigCallerBad="$rigCallerBad [$rigCaller read: rc $rigRc]"
 done
 rigPre=()
-rigAssert "from inside a member's session both are refused, rc 1, nothing on stdout, in the one line of the family: a member's by its spawn, magic-coordinator's, and one known by its spawn record alone" "${rigCallerBad:-each refused}" "each refused"
+rigAssert "from inside a member's session both are refused, rc 1, nothing on stdout, in the one line of the family: a member's by its spawn, and one known by its spawn record alone" "${rigCallerBad:-each refused}" "each refused"
 rigAssert "and a refused call rebuilt nothing: the registries are the files they were" "$( rigPrint "$rigAgents/team-members.registry" ) $( rigPrint "$rigAgents/spawned-sessions.registry" )" "$rigRegBefore"
+## The human-owner's ruling (2026-11-09): the coordinator can do what a console admin does, so the acting magic-coordinator is admitted to the family.
+rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
+rigRun "$rigListOp"
+rigCoordRc="$rigRc"
+rigPre=()
+rigAssert "the acting magic-coordinator is admitted to the family: its list answers rc 0 and does not say it is the console's own" "$rigCoordRc $( LC_ALL=C grep -c -F -- "never run from inside a member's session" "$rigTmp/err" || : )" "0 0"
 
 echo "-- 9. the place of the two operations --"
 rigInclude="$rigHere/manager/AgentsTools.ManagerTeamMember.include"

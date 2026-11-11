@@ -125,7 +125,11 @@ printf '#!/bin/sh\nfor a in "$@" ; do printf "%%s\\n" "$a" ; done >> "%s/mktemp.
 chmod +x "$rigTmp/bin/mktemp"
 rm -f "$rigTmp/mktemp.argv"
 rigHarnessTool Read "{\"path\":\"$rigTmp/sandbox/input/x.txt\"}"
-rigAssert "mktemp is asked for a dir under the sandbox's own tmp" "$( LC_ALL=C grep -c -F "$rigTmp/sandbox/tmp/AgentsUniversalHarness" "$rigTmp/mktemp.argv" || : )" 1
+## The harness asks mktemp for two dirs, its own scratch and the task's inside it (AgentsUniversalHarness.sh, AgentsHarnessRun.include): every one under the sandbox's own tmp.
+rigMktempDirs(){ ## where -- how many harness scratch dirs mktemp was asked for, and how many of them lie under that folder
+	printf '%s %s' "$( LC_ALL=C grep -c -F 'AgentsUniversalHarness.XXXXXX' "$rigTmp/mktemp.argv" || : )" "$( LC_ALL=C grep -F 'AgentsUniversalHarness.XXXXXX' "$rigTmp/mktemp.argv" | LC_ALL=C grep -c -F "$1/AgentsUniversalHarness" || : )"
+}
+rigAssert "mktemp is asked for the harness scratch dirs, two, each under the sandbox's own tmp" "$( rigMktempDirs "$rigTmp/sandbox/tmp" )" "2 2"
 rigAssert "the sandbox's own tmp folder was actually made"       "$( [ -d "$rigTmp/sandbox/tmp" ] && echo yes || echo no )" yes
 rigHarnessTool Read "{\"path\":\"$rigTmp/sandbox/tmp/x.txt\"}"
 rigAssert "the scratch tmp folder itself is granted to no tool"  "$( LC_ALL=C grep -c 'not in the allowed' "$rigTmp/harness.out" || : )" 1
@@ -136,7 +140,7 @@ rm -f "$rigTmp/mktemp.argv"
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member \
 	bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool Read ) \
 	> "$rigTmp/fallback.out" 2> "$rigTmp/fallback.err"
-rigAssert "mktemp falls back to the workspace's .local/agents/scratch with no sandbox root, and makes nothing outside the workspace" "$( LC_ALL=C grep -c -F "$rigWs/.local/agents/scratch/AgentsUniversalHarness" "$rigTmp/mktemp.argv" || : ) $( LC_ALL=C grep '^/' "$rigTmp/mktemp.argv" | LC_ALL=C grep -c -v -F "$rigWs/" || : )" "1 0"
+rigAssert "mktemp falls back to the workspace's .local/agents/scratch with no sandbox root, both dirs, and makes nothing outside the workspace" "$( rigMktempDirs "$rigWs/.local/agents/scratch" ) $( LC_ALL=C grep '^/' "$rigTmp/mktemp.argv" | LC_ALL=C grep -c -v -F "$rigWs/" || : )" "2 2 0"
 
 echo "-- the harness grants a parent its child's sandbox, by parent-spawn-id --"
 mkdir -p "$rigWs/.local/agents/spawned/rig-child/input" "$rigWs/.local/agents/spawned/rig-child/output"

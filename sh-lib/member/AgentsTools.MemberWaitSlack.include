@@ -33,10 +33,29 @@ type AgentsWaitPut > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-
 ## line, so a reply goes back to the conversation it was read from. From the bot's DM only what the person wrote is kept. rc 0 read, 1 the target names no person (the
 ## caller reads it as a conversation), 2 neither DM could be read.
 AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
-	local personMember="$1" personTarget="$2" personSince="$3" personOut="$4" personId personIdentity personInfo personDm personSeen=" " personFailed=0 personParts=0 personRendered="" personLine
-	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
-	personId="$( DistroAgentsToolsResolveTarget "$personTarget" "$personMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1 )" || personId=""
-	case "$personId" in U*|W*) ;; *) return 1 ;; esac
+	local personMember="$1" personTarget="$2" personSince="$3" personOut="$4" personId="" personIdentity personInfo personDm personSeen=" " personFailed=0 personParts=0 personRendered="" personLine personTmp=""
+	## The ids a probe keeps, a week, per member, in .local/cache/comms/slack/.dm-<member>.txt: the direct conversations below
+	## (`<identity> <person> <dm id> <at>`) and, since call-path audit row 19, the person's own id (`target <target> <person> <at>`),
+	## so the target resolve, one tooling process with a sed and a head, runs only for a target not kept. A target that names no
+	## person is not kept: the caller reads it as a conversation every time.
+	local personDmFile="$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt" personNow personKnownIdentity personKnownPerson personKnownDm personKnownAt
+	personNow="${roundNow:-}"
+	case "$personNow" in ''|*[!0-9]*) personNow="$( date +%s )" ;; esac
+	if [ -f "$personDmFile" ] ; then
+		while read -r personKnownIdentity personKnownPerson personKnownDm personKnownAt ; do
+			[ "$personKnownIdentity:$personKnownPerson" = "target:$personTarget" ] || continue
+			case "$personKnownAt" in ''|*[!0-9]*) break ;; esac
+			[ $(( personNow - personKnownAt )) -lt 604800 ] && personId="$personKnownDm"
+			break
+		done < "$personDmFile"
+	fi
+	case "$personId" in U*|W*) ;; *) personId="" ;; esac
+	if [ -z "$personId" ] ; then
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
+		personId="$( DistroAgentsToolsResolveTarget "$personTarget" "$personMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' | head -1 )" || personId=""
+		case "$personId" in U*|W*) ;; *) return 1 ;; esac
+		{ mkdir -p "${personDmFile%/*}" && personTmp="$( mktemp "$personDmFile.XXXXXX" )" && { [ ! -f "$personDmFile" ] || LC_ALL=C awk -v t="$personTarget" '!( $1 == "target" && $2 == t )' "$personDmFile" ; printf '%s %s %s %s\n' target "$personTarget" "$personId" "$personNow" ; } > "$personTmp" && mv -f "$personTmp" "$personDmFile" ; } 2> /dev/null || rm -f "${personTmp:-}" 2> /dev/null
+	fi
 	## A PERSON WITH NOTHING NEW IS NOT WRITTEN, as a conversation (AgentsWaitProbeSlack): each direct conversation with them, known
 	## by its id, is read once through the cache. Where each reads as at the last round (its length and
 	## its tail), the files stand as they are. rc 3 says so.
@@ -61,9 +80,6 @@ AgentsWaitProbeSlackPerson(){ ## member, target, since, the probe's out file
 	personRendered=""
 	## The id of a direct conversation never changes: kept a week, per member, in .local/cache/comms/slack/.dm-<member>.txt
 	## (`<identity> <person> <dm id> <at>`), so a probe asks conversations.info only for one it does not know.
-	local personDmFile="$MMDAPP/.local/cache/comms/slack/.dm-$personMember.txt" personNow personKnownIdentity personKnownPerson personKnownDm personKnownAt
-	personNow="${roundNow:-}"
-	case "$personNow" in ''|*[!0-9]*) personNow="$( date +%s )" ;; esac
 	for personIdentity in user bot ; do
 		personParts=$(( personParts + 1 ))
 		personDm=""
@@ -204,6 +220,9 @@ AgentsWaitProbeSlack(){
 		> "$probeOut.read" 2> "$probeOut.err" || probeRc=$?
 	fi
 	if [ "$probeRc" != "0" ] ; then
+		## A CONVERSATION THE CACHE DOES NOT SERVE YET (the read's rc 3, cache-only): the comms service thread has it as a want, and this
+		## probe made no call of its own. No failure to report: the source is never read until a round finds it served (rc 5).
+		[ "$probeRc" != "3" ] || [ "${MDAT_COMMS_CACHE_ONLY:-}" != "true" ] || return 5
 		## Actually onto stderr: the TIMEOUT text tells the caller a failed probe's
 		## diagnostics are there, and without this the file is written, read by
 		## nothing, and removed with the working directory -- a claim that reads as
@@ -328,7 +347,7 @@ AgentsWaitProbeSlack(){
 AgentsWaitChatImportRead(){ ## member, conversation:thread, the rendering file
 	local importSession importThread
 	type AgentsToolsSessionChatImport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
-	importSession="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; importSession="$agentsSessionChatKey"
 	[ -n "$importSession" ] || return 0
 	importThread="$( AgentsToolsSessionChatThread "$importSession" )" || return 0
 	[ "$importThread" = "$2" ] || return 0

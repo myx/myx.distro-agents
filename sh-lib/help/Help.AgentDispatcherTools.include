@@ -10,7 +10,7 @@
 
 ## The default syntax: the entry points a reader starts from. Every other operation's syntax sits behind
 ## --help-syntax, and the manual behind --help.
-echo "📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --spawns [--team-member <team-member>] [--active|--waiting|--all]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --tasks [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]" >&2

@@ -1,6 +1,6 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
-📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>]
+📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>] [--execute]
 📘 syntax: DistroAgentsDispatcher.fn.sh --all-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 📘 syntax: DistroAgentsDispatcher.fn.sh --active-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 📘 syntax: DistroAgentsDispatcher.fn.sh --waiting-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
@@ -54,9 +54,10 @@
 			`--session-thread:magic-team` is the ordinary start with a session
 			thread of its own, as no option at all gives.
 
-		--shutdown-runs [--team-member <team-member>]
-			Ends the runs that are to end now, a line each for what was ended, and
-			what was left standing with why.
+		--shutdown-runs [--team-member <team-member>] [--execute]
+			Reads out every live run of the workspace that would be ended, a line each, and
+			ends nothing. With --execute it ends all of them now, itself included when it
+			is one of them. Ending the whole workspace needs its own approval.
 
 		--all-sessions [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 		--active-sessions [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
@@ -107,6 +108,11 @@
 			`--days` is not for them. `emergency` opens the coordinator's, and another
 			member's only for a direct task from the coordinator or a pending board
 			task it owns marked `mark: emergency` or `mark: urgent`.
+			While `emergency` holds, the emergency work comes before economy and process:
+			less bureaucracy, fewer token-saving measures, less exposure to tooling
+			faults -- longer waits, no avoidable restarts or rewinds, no extra inbox
+			items or board steps that could become its blocker. Its effects beyond the
+			starts above are planned, item S12.181 of the refactorings epic.
 
 		--stop-sessions
 			Stops the rig in order. It refuses unless `holding` holds, so the schedule

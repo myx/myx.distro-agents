@@ -37,6 +37,8 @@ A lesson whose resolution produces a change elsewhere.
 | `from` | required | either | `member` | The author. Filled by inbox upsert where missing; a member sets another value only on another member's behalf. |
 | `date` | required | either | `date-time` | Creation. Filled by inbox upsert where missing. |
 | `owner` | required | either | `member` | The member whose inbox holds the reflection. A member writes a reflection into its own inbox only (`--upsert-inbox-reflection`). |
+| `from-workspace` | optional | tooling | `text` | The own name of the workspace the writer ran in. Stamped by the inbox write at creation, so a stray item names its rig. |
+| `from-session` | optional | tooling | `text` | The writer's session id. Stamped by the inbox write at creation where the call has one. |
 | `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
 | `references` | optional | member | `item-names` | Items this one cites. An inbox item may cite vault and audit items. |
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |

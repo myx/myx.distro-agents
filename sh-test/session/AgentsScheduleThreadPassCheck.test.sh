@@ -89,6 +89,44 @@ rigFlags "worktime: no (default)" "weekend: no (default)" "holidays: no" "emerge
 : > "$rigTmp/steps"
 rigAssert "with learning and supervised on and no duty flag, the pass answers 0" "$( rigRun )" "0 0 passes=1"
 
+## THE THREAD IS WANTED, AND ASKED FOR (S12.71): a member's own overtime, or worktime within thirty minutes, wants it as a flag does; a live caller (the comms
+## reader) asks for it by AgentsToolsScheduleThreadAskDue, once a minute, and asks for it only where it is wanted.
+rigAskDue(){ ## the member with overtime (may be empty), seconds to the next worktime (may be empty) -- how many asks two calls made, and what the first left in the keep
+	local asked=""
+	asked="$( env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_FLAGS="$rigTmp/flags" RIG_ASKS="$rigTmp/asks" RIG_OVER="$1" RIG_TO="$2" \
+		bash -c '
+			AgentsToolsScheduleCurrentFlags(){ cat "$RIG_FLAGS" ; return 0 ; }
+			export -f AgentsToolsScheduleCurrentFlags
+			export RIG_FLAGS RIG_ASKS RIG_OVER RIG_TO
+			set +e +u
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" > /dev/null 2>&1
+			## The include, and the includes it sources, define these themselves, so the stand-ins go in after it.
+			AgentsToolsTeamMemberDirectoryText(){ printf "keeper-rig\t/x\nmagic-coordinator\t/y\n" ; }
+			AgentsToolsScheduleMemberFlag(){ [ "$2" = "$RIG_OVER" ] && [ "$1" = overtime ] && printf "on\n" ; return 0 ; }
+			AgentsToolsScheduleClock(){ printf "1000000 0 0 0\n" ; }
+			AgentsToolsScheduleNextWorkStart(){ [ -z "$RIG_TO" ] || printf "%s\n" "$(( $1 + RIG_TO ))" ; }
+			AgentsToolsScheduleThreadAsk(){ printf "ask\n" >> "$RIG_ASKS" ; printf "alive 1\n" ; }
+			AgentsToolsScheduleThreadAskDue
+			printf "%s" "$agentsScheduleThreadKeep"
+			AgentsToolsScheduleThreadAskDue
+			printf " asks=%s" "$( LC_ALL=C grep -c "^ask$" "$RIG_ASKS" 2> /dev/null | LC_ALL=C head -1 )"
+		' 2> /dev/null )"
+	printf '%s' "$asked"
+}
+echo "-- 6. a member's overtime, or the hour near, wants the thread; a live caller asks for it --"
+rigNothingOn
+: > "$rigTmp/asks"
+rigAssert "nothing on, worktime far: not wanted, nothing asked" "$( rigAskDue "" "" )" "no asks=0"
+: > "$rigTmp/asks"
+rigAssert "a member's own overtime on: wanted, asked once, and not again inside the minute" "$( rigAskDue magic-coordinator "" )" "yes asks=1"
+: > "$rigTmp/asks"
+rigAssert "worktime in 20 minutes: wanted, asked once" "$( rigAskDue "" 1200 )" "yes asks=1"
+: > "$rigTmp/asks"
+rigAssert "worktime in two hours: not wanted, nothing asked" "$( rigAskDue "" 7200 )" "no asks=0"
+rigFlags "worktime: yes (default)" "weekend: no (default)" "holidays: no" "emergency: no" "overtime: no" "learning: no" "supervised: no"
+: > "$rigTmp/asks"
+rigAssert "worktime on: wanted, asked" "$( rigAskDue "" "" )" "yes asks=1"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE THREAD PASS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1
 fi

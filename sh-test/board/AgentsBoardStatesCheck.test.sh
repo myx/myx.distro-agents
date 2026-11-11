@@ -39,8 +39,8 @@ rigScenario(){ ## name
 ## One op, guarded; stdin is the caller's. The store is $rigStore unless RIG_NO_ROOT is set.
 rigOp(){ ## result file, op and its arguments...
 	local rigResult="$1" ; shift
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" ${RIG_NO_ROOT:-MDAT_DATA_ROOT="$rigStore"} MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
-		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
+	env -i MDAT_WORKSPACE_MODE=team-rig ${RIG_AS:+MDAT_SPAWN_AGENT=$RIG_AS} HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" ${RIG_NO_ROOT:-MDAT_DATA_ROOT="$rigStore"} MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="${RIG_SCRIPT:-$rigFn}" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 			case "${MDAT_DATA_ROOT:-$RIG_TMP/}" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MDAT_DATA_ROOT outside the rig tree" >&2 ; exit 99 ;; esac
@@ -53,6 +53,7 @@ rigStates(){ ## store: the state folders it has, in the order of the one list
 }
 rigAll="$( . "$rigHere/board/AgentsTools.BoardStates.include" ; printf '%s ' $agentsBoardStates )"
 rigItem="note-20261014T0101Z-rig.md"
+rigItemsFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh"
 
 echo "-- the one list --"
 rigAssert "the list names the nine states" "$rigAll" "backlog pending running review blocked parked processed archived retained "
@@ -82,6 +83,18 @@ rm -rf "$rigStore/board/parked"
 rigOp "$rigDir/u" --intern-op-board-trash magic-coordinator parked note-20261014T0102Z-trashed.md --untrash
 rigAssert "the item is back on the board"                    "$( cat "$rigDir/u.rc" ):$( [ -f "$rigStore/board/parked/note-20261014T0102Z-trashed.md" ] && printf yes || printf no )" "0:yes"
 rigAssert "with every state folder made"                     "$( rigStates "$rigStore" )" "$rigAll"
+
+echo "-- --trash-board-item removes an item, one with a name that has no .md too --"
+rigScenario trashitem
+printf -- '---\ntype: task\n---\nstray\n' | rigOp "$rigDir/s0" --intern-op-board-upsert-move-edit pending task-20261014T0105Z-stray --create --upsert-from-stdin --context rig
+rigAssert "the stray is on the board under its name with no .md" "$( [ -f "$rigStore/board/pending/task-20261014T0105Z-stray" ] && printf yes || printf no )" yes
+RIG_AS=magic-coordinator RIG_SCRIPT="$rigItemsFn" rigOp "$rigDir/s1" --trash-board-item --team-member magic-coordinator task-20261014T0105Z-stray --from-state:pending
+rigAssert "the coordinator's call removes it: rc 0, off the board, held in trash/ where the store is no git store" "$( cat "$rigDir/s1.rc" ):$( [ -e "$rigStore/board/pending/task-20261014T0105Z-stray" ] && printf left || printf gone ):$( [ -f "$rigStore/trash/task-20261014T0105Z-stray" ] && printf trash || printf none )" "0:gone:trash"
+printf -- '---\ntype: task\n---\nstray\n' | rigOp "$rigDir/s2" --intern-op-board-upsert-move-edit pending task-20261014T0106Z-other.md --create --upsert-from-stdin --context rig
+RIG_AS=magic-tester RIG_SCRIPT="$rigItemsFn" rigOp "$rigDir/s3" --trash-board-item --team-member magic-tester task-20261014T0106Z-other.md --from-state:pending
+rigAssert "another member's call is refused and removes nothing" "$( cat "$rigDir/s3.rc" ):$( LC_ALL=C grep -c 'only magic-coordinator writes the board' "$rigDir/s3.err" ):$( [ -f "$rigStore/board/pending/task-20261014T0106Z-other.md" ] && printf kept || printf lost )" "1:1:kept"
+RIG_AS=magic-coordinator RIG_SCRIPT="$rigItemsFn" rigOp "$rigDir/s4" --trash-board-item --team-member magic-coordinator task-20261014T0106Z-other.md
+rigAssert "a call with no state is refused with the syntax" "$( cat "$rigDir/s4.rc" ):$( LC_ALL=C grep -c 'syntax is' "$rigDir/s4.err" )" "1:1"
 
 echo "-- every state of the one list is taken, as a target and as a source --"
 rigTaken=""

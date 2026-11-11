@@ -154,7 +154,8 @@ rigAssert "the thinking block is replayed exactly"            "$( rigHolds "$rig
 rigAssert "thinking, text and call keep their stream order"   "$( rigHolds "$rigScenarioDir/req.2" '"signature":"RIG-SIGNATURE-MARKER"},{"type":"text","text":"RIG-TEXT-MARKER"},{"type":"tool_use","id":"toolu_RIG","name":"Glob","input":{"pattern": "*", "path": ' )" yes
 rigAssert "the result answers that exact call"                "$( rigHolds "$rigScenarioDir/req.2" '{"type":"tool_result","tool_use_id":"toolu_RIG","content":[{"type":"text","text":"' )" yes
 rigAssert "and the date is a text part of its own beside the result" "$( rigHolds "$rigScenarioDir/req.2" '"},{"type":"text","text":"current-date: ' )" yes
-rigAssert "the Glob call ran and its result went back"        "$( rigHolds "$rigScenarioDir/req.2" 'req.1' )" yes
+## Its result is the listing itself, or, once it is over the reply's keep threshold (4096 since 2026-11-10), the preview and the kept file.
+rigAssert "the Glob call ran and its result went back"        "$( { [ "$( rigHolds "$rigScenarioDir/req.2" 'req.1' )" = yes ] || [ "$( rigHolds "$rigScenarioDir/req.2" '... KEPT: the whole result' )" = yes ] ; } && printf yes || printf no )" yes
 rigAssert "round 1 reports what it wrote to the cache"        "$( rigHolds "$rigScenarioDir/err" 'cached: 0, written: 5000' )" yes
 rigAssert "round 2 reports the cache it read"                 "$( rigHolds "$rigScenarioDir/err" '5360 prompt tokens this round, cached: 5100' )" yes
 rigVerdict "thinking plus a tool call, then an answer -- prefix held, block replayed, cache reported"

@@ -128,7 +128,13 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 		--tool "$assertTool" --target "$assertBoundTarget" \
 		--reason "outbound --$assertTool to '$assertTarget' refused: $assertChecks" \
 		2>/dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )" || assertRefusalId=""
-	echo "⛔ ERROR: $MDSC_CMD --$assertTool: REFUSED -- '$assertTarget' is not a known contact ($assertChecks). This message was NOT sent. REFUSAL-ID: ${assertRefusalId:-none}. To send it: show the EXACT text of this message to the human-owner and wait for his approved reply -- approval covers only this exact text to this recipient; a changed message needs fresh approval." >&2
+	## The next step first: a Slack account is looked up and, where it is an organisation contact, recorded by --contacted-by, after which
+	## the same send goes through; only a person still unknown after that is escalated.
+	local assertNext=""
+	case "$assertTarget" in U[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
+		assertNext=" NEXT: run DistroAgentsContacts.fn.sh --contacted-by $assertTarget -- it records the person where they are an organisation contact, and then this same send goes through. Only if it says the person stays unknown:"
+	;; esac
+	echo "⛔ ERROR: $MDSC_CMD --$assertTool: REFUSED -- '$assertTarget' is not a known contact ($assertChecks). This message was NOT sent. REFUSAL-ID: ${assertRefusalId:-none}.${assertNext} To send it: show the EXACT text of this message to the human-owner and wait for his approved reply -- approval covers only this exact text to this recipient; a changed message needs fresh approval." >&2
 	set +e ; return 1
 }
 

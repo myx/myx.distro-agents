@@ -73,7 +73,7 @@ rigLiveDrive(){
 	{ printf 'size 130 34\nworkspace %s\ntools bash %s\n' "$rigWs" "$rigTools" ; cat ; } \
 	| ( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=xterm-256color LC_ALL=en_US.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
 		MDAT_WORKSPACE_MODE=team-rig MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigStore" \
-		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH=/bin/bash MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH="$BASH" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		"$rigPython" -I -B "$rigDriver" "$rigScreen" script ) > "$rigOut" 2>&1
 	cp "$rigLog" "$rigTmp/calls-$rigDriveTag.log" 2> /dev/null || :
 }
@@ -107,7 +107,7 @@ rigLiveHolds(){ ## drive, words
 rigLiveOp(){ ## the dispatcher itself, in the rig, as the console operator calls it -- a known positive for a control
 	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=xterm-256color LC_ALL=en_US.UTF-8 \
 		MDAT_WORKSPACE_MODE=team-rig MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigStore" \
-		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH=/bin/bash MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH="$BASH" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$rigFn" "$@" ) 2>&1
 }
 rigLiveSession(){ ## id, member

@@ -20,10 +20,11 @@ rigInc="$rigPkg/sh-lib/common/AgentsTools.OnDemandThread.include"
 rigComms="$rigPkg/sh-lib/comms/AgentsTools.CommsIngest.include"
 [ -f "$rigInc" ] || { echo "⛔ ERROR: no thread include at $rigInc" >&2 ; exit 1 ; }
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOnDemandThreadRequestCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigThreadPids=""
-rigThreadsStop(){ for rigPid in $rigThreadPids ; do kill -TERM "$rigPid" 2> /dev/null || : ; done ; rigThreadPids="" ; return 0 ; }
+rigThreadsStop(){ [ -z "$rigThreadPids" ] || rigProcSignal TERM $rigThreadPids ; rigThreadPids="" ; return 0 ; }
 trap 'rigThreadsStop ; rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0 ; rigFailCount=0
@@ -82,7 +83,7 @@ rigAssert "2. and no second thread was started" "$( rigLocks "$rigDir" )" 1
 
 echo "-- 3. a thread killed between two calls is started again and answered --"
 rigPid3="$( LC_ALL=C cut -d' ' -f1 "$rigDir/thread.lock" 2> /dev/null )"
-[ -z "$rigPid3" ] || kill -TERM "$rigPid3" 2> /dev/null || :
+[ -z "$rigPid3" ] || { rigProcNoteFrom "$rigDir/thread.lock" ; rigProcSignal TERM "$rigPid3" ; }
 rigWaited=0
 while [ "$rigWaited" -lt 15 ] && [ -f "$rigDir/thread.lock" ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "3. the thread is gone before the next call" "$( rigLocks "$rigDir" )" 0

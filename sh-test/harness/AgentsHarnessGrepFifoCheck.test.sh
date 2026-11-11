@@ -7,6 +7,9 @@
 ##   2. IT FINDS ONE IN `files_with_matches` AND IN `count` TOO, the two other modes.
 ##   3. A FIFO IS NOT SEARCHED AND NOT REPORTED: it is skipped in the walk, never opened and never named as a match.
 ##   4. AND A FOLDER WITH NO MATCH ANSWERS `No matches found`, so the check separates an empty answer from a blocked one.
+##   5. A SHELL `grep -r` THROUGH THE GUARD GREP RETURNS TOO (`AgentsToolsGrepGuardMake`, AgentsTools.SandboxLinks.include, the
+##      `grep` the served Bash tool puts first on PATH): it finds the file beside the fifo, never names the fifo, and a grep of
+##      stdin through it reads stdin as before.
 ## Every call is bounded here, so a fault reports as a call that stood still rather than standing still with it.
 ## The access gate is a stand-in that allows everything: whether a path may be read is AgentsHarnessAccessRootsCheck's question, and the
 ## fifo is this one. The pattern reader, and the tool's own scratch, are the package's real ones.
@@ -105,6 +108,28 @@ rigAssert "a search naming the fifo itself answers without blocking" "$( rigVerd
 echo "-- 4. a folder with no match says so --"
 rigGrep content "$rigFolder" 'no-such-word-anywhere'
 rigAssert "the empty answer is the tool's own words, not a blocked call" "$( printf '%s\n' "$rigOut" )" 'No matches found'
+
+echo "-- 5. a shell grep -r through the guard grep returns --"
+rigGuardBin="$rigTmp/ws/.local/agents/guard-bin"
+( . "$rigPackage/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsGrepGuardMake "$rigGuardBin" ) || rigRefuse "the guard grep could not be made in the rig"
+rigAssert "the guard grep is first on the rig's PATH" "$( PATH="$rigGuardBin:$PATH" command -v grep )" "$rigGuardBin/grep"
+PATH="$rigGuardBin:$PATH" grep -r 'rig-alpha' "$rigFolder" > "$rigTmp/out" 2>&1 &
+rigGrepPid="$!"
+rigProcNote "$rigGrepPid"
+left=60
+while [ "$left" -gt 0 ] ; do
+	kill -0 "$rigGrepPid" 2> /dev/null || break
+	sleep 1 ; left=$(( left - 1 ))
+done
+if kill -0 "$rigGrepPid" 2> /dev/null ; then
+	rigProcSignal TERM "$rigGrepPid" || : ; sleep 1 ; rigProcSignal KILL "$rigGrepPid" || :
+	rigOut="<the call stood still for 60 seconds>"
+else
+	wait "$rigGrepPid" 2> /dev/null ; rigOut="$( cat "$rigTmp/out" )"
+fi
+rigAssert "a shell grep -r over the folder returns rather than blocking on the fifo" "$( rigVerdict )" returned
+rigAssert "and finds the match in the file beside the fifo, never naming the fifo" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'note.txt:' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'request.fifo' )" "1:0"
+rigAssert "a grep of stdin through the guard reads stdin as before" "$( printf 'rig-alpha\n' | PATH="$rigGuardBin:$PATH" grep -c 'rig-alpha' )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HARNESS GREP FIFO CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

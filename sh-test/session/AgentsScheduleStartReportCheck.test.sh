@@ -10,10 +10,10 @@
 ##   4. A START THAT PRINTED NOTHING is reported as having printed nothing, with its exit status.
 ##   5. THE REPORT CONSUMES ITS OWN FILES: the same start is said once, never at every later pass.
 ## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06, one mutation per guarded line of `AgentsToolsScheduleSpawnReport`:
-##   `-A 4` changed to `-A 0` at :592 fails rows 1 and 2, the two rows of that one guard.
-##   the last-line fallback at :593 deleted fails row 3 alone.
-##   the printed-nothing fallback at :594 deleted fails row 4 alone.
-##   the `rm -f` at :597 deleted fails both assertions of row 5.
+##   the reason grep's `-A 4` changed to `-A 0` fails rows 1 and 2, the two rows of that one guard (:722 at 2026-11-09 03:21).
+##   the fallback that takes the start's last non-blank line, deleted, fails row 3 alone (:723).
+##   the fallback that answers "it printed nothing, exit <rc>", deleted, fails row 4 alone (:724).
+##   the `rm -f` that consumes the report file and its output, deleted, fails both assertions of row 5 (:727).
 ## Offline: the include this check loads, and a rig of its own; no spawner is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"

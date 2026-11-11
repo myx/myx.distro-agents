@@ -105,24 +105,24 @@ rigAssert "the same, for a contact with no name: the parenthesis goes with it" \
 	$'The refusal refusal-1 is recorded for the contact alice-one, in session sess-1. Ask the human-owner with `RequestPermission refusal_id=refusal-1 reason="client-ndm asks about the contact alice-one: Alice wants a job." task_ref=<the task this serves>`.'
 rigAssert "being contacted by a sender nobody recorded: said so, with the next step" \
 	"$( ASKP_F_value=UX rigBlock "$rigNote" Contacts/contacted-unknown | head -1 )" \
-	'No contact is recorded for UX. It is met at Ingest and Basic only: read the request, answer what needs no record, commit nothing.'
+	'No contact is recorded for UX. It is met at Moot and Contact only: read the request, answer what needs no record, commit nothing.'
 rigAssert "being contacted by a recorded sender: the access first, the tiers the record gives, the calls to make (three lines hold the four)" \
-	"$( ASKP_F_id=alice-one ASKP_F_access='dispatch on job-18 (allowed by human-owner)' ASKP_F_tiers="$( rigBlock "$rigNote" Contacts/tier-none )" rigBlock "$rigNote" Contacts/contacted-known | LC_ALL=C grep -c -F -e 'Access of alice-one: dispatch on job-18 (allowed by human-owner)' -e 'Ingest, always: read and understand it.' -e '--contact-access alice-one --tool <tool> --target <target>' -e '--escalate-contact alice-one' )" 3
+	"$( ASKP_F_id=alice-one ASKP_F_access='dispatch on job-18 (allowed by human-owner)' ASKP_F_tiers="$( rigBlock "$rigNote" Contacts/tier-none )" rigBlock "$rigNote" Contacts/contacted-known | LC_ALL=C grep -c -F -e 'Access of alice-one: dispatch on job-18 (allowed by human-owner)' -e 'Moot, always: read and understand it.' -e '--contact-access alice-one --tool <tool> --target <target>' -e '--escalate-contact alice-one' )" 3
 rigAssert "the tiers of a record with none: the four, each including the ones before it" \
 	"$( rigBlock "$rigNote" Contacts/tier-none )" \
-	'A request is in one of four tiers, each including the ones before it. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Partner, for friends and partners: talk about what the team does, a little help, small research or investigation. Recorded, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.'
+	'A request is in one of five tiers, each including the ones before it. Moot, always: read and understand it. Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Client, for friends and partners: talk about what the team does, a little help, small research or investigation. Admin and Owner, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.'
 rigAssert "the tiers of an ingest contact: ingest alone" \
-	"$( rigBlock "$rigNote" Contacts/tier-ingest )" \
-	$'This contact stands at Ingest. Every request is read and understood, and nothing more is open to it.\n\n- Ingest, always: read and understand it.'
+	"$( rigBlock "$rigNote" Contacts/tier-moot )" \
+	$'This contact stands at Moot. Every request is read and understood, and nothing more is open to it.\n\n- Moot, always: read and understand it.'
 rigAssert "the tiers of a basic contact: ingest, and basic besides" \
-	"$( rigBlock "$rigNote" Contacts/tier-basic )" \
-	$'This contact stands at Basic. Every tier below is open to it, and Basic besides.\n\n- Ingest, always: read and understand it.\n- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.'
+	"$( rigBlock "$rigNote" Contacts/tier-contact )" \
+	$'This contact stands at Contact. Every tier below is open to it, and Contact besides.\n\n- Moot, always: read and understand it.\n- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.'
 rigAssert "the tiers of a partner: partner and every tier below it, then what partner never covers" \
-	"$( rigBlock "$rigNote" Contacts/tier-partner )" \
-	$'This contact is a partner. Every tier below is open to it, and Partner besides.\n\n- Ingest, always: read and understand it.\n- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.\n- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.\n\nPartner never covers credentials or client-confidential material. A partner changes a project, the board or the team\'s work only through escalation to the human-owner.'
+	"$( rigBlock "$rigNote" Contacts/tier-client )" \
+	$'This contact is a client. Every tier below is open to it, and Client besides.\n\n- Moot, always: read and understand it.\n- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.\n- Client: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.\n\nClient never covers credentials or client-confidential material. A client changes a project, the board or the team\'s work only through escalation to the human-owner.'
 rigAssert "the tiers of a recorded contact: the same three below it, and what recorded adds" \
-	"$( rigBlock "$rigNote" Contacts/tier-recorded )" \
-	$'This contact has recorded access. Every tier below is open to it, and Recorded besides.\n\n- Ingest, always: read and understand it.\n- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.\n- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.\n- Recorded: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.\n\nPartner never covers credentials or client-confidential material. A partner changes a project, the board or the team\'s work only through escalation to the human-owner.'
+	"$( rigBlock "$rigNote" Contacts/tier-admin )" \
+	$'This contact is an admin. Every tier below is open to it, and Admin besides.\n\n- Moot, always: read and understand it.\n- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.\n- Client: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.\n- Admin: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.\n\nClient never covers credentials or client-confidential material. A client changes a project, the board or the team\'s work only through escalation to the human-owner.'
 rigAssert "reaching a contact, every part given: the contact, how to meet it, a send line for each channel" \
 	"$( ASKP_F_id=alice-one ASKP_F_name='Alice One' ASKP_F_organisation=ndm ASKP_F_how='short messages' ASKP_F_slack='conversations c' ASKP_F_email='a@b.c' rigBlock "$rigNote" Contacts/reaching )" \
 	$'Reach alice-one, Alice One of ndm. How to meet them: short messages.\nSlack: conversations c. Send with `DistroAgentsSlack.fn.sh --slack-send-message <you> <conversation> <text>`.\nE-mail: a@b.c. Send with `DistroAgentsMail.fn.sh --email-send <you> <address> -- <subject> -- <body>`.\nA send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.'
@@ -164,7 +164,7 @@ rigInCode(){ ## fixed text -> how many code lines of the package hold it
 }
 for rigPhrase in ' joined%s' 'posted no handback' 'left questions of its own open' 'Answered by $' 'Readback by $' 'Withdrawn by $' 'is now yours to answer' 'The answer in this thread is the verdict' 'Still waiting for your answer' \
 	"'Handback\\n" "'Findings: %s" 'Task as given:' 'What was established' 'Unfinished, and what was not checked' 'Confidence, and what was not checked' 'Action required:' 'What you need to do' 'Answers collected, and questions still open' \
-	'It is met at Ingest and Basic only' 'His click or word opens the grant' 'Ingest, always: read and understand it' 'Send with `DistroAgentsTools.fn.sh --member-comms' ; do
+	'It is met at Moot and Contact only' 'His click or word opens the grant' 'Ingest, always: read and understand it' 'Send with `DistroAgentsTools.fn.sh --member-comms' ; do
 	rigAssert "no code line holds: $rigPhrase"                "$( rigInCode "$rigPhrase" )" 0
 done
 rigAssert "control: the same search does find a text that is written in code" "$( [ "$( rigInCode 'Nothing was sent.' )" -gt 0 ] && printf found || printf blind )" found
@@ -263,6 +263,8 @@ printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: r
 rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/session/AgentsTools.SpawnSandbox.include" )"
 [ -n "$rigReportsTo" ] || rigRefuse "the package names no field for where a run reports to (agentsRunRouteField)"
 printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\n%s: magic-coordinator\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigReportsTo" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.spawn.md"
+## The session keeps a list, and it holds nothing open: a handback from a session with no list says so in its unfinished field.
+: > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/$rigMember.checklist.md"
 rigTaskTool(){ ## tool, argument object -- one served call of that session
 	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
 		MDLT_ORIGIN="$rigScenarioOrigin" MDLT_OPTION="--run-from-path $rigScenarioOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" \
@@ -320,7 +322,7 @@ rigRecord(){ ## id, kind, address-to, options (may be empty), age in seconds (de
 }
 rigStart withdrawn "$rigOrigin"
 rigRecord 11111111-0000-0000-0000-000000000001 question human-owner ""
-RIG_OP_AGENT="$rigMember" rigOp --settle-pending-reply "$rigMember" 11111111-0000-0000-0000-000000000001 --withdraw --reason "the rig went on by itself"
+RIG_OP_AGENT="$rigMember" rigOp --settle-pending-reply --team-member "$rigMember" 11111111-0000-0000-0000-000000000001 --withdraw --reason "the rig went on by itself"
 rigAssert "the withdrawn note follows its template"       "$( head -1 "$rigScenarioDir/op.out" ):$( rigBodyOf 1 )" \
 	'WITHDRAWN 11111111-0000-0000-0000-000000000001:RIGMARK Withdrawn by magic-tester: the rig went on by itself\nThis question no longer needs an answer.'
 
@@ -329,13 +331,13 @@ rigRecord 11111111-0000-0000-0000-000000000002 decision human-owner $'- alpha th
 ## The person replied, and the reply names neither option.
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"first"},{"ts":"%s","user":"URIGOWNER","text":"the later one, I think","thread_ts":"%s"}],"has_more":false}\n' \
 	"$rigRecordTs" "$(( ${rigRecordTs%%.*} + 30 )).000200" "$rigRecordTs" > "$rigScenarioDir/replies.json"
-RIG_OP_AGENT="$rigMember" rigOp --readback-escalation "$rigMember" 11111111-0000-0000-0000-000000000002 beta "the later one is the second way"
+RIG_OP_AGENT="$rigMember" rigOp --readback-escalation --team-member "$rigMember" 11111111-0000-0000-0000-000000000002 beta "the later one is the second way"
 rigAssert "the readback note follows its template"        "$( LC_ALL=C grep -c '^ESCALATION: 11111111-0000-0000-0000-000000000002 answered' "$rigScenarioDir/op.out" ):$( rigBodyOf 1 )" \
 	'1:RIGMARK 🔁 Readback by magic-tester: I take your reply to mean `beta` -- the later one is the second way\nIf that is wrong, reply here. Your reply is kept on this decision.'
 
 rigStart forwarded "$rigOrigin"
 rigRecord 11111111-0000-0000-0000-000000000003 decision magic-coordinator $'- alpha the first way\n- beta the second way'
-rigOp --forward-escalation magic-coordinator 11111111-0000-0000-0000-000000000003
+rigOp --forward-escalation --team-member magic-coordinator 11111111-0000-0000-0000-000000000003
 rigAssert "the line a forwarded request opens with follows its template, ahead of the request as its record holds it" \
 	"$( LC_ALL=C grep -c '^ESCALATION: 11111111-0000-0000-0000-000000000003 forwarded' "$rigScenarioDir/op.out" ):$( rigBodyOf 1 | LC_ALL=C sed 's/\\n.*$//' ):$( rigSaid 'Which way should the rig go?' )" \
 	'1:RIGMARK Forwarded by magic-coordinator. The answer in this thread is the verdict for this request.:1'

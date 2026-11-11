@@ -42,19 +42,52 @@ AgentsToolsDocValidateContractFile(){ ## kind
 	return 1
 }
 
-## The kinds built, one a line: routine, document, epic, and every type that has a contract.
+## The kinds built, one a line: routine, document, epic, and every type that has a contract. The typed kinds are read once per
+## process, by one glob of the contracts folder into a memo, in place of an ls, a sed and a sort at every validation (call-path
+## audit row 37): the glob is already in name order.
 AgentsToolsDocValidateKinds(){
+	local kindsFile kindsName
+	if [ -z "${agentsDocValidateKindsMemo+set}" ] ; then
+		agentsDocValidateKindsMemo=""
+		for kindsFile in "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/contracts"/*-item.*.contract.format.md ; do
+			[ -f "$kindsFile" ] || continue
+			kindsName="${kindsFile##*/}"
+			agentsDocValidateKindsMemo="$agentsDocValidateKindsMemo${kindsName%.contract.format.md}"$'\n'
+		done
+	fi
 	printf '%s\n' routine document epic
-	ls "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/contracts" 2> /dev/null | LC_ALL=C sed -n 's/^\(.*-item\..*\)\.contract\.format\.md$/\1/p' | LC_ALL=C sort
+	printf '%s' "$agentsDocValidateKindsMemo"
 }
 
 ## The vault's typed kinds, one a line `<type word> TAB <kind>`: what each vault-item contract says in its Kind line ("store vault, type word `X`"),
 ## the skillset of the run first, then the package; a kind is listed once, by the first contract that names it.
+## Read once per process, by the shell alone, into a memo: one Kind line a contract, in place of a cat of every vault contract
+## piped through sed and awk at each call (call-path audit, the sibling of row 37).
 AgentsToolsDocValidateVaultTypes(){
-	local typesBase
-	for typesBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
-		cat "$typesBase"/contracts/vault-item.*.contract.format.md 2> /dev/null || :
-	done | LC_ALL=C sed -n -E 's/^- Kind `(vault-item\.[a-z-]+)`: store vault, type word `([a-z-]+)`.*$/\2'$'\t''\1/p' | LC_ALL=C awk -F'\t' '!( $2 in kindSeen ) { kindSeen[$2] = 1 ; print ; }'
+	local typesBase typesFile typesLine typesKind typesWord typesSeen=" "
+	if [ -z "${agentsDocValidateVaultTypesMemo+set}" ] ; then
+		agentsDocValidateVaultTypesMemo=""
+		for typesBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
+			for typesFile in "$typesBase"/contracts/vault-item.*.contract.format.md ; do
+				[ -f "$typesFile" ] || continue
+				while IFS= read -r typesLine ; do
+					case "$typesLine" in
+						'- Kind `vault-item.'*'`: store vault, type word `'*'`'*)
+							typesKind="${typesLine#- Kind \`}" ; typesKind="${typesKind%%\`*}"
+							typesWord="${typesLine#*type word \`}" ; typesWord="${typesWord%%\`*}"
+							case "$typesKind$typesWord" in *[!a-z.-]*) break ;; esac
+							case "$typesSeen" in
+								*" $typesKind "*) ;;
+								*) typesSeen="$typesSeen$typesKind " ; agentsDocValidateVaultTypesMemo="$agentsDocValidateVaultTypesMemo$typesWord"$'\t'"$typesKind"$'\n' ;;
+							esac
+							break
+						;;
+					esac
+				done < "$typesFile"
+			done
+		done
+	fi
+	printf '%s' "$agentsDocValidateVaultTypesMemo"
 }
 
 ## The type word an item file name carries, rc 1 where no contract names one at its start: the vault's type words are not

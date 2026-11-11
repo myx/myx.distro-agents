@@ -854,6 +854,32 @@ def askResume(state, row):
     return askPauseOrResume(state, row, "resume")
 
 
+## `s` (S7.19, the human-owner's ruling): the soft stop. The selected session, or the one agent, is asked of `--manager-session-stop`:
+## its runs are dismissed the proper way and end themselves at their next Wait, their handback given. No confirmation is asked, since
+## nothing is signalled and no closure is skipped; the hard way is `k`, the kill, with its word. The target is the kill's own.
+def askStop(state, row):
+    target = killTargetOf(state, row)
+    if target is None:
+        return tell(state, "Stop", "s: nothing to stop here: s acts on a session, or on an agent of one")
+    if "action:stop:" + target["id"] in state.asked:
+        return tell(state, "Stop", "s: the stop of this %s is asked for already, and its answer has not come" % ("session" if target["kind"] == "session" else "agent"))
+    askCall(state, "stop", target["id"], callWords("stop:" + target["kind"], target["id"]), None)
+    return "stop asked of the tooling: the %s %s" % ("session" if target["kind"] == "session" else "agent", target["label"])
+
+
+## `R` (S7.19, the human-owner's ruling): a restart is a start again of what has stopped or finished, never of what runs. Asked of the
+## tooling at once, `--manager-session-restart --session-id <id>` on a session (its founding run) and with `--run` on an agent; the
+## operation itself says `live` of a run that still runs. Its answer's rows are said in words (restartAnswered).
+def askRestart(state, row):
+    target = killTargetOf(state, row)
+    if target is None:
+        return tell(state, "Restart", "R: nothing to restart here: R acts on a session, or on an agent of one")
+    if "action:restart:" + target["id"] in state.asked:
+        return tell(state, "Restart", "R: the restart of this %s is asked for already, and its answer has not come" % ("session" if target["kind"] == "session" else "agent"))
+    askCall(state, "restart", target["id"], callWords("restart:" + target["kind"], target["id"]), None)
+    return "restart asked of the tooling: the %s %s" % ("session" if target["kind"] == "session" else "agent", target["label"])
+
+
 ## What each <outcome> of a `control` row means, in words. An outcome that is not listed
 ## here shows as it is printed.
 CONTROL_OUTCOMES = {
@@ -1114,6 +1140,8 @@ ACTION_HANDLERS["kill"] = askKill
 ACTION_HANDLERS["control"] = askControl
 ACTION_HANDLERS["pause"] = askPause
 ACTION_HANDLERS["resume"] = askResume
+ACTION_HANDLERS["stop"] = askStop
+ACTION_HANDLERS["restart"] = askRestart
 ACTION_HANDLERS["launch"] = askLaunch
 ACTION_HANDLERS["prompt"] = askPrompt
 ACTION_HANDLERS["unstarted"] = askUnstarted

@@ -101,13 +101,18 @@ AgentsToolsBoardDependenciesFindings(){
 
 ## The signature of the board's shape (the names of its items and the states they lie in), and whether anything was written since the marker.
 AgentsToolsBoardDependenciesChanged(){ ## marker file, signature file
-	local changedRoot="$MDAT_DATA_ROOT/board" changedNow changedOld=""
+	local changedRoot="$MDAT_DATA_ROOT/board" changedNow changedOld="" changedFile
 	[ -d "$changedRoot" ] || return 1
-	changedNow="$( LC_ALL=C find "$changedRoot" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort | LC_ALL=C cksum )"
+	## The shell's own glob of board/<state>/*.md, in byte order, and one cksum: no find, no sort. A mark that starts with a dot is no item.
+	local LC_COLLATE=C
+	changedNow="$( for changedFile in "$changedRoot"/*/*.md ; do [ -f "$changedFile" ] && printf '%s\n' "$changedFile" ; done | LC_ALL=C cksum )"
 	[ ! -f "$2" ] || IFS= read -r changedOld < "$2" || :
 	[ "$changedNow" = "$changedOld" ] || { printf '%s\n' "$changedNow" > "$2.next" 2> /dev/null && mv -f "$2.next" "$2" 2> /dev/null ; return 0 ; }
 	[ -f "$1" ] || return 0
-	[ -n "$( LC_ALL=C find "$changedRoot" -type f -name '*.md' -newer "$1" 2> /dev/null | head -n 1 )" ]
+	for changedFile in "$changedRoot"/*/*.md ; do
+		[ "$changedFile" -nt "$1" ] && return 0
+	done
+	return 1
 }
 
 ## The recompute: nothing where the board has not changed since the last; else the missing ends of the edges written, the findings kept as the

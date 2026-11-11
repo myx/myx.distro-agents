@@ -45,6 +45,9 @@ mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned" "$rigWs/.local/t
 	"$rigStore/board" "$rigStore/audit" "$rigStore/contacts" "$rigStore/inboxes" "$rigStore/vault" \
 	|| rigRefuse "the rig could not be made"
 : > "$rigWs/.local/MDLT.settings.env"
+## The console is mapped to the human-owner (HUMAN_OWNER_CONSOLE_ACCOUNT): the stand-in session reports to magic-coordinator, and a
+## console mapped to nobody is refused that kill by the authority gate. This check is about the order of the kill, not its authority.
+printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "$( printf '%s' "$( id -un 2>/dev/null )" | LC_ALL=C tr -s ' \t\r\n' '_' )" > "$rigWs/.local/.agents/magic-team.agent.env"
 printf -- '---\nname: magic-tester\n---\nrig identity\n' > "$rigHome/skills/magic-tester/magic-tester.basic.md"
 
 rigSession(){ ## id -- a spawn record, and one live process the registry finds by `--session-id`
@@ -75,7 +78,7 @@ trap 'rigLiveEnd 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigCall(){ ## the operation and its words
 	rigOut="$( cd "$rigWs" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LC_ALL=en_US.UTF-8 \
 		MDAT_WORKSPACE_MODE=team-rig MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigStore" \
-		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH=/bin/bash MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH="$BASH" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$rigFn" "$@" 2>&1 )"
 	rigRc=$?
 }

@@ -72,8 +72,9 @@ rigAssert "--identity-bot to human-owner, a member with its own user token" \
 	"$( rigSend keeper-myx human-owner --identity-bot )" rig-bot-token-TEAM
 rigAssert "--identity-bot to a channel posts with the bot token" \
 	"$( rigSend keeper-myx magic-team --identity-bot )" rig-bot-token-TEAM
-rigAssert "no flag, a member with its own user token posts with that token" \
-	"$( rigSend keeper-myx human-owner )" rig-user-token-KEEPER
+## HIS CONVERSATION IS THE BOT'S (the owner, 2026-11-10): a member's own token never posts to him; the send takes the bot itself.
+rigAssert "no flag, a member with its own user token to human-owner: the team bot's token posts" \
+	"$( rigSend keeper-myx human-owner )" rig-bot-token-TEAM
 rigAssert "no flag, the same member to a channel keeps its own token" \
 	"$( rigSend keeper-myx magic-team )" rig-user-token-KEEPER
 ## TO THE HUMAN-OWNER a member with no Slack account of its own posts as the team bot, in the
@@ -91,6 +92,10 @@ rigAssert "no flag, a member with no account to human-owner: one post, the team 
 	"$( rigOwnerSend magic-team )" "0:rig-bot-token-TEAM:1:0"
 rigAssert "a routine's send to human-owner is the team bot's too" \
 	"$( rigOwnerSend routine-advance )" "0:rig-bot-token-TEAM:1:0"
+## HIS CONVERSATION IS THE BOT'S, NEVER A PERSONA'S: a member holding a user token of its own does not post to him under it; the
+## send takes the bot and says so on its own line.
+rigAssert "a member with its own account to human-owner, no flag: the bot posts and the send says it took the bot" \
+	"$( rigOwnerSend magic-coordinator ):$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --slack-send-message --team-member magic-coordinator human-owner RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'sent as the bot' )" "0:rig-bot-token-TEAM:1:0:1"
 ## A person at a console acts as user-<account> (F6.10, F11.6): no member, no skill folder and no account of its own, so its send is the team bot's,
 ## with the account as the sender it carries. A name that is none of a member, a routine and an account is refused as before.
 rigAssert "user-<account>, a person at a console, is let send: one post, the team bot's, to the owner's own account" \
@@ -102,8 +107,8 @@ mv "$rigWs/.local/.agents/magic-coordinator.agent.env" "$rigTmp/coordinator.env.
 rigAssert "magic-coordinator with no account of its own: the team bot's as well, never an error for want of a relay" \
 	"$( rigOwnerSend magic-coordinator )" "0:rig-bot-token-TEAM:1:0"
 mv "$rigTmp/coordinator.env.aside" "$rigWs/.local/.agents/magic-coordinator.agent.env"
-rigAssert "control: magic-coordinator with its own account posts to human-owner under it" \
-	"$( rigOwnerSend magic-coordinator )" "0:rig-user-token-COORD:1:0"
+rigAssert "control: magic-coordinator with its own account to human-owner, no flag: the team bot posts, to his own account" \
+	"$( rigOwnerSend magic-coordinator )" "0:rig-bot-token-TEAM:1:0"
 
 ## A transport failure before anything reached Slack is retried; one after it may have
 ## reached Slack is not, since a post is not idempotent and a retry could post twice.

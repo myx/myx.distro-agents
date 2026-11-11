@@ -127,7 +127,7 @@ AgentsToolsLibrarianSourceCopy(){ ## member
 	local copyFile copyRows="" copyKinds="" copyKind copyDir copyReal copyDirs="" copyCount copyMissing="" copyShown=""
 	librarianWhy="" librarianCopy=""
 	type AgentsToolsTeamLocalFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-	for copyFile in "$( AgentsToolsTeamLocalFile "$MMDAPP" members.registry )" "$( AgentsToolsTeamSharedMembers )" ; do
+	for copyFile in "$( AgentsToolsTeamLocalFile "$MMDAPP" members.registry )" "${HOME:-}/.agents/magic-team/members.registry" ; do
 		[ -f "$copyFile" ] || continue
 		copyRows="$copyRows$( LC_ALL=C awk -F'\t' -v who="$1" 'NF >= 5 && $1 == who { print $3 "\t" $5 }' "$copyFile" )"$'\n'
 	done
@@ -361,7 +361,7 @@ AgentsToolsLibrarianBase(){ ## request file
 AgentsToolsLibrarianWaiting(){
 	local waitFile waitDir
 	AgentsToolsLibrarianLoad
-	waitDir="$( AgentsToolsInboxDir magic-librarian )"
+	waitDir="$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming"
 	for waitFile in "$waitDir"/inquiry-*.md ; do
 		[ -f "$waitFile" ] || continue
 		[ -n "$( AgentsToolsLibrarianKey "$waitFile" update-kind )" ] || continue
@@ -608,7 +608,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 AgentsToolsLibrarianClose(){ ## op, name, outcome (applied|refused|closed), result
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local closeFile closeFrom closeReply closeKind closeTarget closePending
-	closeFile="$( AgentsToolsInboxDir magic-librarian )/$2"
+	closeFile="$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming/$2"
 	closeFrom="$( AgentsToolsLibrarianKey "$closeFile" from )" ; closeReply="$( AgentsToolsLibrarianKey "$closeFile" reply-requested )"
 	closeKind="$( AgentsToolsLibrarianKey "$closeFile" update-kind )" ; closeTarget="$( AgentsToolsLibrarianKey "$closeFile" update-target )"
 	closePending="$( AgentsToolsLibrarianKey "$closeFile" pending-question )"
@@ -654,7 +654,7 @@ AgentsToolsLibrarianQueueDone(){ ## the operation, its arguments...
 			return 1
 		fi
 	fi
-	doneFile="$( AgentsToolsInboxDir magic-librarian )/$doneName"
+	doneFile="$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming/$doneName"
 	if [ ! -f "$doneFile" ] || [ -z "$( AgentsToolsLibrarianKey "$doneFile" update-kind )" ] ; then
 		if AgentsToolsInboxItemProcessed magic-librarian "$doneName" ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $doneOp: $doneName is closed already -- nothing was done" >&2
@@ -795,7 +795,7 @@ AgentsToolsLibrarianQueueAsk(){ ## the operation, name
 	AgentsToolsAssertBareName "$askName" "<name>" "${askOp#--}" || return 1
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
 	AgentsToolsLibrarianCaller "$askOp" librarian > /dev/null || return 1
-	askFile="$( AgentsToolsInboxDir magic-librarian )/$askName"
+	askFile="$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming/$askName"
 	if [ ! -f "$askFile" ] || [ -z "$( AgentsToolsLibrarianKey "$askFile" update-kind )" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $askOp: $askName is no update request that waits in magic-librarian's inbox -- nothing was done" >&2
 		return 1
@@ -976,7 +976,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
 	askRequester="$( AgentsToolsLibrarianCaller "$askOp" librarian )" || return 1
 	askRequesterRun="$( AgentsToolsActingSession )"
-	askFile="$( AgentsToolsInboxDir magic-librarian )/$askName"
+	askFile="$MDAT_DATA_ROOT/inboxes/magic-librarian/incoming/$askName"
 	if [ ! -f "$askFile" ] || [ -z "$( AgentsToolsLibrarianKey "$askFile" update-kind )" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $askOp: $askName is no update request that waits in magic-librarian's inbox -- nothing was done" >&2
 		return 1

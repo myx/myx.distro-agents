@@ -583,11 +583,16 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 		rhEntryTool="${rhRest%%:*}" ; rhEntryTarget=""
 		case "$rhRest" in *:*) rhEntryTarget="$( AgentsToolsPermissionUnescape "${rhRest#*:}" )" ;; esac
 		AgentsToolsGrantsToolCovers "$rhEntryTool" "$rhTool" || continue
-		## A relative path is the workspace's.
+		## A relative path is the workspace's. `@team-data` is the rig's team data root, wherever its path is (the owner's ruling:
+		## a routine's grant on team data names the data, never one machine's folder); `@team-data/<rest>` is a path under it.
 		case "$agentsPermissionFileTools" in
 			*" $rhEntryTool "*)
 				case "$rhEntryTarget" in
 					''|'*'|'**'|/*) ;;
+					@team-data|@team-data/*)
+						type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" 2> /dev/null || :
+						rhEntryTarget="${MDAT_DATA_ROOT:-$( AgentsToolsTeamDataRootOf "$MMDAPP" 2> /dev/null )}${rhEntryTarget#@team-data}"
+					;;
 					*) rhEntryTarget="${MMDAPP%/}/$rhEntryTarget" ;;
 				esac
 			;;
@@ -674,6 +679,11 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 			*" $dnEntryTool "*)
 				case "$dnEntryTarget" in
 					''|'*'|'**'|/*) ;;
+					## `@team-data`, the rig's team data root, as the allow side reads it.
+					@team-data|@team-data/*)
+						type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include" 2> /dev/null || :
+						dnEntryTarget="${MDAT_DATA_ROOT:-$( AgentsToolsTeamDataRootOf "$MMDAPP" 2> /dev/null )}${dnEntryTarget#@team-data}"
+					;;
 					*) dnEntryTarget="${MMDAPP%/}/$dnEntryTarget" ;;
 				esac
 			;;
@@ -956,7 +966,7 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 ## the one that spawned it), the task item's owner and `participants:`, and the owner
 ## of every dispatch item tracking it.
 AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (may be empty)
-	local partSession="$1" partTask="${2:-}" partCow="" partParent="" partRecord partPath partItem
+	local partSession="$1" partTask="${2:-}" partCow="" partParent="" partRecord partPath partItem partFiles=()
 	{
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
 			case "$partSession" in */*|.|..) partSession="" ;; esac
@@ -968,7 +978,22 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				partParent="$( AgentsToolsPermissionField "$partRecord" parent-spawn-id )"
 				break
 			done
-			LC_ALL=C awk -v ownSession="$partSession" -v cowSession="${partCow:-$partSession}" -v parentSession="$partParent" '
+			## The records asked about come from the kept lists and one-file globs, never a read of every
+			## record on a gate call (AgentsTools.StartedRecords.include): the coworking session's and this
+			## session's own records, this run's record, the runs it spawned, and its parent's record. The
+			## selection below then runs over those files alone, and decides as it always did.
+			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+			while IFS= read -r partRecord ; do
+				[ -n "$partRecord" ] && [ -f "$partRecord" ] || continue
+				partFiles+=( "$partRecord" )
+			done < <( {
+				AgentsToolsSpawnedSessionRecords "${partCow:-$partSession}" own
+				[ "${partCow:-$partSession}" = "$partSession" ] || AgentsToolsSpawnedSessionRecords "$partSession" own
+				AgentsToolsSpawnedChildRecords "$partSession"
+				printf '%s\n' "$MMDAPP/.local/agents/spawned"/*/"$partSession.spawn.md"
+				[ -z "$partParent" ] || printf '%s\n' "$MMDAPP/.local/agents/spawned"/*/"$partParent.spawn.md"
+			} 2> /dev/null | LC_ALL=C sort -u )
+			[ "${#partFiles[@]}" -eq 0 ] || LC_ALL=C awk -v ownSession="$partSession" -v cowSession="${partCow:-$partSession}" -v parentSession="$partParent" '
 				FNR == 1 { front = 0 ; recSession = "" ; recSpawn = "" ; recParent = "" ; recOwner = "" ; }
 				$0 == "---" {
 					front++ ;
@@ -981,7 +1006,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				front == 1 && index( $0, "spawn-id: " ) == 1 { recSpawn = substr( $0, 11 ) ; }
 				front == 1 && index( $0, "parent-spawn-id: " ) == 1 { recParent = substr( $0, 18 ) ; }
 				front == 1 && index( $0, "owner: " ) == 1 { recOwner = substr( $0, 8 ) ; }
-			' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2>/dev/null || :
+			' "${partFiles[@]}" 2>/dev/null || :
 		fi
 		## A root-harness session has no spawn record: the coordinator is its one participant.
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
@@ -996,12 +1021,15 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				AgentsToolsPermissionField "$partPath" participants | LC_ALL=C tr ', ' '\n\n' ; printf '\n'
 				break
 			done
-			for partPath in "$MDAT_DATA_ROOT"/board/*/dispatch-*.md ; do
-				[ -f "$partPath" ] || continue
-				case "$( AgentsToolsPermissionField "$partPath" tracks )" in
-					"$partItem"|"$partItem.md") AgentsToolsPermissionField "$partPath" owner ; printf '\n' ;;
-				esac
-			done
+			## The owners of the dispatch items tracking this item, by one awk over the dispatch items: a board holds
+			## hundreds of them, and this runs on each ask, so never a process per item. The walk itself stays
+			## until the board keeps an index of what tracks an item (epic S10.37).
+			LC_ALL=C awk -v item="$partItem" '
+				FNR == 1 { fence = 0 ; owner = "" ; tracks = "" }
+				$0 == "---" { fence++ ; if ( fence > 1 ) { if ( tracks == item || tracks == item ".md" ) print owner ; nextfile } ; next }
+				fence == 1 && index( $0, "owner: " ) == 1 && owner == "" { owner = substr( $0, 8 ) }
+				fence == 1 && index( $0, "tracks: " ) == 1 && tracks == "" { tracks = substr( $0, 9 ) }
+			' "$MDAT_DATA_ROOT"/board/*/dispatch-*.md 2> /dev/null || :
 		fi
 	} | LC_ALL=C awk 'NF && !seenMember[$1]++ { print $1 ; }'
 }

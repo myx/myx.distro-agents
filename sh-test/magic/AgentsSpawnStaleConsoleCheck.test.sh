@@ -38,6 +38,7 @@ for rigFile in "$rigTool" "$rigFixtures/slack-send-identity-check.curl.stub.sh" 
 done
 . "$rigFixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
+. "$rigFixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSpawnStaleConsoleCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; chmod -R u+w -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -104,11 +105,14 @@ rigRun(){ ## stdin content, then --spawn-session args... -- one spawn, made as t
 			cd "$MMDAPP" && exec bash "$RIG_FN" --spawn-session "$@"
 		' rig-run-wrapper "$@" > "$rigTmp/spawn.out" 2>&1 &
 	local runPid=$!
-	( sleep 120 ; kill -TERM "$runPid" 2> /dev/null ) > /dev/null 2>&1 &
+	## The run is noted with its start now, and the watch two minutes on signals it only while it is still that process (rig-processes).
+	rigProcNote "$runPid"
+	( sleep 120 ; rigProcSignal TERM "$runPid" ) > /dev/null 2>&1 &
 	local runDog=$!
+	rigProcNote "$runDog"
 	wait "$runPid"
 	rigSpawnRc=$?
-	kill -TERM "$runDog" 2> /dev/null
+	rigProcSignal TERM "$runDog"
 	wait "$runDog" 2> /dev/null || :
 	printf '%s' "$rigSpawnRc" > "$rigTmp/spawn.rc"
 	## The status is the function's own, so the caller reads it off the pipe: a `printf` last would make

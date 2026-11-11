@@ -83,7 +83,8 @@ function memberSendHeaderLength(text,   arrowAt, fromPart, toPart, endAt) {
 	arrowAt = index(text, " → ") ;
 	if (arrowAt == 0) { return 0 ; } ;
 	fromPart = substr(text, 1, arrowAt - 1) ;
-	if (fromPart !~ /^([^ ]+ )?\*_[^*]+_\* @[^ ]+$/ && fromPart !~ /^((:[A-Za-z0-9_+-]+:|[^ -~]+) )?\*_[^*]+_\*$/) { return 0 ; } ;
+	## The author line may end in the origin routine of the sending run, ` (work-duty)`, after the alias or after a bare name (AgentsTools.InternOpCommsSlackSend.include).
+	if (fromPart !~ /^([^ ]+ )?\*_[^*]+_\* @[^ ]+( \([^)]*\))?$/ && fromPart !~ /^((:[A-Za-z0-9_+-]+:|[^ -~]+) )?\*_[^*]+_\*( \([^)]*\))?$/) { return 0 ; } ;
 	toPart = substr(text, arrowAt + length(" → ")) ;
 	endAt = index(toPart, ". ") ;
 	if (endAt > 0) { return arrowAt + length(" → ") + endAt ; } ;

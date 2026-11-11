@@ -170,8 +170,10 @@ AgentsToolsCollectKnown(){ ## kind, member
 AgentsToolsCollectBlocks(){ ## kind, member, since, cap, blocks variable, total variable
 	local blkKind="$1" blkMember="$2" blkSince="${3:-}" blkCap="$4" blkVarBlocks="$5" blkVarTotal="$6" blkMark="-email-u" blkFile blkName blkDate blkCount=0 blkTotal=0 blkText="" blkBody blkOne blkPending
 	[ "$blkKind" = "trello" ] && blkMark="-trello-"
-	while IFS= read -r blkFile ; do
-		[ -n "$blkFile" ] && [ -f "$blkFile" ] || continue
+	## The notes by the shell's own glob, sorted in the byte order a sort of the names gave: no ls and no sort, no process a collect.
+	local LC_COLLATE=C
+	for blkFile in "$MDAT_DATA_ROOT/inboxes/$blkMember/incoming"/note-*"$blkMark"*.md ; do
+		[ -f "$blkFile" ] || continue
 		blkName="${blkFile##*/}" ; blkDate="${blkName#note-}" ; blkDate="${blkDate%%T*}"
 		if [ -n "$blkSince" ] && [ "$blkDate" \< "$blkSince" ] ; then continue ; fi
 		blkTotal=$(( blkTotal + 1 ))
@@ -179,7 +181,7 @@ AgentsToolsCollectBlocks(){ ## kind, member, since, cap, blocks variable, total 
 		blkBody="$( LC_ALL=C awk 'fm < 2 && $0 == "---" { fm++ ; next ; } fm >= 2 && ( NF || started ) { started = 1 ; print ; }' "$blkFile" )"
 		blkText="$blkText$blkBody"$'\n\n'
 		blkCount=$(( blkCount + 1 ))
-	done < <( ls -1 "$( AgentsToolsInboxDirFor "$blkMember" no )"/note-*"$blkMark"*.md 2> /dev/null | LC_ALL=C sort )
+	done
 	if [ "$blkKind" = "mail" ] ; then
 		for blkOne in $( AgentsToolsCollectStateGet mail "$blkMember" not-read ) ; do
 			blkTotal=$(( blkTotal + 1 ))

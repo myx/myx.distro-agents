@@ -57,7 +57,7 @@ Concrete, ready-to-execute work.
 | `restart-session` | optional | member | `members` | Members to spawn as a coworking session instead of running inline. |
 | `review-by` | optional | member | `reviewer` | The reviewer of a `board-review` item. Unset, it is the run's `reports-to`. `none` means no review: the item closes straight to `board-processed`. |
 | `handler-routine` | optional | member | `routine` | The routine that runs this item's next iteration, over its type's default. Never overrides a gate. Set only by grooming or `magic-coordinator`, with its reason in `## Decisions`. |
-| `mark` | optional | member | `enum important, urgent, emergency` | The item's tier (epic S16 stage 4 item 2). `emergency` and `urgent` are bound by time: needed as soon as possible, not as planned. They pass `holding`, and start the owner's duty under `emergency`. `important` goes first among normal work. A subtask inherits its parent's tier, and finishing the item ends it. |
+| `mark` | optional | member | `enum important, urgent, emergency` | The item's tier. `emergency` and `urgent` are bound by time, never planned, and they pass `holding`. `emergency` starts the owner's duty, takes all attention and starts at any hour: its deadline has passed. `urgent` is needed now rather than as planned, so it goes before normal work. `important` matters with no deadline, goes first among normal work and does not pass `holding`. A subtask inherits its parent's tier, and finishing the item ends it. |
 | `archive` | optional | member | `flag` | Keep this processed item permanently. |
 | `outcome` | optional | member | `text` | What an advance pass did. Written by `magic-coordinator`. |
 | `execution-receipt` | optional | member | `text` | The evidence for `outcome`, and for a move into `board-blocked`. Written by `magic-coordinator`. |
@@ -108,7 +108,7 @@ Concrete, ready-to-execute work.
 ## Rules
 
 - `type` equals the type word in the filename (`task`).
-- The body carries the goal, the scope, the current state and the next step. A document missing one of them is incomplete, and a reader with no context cannot continue from it.
+- [judged] The body carries the goal, the scope, the current state and the next step. A document missing one of them is incomplete, and a reader with no context cannot continue from it.
 - `approved-by` and `approved-at` appear together.
 - `recheck-date` and `condition` appear together.
 - [store] Only `magic-coordinator` creates or moves a board item.

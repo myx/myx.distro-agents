@@ -68,7 +68,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - refresh the `roster-note` with `--roster-upsert` where a member's `SKILL.md` description drifted from it.
    - check Trello board coverage.
    - check Google Drive and Sheets for files modified since the last grooming, with `--google-file-find`.
-   - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch. Send it to him with `SendMessage` during this pass: at **review-with-the-user** if he is live, else once this step ends.
+   - add the approved items needing the human-owner's own hands (app configuration, scope grants) to the open human-action batch item, creating one if none is open. Send the batch to him with `SendMessage` during this pass: at **review-with-the-user** if he is live, else once this step ends.
 3. **triage-per-item**: give every open item, old or new, one recorded triage verb or an explicit skip reason. Time-box each item. Steps:
    - decide each item by this tree, first match wins:
      - duplicate of another open item → **Merge**.

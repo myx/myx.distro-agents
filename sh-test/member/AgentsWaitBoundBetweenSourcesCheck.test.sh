@@ -9,7 +9,7 @@
 ##   2. control, the probe quick: both sources arrive, nothing is named in WAIT-NEVER-READ
 ##   3. a zero bound reads every source once, slow probe or not: both arrive
 ##   4. a quiet round past the bound (nothing found by the slow probe) still reads the source after it: nothing is named
-## Red before the change: scenario 1 returns the inbox arrival alone and names board:pending as never read.
+
 ## Offline: a Slack-shaped fake curl logs and answers any call; every tree is this rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -76,14 +76,14 @@ rigArrivals(){ ## result name -- the sources that arrived, in order, space separ
 }
 echo "-- 1. a bound that passes in the first probe, which found something: the source after it is read too --"
 rigWait w1 2 yes 1
-rigAssert "RECEIVED, ending 0, with both arrivals"                "$( rigResult w1 ):$( cat "$rigTmp/w1.rc" ):$( rigArrivals w1 )" "RECEIVED:0:inbox:magic-coordinator board:pending"
+rigAssert "RECEIVED, ending 0, with both arrivals"                "$( rigResult w1 ):$( cat "$rigTmp/w1.rc" ):$( rigArrivals w1 )" "RECEIVED:0:board:pending inbox:magic-coordinator"
 rigAssert "nothing is named as never read"                        "$( rigNeverRead w1 )" "none"
 echo "-- 2. control, the probe quick: both sources arrive --"
 rigWait w2 2 no 1
-rigAssert "RECEIVED with both, nothing named as never read"       "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:inbox:magic-coordinator board:pending:none"
+rigAssert "RECEIVED with both, nothing named as never read"       "$( rigResult w2 ):$( rigArrivals w2 ):$( rigNeverRead w2 )" "RECEIVED:board:pending inbox:magic-coordinator:none"
 echo "-- 3. a zero bound reads every source once, slow probe or not --"
 rigWait w3 0 yes 1
-rigAssert "RECEIVED with both, nothing named as never read"       "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:inbox:magic-coordinator board:pending:none"
+rigAssert "RECEIVED with both, nothing named as never read"       "$( rigResult w3 ):$( rigArrivals w3 ):$( rigNeverRead w3 )" "RECEIVED:board:pending inbox:magic-coordinator:none"
 echo "-- 4. a quiet round past the bound still reads the sources at its tail --"
 rigWait w4 2 yes
 rigAssert "TIMEOUT, nothing named as never read"                  "$( rigResult w4 ):$( rigNeverRead w4 )" "TIMEOUT:none"

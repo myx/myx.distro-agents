@@ -48,7 +48,7 @@ rigRefused(){ ## -- rc, what stdout held in bytes, and whether stderr names an e
 	printf '%s %s %s' "$rigRc" "$( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" "$( LC_ALL=C grep -c -F -- '⛔ ERROR: DistroAgentsTools --manager-manual-read:' "$rigTmp/err" || : )"
 }
 rigTree(){ ## -- every file of the rig, each with the sum of its bytes, as one sum
-	( cd "$rigTmp" && find ws home -type f 2> /dev/null | LC_ALL=C sort | while IFS= read -r treeFile ; do printf '%s %s\n' "$treeFile" "$( cksum < "$treeFile" )" ; done ) | cksum
+	( cd "$rigTmp" && find ws home -type f ! -path 'ws/.local/system-index/*' 2> /dev/null | LC_ALL=C sort | while IFS= read -r treeFile ; do printf '%s %s\n' "$treeFile" "$( cksum < "$treeFile" )" ; done ) | cksum
 }
 rigTreeBefore="$( rigTree )"
 rigTab="$( printf '\t' )"
@@ -89,7 +89,7 @@ rigRun $rigOp user ../../home/x
 rigAssert "a path in place of a project" "$( rigRefused )" "1 0 1"
 rigRun $rigOp user rigrepo/aa-app rigrepo/zz-base
 rigAssert "a second project" "$( rigRefused )" "1 0 1"
-rigAssert "it only reads: no file of the rig was written, made or removed" "$( rigTree )" "$rigTreeBefore"
+rigAssert "it only reads: no file of the rig was written, made or removed, but the system index, the tooling's cache of the rig's own source tree that the first call builds" "$( rigTree )" "$rigTreeBefore"
 
 echo "-- the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

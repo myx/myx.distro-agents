@@ -34,9 +34,11 @@ for rigFile in "$rigSessionFn" "$rigTool" "$rigHarness" "$rigFixtures/session-ch
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 . "$rigFixtures/rig-temp.include.sh" || exit 1
+. "$rigFixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsCheckListSourceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## Every thread a scene started ends before the rig goes (rigControlThreadsEnd, T1905Z).
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"

@@ -16,6 +16,6 @@ inFence { next ; }
 	if ( lineText !~ /(^|[^A-Za-z])NEEDS[ \t]+REPLY([^A-Za-z]|$)/ ) { next ; }
 	shownText = $0 ;
 	gsub( /^[[:space:]]+|[[:space:]]+$/, "", shownText ) ;
-	if ( length( shownText ) > 120 ) { shownText = substr( shownText, 1, 117 ) "..." ; }
+	if ( length( shownText ) > 120 ) { shownText = substr( shownText, 1, 117 ) ; sub( /[\300-\377][\200-\277]*$/, "", shownText ) ; shownText = shownText "..." ; }
 	printf "- needs-reply-marker: %s\n", shownText ;
 }

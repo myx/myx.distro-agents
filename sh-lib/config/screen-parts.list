@@ -23,6 +23,7 @@ AgentsManagerScreen.Launch.py
 AgentsManagerScreen.MagicTeam.py
 AgentsManagerScreen.Members.py
 AgentsManagerScreen.TeamData.py
+AgentsManagerScreen.Contacts.py
 AgentsManagerScreen.Routines.py
 AgentsManagerScreen.Schedule.py
 AgentsManagerScreen.Tokens.py before LocalManagerScreen.Places.py

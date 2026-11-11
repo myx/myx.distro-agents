@@ -233,11 +233,20 @@ case "$1" in
 		fi
 
 		## Applying needs a clean checkout: uncommitted paths are not part of the
-		## divergence, and a merge or reset would overwrite them.
-		if [ -n "$( git -C "$repoRoot" status --porcelain --untracked-files=all -- . 2>/dev/null )" ] ; then
-			echo "TEAM-DATA-REFUSED: the checkout holds uncommitted paths -- commit them with --commit-pending first, then repair"
-			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: uncommitted paths under $MDAT_DATA_ROOT, nothing repaired" >&2
-			set +e ; return 1
+		## divergence, and a merge or reset would overwrite them. THE LIVE TRANSCRIPTS ARE THE EXCEPTION: the sessions append their
+		## audit logs without pause, so a repair that waits for a quiet checkout never runs while the team works; where every
+		## uncommitted path is under audit/, the repair commits them itself and goes on. Anything else uncommitted still refuses.
+		repairDirty="" repairOther=""
+		repairDirty="$( git -C "$repoRoot" status --porcelain --untracked-files=all -- . 2>/dev/null )"
+		if [ -n "$repairDirty" ] ; then
+			repairOther="$( printf '%s\n' "$repairDirty" | LC_ALL=C awk '{ p = $NF ; if ( p !~ /^audit\// ) print }' )"
+			if [ -z "$repairOther" ] && git -C "$repoRoot" add -A -- audit 2> /dev/null && git -C "$repoRoot" commit -q -m "* audit transcripts of the live sessions, committed by the repair" 2> /dev/null ; then
+				echo "TEAM-DATA-REPAIR: the live audit transcripts were committed by the repair, so it could run"
+			else
+				echo "TEAM-DATA-REFUSED: the checkout holds uncommitted paths outside audit/ -- commit them with --commit-pending first, then repair"
+				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: uncommitted paths under $MDAT_DATA_ROOT, nothing repaired" >&2
+				set +e ; return 1
+			fi
 		fi
 		type AgentsToolsMyRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MyRoot.include"
 		[ -n "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/git/cloneSync.Common" ] || {
@@ -254,8 +263,15 @@ case "$1" in
 				"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$headBranch" >&2
 			gitRc=$?
 			set -e
+			## cloneSync gives up on a conflict; the merge is then taken again by the tooling and settled, as the close push does
+			## (AgentsToolsTeamDataMergeAgain). Only a conflict the settle cannot work stops the repair.
 			if [ "$gitRc" -ne 0 ] ; then
 				[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
+				type AgentsToolsTeamDataMergeAgain > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+				set +e ; AgentsToolsTeamDataMergeAgain "--repair-team-data-checkout" "$repoRoot" "$headBranch" ; gitRc=$? ; set -e
+				[ "$gitRc" -ne 0 ] || echo "TEAM-DATA-SETTLED: the conflict was settled by the team-data merge settle, and the merge committed"
+			fi
+			if [ "$gitRc" -ne 0 ] ; then
 				echo "TEAM-DATA-NOT-MERGED: the merge failed; the trial above showed it, and nothing was changed"
 				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: merging origin/$headBranch failed (rc $gitRc); the local commits are kept, nothing was changed" >&2
 				set +e ; return 1

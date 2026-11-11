@@ -78,6 +78,13 @@ agentsTeamDataGateOps="--intern-op-board-upsert-move-edit
 ## no process.
 AgentsToolsWorkspaceMode(){
 	local modeValue="" modeSource="workspace"
+	## READ ONCE PER PROCESS AND WORKSPACE (call-path audit row 13): the gate asks the mode at every team-data write and at every stray-store
+	## call, and the answer is a subshell sourcing the config include each time. The first answer for a workspace is kept in this process
+	## and given again; a call under another MMDAPP reads anew. A setting changed under a running process is read at its next process.
+	if [ -n "${agentsWorkspaceModeKept:-}" ] && [ "${agentsWorkspaceModeKeptFor:-}" = "${MMDAPP:-}" ] ; then
+		printf '%s\n' "$agentsWorkspaceModeKept"
+		return 0
+	fi
 	modeValue="$( set -- --agents-config-option magic-team --select "$agentsManagerConfigModeKey" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" 2> /dev/null )" || modeValue=""
 	case " $agentsManagerConfigModes " in
 		*" ${modeValue:-.} "*) ;;
@@ -86,6 +93,7 @@ AgentsToolsWorkspaceMode(){
 			case " $agentsManagerConfigModes " in *" ${modeValue:-.} "*) ;; *) modeValue="just-agents" ;; esac
 		;;
 	esac
+	agentsWorkspaceModeKept="$modeValue $modeSource" agentsWorkspaceModeKeptFor="${MMDAPP:-}"
 	printf '%s %s\n' "$modeValue" "$modeSource"
 }
 

@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+##
+## AgentsTools.SlackSenderMark.include -- who each person in a Slack response is, from the contact store. Definitions only.
+## Applied by the one Slack call every read goes through (AgentsTools.CommsSlack.include, --intern-op-slack-call), and kept for a
+## line-format input (`<ts> | <user> | ...`, the [sender: ...] mark of AgentsWaitSenderMark.awk).
+
+## EVERY MESSAGE A PERSON WROTE CARRIES WHO THAT PERSON IS, FROM THE CONTACT STORE, in every Slack response as in the Wait
+## (AgentsWaitSenderMark.awk, AgentsTools.MemberWaitResult.include). A read handed over bare account ids, and a run named the author by
+## a guess. Each account the read shows is asked of the store once: a raw JSON read gains "user_record" beside each "user", a line read
+## the `[sender: ...]` mark. An account the store does not hold is recorded on contact from its Slack profile, and its label says so and
+## names the next step; one whose profile cannot be read reads `do not address by name, escalate`. The human-owner and
+## the team's own accounts (the mention cache) are never marked. stdin to stdout.
+AgentsToolsMemberSlackSenderMark(){
+	local markAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitSenderMark.awk" markIn markOwner="" markMap="" markId markRow markOwn=""
+	local MDAT_SENDER_MARKING=1 ; export MDAT_SENDER_MARKING
+	## The known-not-added list is the contacts machinery's (AgentsToolsContactsNotAddedGet): an account held there is not asked again.
+	type AgentsToolsContactsNotAddedGet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include" 2> /dev/null || :
+	local markHeld=""
+	markIn="$( cat )"
+	if [ ! -f "$markAwk" ] || [ -z "$markIn" ] || ! mkdir -p "${MMDAPP:-/nonexistent}/.local/temp" 2> /dev/null || ! markMap="$( mktemp "$MMDAPP/.local/temp/mdat-sender-mark.XXXXXX" 2> /dev/null )" ; then
+		[ -z "$markIn" ] || printf '%s\n' "$markIn"
+		return 0
+	fi
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include" 2> /dev/null || :
+	if type AgentsToolsConfigOption > /dev/null 2>&1 ; then markOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null < /dev/null )" || markOwner="" ; fi
+	case "$markOwner" in [UW][A-Z0-9]*) ;; *) markOwner="$( LC_ALL=C sed -n 's/^human-owner=\([A-Z0-9]*\).*/\1/p' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null | head -1 )" ;; esac
+	markOwn=" $( LC_ALL=C sed -n 's/^[^=]*=\(U[A-Z0-9]*\).*/\1/p' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null | LC_ALL=C tr '\n' ' ' ) "
+	## The store is read once, in one awk pass over its records' headers: each Slack id they hold maps to "name, organisation, contact id".
+	local markStore="${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/persons" markKnown="" markNew=""
+	markLoad(){
+		[ -d "$markStore" ] || return 0
+		LC_ALL=C awk 'FNR == 1 { if ( n ) emit() ; n = 1 ; id = "" ; nm = "" ; org = "" ; lang = "" ; ids = "" ; hdr = 0 }
+			/^---$/ { hdr++ ; next }
+			hdr == 1 && /^contact-id: / { id = substr( $0, 13 ) }
+			hdr == 1 && /^display-name: / { nm = substr( $0, 15 ) }
+			hdr == 1 && /^organisation: / { org = substr( $0, 15 ) }
+			hdr == 1 && /^language: / { lang = substr( $0, 11 ) }
+			hdr == 1 && /^slack-id: / { ids = ids " " substr( $0, 11 ) }
+			function emit(   k, m, parts, v ) { m = split( ids, parts, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) { v = parts[k] ; sub( /^[^:]*:/, "", v ) ; if ( v ~ /^U[A-Z0-9]+$/ ) printf "%s\t%s, %s, contact %s%s\n", v, ( nm != "" ? nm : id ), ( org != "" ? org : "no organisation" ), id, ( lang != "" && lang != "-" ? ", writes in " lang : "" ) } }
+			END { if ( n ) emit() }' "$markStore"/*.md 2> /dev/null || :
+	}
+	markKnown="$( markLoad )"
+	## A PERSON WITH NO RECORD IS RECORDED HERE, ON CONTACT, by --contacted-by (its Slack profile), once; the store is read again after.
+	for markId in $( printf '%s\n' "$markIn" | { LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' | LC_ALL=C awk '{ print $3 }' ; printf '%s\n' "$markIn" | LC_ALL=C grep -o -E '"user":"U[A-Z0-9]+"' | LC_ALL=C sed 's/^"user":"//; s/"$//' ; } | LC_ALL=C sort -u ) ; do
+		[ "$markId" != "$markOwner" ] || continue
+		case "$markOwn" in *" $markId "*) continue ;; esac
+		printf '%s\n' "$markKnown" | LC_ALL=C grep -q "^$markId"$'\t' && continue
+		AgentsToolsContactsNotAddedGet "$markId" > /dev/null 2>&1 && continue
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$markId" > /dev/null 2>&1 < /dev/null && markNew="$markNew $markId"
+	done
+	[ -z "$markNew" ] || markKnown="$( markLoad )"
+	for markId in $( printf '%s\n' "$markIn" | { LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' | LC_ALL=C awk '{ print $3 }' ; printf '%s\n' "$markIn" | LC_ALL=C grep -o -E '"user":"U[A-Z0-9]+"' | LC_ALL=C sed 's/^"user":"//; s/"$//' ; } | LC_ALL=C sort -u ) ; do
+		[ "$markId" != "$markOwner" ] || continue
+		case "$markOwn" in *" $markId "*) continue ;; esac
+		markRow="$( printf '%s\n' "$markKnown" | LC_ALL=C awk -F'\t' -v id="$markId" '$1 == id { print $2 ; exit }' )"
+		case " $markNew " in *" $markId "*) markRow="${markRow:+$markRow, first contact: recorded now from the Slack profile alone (tier-contact where it has an organisation); DistroAgentsContacts.fn.sh --contacted-by $markId gives the rules and the next step}" ;; esac
+		if [ -z "$markRow" ] ; then
+			markHeld="$( AgentsToolsContactsNotAddedGet "$markId" 2> /dev/null )" || markHeld=""
+			markRow="not added to the contacts${markHeld:+: $markHeld}; do not address by name -- where the message looks like work or a person worth knowing, escalate it to magic-coordinator with DistroAgentsContacts.fn.sh --contacted-by $markId"
+		fi
+		printf '%s\t%s\n' "$markId" "$markRow" >> "$markMap"
+	done
+	if printf '%s' "$markIn" | LC_ALL=C grep -q '"user":"U' ; then
+		## A raw JSON read: the record goes beside the account, as a JSON string the reader cannot miss.
+		printf '%s\n' "$markIn" | LC_ALL=C awk -v map="$markMap" 'BEGIN { FS = "\t" ; while ( ( getline line < map ) > 0 ) { split( line, f, "\t" ) ; gsub( /["\\]/, "", f[2] ) ; rec[f[1]] = f[2] } ; FS = " " }
+			{ out = "" ; s = $0
+			  while ( match( s, /"user":"U[A-Z0-9]+"/ ) ) {
+				id = substr( s, RSTART + 8, RLENGTH - 9 ) ; out = out substr( s, 1, RSTART + RLENGTH - 1 )
+				if ( id in rec ) out = out ",\"user_record\":\"" rec[id] "\""
+				s = substr( s, RSTART + RLENGTH ) }
+			  print out s }' 2> /dev/null || printf '%s\n' "$markIn"
+	else
+		LC_ALL=C grep -v 'not added to the contacts' "$markMap" > "$markMap.known" 2> /dev/null || :
+		printf '%s\n' "$markIn" | LC_ALL=C awk -v map="$markMap.known" -v owner="$markOwner" -f "$markAwk" 2> /dev/null || printf '%s\n' "$markIn"
+		rm -f "$markMap.known"
+	fi
+	rm -f "$markMap"
+	return 0
+}
+
+
+## A REACTION ON THE TEAM'S OWN POST IS A LEARNING SIGNAL (the human-owner's rule): a positive or a negative reaction by a person of the
+## standing the learning flag asks -- with learning on, tier-client and above; with it off, tier-owner and the human-owner -- marks the
+## session that posted the message (sessions/<id>/learn, one line a reaction, never twice), so the retro analyses that session
+## (AgentsToolsScheduleLearning). A negative one by a proper participant also tells the posting run on its floor at once, for a correction,
+## whatever the learning flag: that rule is the correction signal's own, below. Read from any Slack response that carries reactions; the session comes from the send log by the ts.
+AgentsToolsSlackReactionSignals(){ ## the Slack response
+	local sigOwn="" sigOwner="" sigLearning=no sigRow sigConv sigTs sigEmoji sigUser sigKind sigTier sigSession sigLine sigLog sigStore
+	case "${1:-}" in *'"reactions":['*) ;; *) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] && command -v python3 > /dev/null 2>&1 || return 0
+	sigOwn="$( LC_ALL=C sed -n 's/^[^=]*=\(U[A-Z0-9]*\).*/\1/p' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	sigOwner="$( LC_ALL=C sed -n 's/^human-owner=\([A-Z0-9]*\).*/\1/p' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null | head -1 )"
+	type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || :
+	! type AgentsToolsScheduleCurrentFlags > /dev/null 2>&1 || [ "$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )" != yes ] || sigLearning=yes
+	sigStore="${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/persons"
+	sigLog="$MMDAPP/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log"
+	while IFS=$'\t' read -r sigConv sigTs sigEmoji sigUser sigTo ; do
+		[ -n "$sigTs" ] && [ -n "$sigUser" ] || continue
+		case "$sigEmoji" in
+			## Done or accepted (the human-owner): a check mark or ok_hand closes or confirms; the other positives say the message was good.
+			white_check_mark|heavy_check_mark|ballot_box_with_check|ok_hand) sigKind=accepted ;;
+			+1|thumbsup|heart|heart_on_fire|tada|clap|raised_hands|100|star|pray|fire) sigKind=positive ;;
+			-1|thumbsdown|x|warning|exclamation|question|confused|thinking_face|rage|angry|no_entry|disappointed|scream|face_with_symbols_on_mouth) sigKind=negative ;;
+			## Neutral: seen, waiting, noted -- known, and never fed anywhere.
+			eyes|hourglass|hourglass_flowing_sand|wave|memo|pushpin|bookmark) continue ;;
+			## Any other is no class of ours: the posting run sees it and decides what it means.
+			*) sigKind=other ;;
+		esac
+		sigSession="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { s = $NF } END { print s }' "$sigLog" 2> /dev/null )"
+		case "$sigSession" in ''|-|*/*) continue ;; esac
+		[ -d "$MMDAPP/.local/agents/sessions/$sigSession" ] || continue
+		## Who reacted: the human-owner, a team member (by the mention cache), or a contact by the highest of its tiers.
+		local sigMember=""
+		sigMember="$( LC_ALL=C awk -F '=' -v want="$sigUser" '$2 == want && $1 != "human-owner" { print $1 ; exit }' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null )"
+		if [ -n "$sigOwner" ] && [ "$sigUser" = "$sigOwner" ] ; then
+			sigTier=human-owner
+		elif [ -n "$sigMember" ] ; then
+			sigTier="member $sigMember"
+		else
+			sigTier="$( LC_ALL=C awk -v want="$sigUser" 'FNR == 1 { hdr = 0 ; hit = 0 ; t = "" ; o = "" ; sc = "" }
+				/^---$/ { hdr++ ; if ( hdr == 2 && hit ) { if ( t == "" && o != "" ) t = "tier-contact" ; print t " " sc ; exit } ; next }
+				hdr == 1 && /^slack-id: / && index( $0, ":" want ) { hit = 1 }
+				hdr == 1 && /^tier: / { t = substr( $0, 7 ) } hdr == 1 && /^organisation: / { o = substr( $0, 15 ) }
+				hdr == 1 && /^scope-tiers: / { sc = substr( $0, 14 ) }' "$sigStore"/*.md 2> /dev/null )"
+			case "$sigTier" in *tier-owner*) sigTier=tier-owner ;; *tier-admin*) sigTier=tier-admin ;; *tier-client*) sigTier=tier-client ;; *) sigTier="" ;; esac
+		fi
+		## THE LEARNING SIGNAL, by the learning flag (long-term): with it on, tier-client and above; off, tier-owner and the human-owner.
+		## Never a team member's own reaction: the retro learns from the people the team works for.
+		[ "$sigKind" != other ] && case "$sigLearning:$sigTier" in
+			yes:tier-client|yes:tier-admin|yes:tier-owner|yes:human-owner|no:tier-owner|no:human-owner)
+				sigLine="$sigKind reaction :$sigEmoji: by $sigUser ($sigTier) on ts $sigTs"
+				if ! LC_ALL=C grep -q -F -- "$sigLine" "$MMDAPP/.local/agents/sessions/$sigSession/learn" 2> /dev/null ; then
+					printf '%s %s\n' "$( date '+%Y-%m-%d %H:%M %z' )" "$sigLine" >> "$MMDAPP/.local/agents/sessions/$sigSession/learn" 2> /dev/null || :
+				fi
+			;;
+		esac
+		## THE RUNTIME SIGNAL, inline, whatever the learning flag (the human-owner): a reaction by a proper participant -- negative (a correction),
+		## accepted (an OK, as a short reply: the message landed), or of no known class (the run reads it and decides); neutral ones never reach
+		## anyone. A proper participant:
+		## a contact of tier-client or above (team, project or product), the human-owner, magic-coordinator, a team member taking part in the
+		## posting session, or an addressee of the message -- tells the posting run on its floor at once. Once a reaction, never twice.
+		case "$sigKind" in negative|accepted|other) ;; *) continue ;; esac
+		local sigCounts="" sigPoster="" sigMark="" sigNotice=""
+		case "$sigTier" in tier-client|tier-admin|tier-owner|human-owner) sigCounts=yes ;; esac
+		[ "$sigMember" != "magic-coordinator" ] || sigCounts=yes
+		if [ -n "$sigMember" ] && { [ -f "$MMDAPP/.local/agents/spawned/$sigSession/$sigMember.checklist.md" ] \
+			|| LC_ALL=C grep -q -x -F "owner: $sigMember" "$MMDAPP/.local/agents/spawned/$sigSession/$sigSession.spawn.md" 2> /dev/null ; } ; then sigCounts=yes ; fi
+		case " $sigTo " in *" $sigUser "*) sigCounts=yes ;; esac
+		[ -n "$sigCounts" ] || continue
+		sigMark="$MMDAPP/.local/agents/sessions/$sigSession/corrections.told"
+		LC_ALL=C grep -q -x -F -- "$sigTs $sigEmoji $sigUser" "$sigMark" 2> /dev/null && continue
+		sigPoster="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { m = $2 } END { print m }' "$sigLog" 2> /dev/null )"
+		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+		if [ -n "$sigPoster" ] && type AgentsToolsSessionChatAppend > /dev/null 2>&1 ; then
+			case "$sigKind" in
+				negative) printf -v sigNotice 'REACTION-NEGATIVE on your post ts %s: :%s: by %s (%s). Your peer is unhappy with that message: read it again, and correct it now where it is wrong or unclear -- a reply in its thread, or an edit of your own post. Where you have any doubt what the reason is and it is worth it, ask them in a new thread of its own (a fork, so no other participant of this session is drawn in; it may grow into a persistent discussion), with your guess for them to confirm. Your call. Whatever the fork settles or you correct, say it in one short notice in this session’s thread.' "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" ;;
+				accepted) printf -v sigNotice 'REACTION-ACCEPTED on your post ts %s: :%s: by %s (%s), as a reply saying OK: your message landed and there is no problem with it. Nothing to do.' "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" ;;
+				*) printf -v sigNotice 'REACTION on your post ts %s: :%s: by %s (%s), of no class the tooling knows: read it as a short reply, and decide what it means and whether it asks anything of you.' "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" ;;
+			esac
+			printf '%s\n' "$sigNotice" \
+				| AgentsToolsSessionChatAppend "$sigSession" reaction "$sigPoster" - "printback:$sigSession" printback > /dev/null 2>&1 && printf '%s\n' "$sigTs $sigEmoji $sigUser" >> "$sigMark" 2> /dev/null || :
+		fi
+	done < <( printf '%s' "$1" | python3 -I "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackReactionSignals.py" "$sigOwn" - 2> /dev/null )
+	return 0
+}

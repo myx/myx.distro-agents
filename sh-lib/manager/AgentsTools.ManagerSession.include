@@ -239,8 +239,8 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsTab=$'\t'
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
 	local measuredRows="" measuredDated="" measuredAny="false"
-	rowsFile="$( AgentsToolsRegistryFile spawned-sessions )"
-	rowsPending="$( AgentsToolsRegistryFile pending-replies )"
+	rowsFile="$MMDAPP/.local/agents/spawned-sessions.registry"
+	rowsPending="$MMDAPP/.local/agents/pending-replies.registry"
 	if ! AgentsToolsRegistrySpawnedSessionsRebuild || ! AgentsToolsRegistryPendingRepliesRebuild ; then
 		echo "⛔ ERROR: $MDSC_CMD $rowsOp: the session registries could not be rebuilt in ${rowsFile%/*} -- nothing is listed" >&2
 		return 1
@@ -318,8 +318,8 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	local scopeTracking scopeSkip scopeSpawn scopeRest scopeTemp scopeState="" scopeTab=$'\t' scopeNl=$'\n'
 	local measuredRows="" measuredDated="" measuredAny="false"
 	scopeSession="" ; scopeRun="" ; scopeMeasured="" ; scopeListed="" ; scopeControl=""
-	scopeFile="$( AgentsToolsRegistryFile spawned-sessions )"
-	scopePending="$( AgentsToolsRegistryFile pending-replies )"
+	scopeFile="$MMDAPP/.local/agents/spawned-sessions.registry"
+	scopePending="$MMDAPP/.local/agents/pending-replies.registry"
 	scopeStore="$MMDAPP/.local/agents/spawned"
 	if [ -d "$scopeStore" ] ; then
 		if [ ! -f "$scopeFile" ] ; then
@@ -419,7 +419,7 @@ AgentsToolsManagerSessionChecklistRows(){ ## session id
 			listRecord="$( AgentsToolsRegistrySpawnRecord "$listSpawn" )"
 			[ -n "$listRecord" ] || continue
 			printf '%s\n' "$listRecord"
-		done <<< "$( MDAT_LIST_SESSION="$1" LC_ALL=C awk '$2 == ENVIRON["MDAT_LIST_SESSION"] && $8 != "" && $8 != "-" { print $8 }' "$( AgentsToolsRegistryFile spawned-sessions )" 2> /dev/null )"
+		done <<< "$( MDAT_LIST_SESSION="$1" LC_ALL=C awk '$2 == ENVIRON["MDAT_LIST_SESSION"] && $8 != "" && $8 != "-" { print $8 }' "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null )"
 		printf '%s\n' "$MMDAPP/.local/agents/sessions/$1/-"
 	} | {
 		local listFile listMember listLine listSeen=" "
@@ -451,7 +451,7 @@ AgentsToolsManagerSessionReadRows(){ ## the operation as it was called, the id, 
 	[ "$scopeRun" != "-" ] || scopeRun=""
 	printf '%s\n' "$scopeListed" \
 		| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" \
-			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" -
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" "$MMDAPP/.local/agents/pending-replies.registry" -
 	return 0
 }
 
@@ -664,9 +664,11 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 			killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
 			AgentsToolsManagerKillMark "$killOwnRecord" "$killUser" "$killStamp" < /dev/null \
 				|| echo "⚠️ WARNING: $MDSC_CMD $killOp: the record of run $killOwnSpawn could not be marked as killed, so its handback retry may start it once more" >&2
+			## Its ending, on its item and in its transcript, as for every run the loop below ends (AgentsToolsManagerKillRecord): the one item of this run is read, no registry.
+			type AgentsReviewEndChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 			killAt="${#killSpawns[@]}"
 			killSessions[killAt]="$killOwnSession" ; killSpawns[killAt]="$killOwnSpawn" ; killMembers[killAt]="$killOwnMember" ; killStatuses[killAt]="$killOwnStatus"
-			killOutcomes[killAt]="signalled" ; killPids[killAt]="$killFound" ; killItems[killAt]="-"
+			killOutcomes[killAt]="signalled" ; killPids[killAt]="$killFound" ; killItems[killAt]="$( AgentsToolsManagerKillRecord "$killOwnSpawn" "$killUser" < /dev/null )"
 			killBegan[killAt]="$( printf '%s\n' $killFound | AgentsToolsRegistryProcessesBegan )"
 			killSeen=" $killOwnSpawn "
 			killAny="$killAny $killFound"
@@ -680,10 +682,12 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 	killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
 	## The registry then, for the runs that joined this session: a rebuild that cannot be written is said and passed over.
 	if [ -d "$MMDAPP/.local/agents/spawned" ] && ! AgentsToolsRegistrySpawnedSessionsRebuild 2> /dev/null ; then
-		killFile="$( AgentsToolsRegistryFile spawned-sessions )"
+		killFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 		echo "⚠️ WARNING: $MDSC_CMD $killOp: the session registries could not be rebuilt in ${killFile%/*}, so only the record of $killId itself was read" >&2
 	fi
 	AgentsToolsManagerSessionScope "$killOp" "$killId" "$killOwn" "nothing was signalled" fresh || scopeFailed="yes"
+	## The scope said its one line: with nothing signalled first there is nothing more to say or do, rc 1.
+	[ -z "$scopeFailed" ] || [ -n "$killAny" ] || return 1
 	killUser="${4:-}"
 	[ -n "$killUser" ] || killUser="$( AgentsToolsManagerConsoleUser )"
 	killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
@@ -927,7 +931,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 		else
 			printf 'dismiss\t%s\t%s\t%s\tnot-dismissed\n' "$finishSession" "$finishAsk" "$finishAsker"
 		fi
-	done < <( LC_ALL=C grep -v '^#' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null )
+	done < <( LC_ALL=C grep -v '^#' "$MMDAPP/.local/agents/pending-replies.registry" 2> /dev/null )
 	## The records. Those a supervising shell still closes are given a few seconds first.
 	if [ "${#finishSpawns[@]}" -gt 0 ] ; then
 		type AgentsToolsSessionControlDeathClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
@@ -1028,6 +1032,10 @@ case "$1" in
 			esac
 		done
 		AgentsToolsManagerSessionRows "$listOp" "$listActive" || { set +e ; return 1 ; }
+		## THE CONSOLE THAT LOOKS ASKS FOR THE SCHEDULE: the owner's manager screen reads this list on every refresh, a live asker with no session, so a schedule
+		## thread that ended at night is started once the hour wants it (AgentsToolsScheduleThreadAskDue: a live thread costs one read of its lock).
+		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" > /dev/null 2>&1 || :
+		! type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || :
 		return 0
 	;;
 
@@ -1269,10 +1277,11 @@ case "$1" in
 			else
 				killRecord="$( AgentsToolsAuthoritySessionRecord "$killId" )" || killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
 			fi
-			## THE OWNER AT HIS OWN CONSOLE needs no second confirmation (sketch 5.4: a kill ends a running session at the first try): the console is mapped to the human-owner,
-			## and the screen asked for the word before it called. Any other console is gated as before.
+			## ANY OPERATOR AT A CONSOLE, AND THE COORDINATOR, CAN KILL (sketch 5.4: a kill ends a running session at the first try; the screen asked
+			## for the word before it called). No mapping of the console to the owner is needed for it. A member other than the coordinator
+			## ending another member's run is gated as before.
 			AgentsToolsAuthorityCaller
-			if ! AgentsToolsAuthorityOwnerMapped ; then
+			if [ "$agentsAuthorityCallerKind" != person ] && [ "$agentsAuthorityCallerId" != magic-coordinator ] && ! AgentsToolsAuthorityOwnerMapped ; then
 				AgentsToolsAuthorityGate "end $( [ -n "$killOwn" ] && printf 'run %s' "$killId" || printf 'session %s' "$( AgentsToolsAuthoritySessionWords "$killId" )" )" "$killId" "$killRecord" "" console \
 					"$killOp" --session-id "$killId" ${killOwn:+--run} || :
 				AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
@@ -1329,6 +1338,126 @@ case "$1" in
 	## operation, the id, the file it wrote or removed, and for a resume the word `resumed` where a flag stood.
 	## Nothing is signalled: each run asks the flag at its own pause points (S19.2). Exit 1, nothing written,
 	## with one error line, where the id is no bare name, or names no folder this workspace keeps.
+	## THE SOFT STOP (S7.19, the human-owner's ruling): the live runs of a session are dismissed the proper way, by the tooling's own mark
+	## and a DISMISSED block in the session's chat addressed to each run's member (AgentsToolsRunDismiss), and each run ends itself at its
+	## next Wait, its handback given. No process is signalled, and no closure is skipped: the hard way is --manager-session-kill. <id> is
+	## taken as the kill takes it: a session's id stops every live run of it, and --run takes <id> as one run's own. One `stop` row a run,
+	## `session run member outcome`, the outcome `dismissed` or `already-dismissed`; a `none` row where the id names no live run here.
+	--manager-session-stop)
+		local stopOp="$1" stopId="" stopOwn="" stopBy stopRecord stopSpawn stopMember stopCount=0 stopOutcome stopSyntax="--session-id <id> [--run]"
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $stopOp: --session-id needs an id -- syntax is $stopSyntax" >&2
+						set +e ; return 1
+					fi
+					stopId="$2" ; shift 2
+				;;
+				--run) stopOwn="run" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $stopOp: syntax is $stopSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$stopId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $stopOp: syntax is $stopSyntax, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$stopId" "the session id" "$stopOp" || { set +e ; return 1 ; }
+		stopBy="$( AgentsToolsManagerConsoleMember 2> /dev/null )" || stopBy="console"
+		type AgentsToolsRunDismiss > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		## The records the id names, by one grep over them, as the kill finds its own; then the few headers of each.
+		while IFS= read -r stopRecord ; do
+			[ -n "$stopRecord" ] && [ -f "$stopRecord" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" status )" = "spawn-started" ] || continue
+			stopSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" spawn-id )"
+			case "$stopSpawn" in ''|-) continue ;; esac
+			stopMember="$( AgentsToolsSpawnSandboxRecordHeader "$stopRecord" owner )"
+			if [ -f "$MMDAPP/.local/agents/sessions/$stopSpawn/dismissed" ] ; then
+				## Dismissed once already: its mark stands and its block was written, so nothing is written twice.
+				stopOutcome="already-dismissed"
+			else
+				stopOutcome="dismissed"
+				AgentsToolsRunDismiss "$stopSpawn" "$stopBy" > /dev/null 2>&1 || stopOutcome="failed"
+			fi
+			printf 'stop\t%s\t%s\t%s\t%s\n' "$stopId" "$stopSpawn" "${stopMember:--}" "$stopOutcome"
+			stopCount=$(( stopCount + 1 ))
+		done <<< "$( if [ -n "$stopOwn" ] ; then LC_ALL=C grep -l -x -F -e "spawn-id: $stopId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ; else LC_ALL=C grep -l -x -F -e "session-id: $stopId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ; fi )"
+		[ "$stopCount" -gt 0 ] || printf 'none\t%s\t-\t-\tno live run of this workspace is named by that id\n' "$stopId"
+		return 0
+	;;
+
+	## THE RESTART (S7.19, the human-owner's ruling: a restart is a start again of what has stopped or finished, never of what runs).
+	## <id> is a session's id, whose founding run is started again, or with --run one run's own. The run is started again by the one
+	## restart path the tooling has (AgentsReviewRestart, AgentsTools.ReviewFlow.include): in the same session, sandbox and board item,
+	## resumed from its kept context where that can be, else as a new process from its item with its Decisions first. A run that still
+	## lives is not touched: its row says `live`, and the stop or the kill comes first. A run no board item names cannot be started
+	## again: `no-item`. One `restart` row, `session run member outcome detail`, the outcome `resumed`, `new-process`, `live`,
+	## `no-item` or `failed`, the detail the item and what the restart said, its tabs and line ends spaces; a `none` row where the id
+	## names no record of this workspace.
+	--manager-session-restart)
+		local restartOp="$1" restartId="" restartOwn="" restartBy restartRecord="" restartSpawn restartSession restartMember restartStatus restartItem="" restartOut="" restartOutcome restartDetail restartSyntax="--session-id <id> [--run]"
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $restartOp: --session-id needs an id -- syntax is $restartSyntax" >&2
+						set +e ; return 1
+					fi
+					restartId="$2" ; shift 2
+				;;
+				--run) restartOwn="run" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $restartOp: syntax is $restartSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$restartId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $restartOp: syntax is $restartSyntax, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$restartId" "the session id" "$restartOp" || { set +e ; return 1 ; }
+		restartBy="$( AgentsToolsManagerConsoleMember 2> /dev/null )" || restartBy="console"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		## The record: the run's own, which for a session's id is its founding run's, whose spawn id is the session's; else the older
+		## record that names the session alone (AgentsToolsRegistrySessionOwnRecord). With --run only a run's own record is taken.
+		restartRecord="$( AgentsToolsRegistrySpawnRecord "$restartId" < /dev/null )" || restartRecord=""
+		[ -n "$restartRecord" ] || [ -n "$restartOwn" ] || restartRecord="$( AgentsToolsRegistrySessionOwnRecord "$restartId" < /dev/null )" || restartRecord=""
+		if [ -z "$restartRecord" ] ; then
+			printf 'none\t%s\t-\t-\tno record of this workspace is named by that id\n' "$restartId"
+			return 0
+		fi
+		restartSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" spawn-id )"
+		restartSession="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" session-id )"
+		case "$restartSpawn" in ''|-) restartSpawn="$restartSession" ;; esac
+		restartMember="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" owner )"
+		restartStatus="$( AgentsToolsSpawnSandboxRecordHeader "$restartRecord" status )"
+		if [ "$restartStatus" = "spawn-started" ] && AgentsToolsRegistryRecordedRunAlive "$restartRecord" > /dev/null 2>&1 ; then
+			printf 'restart\t%s\t%s\t%s\tlive\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "the run still lives: stop or kill it first"
+			return 0
+		fi
+		type AgentsReviewRestart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+		restartItem="$( AgentsReviewItemOfSession "$restartSpawn" )" || restartItem=""
+		if [ -z "$restartItem" ] ; then
+			printf 'restart\t%s\t%s\t%s\tno-item\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "no board item names this run, so nothing can start it again"
+			return 0
+		fi
+		## The restart itself, in a subshell of its own: the tooling it calls leaves set -e behind. Its RETURN line is the detail.
+		restartOut="$( AgentsReviewRestart "$restartItem" "$restartRecord" "" "$restartBy" 2>&1 )" && restartOutcome="restarted" || restartOutcome="failed"
+		restartDetail="$( printf '%s\n' "$restartOut" | LC_ALL=C grep -m1 '^RETURN: ' )"
+		[ -n "$restartDetail" ] || restartDetail="$( printf '%s\n' "$restartOut" | LC_ALL=C grep -m1 . )"
+		if [ "$restartOutcome" = "restarted" ] ; then
+			case "$restartDetail" in *" resuming "*) restartOutcome="resumed" ;; *) restartOutcome="new-process" ;; esac
+		fi
+		printf 'restart\t%s\t%s\t%s\t%s\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "$restartOutcome" "${restartItem%.md}: $( printf '%s' "${restartDetail#RETURN: }" | LC_ALL=C tr '\t\n' '  ' )"
+		return 0
+	;;
+
 	--manager-session-pause|--manager-session-resume)
 		local pauseOp="$1" pauseId="" pauseBy pauseFile pauseHeld="" pauseSyntax="--session-id <id>"
 		shift

@@ -11,6 +11,14 @@
 ##
 ## Usage: AgentsRunTests.sh [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
 ##        AgentsRunTests.sh --passed [<name-substring>...]
+##        AgentsRunTests.sh --sweep-rigs-list [<hours>]
+##        AgentsRunTests.sh --sweep-rigs [<hours>]
+##   --sweep-rigs-list runs nothing: for each rig folder under $MMDAPP/.local/agents/scratch/sh-test older
+##   than <hours> (24 unless given) that no process names, it prints one line, `sweep: would remove <rig>`;
+##   a rig a process still names, and a rig holding a link that reaches a source tree, are printed as kept
+##   with the reason. --sweep-rigs removes those same rigs, immutable flags and read-only modes cleared first,
+##   and prints one line each and a summary; the kept ones stay. A check ended by KILL runs no trap, so its
+##   rig stays until this sweep (board task 20261107T1905Z).
 ##   no substrings: every *.test.sh of sh-test and of its subfolders, one level down (a test is
 ##   known by its name, so no two share one); otherwise the tests whose name contains any of them.
 ##   --passed runs nothing: for each of those tests it prints one line, `<test> <when>`, the
@@ -155,9 +163,16 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 testDir="$( cd "$( dirname "$0" )" && pwd )"
-runWorkers="" runTimeout=900 runPassed="" runStallMargin=120
+runWorkers="" runTimeout=900 runPassed="" runStallMargin=120 runSweep="" runSweepHours=24
 while [ $# -gt 0 ] ; do
 	case "$1" in
+		--sweep-rigs|--sweep-rigs-list)
+			runSweep="$1" ; shift
+			if [ $# -gt 0 ] ; then
+				case "$1" in ''|*[!0123456789]*) echo "⛔ ERROR: AgentsRunTests.sh: $runSweep takes a number of hours: $1" >&2 ; exit 1 ;; esac
+				runSweepHours="$1" ; shift
+			fi
+		;;
 		-w|--workers) runWorkers="$2" ; shift 2 ;;
 		-t|--timeout) runTimeout="$2" ; shift 2 ;;
 		--stall-margin)
@@ -269,6 +284,44 @@ if [ -n "$runPassed" ] ; then
 	printf '%s\n' "$runPassedLines" | LC_ALL=C cut -d' ' -f1,3
 	exit 0
 fi
+## Asked to sweep the rigs, it runs no test and stands in no line. A rig is swept when it is older than the hours, no
+## process names its path (one ps for the whole sweep) and no link in it reaches a source tree (the no-symlinks rule: a
+## delete never runs over one; the scan is AgentsToolsSandboxLinkScan, the one the sandbox-link check holds). The list
+## form removes nothing. The removing form clears the immutable flags and read-only modes a check may have set, then
+## removes the rig, and says so a rig a line.
+if [ -n "$runSweep" ] ; then
+	runSweepRoot="$MMDAPP/.local/agents/scratch/sh-test"
+	[ -d "$runSweepRoot" ] || { echo "sweep: no rig folder at $runSweepRoot" ; exit 0 ; }
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" || exit 1
+	runSweepRoots="$( AgentsToolsSourceRoots )"
+	runSweepLive="$( ps -A -ww -o args= 2> /dev/null | LC_ALL=C grep -F -- "$runSweepRoot/" || : )"
+	runSweepYoung=0 runSweepHeld=0 runSweepDone=0 runSweepFailed=0
+	for runSweepRig in "$runSweepRoot"/* ; do
+		[ -d "$runSweepRig" ] || { [ ! -e "$runSweepRig" ] || echo "sweep: kept, no rig folder: ${runSweepRig##*/}" ; continue ; }
+		[ -n "$( find "$runSweepRig" -maxdepth 0 -mmin "+$(( runSweepHours * 60 ))" 2> /dev/null )" ] || { runSweepYoung=$(( runSweepYoung + 1 )) ; continue ; }
+		case "$runSweepLive" in *"$runSweepRig"*) echo "sweep: kept, a process names it: ${runSweepRig##*/}" ; runSweepHeld=$(( runSweepHeld + 1 )) ; continue ;; esac
+		if ! AgentsToolsSandboxLinkScan "$runSweepRoots" "$runSweepRig" > /dev/null 2>&1 ; then
+			echo "sweep: kept, a link in it reaches a source tree: ${runSweepRig##*/}" ; runSweepHeld=$(( runSweepHeld + 1 )) ; continue
+		fi
+		if [ "$runSweep" = "--sweep-rigs-list" ] ; then
+			echo "sweep: would remove ${runSweepRig##*/}" ; runSweepDone=$(( runSweepDone + 1 )) ; continue
+		fi
+		chflags -R nouchg,noschg "$runSweepRig" 2> /dev/null || :
+		chmod -R u+rwX "$runSweepRig" 2> /dev/null || :
+		if rm -rf -- "$runSweepRig" 2> /dev/null && [ ! -e "$runSweepRig" ] ; then
+			echo "sweep: removed ${runSweepRig##*/}" ; runSweepDone=$(( runSweepDone + 1 ))
+		else
+			echo "sweep: could not remove ${runSweepRig##*/}" ; runSweepFailed=$(( runSweepFailed + 1 ))
+		fi
+	done
+	if [ "$runSweep" = "--sweep-rigs-list" ] ; then
+		printf 'sweep: %s rig(s) would be removed, %s kept (a process or a link), %s younger than %s hour(s)\n' "$runSweepDone" "$runSweepHeld" "$runSweepYoung" "$runSweepHours"
+	else
+		printf 'sweep: %s rig(s) removed, %s could not be, %s kept (a process or a link), %s younger than %s hour(s)\n' "$runSweepDone" "$runSweepFailed" "$runSweepHeld" "$runSweepYoung" "$runSweepHours"
+	fi
+	[ "$runSweepFailed" = 0 ] || exit 1
+	exit 0
+fi
 
 AgentsRunRunnerAlive(){ ## pid -- rc 0 while a process of that pid is running this runner
 	case "$1" in ''|*[!0123456789]*) return 1 ;; esac
@@ -323,35 +376,57 @@ AgentsRunSessionEnded(){ ## session -- rc 0 where this workspace's records say t
 	[ -e "$MMDAPP/.local/agents/sessions/$endSession/ended" ]
 }
 AgentsRunTicketState(){ ## ticket file, the sessions holding a lane now on one line -- `alive`, `own`, `gone`, `ended`, `held` or `stalled`
-	local ticketSession ticketSince ticketStamp ticketClock ticketAge ticketBeat
+	local ticketSession="" ticketSince="" ticketStamp ticketClock ticketAge ticketBeat="" ticketPid="" ticketPstart="" ticketKey ticketValue ticketLine
 	local ticketHold=${MDAT_SUITE_QUEUE_HOLD_SECONDS:-21600} ticketStall=${MDAT_SUITE_QUEUE_STALL_SECONDS:-3600}
 	case "$ticketHold" in ''|*[!0123456789]*) ticketHold=21600 ;; esac
 	case "$ticketStall" in ''|*[!0123456789]*) ticketStall=3600 ;; esac
-	ticketSession="$( LC_ALL=C sed -n 's/^session=//p' "$1" 2>/dev/null | LC_ALL=C sed -n 1p )"
+	## THE LINE'S OWN LOAD: every waiter judges every ticket ahead of it at every pass. Each judgement here is shell reads and
+	## at most one process (the ps of a named pid), never a process per field (rigQueueTicketState holds the same rule).
+	while IFS='=' read -r ticketKey ticketValue ; do
+		case "$ticketKey" in
+			session) [ -n "$ticketSession" ] || ticketSession="$ticketValue" ;;
+			since) [ -n "$ticketSince" ] || ticketSince="$ticketValue" ;;
+			pid) [ -n "$ticketPid" ] || ticketPid="$ticketValue" ;;
+			pstart) [ -n "$ticketPstart" ] || ticketPstart="$ticketValue" ;;
+		esac
+	done 2> /dev/null < "$1"
 	## A ticket with no session line was never written whole, and holds nobody's place.
 	[ -n "$ticketSession" ] || { printf 'gone' ; return 0 ; }
 	case "$ticketSession" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*) printf 'gone' ; return 0 ;; esac
 	## This run's own ticket is no place ahead of it: its own session is written on it.
 	[ "$ticketSession" != "$( AgentsRunOwnSession )" ] || { printf 'own' ; return 0 ; }
+	## The round's clock, set once per pass by the waiting loop; a reader called alone takes its own.
+	ticketClock="${runQueueClock:-}"
+	case "$ticketClock" in ''|*[!0123456789]*) ticketClock="$( date +%s )" || { printf 'alive' ; return 0 ; } ;; esac
 	## A ticket that names a run is given up when this workspace's records say that run has ended. One naming `none`, a run
 	## the tooling gave no id, has no record to read, and is judged by its own age and beat below.
 	if [ "$ticketSession" != none ] ; then
 		AgentsRunSessionEnded "$ticketSession" && { printf 'ended' ; return 0 ; }
 	fi
-	## A run holding one of the machine's lanes is running and not waiting: its lane's own holder record says it is there.
-	case " ${2:-} " in *" $ticketSession "*) printf 'alive' ; return 0 ;; esac
-	ticketSince="$( LC_ALL=C sed -n 's/^since=//p' "$1" 2> /dev/null | LC_ALL=C sed -n 1p )"
-	ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2> /dev/null || date -u -d "$ticketSince" '+%s' 2> /dev/null )" || ticketStamp=""
-	ticketClock="$( date +%s )" || { printf 'alive' ; return 0 ; }
+	## THE HOLD LIMIT FIRST, from the second the ticket joined the line: the first field of its name, `<epoch>.<micro>.<pid>.ticket`,
+	## zero-padded and so read in base ten (a leading zero is octal to the shell), with no process; a name that carries no epoch (a
+	## ticket made by hand) is dated by its `since`, one date process. A place held past the limit is given up, beating or not.
+	ticketStamp="${1##*/}" ; ticketStamp="${ticketStamp%%.*}"
+	case "$ticketStamp" in ''|*[!0123456789]*) ticketStamp="" ;; *) ticketStamp="$(( 10#$ticketStamp ))" ; [ "$ticketStamp" -ge 1000000000 ] || ticketStamp="" ;; esac
+	[ -n "$ticketStamp" ] || [ -z "$ticketSince" ] || ticketStamp="$( date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ticketSince" '+%s' 2> /dev/null || date -u -d "$ticketSince" '+%s' 2> /dev/null )" || ticketStamp=""
 	case "$ticketStamp" in
 		''|*[!0123456789]*) ticketStamp="" ;;
 		*) ticketAge=$(( ticketClock - ticketStamp )) ; [ "$ticketAge" -le "$ticketHold" ] || { printf 'held' ; return 0 ; } ;;
 	esac
-	## The beat is the second of the last pass of a holder's wait, so a run that stopped waiting gives up the place a
-	## process alone would go on holding. A ticket with no beat at all carries no evidence that its holder stopped, so
-	## the hold limit above alone judges it.
-	ticketBeat="$( LC_ALL=C tail -1 "$1.beat" 2> /dev/null )"
-	case "$ticketBeat" in ''|*[!0123456789]*) printf 'alive' ; return 0 ;; esac
+	## The beat is the second of the last pass of a waiter's loop (its last line, where an older file holds several). A beat
+	## within the last two minutes is a waiter alive at its loop: nothing else is read for it, and no process is spent on it.
+	[ ! -f "$1.beat" ] || while read -r ticketLine ; do ticketBeat="$ticketLine" ; done 2> /dev/null < "$1.beat"
+	case "$ticketBeat" in ''|*[!0123456789]*) ticketBeat="" ;; *) [ "$(( ticketClock - ticketBeat ))" -gt 120 ] || { printf 'alive' ; return 0 ; } ;; esac
+	## A ticket that names its process is given up where that process is gone, or where the number now belongs to a process
+	## that started at another moment: a run that died at work frees the line at once.
+	if [ -n "$ticketPid" ] && [ -n "$ticketPstart" ] ; then
+		[ "$( ps -o lstart= -p "$ticketPid" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" = "$ticketPstart" ] || { printf 'gone' ; return 0 ; }
+	fi
+	## A run holding one of the machine's lanes is running and not waiting: its lane's own holder record says it is there.
+	case " ${2:-} " in *" $ticketSession "*) printf 'alive' ; return 0 ;; esac
+	## A run that stopped waiting gives up the place a process alone would go on holding. A ticket with no beat at all
+	## carries no evidence that its holder stopped, so the hold limit above alone judges it.
+	[ -n "$ticketBeat" ] || { printf 'alive' ; return 0 ; }
 	[ "$(( ticketClock - ticketBeat ))" -le "$ticketStall" ] && printf 'alive' || printf 'stalled'
 }
 
@@ -549,7 +624,7 @@ AgentsRunDescribeSession(){ ## session -- that place named as its own ticket nam
 	printf 'the run of session %s, holding one of the machine lanes' "${describeWanted:-nobody}"
 }
 AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn, and returns; says whom it waits behind, each time that changes
-	local turnStamp turnFile turnSession turnState turnWhom="" turnWho="" turnHeldWhom="" turnAhead=0 turnSaid="" turnBegan turnWaited
+	local turnStamp turnFile turnSession turnState turnWhom="" turnWho="" turnHeldWhom="" turnAhead=0 turnSaid="" turnBegan turnWaited runQueueClock="" turnSleep
 	local turnHolders turnLane turnRound=0 turnRecount=0
 	## A RUN NEVER STANDS IN THE LINE PAST ITS BOUND. A run that has waited MDAT_SUITE_QUEUE_LIMIT seconds -- 900 unless
 	## the machine sets it -- says in one line whom it waits behind and refuses: it runs nothing outside its turn, and its
@@ -570,8 +645,9 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 	trap AgentsRunQueueLeave EXIT
 	trap 'exit 130' INT
 	trap 'exit 143' TERM HUP
-	## whole or not at all: a ticket half written would read as one of no run
-	printf 'session=%s\norigin=%s\nkind=run\nsince=%s\n' "$( AgentsRunOwnSession )" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runQueueDir/.$runTicket" \
+	## whole or not at all: a ticket half written would read as one of no run. The pid and its start let a waiter judge a
+	## run that died at work gone at once (rigQueueTicketState), where the hold limit alone kept its place for hours.
+	printf 'session=%s\norigin=%s\nkind=run\nsince=%s\npid=%s\npstart=%s\n' "$( AgentsRunOwnSession )" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$$" "$( ps -o lstart= -p "$$" 2> /dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/^ //;s/ $//' )" > "$runQueueDir/.$runTicket" \
 		&& mv -f "$runQueueDir/.$runTicket" "$runQueueDir/$runTicket" || {
 		echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line of test runs: $runQueueDir" >&2 ; exit 1
 	}
@@ -580,8 +656,10 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 	runLaneCountNow="$( AgentsRunLaneCount )"
 	while : ; do
 		turnWhom="" ; turnAhead=0
-		## the beat of this waiting ticket, so a run that stopped waiting gives up its place while its session lives
-		printf '%s\n' "$( date +%s )" >> "$runQueueDir/$runTicket.beat" 2>/dev/null || :
+		## one clock per pass, read by every judgement of it; the beat of this waiting ticket is that second, written over at every
+		## pass, so a run that stopped waiting gives up its place while its session lives, and the beat file stays one line
+		runQueueClock="$( date +%s )" || runQueueClock=""
+		printf '%s\n' "$runQueueClock" > "$runQueueDir/$runTicket.beat" 2>/dev/null || :
 		## The lanes are read at every pass, so a lane whose run died is given back here rather than held for ever.
 		turnHolders="$( AgentsRunLaneHolders "$runLaneCountNow" )"
 		for turnFile in "$runQueueDir"/*.ticket ; do
@@ -680,14 +758,17 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 		## Its bound passed: what it waits behind, and no run of it. The ticket is given back here, so nothing behind it
 		## waits on a run that will never start.
 		if [ "$(( $( date +%s ) - turnBegan ))" -ge "$turnWaited" ] ; then
-			rm -f "$runQueueDir/$runTicket" 2> /dev/null ; runTicket=""
+			rm -f "$runQueueDir/$runTicket" "$runQueueDir/$runTicket.beat" 2> /dev/null ; runTicket=""
 			echo "⛔ ERROR: AgentsRunTests.sh: not started: its turn in the machine's line had not come within ${turnWaited}s. It waited behind $turnWhom. Nothing was run, and no ticket is left in the line. Run it again, or set MDAT_SUITE_QUEUE_LIMIT higher where a longer wait is wanted." >&2
 			exit 1
 		fi
 		## the lanes are read again now and then, so a machine that came to rest or grew busy widens or narrows them
 		turnRecount=$(( turnRecount + 1 ))
 		if [ "$turnRecount" -ge 15 ] ; then turnRecount=0 ; runLaneCountNow="$( AgentsRunLaneCount )" ; fi
-		sleep 2
+		## the pass is slower the longer the line: a run far back has nothing to gain from a quick look, and a long line looked
+		## at quickly by every waiter is load on the very machine the line protects
+		turnSleep=$(( 5 + turnAhead * 3 )) ; [ "$turnSleep" -le 30 ] || turnSleep=30
+		sleep "$turnSleep"
 	done
 }
 ## Every run waits its turn, a run of named tests as the whole suite does (WAITING IN THE LINE, above).

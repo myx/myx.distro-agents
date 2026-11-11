@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpMagicSection.include -- --magic-section-upsert: the one write a member makes to a
+## MAGIC.md, by section (epic S10.23). A plain Edit or Write of a MAGIC.md replaced a whole file once; this
+## operation replaces the body of one `## <heading>` section, or appends the section where the file has none,
+## and never more. Sourced by DistroAgentsKnowledge.fn.sh for the arm below.
+##
+##   DistroAgentsKnowledge.fn.sh --magic-section-upsert <MAGIC.md path> --section <heading> (--from-stdin|--text <text>)
+##
+## The path names a MAGIC.md (its last segment), a regular file that stands and is no link. The heading is
+## the text after `## `, matched whole, case and spaces as given; a level-1 heading (the title) is never a
+## section here. The body is the text given, with no `## ` line inside it: a body that opens sections of its
+## own would be a rewrite of the file, and is refused. The file is written whole into a temp beside it and
+## renamed into place, its mode kept. Prints one line: `MAGIC-SECTION: updated <heading> in <path>` or
+## `MAGIC-SECTION: added <heading> in <path>`. Every refusal says why and writes nothing.
+##
+
+AgentsToolsMagicSectionUpsert(){ ## MAGIC.md path, heading, body text
+	local upsertPath="$1" upsertHeading="$2" upsertBody="$3" upsertTemp upsertWord
+	case "${upsertPath##*/}" in MAGIC.md) ;; *)
+		echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the path names no MAGIC.md: $upsertPath -- nothing was written" >&2
+		return 1
+	;; esac
+	if [ -L "$upsertPath" ] ; then
+		echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: $upsertPath is a link, and a link is not written through -- nothing was written" >&2
+		return 1
+	fi
+	if [ ! -f "$upsertPath" ] ; then
+		echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: no such file: $upsertPath -- a MAGIC.md is made by its project, not by this operation; nothing was written" >&2
+		return 1
+	fi
+	case "$upsertHeading" in
+		'') echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: --section <heading> is required: the text after '## ' of the section to write -- nothing was written" >&2 ; return 1 ;;
+		'#'*) echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the heading is given without its '## ': $upsertHeading -- nothing was written" >&2 ; return 1 ;;
+		*$'\n'*) echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the heading is one line -- nothing was written" >&2 ; return 1 ;;
+	esac
+	if [ -z "$( printf '%s' "$upsertBody" | LC_ALL=C tr -d '[:space:]' )" ] ; then
+		echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the body is empty: a section is written with its text, and removed by no operation here -- nothing was written" >&2
+		return 1
+	fi
+	if printf '%s\n' "$upsertBody" | LC_ALL=C grep -q -E '^#{1,2} ' ; then
+		echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the body opens a section of its own (a '# ' or '## ' line): one section is written at a time, never the file -- nothing was written" >&2
+		return 1
+	fi
+	## CURRENT WITH ITS UPSTREAM FIRST (S12.28): a MAGIC.md in a git checkout that is behind its upstream for this file, as last
+	## fetched, and carries no local change, is not edited: the edit would collide with upstream work and block the next pull. A
+	## file with a local change is the member's own work in progress and is edited. No fetch runs here: a write path makes no
+	## network call, so the upstream read is the checkout's last fetch, and the refusal says to pull.
+	local upsertDir upsertRel upsertBehind=""
+	upsertDir="${upsertPath%/*}" ; [ "$upsertDir" != "$upsertPath" ] || upsertDir="."
+	if git -C "$upsertDir" rev-parse --is-inside-work-tree > /dev/null 2>&1 ; then
+		upsertRel="$( git -C "$upsertDir" ls-files --full-name -- "${upsertPath##*/}" 2> /dev/null | head -n 1 )"
+		if [ -n "$upsertRel" ] && [ -z "$( git -C "$upsertDir" status --porcelain -- "${upsertPath##*/}" 2> /dev/null )" ] ; then
+			upsertBehind="$( git -C "$upsertDir" rev-list --count 'HEAD..@{u}' -- "$upsertRel" 2> /dev/null )" || upsertBehind=""
+			case "$upsertBehind" in ''|0|*[!0-9]*) ;; *)
+				echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: $upsertPath is behind its upstream by $upsertBehind commit(s) as last fetched, and carries no local change: pull the checkout first, then edit -- nothing was written" >&2
+				return 1
+			;; esac
+		fi
+	fi
+	upsertTemp="$( mktemp "$upsertPath.XXXXXX" 2> /dev/null )" || {
+		echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: no temp file could be made beside $upsertPath -- nothing was written" >&2
+		return 1
+	}
+	## One awk over the file: the section's body (from its heading line to the next `## ` or `# ` line, or the end) is replaced
+	## by the text given, with one blank line before the next heading and none after the body where the section ends the file; a file with no such section gets it at its end. The
+	## word printed at the end says which.
+	upsertWord="$( MDAT_MAGIC_HEADING="$upsertHeading" MDAT_MAGIC_BODY="$upsertBody" LC_ALL=C awk '
+		BEGIN { heading = "## " ENVIRON["MDAT_MAGIC_HEADING"] ; body = ENVIRON["MDAT_MAGIC_BODY"] ; sub( /[ \t\n]+$/, "", body ) ; inSection = 0 ; found = 0 ; }
+		function emitBody() { print "" ; print body ; }
+		{
+			if ( inSection ) {
+				if ( $0 ~ /^## / || $0 ~ /^# / ) { inSection = 0 ; print "" ; print ; }
+				next ;
+			}
+			print ;
+			lastBlank = ( $0 == "" ) ? 1 : 0 ;
+			if ( $0 == heading ) { found = 1 ; inSection = 1 ; emitBody() ; }
+		}
+		END {
+			if ( ! found ) {
+				## An added section ends the file: one blank before its heading where the file does not end on one, then the heading, a blank, the body.
+				if ( NR > 0 && lastBlank != 1 ) print "" ;
+				print heading ; print "" ; print body ;
+				print "ADDED" > "/dev/stderr" ;
+			} else {
+				print "UPDATED" > "/dev/stderr" ;
+			}
+		}
+	' "$upsertPath" 2>&1 > "$upsertTemp" )" || { rm -f "$upsertTemp" ; echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the file could not be read whole: $upsertPath -- nothing was written" >&2 ; return 1 ; }
+	## A trailing blank the awk may leave twice at the end is cut to one.
+	LC_ALL=C awk '{ lines[NR] = $0 } END { last = NR ; while ( last > 1 && lines[last] == "" && lines[last - 1] == "" ) last-- ; for ( i = 1 ; i <= last ; i++ ) print lines[i] }' "$upsertTemp" > "$upsertTemp.2" 2> /dev/null && mv -f "$upsertTemp.2" "$upsertTemp" || { rm -f "$upsertTemp" "$upsertTemp.2" ; echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: the temp beside $upsertPath could not be written -- nothing was written" >&2 ; return 1 ; }
+	chmod --reference="$upsertPath" "$upsertTemp" 2> /dev/null || chmod "$( LC_ALL=C stat -f '%Lp' "$upsertPath" 2> /dev/null || echo 644 )" "$upsertTemp" 2> /dev/null || :
+	mv -f "$upsertTemp" "$upsertPath" || { rm -f "$upsertTemp" ; echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: $upsertPath could not be replaced -- nothing was written" >&2 ; return 1 ; }
+	case "$upsertWord" in
+		*ADDED*) printf 'MAGIC-SECTION: added %s in %s\n' "$upsertHeading" "$upsertPath" ;;
+		*) printf 'MAGIC-SECTION: updated %s in %s\n' "$upsertHeading" "$upsertPath" ;;
+	esac
+	return 0
+}
+
+case "${1:-}" in
+	--magic-section-upsert)
+		shift
+		upsertArgPath="" ; upsertArgHeading="" ; upsertArgText="" ; upsertArgStdin=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--section) upsertArgHeading="${2:-}" ; shift 2 ;;
+				--text) upsertArgText="${2:-}" ; shift 2 ;;
+				--from-stdin) upsertArgStdin=yes ; shift ;;
+				--*) echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: invalid option: $1" >&2 ; set +e ; return 1 ;;
+				*) [ -z "$upsertArgPath" ] || { echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: one path is taken, got a second: $1" >&2 ; set +e ; return 1 ; } ; upsertArgPath="$1" ; shift ;;
+			esac
+		done
+		if [ -z "$upsertArgPath" ] || [ -z "$upsertArgHeading" ] || { [ -z "$upsertArgStdin" ] && [ -z "$upsertArgText" ] ; } ; then
+			echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: syntax is <MAGIC.md path> --section <heading> (--from-stdin|--text <text>)" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$upsertArgStdin" ] && [ -n "$upsertArgText" ] ; then
+			echo "$MDSC_CMD: --magic-section-upsert: ⛔ ERROR: --from-stdin and --text are one or the other" >&2
+			set +e ; return 1
+		fi
+		[ -z "$upsertArgStdin" ] || upsertArgText="$( cat )"
+		AgentsToolsMagicSectionUpsert "$upsertArgPath" "$upsertArgHeading" "$upsertArgText" || { set +e ; return 1 ; }
+		return 0
+	;;
+esac

@@ -28,7 +28,7 @@ AgentsHarnessFormalBody(){ ## block `<Section>/<heading>`
 ## stays there. It never fails a report.
 AgentsHarnessReportTask(){ ## the task as the call gave it (may be empty)
 	local reportSession reportItem="" reportPath="" reportTask="" reportTitle="" reportName reportNames=""
-	reportSession="$( AgentsHarnessSessionKey )"
+	reportSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -n "$reportSession" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
 		type AgentsToolsDecisionsItemFromRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" 2> /dev/null || :
 		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include" 2> /dev/null || :
@@ -97,6 +97,51 @@ AgentsHarnessReportsTo(){
 	AgentsToolsRunRoute "$reportsRecord" 2> /dev/null
 }
 
+## WHERE A HANDBACK OR A REPORT GOES IS THE TOOLING'S, NEVER THE RUN'S (the human-owner's rule): a spawned run's handback and
+## report go where its spawn record says it reports to (AgentsToolsRunRoute), whatever `to` the run gave. Sets routeTo and, where
+## empty, routeAddress; rc 1 for a session with no spawn record of its own, which keeps the `to` it was given.
+AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
+	local routeGiven="$1" routeWhere="" routeKind=""
+	routeTo="$routeGiven" ; routeAddress="${2:-}"
+	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	routeWhere="$( AgentsHarnessReportsTo )" && [ -n "$routeWhere" ] || return 1
+	routeKind="$( AgentsToolsRunRouteKind "$routeWhere" 2> /dev/null )" || routeKind=""
+	case "$routeKind" in
+		none) routeTo="$harnessCurrentName" ;;
+		member) routeTo="$routeWhere" ; [ -n "$routeAddress" ] || routeAddress="$routeWhere" ;;
+		## A handback goes to the coordinator, never to the human-owner (his ruling, twice); the coordinator's own run reports in its
+		## own session thread, which the manager and the board read.
+		person)
+			if [ "${harnessAgent:-}" = "magic-coordinator" ] ; then
+				routeTo="$harnessCurrentName"
+			else
+				## Into the coordinator's duty-session thread, where it reads its runs' reports, never a direct conversation of the human-owner's.
+				local routeDuty="" routeThread=""
+				routeDuty="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/schedule/duty-session/magic-coordinator" 2> /dev/null )" || routeDuty=""
+				case "$routeDuty" in ''|*/*|.|..) ;; *) routeThread="$( head -1 "$MMDAPP/.local/agents/sessions/$routeDuty/session.thread" 2> /dev/null )" || routeThread="" ;; esac
+				case "$routeThread" in [CDG][A-Z0-9]*:[0-9]*.[0-9]*) routeTo="$routeThread" ;; *) routeTo="magic-coordinator" ;; esac
+				[ -n "$routeAddress" ] || routeAddress="magic-coordinator"
+			fi
+		;;
+		*)
+			routeTo="$harnessParentName"
+			## A handback is a reply to whoever launched the run, so it is always addressed: to the parent member, and to the
+			## coordinator where that parent is a person, never to the human-owner.
+			if [ -z "$routeAddress" ] ; then
+				local routeRecord="" routeParent=""
+				routeRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" || routeRecord=""
+				[ -z "$routeRecord" ] || routeParent="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" parent-member 2> /dev/null )" || routeParent=""
+				case "$( [ -n "$routeParent" ] && AgentsToolsRunRouteKind "$routeParent" 2> /dev/null )" in
+					member) routeAddress="$routeParent" ;;
+					*) routeAddress="magic-coordinator" ;;
+				esac
+			fi
+		;;
+	esac
+	[ -z "$routeGiven" ] || [ "$routeGiven" = "$routeTo" ] || [ "$routeGiven" = "$harnessParentName" ] || printf 'NOTE: to %s was not used: a handback or a report goes where this run reports to, %s, set by the tooling.\n' "$routeGiven" "$routeTo"
+	return 0
+}
+
 ## Whether this run reports to no one, as its own spawn record says it (`none` is only ever written
 ## there): rc 0 it does. Asks the record alone, no reading of who is alive, so it is cheap to ask.
 AgentsHarnessReportsNone(){
@@ -149,17 +194,8 @@ AgentsHarnessToolSubagentHandbackRun(){
 	## a person, the human-owner's conversation, addressed to him; for a run that reports to no
 	## one, its own session thread, as its report. A session with no spawn record of its own has
 	## no address, and session-parent stays as the one address resolver says it.
-	local toolRoute=""
-	## Loaded here, in this shell: the reading below runs in a subshell of its own.
-	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
-	toolRoute="$( AgentsHarnessReportsTo )" || toolRoute=""
-	if [ "$toolTo" = "$harnessParentName" ] && [ -n "$toolRoute" ] ; then
-		case "$( AgentsToolsRunRouteKind "$toolRoute" 2> /dev/null )" in
-			none) toolTo="$harnessCurrentName" ;;
-			member) toolTo="$toolRoute" ; [ -n "$toolAddressTo" ] || toolAddressTo="$toolRoute" ;;
-			person) toolTo="human-owner" ; [ -n "$toolAddressTo" ] || toolAddressTo="human-owner" ;;
-		esac
-	fi
+	local routeTo="" routeAddress=""
+	if AgentsHarnessReportRoute "$toolTo" "$toolAddressTo" ; then toolTo="$routeTo" ; toolAddressTo="$routeAddress" ; fi
 	## A handback into a session thread that names nobody is for the caller. One into a
 	## conversation the call names keeps the addressee that conversation gives it.
 	if [ -z "$toolAddressTo" ] ; then
@@ -170,7 +206,7 @@ AgentsHarnessToolSubagentHandbackRun(){
 	## Answers to this session's questions nobody waited on are collected by the tooling
 	## before it hands back, so none is left unread (AgentsTools.PendingReplyCollect.include).
 	local toolCollected="" toolCollectSession
-	toolCollectSession="$( AgentsHarnessSessionKey )"
+	toolCollectSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -n "$toolCollectSession" ] ; then
 		toolCollected="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
 			--session-id "$toolCollectSession" --context SubagentHandback 2>/dev/null | LC_ALL=C grep -v '^COLLECT: ' )" || toolCollected=""
@@ -286,6 +322,11 @@ AgentsHarnessToolReportFindings(){
 	if [ -z "$toolSubject" ] || [ -z "$toolFindings" ] ; then
 		printf 'ERROR: ReportFindings: both subject and findings are required, and one of them was empty. Nothing was sent.\n' ; return 0
 	fi
+	local routeTo="" routeAddress=""
+	if AgentsHarnessReportRoute "$toolTo" "$toolAddressTo" ; then toolTo="$routeTo" ; toolAddressTo="$routeAddress" ; fi
+	if [ -z "$toolAddressTo" ] ; then
+		case "$toolTo" in "$harnessParentName"|"$harnessCurrentName") toolAddressTo="$( AgentsHarnessCallerMember )" ;; esac
+	fi
 	toolBody="$( ASKP_F_task="$( AgentsHarnessReportTask )" ASKP_F_subject="$toolSubject" ASKP_F_findings="$toolFindings" ASKP_F_evidence="$toolEvidence" ASKP_F_confidence="$toolConfidence" ASKP_F_address_to="$toolAddressTo" \
 		AgentsHarnessFormalBody "Skeleton/ReportFindings" )" || { AgentsHarnessFormalUnfilled ReportFindings ; return 0 ; }
 	harnessSendProse="$( AgentsHarnessSendProse "$toolSubject" "$toolFindings" "$toolEvidence" "$toolConfidence" )" \
@@ -371,7 +412,7 @@ AgentsHarnessArtifactPublish(){
 		pubIndex=$(( pubIndex + 1 ))
 	done
 	[ -z "$toolKind" ] || pubArgs+=( --kind "$toolKind" )
-	pubSession="$( AgentsHarnessSessionKey )"
+	pubSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	[ -z "$pubSession" ] || pubArgs+=( --session-id "$pubSession" )
 	"$BASH" "$pubTools" --intern-artifact-publish "$harnessAgent" --title "$toolTitle" "${pubArgs[@]}" \
 		> "$harnessScratch/artifact.out" 2> "$harnessScratch/artifact.err" < /dev/null || pubRc=$?

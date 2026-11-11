@@ -18,7 +18,74 @@ type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 ## and unchanged, so magic-coordinator's existing record resolves where it
 ## always did.
 AgentsToolsMagicSweepStatePath(){ ## member
-	printf '%s\n' "$( AgentsToolsInboxDir "$1" )/note-20260812T231137Z-sweep-state.md"
+	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming/note-20260812T231137Z-sweep-state.md"
+}
+
+## Prints ONE source's own stored position, `<key><TAB><ts>` a line for every
+## source that has one. Same three outcomes as AgentsToolsMagicSweepStoredPosition,
+## with rc 3 meaning "no source has a position of its own yet". A caller that has to
+## hand a floor per source to a scan, before that scan has enumerated its sources,
+## reads this and passes each line on.
+AgentsToolsMagicSweepStoredSourcePositions(){ ## member, op-name
+	local listedMember="$1" listedOp="$2" listedTarget="" listedOut="" listedRc=0
+	[ -n "${MDAT_DATA_ROOT:-}" ] || {
+		echo "⛔ ERROR: $MDSC_CMD --$listedOp: $listedMember: MDAT_DATA_ROOT is not set, so its own stored sweep positions cannot be read" >&2
+		return 1
+	}
+	listedTarget="$( AgentsToolsMagicSweepStatePath "$listedMember" )"
+	[ -f "$listedTarget" ] || return 3
+	listedOut="$( LC_ALL=C awk -v mode=list -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsMagicSweepStateWatermark.awk" < "$listedTarget" )" || listedRc=$?
+	case "$listedRc" in
+		0)
+			while IFS="$( printf '\t' )" read -r listedKey listedTs ; do
+				[ -n "$listedKey" ] && [ -n "$listedTs" ] || continue
+				case "$listedTs" in
+					*[!0-9.]*|.*|*.*.*|'')
+						echo "⛔ ERROR: $MDSC_CMD --$listedOp: $listedMember: the stored position of $listedKey is not an epoch timestamp: $listedTs" >&2
+						return 1
+					;;
+				esac
+				printf '%s\t%s\n' "$listedKey" "$listedTs"
+			done <<< "$listedOut"
+		;;
+		3) return 3 ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --$listedOp: $listedMember: the stored sweep-state record has no frontmatter block, so its own positions could not be read. Refusing rather than falling back to the default window. Inspect ${listedTarget##*/} and restore its leading --- block." >&2
+			return 1
+		;;
+	esac
+	return 0
+}
+
+## Prints ONE source's own stored position, or its rc-3 "none". The fallback to
+## `last_swept_ts` is deliberate: a source with no position of its own reads from
+## the member's own pointer, never from the scan's default window.
+AgentsToolsMagicSweepStoredSourcePosition(){ ## member, op-name, source-key
+	local oneMember="$1" oneOp="$2" oneKey="$3" oneTarget="" oneTs="" oneRc=0
+	[ -n "${MDAT_DATA_ROOT:-}" ] || {
+		echo "⛔ ERROR: $MDSC_CMD --$oneOp: $oneMember: MDAT_DATA_ROOT is not set, so this member's own stored sweep position cannot be read" >&2
+		return 1
+	}
+	oneTarget="$( AgentsToolsMagicSweepStatePath "$oneMember" )"
+	[ -f "$oneTarget" ] || return 3
+	oneTs="$( LC_ALL=C awk -v key="$oneKey" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsMagicSweepStateWatermark.awk" < "$oneTarget" )" || oneRc=$?
+	case "$oneRc" in
+		0)
+			case "$oneTs" in
+				*[!0-9.]*|.*|*.*.*|'')
+					echo "⛔ ERROR: $MDSC_CMD --$oneOp: $oneMember: the stored position of $oneKey is not an epoch timestamp: $oneTs" >&2
+					return 1
+				;;
+			esac
+			printf '%s\n' "$oneTs"
+		;;
+		3) return 3 ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --$oneOp: $oneMember: the stored sweep-state record has no frontmatter block, so its own positions could not be read. Refusing rather than falling back to the default window. Inspect ${oneTarget##*/} and restore its leading --- block." >&2
+			return 1
+		;;
+	esac
+	return 0
 }
 
 ## Prints <member>'s own stored `last_swept_ts`. Three outcomes, told apart by

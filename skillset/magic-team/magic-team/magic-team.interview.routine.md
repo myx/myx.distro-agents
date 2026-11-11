@@ -64,7 +64,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`).
 3. **open-channel-and-create-item**: on opening or resuming, steps:
    - rule: one topic, one thread. An unrelated topic surfacing mid-interview is forked into its own thread.
-   - open or continue the channel: a Slack thread by default; email for slow or unusually complex matters.
+   - open a new thread for this round. A Slack thread is the default, and email is for slow or unusually complex matters.
    - create the `interview-*` tracking item now, in `board-running` with `--create-running`, unless it already exists. Never deferred. It stands alone: the goal, why, the scope, the current state, the next question and the open points, each a plain present-tense statement, so a session restarted a month later resumes it alone.
    - a live interactive session sets `owner-session: interactive` and `owner-session-since: <now>` on the item, and refreshes them at each **resume-review**.
 4. **name-the-interview-on-resume**: with more than one interview open, a resume names which one. A bare "continue" is an assumption gap: ask which, per **readback-on-suspected-assumption-gap**.

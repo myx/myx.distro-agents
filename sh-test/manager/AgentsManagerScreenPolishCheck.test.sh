@@ -229,12 +229,12 @@ below = [ i for i, row in enumerate(rows) if row.startswith(sys.argv[2]) ]
 if not above or not below : print("no-such-rows")
 else : print("spaced" if below[0] == above[0] + 2 and rows[ above[0] + 1 ] == "-" else "|".join( rows[ above[0] : below[0] + 1 ] ))' "$1" "$2"
 }
-## No team data is configured in this rig, so Team Data is not shown. The roots fall in five groups: Dashboard and Pending Questions, Magic-Team (Agents), Locations and Consoles, Settings and Configuration, Manuals.
+## No team data is configured in this rig, so Team Data is not shown. The roots fall in five groups: Dashboard and Pending Questions, Magic-Team (Agents), Locations and Consoles, Settings, Configuration and Optional Features, Manuals.
 rigAssert "control: Team Data is not shown, no team data being configured" "$( printf '%s\n' "$rigRootRows" | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c '^Team Data' )" 0
 rigAssert "a spacer between Pending Questions and Magic-Team (Agents)" "$( rigSpaceAfter 'Pending' 'Magic-Team' )" spaced
 rigAssert "a spacer between Magic-Team (Agents) and Locations"  "$( rigSpaceAfter 'Magic-Team' 'Locations' )" spaced
 rigAssert "a spacer between This Machine and Settings"            "$( rigSpaceAfter 'This Machine' 'Settings' )" spaced
-rigAssert "a spacer between Configuration and Manuals"         "$( rigSpaceAfter 'Configuration' 'Manuals' )" spaced
+rigAssert "a spacer between Optional Features and Manuals, and none between Configuration and Optional Features" "$( rigSpaceAfter 'Optional Features' 'Manuals' ) $( printf '%s\n' "$rigRootRows" | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -A 1 -x 'Configuration' | LC_ALL=C tail -1 )" "spaced Optional Features"
 rigAssert "and no other spacer at the root"                    "$( printf '%s\n' "$rigRootRows" | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' )" 4
 ## In any folder a spacer stands between its commands (FIXED_ROWS) and its children: in Launchpad, after Free prompt.
 rigAssert "in Launchpad, a spacer between the Free prompt and the routines" "$( rigListRows sessionsShown | "$rigPython" -I -c 'import sys

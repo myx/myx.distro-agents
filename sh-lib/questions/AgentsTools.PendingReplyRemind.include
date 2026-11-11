@@ -294,12 +294,11 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 		case "$fCount" in ''|*[!0-9]*) fCount=0 ;; esac
 		remindAge=$(( remindNow - remindEpoch ))
 		remindStages=""
+		## ONE NUDGE, THEN NO REPEAT (the team rule dormancy-nudge-once-then-escalate: a quiet party gets one nudge restating the open matter,
+		## and after that the channel changes rather than the message repeats). The 30-minute stage is that one nudge. The 2-hour and the
+		## daily stages repeated the same question to the same person for days, a decision recorded elsewhere among them: they send nothing.
+		## The open ask stays open and listed, never closed by age, until its asker settles it or the answer lands.
 		[ -n "$f30" ] || [ "$remindAge" -lt 1800 ] || remindStages="$remindStages,30m"
-		[ -n "$f2h" ] || [ "$remindAge" -lt 7200 ] || remindStages="$remindStages,2h"
-		## "Not yet reminded that day": by any stage, not only the daily one.
-		if [ -n "$remindDailyOpen" ] && [ "$remindAge" -ge 14400 ] && [ "$fDaily" != "$remindToday" ] && [ "${fLastAt%% *}" != "$remindToday" ] ; then
-			remindStages="$remindStages,daily"
-		fi
 		[ -n "$remindStages" ] || continue
 		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fAddr" "$remindEpoch" "$remindId" "$remindFile" "${remindStages#,}" \
 			"$(( fCount + 1 ))" "$fOwner" "${fIdentity:-member}" "$fChannel" "$fQts" "$fTts" "${fAskedAt:--}" "$fForward" >> "$remindWork/due"

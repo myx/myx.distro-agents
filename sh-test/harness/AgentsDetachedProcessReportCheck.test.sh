@@ -120,7 +120,9 @@ printf -- '---\nspawn-id: rig-report-four\nsession-id: rig-report-four\nowner: %
 rigCall "{\"cwd\":\"$rigTmp/work\",\"command\":\"echo RIG-FOUR-LAST\",\"detach\":true}" rig-report-four start4
 rigHandle4="$( LC_ALL=C sed -n 's/^Process handle: //p' "$rigTmp/start4.out" | LC_ALL=C head -1 )"
 rigAssert "control: the end is posted" "$( rigAwaitPost "$rigHandle4 ended with exit status 0" 20 )" yes
-rigAssert "the end post tags the caller, in the session thread" "$( rigPostsHold '<@URIGBOSS1>' ):$( LC_ALL=C grep -l -F '"thread_ts":"1760000000.000400"' "$rigScenario"/post.* 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' )" "1:$( rigPosts )"
+## The end of a process is a tracking notice of the run (AgentsHarnessProcessPost): with no event-track channel configured, it goes into the
+## session thread, with no addressee, as every tracking post does. The caller reads the process's own files with TaskOutput, and is not tagged.
+rigAssert "the end post is a tracking notice: in the session thread, and tags nobody" "$( rigPostsHold '<@URIGBOSS1>' ):$( LC_ALL=C grep -l -F '"thread_ts":"1760000000.000400"' "$rigScenario"/post.* 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' )" "0:$( rigPosts )"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DETACHED PROCESS REPORT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

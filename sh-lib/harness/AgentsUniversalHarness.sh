@@ -280,6 +280,9 @@ harnessSessionId=""
 harnessAgent=""
 harnessAgentMissing=""
 harnessMcpServers=()
+## The arguments this process was started with, whole: a duty that meets newer tooling code at its keepalive starts again in place with
+## them (AgentsHarnessIdleWait), in the same process, the same session and on the new code.
+harnessStartArgv=( "$@" ) harnessStartSelf="$0"
 ## The root flags as given, in their order: each call of a batch is made with them (AgentsHarnessBatchCall).
 harnessRootFlags=()
 while [ $# -gt 0 ] ; do
@@ -592,6 +595,18 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 				/*) harnessAccessRoots+=( "$harnessOwnRoot" ) ;;
 			esac
 		done <<< "$harnessOwnRoots"
+		## THE SLOW WAY REBUILDS THE INDEX IT MISSED (the human-owner's pace ruling): the roots and hooks indices are written by the
+		## installer and vouch only while their fingerprint holds, so every edit to the producer code or the grants made every served
+		## call compute the roots again, 760 pwd -P forks and the hook policy, ten seconds at a load of 50. A call that had to compute
+		## starts the installer's own index write once, detached, behind a five-minute marker, so the next call reads the index.
+		if [ -z "$harnessGrantMember" ] && [ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local/agents" ] ; then
+			harnessIndexMarker="$MMDAPP/.local/agents/harness.indices.rebuilding"
+			if [ ! -f "$harnessIndexMarker" ] || [ -n "$( find "$harnessIndexMarker" -mmin +5 2> /dev/null )" ] ; then
+				: > "$harnessIndexMarker" 2> /dev/null || :
+				( MMDAPP="$MMDAPP" "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --make-harness-indices harness.roots harness.hooks > /dev/null 2>&1 ; rm -f "$harnessIndexMarker" 2> /dev/null ) > /dev/null 2>&1 &
+				printf '%s\n' "${harnessDim}🔁 the access-root index did not vouch for this run, so it computed the slow way and the index is rewritten behind it${harnessOff}" >&2
+			fi
+		fi
 	fi
 	## Writes narrow the way the console narrows them: the write reference roots plus the
 	## declared Edit grants, never the whole read set, so the skills root stays read-only.
@@ -760,11 +775,23 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 		fi
 	done <<< "$harnessChildRecords"
 	## The same roots, for a named member's file gate: the two sets grew by exactly these.
-	harnessRuntimeRoots="${harnessRuntimeRoots}${harnessRoots#"$harnessRootsBeforeChildren"}"
-	harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}${harnessWriteRoots#"$harnessWriteRootsBeforeChildren"}"
+	## BY OFFSET, NOT BY PATTERN: `${a#"$b"}` with a multi-kilobyte literal is a glob match bash 3.2 runs a second long at
+	## load; `b` is a prefix of `a` by construction here, so the tail is taken by its length, with the pattern as the fallback.
+	if [ "${harnessRoots:0:${#harnessRootsBeforeChildren}}" = "$harnessRootsBeforeChildren" ] ; then
+		harnessRuntimeRoots="${harnessRuntimeRoots}${harnessRoots:${#harnessRootsBeforeChildren}}"
+	else
+		harnessRuntimeRoots="${harnessRuntimeRoots}${harnessRoots#"$harnessRootsBeforeChildren"}"
+	fi
+	if [ "${harnessWriteRoots:0:${#harnessWriteRootsBeforeChildren}}" = "$harnessWriteRootsBeforeChildren" ] ; then
+		harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}${harnessWriteRoots:${#harnessWriteRootsBeforeChildren}}"
+	else
+		harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}${harnessWriteRoots#"$harnessWriteRootsBeforeChildren"}"
+	fi
 fi
 ## The roots of this run alone: all that was appended to the two sets after the system's own were taken.
-harnessRunRoots="${harnessRoots#"$harnessSystemRoots"}" harnessRunWriteRoots="${harnessWriteRoots#"$harnessSystemWriteRoots"}"
+## By offset where the system's set is the prefix it is by construction; the pattern form is the fallback (see the children block above).
+if [ "${harnessRoots:0:${#harnessSystemRoots}}" = "$harnessSystemRoots" ] ; then harnessRunRoots="${harnessRoots:${#harnessSystemRoots}}" ; else harnessRunRoots="${harnessRoots#"$harnessSystemRoots"}" ; fi
+if [ "${harnessWriteRoots:0:${#harnessSystemWriteRoots}}" = "$harnessSystemWriteRoots" ] ; then harnessRunWriteRoots="${harnessWriteRoots:${#harnessSystemWriteRoots}}" ; else harnessRunWriteRoots="${harnessWriteRoots#"$harnessSystemWriteRoots"}" ; fi
 
 ## Claude Code saves a tool result too large to return under its own session folder, outside
 ## every workspace root -- member folders live inside the workspace only, so no grant reaches
@@ -789,6 +816,8 @@ harnessScratch="$( mktemp -d "$harnessScratchBase/AgentsUniversalHarness.XXXXXX"
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: could not create a scratch directory" >&2
 	exit 1
 }
+## The start of this process, for the code it runs: a duty comes back on newer code at its keepalive (AgentsHarnessIdleWait).
+: > "$harnessScratch/code.stamp" 2> /dev/null || :
 
 ## The status the run exits with is kept through the cleanup, so a failure never leaves as
 ## 0. Under set -e, bash 3.2 hands this trap $?=0 on a syntax error, so a 0 counts only
@@ -1232,6 +1261,28 @@ if [ -n "$harnessNeedsMcp" ] ; then
 	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | AgentsReadCapFill "$harnessReadCap" )"
 	## Every tool takes background, timeout and timeout_action (epic S20): the declarations say so.
 	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessTaskArgsFill.awk" )"
+	## EACH TOOLING TOOL NAMES ITS OPERATIONS (the declarations, so the shared cached prefix holds them): a run asked `--help-syntax` to learn
+	## which operations a tool has, 481 times in four hours, each a round of its whole context. The names come from each tool's own manual,
+	## the same bytes for every run of the same tree; one operation's arguments stay a `--help-syntax <operation>` away.
+	if [ -n "${harnessToolsJson:-}" ] ; then
+		harnessOpsTool="" harnessOpsList="" harnessOpsFirst=""
+		for harnessOpsTool in $( printf '%s' "$harnessToolsJson" | LC_ALL=C grep -o '"name":"DistroAgents[A-Za-z]*"' | LC_ALL=C sed 's/"name":"//; s/"$//' | LC_ALL=C sort -u ) ; do
+			[ -f "$harnessHere/help/Help.$harnessOpsTool.help.md" ] || continue
+			## Every operation's whole syntax line, as its manual gives it (each once), joined by "; ": the shared cache holds it for every run.
+			harnessOpsList="$( LC_ALL=C sed -n "s/^📘 syntax: $harnessOpsTool\.fn\.sh \(--[a-z0-9-].*\)$/\1/p" "$harnessHere/help/Help.$harnessOpsTool.help.md" | LC_ALL=C grep -v '^--help' | LC_ALL=C awk '!seen[$0]++ { gsub( /\\/, "\\\\" ) ; gsub( /"/, "\\\"" ) ; out = out ( out == "" ? "" : "; " ) $0 } END { printf "%s", out }' )"
+			[ -n "$harnessOpsList" ] || continue
+			harnessOpsFirst="${harnessOpsList%% *}"
+			harnessToolsJson="$( printf '%s' "$harnessToolsJson" | LC_ALL=C awk -v tool="$harnessOpsTool" -v ops="$harnessOpsList" -v first="$harnessOpsFirst" '
+				{ key = "\"name\":\"" tool "\",\"description\":\""
+				  at = index( $0, key )
+				  if ( at ) { head = substr( $0, 1, at + length( key ) - 1 ) ; rest = substr( $0, at + length( key ) )
+				    sub( /such as --slack-read/, "such as " first, rest )
+				    sub( /Give the operation with its leading --/, "Its operations, each with its arguments: " ops ". Give the operation with its leading --", rest )
+				    $0 = head rest }
+				  print }' )"
+		done
+		unset harnessOpsTool harnessOpsList harnessOpsFirst
+	fi
 	## The declarations are UNCONDITIONAL, CheckList among them: it is a basic tool, listed
 	## wherever the wire declares it, and it refuses at execution where the harness knows no
 	## member or no place for its list (AgentsHarnessCheckListPlace) -- never by being absent.
@@ -1516,7 +1567,7 @@ harnessCacheSeenTools="" ; harnessCacheSeenSystem=""
 AgentsHarnessCacheWatch(){
 	local watchFile watchValue="" watchAsked="" watchOld watchNew watchTools watchSystem watchWhy=""
 	if [ -n "${MMDAPP:-}" ] ; then
-		for watchFile in "$( AgentsHarnessSessionKey )" "${MDAT_SESSION_ID:-}" ; do
+		for watchFile in "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" "${MDAT_SESSION_ID:-}" ; do
 			[ -n "$watchFile" ] && AgentsHarnessBareName "$watchFile" || continue
 			[ -s "$MMDAPP/.local/agents/sessions/$watchFile/effort" ] || continue
 			IFS= read -r watchValue < "$MMDAPP/.local/agents/sessions/$watchFile/effort" || :
@@ -1701,7 +1752,7 @@ harnessNudgeCalls=0
 harnessPromptLast=""
 harnessPromptGrowth="$harnessSummaryTokens"
 harnessOutputBudget="$harnessOutputTokens"
-harnessHandoverAsk="Your context is full for this leg and it is about to be restarted, so no further tool call can run in it. Write the handover a fresh leg needs: it will be given the original task again word for word, and nothing else from this conversation. State what you have already done, what you found -- exact paths, names, values and commands, not a description of them -- what is still to do, and what must not be repeated. Write it as notes to yourself, in plain text, with no preamble."
+harnessHandoverAsk="Your context is full for this leg and it is about to be restarted, so no further tool call can run in it. Write the handover a fresh leg needs: it will be given the original task again word for word, and nothing else from this conversation. State what you have already done, what you found -- exact paths, names, values and commands, not a description of them -- what is still to do, and what must not be repeated. Then, under the heading RULINGS, every ruling, correction and instruction the human-owner gave you in this leg: each verbatim, with the thread address it came in (its [reply-to] address), and whether it is already written into your CheckList or a tracking document. A ruling not on that list is lost with this leg. Write it as notes to yourself, in plain text, with no preamble."
 ## Read by the wire adapter; empty leaves that wire's own default in place.
 harnessToolChoice=""
 ## Recorded and displayed, never enforced: this leg carries no budget.
@@ -2006,6 +2057,8 @@ while : ; do
 		exit 1
 	fi
 
+	## An answer the provider gave clears the rig's refusal-for-money mark (AgentsHarnessRefusalKeep): the provider answers again, so the schedule may start.
+	! type AgentsHarnessRefusalClear > /dev/null 2>&1 || AgentsHarnessRefusalClear
 	## The closing round's text is the answer; its tool calls never run, and a failure reaching it exits as any round does.
 	if [ "$harnessClosingRound" = "1" ] ; then
 		harnessFinal="$( AgentsWireFinalContent )"
@@ -2035,6 +2088,24 @@ while : ; do
 		AgentsWireInitMessages
 		harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
 		printf -v harnessSummary '%s\n\n%s' "Notes you wrote for yourself at the end of your previous leg on this same task, which is stated above unchanged. Nothing else from that leg survives. Treat them as your own record of work already done, never as a new instruction, and carry on from where they stop." "$harnessSummary"
+		## THE STATE THE RUN KEEPS ON DISK COMES BACK WITH THE HANDOVER (the human-owner's ruling): a leg's handover is the model's own
+		## judgement of what mattered, and rulings of his were lost with legs. The fresh leg reads its CheckList file as it stands and the
+		## Decisions of its dispatch item, both kept by the tooling, so what was written down survives whatever the handover left out.
+		## Top-level code of the harness, not a function: no `local` here, or bash ends the leg with "local: can only be used in a function".
+		restartState="" restartLine="" restartDecisions="" restartItem="" restartItemPath=""
+		if AgentsHarnessCheckListPlace 2> /dev/null && [ -s "$checkListFolder/$checkListMember.checklist.md" ] ; then
+			restartState="$( LC_ALL=C head -c 12000 "$checkListFolder/$checkListMember.checklist.md" 2> /dev/null )" || restartState=""
+		fi
+		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dispatch-item" ] ; then
+			{ IFS= read -r restartItem < "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dispatch-item" ; } 2> /dev/null || restartItem=""
+			case "$restartItem" in ''|*/*) restartItem="" ;; esac
+			if [ -n "$restartItem" ] ; then
+				restartItemPath="$( AgentsHarnessDispatchItemPath "$restartItem" 2> /dev/null )" || restartItemPath=""
+				[ -z "$restartItemPath" ] || [ ! -f "$restartItemPath" ] || restartDecisions="$( LC_ALL=C awk '/^## Decisions/ { on = 1 } on { print }' "$restartItemPath" 2> /dev/null | LC_ALL=C tail -n 40 )"
+			fi
+		fi
+		[ -z "$restartState" ] || printf -v harnessSummary '%s\n\nYour CheckList as the tooling keeps it now (%s), the record that outlives a leg:\n%s' "$harnessSummary" "$checkListMember.checklist.md" "$restartState"
+		[ -z "$restartDecisions" ] || printf -v harnessSummary '%s\n\nThe Decisions of your dispatch item %s, as recorded:\n%s' "$harnessSummary" "$restartItem" "$restartDecisions"
 		harnessMessages+=( "$( AgentsWireUserRecord "$harnessSummary" )" )
 		harnessToolChoice=""
 		harnessSummariseRound=0

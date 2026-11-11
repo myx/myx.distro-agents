@@ -89,6 +89,15 @@ rigRegister(){ ## workspace [extra env value]
 		AgentsHarnessMcpIndexText "$1" use-spec
 	)
 }
+## An index that registers no server at all. A REMOVED index is not that: the harness then composes the set from the origin
+## workspace's own primary sources, and on a machine that registers myx.common there the rig enumerated a real server.
+rigRegisterNone(){ ## workspace
+	(
+		harnessHere="$rigHere" ; . "$rigHere/harness/AgentsHarnessMcpConfig.include" || exit 1
+		AgentsHarnessMcpSpecReset
+		AgentsHarnessMcpIndexText "$1" use-spec
+	)
+}
 ## A hook in a workspace's harness hook index: our policy's records plus one rig record.
 rigHookIndex(){ ## workspace, matcher, absolute script
 	mkdir -p "$1/.local/agents"
@@ -228,7 +237,8 @@ rigVerdict "declaration, announce, dispatch and round-trip -- enumerated once, k
 rigStart unregistered-mid-run
 rigMcpStream "$rigScenarioDir/res.1" 20
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
-RIG_AFTER_ROUND_1="rm -f '$rigScenarioDir/.local/agents/mcp.servers.index'" rigRun 0
+rigRegisterNone "$rigScenarioDir" > "$rigScenarioDir/mcp.servers.index.none" || rigRefuse "the rig's empty MCP index could not be written"
+RIG_AFTER_ROUND_1="cp '$rigScenarioDir/mcp.servers.index.none' '$rigScenarioDir/.local/agents/mcp.servers.index'" rigRun 0
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 ## Read by the declaration's own description: the round-1 call record carries the
@@ -341,7 +351,7 @@ rigVerdict "the optional description -- declared on every built-in, not on a ser
 ## every probe answers the other way. A mcp.servers.json naming the server is left in
 ## place: it is output for external tools, and our harness never reads it.
 rigStart no-server-named
-rm -f "$rigScenarioDir/.local/agents/mcp.servers.index"
+rigRegisterNone "$rigScenarioDir" > "$rigScenarioDir/.local/agents/mcp.servers.index" || rigRefuse "the rig's empty MCP index could not be written"
 printf '{"mcpServers":{"rigmcp":{"command":"%s/bin/rigmcp","args":[]}}}\n' "$rigTmp" > "$rigScenarioDir/.local/agents/mcp.servers.json"
 rigMcpStream "$rigScenarioDir/res.1" 20
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20

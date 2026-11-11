@@ -255,6 +255,12 @@ case "$1" in
 			## THE ANSWER ONCE, KEPT BY ITS QUERY (owner 2026-11-01, option one): a repeated search inside its TTL calls Slack not
 			## at all. The answer is filed only where the search finished, and its own ttl state says when it goes stale.
 			local searchSig="" searchAnswer="" searchRc=0
+			## The cache is loaded where it is used; a load that left it undefined refuses here, not at a silent call.
+			type AgentsToolsCommsCacheSearchSignature > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
+			if ! type AgentsToolsCommsCacheSearchSignature > /dev/null 2>&1 ; then
+				echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT LOAD the search cache from AgentsTools.CommsCache.include, so an answer can be neither served nor filed. Nothing was searched." >&2
+				set +e ; return 1
+			fi
 			searchSig="$( AgentsToolsCommsCacheSearchSignature "$target" "$searchQuery" "$cutoffEpoch" "$maxPages" "$pretty" )" || searchSig=""
 			if [ -n "$searchSig" ] && AgentsToolsCommsCacheSearchServe "$searchSig" "${MDAT_COMMS_SEARCH_TTL:-}" ; then
 				echo "# $MDSC_CMD --slack-search-messages: served from the search cache, nothing asked of Slack"

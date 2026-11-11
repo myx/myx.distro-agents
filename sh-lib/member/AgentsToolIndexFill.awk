@@ -22,7 +22,7 @@ function tixSentence( text,    at, size, ahead, cut ) {
 		text = substr( text, 1, at ) ; break
 	}
 	if ( length( text ) <= 120 ) return text
-	cut = substr( text, 1, 117 ) ; sub( / [^ ]*$/, "", cut )
+	cut = substr( text, 1, 117 ) ; sub( /[\300-\377][\200-\277]*$/, "", cut ) ; sub( / [^ ]*$/, "", cut )
 	return cut "..."
 }
 

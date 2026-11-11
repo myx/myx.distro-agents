@@ -57,8 +57,8 @@ rigLong='✉️ to *magic-tester*: please run the named tests once more against 
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
 	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 2 running=2
-	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
-	rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running running 2026-10-12_17:05_+0000 - rig-host ws-rig working
+	rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0000 - rig-host ws-rig waiting
+	rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running tool 2026-10-12_17:05_+0000 - rig-host ws-rig working
 	rigRow counters 1 0 1 1 0 0.42
 } > "$rigF/rows"
 {
@@ -307,7 +307,7 @@ turn
 get x2
 RIGSCRIPT
 rigAssert "a table is a line a row, wrapped or cut"                  "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^wrappedTable|' | LC_ALL=C cut -c1-70 | LC_ALL=C grep -c 'magic-tester' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^cutTable|' | LC_ALL=C cut -c1-70 | LC_ALL=C grep -c 'magic-tester' )" "1 1"
-rigAssert "nothing is drawn past the window, at any place sideways: Right goes no further than the widest line, the table of the agents with no column that none of them has a word for" "$( rigVal t.spills ) $( rigVal tc.spills ) $( rigVal x1.spills ) $( rigVal x2.spills ) $( rigVal x1.viewLeft )" "0 0 0 0 5"
+rigAssert "nothing is drawn past the window, at any place sideways: Right goes no further than the widest line, and the table of the agents, with no column that none of them has a word for, fits the window, so Right stays at its start" "$( rigVal t.spills ) $( rigVal tc.spills ) $( rigVal x1.spills ) $( rigVal x2.spills ) $( rigVal x1.viewLeft )" "0 0 0 0 0"
 
 echo "-- the right border of the left window is a scroll bar while it holds more than it shows --"
 rigBare <<'RIGSCRIPT'

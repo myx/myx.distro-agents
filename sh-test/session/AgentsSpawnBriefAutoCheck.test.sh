@@ -137,7 +137,7 @@ rigAssert "says a plain-text reply ends the run, and to Wait instead" \
 rigAssert "spawned sessions nobody blocks on, that report to someone, are told to wait for DISMISSED" \
 	"$( rigHarnessCat | LC_ALL=C grep -c -F '[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own' )" 1
 rigAssert "the Agent tool tells the spawner how to dismiss" \
-	"$( LC_ALL=C grep -c -F 'SendMessage to its session thread with address_to set to its member name and the message DISMISSED, which its Wait returns as DISMISSED. TaskStop is the last-resort force stop.' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
+	"$( LC_ALL=C grep -c -F 'To dismiss a helper you started, send the one word DISMISSED to its session thread, with address_to naming that member.' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
 rigAssert "the Wait tool declares the DISMISSED outcome" \
 	"$( LC_ALL=C grep -c -F 'DISMISSED: a message addressed to you whose body is DISMISSED arrived' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
 rigAssert "and the MCP mirror serves it" \

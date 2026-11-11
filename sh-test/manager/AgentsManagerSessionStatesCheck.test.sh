@@ -23,10 +23,11 @@ rigRefuse(){
 }
 [ -f "$rigInclude" ] || rigRefuse "the manager session include is not at the origin: $rigInclude"
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsManagerSessionStatesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPids=""
-trap 'for rigOne in $rigPids ; do kill -KILL "$rigOne" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap '[ -z "$rigPids" ] || rigProcSignal KILL $rigPids ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
 rigSpawned="$rigWs/.local/agents/spawned"
@@ -52,7 +53,7 @@ rigRun(){ ## session id, spawn id, status, activity word or empty, title
 }
 rigAlive(){ ## spawn id -- a process carrying the id, so the row reads running
 	python3 -I -B -c 'import time; time.sleep(180)' -- --session-id "$1" > /dev/null 2>&1 &
-	rigPids="$rigPids $!" ; disown "$!" 2> /dev/null || :
+	rigProcNote "$!" ; rigPids="$rigPids $!" ; disown "$!" 2> /dev/null || :
 }
 rigPark(){ ## spawn id -- the mark a run leaves when it handed back
 	: > "$rigStores/$1/parked"

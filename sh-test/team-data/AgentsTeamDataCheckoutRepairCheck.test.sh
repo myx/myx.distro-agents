@@ -87,10 +87,12 @@ rigRemoteSetting(){ ## TEAM_DATA_GIT_REMOTE value
 	printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$1" > "$rigTmp/ws/.local/.agents/magic-team.agent.env"
 }
 rigOp(){ ## store path, result file, member, extra args...
-	local opStore="$1" opOut="$2" ; shift 2
+	local opStore="$1" opOut="$2" opMember="$3" ; shift 3
+	## The member goes in as --team-member right after the operation: the front door reads it there and hands the include its own
+	## positional <team-member>. A positional member of the caller's would stand behind the acting identity the front door fills in.
 	( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$opStore" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_WORKSPACE_MODE=team-rig \
-		bash "$rigFn" --repair-team-data-checkout "$@" ) > "$opOut" 2> "$opOut.err"
+		bash "$rigFn" --repair-team-data-checkout --team-member "$opMember" "$@" ) > "$opOut" 2> "$opOut.err"
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigBranchOf(){ ## store path
@@ -163,7 +165,7 @@ rigAssert "the flat items moved by processed: none flat, three incoming, two pro
 rigAssert "it repaired and pushed, read back"           "$( LC_ALL=C grep -c "^TEAM-DATA-REPAIRED: $rigBranch is repaired and pushed, read back as origin/$rigBranch = $( git -C "$rigTmp/rig" rev-parse HEAD )$" "$rigTmp/k" )" 1
 rigAssert "the store is clean afterwards"               "$( [ -z "$( git -C "$rigTmp/rig" status --porcelain --untracked-files=all )" ] && printf clean || printf dirty )" clean
 
-echo "-- a conflicting merge: the trial shows it, keep-merged aborts, take-remote still works --"
+echo "-- a conflicting merge: the trial shows it, keep-merged settles it as the close push does, take-remote still works --"
 rigRemote conflict
 rigCheckout conflict rig
 rigRemoteAdvanceConflict conflict
@@ -174,8 +176,9 @@ rigOp "$rigTmp/rig" "$rigTmp/c" magic-coordinator
 rigAssert "the trial says the merge conflicts"          "$( LC_ALL=C grep -c '^TEAM-DATA-TRIAL-MERGE: conflicts:' "$rigTmp/c" )" 1
 rigAssert "and the diagnosis changes nothing"           "$( git -C "$rigTmp/rig" rev-parse HEAD )" "$rigHeadBefore"
 rigOp "$rigTmp/rig" "$rigTmp/cm" magic-coordinator --keep-merged
-rigAssert "keep-merged aborts on the conflict, exits 1" "$( cat "$rigTmp/cm.rc" ):$( rigHolds "$rigTmp/cm" 'TEAM-DATA-NOT-MERGED: the merge failed; the trial above showed it, and nothing was changed' )" "1:yes"
-rigAssert "and the checkout is left as it was, no merge in progress" "$( git -C "$rigTmp/rig" rev-parse HEAD ):$( [ -e "$rigTmp/rig/.git/MERGE_HEAD" ] && printf merge || printf none ):$( git -C "$rigTmp/rig" rev-list --count "origin/$rigBranch..HEAD" )" "$rigHeadBefore:none:3"
+## cloneSync gives up on the conflict, and the repair takes the merge again and settles it (AgentsToolsTeamDataMergeAgain), as the close push does.
+rigAssert "keep-merged settles the conflict and exits 0" "$( cat "$rigTmp/cm.rc" ):$( rigHolds "$rigTmp/cm" 'TEAM-DATA-SETTLED: the conflict was settled by the team-data merge settle, and the merge committed' )" "0:yes"
+rigAssert "both sides are kept, no merge left in progress" "$( git -C "$rigTmp/rig" merge-base --is-ancestor "$rigHeadBefore" HEAD && printf local ):$( git -C "$rigTmp/rig" merge-base --is-ancestor "origin/$rigBranch" HEAD && printf remote ):$( [ -e "$rigTmp/rig/.git/MERGE_HEAD" ] && printf merge || printf none ):$( LC_ALL=C grep -r -l '^<<<<<<< ' "$rigTmp/rig" --exclude-dir=.git 2> /dev/null | wc -l | tr -d ' ' )" "local:remote:none:0"
 rigOp "$rigTmp/rig" "$rigTmp/ct" magic-coordinator --take-remote
 rigAssert "take-remote still repairs a conflicting checkout" "$( cat "$rigTmp/ct.rc" ):$( git -C "$rigTmp/rig" rev-parse HEAD ):$( git -C "$rigTmp/rig" rev-parse "origin/$rigBranch" )" "0:$( git -C "$rigTmp/rig" rev-parse "origin/$rigBranch" ):$( git -C "$rigTmp/rig" rev-parse "origin/$rigBranch" )"
 

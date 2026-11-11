@@ -120,8 +120,8 @@ rigG=gggg7777-0000-0000-0000-000000000007
 rigRun "$rigG" spawn-started magic-tester CRIGKEPT:1793000000.000800 '  -> tool: Read'
 rigListB="$( MDAT_STARTED_RECORDS_SECONDS=60 AgentsToolsSpawnedStartedRecords | wc -l | tr -d ' ' )"
 rigListC="$( MDAT_STARTED_RECORDS_SECONDS=0 AgentsToolsSpawnedStartedRecords | wc -l | tr -d ' ' )"
-rigAssert "the first call reads the tree, a call within the TTL gives the kept list without the run made since, and TTL 0 reads the tree again" "$(( rigListB - rigListA )):$(( rigListC - rigListA ))" "0:1"
-rigAssert "the kept list is a file: the epoch on its first line, then a path a line" "$( LC_ALL=C sed -n '1p' "$rigWs/.local/agents/schedule/started.records" | LC_ALL=C grep -c '^[0-9][0-9]*$' ):$( LC_ALL=C sed 1d "$rigWs/.local/agents/schedule/started.records" | LC_ALL=C grep -c 'spawn.md$' )" "1:$rigListB"
+rigAssert "the first call reads the tree, a call within the TTL still sees the run made since (its folder is newer than the list was kept with), and TTL 0 reads the tree again" "$(( rigListB - rigListA )):$(( rigListC - rigListA ))" "1:1"
+rigAssert "the kept list is a file: the epoch it was kept at and the newest folder's epoch on its first line, then a path a line" "$( LC_ALL=C sed -n '1p' "$rigWs/.local/agents/schedule/started.records" | LC_ALL=C grep -c '^[0-9][0-9]* [0-9][0-9]*$' ):$( LC_ALL=C sed 1d "$rigWs/.local/agents/schedule/started.records" | LC_ALL=C grep -c 'spawn.md$' )" "1:$rigListB"
 
 ## The per-run feed poster returns at once unless it is asked.
 eval "$( sed -n '/^AgentsEventTrackFeedRun()/,/^}/p' "$rigHere/session/AgentsTools.EventTrackFeed.include" )"

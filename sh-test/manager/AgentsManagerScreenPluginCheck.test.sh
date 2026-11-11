@@ -444,7 +444,7 @@ rigAssert "a name registered twice is refused" "$( rigVal twice )" "PluginError"
 rigAssert "a plugin that names no app of the console is refused, and the refusal names it" "$( rigVal noapps | LC_ALL=C grep -c -e PluginError -e 'plugin rigrig declares no' )" "1"
 
 echo "-- 9. every app feature is a plugin --"
-rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents), Launchpad among them" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity launch team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles workspace machine settings configuration manuals"
+rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents), Launchpad among them" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity launch team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles workspace machine settings configuration features"
 rigAssert "each is registered by its own part, once" "$( rigVal ownParts )" "activity:True configuration:True consoles:True dashboard:True launch:True magic-team:True manuals:True pending:True places:True settings:True team:True teamdata:True"
 rigAssert "no table of the roots, the rows, the summaries, the reads, the Markdown places or the Go levels is left in Roots.py or Windows.py" "$( rigVal noTables )" "none"
 

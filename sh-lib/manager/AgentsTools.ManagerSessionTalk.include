@@ -97,7 +97,25 @@ case "$1" in
 		## A session with no run of a member has no reader: its lead runs under its own session id and never reads this session's chat file, so a message left here
 		## would be reported as delivered and read by nobody (epic S10.22). It is refused, and the console is told what to do instead.
 		if [ "$messageKnown" = " " ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $messageOp: session $scopeSession has no run of a member, so nobody would read a message left in it; send it to the session that holds the run (its lead's own session id) -- nothing was left" >&2
+			## The runs this session started, from the kept per-session list (the records naming it as parent-session-id): each runs under its own
+			## session id, and that id is where a message reaches its lead. Named here, so the console is told the id and not only the rule.
+			local messageLead messageLeads="" messageLeadOwner messageLeadSession
+			type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+			type AgentsToolsRegistryHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
+			for messageLead in $( AgentsToolsSpawnedSessionRecords "$scopeSession" parent 2> /dev/null ) ; do
+				[ -f "$messageLead" ] || continue
+				messageLeadOwner="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$messageLead" )" owner )"
+				messageLeadSession="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$messageLead" )" session-id )"
+				case "$messageLeadSession" in ''|-) continue ;; esac
+				case "$messageLeads" in *" $messageLeadOwner in session $messageLeadSession,"*) continue ;; esac
+				messageLeads="$messageLeads $messageLeadOwner in session $messageLeadSession,"
+			done
+			messageLeads="${messageLeads%,}"
+			if [ -n "$messageLeads" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $messageOp: session $scopeSession has no run of a member, so nobody would read a message left in it; send it to the session that holds the run: it started$messageLeads -- nothing was left" >&2
+				set +e ; return 1
+			fi
+			echo "⛔ ERROR: $MDSC_CMD $messageOp: session $scopeSession has no run of a member, so nobody would read a message left in it; send it to the session that holds the run (its lead's own session id; no record here names this session as its parent) -- nothing was left" >&2
 			set +e ; return 1
 		fi
 		for messageOne in ${messageTo//,/ } ; do

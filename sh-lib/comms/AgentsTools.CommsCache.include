@@ -106,6 +106,17 @@ AgentsToolsCommsCacheInterest(){ ## cache folder, now, the reader's TTL (optiona
 	return 0
 }
 
+## Whether this process works on a team rig (read once a process). The cache-only reads no longer ask it: a Wait never calls a
+## service on any rig (the owner's design), and a rig with no comms thread reads its sources as never read until one pulls them.
+AgentsToolsCommsCacheTeamRig(){
+	if [ -z "${agentsCommsRigMode+set}" ] ; then
+		type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include" 2> /dev/null
+		agentsCommsRigMode="$( AgentsToolsWorkspaceMode 2> /dev/null )" || agentsCommsRigMode=""
+	fi
+	case "$agentsCommsRigMode" in team-rig*) return 0 ;; esac
+	return 1
+}
+
 ## ONE PULL OF A CHANNEL AT A TIME: the first makes `.pulling.txt` where it is absent (noclobber, so only one can) with its epoch;
 ## another within 60 s of it does not pull. A pull older than that is taken as dead. rc 1 where another pull holds it.
 AgentsToolsCommsCachePullTake(){ ## cache folder, now
@@ -142,6 +153,61 @@ AgentsToolsCommsCachePullAwait(){ ## cache folder, bound in seconds (optional)
 ## A WHOLE SLACK THREAD THROUGH THE CACHE, slack/slack-<channel>-<thread ts>, rendered into a file: served from it within its TTL,
 ## else only the replies after its newest are read from Slack and merged. Where another pull holds the channel, what the cache
 ## holds is served. rc 0 the rendering is written, 1 the cache cannot serve (the caller reads Slack itself), 2 the read failed.
+## THE READER'S WAIT ON THE COMMS THREAD (the owner's design, epic S1 item 14): everything is pulled by the one comms thread into the
+## cache, and a read that misses the cache either returns unread or waits until the data comes, by its request's budget in seconds
+## (MDAT_COMMS_CACHE_WAIT_SECONDS; none or 0 is unread at once). The wait is a fifo in the cache folder, `.ready`, opened read-write by
+## both sides so neither blocks on the open; the puller writes one line into it after each pull of that folder while a reader waits
+## there (`.waiting`). rc 0 the data came within the budget, rc 1 it did not.
+AgentsToolsCommsCacheWaitReady(){ ## cache folder, seconds
+	local readyLine="" readyRc=1 readyBudget="${2:-}" readyLeft=""
+	case "$readyBudget" in ''|*[!0-9]*|0) return 1 ;; esac
+	## ONE BUDGET FOR THE WHOLE PROBE (MDAT_COMMS_CACHE_WAIT_UNTIL, an epoch the Wait sets beside the seconds): a probe that reads several
+	## folders -- the ask probe reads every open ask's thread and conversation -- waited the seconds once per folder, and a 300 s Wait
+	## stood 500 s and more in one round, its asks unanswered meanwhile. Past the moment, nothing waits.
+	case "${MDAT_COMMS_CACHE_WAIT_UNTIL:-}" in
+		''|*[!0-9]*) ;;
+		*)
+			readyLeft=$(( MDAT_COMMS_CACHE_WAIT_UNTIL - $( date +%s ) ))
+			[ "$readyLeft" -gt 0 ] || return 1
+			[ "$readyBudget" -le "$readyLeft" ] || readyBudget="$readyLeft"
+		;;
+	esac
+	set -- "$1" "$readyBudget"
+	mkdir -p "$1" 2> /dev/null || return 1
+	[ -p "$1/.ready" ] || mkfifo "$1/.ready" 2> /dev/null || return 1
+	: > "$1/.waiting" 2> /dev/null || :
+	exec 8<> "$1/.ready" 2> /dev/null || { rm -f "$1/.waiting" 2> /dev/null ; return 1 ; }
+	read -r -t "$2" -u 8 readyLine && readyRc=0
+	exec 8>&-
+	rm -f "$1/.waiting" 2> /dev/null
+	return "$readyRc"
+}
+
+## The puller's word to a reader waiting on a folder it just pulled: one line into the folder's fifo, only while a reader waits there.
+AgentsToolsCommsCacheSayReady(){ ## cache folder
+	[ -p "$1/.ready" ] && [ -f "$1/.waiting" ] || return 0
+	{ exec 9<> "$1/.ready" && printf '.\n' >&9 ; exec 9>&- ; } 2> /dev/null || :
+	return 0
+}
+
+## A channel the cache does not cover yet, wanted by a reader: its recipe in the folder's `.want`, for the puller, and the rig's one
+## flag `.wanted`, read by the comms thread at every pass so the pull comes at once and not at the thread's next watched pull.
+AgentsToolsCommsCacheWanted(){ ## cache folder, the recipe line
+	{ mkdir -p "$1" && printf '%s\n' "$2" > "$1/.want" && : > "$MMDAPP/.local/cache/comms/.wanted" ; } 2> /dev/null || :
+	## THE WANT ASKS THE SERVICE THREAD TO RUN, never pulls: where no comms thread lives for this workspace, one is started on the current
+	## code (AgentsToolsSessionCommsStart, which answers `alive` where one lives), and it pulls the want on its pass. So a reader on any
+	## rig, a check's included, waits on the thread and not on luck.
+	type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+	local wantSaid="" wantPid=""
+	! type AgentsToolsSessionCommsStart > /dev/null 2>&1 || wantSaid="$( AgentsToolsSessionCommsStart 2> /dev/null )" || wantSaid=""
+	## AND WAKES IT: the thread sleeps between passes and wakes on USR1 (its own trap), so the pull comes now and not at its next
+	## second. The pid is the one its lock proves live, pid and start together (AgentsToolsSessionCommsLive), read a moment ago.
+	## `starting`: another want of this second is starting the reader, which pulls every want first on its first loop; nothing to wake yet.
+	case "$wantSaid" in alive\ *|started\ *) wantPid="${wantSaid#* }" ; wantPid="${wantPid%% *}" ;; esac
+	case "$wantPid" in ''|*[!0-9]*) ;; *) kill -USR1 "$wantPid" 2> /dev/null || : ;; esac
+	return 0
+}
+
 AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the rendering file, as bot (true|false), now
 	local tcChannel="${2%%:*}" tcTs="${2#*:}" tcDir tcNow="$5" tcFetch="" tcTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}" tcArgs tcRc=0
 	case "$tcTtl" in ''|*[!0-9]*) tcTtl=15 ;; esac
@@ -150,6 +216,20 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 	case "$tcNow" in ''|*[!0-9]*) tcNow="$( date +%s )" ;; esac
 	AgentsToolsCommsCacheSlackDir "$1" "${4:-false}" "$tcChannel" "$tcTs" || return 1
 	tcDir="$agentsCommsCacheDir"
+	## A WAIT'S READ IS CACHE ONLY (MDAT_COMMS_CACHE_ONLY=true) on a team rig: the comms thread pulls what is of interest, so this serves
+	## what the cache holds, fresh or stale, and never pulls or refreshes itself. A thread not in the cache yet is marked of interest and
+	## left to the thread as its recipe in `.want`, and is read as unread (rc 1).
+	if [ "${MDAT_COMMS_CACHE_ONLY:-}" = "true" ] && [ "${MDAT_COMMS_CACHE_PULLER:-}" != "true" ] ; then
+		AgentsToolsCommsCacheInterest "$tcDir" "$tcNow" "$tcTtl"
+		## FRESH: inside the reader's TTL, served as it stands. STALE OR ABSENT: wanted from the thread, and with a budget waited for by the
+		## folder's fifo; what came is served, and a stale folder nothing refreshed in time is served as it stands rather than read as
+		## nothing. The request's TTL is what makes a read wait: a reader that asks for the last minute waits for a pull younger than that.
+		if AgentsToolsCommsCacheState "$tcDir" && [ $(( tcNow - agentsCommsCacheAt )) -lt "$tcTtl" ] && AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" ; then return 0 ; fi
+		AgentsToolsCommsCacheWanted "$tcDir" "slack-thread $2 $1 ${4:-false}"
+		AgentsToolsCommsCacheWaitReady "$tcDir" "${MDAT_COMMS_CACHE_WAIT_SECONDS:-0}" || :
+		if AgentsToolsCommsCacheState "$tcDir" && AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" ; then return 0 ; fi
+		return 1
+	fi
 	if AgentsToolsCommsCacheState "$tcDir" ; then
 		if [ $(( tcNow - agentsCommsCacheAt )) -lt "$tcTtl" ] && AgentsToolsCommsCacheServe "$tcDir" 0 nohead > "$3" ; then
 			return 0
@@ -275,7 +355,7 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 				pushRetry=$(( pushNow + ( pushTries < 6 ? 5 * pushTries : 30 ) ))
 				## Slack's own rate limit already set the writer's pause (AgentsToolsSessionCommsPauseSet): the real
 				## Retry-After is waited out there, never guessed at by the generic backoff above.
-				pushPauseDir="$( AgentsToolsSessionCommsDir 2> /dev/null )" || pushPauseDir=""
+				pushPauseDir="${MMDAPP:+$MMDAPP/.local/agents/comms}"
 				pushPauseUntil=""
 				[ -z "$pushPauseDir" ] || { IFS= read -r pushPauseUntil < "$pushPauseDir/pause" ; } 2> /dev/null
 				case "$pushPauseUntil" in ''|*[!0-9]*) pushPauseUntil="" ;; esac
@@ -343,7 +423,7 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 ## past its TTL is pulled once, by the way its state names, so a member's read on the rig is served from the cache and never waits on
 ## the service. Once an hour it deletes the marks older than 48 hours (owner 2026-10-29).
 AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one call may pull, none or 0 for no bound)
-	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchName watchDir watchHow watchTarget watchMember watchBot watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
+	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchMark watchName watchDir watchHow watchTarget watchMember watchBot watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
 	local watchMost="${2:-0}" watchDone=0
 	case "$watchMost" in ''|*[!0123456789]*) watchMost=0 ;; esac
 	case "$watchTtl" in ''|*[!0-9]*) watchTtl=15 ;; esac
@@ -367,13 +447,29 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 			done
 		done
 	fi
-	for watchName in $( find "$watchMarks" -type f -mmin -61 2> /dev/null | LC_ALL=C sed 's#^.*/##' ) ; do
-		[ "$watchMost" = 0 ] || [ "$watchDone" -lt "$watchMost" ] || break
-		watchDir="$MMDAPP/.local/cache/comms/${watchName%%-*}/$watchName"
-		AgentsToolsCommsCacheState "$watchDir" || continue
+	## THE MARKS ARE READ BY A GLOB, one file read each (call-path audit row 22): a mark holds the moment of the read that wrote it
+	## and the TTL it reads at, so a mark older than an hour by the pass clock is passed over here, with no find and no sed on
+	## the pass. The hourly sweep above removes what is older than two days.
+	for watchMark in "$watchMarks"/* ; do
+		[ -f "$watchMark" ] || continue
+		watchName="${watchMark##*/}"
+		case "$watchName" in ''|.*|*[!A-Za-z0-9._-]*) continue ;; esac
 		## Each channel from the TTL its readers read it at, kept in its mark; the default where the mark names none.
-		watchBase="$watchTtl" watchMarkTtl=""
-		{ read -r watchMarkAt watchMarkTtl < "$watchMarks/$watchName" ; } 2> /dev/null || watchMarkTtl=""
+		watchBase="$watchTtl" watchMarkTtl="" watchMarkAt=""
+		{ read -r watchMarkAt watchMarkTtl < "$watchMark" ; } 2> /dev/null || { watchMarkAt="" ; watchMarkTtl="" ; }
+		case "$watchMarkAt" in ''|*[!0-9]*) continue ;; esac
+		[ $(( $1 - watchMarkAt )) -lt 3660 ] || continue
+		watchDir="$MMDAPP/.local/cache/comms/${watchName%%-*}/$watchName"
+		## A WANT IS SERVED WHATEVER THE BUDGET: a reader waits by that folder's fifo now. The budget bounds the channels pulled on their own
+		## schedule, and once it is spent they wait for the next pass, while a wanted folder later in the order is still reached (a budget of
+		## two over a hundred and forty marks left keeper-ae3's mentions, late in the order, unpulled pass after pass).
+		[ -f "$watchDir/.want" ] || [ "$watchMost" = 0 ] || [ "$watchDone" -lt "$watchMost" ] || continue
+		if ! AgentsToolsCommsCacheState "$watchDir" ; then
+			## A channel not in the cache yet that a cache-only reader left (`.want`, its recipe): pulled from nothing, whole.
+			[ -f "$watchDir/.want" ] || continue
+			IFS= read -r agentsCommsCacheRecipe < "$watchDir/.want" 2> /dev/null || continue
+			agentsCommsCacheAt=0 agentsCommsCacheFrom="" agentsCommsCacheNewest=""
+		fi
 		case "$watchMarkTtl" in ''|*[!0-9]*|0) ;; *) watchBase="$watchMarkTtl" ;; esac
 		## The puller's own clock (owner 2026-10-29): a channel quiet since its newest message is pulled ever more rarely, to
 		## nineteen times the TTL at two hundred and ten times it, so a reader that needs it sooner pulls it itself.
@@ -382,20 +478,31 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 		watchQuiet=$(( $1 - watchQuiet ))
 		[ "$watchQuiet" -ge 0 ] || watchQuiet=0
 		[ "$watchQuiet" -le $(( watchBase * 210 )) ] || watchQuiet=$(( watchBase * 210 ))
-		[ $(( $1 - agentsCommsCacheAt )) -ge $(( watchBase + 18 * watchQuiet / 210 )) ] || continue
+		## A WANT IS A READER'S DEMAND (a reader waiting by the folder's fifo): the folder is pulled now, whatever its own schedule says.
+		[ -f "$watchDir/.want" ] || [ $(( $1 - agentsCommsCacheAt )) -ge $(( watchBase + 18 * watchQuiet / 210 )) ] || continue
 		read -r watchHow watchTarget watchMember watchBot <<< "$agentsCommsCacheRecipe"
 		case "$watchHow" in
 			slack-thread)
-				AgentsToolsCommsCacheSlackThread "$watchMember" "$watchTarget" "$watchDir/.pull.rendered" "$watchBot" "$1" > /dev/null 2>&1 || :
+				## The pull reads at the readers' own TTL (the mark's, watchBase): a thread pulled seconds ago is pulled again where a reader
+				## with a one-second TTL wants it, not served from a fifteen-second default the puller alone would hold.
+				MDAT_COMMS_CACHE_ONLY="" MDAT_SLACK_THREAD_CACHE_SECONDS="$watchBase" AgentsToolsCommsCacheSlackThread "$watchMember" "$watchTarget" "$watchDir/.pull.rendered" "$watchBot" "$1" > /dev/null 2>&1 || :
 				rm -f "$watchDir/.pull.rendered" "$watchDir/.pull.rendered.read" "$watchDir/.pull.rendered.err"
+			;;
+			slack-mentions)
+				## A member's mentions, searched by the thread for the Wait that reads the cache alone (AgentsWaitMentionsPull).
+				type AgentsWaitMentionsPull > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWaitMentions.include" 2> /dev/null || :
+				## Its stderr is the thread's log: the one line that says why a member's mentions cannot be searched lands there.
+				! type AgentsWaitMentionsPull > /dev/null 2>&1 || MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true AgentsWaitMentionsPull "$watchTarget" "$watchDir" "$1" > /dev/null || :
 			;;
 			slack-conversation)
 				## From what the cache covers, so the read finds it stale and pulls only after its newest.
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				MDAT_COMMS_CACHE_PULLER=true DistroAgentsTools --intern-op-comms-slack-read "$watchMember" "$watchTarget" --oldest "$agentsCommsCacheFrom" \
+				MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true MDAT_SLACK_THREAD_CACHE_SECONDS="$watchBase" DistroAgentsTools --intern-op-comms-slack-read "$watchMember" "$watchTarget" $( [ -z "$agentsCommsCacheFrom" ] || printf '%s\n' --oldest "$agentsCommsCacheFrom" ) \
 					$( [ "$watchBot" != "true" ] || printf '%s' --identity-bot ) > /dev/null 2>&1 < /dev/null || :
 			;;
 		esac
+		rm -f "$watchDir/.want" 2> /dev/null
+		AgentsToolsCommsCacheSayReady "$watchDir"
 		watchDone=$(( watchDone + 1 ))
 	done
 	return 0

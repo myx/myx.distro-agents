@@ -107,11 +107,15 @@ rigSpawnRecord(){ ## spawn id, owner, parent session id
 }
 ## A LIVE RUN of one spawn: a line of the rig's own process list that carries its spawn id, which
 ## is how the spawned-sessions render finds a spawn running. Ended by rigDead.
+## The tooling keeps the process list it read for 10 s (AgentsToolsRegistryProcessArgs, .local/temp/ps-args.txt),
+## so a change to the rig's list takes that kept copy away: a measure within those seconds would read the old one.
 rigLive(){ ## spawn id
 	printf '%s rig-run --session-id %s\n' "$(( 900000 + RANDOM ))" "$1" >> "$RIG_PS_LIST"
+	rm -f "$rigWs/.local/temp/ps-args.txt"
 }
 rigDead(){ ## spawn id
 	LC_ALL=C awk -v gone="$1" '$NF != gone' "$RIG_PS_LIST" > "$RIG_PS_LIST.next" && mv -f "$RIG_PS_LIST.next" "$RIG_PS_LIST"
+	rm -f "$rigWs/.local/temp/ps-args.txt"
 }
 rigSpawnRecord rig-coord magic-coordinator ""
 rigSpawnRecord rig-dev magic-developer rig-coord

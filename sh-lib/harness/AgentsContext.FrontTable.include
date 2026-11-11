@@ -21,7 +21,9 @@ DistroAgentsKnowledge	--get-roster	coordinator
 DistroAgentsKnowledge	--list-namespaces	member
 DistroAgentsKnowledge	--list-places	member
 DistroAgentsKnowledge	--local-models-list	member
+DistroAgentsKnowledge	--magic-section-upsert	member
 DistroAgentsKnowledge	--member-help	member
+DistroAgentsMonitoring	--health	member
 DistroAgentsDispatcher	--shutdown-runs	coordinator
 DistroAgentsDispatcher	--spawn-prompt	coordinator
 DistroAgentsDispatcher	--spawn-session	coordinator
@@ -40,6 +42,8 @@ DistroAgentsItems	--follow-up-review	member
 DistroAgentsItems	--get-audit-item	member
 DistroAgentsItems	--get-board-item	member
 DistroAgentsItems	--get-inbox-item	member
+DistroAgentsItems	--list-inbox-items	member
+DistroAgentsItems	--get-my-board-items	member
 DistroAgentsItems	--get-vault-item	member
 DistroAgentsItems	--grooming-create-backlog	coordinator
 DistroAgentsItems	--grooming-create-blocked	coordinator
@@ -124,6 +128,7 @@ DistroAgentsAtlassian	--jira-issue-read	member
 DistroAgentsAtlassian	--jira-issue-search	coordinator
 DistroAgentsAtlassian	--jira-issue-transition	coordinator
 DistroAgentsAtlassian	--jira-issue-update	coordinator
+DistroAgentsAtlassian	--jira-project-delete	coordinator
 DistroAgentsAtlassian	--jira-sprint-issue-search	member
 DistroAgentsAtlassian	--jira-sprint-list	member
 DistroAgentsGoogle	--google-comment-post	member

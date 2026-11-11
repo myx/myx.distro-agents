@@ -17,7 +17,7 @@
 # whole when it is no longer than that -- and keeps only that short form, in the index. A large message is so never copied anywhere.
 # The line that says how to read a message in full stands once in a return, and is the caller's: -v cutFlag names a file made when any
 # message was cut.
-# FULL returns every message whole, in the return. Only a single message too long for the return, over F2.4's threshold (-v longBytes, 8192),
+# FULL returns every message whole, in the return. Only a single message too long for the return, over F2.4's threshold (-v longBytes, 4096),
 # is kept as a file of its own and served as a preview with a reference: the whole lines that fit in 2 KB, or the first 20, whichever is
 # more, never over 7 KB (the preview of a long result, F2.4), then `[kept: <file>, <bytes> bytes, <lines> lines]`. No file is made for any
 # other message.
@@ -88,17 +88,17 @@ function flush(   headText, annot, textFirst, joined, at, shown, cutText, total,
 	fit = 0 ; cap = 0 ; previewBytes = 0 ;
 	for ( at = from ; at <= last ; at++ ) {
 		previewBytes += length(line[at]) + 1 ;
-		if ( previewBytes <= 2048 ) { fit = at - from + 1 ; }
-		if ( previewBytes <= 7168 ) { cap = at - from + 1 ; }
+		if ( previewBytes <= 1024 ) { fit = at - from + 1 ; }
+		if ( previewBytes <= 3584 ) { cap = at - from + 1 ; }
 	}
-	shown = ( fit > 20 ) ? fit : 20 ;
+	shown = ( fit > 10 ) ? fit : 10 ;
 	if ( shown > last - from + 1 ) { shown = last - from + 1 ; }
 	if ( shown > cap ) { shown = cap ; }
 	if ( shown < 1 ) { shown = 1 ; }
 	for ( at = from ; at < from + shown ; at++ ) {
-		if ( at == from && length(line[at]) > 7168 ) { print substr(line[at], 1, 2048) ; } else { print line[at] ; }
+		if ( at == from && length(line[at]) > 3584 ) { print substr(line[at], 1, 1024) ; } else { print line[at] ; }
 	}
-	print "  [kept: " path ", " total " bytes, " ( last - from + 1 ) " lines" ( shown < last - from + 1 || length(line[from]) > 7168 ? "; the rest is in the file" : "" ) "]" ;
+	print "  [kept: " path ", " total " bytes, " ( last - from + 1 ) " lines" ( shown < last - from + 1 || length(line[from]) > 3584 ? "; the rest is in the file" : "" ) "]" ;
 	keep(msgTs " | " msgUser " | " cutAt(textFirst, 120) " -> " path, msgTs) ;
 }
 

@@ -154,7 +154,37 @@ AgentsToolsKnowledgeStoreRetire(){ ## the arguments after the operation word
 	return $?
 }
 
+## THE PRODUCTION BUILD OF THE INDEX (S12.197 step 3): every section the query can be asked for -- the source docs of every
+## project, the board, the vault and every inbox -- is split by the one scanner and handed to the one build, under its own
+## lock. The build keeps a row whose text is unchanged, embeds the changed ones and deletes the rows of sections gone, so a
+## run is safe to repeat. Every inbox is indexed: which hits a member may read is decided at query time, per file.
+AgentsToolsKnowledgeIndexBuild(){ ## the arguments after the operation word: none
+	[ $# -eq 0 ] || { AgentsToolsKnowledgeStoreRefuse "--knowledge-index-build takes no arguments, got: $1" ; return 1 ; }
+	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
+	type AgentsToolsKnowledgeFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Knowledge.include"
+	[ "$( AgentsToolsKnowledgeStoreSetting )" = "on" ] || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE); nothing was built" ; return 1 ; }
+	local buildPython="" buildModel="" buildRoot="" buildData="${MDAT_DATA_ROOT%/}" buildSections=""
+	buildPython="$( AgentsToolsKnowledgeStorePython )" || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is not installed; run --install-knowledge-store first" ; return 1 ; }
+	buildModel="$( AgentsToolsKnowledgeIndexModel )" || { AgentsToolsKnowledgeStoreRefuse "the embedding model of the store does not stand; run --install-knowledge-store first" ; return 1 ; }
+	[ -n "$buildData" ] && [ -d "$buildData" ] || { AgentsToolsKnowledgeStoreRefuse "no team data root (MDAT_DATA_ROOT); nothing was built" ; return 1 ; }
+	buildRoot="$( AgentsToolsKnowledgeIndexRoot )"
+	buildSections="$( {
+		AgentsToolsKnowledgeFiles --add-source-docs --add-board-items --add-vault-items --
+		[ ! -d "$buildData/inboxes" ] || find "$buildData/inboxes" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
+	} | LC_ALL=C awk '!seen[$0]++' | LC_ALL=C awk -v format=index -v wsRoot="${MMDAPP%/}/" -v dataRoot="$buildData/" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk" )" || { AgentsToolsKnowledgeStoreRefuse "the sections could not be read; nothing was built" ; return 1 ; }
+	printf '%s' "$buildSections" | "$buildPython" -W ignore "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStore.py" build \
+		--index "$buildRoot" --model-dir "${buildModel%%$'\n'*}" --model-stamp "${buildModel#*$'\n'}"
+}
+
 case "$1" in
+	--knowledge-index-build)
+		shift
+		knowledgeStoreRc=0
+		( set +e ; AgentsToolsKnowledgeIndexBuild "$@" ) || knowledgeStoreRc=$?
+		[ "$knowledgeStoreRc" = 0 ] || { set +e ; return "$knowledgeStoreRc" ; }
+		return 0
+	;;
 	--knowledge-store-spread)
 		shift
 		knowledgeStoreRc=0

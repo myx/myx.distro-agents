@@ -76,8 +76,9 @@ rigDispatchS1(){ rigRow dispatch "$rigS1" record magic-coordinator magic-coordin
 ## The total of the tokens of the first session, as its read gives it: the four figures summed over the three runs
 ## that have a store, two of which run, what was eaten so far, and one run left out, the one with no id of its own.
 rigTokensS1(){ rigRow tokens "$rigS1" 1718 56165137 853380 127488 3 2 so-far 1 ; }
-rigRunS1(){ rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting ; }
-rigRunR2(){ rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running running 2026-10-12_17:05_+0000 - rig-host ws-rig working ; }
+## The state of a live run is the word the registry derives from its activity (S27.4): `waiting` for the founder in its Wait, `tool` for the tester in a tool call.
+rigRunS1(){ rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running waiting 2026-10-12_16:57_+0000 - rig-host ws-rig waiting ; }
+rigRunR2(){ rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running tool 2026-10-12_17:05_+0000 - rig-host ws-rig working ; }
 rigRunR3(){ rigRow run "$rigS1" "$rigR3" keeper-myx spawn-succeeded no-process finished 2026-10-12_17:06_+0000 2026-10-12_18:00_+0000 rig-host ws-rig - ; }
 rigRunR4(){ rigRow run "$rigS1" - magic-developer spawn-failed no-spawn-id finished 2026-10-12_17:10_+0000 2026-10-12_17:11_+0000 rig-host ws-rig - ; }
 rigStoreS1(){ rigRow header "$rigS1" cli claude ; rigRow store "$rigS1" store claude-opus-5 1200 4200000 310000 52000 q1,q2 - 2026-10-13T02:10:00Z 'wait going idle' 'slack:C0RIG:1791000000.000100:conversation' - "/rig/sessions/$rigS1/session.log" /rig/audit/session-s1.log ; }
@@ -196,10 +197,10 @@ rigAssert "the tokens the session has eaten so far, summed by its read, and how 
 	"[  tokens   in 2K, cache read 56.2M, cache write 853K, out 127K, so far, 1 run not][           counted]"
 rigAssert "its dispatch: by whom, the routine and the item" "[$( rigPane s 9 )][$( rigPane s 10 )]" \
 	"[  founded  by magic-coordinator, routine magic-coordinator.daily.routine.md, item][           dispatch-20261012T165700Z-daily-1]"
-rigAssert "its id last, and no thread of Slack: they tell nobody anything here" "[$( rigPane s 27 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s|' | LC_ALL=C grep -c -e 'C0TRK' -e 'C0RIG:1791000000.000100,' )" "[  session  $rigS1] 0"
-rigAssert "its agents as a table under a heading: one row for each participant, with its state, since when or until when, the tokens of its store, its CLI and its model" "[$( rigPane s 12 )][$( rigPane s 13 | LC_ALL=C tr -s ' ' )][$( rigPane s 14 | LC_ALL=C tr -s ' ' )][$( rigPane s 16 | LC_ALL=C tr -s ' ' )][$( rigPane s 18 | LC_ALL=C tr -s ' ' )][$( rigPane s 20 | LC_ALL=C tr -s ' ' )]" \
-	"[ Agents][ MEMBER STATE SINCE TOKENS CLI MODEL][ magic-coordinator running waiting 2026-10-12 16:57 4.6M claude claude-opus-5][ magic-tester running working 2026-10-12 17:05 43.1M claude claude-sonnet-5][ keeper-myx finished until 2026-10-12 9.5M copilot gpt-rig][ magic-developer finished until 2026-10-12 - - -]"
-rigAssert "under them what it was started for, its dispatch, whole, under a heading" "[$( rigPane s 23 )][$( rigPane s 24 )][$( rigPane s 25 )]" "[ Dispatch][ The daily of Monday:][ what moved, what is stuck.]"
+rigAssert "its id last, and no thread of Slack: they tell nobody anything here" "[$( rigPane s 25 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s|' | LC_ALL=C grep -c -e 'C0TRK' -e 'C0RIG:1791000000.000100,' )" "[  session  $rigS1] 0"
+rigAssert "its agents as a table under a heading: one row for each participant, with its state, since when or until when, the tokens of its store, its CLI and its model" "[$( rigPane s 12 )][$( rigPane s 13 | LC_ALL=C tr -s ' ' )][$( rigPane s 14 | LC_ALL=C tr -s ' ' )][$( rigPane s 15 | LC_ALL=C tr -s ' ' )][$( rigPane s 16 | LC_ALL=C tr -s ' ' )][$( rigPane s 18 | LC_ALL=C tr -s ' ' )]" \
+	"[ Agents][ MEMBER STATE SINCE TOKENS CLI MODEL][ magic-coordinator waiting 2026-10-12 16:57 +0000 4.6M claude claude-opus-5][ magic-tester tool 2026-10-12 17:05 +0000 43.1M claude claude-sonnet-5][ keeper-myx finished until 2026-10-12 18:00 9.5M copilot gpt-rig][ magic-developer finished until 2026-10-12 17:11 - - -]"
+rigAssert "under them what it was started for, its dispatch, whole, under a heading" "[$( rigPane s 21 )][$( rigPane s 22 )][$( rigPane s 23 )]" "[ Dispatch][ The daily of Monday:][ what moved, what is stuck.]"
 rigAssert "the summary holds no line of a log, and its title names no mode: it has none" "$( rigPaneHolds s 'wait going idle' ) $( rigPaneHolds s 'lines     ' ) [$( rigPane s 2 )] [$( rigPane sl 2 )]" "0 0 [ daily of Monday [wrap]] [ daily of Monday [wrap]]"
 
 echo "-- an agent selected: its status, what it waits on, its model and tokens; its Transcript: its own lines only --"
@@ -229,7 +230,7 @@ rigAssert "the founder's own run is read with --run, since its id is its session
 rigAssert "the founder: what it waits on, and its open asks" "[$( rigPane f 7 )][$( rigPane f 8 )]" "[  waits on   slack:C0RIG:1791000000.000100:conversation for 20m][  asks       2 open: q1, q2]"
 rigAssert "its model, its token counts and its last milestone" "[$( rigPane f 9 )][$( rigPane f 10 )][$( rigPane f 11 )]" "[  model      claude-opus-5, cli claude][  tokens     in 1K, cache read 4.2M, cache write 310K, out 52K][  last       wait going idle, 20m ago]"
 rigAssert "the tester is read by its own id, with --run" "$( rigVal a.selected ) $( rigCalled "--manager-session-read --session-id $rigR2 --run" )" "$rigR2 2"
-rigAssert "its status" "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )]" "[  state      running working][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0000 (9h ago)]"
+rigAssert "its status" "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )]" "[  state      tool][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0000 (9h ago)]"
 rigAssert "its model and token counts, shortened for the eye" "[$( rigPane a 7 )][$( rigPane a 8 )][$( rigPane a 9 )]" "[  model      claude-sonnet-5, cli claude][  tokens     in 414, cache read 42.8M, cache write 308K, out 0][  last       tool call, 1m ago]"
 rigAssert "l, at its Transcript, shows its log, whose head line says where its lines come from" "$( rigVal al.viewMode ) [$( rigPane al 2 )] [$( rigPane al 3 )] $( rigCalled "--manager-session-transcript-read --session-id $rigR2 --run" )" "log [ Transcript [log] [wrap]] [ lines     the feed, from its transcript] 1"
 rigAssert "its own entries only, each under its head, the newest in view at the end" "[$( rigPane al 4 )][$( rigPane al 37 )][$( rigPane al 38 )] $( rigVal al.viewLines ) $( rigVal al.viewTop ) $( rigVal al.follow )" \
@@ -440,7 +441,7 @@ show e
 RIGSCRIPT
 rigSize=""
 rigAssert "the pane has twelve lines, and the head of the log is the line about the lines alone, no more than half of it" "$( rigVal s.viewHeight ) $( rigVal s.viewHead )" "12 1"
-rigAssert "the summary starts with the state of the agent, has no head, and scrolls down to what it was started for" "[$( rigPane f 3 )][$( rigPane f 4 )] $( rigVal f.viewHead ) $( rigPaneHolds f 'what moved, what is stuck.' ) $( rigPaneHolds e 'what moved, what is stuck.' )" "[  state      running waiting][  status     spawn-started] 0 0 1"
+rigAssert "the summary starts with the state of the agent, has no head, and scrolls down to what it was started for" "[$( rigPane f 3 )][$( rigPane f 4 )] $( rigVal f.viewHead ) $( rigPaneHolds f 'what moved, what is stuck.' ) $( rigPaneHolds e 'what moved, what is stuck.' )" "[  state      waiting][  status     spawn-started] 0 0 1"
 rigAssert "and the newest line of the feed is in view under it"      "[$( rigPane s 5 )][$( rigPane s 6 )] $( rigVal s.follow ) $( rigVal s.spills )" "[ 02:10:00 magic-coordinator:][          ⏳ wait going idle] yes 0"
 
 echo "-- the reads of one item wait until the selection has rested on it --"

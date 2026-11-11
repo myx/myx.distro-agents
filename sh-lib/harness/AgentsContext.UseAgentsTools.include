@@ -32,18 +32,72 @@ if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
 fi
 
 if [ "$1" != "--agents-config-option" ] ; then
+	agentsContextRootOwn=""
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
 		## ONE IMPLEMENTATION of the rule, shared with the supervisor's reads of another rig (AgentsTools.TeamDataRoot.include, S13.12).
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
 		MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" )" || MDAT_DATA_ROOT=""
 		[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
-		export MDAT_DATA_ROOT
+		MDAT_DATA_ROOT_OF="${MMDAPP%/}"
+		export MDAT_DATA_ROOT MDAT_DATA_ROOT_OF
+		agentsContextRootOwn=yes
 	fi
+	## ONE RIG'S TEAM DATA ONLY (S12.19): an inherited data root that is another workspace's own default root (`<other>/.local/agents/team-data-root`)
+	## is never this workspace's, whatever asked: it is re-resolved for this MMDAPP here, as the spawn proxy re-resolves it for a spawn, and said once.
+	## A root of any other shape is a configured team data directory, this workspace's or another's. Where this workspace has a configured
+	## directory of its own (a rig), that one is this call's root, whatever was inherited, said once: a rig works on its own team data only.
+	## Where it has none, the given root is kept: a workspace with no team data of its own refuses team-data writes by its mode, a
+	## supervisor's read of another rig is made under that rig's root, and a check's rig names its store this way. The resolution is two
+	## settings files read, no walk.
+	case "${MDAT_DATA_ROOT:-}" in
+		*/.local/agents/team-data-root)
+			if [ "${MDAT_DATA_ROOT%/.local/agents/team-data-root}" != "${MMDAPP%/}" ] ; then
+				echo "# ${MDSC_CMD:-DistroAgentsTools}: the inherited data root $MDAT_DATA_ROOT is another workspace's, so this call uses ${MMDAPP%/}'s own" >&2
+				type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+				MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" )" || MDAT_DATA_ROOT=""
+				[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
+				MDAT_DATA_ROOT_OF="${MMDAPP%/}"
+				export MDAT_DATA_ROOT MDAT_DATA_ROOT_OF
+			fi
+		;;
+		?*)
+			## THE READ IS MADE ONCE PER WORKSPACE, NOT ONCE PER CALL: whoever resolved the root exported MDAT_DATA_ROOT_OF, the workspace it
+			## is for, beside it. A call under that same workspace keeps the root on one string compare and reads no settings file; a call
+			## under another workspace, the cross-rig case, resolves its own and marks it for its children. A root this call resolved
+			## itself is its own too.
+			if [ "${MDAT_DATA_ROOT_OF:-}" != "${MMDAPP%/}" ] ; then
+				[ -z "$agentsContextRootOwn" ] || agentsContextOwnRoot="$MDAT_DATA_ROOT"
+				type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+				[ -n "$agentsContextRootOwn" ] || agentsContextOwnRoot="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" )" || agentsContextOwnRoot=""
+				case "$agentsContextOwnRoot" in
+					''|*/.local/agents/team-data-root) ;;
+					*)
+						if [ "${agentsContextOwnRoot%/}" != "${MDAT_DATA_ROOT%/}" ] ; then
+							echo "# ${MDSC_CMD:-DistroAgentsTools}: the inherited data root $MDAT_DATA_ROOT is not the team data ${MMDAPP%/} is configured with, so this call uses its own: $agentsContextOwnRoot" >&2
+							MDAT_DATA_ROOT="$agentsContextOwnRoot"
+							export MDAT_DATA_ROOT
+						fi
+					;;
+				esac
+				unset agentsContextOwnRoot
+				MDAT_DATA_ROOT_OF="${MMDAPP%/}"
+				export MDAT_DATA_ROOT_OF
+			fi
+		;;
+	esac
+	unset agentsContextRootOwn
 	## One site for every op: a remote set and no local board yet clones before any writer touches it. The clear of a Just Agents workspace
 	## (--owner-clear-just-agents, F13.2) touches settings alone, never team data: it clones nothing, whatever it is about to clear.
 	## A store that already holds content is ensure-clone's own first early return: the include that carries it is not read for it.
-	if [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ "$1" != "--owner-clear-just-agents" ] \
-		&& { [ ! -d "$MDAT_DATA_ROOT" ] || [ -z "$( ls -A "$MDAT_DATA_ROOT" 2> /dev/null )" ] ; } ; then
+	## The emptiness of the store is read by a glob, never by an `ls` process: this line runs on every call of a store with no `.git`.
+	agentsContextStoreHeld=""
+	if [ -d "$MDAT_DATA_ROOT" ] ; then
+		for agentsContextStoreEntry in "$MDAT_DATA_ROOT"/* "$MDAT_DATA_ROOT"/.[!.]* "$MDAT_DATA_ROOT"/..?* ; do
+			[ ! -e "$agentsContextStoreEntry" ] || { agentsContextStoreHeld=yes ; break ; }
+		done
+		unset agentsContextStoreEntry
+	fi
+	if [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ "$1" != "--owner-clear-just-agents" ] && [ -z "$agentsContextStoreHeld" ] ; then
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 		AgentsToolsTeamDataEnsureClone "${1:-DistroAgentsTools}"
 	fi

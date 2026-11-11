@@ -213,7 +213,10 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 				(
 					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 					runBegan="$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
-					sleep "$runBound"
+					## The sleep is a background child of this watchdog and the TERM that ends the watchdog ends it too, by the job list:
+					## a foreground sleep survived the TERM as an orphan under launchd, one `sleep <bound>` a server start (the restart check counted them).
+					trap 'kill $( jobs -p ) 2>/dev/null ; exit 0' TERM
+					sleep "$runBound" & wait $! || exit 0
 					[ -n "$runBegan" ] && [ "$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$runBegan" ] && kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout"
 				) >/dev/null &
 				runWatchPid=$!
@@ -509,6 +512,8 @@ AgentsHarnessMcpEnumerate(){
 				## A dot is a legal name here and a 400 on the wire, whose names are [A-Za-z0-9_-]:
 				## it becomes `_`, the spelling mcp__myx_distro__execute already has everywhere.
 				harnessMcpDeclared="mcp__${harnessMcpName//./_}__${harnessMcpTool//./_}"
+				## A SERVER'S TOOL IS DECLARED AS THE SERVER SENT IT (AgentsHarnessMcpCheck): no description property is added to it. The harness
+				## still accepts and strips a description on every secondary call; what the model is told it may pass is the server's own schema.
 				harnessMcpDeclaration="$( AgentsWireToolDeclaration "$harnessMcpDeclared" "$harnessMcpDesc" "$( cat "$harnessMcpSchemaFile" )" )" || {
 					printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped the tool ${harnessOff}${harnessValue}$harnessMcpTool${harnessOff}${harnessDim} -- its declaration could not be rendered${harnessOff}" >&2
 					continue

@@ -34,7 +34,7 @@ AgentsToolsCollectThreadDir(){
 ## One line of the log, with its moment. A call of `--one` says it to its caller too, on standard error.
 AgentsToolsCollectThreadSay(){ ## text
 	local sayDir
-	sayDir="$( AgentsToolsCollectThreadDir )" || return 0
+	[ -n "${MMDAPP:-}" ] && sayDir="$MMDAPP/.local/agents/collect" || return 0
 	{ mkdir -p "$sayDir" && printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$1" >> "$sayDir/thread.log" ; } 2> /dev/null || :
 	[ "${colThreadMode:-}" != "--one" ] || echo "# $MDSC_CMD --intern-source-collect: $1" >&2
 	return 0
@@ -44,7 +44,7 @@ AgentsToolsCollectThreadSay(){ ## text
 ## line, by one rename, and its own descriptors are pointed at the new file.
 AgentsToolsCollectThreadLogBound(){
 	local boundDir boundSize
-	boundDir="$( AgentsToolsCollectThreadDir )" || return 0
+	[ -n "${MMDAPP:-}" ] && boundDir="$MMDAPP/.local/agents/collect" || return 0
 	boundSize="$( { LC_ALL=C wc -c < "$boundDir/thread.log" ; } 2> /dev/null )" || return 0
 	boundSize="${boundSize//[!0123456789]/}"
 	[ -n "$boundSize" ] && [ "$boundSize" -gt 131072 ] || return 0
@@ -79,7 +79,7 @@ AgentsToolsCollectThreadLockHolder(){ ## lock path
 ## The pid of the thread of this workspace on this host, while one holds the lock; rc 1, nothing printed, for none.
 AgentsToolsCollectThreadLive(){
 	local liveDir liveLine="" liveRc
-	liveDir="$( AgentsToolsCollectThreadDir )" || return 1
+	[ -n "${MMDAPP:-}" ] && liveDir="$MMDAPP/.local/agents/collect" || return 1
 	[ -e "$liveDir/thread.lock" ] || [ -L "$liveDir/thread.lock" ] || return 1
 	liveLine="$( AgentsToolsCollectThreadLockHolder "$liveDir/thread.lock" )" || return 1
 	AgentsToolsCollectThreadHolderLives "$liveLine" ; liveRc=$?
@@ -141,7 +141,7 @@ AgentsToolsCollectThreadStart(){
 		printf 'off\n'
 		return 0
 	fi
-	startDir="$( AgentsToolsCollectThreadDir )" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
+	[ -n "${MMDAPP:-}" ] && startDir="$MMDAPP/.local/agents/collect" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
 	startLive="$( AgentsToolsCollectThreadLive )" && { printf 'alive %s\n' "$startLive" ; return 0 ; }
 	if ! mkdir -p "$startDir" 2> /dev/null || ! { printf '' >> "$startDir/thread.log" ; } 2> /dev/null ; then
 		printf 'failed - %s\n' "the log of the thread could not be written: $startDir/thread.log"
@@ -191,7 +191,7 @@ AgentsToolsCollectThreadStart(){
 ## while they do. Prints nothing.
 AgentsToolsCollectThreadWant(){
 	local wantDir
-	wantDir="$( AgentsToolsCollectThreadDir )" || return 0
+	[ -n "${MMDAPP:-}" ] && wantDir="$MMDAPP/.local/agents/collect" || return 0
 	{ mkdir -p "$wantDir" && date +%s > "$wantDir/thread.wanted" ; } 2> /dev/null || :
 	return 0
 }
@@ -199,7 +199,7 @@ AgentsToolsCollectThreadWant(){
 ## The seconds since it was last wanted; large for a thread nobody ever wanted.
 AgentsToolsCollectThreadWantedAge(){
 	local ageDir ageAt
-	ageDir="$( AgentsToolsCollectThreadDir )" || { printf '%s\n' 999999 ; return 0 ; }
+	[ -n "${MMDAPP:-}" ] && ageDir="$MMDAPP/.local/agents/collect" || { printf '%s\n' 999999 ; return 0 ; }
 	ageAt="$( { cat "$ageDir/thread.wanted" ; } 2> /dev/null )" || ageAt=""
 	case "$ageAt" in ''|*[!0123456789]*) printf '%s\n' 999999 ; return 0 ;; esac
 	printf '%s\n' $(( $( date +%s ) - ageAt ))
@@ -218,7 +218,7 @@ AgentsToolsCollectThreadCheck(){ ## who, except member (for a scan: the member w
 		return 0
 	fi
 	AgentsToolsCollectThreadWant
-	chkDir="$( AgentsToolsCollectThreadDir )" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
+	[ -n "${MMDAPP:-}" ] && chkDir="$MMDAPP/.local/agents/collect" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
 	chkLive="$( AgentsToolsCollectThreadLive )" && { printf 'alive %s\n' "$chkLive" ; return 0 ; }
 	chkNow="$( date +%s )"
 	chkChecked="$( { cat "$chkDir/thread.checked" ; } 2> /dev/null )" || chkChecked=""

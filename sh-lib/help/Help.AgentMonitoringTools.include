@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of AgentMonitoringTools.fn.sh: any member's personal tool for the health reading of its workspace (epic S14). Every echo
+## stays flush-left: --member-help cuts help files on a ^echo anchor.
+## Its syntax lines are echoed here, so `--help` and the console's help reader find them in one file.
+case "$1" in
+	'')
+echo "📘 syntax: AgentMonitoringTools.fn.sh --health [--workspace <path>]" >&2
+echo "📘 syntax: AgentMonitoringTools.fn.sh [--help-syntax]" >&2
+echo "📘 syntax: AgentMonitoringTools.fn.sh [--help]" >&2
+		return 0
+	;;
+	--help-syntax)
+echo "📘 syntax: AgentMonitoringTools.fn.sh --health [--workspace <path>]" >&2
+echo "📘 syntax: AgentMonitoringTools.fn.sh [--help-syntax]" >&2
+echo "📘 syntax: AgentMonitoringTools.fn.sh [--help]" >&2
+		return 0
+	;;
+	--help)
+		## The manual, rendered where myx.common is on the path, and printed as it is where it is not: the help is the page either way.
+		if command -v myx.common > /dev/null 2>&1 ; then
+			myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentMonitoringTools.help.md" >&2
+		else
+			cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentMonitoringTools.help.md" >&2
+		fi
+		return 0
+	;;
+esac

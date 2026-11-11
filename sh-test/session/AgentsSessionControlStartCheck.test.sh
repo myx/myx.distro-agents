@@ -419,6 +419,8 @@ rigCall(){ ## short name of a session -- the function alone, called as a starter
 		bash -c '
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 90
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" || exit 91
+			## The start reads a session'\''s records through the per-session list; it is loaded before the origin becomes the stand-in.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" || exit 92
 			MDLT_ORIGIN="$RIG_FAKE"
 			exec 5> "$RIG_TMP/fn.fd5" 9> "$RIG_TMP/fn.fd9"
 			fnFrom="$SECONDS"
@@ -464,10 +466,11 @@ rm -rf "$rigStores/$( rigId k )" "$rigStores/$( rigId m )" "$rigSp/$( rigId k )"
 
 echo "-- 9. the caller rule of the family, the syntax, and the help pair --"
 rigRec n n n "$rigHost" spawn-started '' ; rigStand n
-rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
+## magic-coordinator manages, so its session is the one the rule lets through (AgentsToolsManagerCallerCheck); any other member is refused.
+rigPre=( "MDAT_SPAWN_AGENT=keeper-myx" )
 rigRun "$rigOp" --session-id "$( rigId n )"
 rigPre=()
-rigAssert "from inside a member's session, magic-coordinator's among them, it is refused in the family's one line, and nothing is started" \
+rigAssert "from inside a member's session other than magic-coordinator's, it is refused in the family's one line, and nothing is started" \
 	"$rigRc $( rigRows ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigThreads n )" "1 0 1 0"
 rigRun "$rigOp"
 rigAssert "with neither a session nor --all: the syntax, status 1, nothing started" "$rigRc $( rigRows ) $( rigSaid "syntax is $rigSyntax: one session by its id, or --all, and not both" ) $( rigThreads n )" "1 0 1 0"

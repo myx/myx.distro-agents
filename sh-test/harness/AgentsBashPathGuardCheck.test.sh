@@ -146,7 +146,9 @@ rigGuard(){ ## mode, list file, then the files -- a reader that could not read s
 		}
 	' "$@" || printf 'THE READER DID NOT RUN (%s)\n' "$guardMode"
 }
-rigSelf="sh-test/${0#*/sh-test/}"
+## This file by its resolved path, relative to the package, so a start by a relative path (`bash sh-test/harness/...`) leaves it out too.
+case "$0" in */*) rigSelf="$( cd "${0%/*}" && pwd -P )/${0##*/}" ;; *) rigSelf="$( pwd -P )/$0" ;; esac
+rigSelf="${rigSelf#"$( cd "$rigPackage" && pwd -P )"/}"
 
 echo "-- 1. first lines: no file of the package names bash by a path --"
 ( cd "$rigPackage" && find . -type f ! -path './.git/*' | LC_ALL=C sed 's|^\./||' | LC_ALL=C sort ) > "$rigTmp/all.files"
@@ -157,7 +159,8 @@ rigFirstOut="$( cd "$rigPackage" && rigFirstLines < "$rigTmp/all.files" )"
 rigAssert "no file of the package starts with a line that names bash by a path: a bash script starts #!/usr/bin/env bash" "${rigFirstOut:-none}" "none"
 
 echo "-- 2. literals: no line of the code holds a fixed path to bash that is not on the list --"
-( cd "$rigPackage" && find sh-lib sh-scripts sh-test builders vscode -type f ! -name '*.md' ! -name '.DS_Store' | LC_ALL=C grep -v -x -F -e "$rigSelf" | LC_ALL=C sort ) > "$rigTmp/code.files"
+## A kept copy (`*.keep`) beside a file is no code of the package: left out, as the preset store check leaves it out.
+( cd "$rigPackage" && find sh-lib sh-scripts sh-test builders vscode -type f ! -name '*.md' ! -name '*.keep' ! -name '.DS_Store' | LC_ALL=C grep -v -x -F -e "$rigSelf" | LC_ALL=C sort ) > "$rigTmp/code.files"
 rigAssert "control: the code is read, the harness, the awk files, the checks and their fixtures among it, and no name has a space in it" \
 	"$( [ "$( wc -l < "$rigTmp/code.files" | LC_ALL=C tr -d ' ' )" -ge 500 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/harness/AgentsClaudeStreamJsonTranscript.awk' -e 'sh-lib/config/workspace-commands.list' -e 'sh-test/session/AgentsAdvanceInputScanStatesCheck.test.sh' -e 'sh-test/check-fixtures/AgentsHarnessHooks.legacy.sh' "$rigTmp/code.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/code.files" || : )" "many 5 0"
 rigLiteralList > "$rigTmp/literal.list"
@@ -166,7 +169,7 @@ rigAssert "every fixed path to bash in the code is on the list, and every line o
 rigAssert "every line of the list gives its reason" "$( LC_ALL=C awk -F'|' 'length( $4 ) < 40 { bad++ ; } END { print NR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/literal.list" )" "4 lines, 0 without a reason"
 
 echo "-- 3. starts by path: the tooling starts the tool script with the bash it runs in --"
-( cd "$rigPackage" && find sh-lib sh-scripts builders -type f ! -name '*.md' ! -name '.DS_Store' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
+( cd "$rigPackage" && find sh-lib sh-scripts builders -type f ! -name '*.md' ! -name '*.keep' ! -name '.DS_Store' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
 rigAssert "control: the files of the tooling are read, the harness, the spawn proxy, the hooks and the console template among them" \
 	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/client-hooks/allow-granted-native-tool.sh' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' "$rigTmp/tooling.files" || : )" "many 4"
 rigStartList > "$rigTmp/start.list"

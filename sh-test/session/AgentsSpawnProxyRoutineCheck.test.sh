@@ -217,9 +217,11 @@ rigBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/
 rigStubRun(){ ## skill root, arguments...
 	local stubRoot="$1" ; shift
 	rm -f "$rigTmp/stub.args" "$rigTmp/stub.stdin"
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$stubRoot" RIG_ARGS="$rigTmp/stub.args" RIG_STDIN="$rigTmp/stub.stdin" \
+	## The rig's own workspace and data root, as the check's other runs give them: the spawn proxy behind the root harness requires MDAT_DATA_ROOT.
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$stubRoot" RIG_ARGS="$rigTmp/stub.args" RIG_STDIN="$rigTmp/stub.stdin" \
 		bash -c '
-			DistroAgentsTools(){ printf "%s\n" "$*" > "$RIG_ARGS" ; cat > "$RIG_STDIN" ; }
+			## The root harness makes other tooling calls around the spawn (the pending-reply collect among them): the stub keeps the spawn call alone, its arguments and its stdin, and swallows the rest.
+			DistroAgentsTools(){ case "${1:-}" in --spawn-prompt|--spawn-session) printf "%s\n" "$*" > "$RIG_ARGS" ; cat > "$RIG_STDIN" ;; *) cat > /dev/null ;; esac ; }
 			rigInclude(){ local MDSC_CMD=DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternRootHarness.include" ; }
 			rigInclude "$@"
 		' rig "$@" > "$rigTmp/stub.out" 2>&1 < /dev/null

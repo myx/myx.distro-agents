@@ -68,7 +68,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **review-read**: Read the item, its handback, the output it names, its `## Decisions`, and any end-of-run note the tooling left in the session's own thread.
-2. **review-code**: Where the handback changed code, read every changed line against `magic-developer/reference/code-craft.md` and, for shell and awk, `shell.md`. A green test is the gate before review, never the review. Code that breaks "Each call runs only its own path", or any other rule there, is returned.
+2. **review-code**: Where the handback changed code, read every changed line against `magic-developer/reference/code-craft.md` and, for shell and awk, `shell.md`. A green test is the gate before review, never the review. Code that breaks "Each call runs only its own path", or any other rule there, is returned. Where the change adds a read of a store, ask the call-path rule in `magic-team.armed.md`, "Engineering & operating discipline". `AgentsHotPathWalksCheck` (`sh-test/session`) answers it.
 3. **review-choose**: Choose a verdict, or a combination of them:
    - accept: the work is done.
    - return: the same session continues, with your corrections. You may edit its documents or its sandbox first.

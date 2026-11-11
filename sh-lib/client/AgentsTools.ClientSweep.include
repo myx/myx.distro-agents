@@ -42,7 +42,7 @@ case "$1" in
 			;;
 		esac
 
-		local commsCutoffArgs=()
+		local commsCutoffArgs=() sourceFloorArgs=() clientFloorRows="" clientFloorRc=0
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--comms-since-date-time|--comms-since-utime)
@@ -57,12 +57,32 @@ case "$1" in
 					commsCutoffArgs=( "$1" "$2" )
 					shift 2
 				;;
+				--comms-source-floor)
+					if [ -z "${2:-}" ] || [ -z "${3:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: --comms-source-floor: needs <source-key> <epoch-seconds>" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*[!A-Za-z0-9._-]*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: --comms-source-floor: <source-key> must be the scan's own source key: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					case "$3" in
+						''|*[!0123456789.]*|*.*.*|.*|*.)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: --comms-source-floor: the floor must be epoch seconds: $3" >&2
+							set +e ; return 1
+						;;
+					esac
+					sourceFloorArgs+=( --comms-source-floor "$2" "$3" )
+					shift 3
+				;;
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/reference/skill-folder-model.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] [--comms-source-floor <source-key> <epoch-seconds>]... -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/reference/skill-folder-model.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/reference/skill-folder-model.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] [--comms-source-floor <source-key> <epoch-seconds>]... -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/reference/skill-folder-model.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -97,6 +117,20 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			## THE SAME RULE PER SOURCE: a source with a position of its own reads
+			## from it, and the member-wide pointer is the fallback for the rest. Only
+			## when no cut-off was stated, for the same reason as above.
+			clientFloorRows="$( AgentsToolsMagicSweepStoredSourcePositions "$clientMember" client-sweep-input-scan )" || clientFloorRc=$?
+			case "$clientFloorRc" in
+				0|3) ;;
+				*) set +e ; return 1 ;;
+			esac
+			if [ -n "$clientFloorRows" ] ; then
+				while IFS="$( printf '\t' )" read -r clientFloorKey clientFloorTs ; do
+					[ -n "$clientFloorKey" ] && [ -n "$clientFloorTs" ] || continue
+					sourceFloorArgs+=( --comms-source-floor "$clientFloorKey" "$clientFloorTs" )
+				done <<< "$clientFloorRows"
+			fi
 		fi
 
 		## Written whole before any of it is emitted: a run that failed before it had a
@@ -120,12 +154,14 @@ case "$1" in
 			## --do-board-related-active supplies the state set; a --state list here would
 			## have to byte-match it.
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			## The compact row (S12.17): the keys the sweep acts on, never the whole frontmatter of each item, which flooded the document.
 			DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
 				--do-board-related-active \
+				--header type --header owner --header mark --header restart-session --header recheck-date \
 				--all-types --filter-owner "$clientMember" \
 				--do-inbox-inquiry-active --do-inbox-reflections \
 				--do-inbox-notes --do-inbox-other \
-				--do-all --member-scope-only --do-slack-tags "${commsCutoffArgs[@]}" \
+				--do-all --member-scope-only --do-slack-tags "${commsCutoffArgs[@]}" "${sourceFloorArgs[@]}" \
 				--context --intern-op-client-sweep-input-scan
 		)" || clientSweepStatus=$?
 

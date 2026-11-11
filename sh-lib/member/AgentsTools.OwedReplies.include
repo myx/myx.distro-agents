@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.OwedReplies.include -- the replies a member owes: a person's message addressed to it that it has not answered in that
+## message's own thread. Sourced, never run; functions only.
+##
+## WHY: a person's question of 13:24 was read by three runs and answered nowhere, and his quote of it four hours later got two status
+## replies in his thread (task-20261109T1606Z). Nothing told the runs that a message to this member stood unanswered, where, and for how
+## long. So every Wait that hands a person's message over notes it here, keyed by the reply address the line carries; a send of the
+## member into that thread clears it; and every Wait result opens with the ones older than MDAT_OWED_REPLY_SECONDS (1800) until they
+## are answered where they were asked. The store is the member's, not the run's: another run of the member may answer.
+##
+## A line is a person's when it carries a reply address and none of the tooling's own marks (`[tracking:`, `[author-run:`,
+## `[addressee-run:`, `[sender:`), which every post of the tooling carries (AgentsSlackMessagesFormat.awk). The member's own posts
+## never reach a Wait with include-own=false, so they are not noted.
+##
+## The file: schedule/owed/<member>, one line an owed reply: `<epoch>\t<reply address>\t<user>\t<first 120 characters>`.
+
+AgentsToolsOwedRepliesFile(){ ## member -- sets owedFile, makes the folder; rc 1 for no workspace or a bad name
+	case "${1:-}" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	owedFile="$MMDAPP/.local/agents/schedule/owed/$1"
+	mkdir -p "${owedFile%/*}" 2> /dev/null || return 1
+}
+
+## Notes every person's message in the text on stdin (a Wait's arrivals) that is not yet owed. Never fails.
+AgentsToolsOwedRepliesNote(){ ## member, now (epoch)
+	local owedFile owedNow="${2:-}" owedNew
+	AgentsToolsOwedRepliesFile "$1" || { cat > /dev/null ; return 0 ; }
+	case "$owedNow" in ''|*[!0123456789]*) owedNow="$( date +%s )" ;; esac
+	owedNew="$( LC_ALL=C awk -v now="$owedNow" -v known="$owedFile" '
+		BEGIN { while ( ( getline line < known ) > 0 ) { split( line, f, "\t" ) ; have[f[2]] = 1 } close( known ) }
+		/^[0-9]+\.[0-9]+ \| [^|]+ \| / {
+			if ( index( $0, "[tracking:" ) || index( $0, "[author-run:" ) || index( $0, "[addressee-run:" ) || index( $0, "[sender:" ) ) next
+			if ( !match( $0, /\[reply-to: [a-z]+:[^]]+\]/ ) ) next
+			key = substr( $0, RSTART + 11, RLENGTH - 12 )
+			if ( key in have ) next
+			have[key] = 1
+			user = $3
+			text = $0 ; sub( /^[^|]*\| [^|]* \| /, "", text ) ; gsub( /\[[a-z-]+: [^]]*\] ?/, "", text ) ; gsub( /\t/, " ", text )
+			printf "%s\t%s\t%s\t%s\n", now, key, user, substr( text, 1, 120 )
+		}' )"
+	[ -z "$owedNew" ] || printf '%s\n' "$owedNew" >> "$owedFile" 2> /dev/null || :
+	return 0
+}
+
+## Clears what a send of the member answers: the reply address it posted to, and for a direct conversation every entry of that
+## conversation, since a DM answered at its top is answered. Never fails.
+AgentsToolsOwedRepliesClear(){ ## member, service, conversation, thread ts (may be empty)
+	local owedFile owedConv="${3:-}" owedThread="${4:-}" owedKept owedDm=""
+	AgentsToolsOwedRepliesFile "$1" || return 0
+	[ -s "$owedFile" ] || return 0
+	case "$owedConv" in D*) owedDm=yes ;; esac
+	owedKept="$( LC_ALL=C awk -F'\t' -v key="${2:-slack}:$owedConv:$owedThread" -v conv="${2:-slack}:$owedConv:" -v dm="$owedDm" '
+		{ if ( $2 == key ) next ; if ( dm == "yes" && index( $2, conv ) == 1 ) next ; print }' "$owedFile" )"
+	printf '%s\n' "$owedKept" | LC_ALL=C awk 'NF' > "$owedFile.tmp" 2> /dev/null && mv -f "$owedFile.tmp" "$owedFile" 2> /dev/null || :
+	return 0
+}
+
+## Prints the block a Wait result opens with: the replies owed longer than MDAT_OWED_REPLY_SECONDS (1800, 0 for all), oldest first.
+## Prints nothing when none is due.
+AgentsToolsOwedRepliesPrint(){ ## member, now (epoch)
+	local owedFile owedNow="${2:-}" owedAfter="${MDAT_OWED_REPLY_SECONDS:-1800}"
+	AgentsToolsOwedRepliesFile "$1" || return 0
+	[ -s "$owedFile" ] || return 0
+	case "$owedNow" in ''|*[!0123456789]*) owedNow="$( date +%s )" ;; esac
+	case "$owedAfter" in ''|*[!0123456789]*) owedAfter=1800 ;; esac
+	LC_ALL=C sort -n "$owedFile" | LC_ALL=C awk -F'\t' -v now="$owedNow" -v after="$owedAfter" '
+		( now - $1 ) >= after { n++ ; lines = lines sprintf( "- %dm %s %s: %s\n", ( now - $1 ) / 60, $2, $3, $4 ) }
+		END { if ( n ) printf "OWED REPLIES: %d, each answered in its own thread, at the address shown; a send elsewhere does not close it\n%s", n, lines }'
+	return 0
+}

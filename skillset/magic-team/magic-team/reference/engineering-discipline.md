@@ -7,6 +7,7 @@ Rules of "Engineering & operating discipline" that a member needs only on occasi
 - Git, scope and finishing
 - Evidence
 - Dispatch, relay and produce
+- Call paths and walks
 
 Git, scope and finishing:
 - The floor: the team tools and its session sandbox (read `input/`, write `output/`). Under `source/` it adds reading every `MAGIC.md`, `README.md` and `docs/**.md`, and writing `MAGIC.md`. Anything else under `source/` needs a grant. A member's own file may hold a wider standing grant tied to a place. magic-librarian's `.md`-edit of a team-member skill under `.skillset-shared` or `.skillset-.local` is one (`magic-librarian.armed.md`). Nobody approves what it does not hold: tooling routes that ask up, to a holder in the session or task, then to the human-owner. A holder may pass a permission on (`--pass-permission`) to a participant or a member it spawned for the work. It is never wider or longer than its own.
@@ -25,3 +26,10 @@ Evidence:
 Dispatch and relay:
 - The dispatching session checks a dispatched write against the conventions before it reports it done. The report is a direct message to whoever asked, in that member's own words.
 - A public-release scrub of a member covers its `.basic.md` and `SKILL.md` description as well as its `.armed.md`.
+
+Call paths and walks:
+- A call path is a schedule pass, a Wait round, a permission gate, an ask or a start. It runs on every call, so what it reads costs every call.
+- A walk is a `grep`, an `awk`, a `find` or a `for` over every file of a store: `spawned/*/*.spawn.md`, `board/<state>/*.md`, `sessions/*/<file>` or `inboxes/*/incoming/*`. A working workspace holds thousands of such files.
+- A call path reads a kept list (`AgentsTools.StartedRecords.include`), the spawned-sessions registry as it stands, or the children lists.
+- A new walk goes on the list of `AgentsHotPathWalksCheck` (`sh-test/session`) with its reason, or it does not land. The check reads the code and fails a walk that is not listed. Its debt line names what is still on a call path.
+- A shared reader gains a line only behind a switch.

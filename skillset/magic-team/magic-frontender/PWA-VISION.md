@@ -22,6 +22,10 @@ magic-architect. This skill does not decide macro-architecture questions.
 - 2026-07-16 — Facet: Auth Flow Under an Offline-Capable Service Worker
 - 2026-07-17 — Facet: CSP Posture for a SW-Heavy, Installable Shell
 - 2026-07-20 — Facet: Trusted Types Policy for the App Shell
+- 2026-11-06 — Facet: The Precache Budget — Shell Size, Quota and Install Integrity
+- 2026-11-06 — Amendment to the Trusted Types facet: the backstop is Baseline now
+- 2026-11-09 — Facet: Step-Up and Re-Authentication on a 401 During Outbox Replay
+- 2026-11-10 — Facet: The Sanitizer Behind renderTrustedRichText()
 
 ## 2026-07-15 — Facet: Offline-First Architecture & Service Worker Caching Strategy
 
@@ -789,3 +793,523 @@ degrade silently on browsers where the backstop is unavailable.
   one of the few dependency classes where a small, battle-tested library is
   likely the more defensible choice than hand-rolled code. Not resolved
   here; flagged for the pass that gets concrete about it.
+
+---
+
+## 2026-11-06 — Facet: The Precache Budget — Shell Size, Quota and Install Integrity
+
+The shell-size performance budget was the last unworked open thread from
+2026-07-15. This pass finds it is not mainly a speed budget. The precache list is
+one all-or-nothing install transaction, and it draws on the same origin quota as
+the outbox. Size gates correctness and durability before it gates speed.
+
+**The install transaction is the real gate, and it fails silently.**
+`cache.addAll` is transactional: if any request fails, nothing is committed and
+the promise rejects. A 2016 spec change made a non-`ok` response fail the whole
+call with the cache unmodified, and Chromium commit `d8a95558a04` implements it.
+The lifecycle consequence below is reasoned from the spec, not measured here. A
+rejected install marks the installing worker `redundant`, and the previously
+active worker keeps serving. So an oversized or partly unreachable precache does
+not degrade the app. It freezes it at the last version that installed, silently,
+for every user who hits it. On a first install there is no previous worker, so
+the user gets no offline route at all.
+
+Two failure inputs are ordinary rather than exotic. One precache URL returning 404
+or 500 does it, such as a renamed chunk file the manifest generator missed. Quota
+exhaustion during the install write does it too, and the spec throws
+`QuotaExceededError` there. A budget controls the first. The second is a quota
+question, handled below.
+
+**Two budgets run on two clocks, and one number cannot serve both.** The vision's
+"lazy-load what isn't needed immediately" rule governs runtime chunks, not the
+precache list. The precache is fetched eagerly at install. Every user pays it on
+every `CACHE_VERSION` bump, in the background after first paint. Launch cost is
+paid on every launch. Navigation is network-first with a ~3 s timeout
+(2026-07-15). On the happy path fresh HTML comes from the network and hashed
+assets come from cache. The install payload then sits off the critical path of
+first paint almost always. An oversized precache barely touches perceived launch
+speed, while it does cost install success rate and quota. That inversion is the
+argument for a low ceiling.
+
+**The offline route puts a floor under the same number.** 2026-07-15 made the
+offline fallback a real route: the cached shell mounted against last-known data,
+with writes queued. Trim the shell until it cannot mount real UI and that route
+becomes the static "you're offline" page the same facet forbade. The floor is the
+shell's own critical path: its HTML, its CSS, and the JS its first render needs. A
+budget below the floor is a correctness defect, not a fast build.
+
+**What belongs in the install transaction is a product decision, stated as one.**
+
+- **In.** Shell HTML, its CSS, the JS for the shell's first render, the offline
+  route's own dependencies, the logo, and the manifest.
+- **Out, cached on first use instead.** Every route chunk the offline route does
+  not need. Each becomes offline-available only after one online visit, through
+  the runtime cache.
+- **Out, and separate.** Images and media, which go to the size-capped media cache
+  from 2026-07-15.
+- **Out, by default.** Web fonts. The native-first stance makes a system stack the
+  default, and a webfont is often the largest single item in a shell precache.
+  Where a brand font is required, subset it, precache one weight, and use
+  `font-display: swap`.
+
+A route left out is not available to a user who has never been online in that
+route. For most apps that is correct. For an app whose whole promise is offline
+use it is not. Those routes then belong in the transaction, with the cost accepted
+knowingly.
+
+**The quota is shared with the outbox, so the budget reserves from the user's own
+work.** Cache Storage and IndexedDB draw on one per-origin quota. In this vision it
+holds the shell precache, the runtime asset cache, and the media cache with its
+bookkept eviction. It also holds the 2026-07-16 outbox of unsaved writes. An
+unbounded precache can starve that outbox on a full device. The failure is not a
+slow app. It is a write that cannot be queued, or an install that cannot complete.
+Two rules follow. Read the real quota with `navigator.storage.estimate()` and never
+assume a figure. Catch `QuotaExceededError` on every cache write, the install write
+included.
+
+**Safari makes installation part of the budget, which links back to facet two.**
+WebKit's ITP deletes all script-writable storage for an origin after seven days of
+Safari use without user interaction (WebKit, ITP 2.3). A home-screen web app's
+first-party domain is exempt (WebKit, CNAME cloaking, `webkit.org/blog/11338`). An
+uninstalled app can lose its precache and its pending outbox entries to that
+timer. An installed one does not. Installation is therefore a durability
+requirement for anything this vision queues offline.
+
+**Version bump cost, and an amendment to 2026-07-15's single-version rule.** Every
+`CACHE_VERSION` bump re-downloads the whole precache for every user. That is the
+direct cost of the ceiling, and it argues for a small list rather than a cleverer
+bump. It also wastes work. Fonts, a vendor script and the logo rarely change, yet
+they re-download on every release. Their cache name derives from a constant that
+changes with app code. 2026-07-15 said every cache name derives from
+`CACHE_VERSION`, and that `activate` deletes anything else. Split the precache
+into two tags, both derived from one build.
+
+- `app-${CACHE_VERSION}` holds shell HTML, app JS and app CSS, and bumps every
+  release.
+- `static-${STATIC_VERSION}` holds fonts, vendor files and the logo, and bumps
+  only when the contents of that set change.
+
+The `activate` prune keeps a cache matching either current tag. The 2026-07-15
+reasoning is otherwise intact. A CSP change still bumps `CACHE_VERSION`, and the
+CSP-bearing navigation response stays in the `app-` cache. The original paragraph
+stays as written, with this section as the pointer.
+
+**The instrument measures the build, not the runtime.** Resource Timing is the
+obvious choice and the wrong one. A response served by the service worker from
+Cache Storage is not a network transfer. Its `transferSize` reads 0, so the
+instrument reports nothing for exactly the resources the budget is about. The same
+three fields read 0 for a cross-origin resource without a `Timing-Allow-Origin`
+header (Resource Timing, "Cross-origin Resources"). A third-party asset then
+counts as zero bytes. Measure the build output instead, from the exact URL list
+the `install` handler will fetch. Sum `encodedBodySize` as served, compressed.
+Report compressed and uncompressed separately, because raw bytes under-report by
+roughly five times. Resource Timing still serves the launch clock: navigation
+start to first render on the cached path.
+
+**A starting envelope, each figure a default rather than a measurement.**
+
+- **Shell JS, compressed: at most 170 KB.** Osmani's *Cost of JavaScript in 2018*
+  puts a mobile budget under 170 KB minified and compressed, about 0.7 MB raw. The
+  figure and the hardware behind it are old. Treat it as an order-of-magnitude
+  anchor for parse cost, and re-derive it from the project's device tier. JS is the
+  expensive part per byte, so it gets the tight number.
+- **Whole precache, compressed: at most 300 KB.** That is 2.4 Mbit, about 6 s of
+  install wire time on a 400 kbit/s link inside a background task.
+- **Precache floor: the shell's render critical path.**
+- **Media cache: a share of measured `quota`,** sized from `estimate()` after the
+  precache and outbox reservations.
+- **Outbox: reserved and never negotiated.** Unsaved writes outrank every cache.
+
+**The gate, and the check that would refute this.** The budget is enforced in CI
+against the built precache manifest, because a budget without a gate is a wish.
+Before trusting the gate, show it failing. Add a 50 KB asset to the list and watch
+the build refuse. A gate never seen to fail is not evidence. The central claim is
+that precache size drives install integrity and quota pressure far more than
+perceived speed. The experiment that would refute it doubles the precache and
+measures both clocks on a throttled profile. First render on an installed app
+should barely move. Install completion time and failure rate should roughly
+double. If first render moves as much as install time, the framing is wrong and
+the budget belongs on the launch clock.
+
+**Open threads for future passes:**
+
+- Step-up or re-authentication UX for a 401 on outbox replay, carried from
+  2026-07-16.
+- `related_applications`/`prefer_related_applications` and `launch_handler`
+  client-mode, carried from 2026-07-16.
+- The concrete sanitizer behind `renderTrustedRichText()`, carried from 2026-07-20.
+- New: how prefetching a not-yet-precached route interacts with the outbox drain.
+  Both are background network work, and neither is prioritised against the other.
+- New: whether `STATIC_VERSION` should also anchor the media cache's eviction
+  bookkeeping.
+
+---
+
+## 2026-11-06 — Amendment to the Trusted Types facet: the backstop is Baseline now
+
+The 2026-07-20 facet closed on a premise that has since changed. Its
+progressive-enhancement paragraph said Safari had not implemented Trusted Types,
+and built three conclusions on that footing. The design in that section stands
+unchanged. What changes is the scope of its guarantee and one exit criterion.
+This section therefore amends in place and leaves the 2026-07-20 text untouched,
+as the file's own header requires.
+
+**The stale premise, stated once.** The 2026-07-20 section says:
+"Trusted Types is not universally shipped; Safari has not implemented it as of this pass."
+That was true when it ran. It is false now. Safari 26 shipped the API, Firefox 148
+shipped it on 2026-02-24, and Chrome and Edge have had it since 83.
+web-platform-dx lists Trusted Types as Newly Available from 2026-02-24. The only
+engines still without it are older releases of each.
+
+The evidence behind those versions came from search results rather than from the
+compatibility tables themselves. MDN and caniuse sit outside this session's URL
+allowlist. Several independent sources agree on each figure, and the reader of
+this note has the browser matrix in front of them. Treat the clause as a
+secondary-source finding until one of those tables confirms it directly.
+
+**The Report-Only exit criterion was measuring a narrower audience than it
+claimed.** The 2026-07-20 rollout says to flip from Report-Only to enforcing once
+the violation stream empties. On an engine with no Trusted Types support,
+`window.trustedTypes` is undefined, no policy is registered, and a guarded sink
+never throws and never reports. Those browsers were silent because they were
+unenforced, not because they were clean. Under the old premise the stream could
+empty while Safari and Firefox passed every unmarked `innerHTML` write. The
+criterion is sound only once the audience is covered, and now it is. Re-read the
+stream before flipping: an empty stream found before 2026-02-24 is unproven, and
+carries no weight toward the decision.
+
+**The feature-detect stays, and its reason narrows.** The 2026-07-20 section says
+to feature-detect `window.trustedTypes` and register the named policies only where
+it exists. Keep that rule. It now covers older engines rather than a whole major
+engine, which is a smaller job than it looked. The half of the rule that must not
+move is the other one: the `html` wrapper's own escaping never becomes conditional
+on the detection. The safety property is the wrapper's escaping. The platform
+backstop is what upgrades "we wrote the escaping correctly" into "the engine
+refuses to let us ship it wrong".
+
+**Enforcing is now worth reaching for, not merely safe to defer.** The section
+called Trusted Types the enforcement backstop on that same upgrade. On a
+Chromium-only footing the upgrade applied to one engine. The enforcing policy was
+then one browser's belt on top of braces the code already wore everywhere else.
+It now applies to every engine this app targets. That moves an enforcing policy
+from polish to a structural guarantee the stack can rely on. It is also what
+makes the effort of clearing the Report-Only stream worth spending.
+
+**What this note does not change.** The `renderTrustedRichText()` sanitizer
+question stays open. The ban on a `'default'` policy stands, and the reason given
+for it now covers more engines rather than fewer. The service worker's own CSP
+requirement from 2026-07-17 stands, since Trusted Types inside a worker still
+reaches only the `eval`, `Function` and `importScripts` sinks.
+
+---
+
+## 2026-11-09 — Facet: Step-Up and Re-Authentication on a 401 During Outbox Replay
+
+Picking up the second thread 2026-07-20 carried. 2026-07-16 opened it when it found
+that a replayed mutation can come back 401. That facet settled who holds the
+credential and how a drain gets one. It did not settle what the app does with the
+entry when the answer is "not this credential". This pass works that half, because
+the wrong answer deletes a user's unsaved work or, worse, replays it under someone
+else's session.
+
+**A 401 is a family, not one event, and the right move differs by member of it.**
+The outbox sees four statuses that all look like "the write did not land". They are
+not interchangeable.
+
+- **401 with `invalid_token`.** The credential is stale or expired. A refresh may
+  fix it, with no user involved.
+- **401 with `insufficient_user_authentication`.** The credential is valid, and the
+  authentication event behind it is too old or too weak for this resource. RFC 9470
+  defines this challenge, carrying `acr_values` and `max_age`.
+- **403.** The server knows who the caller is and refuses. Neither a retry nor a
+  fresh login changes that.
+- **409 from an idempotency key.** The key was seen before with a different body.
+  The entry is stale against a newer edit, and replaying it harder cannot help.
+
+RFC 9110 requires a 401 to carry `WWW-Authenticate`. So an app that cannot tell which
+401 it has is looking at a server that broke its half of the contract. It may also be
+looking at a header a proxy stripped. Neither is an auth failure the app should paper
+over, and both are worth a distinct metric.
+
+**The entry enters a held state, and held is not deleted.** A 401 on replay moves the
+entry from `pending` to `needs-auth`. Its payload, its idempotency key and its
+enqueue timestamp stay. The index keeps it and the UI can count it. Deleting on 401
+is the same fault 2026-07-16 already named for a voluntary logout. The reason is
+identical: the write was the user's, and the app owes them a decision rather than a
+silent loss. The reverse error is just as bad. Leaving it `pending` means the drain
+retries it on every reconnect. One refusal then becomes a loop that costs the user
+battery and the server traffic.
+
+**A `needs-auth` entry blocks its own line, and nothing else.** Replay order matters
+within one resource and does not matter across resources. A create followed by an
+update on the same record must land in that order, or the result is a record with the
+wrong fields. An unrelated record's write can drain happily meanwhile. So the queue
+is ordered per entity key, and one blocked entry stalls exactly its own line. A
+global FIFO would freeze the whole outbox behind one 401, which is how a small auth
+blip becomes "nothing syncs".
+
+**A step-up is not a re-login, and the challenge says which one is wanted.** The
+reflex on any 401 is to throw the user at a login screen. That discards a working
+session to satisfy a narrower requirement. On a shared device it may also hand the
+pending entries to a different person. RFC 9470 exists because a resource can ask for
+a higher assurance level or a fresher authentication without demanding a new
+identity. So the rule is to read the challenge the server sent. Pass `acr_values` and
+`max_age` through to the authorization request unchanged, and let the authorization
+server decide what satisfies them. An app that invents its own policy for when a
+step-up is needed duplicates a decision the server already owns. It will disagree
+with the server eventually.
+
+The one case that is genuinely a re-login is `invalid_token` that a refresh cannot
+fix. Then the session is gone, and the entry needs a full sign-in before it can
+replay.
+
+**Who can act, and therefore who must be interrupted.** The service worker holds no
+long-lived secret (2026-07-16), so it cannot perform a refresh or a step-up by
+itself. A `needs-auth` entry can only drain while a client is present to run the flow
+and hand back a fresh credential over `postMessage`. That constraint fixes the UX. A
+401 arriving in a background drain at 03:00 is not a user action. It must not raise a
+modal into a tab nobody is looking at. A 401 answering a write the user just
+performed is a user action, and deserves an inline error at the control that produced
+it. The discriminator is whether a synchronous request is waiting. Both paths end at
+the same surface: a persistent affordance that says how many writes wait, and one
+explicit action that opens the flow.
+
+That affordance follows the `beforeinstallprompt` reasoning from 2026-07-16. Render
+it from state the app already knows, never gate it on an event that may never fire.
+Never make it dismissible into invisibility while entries remain held.
+
+**Order the discard decision in favour of the user, and make it explicit.** Three
+outcomes end a `needs-auth` entry.
+
+- **Replay after a fresh credential.** The normal case. Send the entry with its
+  original idempotency key, so a duplicate is the server's job to reject.
+- **Discard, on the user's own instruction.** The user is told what will be lost and
+  says so. Never on a timer, and never because the payload looks stale.
+- **Supersede.** A 409 whose body mismatched says the server has a newer version.
+  Show the user both versions and let them choose. An outbox that silently picks one
+  turns a merge into data loss.
+
+**The idempotency key is minted at enqueue, not at replay.** This is the load-bearing
+detail of the whole retry path. A key created at replay time protects nothing,
+because the duplicate was created by the first replay. Mint it when the entry is
+queued, store it with the entry, and reuse it across every attempt including the one
+after a step-up. A server that expires its key window, commonly after a day, forces
+one more rule. An entry older than that window is not safe to blind-replay as a
+mutation. Surface its payload to the user for a fresh submit instead, and say why.
+
+**The 401 path must not become a hiding place for a protocol bug.** A 401 during
+replay has at least one cause that is not authentication at all. If a reverse proxy
+behind a TLS terminator rewrites the scheme to its own listening scheme, the app
+publishes `http://` self-URLs. The redirect to `https://` is then cross-origin, which
+drops the `Authorization` header and turns a POST into a bodyless GET. The observable
+symptom is an authentication failure. The cause is a scheme. An outbox that logs only
+"401 on replay" will point every reader at tokens, and the real fault will survive a
+token rotation. So the replay's failure record carries scheme, host and status code
+together. A cluster of 401s that begins at the same minute as a deploy is a protocol
+or routing finding, not an auth one. It should be reported that way.
+
+**Observability, with the payload kept out of it.** Three numbers make this operable.
+Count held entries per state. Report the age of the oldest `needs-auth` entry, since
+an entry held for days is a user who does not know their work is stuck. Count 401s on
+replay by challenge `error` code, because the four members of the family want
+different fixes. Log the entry id, the entity key and the timestamp. Never log the
+payload or the credential. A violation report and a replay failure are both
+telemetry: fire and forget, dropped when offline, never queued into the outbox they
+describe.
+
+**What would refute this facet.** The claim is that a held entry blocks only its own
+entity line. With an explicit user decision, that keeps the user's work and their
+session. The experiment that would refute it replays a create-then-update pair on a
+throttled profile. The 401 hits the create. One unrelated entity writes at the same
+time. The expected result is the pair landing in order after the step-up, and the
+unrelated entity never stalling. If the unrelated entity stalls, the per-entity
+ordering is not doing what this facet claims.
+
+**Open threads for future passes:**
+
+- The shared-device case. 2026-07-16 prunes entries on a login or logout transition.
+  It does not settle what the UI shows when a different person signs in and the
+  pruned entries belonged to someone else. Is a discarded-writes notice owed to the
+  person whose work it was, and how does an app deliver it?
+- A non-interactive client. A server-side or headless caller of the same API has no
+  step-up surface, so it needs the challenge answered out of band. Not resolved here.
+- The proof a given authorization server honours `acr_values`. RFC 9470 says the
+  server advertises `acr_values_supported` in its metadata. Whether this app should
+  refuse to configure a step-up without that signal is open.
+
+---
+
+## 2026-11-10 — Facet: The Sanitizer Behind renderTrustedRichText()
+
+Picking up the thread 2026-07-20 left open at its own end: which concrete
+implementation backs the rare rich-text path. That facet expected a small,
+battle-tested sanitizer library over hand-rolled code. The platform has since
+moved the question. `Element.setHTML()` is now part of the HTML specification as
+a sanitizing sink, and it removes XSS-unsafe markup by default.
+
+Twenty-four measures of engine source and test-suite runs sit behind this
+section, taken between 2026-11-09 06:45Z and 2026-11-10 00:20Z. Each version
+below was read from an engine tag, a release record or a run report. No support
+table was quoted as evidence. Where a claim rests on two mechanisms rather than
+a run, the text says so.
+
+**The plain-text wrapper stays the only default path.** 2026-07-20 settled that,
+and nothing here moves it. The `html` tagged template escapes every
+interpolation into a text node. A component that renders ordinary content never
+reaches a sanitizer at all, at any engine version.
+
+**This pass runs last, and its security floor is dated.** The dependency answer
+inverted, so the safe sink replaces the library on two engines. The shell-size
+budget landed on 2026-11-06 and the step-up facet on 2026-11-09, so neither is
+open here.
+
+**On two engines the safe sink replaces the library, and that inverts the
+dependency argument.** 2026-07-20 argued that a library beats hand-rolled code
+on this surface. That argument now cuts the other way for the API's first year,
+because the engine's sanitizer is the newest code in the stack.
+
+Two published bypasses make the point concrete. CVE-2026-7939 covers Chrome
+before `148.0.7778.96`. Its record names no mechanism, and the reading that
+matches Chromium's own fix is a custom element callback running during the
+sanitizing parse. CVE-2026-16394 covers Firefox before 153, and it needed a
+configuration that re-allowed `<base>`. So this facet states a floor, and not a
+capability check.
+
+**The configuration is a closed constant in the module, never a parameter.** That
+one rule is what lets the Chrome floor stay at its CVE build.
+
+- No `<base>` in the configuration, and no caller supplies one. Chrome only
+  started stripping `<base>` at `152.0.7977.42`, so at 148 the engine would keep
+  an element a configuration allows.
+- The configuration is frozen beside the policy name, and a call site chooses
+  the path, never the config.
+- A richer list is a dated measure and a review, per the section below.
+
+**Three floors, one per engine, because a single number is wrong on two of
+them.**
+
+- Chrome desktop: `148.0.7778.96`, the first stable 148 build, May 2026.
+- Chrome on Android: `148.0.7778.168`, a later patch of the same milestone.
+- Firefox: 153, which strips `<base>` whatever a configuration asks.
+- Safari: no floor, because there is no sink to floor. Safari 27.2 fails 72 of
+  72 subtests of `sanitizer-config.html` with `Can't find variable: Sanitizer`,
+  and answers `div.setHTML is not a function` in `sethtml-tree-construction.html`.
+
+A capability test on `setHTML` alone is the mistake this list prevents. Firefox
+148 to 152 ships the method and carries a vulnerable configuration path.
+
+**Safari degrades to the escalated path, and that escalation now exists there.**
+2026-07-20 recorded that Safari had no Trusted Types, so a `setHTMLUnsafe()`
+fallback had nothing to stand on. That premise is stale: Safari 26 shipped it on
+2025-09-15, and Firefox 148 finished it on 2026-02-24. The 2026-11-06 amendment
+records the same correction and states what it changes.
+
+It still gives Safari no rich-text path. `setHTMLUnsafe` there takes one
+parameter, so neither a sanitizer nor `runScripts` can be passed. A named policy
+with `createParserOptions` has no argument to vet. Safari stays on escaped plain
+text.
+
+**The safe sink is not a Trusted Types sink, so the common deployment needs no
+policy at all.** `setHTML` and `parseHTML` are absent from the sink set that
+`require-trusted-types-for 'script'` guards. That is read in the HTML
+specification's IDL, in Blink's `element.idl` at 157 and in Gecko's
+`Element.webidl`. So the `'default'` policy ban from 2026-07-20 costs nothing
+here. Only `setHTMLUnsafe` needs a policy, and that path is unavailable today.
+
+**The facet states its own element and attribute list, and does not inherit the
+specification's default.** The default is a real allow-list, and the two engines'
+vendored copies were diffed row by row and attribute by attribute. They agree
+completely, because Gecko's generator fetches its input from the specification's
+own source. Adopting it wholesale is still wrong for this app, for three
+reasons.
+
+- It leads with a MathML `a` row that no shipped engine carries, so the
+  specification and both engines disagree at the first row.
+- Seven of its admitted attribute names are CSS properties, and each takes a
+  `<url>` in its value grammar. `img-src` governs each fetch, so none of them is
+  a CORS control. A kept `cursor` is a no-cors GET that may carry the page's
+  cookies, and no script can read it back.
+- It drops `class`, `id`, `style`, every `aria-*` name and every form control.
+  So styling and accessibility have to live on the wrapper.
+
+So the facet carries a closed list of its own, and each addition to it is a
+dated measure rather than an edit in passing.
+
+**The element list keeps no element that fetches, and no custom element name.**
+
+- No `link`, `base`, `img`, `iframe`, `video`, `audio`, `source`, `picture`,
+  `object`, `embed`, `script` or `template`.
+- No custom element name at all. That removes the registry-preservation floor,
+  which is Chrome `158.0.8127.18` on Mac and Windows, with no Firefox or Safari
+  answer.
+- No `<a>` carrying `target`. Navigation stays in the tab it started in, and a
+  rich-text path is where a `target="_blank"` would otherwise arrive from data.
+- A closed declarative-shadow-root list of two names. Gecko's `setHTML()` never
+  attaches a root, so one configuration is a shadow tree on Chromium and none on
+  Firefox.
+
+**A sanitizer is a markup policy, not a URL policy, so the scheme list is the
+facet's own.** The engine strips `javascript:` over five element-attribute pairs
+and a MathML `href`. It reads nothing else. The test suite asserts that a
+`data:` URL in an SVG `xlink:href` survives sanitizing, in a group named
+`allowed`. So no engine at any version stops one.
+
+The facet carries a closed scheme allowlist on every link target at render time:
+`https:` and `mailto:` only. Nothing else resolves, and nothing else is written
+into generated markup. A public URL in rich text carries `https://`, the same
+rule the rest of this vision applies to a self-URL or a redirect target.
+
+**`cite` is the attribute to watch, because no engine inspects it.** It is
+default-allowed on `blockquote`, `del` and `ins`, it holds a URL, and it sits in
+neither the navigating nor the animating list. Page code that turns `cite` into
+a link is the script path. So the facet keeps `cite` out of the rich-text
+attribute list.
+
+**The parse runs once, and the sanitizer is the parse.** Mutation XSS survives a
+correct first sanitization when the DOM changes afterwards. So the path builds
+its DOM from the sanitizer's own output and never re-serializes it through
+`innerHTML`. A later write of already-rendered markup is a new sink and a new
+review.
+
+**The floor is checked by behaviour, and the check fails closed.** Capability
+comes first: no `Element.prototype.setHTML` means no rich-text path, whatever the
+user agent says. The floor comparison follows, and it is the weak half.
+
+- Chromium exposes `navigator.userAgentData`, so its floors compare against the
+  platform and the full version, not the reduced one.
+- Where no such structured API answers, the floor reads the frozen user-agent
+  string. That is a shape check, and the weaker of the two.
+- An unparsable or absent version is below the floor, and is never assumed above
+  it.
+
+An engine below its floor gets escaped plain text, and the caller is told. A
+rich-text caller that cannot run does not fall back to `innerHTML`, and it does
+not silently strip its way to plain text.
+
+**Rollout is Report-Only first, and the exit criterion is the report stream.**
+2026-07-20 already set that for Trusted Types enforcement, and it carries over.
+This facet adds one gate. The rich-text path ships behind an explicit
+per-call-site opt-in. So an empty report stream means only that the path is
+sound, and not that data reaches it.
+
+**What this facet changes in an earlier one**, stated here because that section
+stays as it was:
+
+- 2026-07-20 called Trusted Types not universally shipped, and Safari short of
+  it. Both became false in 2025 and 2026, and Safari needs no sink either. The
+  2026-11-06 amendment amends that premise and leaves the 2026-07-20 text as it
+  stands.
+- Its expectation of a small sanitizer library as the likely answer is
+  superseded by the floors above. A library is still the answer where a floor
+  cannot be met.
+
+**Open threads for future passes:**
+
+- `related_applications`/`prefer_related_applications` and `launch_handler`
+  client-mode, carried and still unaddressed.
+- New from this pass: whether a rich-text caller may ever keep an image, and
+  under which attribution and caching rules. An image needs `src`, a scheme
+  entry and a media cache policy, so it is its own pass.
+- New from this pass: what the wrapper does with a large interpolated document.
+  The escaping path is linear in content, and 2026-07-15's refresh sets how often
+  a component re-renders it.

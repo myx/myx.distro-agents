@@ -30,7 +30,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$toState" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create [--acting-member:<member>]) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-from-slots|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create [--acting-member:<member>]) [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-from-slots|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]" >&2
 			set +e ; return 1
 		fi
 		## A state is a word of the one list (AgentsTools.BoardStates.include), and nothing else.
@@ -283,6 +283,21 @@ case "$1" in
 			else
 				body="$( cat "$sourcePath" )"
 			fi
+		fi
+
+		## A body write keeps what another run recorded: a whole body puts the stored section back,
+		## and a body derived from the item refuses rather than drop a recorded line.
+		if [ "$isCreate" != "true" ] && [ -n "$bodyMode" ] ; then
+			type AgentsToolsDecisionsKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+			case "$bodyMode" in
+				patch|script)
+					body="$( printf '%s\n' "$body" | AgentsToolsDecisionsKeep "$sourcePath" edit "$itemName" )" || { set +e ; return 1 ; }
+				;;
+				*)
+					body="$( printf '%s\n' "$body" | AgentsToolsDecisionsKeep "$sourcePath" keep "$itemName" )" || { set +e ; return 1 ; }
+					echo "$MDSC_CMD: board-upsert-move-edit: $itemName existed, so the decisions recorded on it were kept. To change part of it, use --edit-patch-from-stdin with [{\"old\":\"<exact old text>\",\"new\":\"<new text>\"}]" >&2
+				;;
+			esac
 		fi
 
 		## Move stamp: the date field the target state owns. Contract: MAGIC.md.

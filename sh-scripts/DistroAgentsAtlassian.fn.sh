@@ -48,7 +48,7 @@ DistroAgentsAtlassian(){
 	[ -z "$frontDone" ] || return "$frontRc"
 	case "$1" in
 
-		--confluence-comment-add|--confluence-comment-read|--confluence-page-create|--confluence-page-delete|--confluence-page-search|--confluence-page-update|--confluence-space-create|--jira-comment-add|--jira-comment-read|--jira-issue-create|--jira-issue-delete|--jira-issue-link-page|--jira-issue-search|--jira-issue-transition|--jira-issue-update)
+		--confluence-comment-add|--confluence-comment-read|--confluence-page-create|--confluence-page-delete|--confluence-page-search|--confluence-page-update|--confluence-space-create|--jira-comment-add|--jira-comment-read|--jira-issue-create|--jira-issue-delete|--jira-issue-link-page|--jira-issue-search|--jira-issue-transition|--jira-issue-update|--jira-project-delete)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include"
 			return $?
 		;;
@@ -70,7 +70,14 @@ DistroAgentsAtlassian(){
 	esac
 }
 
+## A relative or symlinked path to this very file dispatches too: it is resolved to the real file before the match, and only a path that
+## resolves elsewhere is refused. Sourced ($0 differs from BASH_SOURCE[0]), nothing is resolved.
+selfPath="$0"
 case "$0" in
+	*/myx/myx.distro-agents/sh-scripts/*.fn.sh) ;;
+	*) [ "${BASH_SOURCE[0]:-}" != "$0" ] || selfPath="$( cd "$( dirname "$0" )" 2> /dev/null && pwd -P )/${0##*/}" ;;
+esac
+case "$selfPath" in
 	*/myx/myx.distro-agents/sh-scripts/DistroAgentsAtlassian.fn.sh)
 
 		set -e

@@ -63,6 +63,9 @@ AgentsToolsOnDemandThreadStart(){ ## folder, the operation and its words...
 	(
 		trap '' HUP
 		set +e
+		## The starter's MDAT_SKILLSET_ROOT stays: a rig hands its own member folder that way, and the schedule thread drops an inherited
+		## root that is another workspace's members itself (epic S12 item 16). The variable of an invited member's own root, once the
+		## spawn proxy sets one, is what this start is to drop with the session variables.
 		for startDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
 			unset "$startDrop"
 		done
@@ -78,6 +81,14 @@ AgentsToolsOnDemandThreadStart(){ ## folder, the operation and its words...
 	disown "$startPid" 2> /dev/null || :
 	printf '%s a thread is started here: pid %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid" >> "$startLog" 2> /dev/null || :
 	printf 'started %s\n' "$startPid"
+	## A LOCK THAT OUTLIVED ITS PROCESS IS REPORTED (S12.14): the holder the lock named was gone when this start read it, so the
+	## thread before this one ended with its lock left behind, by a kill or by an end that wrote no end line. Said in the log,
+	## the thread's own record, and as a second line here after the `started <pid>` the callers read, so the ask that started
+	## the new thread reports it and the first line keeps its shape.
+	if [ -n "$startLock" ] && [ "$startTold" = 1 ] ; then
+		printf '%s the lock of %s outlived its process: taken over by this start\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startLock" >> "$startLog" 2> /dev/null || :
+		printf 'the lock of %s outlived its process: taken over\n' "${startLock%% *}"
+	fi
 	return 0
 }
 
@@ -176,6 +187,17 @@ AgentsToolsOnDemandThreadRequest(){ ## folder, bound seconds or -, the operation
 	AgentsToolsOnDemandThreadAsk "$askStartFolder" "$askStartBound" "${askStartFields[@]}"
 }
 
+## THE END OF THE SERVE LOOP, as a handler or tick asks it: the loop's own `serveEnd` is read and set here alone, so a caller in another
+## file names no variable of this one. Ending: rc 0 when the loop this call runs inside was told to end (by TERM, or by an end asked
+## below), rc 1 when it was not, or when no serve loop is around this call. End: asks the loop to end once the pass in hand is over, with
+## the reason its leave line gives.
+AgentsToolsOnDemandThreadEnding(){
+	[ -n "${serveEnd:-}" ]
+}
+AgentsToolsOnDemandThreadEnd(){ ## reason
+	serveEnd="${1:-a handler asked it}"
+}
+
 ## THE THREAD'S WHOLE LIFE, run as its own process: it takes the folder's lock, holds the request fifo open read-write so a caller's
 ## open never waits, reads one request a second, and calls <handler> with the request's fields. A second with no request calls <tick>,
 ## or nothing where the tick is `-`. A tick that answers 2 counts as a request, for a thread whose work stands. It ends on TERM, after <idle>
@@ -189,7 +211,7 @@ AgentsToolsOnDemandThreadRequest(){ ## folder, bound seconds or -, the operation
 AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, once (yes|no)
 	local serveFolder="${1:-}" serveIdle="${2:-60}" serveHandler="${3:-}" serveTick="${4:--}" serveOnce="${5:-no}"
 	local serveEnd="" servePid="" serveMe="" serveHolder="" serveTook="" serveLine="" serveSplit="" serveLeave=""
-	local serveLoops=0 serveLast=0 serveFields=() serveReply="" serveRc=0
+	local serveLoops=0 serveLast=0 serveFields=() serveReply="" serveRc=0 serveCode=""
 	if [ -z "$serveFolder" ] || [ -z "$serveHandler" ] ; then
 		printf '⛔ ERROR: the thread needs a folder and a handler\n' >&2
 		return 1
@@ -290,18 +312,30 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 		[ -z "$serveEnd" ] || { serveLeave="it was ended by $serveEnd" ; break ; }
 		[ "$(( SECONDS - serveLast ))" -lt "$serveIdle" ] || { serveLeave="no request came for ${serveIdle}s" ; break ; }
 		serveLoops=$(( serveLoops + 1 ))
+		## THE LOCK IS READ EVERY LOOP, one shell read of a one-line file: a loop is one tick, and a tick under load is minutes, so a
+		## thread whose folder went with its rig (a check's rig, a stopped workspace) ends at its next tick, not thirty ticks on.
+		serveHolder=""
+		{ IFS= read -r serveHolder < "$serveFolder/thread.lock" || [ -n "$serveHolder" ] ; } 2> /dev/null || serveHolder=""
+		[ "$serveHolder" = "$serveMe" ] || { serveLeave="its folder or its lock is gone" ; serveMe="" ; break ; }
 		if [ "$(( serveLoops % 30 ))" = 0 ] ; then
-			serveHolder=""
-			{ IFS= read -r serveHolder < "$serveFolder/thread.lock" || [ -n "$serveHolder" ] ; } 2> /dev/null || serveHolder=""
-			[ "$serveHolder" = "$serveMe" ] || { serveLeave="its folder or its lock is gone" ; serveMe="" ; break ; }
 			if AgentsToolsThreadLogBound "$serveFolder/thread.log" > /dev/null 2>&1 ; then
 				exec < /dev/null >> "$serveFolder/thread.log" 2>&1
 			fi
+			## A THREAD RUNS THE CODE IT LOADED AT ITS START, for hours: the files the starter named in agentsOnDemandCodeFiles are the ones
+			## whose change must reach it. One newer than its lock (written when it took it) ends the thread, and the next ask starts one
+			## on the current code. The test is the shell's own, no process a tick.
+			for serveCode in ${agentsOnDemandCodeFiles:-} ; do
+				[ "$serveCode" -nt "$serveFolder/thread.lock" ] || continue
+				serveLeave="its code changed: ${serveCode##*/}" ; break 2
+			done
 		fi
 	done
 	trap - EXIT
 	printf '%s the thread, pid %s, ends: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$servePid" "$serveLeave" >&2
 	exec 9>&-
 	[ -z "$serveMe" ] || AgentsToolsThreadLockGive "$serveFolder/thread.lock" "$serveMe"
+	## WHY IT ENDED, for the operation that served it: one that ended on a change of its code is started again by that operation (the schedule thread is,
+	## with no session live to ask for it, which left a rig with no schedule at the hour of worktime).
+	agentsOnDemandLeft="$serveLeave"
 	return 0
 }

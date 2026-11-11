@@ -26,7 +26,7 @@ printf '# magic-team\n' > "$rigTmp/ws/.local/agents/members/magic-team/SKILL.md"
 printf '# magic-team\n' > "$rigTmp/ws/.local/agents/members/magic-team/magic-team.armed.md"
 
 rigOut="$( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-	bash "$rigTool" --member-help keeper-rig 2>/dev/null )" || rigRefuse "--member-help keeper-rig failed"
+	bash "$rigTool" --member-help --team-member keeper-rig 2>/dev/null )" || rigRefuse "--member-help --team-member keeper-rig failed"
 
 ## One row per printed syntax line: PASS or FAIL, then the line. An entry is a run of
 ## syntax lines and the text under them, and its printed text must equal the manual's.

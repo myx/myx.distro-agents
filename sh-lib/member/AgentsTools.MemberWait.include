@@ -18,7 +18,9 @@ agentsWaitTickSeconds=10
 ## a process or an ask, which no writer pokes. The chat file and the wake marker end the nap at once, so only a writer that does not poke waits this long.
 agentsWaitIdleSeconds="${MDAT_WAIT_IDLE_SECONDS:-30}"
 ## Kinds whose rendering holds arrivals only start from an empty baseline, so an arrival already there returns at once.
-agentsWaitKindEmptyBaseline="ask replies chat scan tagged dms mentions"
+## The inbox is among them: an item standing in incoming/ when a wait begins is input not yet handled, so it arrives at once rather
+## than being taken as the baseline of a fresh wait (a member busy while four items came found nothing on its idle wait).
+agentsWaitKindEmptyBaseline="ask replies chat scan tagged dms mentions inbox"
 ## The kinds of THE FLOOR: delivered ahead of every other source of a return, and by every plain Wait.
 agentsWaitKindFloor="replies chat"
 ## Kinds whose rendering is a list of arrivals from a floor, so an item taken away is no arrival.
@@ -199,7 +201,7 @@ AgentsWaitSourceModeApply(){ ## member, source, form, in, out
 	esac
 	applySlug="$( printf '%s' "$2" | LC_ALL=C tr -c 'A-Za-z0-9_.-' '_' )"
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
-	applyKey="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; applyKey="$agentsSessionChatKey"
 	if [ -n "$applyKey" ] && applySession="$( AgentsToolsSessionChatDir "$applyKey" )" && mkdir -p "$applySession/sources" 2> /dev/null ; then
 		applyIndex="$applySession/sources/$applySlug.md"
 		applyDir="$applySession/messages/$applySlug"
@@ -208,7 +210,7 @@ AgentsWaitSourceModeApply(){ ## member, source, form, in, out
 		echo "# --wait-for-input: $2#full: this call has no session folder to keep the messages in, so each is returned whole" >&2
 		return 1
 	fi
-	LC_ALL=C awk -v mode="$3" -v ref="$applyRef" -v member="$1" -v cutFlag="$5.cut" -v longBytes="${agentsReplyLongBytes:-8192}" -v dir="$( [ "$3" = full ] && printf '%s' "$applyDir" )" -v indexFile="$applyIndex" \
+	LC_ALL=C awk -v mode="$3" -v ref="$applyRef" -v member="$1" -v cutFlag="$5.cut" -v longBytes="${agentsReplyLongBytes:-4096}" -v dir="$( [ "$3" = full ] && printf '%s' "$applyDir" )" -v indexFile="$applyIndex" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitSourceMode.awk" < "$4" > "$5" 2> /dev/null || return 1
 	[ -f "$5" ]
 }

@@ -22,7 +22,7 @@
 # none), ETP_NOW (epoch seconds, the moment the post is made: the time of a kind's own lines).
 # Fixed here, Slack's limits, counted in characters as Slack counts: a section's text is at
 # most 3000, a box has at most 10 children, a post at most 50 blocks with every box's children
-# counted too, and a plain-text post is at most 4000, a message's `text`.
+# counted too, and a plain-text post is at most 8192, a message's `text`.
 # Exit 3: the template has no block for the kind. Run with LC_ALL=C: lengths are bytes, and
 # charLength() counts the UTF-8 characters.
 
@@ -872,8 +872,8 @@ BEGIN {
 	member = ENVIRON["ETP_MEMBER"] ;
 	teamMembers = ENVIRON["ETP_MEMBERS"] ;
 	shortRun = cleanValue( substr( ENVIRON["ETP_SESSION"], 1, 8 ) ) ;
-	## Characters per post of plain text, never configured: Slack's limit for a message's `text`.
-	cap = 4000 ;
+	## Characters per post of plain text, never configured: the cut of a message's `text` (Slack accepts more).
+	cap = 8192 ;
 	## Slack's limits for blocks, never configured: the characters of a section's text, the
 	## children of a box, the blocks of a post with every box's children counted too.
 	sectionCap = 3000 ; childCap = 10 ; blockCap = 50 ;

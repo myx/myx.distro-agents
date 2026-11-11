@@ -35,15 +35,21 @@ rigSessionFn="$rigPackage/sh-scripts/DistroAgentsSession.fn.sh"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigHelp="$rigHere/help/Help.DistroAgentsTools.help.md"
 unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID MDAT_SESSION_THREAD MDAT_SPAWN_AGENT MDAT_SPAWN_SANDBOX_ROOT CLAUDE_CODE_SESSION_ID harnessSessionId harnessAgent
+## The chat writer thread (S5.8) is off in this rig, as the team-data commit thread is off in the rigs that write team data: every
+## scene is a fresh workspace, and a thread's start there costs a dispatcher's initialisation beside the 5 s chat probes these
+## scenes bound, which made the participant rows flip on a loaded machine. The writer has its own check (AgentsSessionChatWriterCheck).
+export MDAT_SESSION_CHAT_WRITER=off
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigSessionFn" ] || rigRefuse "ThisSession is not at the origin this workspace resolves: $rigSessionFn"
 [ -x "$rigTool" ] || rigRefuse "the team tooling is not at the origin this workspace resolves: $rigTool"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
+. "$rigFixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsThisSessionCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## Every thread a scene started, the store's commit thread among them, ends before the rig goes (rigControlThreadsEnd, T1905Z).
+trap 'rigControlThreadsEnd "$rigTmp" ; [ -n "${RIG_KEEP:-}" ] || rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/rig-member" "$rigTmp/skills/rig-part"
 for rigMember in rig-member rig-part ; do printf '%s\n' "$rigMember" > "$rigTmp/skills/$rigMember/$rigMember.basic.md" ; done
 cp "$rigFixtures/session-chat.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
@@ -144,7 +150,7 @@ for rigOld in --slack-send-message --slack-read ; do
 done
 rigScene names2
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
-	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigTool" --wait-for-input rig-member --wait-list-sources ) > "$rigScn/list.out" 2> "$rigScn/list.err" < /dev/null
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigSessionFn" --wait-for-input --team-member rig-member --wait-list-sources ) > "$rigScn/list.out" 2> "$rigScn/list.err" < /dev/null
 rigAssert "Wait still answers as it did, with the chat source"      "$( LC_ALL=C sed -n '1p' "$rigScn/list.out" ):$( LC_ALL=C grep -c '^chat	' "$rigScn/list.out" )" "WAIT-RESULT: RECEIVED:1"
 
 echo "-- 2. --get-session-channel-id --"
@@ -345,7 +351,7 @@ rigBlockOf(){ ## routine file -- the lines of its # Routine-specific tooling blo
 }
 for rigKind in coworking standalone ; do
 	rigAssert "the $rigKind routine's tooling block names --get-session-thread [--own]" "$( rigBlockOf "$rigPackage/skillset/magic-team/magic-team/magic-team.$rigKind.routine.md" | LC_ALL=C grep -c -x -F -e '- `--get-session-thread [--own]`' )" 1
-	rigAssert "and BatchTools, in one short line (F7.8's line, which was missing)" "$( rigBlockOf "$rigPackage/skillset/magic-team/magic-team/magic-team.$rigKind.routine.md" | LC_ALL=C grep -c -x -F -e 'BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.' )" 1
+	rigAssert "and BatchTools, in one short line (F7.8's line, which was missing)" "$( rigBlockOf "$rigPackage/skillset/magic-team/magic-team/magic-team.$rigKind.routine.md" | LC_ALL=C grep -c -x -F -e '- `BatchTools` — several tool calls in one round, much quicker for calls that do not depend on each other.' )" 1
 done
 for rigOp in --wait-session-channel --get-session-channel-id --post-session-channel --get-session-thread --get-dispatch-text --executor-checkpoint-push --executor-checkpoint-rewind --executor-checkpoint-exit --idle-wait ; do
 	rigAssert "the help describes $rigOp"                           "$( LC_ALL=C grep -c -E "^		$rigOp( |\$)" "$rigHelp" )" 1
@@ -366,7 +372,7 @@ printf 'Work on rigrepo/rigpkg following no routine at all.\n' \
 [ -f "$rigScn/dispatch-while-running" ] || rigRefuse "the console never ran, so the brief was never observed: $( tail -3 "$rigScn/spawn.err" )"
 rigAssert "the brief names --get-session-thread [--own], once"      "$( LC_ALL=C grep -c -F -e '--get-session-thread [--own]' "$rigScn/dispatch-while-running" )" 1
 rigAssert "and it is the only line of it"                           "$( LC_ALL=C grep -c -F -e 'DistroAgentsSession.fn.sh' "$rigScn/dispatch-while-running" )" 1
-rigAssert "BatchTools in one short line, once (F7.8's line)"        "$( LC_ALL=C grep -c -x -F -e 'BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.' "$rigScn/dispatch-while-running" )" 1
+rigAssert "BatchTools in one short line, once (F7.8's line)"        "$( LC_ALL=C grep -c -x -F -e '- `BatchTools` — several tool calls in one round, much quicker for calls that do not depend on each other.' "$rigScn/dispatch-while-running" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ THIS SESSION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -220,7 +220,9 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 	local cfTo
 	cfTo="$( AgentsToolsEscalationField "$cfFile" address-to )"
 	[ -z "$cfForward" ] || cfTo="human-owner"
-	[ -z "$cfTo" ] || cfArgs=( "${cfArgs[@]}" --address-to "$cfTo" )
+	## THE READ CONFIRMATION NAMES NOBODY (the owner's ruling, 2026-11-09): `Read: yes by human-owner. It is recorded` is the
+	## tooling closing the exchange, not a message for the person who just answered. Every other confirmation keeps its addressee.
+	[ "$cfBlock" = "taken" ] || [ -z "$cfTo" ] || cfArgs=( "${cfArgs[@]}" --address-to "$cfTo" )
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	printf '%s\n' "$cfText" | DistroAgentsTools --intern-op-comms-slack-send-message "${cfArgs[@]}" > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the answer $cfVerdict for $cfId was read, but its confirmation was not posted in $cfChannel:$cfThread" >&2
@@ -869,7 +871,14 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 				*) applyWhy="${applyChange#* -- }" ; AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "${applyWhy%%. Make the change again*}" ;;
 			esac
 		;;
-		*) AgentsToolsEscalationConfirm "$applyFile" "$applyId" taken "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText" ;;
+		*)
+			AgentsToolsEscalationConfirm "$applyFile" "$applyId" taken "$applyVerdict" "$applyBy" "$applyFromForward" "$applyText"
+			## THE ANSWERED POST LOSES ITS `How to answer` GROUP (the owner's ruling, 2026-11-09, and the template's own rule: a post that no
+			## longer takes an answer is the same text without that group): edited in place once the answer is read, as a superseded
+			## version already is. Best effort, said on stderr where the edit does not land.
+			type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include" 2> /dev/null || :
+			! type AgentsToolsAskPostClose > /dev/null 2>&1 || AgentsToolsAskPostClose "$applyFile" "$( AgentsToolsEscalationField "$applyFile" question-ts )" "" edit
+		;;
 	esac
 	## A noted answer completed in place of the one this call brought: that one is not applied.
 	if [ -n "${applyOwn%%$'\t'*}" ] && [ "$applyOwn" != "$applyVerdict"$'\t'"$applyBy" ] ; then

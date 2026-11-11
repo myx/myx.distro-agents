@@ -68,6 +68,40 @@ AgentsToolsSpawnedRecordsOfRoutine(){ ## routine file name, cache name -- the pa
 	return 0
 }
 
+## A KEPT DUTY SESSION ENDS WITH ITS DAY. The session a member's work-duty keeps for its restarts (schedule/duty-session/<member>) is the
+## session of one worktime: its thread is the one the human-owner reads in the team bot's conversation that day, and the day's first run
+## opens a session of its own. A session begun on an earlier day is stale: joined, a new day's run posts into yesterday's thread, where
+## nobody sees it. The day is the session's own, the `started-at:` of the record that founded it (spawned/<id>/<id>.spawn.md), never the
+## kept file's time, which a join rewrites. rc 0 for a session begun before today, by the host's local date; rc 1 for one of today, or
+## one with no founding record to tell.
+## Before a member's kept duty session id is dropped, for any reason, that session's read pointer into the member's tagged source is
+## folded into the schedule's own (schedule/handed/<member>) where it is later. Otherwise a tag that duty already read looks new against the
+## older pointer: it starts a duty out of hours, makes demand in hours, and the next duty is seeded to read it again. Quiet; rc 0 always.
+AgentsToolsDutyKeptTagFold(){ ## member, the kept session id
+	local foldRead="" foldOwn=""
+	case "${1:-}:${2:-}" in :*|*:|*/*) return 0 ;; esac
+	type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	foldRead="$( AgentsToolsSessionChatPointer "$2" "collect:$1:tagged:$1" 2> /dev/null )" || foldRead=""
+	foldRead="${foldRead%%.*}"
+	case "$foldRead" in ''|*[!0123456789]*) return 0 ;; esac
+	[ ! -f "$MMDAPP/.local/agents/schedule/handed/$1" ] || read -r foldOwn < "$MMDAPP/.local/agents/schedule/handed/$1" || :
+	foldOwn="${foldOwn%%.*}"
+	case "$foldOwn" in ''|*[!0123456789]*) foldOwn=0 ;; esac
+	[ "$foldRead" -gt "$foldOwn" ] || return 0
+	mkdir -p "$MMDAPP/.local/agents/schedule/handed" 2> /dev/null && printf '%s\n' "$foldRead" > "$MMDAPP/.local/agents/schedule/handed/$1"
+	return 0
+}
+
+AgentsToolsDutyKeptStale(){ ## the kept session id
+	local staleRecord="" staleDay=""
+	case "${1:-}" in ''|*/*|.|..) return 1 ;; esac
+	staleRecord="${MMDAPP:-}/.local/agents/spawned/$1/$1.spawn.md"
+	[ -f "$staleRecord" ] || return 1
+	staleDay="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index( $0, "started-at: " ) == 1 { print substr( $0, 13, 10 ) ; exit }' "$staleRecord" 2> /dev/null )"
+	case "$staleDay" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;; *) return 1 ;; esac
+	[ "$staleDay" != "$( date '+%Y-%m-%d' )" ]
+}
+
 ## THE RECORDS OF ONE SESSION, kept exact: `AgentsToolsSpawnedSessionRecords <session> own|parent|any` prints the paths of the records whose `session-id:` is the
 ## session (own), whose `parent-session-id:` is (parent), or either (any), a line each. Six readers of a Wait round and a spawn tick asked this with a `grep` over
 ## every record (AgentsTools.SpawnSandbox.include). Which records belong to a session never changes after a record is made, and a record is made as a new folder
@@ -90,7 +124,8 @@ AgentsToolsSpawnedSessionRecords(){ ## session, kind (own|parent|any)
 			fence == 1 && index( $0, "session-id: " ) == 1 && own == "" { own = substr( $0, 13 ) }
 			fence == 1 && index( $0, "parent-session-id: " ) == 1 && parent == "" { parent = substr( $0, 20 ) }
 		' "$sessionRoot"/*/*.spawn.md 2> /dev/null )" || sessionList=""
-		if [ -n "$sessionStamp" ] && mkdir -p "${sessionCache%/*}" 2> /dev/null && sessionTemp="$( mktemp "$sessionCache.XXXXXX" 2> /dev/null )" ; then
+		## Kept only in a session folder that exists: a folder made here for an id that names nothing would be taken for a session.
+		if [ -n "$sessionStamp" ] && [ -d "${sessionCache%/*}" ] && sessionTemp="$( mktemp "$sessionCache.XXXXXX" 2> /dev/null )" ; then
 			{ printf '%s\n' "$sessionStamp" ; [ -z "$sessionList" ] || printf '%s\n' "$sessionList" ; } > "$sessionTemp" 2> /dev/null \
 				&& mv -f "$sessionTemp" "$sessionCache" 2> /dev/null || rm -f "$sessionTemp" 2> /dev/null
 		fi
@@ -104,16 +139,22 @@ AgentsToolsSpawnedSessionRecords(){ ## session, kind (own|parent|any)
 	return 0
 }
 
+## The list's first line is `<kept at, epoch> <newest folder under spawned/, epoch>`: it stands while its TTL has not passed AND no
+## folder under spawned/ is newer than it was kept with, so a record made since (a new folder, or a new file in a session's
+## folder, either touching the folder it lands in) refreshes the list at once, as the per-session list does. A record that
+## closed since stays listed until the TTL passes: a reader that needs the status as it is now reads it off the record.
 AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a line each
-	local startedCache="$MMDAPP/.local/agents/schedule/started.records" startedTtl="${MDAT_STARTED_RECORDS_SECONDS:-30}" startedAt="" startedNow="" startedList="" startedTemp
+	local startedCache="$MMDAPP/.local/agents/schedule/started.records" startedTtl="${MDAT_STARTED_RECORDS_SECONDS:-30}" startedAt="" startedKept="" startedStamp="" startedNow="" startedList="" startedTemp
 	case "$startedTtl" in ''|*[!0123456789]*) startedTtl=30 ;; esac
+	startedStamp="$( { LC_ALL=C stat -f '%m' "$MMDAPP/.local/agents/spawned" "$MMDAPP/.local/agents/spawned"/*/ 2> /dev/null || LC_ALL=C stat -c '%Y' "$MMDAPP/.local/agents/spawned" "$MMDAPP/.local/agents/spawned"/*/ 2> /dev/null ; } | LC_ALL=C sort -n | tail -n 1 )" || startedStamp=""
+	case "$startedStamp" in ''|*[!0123456789]*) startedStamp=0 ;; esac
 	if [ "$startedTtl" -gt 0 ] ; then
-		{ IFS= read -r startedAt < "$startedCache" ; } 2> /dev/null || startedAt=""
+		{ read -r startedAt startedKept < "$startedCache" ; } 2> /dev/null || { startedAt="" ; startedKept="" ; }
 		startedNow="$( date +%s )" || startedNow=""
-		case "$startedAt$startedNow" in
+		case "$startedAt$startedNow$startedKept" in
 			''|*[!0123456789]*) ;;
 			*)
-				if [ "$(( startedNow - startedAt ))" -ge 0 ] && [ "$(( startedNow - startedAt ))" -lt "$startedTtl" ] ; then
+				if [ "$(( startedNow - startedAt ))" -ge 0 ] && [ "$(( startedNow - startedAt ))" -lt "$startedTtl" ] && [ "$startedKept" = "$startedStamp" ] ; then
 					LC_ALL=C sed 1d "$startedCache" 2> /dev/null
 					return 0
 				fi
@@ -122,9 +163,56 @@ AgentsToolsSpawnedStartedRecords(){ ## -- the paths of the started records, a li
 	fi
 	startedList="$( LC_ALL=C grep -l -x -F 'status: spawn-started' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )" || startedList=""
 	if [ "$startedTtl" -gt 0 ] && mkdir -p "${startedCache%/*}" 2> /dev/null && startedTemp="$( mktemp "$startedCache.XXXXXX" 2> /dev/null )" ; then
-		{ printf '%s\n' "${startedNow:-$( date +%s )}" ; [ -z "$startedList" ] || printf '%s\n' "$startedList" ; } > "$startedTemp" 2> /dev/null \
+		{ printf '%s %s\n' "${startedNow:-$( date +%s )}" "$startedStamp" ; [ -z "$startedList" ] || printf '%s\n' "$startedList" ; } > "$startedTemp" 2> /dev/null \
 			&& mv -f "$startedTemp" "$startedCache" 2> /dev/null || rm -f "$startedTemp" 2> /dev/null
 	fi
 	[ -z "$startedList" ] || printf '%s\n' "$startedList"
+	return 0
+}
+
+## THE RECORDS OF THE RUNS A SPAWN STARTED, a path each: from the parent's list in
+## `.local/agents/children/<parent-spawn-id>`, which the spawn proxy appends to as it spawns and
+## the main loop rebuilds from the records and marks complete with `children/.indexed`
+## (AgentsTools.ChildrenIndex.include); with no mark, from one grep over every record, as the
+## harness does. A line of the list whose record is gone is skipped. Nothing, rc 0, for a parent
+## with no list.
+AgentsToolsSpawnedChildRecords(){ ## parent spawn id, workspace (default MMDAPP)
+	local childParent="${1:-}" childWs="${2:-${MMDAPP:-}}" childLine
+	childWs="${childWs%/}"
+	case "$childParent" in ''|-|.|..|*/*) return 0 ;; esac
+	[ -n "$childWs" ] || return 0
+	if [ -f "$childWs/.local/agents/children/.indexed" ] ; then
+		[ -f "$childWs/.local/agents/children/$childParent" ] || return 0
+		while IFS= read -r childLine ; do
+			case "$childLine" in ''|/*|../*|*/../*) continue ;; esac
+			[ ! -f "$childWs/.local/agents/spawned/$childLine" ] || printf '%s\n' "$childWs/.local/agents/spawned/$childLine"
+		done < "$childWs/.local/agents/children/$childParent"
+		return 0
+	fi
+	LC_ALL=C grep -l -x -F -- "parent-spawn-id: $childParent" "$childWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null || :
+	return 0
+}
+
+## THE SPAWNED-SESSIONS REGISTRY AS IT STANDS, its path on stdout: for a reader on a call path, which
+## takes the registry (AgentsTools.Registries.include) and never a rebuild of its own. The registry
+## is rebuilt by the writers of the records; what they do not cover is a record that landed since,
+## and one stat over spawned/ and its folders says so: a record is made as a new folder there or as a
+## new file in a session's folder, and either touches the folder it lands in. A registry older than
+## the newest such folder is rebuilt here once, with no housekeeping (that is the renders' own
+## 5-minute duty). Nothing, rc 0, where the workspace has no store or the rebuild failed.
+AgentsToolsSpawnedRegistryFile(){ ## workspace (default MMDAPP)
+	local registryWs="${1:-${MMDAPP:-}}" registryRoot registryFile registryStamp registryOwn
+	registryWs="${registryWs%/}"
+	[ -n "$registryWs" ] && [ -d "$registryWs/.local/agents/spawned" ] || return 0
+	registryRoot="$registryWs/.local/agents/spawned" ; registryFile="$registryWs/.local/agents/spawned-sessions.registry"
+	registryStamp="$( { LC_ALL=C stat -f '%m' "$registryRoot" "$registryRoot"/*/ 2> /dev/null || LC_ALL=C stat -c '%Y' "$registryRoot" "$registryRoot"/*/ 2> /dev/null ; } | LC_ALL=C sort -n | tail -n 1 )" || registryStamp=""
+	registryOwn="$( LC_ALL=C stat -f '%m' "$registryFile" 2> /dev/null || LC_ALL=C stat -c '%Y' "$registryFile" 2> /dev/null )" || registryOwn=""
+	case "$registryStamp" in ''|*[!0123456789]*) registryStamp=0 ;; esac
+	case "$registryOwn" in ''|*[!0123456789]*) registryOwn=-1 ;; esac
+	if [ "$registryOwn" -le "$registryStamp" ] ; then
+		type AgentsToolsRegistrySpawnedSessionsRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
+		( MMDAPP="$registryWs" AGENTS_REGISTRY_HOUSEKEEPING=1 ; export MMDAPP AGENTS_REGISTRY_HOUSEKEEPING ; AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows ) > /dev/null 2>&1 || return 0
+	fi
+	[ ! -f "$registryFile" ] || printf '%s\n' "$registryFile"
 	return 0
 }

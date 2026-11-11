@@ -309,7 +309,7 @@ AgentsWaitRepliesCommit(){ ## session id, the advance file
 AgentsWaitChatImportReplies(){ ## member, conversation:thread of the post, the rendering file
 	local repliesSession
 	type AgentsToolsSessionChatImport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
-	repliesSession="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; repliesSession="$agentsSessionChatKey"
 	[ -n "$repliesSession" ] || return 0
 	AgentsToolsSessionChatImport "$repliesSession" "$2" "$3" "reply:$1" "$1"
 	return 0

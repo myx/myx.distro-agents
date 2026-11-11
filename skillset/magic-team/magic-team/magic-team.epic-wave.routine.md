@@ -80,7 +80,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 feature in work when it is small and near. Otherwise add it to the next epic's
 input.
 6. **set-status**: After each accepted apply, move the closed item to the epic's `## Done` section through the tooling (`--epic-update <epic-file> --set-status <feature-id> done`). There it is one line: its id and what holds now. An open item keeps only its open work and owner.
-7. **keep-state-current**: Keep the run's state document current (`--intern-op-state-note-upsert`) — the features in work, the gates open, the owner's rulings. The document stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, as plain present-tense statements, so the next run continues from it alone.
+7. **keep-state-current**: Keep the run's state document current — the features in work, the gates open, the owner's rulings. The document stands alone: the goal, why, the scope, the current state, the next step, the decisions taken and the open points, as plain present-tense statements, so the next run continues from it alone.
 8. **fresh-builder**: Start a fresh builder when the last one's context has grown large; a long builder's context is never reused for speed.
 9. **remind-owner**: Remind the owner of his own steps (a commit, a review, a rig update) by Slack DM (`SendMessage`) when each falls due.
 

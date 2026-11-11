@@ -28,7 +28,24 @@ AgentsWaitOtherLiveThreads(){ ## member, session to exclude
 	## session was found to lose mentions in its own thread (owner 2026-10-30).
 	[ -z "$otherExclude" ] || { type AgentsToolsSessionChatThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || : ; }
 	[ -z "$otherExclude" ] || otherOwnThread="$( AgentsToolsSessionChatThread "$otherExclude" 2> /dev/null )" || otherOwnThread=""
-	otherNames="$( printf '%s\0' "$otherStore"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "owner: $otherMember" 2> /dev/null )" || :
+	## THE MEMBER'S RECORDS AMONG THE STARTED ONES (call-path audit row 33): a run that is alive has a record in status spawn-started,
+	## so the kept list of those (AgentsTools.StartedRecords.include) is the whole population; each header is read by the shell up
+	## to its owner line or its closing fence. No grep over every record of the store on a round.
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || return 0
+	local otherLine otherFence otherOwnerIs
+	otherNames=""
+	while IFS= read -r otherFile ; do
+		[ -n "$otherFile" ] && [ -f "$otherFile" ] || continue
+		otherFence=0 ; otherOwnerIs=""
+		while IFS= read -r otherLine ; do
+			case "$otherLine" in
+				---) otherFence=$(( otherFence + 1 )) ; [ "$otherFence" -lt 2 ] || break ;;
+				"owner: "*) otherOwnerIs="${otherLine#owner: }" ; break ;;
+			esac
+		done < "$otherFile"
+		[ "$otherOwnerIs" != "$otherMember" ] || otherNames="$otherNames$otherFile"$'\n'
+	done <<< "$( AgentsToolsSpawnedStartedRecords 2> /dev/null )"
+	otherNames="${otherNames%$'\n'}"
 	[ -n "$otherNames" ] || return 0
 	otherOut="$( mktemp "${MMDAPP:-}/.local/temp/mdat-mentions-other-live.XXXXXX" 2> /dev/null )" || return 0
 	{
@@ -62,6 +79,54 @@ AgentsWaitOtherLiveThreads(){ ## member, session to exclude
 ## team identity that may: the magic-team setting WAIT_MENTIONS_SEARCHER, magic-coordinator where it is not set. Where neither may,
 ## that is an error said on stderr and in the Wait header (WAIT-SOURCE-ERROR, rc 4), never an empty result, and no source never read. Each mention stands
 ## behind a `# in <conversation>` line, so the seen reaction finds its conversation (AgentsWaitSeenIds).
+## ON A TEAM RIG THE COMMS SERVICE THREAD SEARCHES AND THE WAIT READS THE CACHE (the owner's design, epic S1 item 14): a Wait never
+## calls Slack. The mentions of a member are the cache folder `slack/slack-mentions-<member>`, pulled by the thread on the recipe
+## `slack-mentions <member>` (AgentsWaitMentionsPull, called from AgentsToolsCommsCachePullWatched) as the last search's JSON, `found.json`.
+## The probe reads that file; a folder not pulled yet is wanted and waited for by its fifo within the probe's budget, and one still
+## unserved is a source never read (rc 5), never an error and never a failure.
+
+## The thread's pull of a member's mentions: one search.messages call under the identity that may search, its JSON kept as the folder's
+## `found.json`, its moment in `.state.txt`. rc 0 pulled, 1 no identity may search (nothing written: the folder stays unserved).
+AgentsWaitMentionsPull(){ ## member, cache folder, now
+	local pullMember="$1" pullDir="$2" pullNow="$3" pullSearcher="" pullId pullQuery pullAfter pullTokenOf pullTokens="" pullAs pullJson pullRc=1 pullTemp
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+	pullSearcher="$( AgentsToolsConfigOption magic-team --select WAIT_MENTIONS_SEARCHER 2> /dev/null )" || pullSearcher=""
+	AgentsToolsAssertBareName "${pullSearcher:-magic-coordinator}" WAIT_MENTIONS_SEARCHER mentions > /dev/null 2>&1 || pullSearcher=""
+	pullSearcher="${pullSearcher:-magic-coordinator}"
+	type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+	pullId="$( AgentsToolsSessionChatMemberId "$pullMember" 2> /dev/null )" || pullId=""
+	if [ -n "$pullId" ] ; then pullQuery="<@$pullId>" ; else pullQuery="\"@$pullMember\"" ; fi
+	pullAfter="$( printf '%s\n' "$(( pullNow - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" 2> /dev/null )" || pullAfter=""
+	type AgentsToolsSlackOwnSettingsApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+	for pullTokenOf in "$pullMember" "$pullSearcher" ; do
+		case " $pullTokens " in *" $pullTokenOf "*) continue ;; esac
+		[ -z "$( AgentsToolsSlackOwnSettingsApply "$pullTokenOf" && AgentsToolsConfigOption "$pullTokenOf" --select SLACK_USER_TOKEN 2> /dev/null )" ] || pullTokens="$pullTokens $pullTokenOf"
+	done
+	## No identity may search: said once in the thread's own log, which is where an operator reads why a source stays never read, and
+	## marked on the folder (`.unsearchable`) so the wants that follow are answered in silence until an identity can search.
+	if [ -z "$pullTokens" ] ; then
+		if [ ! -f "$pullDir/.unsearchable" ] ; then
+			printf '%s the comms thread cannot search the mentions of %s: no identity may search its mentions (neither %s nor %s has a user token with search:read), so the source stays never read\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$pullMember" "$pullMember" "$pullSearcher" >&2
+			{ mkdir -p "$pullDir" && : > "$pullDir/.unsearchable" ; } 2> /dev/null || :
+		fi
+		return 1
+	fi
+	rm -f "$pullDir/.unsearchable" 2> /dev/null || :
+	for pullAs in $pullTokens ; do
+		pullRc=0
+		pullJson="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$pullAs" --api search.messages --identity user \
+			--form "query=$pullQuery${pullAfter:+ after:$pullAfter}" --form sort=timestamp --form sort_dir=desc --form count=100 \
+			--context "comms thread: the mentions of $pullMember" 2> /dev/null )" || pullRc=$?
+		[ "$pullRc" != 0 ] || break
+	done
+	[ "$pullRc" = 0 ] || return 1
+	mkdir -p "$pullDir" 2> /dev/null || return 1
+	pullTemp="$( mktemp "$pullDir/found.json.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$pullJson" > "$pullTemp" && mv -f "$pullTemp" "$pullDir/found.json" || { rm -f "$pullTemp" ; return 1 ; }
+	printf '%s 0 0\n\nslack-mentions %s\n' "$pullNow" "$pullMember" > "$pullDir/.state.txt" 2> /dev/null || :
+	return 0
+}
+
 AgentsWaitProbeMentions(){
 	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probeNow probeChecked="" probeTtl probePointer="" probeId probeQuery probeAfter probeJson probeRc=1 probeAs probeErr="" probeStored="" probeKept="" probeNewest="" probeFound=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
@@ -69,9 +134,9 @@ AgentsWaitProbeMentions(){
 	AgentsWaitEmpty "$probeOut" || return 2
 	[ ! -e "$probeOut.newest" ] || rm -f "$probeOut.newest"
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
-	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
+	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
 	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
-	probeNow="$( date +%s )"
+	probeNow="${agentsWaitRoundNow:-$( date +%s )}"
 	probeTtl="$( AgentsWaitTtlOf "mentions:$probeMember" )"
 	## The TTL across calls: a check inside it is no check now.
 	if [ -n "$probeKey" ] ; then
@@ -94,6 +159,32 @@ AgentsWaitProbeMentions(){
 	fi
 	probePointer="${probeStored:-${probeFloor:-$probeNow.000000}}"
 	case "$probePointer" in ''|*[!0123456789.]*) probePointer="$probeNow.000000" ;; esac
+	## THE CACHE-ONLY READ (a team rig, MDAT_COMMS_CACHE_ONLY): the thread's last search is read from the folder; a folder not pulled yet
+	## is wanted and waited for within the probe's budget; one still unserved is never read (rc 5), and no Slack call is made here.
+	type AgentsToolsCommsCacheWaitReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+	if [ "${MDAT_COMMS_CACHE_ONLY:-}" = "true" ] && [ "${MDAT_COMMS_CACHE_PULLER:-}" != "true" ] && type AgentsToolsCommsCacheWaitReady > /dev/null 2>&1 ; then
+		local probeDir="$MMDAPP/.local/cache/comms/slack/slack-mentions-$probeMember"
+		AgentsToolsCommsCacheInterest "$probeDir" "$probeNow" "$probeTtl"
+		## FRESH, pulled within this source's TTL: read as it stands. STALE OR ABSENT: wanted from the thread and waited for within the
+		## budget; a stale folder nothing refreshed in time is read as it stands, an absent one is never read.
+		if ! { AgentsToolsCommsCacheState "$probeDir" && [ $(( probeNow - agentsCommsCacheAt )) -lt "$probeTtl" ] && [ -s "$probeDir/found.json" ] ; } ; then
+			AgentsToolsCommsCacheWanted "$probeDir" "slack-mentions $probeMember"
+			AgentsToolsCommsCacheWaitReady "$probeDir" "${MDAT_COMMS_CACHE_WAIT_SECONDS:-0}" || :
+			## Unserved: no check was made, so the check stamp written above is taken back, and the next round asks again instead of
+			## reading nothing inside the TTL and calling that a read.
+			if [ ! -s "$probeDir/found.json" ] ; then
+				if [ -n "$probeKey" ] ; then AgentsToolsSessionChatPointerSet "$probeKey" "mentions-checked:$probeMember" "$probeChecked" 2> /dev/null || : ; else printf '%s\n' "$probeChecked" > "$probeOut.checked" 2> /dev/null || : ; fi
+				return 5
+			fi
+		fi
+		probeJson="$( cat "$probeDir/found.json" 2> /dev/null )" || return 5
+		probeRc=0
+		probeFound="$( printf '%s\n' "$probeJson" | LC_ALL=C awk -v cutoff="$probePointer" -v channelMark=1 \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" 2> /dev/null )" || probeRc=$?
+		case "$probeRc" in 0|3) ;; *) return 5 ;; esac
+		[ "$probeRc" != 0 ] || AgentsWaitPut "$probeOut.found" "$probeFound"
+	else
 	local probeSearcher=""
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
 	probeSearcher="$( AgentsToolsConfigOption magic-team --select WAIT_MENTIONS_SEARCHER 2> /dev/null )" || probeSearcher=""
@@ -144,6 +235,7 @@ AgentsWaitProbeMentions(){
 			return 4
 		;;
 	esac
+	fi
 	## A search that found nothing leaves no .found file: an empty one stands for it, so a quiet search is a read (S21.2).
 	[ -e "$probeOut.found" ] || : > "$probeOut.found"
 	## Strictly newer than the pointer: the one returned last is not returned again. The conversation of each goes on a `# in` line before it.
@@ -172,10 +264,24 @@ AgentsWaitProbeMentions(){
 			}
 		}
 		keep { print }' "$probeOut.found" 2> /dev/null )" || return 2
+	## A mention the member already received through a session thread it takes part in is left out (AgentsWaitSessionReceivedDrop.awk).
+	if [ -n "$probeKept" ] && [ -s "${MMDAPP:-/nonexistent}/.local/agents/schedule/seen/$probeMember.session" ] ; then
+		probeKept="$( printf '%s\n' "$probeKept" | SEEN_SESSION_FILE="$MMDAPP/.local/agents/schedule/seen/$probeMember.session" LC_ALL=C awk \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitSessionReceivedDrop.awk" )" || return 2
+	fi
 	[ -z "$probeKept" ] || probeKept="$probeKept"$'\n'
 	AgentsWaitPut "$probeOut" "$probeKept" || return 2
 	AgentsWaitOwnFile "$probeOut" || return 2
-	probeNewest="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" 2> /dev/null )" || :
+	## The newest ts of what was kept, read by the shell off the lines in hand (call-path audit row 18): the last line of the form
+	## `<digits>.<digits> | ...`, as the awk over the written file took it.
+	local probeLine probeWord
+	probeNewest=""
+	while IFS= read -r probeLine ; do
+		probeWord="${probeLine%% *}"
+		case "$probeLine" in "$probeWord | "*) ;; *) continue ;; esac
+		case "$probeWord" in ''|*[!0-9.]*|.*|*.|*.*.*) continue ;; esac
+		probeNewest="$probeWord"
+	done <<< "$probeKept"
 	[ -z "$probeNewest" ] || probeNewest="$probeNewest"$'\n'
 	AgentsWaitPut "$probeOut.newest" "$probeNewest" || :
 	return 0
@@ -187,7 +293,7 @@ AgentsWaitMentionsCommit(){ ## member, the file holding the newest ts
 	[ -f "$2" ] && IFS= read -r commitTs < "$2" || return 0
 	[ -n "$commitTs" ] || return 0
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
-	commitKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || commitKey=""
+	AgentsToolsSessionChatKeyInto ; commitKey="$agentsSessionChatKey"
 	if [ -n "$commitKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$commitKey" ] ; then
 		AgentsToolsSessionChatPointerSet "$commitKey" "mentions:$1" "$commitTs"
 	else
@@ -210,8 +316,15 @@ AgentsWaitProbeTagged(){
 	## message among the rest, once: this source then says only that it is tagged there, which is what ends a collect.
 	local probeTeamChannel probeShown=0
 	[ "$agentsWaitCovered" != "?" ] || agentsWaitCovered="$( AgentsWaitCoveredSet "$probeMember" $agentsWaitCoverSources )"
-	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || :
-	probeTeamChannel="$( DistroAgentsToolsResolveTarget magic-team "$probeMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' )" || probeTeamChannel=""
+	## THE TEAM CHANNEL IS RESOLVED ONCE PER PROCESS AND MEMBER (call-path audit row 17): a Wait process serves one member, and the
+	## channel a name resolves to does not change inside it. The resolve and its sed ran at every round before.
+	if [ "${agentsWaitTeamChannelFor:-}" = "$probeMember" ] ; then
+		probeTeamChannel="${agentsWaitTeamChannel:-}"
+	else
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || :
+		probeTeamChannel="$( DistroAgentsToolsResolveTarget magic-team "$probeMember" 2> /dev/null | LC_ALL=C sed -n 's/^CHANNEL=//p' )" || probeTeamChannel=""
+		agentsWaitTeamChannel="$probeTeamChannel" agentsWaitTeamChannelFor="$probeMember"
+	fi
 	case " $agentsWaitCovered " in *" $probeTeamChannel "*) [ -z "$probeTeamChannel" ] || probeShown=1 ;; esac
 	probeParts=$(( probeParts + 1 ))
 	if AgentsWaitReadRendered "$probeMember" magic-team conversation "$probeFloor" "$probeOut.team" ; then
@@ -222,7 +335,7 @@ AgentsWaitProbeTagged(){
 	## The session thread: a message that mentions the member. A session thread where the member's own instance is present is
 	## no work for a duty: its instance reads that thread itself, and the run reads it as its own chat. Those messages are
 	## returned for knowledge only, every row marked FYI (AgentsWaitTaggedPart), and no duty acts on them.
-	probeSession="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; probeSession="$agentsSessionChatKey"
 	probeThread=""
 	[ -z "$probeSession" ] || probeThread="$( AgentsToolsSessionChatThread "$probeSession" )" || probeThread=""
 	if [ -n "$probeThread" ] ; then
@@ -237,15 +350,32 @@ AgentsWaitProbeTagged(){
 		fi
 	fi
 	## Every DM: nobody mentions anyone in a direct conversation, so a message there is for the member by being there.
-	type AgentsToolsCommsSlackConversationsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include" 2> /dev/null || :
 	probeParts=$(( probeParts + 1 ))
+	## THE ROSTER IS THE DM PROBE'S KEPT ONE (call-path audit row 17): sessions/<session>/dms-roster.<member>, kept for
+	## agentsWaitDmsRosterSeconds and read by the shell; the tooling call runs only where it is older or absent, and writes it
+	## for both probes. The roster was listed by a tooling call at every round before.
+	local probeRosterFile="" probeRosterAt=0 probeRosterNow="${agentsWaitRoundNow:-}"
+	[ -z "$probeSession" ] || probeRosterFile="$MMDAPP/.local/agents/sessions/$probeSession/dms-roster.$probeMember"
+	if [ -n "$probeRosterFile" ] && [ -s "$probeRosterFile" ] ; then
+		[ -n "$probeRosterNow" ] || probeRosterNow="$( date +%s )"
+		probeRosterAt="$( LC_ALL=C stat -f %m "$probeRosterFile" 2> /dev/null || stat -c %Y "$probeRosterFile" 2> /dev/null || echo 0 )"
+		case "$probeRosterAt" in ''|*[!0-9]*) probeRosterAt=0 ;; esac
+	fi
 	## A roster one identity could not list is a partial one, used for what it names (the context scan's rule): only an empty answer is a failure.
-	probeRoster="$( AgentsToolsCommsSlackConversationsRoster "$probeMember" --types im,mpim 2> /dev/null )" || :
+	if [ -n "$probeRosterFile" ] && [ -s "$probeRosterFile" ] && [ $(( probeRosterNow - probeRosterAt )) -lt "${agentsWaitDmsRosterSeconds:-300}" ] ; then
+		probeRoster="" ; IFS= read -r -d '' probeRoster < "$probeRosterFile" 2> /dev/null || :
+		while [ "${probeRoster%$'\n'}" != "$probeRoster" ] ; do probeRoster="${probeRoster%$'\n'}" ; done
+	else
+		type AgentsToolsCommsSlackConversationsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include" 2> /dev/null || :
+		probeRoster="$( AgentsToolsCommsSlackConversationsRoster "$probeMember" --types im,mpim 2> /dev/null )" || :
+		[ -z "$probeRoster" ] || [ -z "$probeRosterFile" ] || printf '%s\n' "$probeRoster" > "$probeRosterFile" 2> /dev/null || :
+	fi
 	if [ -n "$probeRoster" ] ; then
 		while IFS= read -r probeLine ; do
 			case "$probeLine" in "CONV|"*) ;; *) continue ;; esac
 			probeConv="" probeKind="" probeIdentity="" probeParty=""
-			for probeIdentArg in $( printf '%s\n' "$probeLine" | LC_ALL=C tr '|' ' ' ) ; do
+			## The line is split by the shell, no tr process per line (call-path audit row 17).
+			for probeIdentArg in ${probeLine//|/ } ; do
 				case "$probeIdentArg" in
 					id=*) probeConv="${probeIdentArg#id=}" ;;
 					kind=*) probeKind="${probeIdentArg#kind=}" ;;

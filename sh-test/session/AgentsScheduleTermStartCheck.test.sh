@@ -9,7 +9,8 @@
 ##   4. THE PASS IN HAND IS NOT ABANDONED: what ended is still reported while the signal stands.
 ##   5. ANY END WORD STOPS STARTS, not TERM alone, because the guard reads the variable and not its value.
 ## The spawner is a stand-in on `DistroAgentsTools` that records every call, so nothing is started and no session is made.
-## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06: delete the guard at :543 and rows 2, 3 and 5 fail.
+## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06: delete the guard that returns 1 while `serveEnd` is
+## set (:654 at 2026-11-09 02:47) and rows 2, 3 and 5 fail.
 ## Offline: the include this check loads, a rig of its own, and no spawner, git or network.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"

@@ -239,7 +239,8 @@ rigForkCount(){ ## none
 mkdir -p "$rigTmp/forkbin" || rigRefuse "the fork stub folder could not be made"
 for rigForkTool in ps sed awk grep find cut basename head tail tr wc sort ls : ; do
 	rigForkReal="$( command -v "$rigForkTool" 2> /dev/null )" || continue
-	printf '#!/bin/bash\nprintf "%%s\\n" %s >> "%s"\nexec %s "$@"\n' "$rigForkTool" "$rigTmp/fork.log" "$rigForkReal" > "$rigTmp/forkbin/$rigForkTool"
+	## The stand-in runs under the running bash, as the bash path audit asks (AgentsBashPathGuardCheck), never a fixed path.
+	printf '#!%s\nprintf "%%s\\n" %s >> "%s"\nexec %s "$@"\n' "$BASH" "$rigForkTool" "$rigTmp/fork.log" "$rigForkReal" > "$rigTmp/forkbin/$rigForkTool"
 	chmod +x "$rigTmp/forkbin/$rigForkTool"
 done
 rigFewForks="$( rigForkCount )"

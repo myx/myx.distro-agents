@@ -54,7 +54,7 @@ rigScenario(){ ## name, auth answer (in|out|junk), key value or empty
 }
 ## One console run, guarded; rc into $rigDir/rc.
 rigConsole(){ ## console args...
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_TEMPLATE="$rigTemplate" \
+	env -i AGENTS_REGISTRY_HOUSEKEEPING=1 MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_TEMPLATE="$rigTemplate" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree: $MMDAPP" >&2 ; exit 99 ;; esac
 			case "$( command -v claude )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: claude is not the rig stub" >&2 ; exit 99 ;; esac
@@ -70,7 +70,8 @@ rigHolds(){ ## file, text
 ## One spawn-proxy call in the rig's workspace, guarded, the caller naming its own options: its stdout
 ## is $rigDir/out, its stderr $rigDir/err, its status $rigDir/rc.
 rigSpawnProxy(){ ## proxy arguments...
-	printf 'rig context' | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	## The registry's housekeeping thread (AgentsToolsRegistryHousekeepingDue) is held off: detached, it wrote into the rig's tree after the teardown.
+	printf 'rig context' | env -i AGENTS_REGISTRY_HOUSEKEEPING=1 MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree: $MMDAPP" >&2 ; exit 99 ;; esac

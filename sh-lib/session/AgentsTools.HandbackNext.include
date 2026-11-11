@@ -107,8 +107,9 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 			/*[!A-Za-z0-9._/@+-]*|[!/]*|*'/../'*|*'/..'|*'/./'*|*'//'*)
 				case "$nextInput" in
 					*/*) nextWhy="the input is neither an absolute path of plain characters with no . or .. part, nor one bare vault epic item name: $nextInput." ;;
-					epic-blueprint-*.md)
-						nextReal="${MDAT_DATA_ROOT:-}/vault/$nextInput"
+					epic-blueprint-*)
+						## a name with no extension is the Markdown document of that name (the ruling in AgentsTools.InternOpVaultAudit.include)
+						case "$nextInput" in *.*) nextReal="${MDAT_DATA_ROOT:-}/vault/$nextInput" ;; *) nextReal="${MDAT_DATA_ROOT:-}/vault/$nextInput.md" ;; esac
 						if [ -z "${MDAT_DATA_ROOT:-}" ] || [ ! -f "$nextReal" ] ; then
 							nextWhy="the input names no vault epic item: $nextInput."
 						fi

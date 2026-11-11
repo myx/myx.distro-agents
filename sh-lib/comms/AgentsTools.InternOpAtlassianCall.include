@@ -1664,6 +1664,60 @@ case "$1" in
 		return 0
 	;;
 
+	--intern-op-atlassian-jira-project-delete)
+		shift || :
+		local jiraPDelMember="" jiraPDelKey="" jiraPDelContext="intern-op-atlassian-jira-project-delete" jiraPDelFlag="" jiraPDelValue=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--project-key|--context)
+					jiraPDelFlag="$1"
+					shift || :
+					jiraPDelValue="${1:-}"
+					shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraPDelContext: $jiraPDelFlag value missing" >&2 ; set +e ; return 1 ; }
+					[ -n "$jiraPDelValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraPDelContext: $jiraPDelFlag value missing" >&2 ; set +e ; return 1 ; }
+					case "$jiraPDelFlag" in
+						--member)      jiraPDelMember="$jiraPDelValue" ;;
+						--project-key) jiraPDelKey="$jiraPDelValue" ;;
+						--context)     jiraPDelContext="$jiraPDelValue" ;;
+					esac
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraPDelContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraPDelMember" ] || [ -z "$jiraPDelKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraPDelContext: syntax is --member <team-member> --project-key <project-key> [--context <caller>] -- a project is deleted only by an identity its site allows to delete one" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraPDelKey" "<project-key>" "$jiraPDelContext" || { set +e ; return 1 ; }
+		local jiraPDelBody jiraPDelRc=0
+		jiraPDelBody="$( AgentsToolsAtlassianCall "$jiraPDelMember" jira GET "/rest/api/3/project/$( AgentsToolsAtlassianUrlEncode "$jiraPDelKey" )" "$jiraPDelContext" "" )" || jiraPDelRc=$?
+		if [ "$jiraPDelRc" -ne 0 ] ; then
+			set +e ; return "$jiraPDelRc"
+		fi
+		local jiraPDelFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+		local jiraPDelName="$( printf '%s\n' "$jiraPDelBody" | LC_ALL=C awk -v path=name -v optional=1 -v dialect=atlassian -f "$jiraPDelFieldAwk" 2>/dev/null )"
+		local jiraPDelReadKey="$( printf '%s\n' "$jiraPDelBody" | LC_ALL=C awk -v path=key -v optional=1 -v dialect=atlassian -f "$jiraPDelFieldAwk" 2>/dev/null )"
+		if [ -z "$jiraPDelName" ] || [ -z "$jiraPDelReadKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraPDelContext: UNKNOWN -- the site answered without the project's own name and key, so what would be deleted is not confirmed, and nothing was deleted. Read the project before calling again" >&2
+			set +e ; return 3
+		fi
+		## A print that cannot be written refuses: a delete nobody saw confirmed must not go out.
+		printf 'KEY\tNAME\n%s\t%s\n' "$jiraPDelReadKey" "$jiraPDelName" || {
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraPDelContext: the print-back could not be written, so nothing was deleted" >&2
+			set +e ; return 1
+		}
+		## stdout is the print-back alone, so the delete's own answer never joins it.
+		local jiraPDelDeleteRc=0
+		AgentsToolsAtlassianCall "$jiraPDelMember" jira DELETE "/rest/api/3/project/$( AgentsToolsAtlassianUrlEncode "$jiraPDelKey" )?enableUndo=false" "$jiraPDelContext" "" > /dev/null || jiraPDelDeleteRc=$?
+		if [ "$jiraPDelDeleteRc" -ne 0 ] ; then
+			set +e ; return "$jiraPDelDeleteRc"
+		fi
+		return 0
+	;;
+
 	--intern-op-atlassian-confluence-page-search)
 		shift
 		local confPSMember="" confPSCql="" confPSLimit="" confPSContext="intern-op-atlassian-confluence-page-search"

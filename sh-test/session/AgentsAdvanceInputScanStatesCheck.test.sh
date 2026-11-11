@@ -423,9 +423,10 @@ rigCheck "its item status names ended-without-close"                      "$( ri
 echo "   registry rows, rebuilt in the same pass"
 rigCheck "the unclosed local row is now closed and finished"              "$( rigRegRow "$rigTmp/b2.s1" rig-ldead )" "spawn-ended-without-close finished"
 rigCheck "the unclosed foreign row is now closed and finished"            "$( rigRegRow "$rigTmp/b2.s1" rig-fdead )" "spawn-ended-without-close finished"
-rigCheck "control: the live row is untouched and running"                 "$( rigRegRow "$rigTmp/b2.s1" rig-live )" "spawn-started running"
+## A live run's state is its activity word since 2 November (AgentsToolsRegistryRunActivity: `thinking` with no activity file), and a run of another host reads `unclosed` (1ecf19d2, 9a275a30).
+rigCheck "control: the live row is untouched and live, its state the activity word" "$( rigRegRow "$rigTmp/b2.s1" rig-live )" "spawn-started thinking"
 rigCheck "control: the recent dead row stays unclosed"                    "$( rigRegRow "$rigTmp/b2.s1" rig-lfresh )" "spawn-started unclosed"
-rigCheck "control: the foreign alive row stays unknown-foreign"           "$( rigRegRow "$rigTmp/b2.s1" rig-falive )" "spawn-started unknown-foreign"
+rigCheck "control: the foreign alive row stays open, read as unclosed from this host" "$( rigRegRow "$rigTmp/b2.s1" rig-falive )" "spawn-started unclosed"
 rigCheck "control: the row with no spawn-id stays unclosed"               "$( rigRegRow "$rigTmp/b2.s1" rig-nospawn )" "spawn-started unclosed"
 rigCheck "control: the row with an open ask stays waiting"                "$( rigRegRow "$rigTmp/b2.s1" rig-lask )" "spawn-started waiting"
 echo "   second pass"
@@ -439,7 +440,7 @@ rigSandbox rig-nwdead "$rigHost" spawn-started "run-process: 9000002 Mon_Oct_12_
 rigSandbox rig-nwreused "$rigHost" spawn-started "run-process: 9000003 Mon_Oct_12_07:00:00_2026" ; rigDispatch rig-nwreused dispatch-started ; rigAge "$( rigDir rig-nwreused )" 48
 rigSandbox rig-nwword "$rigHost" spawn-started ; rigDispatch rig-nwword dispatch-started ; rigAge "$( rigDir rig-nwword )" 48
 rigPass "$rigTmp/b2n.s1"
-rigCheck "a live run with no session word reads running, by the process its record names" "$( rigRegRow "$rigTmp/b2n.s1" rig-nwlive )" "spawn-started running"
+rigCheck "a live run with no session word reads live by the process its record names, its state the activity word" "$( rigRegRow "$rigTmp/b2n.s1" rig-nwlive )" "spawn-started thinking"
 rigCheck "and is not closed, though its files are 48 h old: record and item as they were" "$( rigHeader "$( rigRec rig-nwlive )" status ):$( rigLoc dispatch-rig-nwlive.md )" "spawn-started:running"
 rigCheck "a dead one is closed: its record, and its item to review" "$( rigHeader "$( rigRec rig-nwdead )" status ):$( rigLoc dispatch-rig-nwdead.md )" "spawn-ended-without-close:review"
 rigCheck "a pid taken again by another process is not taken for the run: closed too" "$( rigHeader "$( rigRec rig-nwreused )" status ):$( rigLoc dispatch-rig-nwreused.md )" "spawn-ended-without-close:review"
@@ -563,7 +564,7 @@ rigSites(){ ## file, fixed text that marks a launch site -- "sites in-order": 4>
 		}
 		END { printf "%d %d", sites, ordered }' "$1"
 }
-rigCheck "the 4 execute and background launch sites each have 4>&2 before their stderr redirection" "$( rigSites "$rigMcp" '--intern-mcp-execute' )" "4 4"
+rigCheck "the 6 execute and background launch sites (each with and without --workspace) each have 4>&2 before their stderr redirection" "$( rigSites "$rigMcp" '--intern-mcp-execute' )" "6 6"
 rigDir4="$rigTmp/fd4wrap" ; mkdir -p "$rigDir4"
 bash -c '( sh -c "echo out ; echo err >&2 ; echo diag >&4" ) 4>&2 > "$1" 2>&1' rig "$rigDir4/f1" 2> "$rigDir4/outer1"
 rigCheck "mini-rig, 4>&2 first: the result file holds out and err only"   "$( LC_ALL=C tr '\n' ' ' < "$rigDir4/f1" )" "out err "
@@ -733,27 +734,30 @@ rigCheck "a script with its own 2>&1: the result with true"                "$( r
 rigCheck "a script with its own 2>&1: the result with false is the same"   "$( rigMcpText 8 )" "$( rigMcpText 7 )"
 rigCheck "and nothing of it reached the server's own stderr"              "$( LC_ALL=C grep -c -x 'errown' "$rigMd/server.err" || : )" 0
 echo "   background execute"
-rigMcpBg(){ ## first id, merge value, marker -- starts a background job, polls it to its end, prints everything it returned
-	local bgId="$1" bgJob bgLoop=0 bgAll="" bgPoll
+## A background execute is a task of the session (AgentsTools.ToolTask.include): the reply opens with TASK-ID=process-N, and
+## the session's processes/ folder holds the task's files by that handle: process-N.out, process-N.err and, once it has
+## ended, process-N.status. Printed as three lines: OUT:<out>, ERR:<err>, STATUS:<exit status>.
+rigMcpBg(){ ## first id, merge value, marker -- starts a background task, waits for its end, prints its out, err and status
+	local bgId="$1" bgTask bgLoop=0 bgOut bgRun=""
 	rigMcpCall "$bgId" execute "{\"command\":\"echo rigout ; echo $3 >&2\",\"background\":true,\"merge_stderr\":$2}"
-	bgJob="$( rigMcpText "$bgId" | LC_ALL=C sed -n 's/^\[job \([0-9]*\) started.*/\1/p' )"
-	[ -n "$bgJob" ] || rigRefuse "no job id in the background start reply: $( rigMcpText "$bgId" )"
-	while [ "$bgLoop" -lt 40 ] ; do
-		bgPoll=$(( bgId * 100 + bgLoop ))
-		rigMcpCall "$bgPoll" execute "{\"job\":$bgJob}"
-		bgAll="$bgAll$( rigMcpText "$bgPoll" )"
-		case "$bgAll" in *"finished, exit code"*) break ;; esac
-		sleep 0.3 ; bgLoop=$(( bgLoop + 1 ))
+	bgTask="$( rigMcpText "$bgId" | LC_ALL=C sed -n 's/^TASK-ID=\(process-[0-9]*\).*/\1/p' )"
+	[ -n "$bgTask" ] || rigRefuse "no task handle in the background start reply: $( rigMcpText "$bgId" )"
+	for bgOut in "$rigMd"/ws/.local/agents/sessions/*/processes/"$bgTask".out ; do
+		[ -f "$bgOut" ] || continue
+		bgRun="${bgOut%.out}" ; break
 	done
-	printf '%s' "$bgAll"
+	[ -n "$bgRun" ] || rigRefuse "no task files for $bgTask under $rigMd/ws/.local/agents/sessions/*/processes"
+	while [ "$bgLoop" -lt 40 ] && [ ! -f "$bgRun.status" ] ; do sleep 0.3 ; bgLoop=$(( bgLoop + 1 )) ; done
+	printf 'OUT:%s\nERR:%s\nSTATUS:%s\n' "$( cat "$bgRun.out" )" "$( cat "$bgRun.err" )" "$( cat "$bgRun.status" 2> /dev/null )"
 }
 rigBgFalse="$( rigMcpBg 20 false errbgfalse )"
-rigCheck "background with false: the job's output has the stdout"          "$( printf '%s' "$rigBgFalse" | LC_ALL=C grep -c -F rigout || : )" 1
-rigCheck "background with false: the job's output has no stderr"           "$( printf '%s' "$rigBgFalse" | LC_ALL=C grep -c -F errbgfalse || : )" 0
-rigCheck "background with false: the job finished"                         "$( printf '%s' "$rigBgFalse" | LC_ALL=C grep -c -F 'finished, exit code' || : )" 1
-rigCheck "background with false: the stderr is on the server's own stderr" "$( LC_ALL=C grep -c -x 'errbgfalse' "$rigMd/server.err" || : )" 1
+rigCheck "background with false: the task's out has the stdout"            "$( printf '%s\n' "$rigBgFalse" | LC_ALL=C grep -c -x 'OUT:rigout' || : )" 1
+rigCheck "background with false: the task's out has no stderr"             "$( printf '%s\n' "$rigBgFalse" | LC_ALL=C grep -c -F 'OUT:errbgfalse' || : )" 0
+rigCheck "background with false: the task ended, with its exit status"     "$( printf '%s\n' "$rigBgFalse" | LC_ALL=C grep -c -x 'STATUS:0' || : )" 1
+rigCheck "background with false: the stderr is in the task's err file"     "$( printf '%s\n' "$rigBgFalse" | LC_ALL=C grep -c -x 'ERR:errbgfalse' || : )" 1
 rigBgTrue="$( rigMcpBg 21 true errbgtrue )"
-rigCheck "control, background with true: the job's output has the stderr"  "$( printf '%s' "$rigBgTrue" | LC_ALL=C grep -c -F errbgtrue || : )" 1
+rigCheck "control, background with true: the task's out has the stderr"    "$( printf '%s\n' "$rigBgTrue" | LC_ALL=C grep -c -x 'errbgtrue' || : )" 1
+rigCheck "control, background with true: the task's err file is empty"     "$( printf '%s\n' "$rigBgTrue" | LC_ALL=C grep -c -x 'ERR:' || : )" 1
 rigMcpClose
 
 echo "-- stage 2: the daemon line, exit codes in both merge modes, and the withdrawn filter's names --"

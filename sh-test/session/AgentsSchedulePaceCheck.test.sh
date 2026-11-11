@@ -38,52 +38,70 @@ cd "$rigWs" || exit 1
 set -- check
 . "$rigPackage/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1 || rigRefuse "the Dispatcher include would not load"
 
-## One stand-in run: a live spawn record, and a context.jsonl holding the calls this check decides.
-rigRun(){ ## run id, then one `dur_ms` a call
-	local runId="$1" runDir rigDur callNo=1
-	shift
+## The measure as it stands: the median MACHINERY time (mach_ms) of the calls of LIVE runs within the window (MDAT_TOOL_PACE_WINDOW_SECONDS,
+## 300) by each record's own clock ("ms"), Wait records left out, pace.mcp lines added, against MDAT_TOOL_PACE_MS (4000); the line reads
+## "pace: N.Ns machinery a call, N calls in 5 minutes -- under 4s, a duty start is allowed". The cache is off here, so every row reads afresh.
+export MDAT_TOOL_PACE_CACHE_SECONDS=0
+rigNowMs="$(( $( date +%s ) * 1000 ))"
+## One stand-in run: a spawn record (live unless told otherwise), and a context.jsonl holding the calls this check decides.
+rigRun(){ ## run id, status (started|done), tool, clock offset in seconds (0 = now, 7200 = two hours back), then one mach_ms a call
+	local runId="$1" runStatus="$2" runTool="$3" runBack="$4" runDir rigMach callNo=1
+	shift 4
 	runDir="$rigWs/.local/agents/spawned/$runId"
 	mkdir -p "$runDir" || return 1
-	printf -- '---\nspawn-id: %s\nsession-id: %s\nowner: magic-librarian\nstatus: spawn-started\nroutine: magic-team.work-duty.routine.md\n---\n' "$runId" "$runId" > "$runDir/$runId.spawn.md"
+	printf -- '---\nspawn-id: %s\nsession-id: %s\nowner: magic-librarian\nstatus: spawn-%s\nroutine: magic-team.work-duty.routine.md\n---\n' "$runId" "$runId" "$runStatus" > "$runDir/$runId.spawn.md"
 	: > "$runDir/context.jsonl"
-	for rigDur in "$@" ; do
-		printf '{"type":"tool","tool":"Bash","id":"t%s","dur_ms":%s,"outcome":"ok"}\n' "$callNo" "$rigDur" >> "$runDir/context.jsonl"
+	for rigMach in "$@" ; do
+		printf '{"type":"message","kind":"tool","tool":"%s","id":"t%s","ms":%s,"dur_ms":%s,"mach_ms":%s,"outcome":"ok"}\n' "$runTool" "$callNo" "$(( rigNowMs - runBack * 1000 ))" "$(( rigMach * 10 ))" "$rigMach" >> "$runDir/context.jsonl"
 		callNo=$(( callNo + 1 ))
 	done
 	return 0
 }
+rigPace(){ AgentsToolsSchedulePaceText ; }
+rigGate(){ AgentsToolsSchedulePaceAllows && printf allowed || printf held ; }
 
 echo "-- 1. the measure, and its window --"
-rigRun run-a 1000 1000 1000
-rigAssert "the median of one live run's calls is read: 1000 of three calls, under the limit" \
-	"$( AgentsToolsSchedulePaceText )" "pace: 1000 of 3 calls in 30 minutes -- under 7000, a duty start is allowed"
-## An OLD file is out of the window: its mtime is set two hours back.
-rigRun run-old 60000 60000 60000
-touch -t "$( date -v-2H '+%Y%m%d%H%M' 2> /dev/null || date -d '2 hours ago' '+%Y%m%d%H%M' )" "$rigWs/.local/agents/spawned/run-old/context.jsonl"
-rigAssert "a run whose calls are older than the window is not counted: still 1000 of three" \
-	"$( AgentsToolsSchedulePaceText )" "pace: 1000 of 3 calls in 30 minutes -- under 7000, a duty start is allowed"
+rigRun run-a started Bash 0 1000 1000 1000
+rigAssert "the median machinery time of one live run's calls is read: 1.0 s of three calls, under 4 s" \
+	"$( rigPace )" "pace: 1.0s machinery a call, 3 calls in 5 minutes -- under 4s, a duty start is allowed"
+rigRun run-old started Bash 7200 60000 60000 60000
+rigAssert "calls older than the window by their own clock are not counted: still 1.0 s of three" \
+	"$( rigPace )" "pace: 1.0s machinery a call, 3 calls in 5 minutes -- under 4s, a duty start is allowed"
+rigRun run-done done Bash 0 60000 60000 60000
+rigAssert "a run that is not live is not counted either: still 1.0 s of three" \
+	"$( rigPace )" "pace: 1.0s machinery a call, 3 calls in 5 minutes -- under 4s, a duty start is allowed"
+rigRun run-wait started Wait 0 900000 900000 900000
+rigAssert "a Wait waits by design, so its records are left out: still 1.0 s of three" \
+	"$( rigPace )" "pace: 1.0s machinery a call, 3 calls in 5 minutes -- under 4s, a duty start is allowed"
+rigAssert "machinery time is read, not the call's own run: dur_ms is ten times mach_ms here and the line says 1.0 s" \
+	"$( LC_ALL=C grep -c '"dur_ms":10000' "$rigWs/.local/agents/spawned/run-a/context.jsonl" ):$( rigPace | LC_ALL=C grep -c '^pace: 1.0s' )" "3:1"
+mkdir -p "$rigWs/.local/agents/schedule"
+printf '%s 1000 Edit\n%s 1000 Read\n%s 900000 Wait\n' "$( date +%s )" "$( date +%s )" "$( date +%s )" > "$rigWs/.local/agents/schedule/pace.mcp"
+rigAssert "the served calls of pace.mcp count too, its Wait lines left out: 1.0 s of five" \
+	"$( rigPace )" "pace: 1.0s machinery a call, 5 calls in 5 minutes -- under 4s, a duty start is allowed"
+rm -f "$rigWs/.local/agents/schedule/pace.mcp"
 
 echo "-- 2. no measure is a permit --"
 rm -rf "$rigWs/.local/agents/spawned"
-rigAssert "with no calls in the window nothing says the machine is slow, so a start is allowed" \
-	"$( AgentsToolsSchedulePaceAllows && printf allowed || printf held )" "allowed"
-rigRun run-thin 9000
-rigAssert "and one slow call is none of the median's business either: allowed" \
-	"$( AgentsToolsSchedulePaceAllows && printf allowed || printf held )" "allowed"
+rigAssert "with no live run calling in the window the line says so, and a start is allowed" \
+	"$( rigPace ):$( rigGate )" "pace: no live run made a call in 5 minutes -- a duty start is allowed, one a pass:allowed"
+rigRun run-thin started Bash 0 9000
+rigAssert "one slow call is too few to judge: allowed, and the line says so" \
+	"$( rigPace ):$( rigGate )" "pace: 9.0s machinery a call, 1 calls in 5 minutes -- too few to judge, a duty start is allowed:allowed"
 
 echo "-- 3. over the limit is no start --"
 rm -rf "$rigWs/.local/agents/spawned"
-rigRun run-slow 8000 9000 9000
-rigAssert "a median of 9000, over 7000, holds a start, and the line says so" \
-	"$( AgentsToolsSchedulePaceText ):$( AgentsToolsSchedulePaceAllows && printf allowed || printf held )" \
-	"pace: 9000 of 3 calls in 30 minutes -- over 7000, a duty start is held:held"
-rigRun run-edge 7000 7000
-rigAssert "a median of exactly the limit holds it too: the epic says under 7 s" \
-	"$( AgentsToolsSchedulePaceAllows && printf allowed || printf held )" "held"
+rigRun run-slow started Bash 0 8000 9000 9000
+rigAssert "a median of 9.0 s, over 4 s, holds a start, and the line says so" \
+	"$( rigPace ):$( rigGate )" "pace: 9.0s machinery a call, 3 calls in 5 minutes -- over 4s, a duty start is held:held"
 rm -rf "$rigWs/.local/agents/spawned"
-rigRun run-fast 100 200
+rigRun run-edge started Bash 0 4000 4000 4000
+rigAssert "a median of exactly the limit holds it too: under 4 s is the permit" \
+	"$( rigGate )" "held"
+rm -rf "$rigWs/.local/agents/spawned"
+rigRun run-fast started Bash 0 100 200 300
 rigAssert "and a median under the limit allows it again" \
-	"$( AgentsToolsSchedulePaceAllows && printf allowed || printf held )" "allowed"
+	"$( rigGate )" "allowed"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE PACE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

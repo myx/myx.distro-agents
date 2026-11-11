@@ -40,6 +40,17 @@ AgentsToolsAdvanceCloneSync(){
 	fi
 	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
+	## A head that moved under the pull -- a writer's commit landed between the sync's fetch and its merge, and git says "fetch updated
+	## the current branch head" and refuses to move the tree -- is a writer's transient, as another writer's index.lock is to item-upsert:
+	## the sync is run again, up to five times two seconds apart. A failure of another kind is reported as it is.
+	local syncTries=0
+	while [ "$syncRc" -ne 0 ] && [ "$syncTries" -lt 5 ] ; do
+		case "$advanceSyncOut" in *"fetch updated the current branch head"*) ;; *) break ;; esac
+		syncTries=$(( syncTries + 1 ))
+		sleep 2
+		advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+		syncRc=$?
+	done
 	## A merge the sync could not settle -- origin and a writer here both moved one file -- is settled here and the sync run again, as
 	## AgentsToolsTeamDataPushIfAhead settles one. A sync that failed for any other reason is reported as it is.
 	if [ "$syncRc" -ne 0 ] ; then
@@ -316,12 +327,17 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 ## agentsRoutineLockTaken (yes where this call took at least one) and agentsRoutineLockOutput (what the routines' own acquire
 ## operations printed that the run reads).
 AgentsToolsRoutineLockAcquire(){ ## the routine-lock-document value (a list), the session id, the routine's short name
-	local acqOne acqTaken=() acqRc=0 acqWaited=0 acqGate="$MMDAPP/.local/agents/locks/routine-lock-acquire"
+	local acqOne acqTaken=() acqRc=0 acqWaited=0 acqGate="$MMDAPP/.local/agents/locks/routine-lock-acquire" acqNow="" acqGateAt=""
 	agentsRoutineLockTaken="no" ; agentsRoutineLockOutput=""
 	## ONE ACQUIRE AT A TIME PER WORKSPACE (S12.13, interim): its git steps share the one team-data checkout.
 	mkdir -p "${acqGate%/*}" 2> /dev/null || :
 	until mkdir "$acqGate" 2> /dev/null ; do
-		[ -z "$( find "$acqGate" -maxdepth 0 -mmin +10 2> /dev/null )" ] || { rmdir "$acqGate" 2> /dev/null ; continue ; }
+		## A gate held over ten minutes is a dead holder's: its age is one stat against the clock read once here, plus the
+		## seconds waited since, in place of a find process on each round (call-path audit row 36).
+		[ -n "$acqNow" ] || acqNow="$( date +%s )"
+		acqGateAt="$( stat -f %m "$acqGate" 2> /dev/null || stat -c %Y "$acqGate" 2> /dev/null || printf '%s' "$acqNow" )"
+		case "$acqGateAt" in ''|*[!0-9]*) acqGateAt="$acqNow" ;; esac
+		[ $(( acqNow + acqWaited - acqGateAt )) -lt 600 ] || { rmdir "$acqGate" 2> /dev/null ; continue ; }
 		[ "$acqWaited" -lt 600 ] || { agentsRoutineLockOutput="the routine-lock acquire gate stayed held for 600s: $acqGate" ; echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $agentsRoutineLockOutput" >&2 ; return 1 ; }
 		sleep 2 ; acqWaited=$(( acqWaited + 2 ))
 	done
@@ -396,9 +412,10 @@ AgentsToolsRoutineLockRelease(){ ## spawn record, outcome, exit code
 	[ -n "$releaseValue" ] || return 0
 	releaseSession="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" session-id )"
 	releaseThis="${releaseRecord##*/}"
-	for releaseOther in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+	## The session's other records from the kept per-session list (AgentsTools.StartedRecords.include), never a read of every record at a run's end.
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for releaseOther in $( AgentsToolsSpawnedSessionRecords "$releaseSession" own 2> /dev/null ) ; do
 		[ -f "$releaseOther" ] && [ "${releaseOther##*/}" != "$releaseThis" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" session-id )" = "$releaseSession" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" routine-lock )" = "$releaseValue" ] || continue
 		! AgentsToolsSessionRecordLive "$releaseOther" || return 0
 	done
@@ -431,9 +448,9 @@ AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the 
 		return 1
 	}
 	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-	for relOther in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for relOther in $( AgentsToolsSpawnedSessionRecords "$relSession" own 2> /dev/null ) ; do
 		[ -f "$relOther" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$relOther" session-id )" = "$relSession" ] || continue
 		## A closed record holds nothing: its run has ended, so only a record still started keeps the lock.
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$relOther" status )" = spawn-started ] || continue
 		case ",$( AgentsToolsSpawnSandboxRecordHeader "$relOther" routine-lock )," in
@@ -463,9 +480,9 @@ AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
 		break
 	done
 	[ -n "$sessionId" ] || return 1
-	for sessionOther in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for sessionOther in $( AgentsToolsSpawnedSessionRecords "$sessionId" own 2> /dev/null ) ; do
 		[ -f "$sessionOther" ] || continue
-		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" session-id )" = "$sessionId" ] || continue
 		sessionValue="$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine-lock )"
 		[ -z "$sessionValue" ] || { printf '%s\t%s\n' "$sessionId" "$sessionValue" ; return 0 ; }
 	done
@@ -505,7 +522,8 @@ AgentsToolsRoutineLockRefreshOwn(){ ## the calling run's spawn id
 
 ## THE WRITE OF A LOCKED DOCUMENT: the whole record `content` replaces the document's own fields and its body, and the
 ## lock-owned fields (type, from, date, owner, state, recheck-date, session-id) are carried over from the document as it
-## stands, whatever the content says for them. While the state is `<word>-running` the write refreshes the recheck-date, as
+## stands, whatever the content says for them, and so is `processed-at`, which a lock note in `processed/` carries as the
+## stamp of that folder. While the state is `<word>-running` the write refreshes the recheck-date, as
 ## the spawner's own take set it. Committed, and pushed where a remote is set, before it returns.
 AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (for the messages), the content
 	local writeMember="$1" writeNote="$2" writeOp="$3" stateContent="$4" writeTarget lockFields callerFields callerBody writeWord
@@ -524,7 +542,7 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 		NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
 		inFM {
 			if ($0=="---") exit
-			if ($0 ~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
+			if ($0 ~ /^(type|from|date|owner|state|recheck-date|session-id|processed-at): /) print
 		}
 	' "$writeTarget" )"
 	if [ -z "$lockFields" ] ; then
@@ -546,7 +564,7 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 		NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
 		inFM {
 			if ($0=="---") exit
-			if ($0 !~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
+			if ($0 !~ /^(type|from|date|owner|state|recheck-date|session-id|processed-at): /) print
 		}
 	' )"
 	callerBody="$( printf '%s\n' "$stateContent" | LC_ALL=C awk '
@@ -776,12 +794,12 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 	## Read before the acquire writes: the first daily of the day is one whose note does not carry today's local date as its last-close-date.
 	if [ "$takeWord" = daily ] ; then
 		takeFirst="yes"
-		if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$( AgentsToolsInboxDir magic-coordinator )/$takeNote" ] ; then
+		if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/$takeNote" ] ; then
 			takeLastClose="$( LC_ALL=C awk '
 				{ sub(/\r$/, "") ; }
 				$0 == "---" { fmDepth++ ; if (fmDepth >= 2) exit ; next ; }
 				fmDepth == 1 && /^last-close-date: / { print substr($0, 18) ; exit ; }
-			' "$( AgentsToolsInboxDir magic-coordinator )/$takeNote" )"
+			' "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/$takeNote" )"
 		fi
 		[ "$takeLastClose" != "$( date +%Y-%m-%d )" ] || takeFirst="no"
 	fi

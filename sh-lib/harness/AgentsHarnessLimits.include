@@ -68,6 +68,15 @@ AgentsHarnessLimitsResolve(){ ## model, fallback window (may be empty), fallback
 		harnessContextTokens="$(( ${harnessWindowTokens:-400000} - ${harnessOutputTokens:-0} ))"
 		harnessThresholdSource="the window less the output"
 	fi
+	## A HARD MARGIN FOR THE COMPACTION RITUAL (the human-owner's rule): the restart comes no later than the window less the output and
+	## less 5% of the window, whatever set the threshold, so a run is never past the point where it can still write its checkpoint.
+	local limCeiling="$(( ${harnessWindowTokens:-400000} - ${harnessOutputTokens:-0} - ${harnessWindowTokens:-400000} * 5 / 100 ))"
+	case "$harnessContextTokens" in ''|*[!0-9]*) ;; *)
+		if [ "$harnessContextTokens" -gt "$limCeiling" ] ; then
+			harnessContextTokens="$limCeiling"
+			harnessThresholdSource="$harnessThresholdSource, capped at the window less the output and less 5% of the window"
+		fi
+	;; esac
 	return 0
 }
 

@@ -187,6 +187,15 @@ AgentsToolsBoardItemHoldersNotGone(){ ## stdin: `member<TAB>spawn-id<TAB>session
 ## `spawn-started` and carries no `exit-code` is a row. `member<TAB>spawn-id<TAB>session-id`, one a line.
 AgentsToolsBoardLiveHolders(){
 	[ -n "${MMDAPP:-}" ] || return 0
+	## The started records from the kept list (AgentsToolsSpawnedStartedRecords, AgentsTools.StartedRecords.include), never every record on a board write;
+	## the awk below still reads each one's own status and exit-code, so a record closed since the list was kept is no row.
+	type AgentsToolsSpawnedStartedRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	local holdersFiles=() holdersFile
+	while IFS= read -r holdersFile ; do
+		[ -n "$holdersFile" ] && [ -f "$holdersFile" ] || continue
+		holdersFiles+=( "$holdersFile" )
+	done < <( AgentsToolsSpawnedStartedRecords 2> /dev/null )
+	[ "${#holdersFiles[@]}" -gt 0 ] || return 0
 	LC_ALL=C awk '
 		FNR == 1 { fm = 0 ; owner = "" ; sid = "" ; spawn = "" ; status = "" ; ended = 0 }
 		$0 == "---" { if (++fm == 2 && status == "spawn-started" && !ended) printf "%s\t%s\t%s\n", owner, spawn, sid ; next }
@@ -195,7 +204,7 @@ AgentsToolsBoardLiveHolders(){
 		fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
 		fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
 		fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
-	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null
+	' "${holdersFiles[@]}" 2> /dev/null
 }
 
 AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and the participants: `member<TAB>spawn-id<TAB>session-id` a line

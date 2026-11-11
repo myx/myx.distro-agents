@@ -35,6 +35,7 @@ The Opening steps of its session kind run first. Then:
 
 1. **work-the-input**: set each recurring duty on your `CheckList` to pending, and mark each done as this cycle finishes it. The input the spawner gave you is `input/input-scan.md`. Work it as your duty instructions (your `.armed.md`) say.
    Each inbox item a cycle works ends trashed with `--trash-inbox-item`, or marked processed where the record must stay. An item kept instead states its reason, and a stale item is closed.
+   Before an inbox item is trashed, read every board item it names as a placement target, and confirm each placement is there. The inquiry does not close on the answer's own words. Then check that the item's own rules still hold over the list it now carries. A rule that counts, totals or cross-refers to that list is re-read with it.
 2. **decide-inline**: for each item, decide inline which it is, and move on. Work it at once in this session. Or, for anything larger, prepare its brief, record it and spawn a sub-task (the Agent tool). The sub-task reuses this session's cached prefix, so its first round is cheap.
 3. **wait-for-more**: run `ThisSession`, operation `idle-wait`. Your list's `wait for more` item is this call: making it does that item. A keepalive round comes back before the input cache expires with nothing arrived: run it again, so the cache stays alive. An arrival is any message addressed to you: new work, an ask or news. Go to step 1 on one, and a `DISMISSED` ends the duty.
 
@@ -64,6 +65,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 - `--idle-wait [--wait-timeout <seconds>]` (`ThisSession`)
 - `--skillset-upsert <team-member> <pathname>`
 - `--mark-inbox-processed <item-filename>` (`DistroAgentsItems`)
+- `--get-board-item <item-filename>` (`DistroAgentsItems`)
 - `--trash-inbox-item <item-filename>` (`DistroAgentsItems`)
 - `--queue-list`
 - `--queue-take`

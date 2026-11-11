@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of DistroAgentsMonitoring.fn.sh: the health reading of a workspace (epic S14).
+## The three forms are DistroAgentsTools.fn.sh's: no word the default syntax, the entry points a reader starts from;
+## --help-syntax the syntax line of every operation of the file, read from the one table of the family,
+## sh-lib/help/Help.DistroAgentsTools.include; --help the manual, sh-lib/help/Help.DistroAgentsMonitoring.help.md.
+## Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+
+echo "📘 syntax: DistroAgentsMonitoring.fn.sh --health [--workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsMonitoring.fn.sh [--help-syntax [<op>]]" >&2
+echo "📘 syntax: DistroAgentsMonitoring.fn.sh [--help]" >&2
+
+case "$1" in
+
+	--help-syntax)
+		type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
+		AgentsToolsFrontSyntax "${MDSC_CMD:-DistroAgentsMonitoring}" "${2:-}"
+		return $?
+	;;
+
+	--help)
+		## The manual, rendered where myx.common is on the path, and printed as it is where it is not: the help is the page either way.
+		if command -v myx.common > /dev/null 2>&1 ; then
+			myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsMonitoring.help.md" >&2
+		else
+			cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsMonitoring.help.md" >&2
+		fi
+		return 0
+	;;
+
+esac

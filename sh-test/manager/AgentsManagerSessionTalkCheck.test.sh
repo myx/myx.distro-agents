@@ -217,6 +217,13 @@ rigAssert "a second is the second block, to the participant" "$rigRc $( LC_ALL=C
 rigRec s-agentless s-agentless "-" spawn-succeeded "$rigHost" "" ; rigFolder s-agentless ""
 rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-agentless
 rigAssert "a session with no run of a member is refused, and says why, and nothing is left in its chat file" "$rigRc $( LC_ALL=C grep -c 'session s-agentless has no run of a member, so nobody would read a message left in it' "$rigTmp/err" ) $( [ -f "$rigAgents/sessions/s-agentless/session.chat" ] && echo kept || echo none )" "1 1 none"
+## The runs an agent-less session started run under their own session ids: the refusal names them (epic S10.22), read off the
+## records that name the session as their parent-session-id.
+rigRec s-lead-parent s-lead-parent "-" spawn-succeeded "$rigHost" "" ; rigFolder s-lead-parent ""
+rigRec s-lead-run s-lead-run keeper-rig spawn-started "$rigHost" ""
+LC_ALL=C awk 'NR == 1 { print ; print "parent-session-id: s-lead-parent" ; next } { print }' "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md" > "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md.next" && mv -f "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md.next" "$rigAgents/spawned/s-lead-run/s-lead-run.spawn.md"
+rigRun "$rigTmp/message.one" "$rigMessageOp" --session-id s-lead-parent
+rigAssert "the refusal names the run the session started, by its member and its own session id" "$rigRc $( LC_ALL=C grep -c 'it started keeper-rig in session s-lead-run' "$rigTmp/err" )" "1 1"
 
 echo "-- 4. what is refused leaves nothing --"
 rigBefore="$( rigMade ) $( ls "$rigAgents/sessions" | LC_ALL=C grep -c . ) $( rigInbox s-thread )"

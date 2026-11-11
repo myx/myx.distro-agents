@@ -40,5 +40,7 @@ esac
 case "$rigMethod" in
 	auth.test) printf '{"ok":true,"url":"https://rig.invalid/","user_id":"%s"}\n' "$rigUser" ;;
 	chat.postMessage) printf '{"ok":true,"channel":"DRIG00001","ts":"1.000001","message":{"ts":"1.000001","user":"%s"}}\n' "$rigUser" ;;
+	## The one direct conversation of this rig is the human-owner's (SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER), so a send into it is no reply to a person outside the team.
+	conversations.info) printf '{"ok":true,"channel":{"id":"DRIG00001","is_im":true,"is_mpim":false,"user":"URIGOWNER"}}\n' ;;
 	*) printf '{"ok":false,"error":"channel_not_found"}\n' ;;
 esac

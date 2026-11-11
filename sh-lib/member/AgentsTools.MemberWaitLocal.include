@@ -108,30 +108,17 @@ AgentsWaitProbeProcess(){
 
 ## The own inbox and one board state are listings of a directory, so they are the file probe over it.
 ## The inbox listing is names only, deliberately: an arrival adds a name and wakes the wait.
-## The inbox (AgentsTools.InboxPlace.include) is listed in its incoming/ alone, and only the
-## items that came at or after the read floor: an item in processed/ wakes nothing, and marking an
-## item that came before the floor handled, which moves it out of incoming/, changes nothing that is
-## listed -- marking is the waiting member's own act, never new input for it.
+## THE INBOX IS LISTED WHOLE: every item in its incoming/ (AgentsTools.InboxPlace.include), whatever its date. An item there is input
+## not yet handled, and a member that was busy while it came must find it on its next wait, not lose it to a floor set when the wait
+## began (an idle wait of keeper-ae3 read nothing three rounds running while four items stood in incoming/). What is new is what the
+## rendering holds and the baseline does not: marking an item handled moves it out of incoming/ and is the waiting member's own act,
+## never new input for it. No date process per item.
 AgentsWaitProbeInbox(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
-	local probeDir="$MDAT_DATA_ROOT/inboxes/$2/incoming" probeFloor="${3%%.*}" probeFile probeAt probeKnown="" probeList=""
-	## The rendering this source is measured against, where the caller names one: an item it
-	## already lists passed the floor then, and a date process per item per tick is what this
-	## saves. A call that names none reads every item's time, as it always did.
-	[ -z "${7:-}" ] || [ ! -f "$7" ] || { IFS= read -r -d '' probeKnown < "$7" 2> /dev/null || : ; }
+	local probeDir="$MDAT_DATA_ROOT/inboxes/$2/incoming" probeFile probeList=""
 	[ -d "$probeDir" ] || { AgentsWaitPut "$4" "" || return 2 ; return 0 ; }
 	for probeFile in "$probeDir"/*.md ; do
 		[ -f "$probeFile" ] || continue
-		case "$probeKnown" in
-			*"${probeFile##*/}"*) ;;
-			*)
-				probeAt="$( date -r "$probeFile" +%s 2> /dev/null )" || continue
-				case "$probeFloor" in
-					''|*[!0-9]*) ;;
-					*) [ "$probeAt" -ge "$probeFloor" ] || continue ;;
-				esac
-			;;
-		esac
 		probeList="$probeList${probeFile##*/}"$'\n'
 	done
 	AgentsWaitPut "$4" "$probeList" || return 2

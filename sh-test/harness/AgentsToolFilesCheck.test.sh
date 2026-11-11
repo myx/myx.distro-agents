@@ -139,7 +139,7 @@ RIG_ENV="MDAT_WORKSPACE_MODE=team-rig" rigCall DistroAgentsTools --intern-op-rou
 rigAssert "a routine with no standing lock is refused by name" "$( LC_ALL=C grep -c -F 'no standing lock for the routine no-such-routine' "$rigTmp/call.out" )" 1
 
 ## 9. a tool file run by itself, and the tool files inside the harness's execute
-rigCall DistroAgentsSession --wait-for-input keeper-myx --wait-list-sources
+rigCall DistroAgentsSession --wait-for-input --team-member keeper-myx --wait-list-sources
 rigAssert "a tool file run by itself reaches the operations its operation calls by DistroAgentsTools" "$( LC_ALL=C grep -c -x 'WAIT-RESULT: RECEIVED' "$rigTmp/call.out" || : ):$( LC_ALL=C grep -c 'command not found' "$rigTmp/call.out" || : )" "1:0"
 rigExecute="$( printf '%s\n' 'for rigF in DistroAgentsItems DistroAgentsMail DistroAgentsSession AgentDispatcherTools ; do type "$rigF" > /dev/null 2>&1 && printf "%s " "$rigF" ; done' \
 	| env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \

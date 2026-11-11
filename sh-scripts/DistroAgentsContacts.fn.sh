@@ -90,7 +90,7 @@ DistroAgentsContacts(){
 	case "$1" in
 
 		## --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no]
-		## [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]...
+		## [--tier tier-moot|tier-contact|tier-client|tier-admin|tier-owner] [--scope-tier <scope>=<tier>]... [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]...
 		## [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]: a contact recorded, or filled where it is recorded
 		## already; the calling member is added to who holds it, and --tier, the human-owner's alone, is the record's tier.
 		--collect-contact)
@@ -104,13 +104,13 @@ DistroAgentsContacts(){
 			return $?
 		;;
 
-		## <value> [--team <scope>] [--reached-by <member>]: the contacts a value names; rows, rc 1 with none.
+		## <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]: the contacts a value names; rows, rc 1 with none.
 		--find-contact)
 			AgentsToolsContactsFind "$@"
 			return $?
 		;;
 
-		## [--organisation <slug>] [--reached-by <member>]: every contact, a row each.
+		## [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]: every contact, a row each.
 		--all-contacts)
 			AgentsToolsContactsAll "$@"
 			return $?
@@ -166,7 +166,14 @@ DistroAgentsContacts(){
 	esac
 }
 
+## A relative or symlinked path to this very file dispatches too: it is resolved to the real file before the match, and only a path that
+## resolves elsewhere is refused. Sourced ($0 differs from BASH_SOURCE[0]), nothing is resolved.
+selfPath="$0"
 case "$0" in
+	*/myx/myx.distro-agents/sh-scripts/*.fn.sh) ;;
+	*) [ "${BASH_SOURCE[0]:-}" != "$0" ] || selfPath="$( cd "$( dirname "$0" )" 2> /dev/null && pwd -P )/${0##*/}" ;;
+esac
+case "$selfPath" in
 	*/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh)
 
 		set -e

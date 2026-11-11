@@ -87,8 +87,9 @@ rigRun(){ ## MDAT_HARNESS_CONTEXT_TOKENS, MDAT_HARNESS_MAX_RESTARTS
 	rigEnv=( RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" \
 		MDAT_HARNESS_CONTEXT_TOKENS="$1" MDAT_HARNESS_MAX_RESTARTS="$2" )
 	[ -z "$rigSpawnRoot" ] || rigEnv+=( MDAT_SPAWN_SANDBOX_ROOT="$rigSpawnRoot" MDAT_SPAWN_SESSION_ID="$rigSpawnId" )
+	[ -z "${rigDataRoot:-}" ] || rigEnv+=( MDAT_DATA_ROOT="$rigDataRoot" )
 	env "${rigEnv[@]}" \
-		"$rigHarness" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
+		"$rigHarness" ${rigAgent:+--agent "$rigAgent"} --access-root "$rigScenarioDir" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
 	rigRoundCount="$( cat "$rigScenarioDir/round" )"
 	[ "$rigRoundCount" != 0 ] || rigRefuse "the harness issued no request at all, so this scenario exercised nothing"
@@ -165,6 +166,38 @@ rigSpawnRoot="" rigSpawnId=""
 rigAssert "the restart was recorded beside the run record" "$( cat "$rigScenarioDir/rig-restart-run.restarts" 2>/dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
 rigAssert "with its number and the threshold it restarted at" "$( LC_ALL=C awk '{ print $1, $2 }' "$rigScenarioDir/rig-restart-run.restarts" 2>/dev/null )" "1 1000"
 rigVerdict "each restart is kept beside the run record"
+
+## THE STATE THE RUN KEEPS ON DISK COMES BACK WITH THE HANDOVER (the human-owner's ruling): the fresh leg's first messages carry the run's CheckList file
+## and the Decisions of its dispatch item, both kept by the tooling, so what was written down survives what the handover left out. The control beside it:
+## a run with neither file gets the handover alone.
+rigStart state-comes-back
+rigSpawnRoot="$rigScenarioDir" rigSpawnId="rig-state-run" rigDataRoot="$rigScenarioDir/data" rigAgent=magic-coordinator
+mkdir -p "$rigScenarioDir/.local/agents/sessions/rig-state-run" "$rigDataRoot/board/running"
+printf -- '- [ ] RIG-CHECKLIST-MARKER an item still open\n' > "$rigScenarioDir/.local/agents/sessions/rig-state-run/magic-coordinator.checklist.md"
+printf 'dispatch-rig-state.md\n' > "$rigScenarioDir/.local/agents/sessions/rig-state-run/dispatch-item"
+printf -- '---\ntype: dispatch\n---\n\n# Task\n\nRIG-TASK-BODY\n\n## Decisions\n- RIG-DECISION-MARKER his ruling\n' > "$rigDataRoot/board/running/dispatch-rig-state.md"
+rigToolStream "$rigScenarioDir/res.1" 5000
+rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER stop 20
+rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER stop 20
+rigRun 1000 3
+rigSpawnRoot="" rigSpawnId="" rigDataRoot="" rigAgent=""
+rigAssert "the fresh leg carries the CheckList file under its own heading" "$( rigHolds "$rigScenarioDir/req.3" 'Your CheckList as the tooling keeps it now (magic-coordinator.checklist.md)' )" yes
+rigAssert "and a line of that file" "$( rigHolds "$rigScenarioDir/req.3" 'RIG-CHECKLIST-MARKER' )" yes
+rigAssert "the fresh leg carries the Decisions of its dispatch item under its own heading" "$( rigHolds "$rigScenarioDir/req.3" 'The Decisions of your dispatch item dispatch-rig-state.md, as recorded' )" yes
+rigAssert "and a line of those Decisions" "$( rigHolds "$rigScenarioDir/req.3" 'RIG-DECISION-MARKER' )" yes
+rigAssert "the handover is still there beside them" "$( rigHolds "$rigScenarioDir/req.3" 'RIG-SUMMARY-MARKER' )" yes
+rigAssert "the item's text above the Decisions heading is not carried" "$( rigHolds "$rigScenarioDir/req.3" 'RIG-TASK-BODY' )" no
+rigVerdict "the CheckList and the Decisions come back with the handover"
+
+rigStart state-absent
+rigToolStream "$rigScenarioDir/res.1" 5000
+rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER stop 20
+rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER stop 20
+rigRun 1000 3
+rigAssert "a run with no CheckList file gets no CheckList paragraph" "$( rigHolds "$rigScenarioDir/req.3" 'Your CheckList as the tooling keeps it now' )" no
+rigAssert "a run with no dispatch item gets no Decisions paragraph" "$( rigHolds "$rigScenarioDir/req.3" 'The Decisions of your dispatch item' )" no
+rigAssert "the handover alone is carried" "$( rigHolds "$rigScenarioDir/req.3" 'RIG-SUMMARY-MARKER' )" yes
+rigVerdict "no state on disk, the handover alone"
 
 ## The negative control, and the reason a green run here cannot be a vacuous one:
 ## the same probes against the same canned rounds, with the threshold off.

@@ -1169,6 +1169,11 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   opened.
 - **Its actions**, each an operation:
   - `k` kills (`--manager-session-kill`, its plan read first with `--plan`, the word `yes` typed);
+  - `s` stops the soft way (`--manager-session-stop`, no confirmation): the runs are dismissed by the tooling's
+    own mark and a DISMISSED block in the session's chat, and each ends itself at its next Wait; `p` and `r`
+    pause and resume (`--manager-session-pause`, `--manager-session-resume`, no confirmation); `R` restarts
+    (`--manager-session-restart`, no confirmation): a start again of what has stopped or finished, through the
+    return of a review, in the same session, sandbox and board item; a run that still lives is left alone;
   - `c` starts a control thread (`--manager-session-control-start`, no confirmation);
   - `Launchpad` starts work by hand: its five start forms (coworking, standalone, work-duty, routine,
     free prompt), in that order. All but the routine form call `--manager-spawn-member --kind <kind>`. The
@@ -1406,6 +1411,14 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   a run, so any live run of it takes the matter. `reports-to: none` is a run that reports to no one.
   It may send a handback as its final report, then it closes without waiting for dismissal. Its end
   is told to no one, and an ask of its own with no target goes where an unset `reports-to` would.
+- **Who holds the authority over a run** (`AgentsToolsAuthorityHolds`, `AgentsTools.Authority.include`): the
+  caller that an address of the holder names, or one a grant in the session names. The root
+  `magic-coordinator` holds throughout, as the human-owner's representative. Where the run's parent session
+  has ended, the ladder: the owners role (`HUMAN_OWNER_MEMBERS`) and the console mapped to the human-owner
+  (`HUMAN_OWNER_CONSOLE_ACCOUNT`). Any other caller is gated (`AgentsToolsAuthorityGate`): the owner's
+  console confirms with him in his own channel, and another console or member is refused, or asks the
+  holder with `--escalate-wait` or `--escalate-enqueue`. A person at the console holds nothing by being
+  there.
 - **Children lists.** The spawn op appends the child's record path to `.local/agents/children/<parent>`.
   The main loop rebuilds all lists each iteration (`AgentsTools.ChildrenIndex.include`) and marks
   `children/.indexed`. Without the mark, a harness scans every record. Not under `sessions/`: a file
@@ -3535,8 +3548,11 @@ flag would be a silent no-op there -- refused instead, same shape as the
     deleted when nothing was published, then pushed with `AgentsToolsTeamDataPushIfAhead`.
 - **Vault and audit reads**: `--get-vault-item` and `--get-audit-item` check the caller;
   `--intern-op-vault-item-read` and `--intern-op-audit-item-read` (`AgentsTools.InternOpVaultAudit.include`)
-  resolve and read, so a new back end changes only there. There is no vault write op until a skillset
-  step names one.
+  resolve and read, so a new back end changes only there. The writes are `--upsert-vault-item` and the
+  typed `--upsert-vault-<kind>` ops (`--intern-op-vault-item-write`, the same include), whole or by patch.
+  A vault item is a file with an extension, since the vault holds many kinds of file: a name given with
+  none is the Markdown document of that name, `.md`, on the read and on every write
+  (inline at each reader, in `AgentsTools.InternOpVaultAudit.include`).
 
 ## 17. Routines: locks, scans, day rhythm
 
@@ -4080,6 +4096,14 @@ op's own option arm.
   `--client-*` twin to use. A
   null description is a real answer. Default format `adf` (writable back);
   `rendered` is offered.
+- **Jira project delete prints before it deletes.** `project-delete` reads
+  `/rest/api/3/project/<key>` first, prints the project's own `KEY` and `NAME`, and only then sends the
+  `DELETE`. The printed row is the whole confirmation the operation gets, so nothing else asks. A
+  print-back that cannot be written is refused with 1 and the delete is never sent, and a read
+  answering without both is UNKNOWN with 3, never a delete. The `DELETE` carries `?enableUndo=false`:
+  a deleted project is restorable from Jira's own recycle bin only while that window is on, so the
+  operation turns it off and says so in its help. Coordinator-only, with no client twin, as
+  `space-create` is, because a project is the site's own top-level container.
 - **Jira writes**: `issue-create` never calls createmeta; extra fields via `--fields-json`, merged by
   `AgentsAtlassianJsonObjectMerge.py` (no text splicing). Never auto-retry a create with an unknown
   outcome (no idempotency key). `issue-update` takes `--fields-json` (full replace per field) and/or
@@ -4813,6 +4837,47 @@ Each instrument states what it proves and its red recipe in its own header. What
   it: `MMDAPP=<ws> sh-test/AgentsSweepTimingInstrument.sh [<latency> [<dms> [<clients>]]]`, `INST_KEEP=<dir>`
   keeps output.
 
+- **A `.fn.sh` run by its relative path exits 0 and does nothing.** The file ends with a `case "$0"` guard
+  that matches `*/myx/<package>/sh-scripts/<Tool>.fn.sh` and no other spelling, so a call made as
+  `bash sh-scripts/<Tool>.fn.sh` from inside the package defines the functions, matches no arm, and exits 0.
+  Measured at 10:23 on 2026-11-11: 0 lines on both streams that way, 230 lines by absolute path. Call the
+  bare function, or the absolute path, and read the output rather than the status.
+- **A failing command inside a probe ends the probe, so guard it in place.** The harness shell runs bash under
+  `-e`, so an unguarded `false` stops the run there and every section written after it is absent. An absent
+  section reads as "nothing to report". Measured at 10:23 on 2026-11-11, both directions: the unguarded line
+  after `false` never ran, and the line after `false || true` did. Write `cmd || rc=$?` and read `$rc`, and
+  read the output for the headings the probe promised, never for the ones that arrived.
+- **`mark` refuses a scratch copy that is not live's text, so the recovery is a one-step window.**
+  `DistroAgentsTestingApplyMark` refuses when the scratch file differs from live
+  (`DistroAgentsTesting.fn.sh:244-246`). Dropping the path's line from `changed-files.txt` and marking it again
+  works only while the scratch still holds live's text: one edit after that recovery brings the refusal back,
+  and the path then sits in neither list. The precondition is the instruction: recover, then level and mark
+  before editing again.
+- **`level` has four behaviours, and only one of them is silent.** Measured on 2026-11-10, over the four file
+  states: a marked file live moved under is `CONFLICT`, rc 1, the edit kept (`:277-281`); an unmarked file that
+  no longer matches its `levelled.sums` row is `EDITED UNMARKED`, rc 1, the edit kept (`:285-288`); an unmarked
+  file with no `levelled.sums` row is overwritten from live and the level still ends `LEVEL: OK` (`:290-293`);
+  a file live does not hold and no level put there is `new, unmarked`, and kept (`:312-314`). Only the third is
+  silent, so `LEVEL: OK` is no evidence that no edit was lost. The guard's predicate is the `levelled.sums`
+  row, so a file no level wrote is outside the guard.
+- **`plan` refuses an apply order that is not the changed list, and `mark` writes only the changed list.**
+  `DistroAgentsTestingApplyPlan` returns 2 when `apply-order.txt` and `changed-files.txt` differ as sets
+  (`DistroAgentsTesting.fn.sh:371-372`), and `mark` appends only to `changed-files.txt` (`:253`). A scratch
+  carrying a marked file and no apply order therefore stops plan, and the two lines have to be made equal by
+  hand before the next step.
+
+**The three corrections these come from**
+
+The three reflections that corrected an earlier claim of mine, so the bullet states the corrected form and
+never the first one.
+
+- The recovery in `changed-files.txt` was first filed as a general recovery. It works from one state only, the
+  first bullet above carries the precondition, and it is `reflection-20261110T1254Z`.
+- `level` was first filed as overwriting every unmarked scratch file. It overwrites one of four states, the
+  fourth bullet above carries the four, and it is `reflection-20261110T1342Z`.
+- The `case "$0"` silence was first filed as an arm that prints nothing. It was the caller's relative path,
+  the first bullet above carries both readings, and it is `reflection-20261110T1154Z`.
+
 ## 23. Owner resolutions, 2026-10-30 and 2026-10-31
 
 Standing decisions of the human-owner. Each holds until he changes it.
@@ -4916,7 +4981,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **A close that cannot be recorded drops its own commit, never another writer's (S12.10).** `item-upsert` stays outside the thread, so it commits in its caller and discards that commit when the close then fails. That discard was `git reset --soft HEAD~1` with no test of what HEAD was, so a commit another writer made in between was the one dropped. `AgentsToolsItemUnlockKeep` and the sync-failure arm now read HEAD's subject first, and reset only where it is this call's own commit message. Measured in the live store on 2026-11-04: `board/review/.unseen-dispatch-20261103T225226Z-spawn-proxy-68534-637d5076.md` was committed at 04:30:28 and dropped by such a reset one second later, and reached no commit for the next 50 minutes. `sh-test/team-data/AgentsCloseKeepsOtherCommitCheck.test.sh` holds it. Not fixed here: the close's own commit stays on the branch below the other writer's, so the history keeps a close whose note was put back.
 - **The thread is one a store.** Its lock is `thread.lock`, holding `<pid> <start>` (`AgentsTools.ThreadLock.include`, which the three older threads do not use yet). It ends by itself once no request came for `MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS` (60), and it gives the lock back first. A request left in that moment starts it again. `thread.log` is cut back to 64 KiB when it passes 128 KiB. `--intern-team-data-commit --one` makes one pass, for a check.
 - **A failed commit stays owed.** `AgentsToolsTeamDataCommitPathsNow` keeps the paths in `.local/agents/team-data-commit.owed`. The thread runs the same pass once a second with no request, so the debt is tried again every 30 seconds, and it does not keep the thread alive. A path that is gone and that git never knew is left out of a commit, since it fails the whole add, and so is a path that changed nothing.
-- **A resync settles the writers before it moves the tree (S12.4).** The store's checkout is also its writers' work tree, so a writer's file waiting for its commit is an uncommitted change to it. Git refuses to move a tree that holds such a change to a file origin changed too, which is how a duty start met `LOCK_UNCHECKABLE` and a retry a minute later passed. `AgentsToolsAdvanceCloneSync` calls `AgentsToolsTeamDataSettle` first: it asks the thread to commit what waits and holds for its answer, then commits anything still waiting itself. A store with nothing waiting costs one `git status`. A sync that still fails is a merge to settle, as the close push settles one, and the sync runs a second time. `sh-test/team-data/AgentsTeamDataResyncRaceCheck.test.sh` holds it.
+- **A resync settles the writers before it moves the tree (S12.4).** The store's checkout is also its writers' work tree, so a writer's file waiting for its commit is an uncommitted change to it. Git refuses to move a tree that holds such a change to a file origin changed too, which is how a duty start met `LOCK_UNCHECKABLE` and a retry a minute later passed. `AgentsToolsAdvanceCloneSync` calls `AgentsToolsTeamDataSettle` first: it asks the thread to commit what waits and holds for its answer, then commits anything still waiting itself. A store with nothing waiting costs one `git status`. A sync that still fails is a merge to settle, as the close push settles one, and the sync runs a second time. `sh-test/team-data/AgentsTeamDataResyncRaceCheck.test.sh` holds it. A head that moved under the pull, where a writer's commit landed between the sync's fetch and its merge and git says "fetch updated the current branch head", is a writer's transient of the same kind: the sync runs again, up to five times two seconds apart, before the failure is reported.
 - **The store's own `.local` is no team data.** A data folder with no repository of its own, inside another repository's work tree, is not that repository's: `AgentsToolsTeamDataCommitPathsNow` commits nothing where `MDAT_DATA_ROOT` is no repository root. A path under the store's `.local` is refused too, unless git already tracks it, so an existing stray leaves through the same step and no hand git is needed. A check rig lives under `$MMDAPP/.local/agents/scratch`, and `rigTempDir` refuses a `MMDAPP` that is the team-data store or inside it.
 - **`MDAT_TEAM_DATA_COMMIT_THREAD=off` commits in the writer's own process.** `AgentsRunTests.sh` sets it, so no check starts a thread. The check of the thread unsets it. `MDAT_TEAM_DATA_COMMIT_WAIT=yes` before the call holds the writer until the thread has answered its request, for at most 30 seconds, and past that the commit is made in the writer. `board-trash` uses it, since the history of a file must be made before the file goes.
 
@@ -4966,3 +5031,6 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **`MDAT_SCHEDULE_THREAD=off` leaves the steps in the main loop.** With it off, `--intern-main-loop` runs `AgentsToolsScheduleLoop` in its own process at each iteration, as it did before. `AgentsRunTests.sh` sets it, so no check starts the thread, and `sh-test/check-fixtures/rig-schedule-loop.include.sh` sets it in its own rig. The check of the thread unsets it, and ends what it starts.
 - **What rides with it, and what does not.** The board's housekeeping and the source collector already have a caller outside the loop: `AgentsToolsRegistryHousekeepingDue` starts the advance housekeeping and the pending-reply collect from any registry read, and `AgentsToolsCollectThreadCheck` starts the collector from any scan. So they do not stand still with no loop, and the schedule's thread carries neither. The steps that only the loop ran, and so stood still with it, are the schedule's own, and those are what the thread now runs. `sh-test/session/AgentsScheduleThreadCheck.test.sh` holds the operation, the pass, the ask, the kill and put-back, the interval, the off switch and the loop's two modes.
 
+## A tool's context is loaded in both its function and its arm
+
+- **A console sources the context file and calls the function, so the `.fn.sh` arm never runs there.** That is why a family context is loaded in two places: the function serves any console that calls it, and the arm sets it at the root of a tool run bare. `DistroDeployContext` is the shape. One comment line in the arm marks it as special. A generic tool needs only `SystemContext`, which every console has.

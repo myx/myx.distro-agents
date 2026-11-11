@@ -161,6 +161,13 @@ AgentsHarnessContextSync(){ ## kind (user|assistant|tool), meta fragment
 		[ "$syncKind" != "assistant" ] || harnessContextLastAssistant="$harnessContextCount"
 	done
 	AgentsHarnessContextFeed "$syncFirst"
+	## A MILESTONE OF A KEPT-CONTEXT LOOP COMMITS AFTER ITS LINES ARE FED: the tool's own lines reach the transcript from this log, after the
+	## tool ran, so a milestone taken at the tool's end committed before them and carried nothing new (the ask's ASK and ANSWER lines landed
+	## in a later commit). AgentsTranscriptToolDone leaves the milestone here (agentsTranscriptMilestoneAfterFeed) and this is where it commits.
+	if [ -n "${agentsTranscriptMilestoneAfterFeed:-}" ] ; then
+		AgentsTranscriptMilestone "$( AgentsTranscriptSessionKey )" "$agentsTranscriptMilestoneAfterFeed" || :
+		agentsTranscriptMilestoneAfterFeed=""
+	fi
 	return 0
 }
 
@@ -186,9 +193,14 @@ AgentsHarnessContextAssistantMeta(){
 
 ## The meta of a tool result: the call it answers, how long it ran and how it came out.
 AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
-	local metaDur=0
+	local metaDur=0 metaMach=0
 	[ -z "${agentsTranscriptT0:-}" ] || metaDur=$(( $( AgentsTranscriptNowMs ) - agentsTranscriptT0 ))
-	printf ',"tool":"%s","id":"%s","dur_ms":%s,"outcome":"%s"' "$( AgentsHarnessContextEscape "$1" )" "$( AgentsHarnessContextEscape "$2" )" "$metaDur" "$( AgentsTranscriptOutcomeOf "$3" "$4" )"
+	## MACHINERY TIME (the owner's pace ruling): what the tooling spent around the call, which is the call's whole time less what the
+	## call itself ran -- the Bash child's run (AgentsHarnessToolsBash sets harnessToolRunMs around its wait), the Wait's own waiting
+	## (AgentsHarnessWait sets it from the seconds waited). A tool that sets nothing is all machinery. The pace gate reads mach_ms.
+	case "${harnessToolRunMs:-}" in ''|*[!0-9]*) metaMach="$metaDur" ;; *) metaMach=$(( metaDur - harnessToolRunMs )) ; [ "$metaMach" -ge 0 ] || metaMach=0 ;; esac
+	harnessToolRunMs=""
+	printf ',"tool":"%s","id":"%s","dur_ms":%s,"mach_ms":%s,"outcome":"%s"' "$( AgentsHarnessContextEscape "$1" )" "$( AgentsHarnessContextEscape "$2" )" "$metaDur" "$metaMach" "$( AgentsTranscriptOutcomeOf "$3" "$4" )"
 }
 
 ## A reply with no tool call, kept as the assistant turn it was, so a resume continues

@@ -70,6 +70,42 @@ AgentsToolsContactsListDrop(){ ## list, item
 	printf '%s' "$1" | LC_ALL=C awk -v want="$dropLower" '{ count = split( $0, parts, /, */ ) ; out = "" ; for ( at = 1 ; at <= count ; at++ ) { if ( tolower( parts[at] ) == want || parts[at] == "" ) continue ; out = out ( out == "" ? "" : ", " ) parts[at] ; } printf "%s", out ; }'
 }
 
+## THE SLACK TEAM OF A COORDINATE is the Slack workspace the value belongs to, named by the first label of its domain (`ndms` for
+## ndms.slack.com), because an account id is unique within one workspace only. A team given as a member's name is that member's
+## workspace: its own SLACK_WORKSPACE_DOMAIN (CLIENT_SLACK_WORKSPACE_DOMAIN first for a client member), else magic-team's. A member is
+## a name the machine-wide members.registry lists. Any other word is taken as the workspace label it already is. Lowercase, printed.
+AgentsToolsContactsSlackTeam(){ ## team word
+	local teamWord teamDomain=""
+	teamWord="$( printf '%s' "${1:-}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	[ -n "$teamWord" ] || return 0
+	if [ -n "${contactsTeamMemo:-}" ] ; then
+		case "$contactsTeamMemo" in *" $teamWord="*) teamDomain="${contactsTeamMemo#* $teamWord=}" ; printf '%s\n' "${teamDomain%% *}" ; return 0 ;; esac
+	fi
+	if LC_ALL=C grep -q "^$teamWord"$'\t' "${HOME:-}/.agents/magic-team/members.registry" 2> /dev/null ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		case "$teamWord" in client-*) teamDomain="$( AgentsToolsConfigOption "$teamWord" --select CLIENT_SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || teamDomain="" ;; esac
+		[ -n "$teamDomain" ] || teamDomain="$( AgentsToolsConfigOption "$teamWord" --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || teamDomain=""
+		[ -n "$teamDomain" ] || teamDomain="$( AgentsToolsConfigOption magic-team --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || teamDomain=""
+		teamDomain="$( printf '%s' "${teamDomain#*://}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+		teamDomain="${teamDomain%%.*}"
+	fi
+	[ -n "$teamDomain" ] || teamDomain="$teamWord"
+	contactsTeamMemo="${contactsTeamMemo:- } $teamWord=$teamDomain "
+	printf '%s\n' "$teamDomain"
+}
+## A coordinate list `a:x, b:y` with each entry's team named as its Slack workspace (AgentsToolsContactsSlackTeam), duplicates dropped.
+AgentsToolsContactsSlackListTeams(){ ## list
+	local listOut="" listEntry listRest="$1" listTeam
+	while [ -n "$listRest" ] ; do
+		listEntry="${listRest%%,*}" ; [ "$listEntry" != "$listRest" ] && listRest="${listRest#*,}" || listRest=""
+		listEntry="${listEntry# }" ; listEntry="${listEntry% }"
+		[ -n "$listEntry" ] || continue
+		case "$listEntry" in *:*) listTeam="$( AgentsToolsContactsSlackTeam "${listEntry%%:*}" )" ; listEntry="$listTeam:${listEntry#*:}" ;; esac
+		listOut="$( AgentsToolsContactsListAdd "$listOut" "$listEntry" )"
+	done
+	printf '%s' "$listOut"
+}
+
 ## The shape of a value of each coordinate, or rc 1 and the reason in contactsWhy.
 contactsWhy=""
 AgentsToolsContactsCoordinateCheck(){ ## kind (slack-id|slack-handle|slack-conversation|email), value
@@ -104,30 +140,69 @@ AgentsToolsContactsCoordinateCheck(){ ## kind (slack-id|slack-handle|slack-conve
 
 ## ---- a contact's tier: one ladder of four words, the human-owner's to set (S6.17, S6.36) ----
 
-## The tiers a contact's `tier:` holds, lowest first, each including the ones before it. One place.
-agentsContactTiers=" ingest basic partner recorded "
+## The tiers a contact's `tier:` holds, lowest first, each including the ones before it. One place. The names say the rank:
+## moot (unauthenticated, or its confirmation is pending or was refused), contact (and every member of its organisation), client (team-wide or per
+## project), admin (the almost-top step of the escalation ladder, several may answer for a quorum) and owner (the top step: asked last, only when every lower step cannot settle a matter, and its answer overrides any other answer or quorum at once).
+agentsContactTiers=" tier-moot tier-contact tier-client tier-admin tier-owner "
 
-## Whether a word is one of them.
-AgentsToolsContactsTierKnown(){ ## word
-	case "$agentsContactTiers" in
-		*" $1 "*) return 0 ;;
+## THE OLD WORDS ARE RETIRED (every stored record holds the new ones): ingest, basic, partner and recorded name no tier, and a call giving
+## one is refused with the five words shown. Prints the word of the ladder for a word of the ladder, else nothing, rc 1.
+AgentsToolsContactsTierName(){ ## word
+	case "$1" in
+		*)
+			case "$agentsContactTiers" in
+				*" $1 "*) printf '%s' "$1" ;;
+				*) return 1 ;;
+			esac
+		;;
 	esac
-	return 1
+	return 0
 }
 
-## The four words in one line, for a refusal to name them.
+## Whether a word is one of them, or an old word of one.
+AgentsToolsContactsTierKnown(){ ## word
+	[ -n "$( AgentsToolsContactsTierName "$1" )" ]
+}
+
+## The words in one line, for a refusal to name them.
 AgentsToolsContactsTiersShown(){
-	printf 'ingest, basic, partner and recorded'
+	printf 'tier-moot, tier-contact, tier-client, tier-admin and tier-owner'
 }
 
 ## ---- the record: read into variables, written whole ----
 
 ## A person's record read into crId, crName, crOrg, crRole, crRel, crOwner, crTier, crReached, crSlackId, crSlackHandle, crSlackConv, crEmail, crHow,
 ## crAllows; crExtra holds the front matter lines this file does not know (kept as they stand), crLog the log lines. rc 1 for no file.
-crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
+crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crScopeTiers="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crLanguage="" crAllows="" crExtra="" crLog=""
+## Whether this call is the human-owner's: his own member name, or the console account mapped to him. rc 0 where it is.
+AgentsToolsContactsCallerIsOwner(){
+	local ownerBy
+	ownerBy="$( AgentsToolsActingMember )"
+	if [ -z "$ownerBy" ] ; then
+		type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+		ownerBy="user-$( AgentsToolsConsoleAccount )"
+	fi
+	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	AgentsToolsPermissionIsHumanOwner "$ownerBy"
+}
+
+## The tier a record stands at for a scope: the scope's own entry of `scope-tiers` (`<scope>=<tier>,...`) where there is one, else the record's tier,
+## else tier-contact for a member of an organisation (every member of a contact's organisation holds it without an ask), else none. Printed.
+AgentsToolsContactsTierFor(){ ## scope (may be empty); reads crTier, crOrg, crScopeTiers
+	local forScope="${1:-}" forEntry forTier=""
+	if [ -n "$forScope" ] && [ -n "$crScopeTiers" ] ; then
+		while IFS= read -r forEntry ; do
+			[ "${forEntry%%=*}" = "$forScope" ] && forTier="${forEntry#*=}"
+		done <<< "$( printf '%s' "$crScopeTiers" | LC_ALL=C tr ',' '\n' )"
+	fi
+	[ -n "$forTier" ] || forTier="$crTier"
+	[ -n "$forTier" ] || { [ -z "$crOrg" ] || forTier=tier-contact ; }
+	printf '%s' "$forTier"
+}
+
 AgentsToolsContactsPersonRead(){ ## file
 	local readLine readState="" readKey readValue
-	crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
+	crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crTier="" crScopeTiers="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crLanguage="" crAllows="" crExtra="" crLog=""
 	[ -f "$1" ] || return 1
 	while IFS= read -r readLine || [ -n "$readLine" ] ; do
 		case "$readState:$readLine" in
@@ -144,13 +219,15 @@ AgentsToolsContactsPersonRead(){ ## file
 					role) crRole="$readValue" ;;
 					relationship) crRel="$readValue" ;;
 					is-owner) crOwner="$readValue" ;;
-					tier) crTier="$readValue" ;;
+					tier) crTier="$( AgentsToolsContactsTierName "$readValue" )" || crTier="$readValue" ;;
+					scope-tiers) crScopeTiers="$readValue" ;;
 					reached-by) crReached="$readValue" ;;
 					slack-id) crSlackId="$readValue" ;;
 					slack-handle) crSlackHandle="$readValue" ;;
 					slack-conversation) crSlackConv="$readValue" ;;
 					email) crEmail="$readValue" ;;
 					how-to-meet) crHow="$readValue" ;;
+					language) crLanguage="$readValue" ;;
 					allows) crAllows="$readValue" ;;
 					*) crExtra="$crExtra$readLine"$'\n' ;;
 				esac
@@ -171,12 +248,16 @@ AgentsToolsContactsPersonText(){
 	[ -z "$crRel" ] || printf 'relationship: %s\n' "$crRel"
 	[ -z "$crOwner" ] || printf 'is-owner: %s\n' "$crOwner"
 	[ -z "$crTier" ] || printf 'tier: %s\n' "$crTier"
+	[ -z "$crScopeTiers" ] || printf 'scope-tiers: %s\n' "$crScopeTiers"
 	[ -z "$crReached" ] || printf 'reached-by: %s\n' "$crReached"
-	[ -z "$crSlackId" ] || printf 'slack-id: %s\n' "$crSlackId"
-	[ -z "$crSlackHandle" ] || printf 'slack-handle: %s\n' "$crSlackHandle"
-	[ -z "$crSlackConv" ] || printf 'slack-conversation: %s\n' "$crSlackConv"
+	## Each Slack value is written under the workspace it belongs to (AgentsToolsContactsSlackTeam), whatever word its writer gave.
+	[ -z "$crSlackId" ] || printf 'slack-id: %s\n' "$( AgentsToolsContactsSlackListTeams "$crSlackId" )"
+	[ -z "$crSlackHandle" ] || printf 'slack-handle: %s\n' "$( AgentsToolsContactsSlackListTeams "$crSlackHandle" )"
+	[ -z "$crSlackConv" ] || printf 'slack-conversation: %s\n' "$( AgentsToolsContactsSlackListTeams "$crSlackConv" )"
 	[ -z "$crEmail" ] || printf 'email: %s\n' "$crEmail"
 	[ -z "$crHow" ] || printf 'how-to-meet: %s\n' "$crHow"
+	## The language the person prefers to be written to in (epic item 45: language and style, read when a member talks to them).
+	[ -z "$crLanguage" ] || printf 'language: %s\n' "$crLanguage"
 	[ -z "$crAllows" ] || printf 'allows: %s\n' "$crAllows"
 	[ -z "$crExtra" ] || printf '%s' "$crExtra"
 	printf '%s\n' '---' "# Contact: ${crName:-$crId}" '' '## Log' ''
@@ -196,6 +277,10 @@ AgentsToolsContactsWriteFile(){ ## operation, target file, function that prints 
 		echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be written -- nothing was written" >&2
 		return 1
 	fi
+	## THE RECORD IS COMMITTED, as every board and inbox write is (AgentsToolsTeamDataCommitPaths): a record left uncommitted in the store
+	## was lost to the store's own sync, and a lookup then found nobody.
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	AgentsToolsTeamDataCommitPaths "* contact: $1" "$2" || :
 }
 
 ## The stamp of a log line: `YYYY-MM-DD HH:MM +ZZZZ`.
@@ -317,19 +402,19 @@ AgentsToolsContactsCollectOrganisation(){ ## the operation, its arguments...
 	return 0
 }
 
-## --collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>]
+## --collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--language <word>]
 ##   [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]...
 ##   [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
 ## Adds the calling member to `reached-by`; --reached-by names the member only for a call from no member's session (the console, a migration).
 AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
-	local colOp="$1" colId="" colName="" colOrg="" colRole="" colRel="" colHow="" colOwner="" colTier="" colNote="" colCorrect="" colMember="" colSlack="" colHandle="" colConv="" colMail="" colDrop=""
-	local colBy colFile colNew=no colStamp colNow colItem colKeptLine colSyntax colTierBy colTierAnswered
-	colSyntax="syntax is --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier ingest|basic|partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]"
+	local colOp="$1" colId="" colName="" colOrg="" colRole="" colRel="" colHow="" colLanguage="" colOwner="" colTier="" colNote="" colCorrect="" colMember="" colSlack="" colHandle="" colConv="" colMail="" colDrop=""
+	local colBy colFile colNew=no colStamp colNow colItem colKeptLine colSyntax colTierBy colTierAnswered colScopeTier=""
+	colSyntax="syntax is --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--language <word>] [--owner yes|no] [--tier tier-moot|tier-contact|tier-client|tier-admin|tier-owner] [--scope-tier <scope>=<tier>]... [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]"
 	shift
 	AgentsToolsContactsLoad
 	while [ $# -gt 0 ] ; do
 		case "$1" in
-			--id|--name|--organisation|--role|--relationship|--how-to-meet|--owner|--tier|--slack|--slack-handle|--slack-conversation|--email|--drop|--note|--reached-by)
+			--id|--name|--organisation|--role|--relationship|--how-to-meet|--language|--owner|--tier|--scope-tier|--slack|--slack-handle|--slack-conversation|--email|--drop|--note|--reached-by)
 				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $1 takes a value" >&2 ; return 1 ; }
 				case "$1" in
 					--id) colId="$2" ;;
@@ -338,8 +423,26 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 					--role) colRole="$( AgentsToolsContactsOneLine "$2" )" ;;
 					--relationship) colRel="$( AgentsToolsContactsOneLine "$2" )" ;;
 					--how-to-meet) colHow="$( AgentsToolsContactsOneLine "$2" )" ;;
+					## A language word: lowercase letters and hyphens, as en, ru, pt-br.
+					--language)
+						case "$2" in ''|*[!abcdefghijklmnopqrstuvwxyz-]*) echo "$MDSC_CMD: ⛔ ERROR: $colOp: --language is a language word, lowercase letters and hyphens (en, ru, pt-br): $2" >&2 ; return 1 ;; esac
+						colLanguage="$2"
+					;;
 					--owner) colOwner="$2" ;;
 					--tier) colTier="$2" ;;
+					--scope-tier)
+						## <scope>=<tier>: a project, product or team scope, and the tier the contact holds there. Each is the human-owner's to set, as --tier is.
+						case "$2" in
+							*=*) ;;
+							*) echo "$MDSC_CMD: ⛔ ERROR: $colOp: --scope-tier is <scope>=<tier>, such as rmm2=tier-client: $2" >&2 ; return 1 ;;
+						esac
+						## The whole team is a scope too, written `*`, `<all>` or `<any>`: it is the record's own tier (--tier), which a project or
+						## product entry may stand above or below.
+						case "${2%%=*}" in '*'|'<all>'|'<any>') colTier="${2#*=}" ; shift 2 ; continue ;; esac
+						AgentsToolsContactsSlug "${2%%=*}" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: the scope of --scope-tier is lowercase letters, digits and hyphens (at most 64): ${2%%=*}" >&2 ; return 1 ; }
+						AgentsToolsContactsTierKnown "${2#*=}" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: the tier of --scope-tier is $( AgentsToolsContactsTiersShown ): ${2#*=}" >&2 ; return 1 ; }
+						colScopeTier="${colScopeTier:+$colScopeTier,}${2%%=*}=$( AgentsToolsContactsTierName "${2#*=}" )"
+					;;
 					--slack) AgentsToolsContactsCoordinateCheck slack-id "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colSlack="$( AgentsToolsContactsListAdd "$colSlack" "$2" )" ;;
 					--slack-handle) AgentsToolsContactsCoordinateCheck slack-handle "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colHandle="$( AgentsToolsContactsListAdd "$colHandle" "$2" )" ;;
 					--slack-conversation) AgentsToolsContactsCoordinateCheck slack-conversation "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colConv="$( AgentsToolsContactsListAdd "$colConv" "$2" )" ;;
@@ -360,6 +463,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	## mapped to him. The four words are the ladder, lowest first, and each includes the ones before it.
 	if [ -n "$colTier" ] ; then
 		AgentsToolsContactsTierKnown "$colTier" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --tier is $( AgentsToolsContactsTiersShown ): $colTier" >&2 ; return 1 ; }
+		colTier="$( AgentsToolsContactsTierName "$colTier" )"
 		AgentsToolsContactsStore "$colOp" || return 1
 		colTierBy="$( AgentsToolsActingMember )"
 		if [ -z "$colTierBy" ] ; then
@@ -378,7 +482,22 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 				echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing in this call was written: --tier is the human-owner's to set, so a call carrying it writes no field of its own -- send the rest in a call without --tier" >&2
 				return 1
 			}
-			colTier="$colTierAnswered"
+			colTier="$( AgentsToolsContactsTierName "$colTierAnswered" || printf '%s' "$colTierAnswered" )"
+		fi
+	fi
+	if [ -n "$colScopeTier" ] ; then
+		AgentsToolsContactsStore "$colOp" || return 1
+		if ! AgentsToolsContactsCallerIsOwner ; then
+			## A member's scope tier is asked of him as a record tier is, one scope a call: his answer, once given and not yet used, is the tier written,
+			## whatever the member proposed. Anything else asks him and writes nothing, the whole call refused.
+			local colScopeName="${colScopeTier%%=*}" colScopeAnswered=""
+			case "$colScopeTier" in *,*) echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing in this call was written: a member asks one --scope-tier at a time" >&2 ; return 1 ;; esac
+			colScopeAnswered="$( AgentsToolsContactsTierAnswerWord "$colId" "$colScopeName" )" || {
+				AgentsToolsContactsTierAsk "$colOp" "$colId" "${colScopeTier#*=}" "$colScopeName" || :
+				echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing in this call was written: --scope-tier is the human-owner's to set, as --tier is -- send the rest in a call without it" >&2
+				return 1
+			}
+			colScopeTier="$colScopeName=$( AgentsToolsContactsTierName "$colScopeAnswered" || printf '%s' "$colScopeAnswered" )"
 		fi
 	fi
 	[ -z "$colOrg" ] || AgentsToolsContactsSlug "$colOrg" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --organisation is an organisation's id: $colOrg" >&2 ; return 1 ; }
@@ -386,7 +505,7 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 		echo "$MDSC_CMD: ⛔ ERROR: $colOp: --name and --role are at most 200 characters, --relationship 300, --how-to-meet and --note 500" >&2
 		return 1
 	fi
-	[ -z "$colSlack$colHandle$colConv$colMail$colDrop$colName$colOrg$colRole$colRel$colHow$colOwner$colTier$colNote" ] \
+	[ -z "$colSlack$colHandle$colConv$colMail$colDrop$colName$colOrg$colRole$colRel$colHow$colLanguage$colOwner$colTier$colScopeTier$colNote" ] \
 		&& { echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing is given to record -- $colSyntax" >&2 ; return 1 ; }
 	colBy="$( AgentsToolsActingMember )"
 	if [ -n "$colBy" ] ; then
@@ -426,7 +545,24 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 	else
 		collectChanged="${collectChanged:+$collectChanged, }tier (was: $crTier)" ; crTier="$colTier"
 	fi
+	## A scope's tier replaces the entry of that scope, and adds one where there is none.
+	if [ -n "$colScopeTier" ] ; then
+		local colScopeEntry colScopeOld colScopeNew
+		while IFS= read -r colScopeEntry ; do
+			[ -n "$colScopeEntry" ] || continue
+			colScopeOld="$( printf '%s' "$crScopeTiers" | LC_ALL=C tr ',' '\n' | LC_ALL=C awk -F= -v s="${colScopeEntry%%=*}" '$1 == s { print $2 }' )"
+			[ "$colScopeOld" = "${colScopeEntry#*=}" ] && continue
+			colScopeNew="$( printf '%s' "$crScopeTiers" | LC_ALL=C tr ',' '\n' | LC_ALL=C awk -F= -v s="${colScopeEntry%%=*}" 'NF && $1 != s' | LC_ALL=C tr '\n' ',' )"
+			crScopeTiers="$colScopeNew$colScopeEntry"
+			collectChanged="${collectChanged:+$collectChanged, }scope-tier ${colScopeEntry%%=*}$( [ -z "$colScopeOld" ] || printf ' (was: %s)' "$colScopeOld" )"
+		done <<< "$( printf '%s' "$colScopeTier" | LC_ALL=C tr ',' '\n' )"
+	fi
+	## EVERY MEMBER OF A CONTACT'S ORGANISATION HOLDS tier-contact WITHOUT AN ASK (the human-owner's ruling, 2026-11-09): a record with an organisation and no tier is given it.
+	if [ -z "$crTier" ] && [ -n "$crOrg" ] ; then
+		crTier=tier-contact ; collectChanged="${collectChanged:+$collectChanged, }tier tier-contact (organisation member)"
+	fi
 	AgentsToolsContactsMerge crHow "how-to-meet" "$colHow" "$colCorrect"
+	AgentsToolsContactsMerge crLanguage "language" "$colLanguage" "$colCorrect"
 	## the lists add what is new
 	local colBefore
 	colBefore="$crSlackId" ; while IFS= read -r colItem ; do [ -z "$colItem" ] || crSlackId="$( AgentsToolsContactsListAdd "$crSlackId" "$colItem" )" ; done <<< "$( printf '%s' "$colSlack" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//' )"
@@ -470,13 +606,13 @@ AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
 }
 
 ## The open ask about one contact's tier, if one stands: its id. A member asking again joins it rather than asking him twice.
-AgentsToolsContactsTierAskOpen(){ ## contact id
-	local openFile
+AgentsToolsContactsTierAskOpen(){ ## contact id, [scope]
+	local openFile openWhat="the tier of the contact $1${2:+ for the scope $2}"
 	for openFile in "$( AgentsToolsQuestionsStore )"/*.md ; do
 		[ -f "$openFile" ] || continue
 		[ "$( AgentsToolsAuthorityField "$openFile" status )" = reply-pending ] || continue
 		[ "$( AgentsToolsAuthorityField "$openFile" request-of )" = "$1" ] || continue
-		[ "$( AgentsToolsAuthorityField "$openFile" request-what )" = "the tier of the contact $1" ] || continue
+		[ "$( AgentsToolsAuthorityField "$openFile" request-what )" = "$openWhat" ] || continue
 		basename "$openFile" .md ; return 0
 	done
 	return 1
@@ -486,22 +622,27 @@ AgentsToolsContactsTierAskOpen(){ ## contact id
 ## tier in the ask and the four words as its answers. The action it keeps beside the record is the ordinary collect that writes the word
 ## he chooses, run as the member that asked (AgentsToolsContactsCollectContact's own tier gate lets it, once answered).
 ## Prints `ASKED <contact> <tier> <ask>`; the ask already standing is named instead, and nothing is posted.
-AgentsToolsContactsTierAsk(){ ## operation, contact id, the tier proposed
-	local askOp="$1" askId="$2" askTier="$3" askBy askRun askAsked askText askOut askChannel askTs askThread askAddressees askAsking askPending askFields askOptions askQuestion
+AgentsToolsContactsTierAsk(){ ## operation, contact id, the tier proposed, [scope]
+	local askScope="${4:-}" askWhat askOp="$1" askId="$2" askTier="$3" askBy askRun askAsked askText askOut askChannel askTs askThread askAddressees askAsking askPending askFields askOptions askQuestion
 	askBy="$( AgentsToolsActingMember )"
 	[ -n "$askBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: a tier is asked for by a member, and this call comes from no member's session" >&2 ; return 1 ; }
 	[ -f "$contactsPersons/$askId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: the contact $askId is not recorded yet, and a tier is asked only of a contact on record: record it in a call without --tier, then ask for its tier" >&2 ; return 1 ; }
 	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
-	askAsked="$( AgentsToolsContactsTierAskOpen "$askId" )" && {
+	askWhat="the tier of the contact $askId${askScope:+ for the scope $askScope}"
+	askAsked="$( AgentsToolsContactsTierAskOpen "$askId" "$askScope" )" && {
 		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the tier of $askId is already asked as $askAsked, and he has not answered; nothing was asked again and nothing was written" >&2
 		return 1
 	}
-	askOptions="ingest
-basic
-partner
-recorded"
-	askQuestion="Set the tier of the contact $askId? $askBy proposes the tier $askTier."
+	## Lowest first, each with what it adds, and the proposed one marked: a rank is read from the order and the words, never guessed.
+	askTier="$( AgentsToolsContactsTierName "$askTier" || printf '%s' "$askTier" )"
+	askOptions="tier-moot: the lowest. The team reads and understands what the contact sends, and nothing is given back
+tier-contact: adds conversation, public information and consultation, nothing long-running or costly
+tier-client: adds talking about what the team does, a little help and small research
+tier-admin: adds what affects the board, dispatches jobs and asks for internal information, with several able to answer for a quorum
+tier-owner: the highest. Asked last, only when every lower step cannot settle it; the answer then overrides any other answer or quorum at once"
+	askOptions="$( printf '%s\n' "$askOptions" | LC_ALL=C awk -v want="$askTier" -F: '$1 == want { print $0 " (recommended)" ; next } { print }' )"
+	askQuestion="Set the tier of the contact $askId${askScope:+ for the scope $askScope}? $askBy proposes $askTier, marked recommended below."
 	askText="$( ASKP_F_question="$askQuestion" ASKP_OPTIONS="$askOptions" AgentsToolsAskPostFill post ask-question.post.format.md one 2> /dev/null )" || askText=""
 	[ -n "$askText" ] || { echo "$MDSC_CMD: ⛔ ERROR: $askOp: the ask about the tier of $askId could not be filled from its template, so nothing was asked" >&2 ; return 1 ; }
 	askOut="$( printf '%s\n' "$askText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$askBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
@@ -518,33 +659,34 @@ recorded"
 	askPending="$( printf '%s\n' "$askText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open "$askBy" --store questions --to "$askChannel" \
 		--session-id "${askRun:-none}" --kind decision --address-to human-owner --channel "$askChannel" --question-ts "$askTs" --thread-ts "${askThread:-$askTs}" \
 		--addressees "${askAddressees:-human-owner}" ${askAsking:+--asking-accounts " $askAsking"} --ask-identity bot --select one --options "$askOptions" \
-		--request-of "$askId" --requester "$askBy" --requester-run "$askRun" --request-mode enqueue --request-what "the tier of the contact $askId" \
+		--request-of "$askId" --requester "$askBy" --requester-run "$askRun" --request-mode enqueue --request-what "$askWhat" \
 		--fields "$askFields" --context "$askOp" 2> /dev/null )" || askPending=""
 	if [ -z "$askPending" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the ask about the tier of $askId was posted but not recorded, so his answer would set nothing" >&2
 		return 1
 	fi
 	## The write his answer lets run: the ordinary collect, as the member that asked, named here because the act runs it with no session.
-	printf '%s\n' '--intern-op-contact-tier-apply' "$askId" '--by' "$askBy" > "$( AgentsToolsQuestionsStore )/$askPending.action" || {
+	printf '%s\n' '--intern-op-contact-tier-apply' "$askId" '--by' "$askBy" ${askScope:+--scope "$askScope"} > "$( AgentsToolsQuestionsStore )/$askPending.action" || {
 		echo "$MDSC_CMD: ⛔ ERROR: $askOp: the action of $askPending could not be kept, so his answer would set nothing" >&2
 		return 1
 	}
 	AgentsToolsAskPostReact "$askBy" "$askChannel:$askTs" bot add $( ASKP_OPTIONS="$askOptions" AgentsToolsAskPostFill reactions ask-question.post.format.md one 2> /dev/null )
-	echo "$MDSC_CMD: $askOp: the tier $askTier proposed for the contact $askId is asked as $askPending in his own conversation, and his answer is what sets it" >&2
-	printf 'ASKED\t%s\t%s\t%s\n' "$askId" "$askTier" "$askPending"
+	echo "$MDSC_CMD: $askOp: the tier $askTier proposed for the contact $askId${askScope:+ for the scope $askScope} is asked as $askPending in his own conversation, and his answer is what sets it" >&2
+	printf 'ASKED\t%s\t%s\t%s\n' "$askId" "${askScope:+$askScope=}$askTier" "$askPending"
 	return 0
 }
 
 ## The word the human-owner answered for one contact's tier, where an answered ask of this very contact stands which no tier has been set from
 ## yet: printed. Read only, so a caller may look before it writes. rc 1 where no usable answer stands, which is what makes a later call -- a
 ## second member's, or the same one asking a different word -- open a fresh ask instead of reusing an answer already acted on.
-AgentsToolsContactsTierAnswerWord(){ ## contact id
+AgentsToolsContactsTierAnswerWord(){ ## contact id, [scope]
 	local answeredFile answeredWord
 	[ -n "${MDAT_AUTHORITY_REQUEST:-}" ] || return 1
 	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 	answeredFile="$( AgentsToolsPendingRecordPath "$MDAT_AUTHORITY_REQUEST" )" || answeredFile=""
 	[ -n "$answeredFile" ] || return 1
 	[ "$( AgentsToolsAuthorityField "$answeredFile" request-of )" = "$1" ] || return 1
+	[ "$( AgentsToolsAuthorityField "$answeredFile" request-what )" = "the tier of the contact $1${2:+ for the scope $2}" ] || return 1
 	[ "$( AgentsToolsAuthorityField "$answeredFile" status )" = reply-received ] || return 1
 	[ -z "$( AgentsToolsAuthorityField "$answeredFile" acted-at )" ] || return 1
 	answeredWord="$( AgentsToolsAuthorityField "$answeredFile" chosen )"
@@ -555,12 +697,23 @@ AgentsToolsContactsTierAnswerWord(){ ## contact id
 
 ## The action a tier ask keeps, run by the authority act once he has answered: the ordinary collect, as the member that asked -- named in the
 ## action itself, because the act runs it with no member's session. rc 1 where no answered tier stands for this contact.
-AgentsToolsContactsTierApply(){ ## contact id, [--by <member>]
-	local applyId="${1:-}" applyBy="" applyWord applySet
-	[ "${2:-}" != "--by" ] || applyBy="${3:-}"
-	applyWord="$( AgentsToolsContactsTierAnswerWord "$applyId" )" || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: no answer of his stands unused for the tier of $applyId, so nothing was written" >&2 ; return 1 ; }
+AgentsToolsContactsTierApply(){ ## contact id, [--by <member>], [--scope <scope>]
+	local applyId="${1:-}" applyBy="" applyScope="" applyWord applySet
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--by) applyBy="${2:-}" ; shift ;;
+			--scope) applyScope="${2:-}" ; shift ;;
+		esac
+		shift
+	done
+	applyWord="$( AgentsToolsContactsTierAnswerWord "$applyId" "$applyScope" )" || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-contact-tier-apply: no answer of his stands unused for the tier of $applyId, so nothing was written" >&2 ; return 1 ; }
 	[ -z "$applyBy" ] || MDAT_SPAWN_AGENT="$applyBy"
-	AgentsToolsContactsCollectContact --collect-contact --id "$applyId" --tier "$applyWord" || return 1
+	if [ -n "$applyScope" ] ; then
+		AgentsToolsContactsCollectContact --collect-contact --id "$applyId" --scope-tier "$applyScope=$applyWord" || return 1
+	else
+		AgentsToolsContactsCollectContact --collect-contact --id "$applyId" --tier "$applyWord" || return 1
+	fi
 	## HIS ANSWER IS SPENT ONCE IT HAS SET A TIER (S6.36): the mark is set on the request he answered, so a second run of this action, and any
 	## later call reading that request, finds it used and asks him afresh instead of standing as if he had just ruled. A closed record lives in
 	## pending/closed/, so its path is asked for rather than built here.
@@ -573,36 +726,71 @@ AgentsToolsContactsTierApply(){ ## contact id, [--by <member>]
 
 ## ---- the reads ----
 
-## --all-contacts [--organisation <slug>] [--reached-by <member>]: a row a contact, `contact <id> <display-name> <organisation> <reached-by> -`, by id.
+## HOW AN ASK TO A TIER CLOSES (the ruling on the top two tiers): tier-owner closes on the FIRST answer, whoever gives it and whatever it is;
+## tier-admin closes on a QUORUM of the admins who hold the ask, more than half of them, the verdict being the one that reached it. An ask
+## whose two verdicts can no longer reach a quorum with the answers still to come is `stuck`, which goes up to the owners. One answer from a
+## contact counts once, the latest. Prints `open`, `closed <verdict>` or `stuck`. The arguments: the tier, how many contacts of the tier hold the ask, then the
+## answers, `<contact>=<verdict>` each, in the order they came. A pure decision: it reads no file and posts nothing.
+## HOW AN ASK TO A TIER CLOSES (the human-owner's spec): each tier includes the ones below it, so the tier-owners of a scope sit in its
+## tier-admin quorum. The holders are every participant, admins and owners alike. An owner's answer (`<who>@tier-owner=<what>`, or
+## any answer to an ask to tier-owner) overrides at once and needs no quorum, the first owner to answer deciding. Without one, more
+## than half of the holders resolving the same closes it, whether an owner voted or not; where no quorum can come any more, stuck.
+AgentsToolsContactsTierClosing(){ ## tier, holders, answers...
+	local closeTier="$1" closeHolders="$2"
+	shift 2
+	case "$closeHolders" in ''|*[!0123456789]*|0) echo "$MDSC_CMD: ⛔ ERROR: tier closing: the holders are a number above 0: $closeHolders" >&2 ; return 1 ;; esac
+	case "$closeTier" in tier-admin|tier-owner) ;; *) echo "$MDSC_CMD: ⛔ ERROR: tier closing: only tier-admin and tier-owner close an ask by their own rule: $closeTier" >&2 ; return 1 ;; esac
+	printf '%s\n' "$@" | LC_ALL=C awk -v tier="$closeTier" -v holders="$closeHolders" '
+		NF == 0 { next }
+		{ at = index( $0, "=" ) ; if ( at == 0 ) next ; who = substr( $0, 1, at - 1 ) ; what = substr( $0, at + 1 ) ; if ( who == "" || what == "" ) next
+		  isOwner = ( tier == "tier-owner" || who ~ /@tier-owner$/ ) ; sub( /@tier-[a-z]+$/, "", who )
+		  if ( isOwner && firstOwner == "" ) firstOwner = what
+		  if ( ! ( who in verdict ) ) order[ ++given ] = who
+		  verdict[who] = what }
+		END {
+			if ( firstOwner != "" ) { print "closed " firstOwner ; exit }
+			if ( given == 0 ) { print "open" ; exit }
+			quorum = int( holders / 2 ) + 1
+			for ( n = 1 ; n <= given ; n++ ) count[verdict[order[n]]]++
+			best = "" ; for ( one in count ) if ( count[one] >= quorum && ( best == "" || count[one] > count[best] ) ) best = one
+			if ( best != "" ) { print "closed " best ; exit }
+			left = holders - given ; top = 0 ; for ( one in count ) if ( count[one] > top ) top = count[one]
+			print ( top + left >= quorum ) ? "open" : "stuck"
+		}'
+}
+
+## --all-contacts [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]: a row a contact, `contact <id> <display-name> <organisation> <reached-by> - <scope-tiers>`, by id. `--scope <scope>[=<tier>]` keeps the contacts holding that scope tier.
 AgentsToolsContactsAll(){ ## the operation, its arguments...
-	local allOp="$1" allOrg="" allMember="" allOut
+	local allOp="$1" allOrg="" allMember="" allScope="" allOut
 	shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
-			--organisation|--reached-by)
+			--organisation|--reached-by|--scope)
 				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allOp: $1 takes a value" >&2 ; return 1 ; }
-				if [ "$1" = --organisation ] ; then allOrg="$2" ; else allMember="$2" ; fi
+				case "$1" in --organisation) allOrg="$2" ;; --reached-by) allMember="$2" ;; *) allScope="$2" ;; esac
 				shift 2
 			;;
-			*) echo "$MDSC_CMD: ⛔ ERROR: $allOp: unknown option: $1 -- syntax is [--organisation <slug>] [--reached-by <member>]" >&2 ; return 1 ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $allOp: unknown option: $1 -- syntax is [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]" >&2 ; return 1 ;;
 		esac
 	done
 	AgentsToolsContactsStore "$allOp" || return 1
-	allOut="$( AgentsToolsContactsIndex all "" "" "$allMember" "$allOrg" )"
+	allOut="$( AgentsToolsContactsIndex all "" "" "$allMember" "$allOrg" "$allScope" )"
 	if [ -z "$allOut" ] ; then
-		echo "# $allOp: no contact is recorded${allOrg:+ for the organisation $allOrg}${allMember:+ that $allMember holds}" >&2
+		echo "# $allOp: no contact is recorded${allOrg:+ for the organisation $allOrg}${allMember:+ that $allMember holds}${allScope:+ with the scope tier $allScope}" >&2
 		return 0
 	fi
 	printf '%s\n' "$allOut" | LC_ALL=C sort -t "$(printf '\t')" -k2,2
 }
 
 ## The index rows: mode, wanted text, Slack team, member, organisation. The person files of the store, in the order of their names.
-AgentsToolsContactsIndex(){ ## mode, want, team, member, organisation
-	local indexMode="$1" indexWant="$2" indexTeam="$3" indexMember="$4" indexOrg="$5"
+AgentsToolsContactsIndex(){ ## mode, want, team, member, organisation, [scope or scope=tier]
+	local indexMode="$1" indexWant="$2" indexTeam="$3" indexMember="$4" indexOrg="$5" indexScope="${6:-}"
+	## The team asked for is named as the records name it: its Slack workspace.
+	[ -z "$indexTeam" ] || indexTeam="$( AgentsToolsContactsSlackTeam "$indexTeam" )"
 	[ -d "$contactsPersons" ] || return 0
 	set -- "$contactsPersons"/*.md
 	[ -f "$1" ] || return 0
-	LC_ALL=C awk -v mode="$indexMode" -v want="$indexWant" -v team="$indexTeam" -v member="$indexMember" -v orgfilter="$indexOrg" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsContactsIndex.awk" "$@"
+	LC_ALL=C awk -v mode="$indexMode" -v want="$indexWant" -v team="$indexTeam" -v member="$indexMember" -v orgfilter="$indexOrg" -v scopefilter="$indexScope" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsContactsIndex.awk" "$@"
 }
 
 ## --all-organisations: a row an organisation, `organisation <id> <display-name> <domain> <how many contacts>`, by id.
@@ -635,29 +823,29 @@ AgentsToolsContactsRecord(){ ## the operation, id
 	cat "$contactsPersons/$2.md"
 }
 
-## --find-contact <value> [--team <scope>] [--reached-by <member>]: the contacts that value names, rows as --all-contacts with the last field
+## --find-contact <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]: the contacts that value names, rows as --all-contacts with the last field
 ## saying what matched (id, name, slack-id, slack-conversation, slack-handle, email). rc 1 with none, saying what was searched.
 contactsFound=""
 AgentsToolsContactsFind(){ ## the operation, its arguments...
-	local findOp="$1" findValue="" findTeam="" findMember="" findCount
+	local findOp="$1" findValue="" findTeam="" findMember="" findScope="" findCount
 	shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
-			--team|--reached-by)
+			--team|--reached-by|--scope)
 				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: $1 takes a value" >&2 ; return 1 ; }
-				if [ "$1" = --team ] ; then findTeam="$2" ; else findMember="$2" ; fi
+				case "$1" in --team) findTeam="$2" ;; --reached-by) findMember="$2" ;; *) findScope="$2" ;; esac
 				shift 2
 			;;
-			-*) echo "$MDSC_CMD: ⛔ ERROR: $findOp: unknown option: $1 -- syntax is <value> [--team <scope>] [--reached-by <member>]" >&2 ; return 1 ;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: $findOp: unknown option: $1 -- syntax is <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]" >&2 ; return 1 ;;
 			*)
 				[ -z "$findValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: one value, got a second: $1" >&2 ; return 1 ; }
 				findValue="$1" ; shift
 			;;
 		esac
 	done
-	[ -n "$findValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: syntax is <value> [--team <scope>] [--reached-by <member>]" >&2 ; return 1 ; }
+	[ -n "$findValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: syntax is <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]" >&2 ; return 1 ; }
 	AgentsToolsContactsStore "$findOp" || return 1
-	contactsFound="$( AgentsToolsContactsIndex find "$findValue" "$findTeam" "$findMember" "" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
+	contactsFound="$( AgentsToolsContactsIndex find "$findValue" "$findTeam" "$findMember" "" "$findScope" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
 	if [ -z "$contactsFound" ] ; then
 		findCount="$( ls "$contactsPersons" 2> /dev/null | LC_ALL=C grep -c '\.md$' )" || findCount=0
 		echo "$MDSC_CMD: $findOp: no contact matches \"$findValue\"${findTeam:+ in the Slack team $findTeam}${findMember:+ among those $findMember holds} (searched the ids, names, Slack ids, conversations and handles, and e-mails of $findCount contact(s))" >&2
@@ -707,13 +895,14 @@ AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log lin
 ## What the chain says a contact holds standing, one line a grant: `ALLOW <tool> <target> <granted by> <time>`, or the words that there is none, naming
 ## the tiers the record's `tier:` adds to Ingest and Basic. An unknown value on a record hand-edited is read as no tier, so it adds nothing.
 AgentsToolsContactsAccessText(){ ## id
-	local accessRows accessTiers="Ingest and Basic only"
+	local accessRows accessTiers="Moot and Contact only"
 	accessRows="$( AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$1" 2> /dev/null | LC_ALL=C awk -F'\t' 'NF >= 5 { printf "%s%s on %s (allowed by %s)", sep, $2, $3, $4 ; sep = ", " ; }' )" || accessRows=""
-	case "$( AgentsToolsContactsKey "$contactsPersons/$1.md" tier )" in
-		ingest) accessTiers="Ingest only" ;;
-		basic) accessTiers="Ingest and Basic only" ;;
-		partner) accessTiers="Ingest, Basic and Partner only" ;;
-		recorded) accessTiers="Ingest, Basic, Partner and Recorded only" ;;
+	case "${contactsEffectiveTier:-$( AgentsToolsContactsTierName "$( AgentsToolsContactsKey "$contactsPersons/$1.md" tier )" )}" in
+		tier-moot) accessTiers="Moot only" ;;
+		tier-contact) accessTiers="Moot and Contact only" ;;
+		tier-client) accessTiers="Moot, Contact and Client only" ;;
+		tier-admin) accessTiers="Moot, Contact, Client and Admin only" ;;
+		tier-owner) accessTiers="Moot, Contact, Client, Admin and Owner only" ;;
 	esac
 	printf '%s' "${accessRows:-nothing standing, so $accessTiers}"
 }
@@ -849,6 +1038,35 @@ AgentsToolsContactsAllow(){ ## the operation, its arguments...
 
 ## --contacted-by <value> [--team <scope>]: being contacted. The sender looked up: the record, then what it holds and the tiers and next step of the
 ## template. A sender nobody has recorded is said so, with the next step; rc 1 then, and where the value names more than one contact (rows, narrow it).
+## THE KNOWN-NOT-ADDED LIST of the contacts machinery: Slack accounts asked on contact and not recorded (a bot, an account of no
+## organisation), so no spam sender reaches the contact store and none is asked of Slack again while the answer holds. One line each,
+## `<id> TAB <epoch> TAB <profile>`, machine-local beside the store (never committed with it). An entry holds 12 hours, and only while
+## no organisation record is newer; a write drops every entry past that. The run is still told to escalate: the person may matter.
+AgentsToolsContactsNotAddedFile(){
+	printf '%s' "${MMDAPP:-/nonexistent}/.local/agents/contacts-not-added.tsv"
+}
+AgentsToolsContactsNotAddedFresh(){ ## prints the floor epoch: entries newer than it hold
+	local freshNow freshOrg=""
+	freshNow="$( date +%s )"
+	freshOrg="$( LC_ALL=C ls -t "${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/organisations/"*.md 2> /dev/null | head -1 )"
+	[ -z "$freshOrg" ] || freshOrg="$( stat -f %m "$freshOrg" 2> /dev/null || stat -c %Y "$freshOrg" 2> /dev/null || echo 0 )"
+	LC_ALL=C awk -v a="$(( freshNow - 43200 ))" -v b="${freshOrg:-0}" 'BEGIN { print ( a > b ? a : b ) }'
+}
+AgentsToolsContactsNotAddedGet(){ ## id -- prints the held profile (may be empty), rc 1 where none holds
+	local getFile getFloor
+	getFile="$( AgentsToolsContactsNotAddedFile )" ; [ -f "$getFile" ] || return 1
+	getFloor="$( AgentsToolsContactsNotAddedFresh )"
+	LC_ALL=C awk -F '\t' -v id="$1" -v floor="$getFloor" '$1 == id && $2 > floor { print $3 ; found = 1 ; exit } END { exit found ? 0 : 1 }' "$getFile" 2> /dev/null
+}
+AgentsToolsContactsNotAddedPut(){ ## id, profile
+	local putFile putFloor putTmp
+	putFile="$( AgentsToolsContactsNotAddedFile )"
+	mkdir -p "${putFile%/*}" 2> /dev/null || return 0
+	putFloor="$( AgentsToolsContactsNotAddedFresh )"
+	putTmp="$( mktemp "$putFile.XXXXXX" 2> /dev/null )" || return 0
+	{ [ ! -f "$putFile" ] || LC_ALL=C awk -F '\t' -v id="$1" -v floor="$putFloor" '$1 != id && $2 > floor' "$putFile" ; printf '%s\t%s\t%s\n' "$1" "$( date +%s )" "$( printf '%s' "${2:-}" | LC_ALL=C tr '\t\n' '  ' )" ; } > "$putTmp" 2> /dev/null && mv -f "$putTmp" "$putFile" 2> /dev/null || rm -f "$putTmp"
+}
+
 AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 	local byOp="$1" byValue="" byTeam="" byRows byCount byId byTier
 	shift
@@ -870,7 +1088,99 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
 	byRows="$( AgentsToolsContactsIndex find "$byValue" "$byTeam" "" "" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
 	if [ -z "$byRows" ] ; then
-		ASKP_F_value="$byValue" AgentsToolsEscalationNote "Contacts/contacted-unknown"
+		## A SLACK ACCOUNT NO RECORD HOLDS is read on its Slack profile, so the one who answers has the name and the handle to hand and guesses none.
+		local byProfile="" byProfileMember byProfileResp byProfileName byProfileHandle byHeld=""
+		## Held as not added within its time: no Slack call, the same escalation with the profile held.
+		if byHeld="$( AgentsToolsContactsNotAddedGet "$byValue" )" ; then
+			ASKP_F_value="$byValue" ASKP_F_profile="$byHeld" AgentsToolsEscalationNote "Contacts/contacted-unknown"
+			return 1
+		fi
+		case "$byValue" in
+			U[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
+				byProfileMember="$( AgentsToolsActingMember 2> /dev/null )" ; [ -n "$byProfileMember" ] || byProfileMember=magic-coordinator
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				byProfileResp="$( DistroAgentsTools --intern-op-slack-call "$byProfileMember" --api users.info --identity bot --form "user=$byValue" --context "--contacted-by" 2> /dev/null )" || byProfileResp=""
+				byProfileName="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.real_name -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileName=""
+				byProfileHandle="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.name -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileHandle=""
+				[ -z "$byProfileName$byProfileHandle" ] || byProfile="${byProfileName:-?}${byProfileHandle:+ (@$byProfileHandle)}"
+				## A PERSON WHO WROTE IS RECORDED ON CONTACT, BY THE TOOLING (the owner's rule: record on contact): the Slack profile gives the
+				## name, the handle and the account, in the acting member's workspace. The id is the name made a slug, and never an id another
+				## record already holds. The record carries no tier, so the next step this operation prints is the no-tier one.
+				## A bot account (the team's own bot, an integration) is no person and is never recorded.
+				local byProfileBot=""
+				byProfileBot="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.is_bot -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileBot=""
+				## Slackbot, an app's account and a deactivated account are never recorded either; the team's own accounts (the mention cache) are no contacts of the team.
+				case "$byValue" in USLACKBOT) byProfileBot="true" ;; esac
+				! printf '%s' "$byProfileResp" | LC_ALL=C grep -q -E '"is_app_user":true|"deleted":true' || byProfileBot="true"
+				! LC_ALL=C grep -q -E "^[^=]+=$byValue(=|\$)" "${MMDAPP:-/nonexistent}/.local/.agents/slack-mention-ids.cache" 2> /dev/null || byProfileBot="true"
+				## AN ORGANISATION CONTACT IS RECORDED ON CONTACT, by ANY of: the profile's e-mail domain is the `domain:` of an organisation
+				## record (recorded), or the person is a full member of the workspace (implied, below). Anyone else is left unrecorded, and the
+				## escalation note below carries the profile to the run.
+				local byProfileMail="" byProfileOrg=""
+				byProfileMail="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.profile.email -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileMail=""
+				case "$byProfileMail" in ?*@?*.?*)
+					byProfileOrg="$( LC_ALL=C awk -v want="$( printf '%s' "${byProfileMail##*@}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )" 'FNR == 1 { org = "" } /^organisation-id: / { org = substr( $0, 18 ) } /^domain: / { m = split( tolower( substr( $0, 9 ) ), ds, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) if ( ds[k] == want && org != "" ) { print org ; exit } }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
+				;; esac
+				## OR IMPLIED: a member, guests included (someone let them in), never a bot, of the Slack workspace this call reads in, the team's own or a client-*
+				## member's, is an organisation contact by that alone. Its organisation is the one whose record names that workspace's domain,
+				## where none came from the e-mail; with none named, the person is recorded with no organisation.
+				local byProfileMember1="" byProfileTeam="" byOwnTeam="" byWsDomain=""
+				byProfileTeam="$( printf '%s\n' "$byProfileResp" | LC_ALL=C awk -v path=user.team_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byProfileTeam=""
+				if [ -n "$byProfileTeam" ] ; then
+					byOwnTeam="$( DistroAgentsTools --intern-op-slack-call "$byProfileMember" --api auth.test --identity bot --context "--contacted-by" 2> /dev/null | LC_ALL=C awk -v path=team_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || byOwnTeam=""
+					if [ -n "$byOwnTeam" ] && [ "$byOwnTeam" = "$byProfileTeam" ] ; then
+						byProfileMember1="workspace"
+						if [ -z "$byProfileOrg" ] ; then
+							byWsDomain="$( AgentsToolsContactsSlackTeam "$byProfileMember" )"
+							[ -z "$byWsDomain" ] || byProfileOrg="$( LC_ALL=C awk -v want="$byWsDomain.slack.com" 'FNR == 1 { org = "" } /^organisation-id: / { org = substr( $0, 18 ) } index( tolower( $0 ), want ) && org != "" { print org ; exit }' "${contactsPersons%/persons}/organisations/"*.md 2> /dev/null )" || byProfileOrg=""
+						fi
+					fi
+				fi
+				if [ -n "$byProfileName$byProfileHandle" ] && { [ -n "$byProfileOrg" ] || [ -n "$byProfileMember1" ] ; } && [ "$byProfileBot" != "true" ] && [ -z "${MDAT_CONTACT_RECORDED_ON_CONTACT:-}" ] ; then
+					local byNewId=""
+					byNewId="$( printf '%s' "${byProfileName:-$byProfileHandle}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' | LC_ALL=C sed 's/[^a-z0-9][^a-z0-9]*/-/g; s/^-//; s/-$//' | cut -c1-48 )"
+					case "$byNewId" in ''|*[!a-z0-9-]*) byNewId="slack-$( printf '%s' "$byValue" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )" ;; esac
+					## ONE RECORD PER PERSON, whatever number of runs meet them at once: the record is made under a lock of this account, and a
+					## record that already holds the account, made by another run meanwhile, is that person's.
+					local byLock="$contactsPersons/.record-$byValue.lock" byLockTries=0
+					while ! mkdir "$byLock" 2> /dev/null ; do
+						byLockTries=$(( byLockTries + 1 )) ; [ "$byLockTries" -lt 20 ] || break ; sleep 1
+					done
+					if LC_ALL=C grep -l -E "^slack-id:.*:$byValue(,|\$| )" "$contactsPersons"/*.md > /dev/null 2>&1 ; then
+						rmdir "$byLock" 2> /dev/null || :
+						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byTeam:+--team "$byTeam"} < /dev/null
+						return $?
+					fi
+					## AN UPSERT, NEVER A SECOND RECORD OF ONE PERSON: the record of the same e-mail is theirs; so is the record of the same name
+					## that holds no Slack account yet (one recorded by hand). Only a record of the same name holding another account is another
+					## person, and the new one takes an id of its own.
+					local byMailRecord=""
+					[ -z "$byProfileMail" ] || byMailRecord="$( LC_ALL=C grep -l -i -E "^email:.*(^|[ ,:])$( printf '%s' "$byProfileMail" | LC_ALL=C sed 's/[.[\*^$]/\\&/g' )(,|\$| )" "$contactsPersons"/*.md 2> /dev/null | head -1 )" || byMailRecord=""
+					## Two records may turn out to be one person (two addresses, met apart). Where the e-mail names one record and the name
+					## another, the person is recorded on the e-mail's, and the other is named as a likely same person, for a merge.
+					local byMaybeSame=""
+					if [ -n "$byMailRecord" ] ; then
+						[ ! -e "$contactsPersons/$byNewId.md" ] || [ "$contactsPersons/$byNewId.md" = "$byMailRecord" ] || byMaybeSame="$byNewId"
+						byNewId="${byMailRecord##*/}" ; byNewId="${byNewId%.md}"
+					elif [ -e "$contactsPersons/$byNewId.md" ] && LC_ALL=C grep -q '^slack-id:' "$contactsPersons/$byNewId.md" 2> /dev/null ; then
+						byNewId="$byNewId-$( printf '%s' "$byValue" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+					fi
+					if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --collect-contact --id "$byNewId" \
+						${byProfileName:+--name "$byProfileName"} --slack "$byProfileMember:$byValue" ${byProfileHandle:+--slack-handle "$byProfileMember:@$byProfileHandle"} \
+						${byProfileOrg:+--organisation "$byProfileOrg"} ${byProfileMail:+--email "$byProfileMail"} \
+						--reached-by "$byProfileMember" --note "recorded on contact by the tooling, from the Slack profile of $byValue: ${byProfileMember1:+a full member of the Slack workspace it wrote in}${byProfileMember1:+${byProfileOrg:+, }}${byProfileOrg:+of the organisation $byProfileOrg}" > /dev/null 2>&1 < /dev/null ; then
+						rmdir "$byLock" 2> /dev/null || :
+						echo "CONTACT-RECORDED: $byValue wrote and no record held the account; it is an organisation contact (${byProfileMember1:+a full member of this Slack workspace}${byProfileMember1:+${byProfileOrg:+, }}${byProfileOrg:+organisation $byProfileOrg}), so the tooling recorded it now as $byNewId: $byProfile. FIRST CONTACT: the record holds only what the Slack profile gives, and stands at ${byProfileOrg:+tier-contact, as a member of $byProfileOrg}${byProfileOrg:-no tier, having no organisation}; answer within what the rules below allow, and record what the exchange brings with --collect-contact."
+						[ -z "$byMaybeSame" ] || echo "LIKELY-SAME-PERSON: $byNewId and $byMaybeSame -- the e-mail names one and the name the other. Do not write to either as two people; file it to magic-coordinator with post-inquiry for a merge (no merge operation yet)." 
+						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byTeam:+--team "$byTeam"} < /dev/null
+						return $?
+					fi
+					rmdir "$byLock" 2> /dev/null || :
+				fi
+			;;
+		esac
+		case "$byValue" in U[A-Z0-9][A-Z0-9]*) AgentsToolsContactsNotAddedPut "$byValue" "$byProfile${byProfileBot:+$( [ "$byProfileBot" = true ] && printf ', a bot' )}" ;; esac
+		ASKP_F_value="$byValue" ASKP_F_profile="$byProfile" AgentsToolsEscalationNote "Contacts/contacted-unknown"
 		return 1
 	fi
 	byCount="$( printf '%s\n' "$byRows" | LC_ALL=C grep -c . )"
@@ -883,9 +1193,11 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 	cat "$contactsPersons/$byId.md"
 	printf '\n'
 	## The tier's own rules, whole: the record's `tier:`, and every tier below it. No tier, or a value that is none, reads as `none`.
-	byTier="$( AgentsToolsContactsKey "$contactsPersons/$byId.md" tier )"
-	AgentsToolsContactsTierKnown "$byTier" || byTier=none
-	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" ASKP_F_tiers="$( AgentsToolsEscalationNote "Contacts/tier-$byTier" )" AgentsToolsEscalationNote "Contacts/contacted-known"
+	AgentsToolsContactsPersonRead "$contactsPersons/$byId.md" || :
+	byTier="$( AgentsToolsContactsTierName "$( AgentsToolsContactsTierFor "$byTeam" )" || true )"
+	contactsEffectiveTier="$byTier"
+	AgentsToolsContactsTierKnown "$byTier" || byTier=tier-none
+	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" ASKP_F_tiers="$( AgentsToolsEscalationNote "Contacts/$byTier" )" AgentsToolsEscalationNote "Contacts/contacted-known"
 }
 
 ## --reach-contact <id>: reaching one. The coordinates by channel, how to meet it, the send lines of the template.

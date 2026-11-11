@@ -148,7 +148,8 @@ case "$1" in
 			esac
 		fi
 
-		commsDir="$( AgentsToolsSessionCommsDir )" || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: no workspace is selected -- nothing was started" >&2 ; return 1 ; }
+		[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: no workspace is selected -- nothing was started" >&2 ; return 1 ; }
+		commsDir="$MMDAPP/.local/agents/comms"
 		commsLock="$commsDir/lock"
 		mkdir -p "$commsDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: could not make $commsDir -- nothing was started" >&2 ; return 1 ; }
 		AgentsToolsSessionCommsLockTake ; commsRc=$?
@@ -221,6 +222,15 @@ case "$1" in
 			[ "$commsNow" -ge "$commsBase" ] || { commsBase="$( date +%s )" || commsBase=0 ; commsNow="$commsBase" ; }
 			## One moment for the whole pass (AgentsToolsSessionCommsTick reads it), by the shell's own clock.
 			commsPassNow="$commsNow"
+			## A WANT FIRST: a reader waiting by a folder's fifo flagged the rig (`.wanted`, AgentsToolsCommsCacheWanted) and woke this thread,
+			## so its pull comes before the pass's other work, and the reader is served within its budget rather than after the console's
+			## messages and the outboxes. The pull at the pass's end stays for the watched channels on their own schedule.
+			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ -f "$MMDAPP/.local/cache/comms/.wanted" ] ; then
+				rm -f "$MMDAPP/.local/cache/comms/.wanted" 2> /dev/null
+				commsPullAt="$SECONDS"
+				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
+				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
+			fi
 			## THE BEAT of this pass, written by the shell's own redirection and by nothing else: a ring of 61 empty files, one a pass,
 			## so the beat of fifteen passes ago and the one of sixty are the two moments a session's activity is measured against,
 			## by the shell alone (AgentsToolsSessionCommsActive). No stat, and no process, per pass or per session (S5.6).
@@ -247,7 +257,7 @@ case "$1" in
 				## THE SESSIONS THE LIST NAMES, and those a writer marked, both read by the shell: no walk over the session
 				## folders, no process list, and no pipeline, so a pass with nothing to do starts no process at all (S5.6).
 				commsRows=() ; commsCount=0
-				commsList="$( AgentsToolsSessionCommsListPath )" || commsList=""
+				commsList="${MMDAPP:+$MMDAPP/.local/agents/comms/sessions}"
 				if [ -n "$commsList" ] && [ -f "$commsList" ] ; then
 					while IFS= read -r commsOne commsThread ; do
 						case "$commsOne" in ''|-|*/*) continue ;; esac
@@ -322,7 +332,10 @@ case "$1" in
 			fi
 			## The rig's pull of the channels members read lately (AgentsToolsCommsCachePullWatched), every 30 s: it reads a mark a channel
 			## watched, and a workspace of hundreds of them would otherwise spend every pass on it, holding the console's messages behind it.
-			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && [ $(( SECONDS - ${commsPullAt:--100} )) -ge 30 ] ; then
+			## A reader that wants a channel the cache does not hold flags the rig (`.wanted`, AgentsToolsCommsCacheWanted): the pull then comes
+			## this pass, since the reader may be waiting on it by fifo, and not at the next watched pull.
+			if [ "$commsMode" = "--run" ] && [ -z "$commsEnd" ] && { [ -f "$MMDAPP/.local/cache/comms/.wanted" ] || [ $(( SECONDS - ${commsPullAt:--100} )) -ge 30 ] ; } ; then
+				rm -f "$MMDAPP/.local/cache/comms/.wanted" 2> /dev/null
 				commsPullAt="$SECONDS"
 				type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
 				! type AgentsToolsCommsCachePullWatched > /dev/null 2>&1 || AgentsToolsCommsCachePullWatched "$commsNow" "$agentsSessionCommsPullsPerPass"
@@ -334,6 +347,19 @@ case "$1" in
 			[ "$(( commsLoops % 60 ))" != 0 ] || AgentsToolsSessionCommsListSweep
 			[ "$commsMode" != "--one" ] || break
 			[ -z "$commsEnd" ] || break
+			## THE READER RUNS THE CODE IT LOADED AT ITS START, for hours: a change to one of its own includes ends it, and the next reader
+			## or writer that asks starts one on the current code. Newer than its lock, written when it took it; the shell's own test, no process.
+			if [ "$(( commsLoops % 30 ))" = 0 ] ; then
+				for commsCode in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionComms.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" ${MDAT_COMMS_CODE_EXTRA:-} ; do
+					[ "$commsCode" -nt "$commsLock" ] || continue
+					commsLeave="its code changed: ${commsCode##*/}" ; break
+				done
+				[ -z "$commsLeave" ] || break
+			fi
+			## THE SCHEDULE THREAD IS ASKED FOR where it is wanted: this reader lives while any session of the host does, which at the hour of worktime is the
+			## owner's console, so it finds a thread that ended on its idle bound at night and starts it (AgentsToolsScheduleThreadAskDue, once a minute).
+			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ScheduleThread.include" > /dev/null 2>&1 || :
+			! type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || AgentsToolsScheduleThreadAskDue
 			## The ends of its own: nothing to do for the time set; its folder, or its lock, gone.
 			if [ "$(( SECONDS - commsIdleFrom ))" -ge "$commsIdleLimit" ] ; then
 				commsLeave="no live session had anything for it to do for ${commsIdleLimit}s"
@@ -375,6 +401,11 @@ case "$1" in
 			[ ! -d "$commsDir" ] || AgentsToolsSessionCommsSay "the communications reader, pid $commsPid, ends: $commsLeave"
 		fi
 		[ -z "$commsLock" ] || AgentsToolsSessionCommsLockGive
+		## A READER THAT ENDED ON A CHANGE OF ITS CODE STARTS AGAIN AT ONCE, on the code now there, with the lock given up: nothing else would, on a
+		## host whose live sessions all sit in Waits, and the schedule thread's ask-due rides on this reader (AgentsToolsScheduleThreadAskDue).
+		if [ "$commsMode" = "--run" ] ; then
+			case "$commsLeave" in "its code changed"*) AgentsToolsSessionCommsStart > /dev/null 2>&1 || : ;; esac
+		fi
 		return 0
 	;;
 

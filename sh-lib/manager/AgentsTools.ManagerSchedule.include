@@ -17,7 +17,8 @@ case "$1" in
 
 	## Prints rows of TAB-separated fields, the first naming the row:
 	##   now     <epoch> <weekday> <HH:MM> <timezone, or `host`>
-	##   flag    <name> <yes|no> <note, or ->            the seven flags now, in the order of --current-flags
+	##   flag    <name> <yes|no> <note, or ->            the eight flags now, in the order of --current-flags, holding among them:
+	##                                                   a hold the screen did not show was one nobody saw or cleared there
 	##   switch  <seconds|-> <what>                      the nearest change of a flag that is planned or has a TTL: worktime-starts,
 	##                                                   worktime-ends, or <flag>-ends; `-` and `none` where nothing is planned
 	##   cell    <weekday> <hour 00-23> <flags, or ->    one row for each weekday (mon..sun) and hour, 168 rows
@@ -33,7 +34,7 @@ case "$1" in
 		scheduleName="$( AgentsToolsScheduleDayName "$scheduleDay" )"
 		scheduleZone="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_TIMEZONE )"
 		printf 'now\t%s\t%s\t%02d:%02d\t%s\n' "$scheduleEpoch" "$scheduleName" "$(( scheduleSeconds / 3600 ))" "$(( scheduleSeconds % 3600 / 60 ))" "${scheduleZone:-host}"
-		for scheduleFlag in worktime weekend holidays emergency overtime learning supervised ; do
+		for scheduleFlag in worktime weekend holidays holding emergency overtime learning supervised ; do
 			scheduleLine="$( AgentsToolsScheduleFlagLine "$scheduleFlag" "$scheduleName" "$scheduleSeconds" "$scheduleEpoch" )"
 			scheduleLine="${scheduleLine#*: }"
 			case "$scheduleLine" in

@@ -18,7 +18,7 @@ case "$1" in
 	--spawn-session)
 		shift
 		local routineSelector="" routineDefault="false" sessionRoutineChain="" sessionNameOrComment="" sessionDescription=""
-		local sessionCliService="" sessionSettingsWorkspace="" sessionThreadMode=""
+		local sessionCliService="" sessionSettingsWorkspace="" sessionThreadMode="" sessionParentMember=""
 		local spawnMembers=() sessionJoinId="" sessionHandedOverBy=""
 		## THE PARTICIPANTS and what the work likely needs, as whoever prepares the dispatch guesses them: validated before
 		## anything starts and recorded on the spawn records, never started here -- the executor invites each participant.
@@ -128,6 +128,16 @@ case "$1" in
 						set +e ; return 1
 					fi
 					sessionSettingsWorkspace="$2"
+					shift 2
+				;;
+				## The member the spawned runs report to, passed to each spawn unchanged (the proxy's own --parent-member): the
+				## schedule names magic-coordinator here, so a duty hands back to the coordinator and never to the human-owner.
+				--parent-member)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --parent-member requires <team-member>" >&2
+						set +e ; return 1
+					fi
+					sessionParentMember="$2"
 					shift 2
 				;;
 				--participants)
@@ -378,7 +388,11 @@ case "$1" in
 			for execEntry in ${routineExecutorsLine//,/ } ; do
 				case "$execEntry" in *-'*') partitionRoster="true" ;; esac
 			done
-		elif [ ${#spawnMembers[@]} -ge 2 ] ; then
+		elif [ ${#spawnMembers[@]} -ge 2 ] && [ "$participantsGiven" != "true" ] ; then
+			## Two or more members with no --participants partition the run, one session each. WITH --participants THE CALL IS ONE
+			## COWORKING SESSION: the first member starts it and every further one joins it, as the comment below the limit says and
+			## as the owner rules (a coworking session is one thread). Partitioning it gave two sessions, two threads and two
+			## session headers for one task (mgpu preset reach, 2026-11-09).
 			partitionRoster="true"
 		fi
 		[ ${#partitionScopes[@]} -eq 0 ] || partitionRoster="true"
@@ -480,6 +494,7 @@ case "$1" in
 			[ -z "$sessionDescription" ] || partitionArgs+=( --description "$sessionDescription" )
 			[ -z "$sessionCliService" ] || partitionArgs+=( --spawn-cli-service "$sessionCliService" )
 			[ -z "$sessionSettingsWorkspace" ] || partitionArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
+			[ -z "${sessionParentMember:-}" ] || partitionArgs+=( --parent-member "$sessionParentMember" )
 			{ printf '%s\0' "${partitionArgs[@]}" > "${partitionRecord%/*}/partition.args" \
 				&& printf '%s\n' "$spawnTaskText" > "${partitionRecord%/*}/partition.task" \
 				&& printf '%s' "$recordNotes" > "${partitionRecord%/*}/partition.notes" \
@@ -499,6 +514,7 @@ case "$1" in
 			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )
 			[ -z "$sessionCliService" ] || spawnArgs+=( --spawn-cli-service "$sessionCliService" )
 			[ -z "$sessionSettingsWorkspace" ] || spawnArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
+			[ -z "${sessionParentMember:-}" ] || spawnArgs+=( --parent-member "$sessionParentMember" )
 			if [ "$partitionRoster" = "true" ] ; then
 				## A partitioned run is started from its queue, below.
 				break

@@ -50,7 +50,7 @@ AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 				if kill -0 "$closePid" 2> /dev/null ; then closeVerdict="still-alive" ; else closeVerdict="closed" ; fi
 			fi
 			printf 'rig-orphan %s %s pid=%s %s %s\n' "${closeWs##*/}" "$( printf '%s' "$closeSpid" | cut -c1-8 )" "$closePid" "${closeFile#"$closeAgents"/spawned/"$closeSpid"/}" "$closeVerdict"
-		done <<< "$( find "$closeAgents/spawned" -mindepth 6 -maxdepth 14 -path '*/output/*' -path '*/control/pid' -type f 2> /dev/null )"
+		done <<< "$( type AgentsToolsSuperviseRigPidFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SuperviseScan.include" ; AgentsToolsSuperviseRigPidFiles "$closeAgents" )"
 	done
 	[ "$closeFound" -gt 0 ] || printf 'none - - no rig-orphan\n'
 	return 0

@@ -85,9 +85,9 @@ agentsManagerDashboardBoardStates="running review blocked pending backlog parked
 AgentsToolsManagerDashboardSessionMeasured(){
 	local rowsFile rowsPending rowsControl="" rowsNarrow="" rowsMeasure
 	local measuredRows="" measuredDated="" measuredAny="false"
-	rowsFile="$( AgentsToolsRegistryFile spawned-sessions )"
+	rowsFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	[ -f "$rowsFile" ] || return 0
-	rowsPending="$( AgentsToolsRegistryFile pending-replies )"
+	rowsPending="$MMDAPP/.local/agents/pending-replies.registry"
 	[ -f "$rowsPending" ] || rowsPending="/dev/null"
 	rowsMeasure="$rowsFile"
 	rowsControl="$( AgentsToolsManagerSessionControls )" || rowsControl=""
@@ -148,8 +148,9 @@ AgentsToolsManagerDashboardSessionCounts(){
 			## EVERY REFUSAL IS FLAGGED, NOT ONLY THE USAGE LIMIT (sketch 3.6): the refused count
 			## a session row carries, its last field, added into the total of every session that has one.
 			if ($14 != "-" && $14 ~ /^[0-9]+$/ && $14 + 0 > 0) { refusedSessions++ ; refusedTotal += $14 ; }
-			## The tokens of a session that runs now, and of one whose last run closed today.
-			if ($4 == "running" || ( $4 == "finished" && substr($6, 1, 10) == todayDate )) {
+			## The tokens of a session that runs now, and of one whose last run closed today, finished or
+			## failed: a run the control thread of its session recorded dead reads failed, and spent its tokens today all the same.
+			if ($4 == "running" || ( ( $4 == "finished" || $4 == "failed" ) && substr($6, 1, 10) == todayDate )) {
 				tokenFigure = $12 ; tokenWhole = 1 ;
 				if (sub(/\+$/, "", tokenFigure)) tokenWhole = 0 ;
 				if (tokenFigure !~ /^[0-9]+$/) { tokenWhole = 0 ; tokenFigure = 0 ; }
@@ -240,7 +241,7 @@ AgentsToolsManagerDashboardSessions(){
 AgentsToolsManagerDashboardPending(){
 	local pendingFile pendingDir="$MMDAPP/.local/agents/pending" pendingHost pendingKey pendingAsker pendingOn pendingTo pendingAt
 	local pendingCount=0 pendingOwner=0 pendingGone=0 pendingOldest="" pendingAskers="" pendingDates="" pendingFacts="" pendingLive="" pendingLevel
-	pendingFile="$( AgentsToolsRegistryFile pending-replies )"
+	pendingFile="$MMDAPP/.local/agents/pending-replies.registry"
 	[ -f "$pendingFile" ] || return 0
 	pendingHost="$( hostname -s 2> /dev/null )" || pendingHost=""
 	[ -n "$pendingHost" ] || pendingHost="unknown"
@@ -367,8 +368,8 @@ AgentsToolsManagerDashboardTokensLong(){
 }
 
 ## THE SESSIONS THAT TOOK THE MOST TOKENS, from the same rows of the list of sessions (agentsManagerDashboardTopSessions
-## of them, the most first): those that count in the panel above, the sessions that are not finished and those that finished
-## today, as the rows are measured (AgentsToolsManagerDashboardSessionMeasured). Each is a figure named by the session, its name where
+## of them, the most first): those that count in the panel above, the sessions that have not ended and those that ended
+## today, finished or failed, as the rows are measured (AgentsToolsManagerDashboardSessionMeasured). Each is a figure named by the session, its name where
 ## it has one, else its id, and the total of its runs; a total that is less than the session used ends its label with `+`.
 ## A session with no known figures is not ranked. Left out as the shorter panel is.
 agentsManagerDashboardTopSessions=5
@@ -382,7 +383,7 @@ AgentsToolsManagerDashboardTopSessions(){
 		topPlace=$(( topPlace + 1 ))
 		LocalToolsManagerDashboardFigure top-sessions "top-$topPlace" "$topLabel" "$topTokens" count - ""
 	done <<< "$( printf '%s\n' "$dashboardSessionRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
-		$1 == "session" && $12 ~ /^[0-9]+[+]?$/ && ( $4 != "finished" || substr($6, 1, 10) == todayDate ) {
+		$1 == "session" && $12 ~ /^[0-9]+[+]?$/ && ( ( $4 != "finished" && $4 != "failed" ) || substr($6, 1, 10) == todayDate ) {
 			label = ( $3 == "-" || $3 == "" ) ? $2 : $3 ; gsub(/[ \t]/, "_", label ) ; label = substr(label, 1, 40) ;
 			figure = $12 ; if (sub(/[+]$/, "", figure)) label = label "+" ;
 			printf "%s\t%s\n", figure, label ;
@@ -658,7 +659,7 @@ AgentsToolsManagerDashboardDisk(){
 AgentsToolsManagerDashboardTesting(){
 	local testingQueue testingLine testingAsked="" testingLines=0
 	[ -n "${HOME:-}" ] || return 0
-	testingQueue="$( AgentsToolsTeamSharedDir )/retest-queue/waiting"
+	testingQueue="${HOME:-}/.agents/magic-team/retest-queue/waiting"
 	[ -d "$testingQueue" ] || return 0
 	set -- "$testingQueue"/*.request
 	[ -f "$1" ] || set --

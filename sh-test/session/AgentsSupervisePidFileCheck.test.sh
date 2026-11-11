@@ -7,6 +7,8 @@
 ##   2. IT IS QUIET WHILE NOTHING IS ALIVE, so the row is about a process and not about a file standing there.
 ##   3. `control-stuck` NAMES A SESSION'S CONTROL THREAD alive past the no-run limit with its log silent and no record of it open.
 ##   4. IT IS QUIET while a record of that session is still open, so a thread with something to watch is not called stuck.
+##   5. IT IS QUIET for a pid file whose number a later process reused: alive is the pid begun when the file says
+##      (AgentsToolsSessionControlLive), as a session's control pid file is written, `<pid> <start>`.
 ## The real scan runs over a rig of this check's own. The control threads are sleepers, noted before their pid files are written, and
 ## ended through the shared helper.
 ## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06: read the pid file as a whole line instead of its first
@@ -83,12 +85,21 @@ echo "-- 3. control-stuck names a session's thread alive with nothing to watch -
 mkdir -p "$rigAgents/sessions/rig-session-x/control" || exit 1
 rigControlThread "$rigAgents/sessions/rig-session-x/control/pid" 'rig-control rig-session-x'
 rigCtlPidB="$rigLastPid"
+## A session's control pid file as the thread writes it: the pid and the moment its process began.
+rigProcBegan "$rigCtlPidB" > "$rigAgents/sessions/rig-session-x/control/pid"
 touch -t "$( date -v-2H '+%Y%m%d%H%M' 2> /dev/null || date -d '2 hours ago' '+%Y%m%d%H%M' )" "$rigAgents/sessions/rig-session-x/control/log" 2> /dev/null || : > "$rigAgents/sessions/rig-session-x/control/log"
 [ -e "$rigAgents/sessions/rig-session-x/control/log" ] || : > "$rigAgents/sessions/rig-session-x/control/log"
 touch -t "$( date -v-2H '+%Y%m%d%H%M' 2> /dev/null || date -d '2 hours ago' '+%Y%m%d%H%M' )" "$rigAgents/sessions/rig-session-x/control/log" || exit 1
 rigOut="$( rigScan "$rigWs" )"
 rigAssert "the quiet control thread of a session with no record open is reported as stuck" \
 	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c "^control-stuck .* rig-session-x pid=$rigCtlPidB quiet-over=" )" 1
+
+echo "-- 5. and it is quiet for a pid a later process reused --"
+rigBeganB="$( cat "$rigAgents/sessions/rig-session-x/control/pid" )"
+printf '%s Mon_Jan__1_00:00:00_2001\n' "$rigCtlPidB" > "$rigAgents/sessions/rig-session-x/control/pid"
+rigAssert "an alive pid begun at another time than the file says is no stuck thread" \
+	"$( rigScan "$rigWs" | LC_ALL=C grep -c '^control-stuck .* rig-session-x ' )" 0
+printf '%s\n' "$rigBeganB" > "$rigAgents/sessions/rig-session-x/control/pid"
 
 echo "-- 4. and it is quiet while a record of that session is open --"
 printf -- '---\nsession-id: rig-session-x\nspawn-id: rig-session-x-run\nowner: rig-keeper\nstatus: spawn-started\nstarted-at: 2026-11-06 11:00 +0000\n---\n' > "$rigAgents/spawned/rig-session-x-run.spawn.md" 2> /dev/null || :

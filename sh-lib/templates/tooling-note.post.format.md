@@ -62,10 +62,11 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - reaching
   - escalation-ask
   - tier-none
-  - tier-ingest
-  - tier-basic
-  - tier-partner
-  - tier-recorded
+  - tier-moot
+  - tier-contact
+  - tier-client
+  - tier-admin
+  - tier-owner
 - Reasons
   - not-held
   - session-killed
@@ -434,9 +435,10 @@ Next: assess the request as granted, needs escalation, or must be denied. Ask th
 ## contacted-unknown
 
 ```
-No contact is recorded for {{value}}. It is met at Ingest and Basic only: read the request, answer what needs no record, commit nothing.
+No contact is recorded for {{value}}.[[ Its Slack profile reads: {{profile}}.]] It is met at Moot and Contact only: read the request, answer what needs no record, commit nothing.
 
 Next: look the sender up where it wrote (`--slack-read`, `--slack-search-messages`) and record it with `DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>`. Anything beyond Basic waits for that record, then `--escalate-contact`.
+Until it is recorded: answer only the person who wrote, in the place it wrote. A message that names a board, a ticket or a page is read there before any answer. Where the data to answer is missing, get it or ask for it: never answer from a guess. Use no name you have not read on its Slack profile, and none you guess. Promise nothing: no access, no reading and no reply by a day. Name no internal cause, such as a key, a token or a member's absence.
 ```
 
 ## reaching
@@ -460,57 +462,71 @@ His click or word opens the grant: for this session, or, with 👤, for the cont
 The `{{tiers}}` of `contacted-known` for a contact whose record sets no `tier:`.
 
 ```
-A request is in one of four tiers, each including the ones before it. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Partner, for friends and partners: talk about what the team does, a little help, small research or investigation. Recorded, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
+A request is in one of five tiers, each including the ones before it. Moot, always: read and understand it. Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Client, for friends and partners: talk about what the team does, a little help, small research or investigation. Admin and Owner, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
 ```
 
-## tier-ingest
+## tier-moot
 
-The same slot for a contact whose record says `tier: ingest`: the lowest tier, and nothing above it.
-
-```
-This contact stands at Ingest. Every request is read and understood, and nothing more is open to it.
-
-- Ingest, always: read and understand it.
-```
-
-## tier-basic
-
-The same slot for a contact whose record says `tier: basic`: Ingest, and Basic besides.
+The same slot for a contact whose record says `tier: tier-moot`: the lowest tier, and nothing above it.
 
 ```
-This contact stands at Basic. Every tier below is open to it, and Basic besides.
+This contact stands at Moot. Every request is read and understood, and nothing more is open to it.
 
-- Ingest, always: read and understand it.
-- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
+- Moot, always: read and understand it.
 ```
 
-## tier-partner
+## tier-contact
 
-The same slot for a contact whose record says `tier: partner`: what partner adds, and every tier below it.
-
-```
-This contact is a partner. Every tier below is open to it, and Partner besides.
-
-- Ingest, always: read and understand it.
-- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
-- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.
-
-Partner never covers credentials or client-confidential material. A partner changes a project, the board or the team's work only through escalation to the human-owner.
-```
-
-## tier-recorded
-
-The same slot for a contact whose record says `tier: recorded`: the highest tier, with every tier below it.
+The same slot for a contact whose record says `tier: tier-contact`: Moot, and Contact besides.
 
 ```
-This contact has recorded access. Every tier below is open to it, and Recorded besides.
+This contact stands at Contact. Every tier below is open to it, and Contact besides.
 
-- Ingest, always: read and understand it.
-- Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
-- Partner: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.
-- Recorded: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.
+- Moot, always: read and understand it.
+- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
+```
 
-Partner never covers credentials or client-confidential material. A partner changes a project, the board or the team's work only through escalation to the human-owner.
+## tier-client
+
+The same slot for a contact whose record says `tier: tier-client`: what client adds, and every tier below it.
+
+```
+This contact is a client. Every tier below is open to it, and Client besides.
+
+- Moot, always: read and understand it.
+- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
+- Client: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.
+
+Client never covers credentials or client-confidential material. A client changes a project, the board or the team's work only through escalation to the human-owner.
+```
+
+## tier-admin
+
+The same slot for a contact whose record says `tier: tier-admin`: the almost-top tier, with every tier below it.
+
+```
+This contact is an admin. Every tier below is open to it, and Admin besides.
+
+- Moot, always: read and understand it.
+- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
+- Client: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.
+- Admin: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.
+
+Client never covers credentials or client-confidential material. A client changes a project, the board or the team's work only through escalation to the human-owner.
+```
+
+## tier-owner
+
+The same slot for a contact whose record says `tier: tier-owner`: the highest tier, with every tier below it.
+
+```
+This contact is an owner. Every tier below is open to it, and Owner besides.
+
+- Moot, always: read and understand it.
+- Contact, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed.
+- Client: talk about what the team does, politely and in a friendly way, and give a little help. Do small research or investigation for it.
+- Admin: what affects the board, dispatches jobs or asks for internal information, and only what the access above names.
+- Owner: the first step of the escalation ladder to answer, and the top of it.
 ```
 
 # Reasons

@@ -52,7 +52,7 @@ AgentsToolsManagerPlaceMembers(){ ## the path of the place, its state
 			at = ( $1 in home ) ? home[$1] : ( ( $1 in linked ) ? linked[$1] : first[$1] )
 			print "member", field( $1 ), field( kind ), ( at == place || at == placeReal ) ? field( place ) : "elsewhere", field( $3 ), field( $5 )
 		}
-	' "$( AgentsToolsTeamSharedMembers )" "$( AgentsToolsTeamSharedMembers )" 2> /dev/null )" || membersRows=""
+	' "${HOME:-}/.agents/magic-team/members.registry" "${HOME:-}/.agents/magic-team/members.registry" 2> /dev/null )" || membersRows=""
 	[ -z "$membersRows" ] || printf '%s\n' "$membersRows"
 	[ "$2" = "present" ] || return 0
 	for membersFolder in "${1%/}/.local/agents/members"/*/ ; do

@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.StrayStore.include -- THE STRAY STORE OF A WORKSPACE THAT KEEPS NO TEAM DATA (S12.18, S12.19): work written into
+## `<workspace>/.local/agents/team-data-root` before the team-data gate stood, or under a data root inherited from the wrong
+## workspace. A tool lists it and returns it, never a hand. Sourced, never run. Functions only.
+##
+## WHAT IS STRAY. A workspace whose mode is not `team-rig` keeps no team data, so everything under its default data root is
+## stray: board items, inbox items, audit records. A workspace whose mode is `team-rig` is refused here, whatever its root
+## holds: that root is a real store, and this tool never touches one.
+##
+## WHERE A FILE GOES BACK. A dispatch item names the rig it was paid by in `paying-workspace:`, as a workspace's own name; the
+## rig is the workspace of that name under the same parent folder as the stray workspace, and its team data is what
+## AgentsToolsTeamDataRootOf resolves for it. An inbox item names its writer (`from:`) and its moment (`date:`) and no rig: its
+## rig is read from the session that wrote it, the one rig whose board holds a dispatch item of that writer whose run
+## (`started-at:` to `resolved-at:`, else `processed-at:`, else now) covers that moment. Two rigs that both do leave it
+## `ambiguous`, none leave it `-`, and either stays here. An audit record is the floor's own refusal and stays. The file goes to
+## the same path under the rig's root: `board/<state>/<file>`, `inboxes/<member>/<state>/<file>`.
+##
+## THE RIGS are the sibling workspaces of the stray one, under the same parent, whose mode is `team-rig`, read by
+## AgentsToolsWorkspaceMode as the gate reads it. A rig's runs are read once per call, one awk over its dispatch items, into a
+## table `owner <tab> start <tab> end` in seconds. This is an owner's tool, run once: its reads are no call path.
+##
+## THE RETURN IS A PLAN FIRST. Without `--apply` nothing moves: each row says what would happen. With it, a file absent at its
+## destination is moved there, one identical to the file there is removed here, and one that differs is left and said, for a
+## judgement: a merge is never this tool's.
+##
+## ROWS, tab-separated, one a file:
+##   list:    <kind> <state> <owner> <rig, ambiguous or -> <path under the store>
+##   return:  <verdict> <path under the store> <destination or ->   verdict: move | same | differs | unplaced | moved | removed
+##
+
+## The stray store of a workspace: its default data root. rc 1 where the workspace keeps team data (its mode is team-rig), or is
+## no folder, and then the reason is on stderr and nothing is printed.
+AgentsToolsStrayStoreOf(){ ## workspace
+	local strayWs="${1%/}" strayMode="" straySource=""
+	[ -n "$strayWs" ] && [ -d "$strayWs" ] || { echo "⛔ ERROR: no such workspace: ${1:--}" >&2 ; return 1 ; }
+	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	read -r strayMode straySource <<< "$( MMDAPP="$strayWs" AgentsToolsWorkspaceMode )" || :
+	if [ "$strayMode" = "team-rig" ] ; then
+		echo "⛔ ERROR: $strayWs keeps team data (its mode is team-rig, $straySource): its store is no stray store, and this tool never touches a real one" >&2
+		return 1
+	fi
+	printf '%s\n' "$strayWs/.local/agents/team-data-root"
+}
+
+## One header value of an item, the first line `<key>: <value>` of its frontmatter; empty where none.
+AgentsToolsStrayStoreHeader(){ ## file, key
+	LC_ALL=C awk -v key="$2" 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$1" 2> /dev/null
+}
+
+## THE RIGS BESIDE A WORKSPACE: `<name> <tab> <team data root>`, one a line, for every sibling whose mode is team-rig and whose
+## root is not the stray store itself.
+AgentsToolsStrayStoreRigs(){ ## workspace
+	local rigsWs="${1%/}" rigsSibling rigsMode rigsSource rigsRoot
+	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+	for rigsSibling in "${rigsWs%/*}"/*/ ; do
+		rigsSibling="${rigsSibling%/}"
+		[ -d "$rigsSibling/.local" ] && [ "$rigsSibling" != "$rigsWs" ] || continue
+		read -r rigsMode rigsSource <<< "$( MMDAPP="$rigsSibling" AgentsToolsWorkspaceMode 2> /dev/null )" || :
+		[ "$rigsMode" = "team-rig" ] || continue
+		rigsRoot="$( AgentsToolsTeamDataRootOf "$rigsSibling" 2> /dev/null )" || continue
+		[ -n "$rigsRoot" ] && [ -d "$rigsRoot" ] || continue
+		printf '%s\t%s\n' "${rigsSibling##*/}" "$rigsRoot"
+	done
+}
+
+## A moment `YYYY-MM-DD HH:MM +ZZZZ` in seconds since 1970, by arithmetic: the system awk has no mktime. -1 for no moment.
+agentsStrayStoreEpochAwk='
+function epochOf(s,  y, m, d, H, M, z, sign, zh, zm, yy, era, yoe, doy, doe, days) {
+	if (s !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]/) return -1
+	y = substr(s, 1, 4) + 0 ; m = substr(s, 6, 2) + 0 ; d = substr(s, 9, 2) + 0 ; H = substr(s, 12, 2) + 0 ; M = substr(s, 15, 2) + 0
+	z = substr(s, 18, 5) ; sign = ( substr(z, 1, 1) == "-" ) ? -1 : 1 ; zh = substr(z, 2, 2) + 0 ; zm = substr(z, 4, 2) + 0
+	yy = y - ( m <= 2 ? 1 : 0 ) ; era = int(yy / 400) ; yoe = yy - era * 400
+	doy = int((153 * (m + ( m > 2 ? -3 : 9 )) + 2) / 5) + d - 1
+	doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
+	days = era * 146097 + doe - 719468
+	return days * 86400 + H * 3600 + M * 60 - sign * (zh * 3600 + zm * 60)
+}'
+
+## THE RUNS OF A RIG: `owner <tab> start <tab> end`, one a dispatch item, in seconds; an open run ends at the far future.
+AgentsToolsStrayStoreRunsTable(){ ## team data root
+	local tableFiles=() tableFile
+	for tableFile in "$1"/board/*/dispatch-*.md ; do [ -f "$tableFile" ] && tableFiles+=( "$tableFile" ) ; done
+	[ "${#tableFiles[@]}" -gt 0 ] || return 0
+	LC_ALL=C awk "$agentsStrayStoreEpochAwk"'
+		function flush() { if ( owner != "" && start >= 0 ) { print owner "\t" start "\t" ( end >= 0 ? end : 9999999999 ) } owner = "" ; start = -1 ; end = -1 ; inHead = 0 }
+		FNR == 1 { flush() ; if ( $0 == "---" ) inHead = 1 ; next }
+		inHead && $0 == "---" { inHead = 0 ; next }
+		inHead && index($0, "owner: ") == 1 { owner = substr($0, 8) }
+		inHead && index($0, "started-at: ") == 1 { start = epochOf(substr($0, 13)) }
+		inHead && index($0, "resolved-at: ") == 1 { end = epochOf(substr($0, 14)) }
+		inHead && index($0, "processed-at: ") == 1 && end < 0 { end = epochOf(substr($0, 15)) }
+		END { flush() }' "${tableFiles[@]}"
+}
+
+## THE RIG OF AN INBOX ITEM: the one rig whose table holds a run of the writer covering the moment; `ambiguous` for several, `-` for none.
+AgentsToolsStrayStoreInboxRig(){ ## from, date, the tables folder
+	local inboxFrom="$1" inboxDate="$2" inboxTables="$3" inboxTable inboxFound=""
+	[ -n "$inboxFrom" ] && [ -n "$inboxDate" ] && [ -d "$inboxTables" ] || { printf -- '-\n' ; return 0 ; }
+	for inboxTable in "$inboxTables"/* ; do
+		[ -f "$inboxTable" ] || continue
+		## The two values go in with -v, so BEGIN has them: an assignment after the program is made only when the file is reached.
+		if LC_ALL=C awk -F'\t' -v who="$inboxFrom" -v when="$inboxDate" "$agentsStrayStoreEpochAwk"'
+			BEGIN { at = epochOf(when) ; if ( at < 0 ) exit 1 }
+			$1 == who && $2 + 0 <= at && at <= $3 + 0 { hit = 1 ; exit }
+			END { exit ( hit ? 0 : 1 ) }' "$inboxTable" ; then
+			[ -z "$inboxFound" ] || { printf 'ambiguous\n' ; return 0 ; }
+			inboxFound="${inboxTable##*/}"
+		fi
+	done
+	printf '%s\n' "${inboxFound:--}"
+}
+
+## THE LIST: every file of the stray store, one row each, then a summary line on stderr. rc 1 where there is no stray store.
+AgentsToolsStrayStoreList(){ ## workspace
+	local listWs="${1%/}" listStore listFile listRel listKind listState listOwner listRig listCount=0 listTables="" listRigName listRigRoot
+	listStore="$( AgentsToolsStrayStoreOf "$listWs" )" || return 1
+	[ -d "$listStore" ] || { echo "# $listWs keeps no stray store: nothing at $listStore" >&2 ; return 0 ; }
+	## The rigs' runs, one table each, for the inbox items; made once, removed at the end.
+	if [ -n "$( find "$listStore/inboxes" -type f 2> /dev/null | head -n 1 )" ] ; then
+		listTables="$( mktemp -d "${TMPDIR:-/tmp}/stray-runs.XXXXXX" 2> /dev/null )" || listTables=""
+		[ -z "$listTables" ] || while IFS=$'\t' read -r listRigName listRigRoot ; do
+			[ -n "$listRigName" ] || continue
+			AgentsToolsStrayStoreRunsTable "$listRigRoot" > "$listTables/$listRigName"
+		done < <( AgentsToolsStrayStoreRigs "$listWs" )
+	fi
+	while IFS= read -r listFile ; do
+		listRel="${listFile#"$listStore"/}"
+		listOwner="" listRig="-" listState="-"
+		case "$listRel" in
+			board/*/*)
+				listKind=board ; listState="${listRel#board/}" ; listState="${listState%%/*}"
+				listOwner="$( AgentsToolsStrayStoreHeader "$listFile" owner )"
+				listRig="$( AgentsToolsStrayStoreHeader "$listFile" paying-workspace )"
+			;;
+			inboxes/*/*/*)
+				listKind=inbox ; listState="${listRel#inboxes/*/}" ; listState="${listState%%/*}"
+				listOwner="$( AgentsToolsStrayStoreHeader "$listFile" owner )"
+				## An item stamped with the writer's workspace names its rig itself; one without is matched by the writer's run.
+				listRig="$( AgentsToolsStrayStoreHeader "$listFile" from-workspace )"
+				case "$listRig" in ''|*/*|.|..|*[[:space:]]*) listRig="-" ;; esac
+				[ "$listRig" != "-" ] || [ -z "$listTables" ] || listRig="$( AgentsToolsStrayStoreInboxRig "$( AgentsToolsStrayStoreHeader "$listFile" from )" "$( AgentsToolsStrayStoreHeader "$listFile" date )" "$listTables" )"
+			;;
+			audit/*) listKind=audit ;;
+			*) listKind=other ;;
+		esac
+		printf '%s\t%s\t%s\t%s\t%s\n' "$listKind" "$listState" "${listOwner:--}" "${listRig:--}" "$listRel"
+		listCount=$(( listCount + 1 ))
+	done < <( find "$listStore" -type f ! -name '.DS_Store' ! -path "$listStore/.git/*" 2> /dev/null | LC_ALL=C sort )
+	[ -z "$listTables" ] || rm -rf "$listTables" 2> /dev/null
+	echo "# $listCount file(s) in the stray store of $listWs" >&2
+	return 0
+}
+
+## THE RETURN: the plan of every file, applied only with `--apply`. `--inbox-to <rig>` gives the inbox items no run places, the
+## ambiguous and the unmatched, that rig on the owner's word; the placed ones keep theirs. `--place-from <file>` gives item by item:
+## the file's lines are `<rig> TAB <path in the store>` (a path as the list prints it), each such item that no run placed goes to
+## its line's rig and every other item is left as it was; an item in both is placed by its own line. rc 1 where there is no stray store.
+AgentsToolsStrayStoreReturn(){ ## workspace, --apply (optional), --inbox-to <rig> (optional), --place-from <file> (optional), --drop-superseded (optional)
+	local retWs="${1%/}" retApply="" retInboxTo="" retPlaceFrom="" retDrop="" retPlaced retStore retKind retState retOwner retRig retRel retRigWs retRoot retDest retVerdict
+	local retMoved=0 retRemoved=0 retLeft=0
+	shift
+	while [ "$#" -gt 0 ] ; do
+		case "$1" in
+			--apply) retApply="--apply" ; shift ;;
+			--drop-superseded) retDrop=yes ; shift ;;
+			--inbox-to)
+				case "${2:-}" in ''|*/*|.|..|*[[:space:]]*) echo "⛔ ERROR: --inbox-to takes a rig's own name, not ${2:--}" >&2 ; return 1 ;; esac
+				retInboxTo="$2" ; shift 2
+			;;
+			--place-from)
+				[ -f "${2:-}" ] || { echo "⛔ ERROR: --place-from takes a file of '<rig> TAB <path>' lines, and ${2:--} is none" >&2 ; return 1 ; }
+				retPlaceFrom="$2" ; shift 2
+			;;
+			*) echo "⛔ ERROR: the words after the workspace are --apply, --inbox-to <rig>, --place-from <file> and --drop-superseded, not $1" >&2 ; return 1 ;;
+		esac
+	done
+	retStore="$( AgentsToolsStrayStoreOf "$retWs" )" || return 1
+	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
+	while IFS=$'\t' read -r retKind retState retOwner retRig retRel ; do
+		retDest="-" retVerdict="unplaced"
+		## The owner's word places what no run did.
+		if [ "$retKind" = inbox ] && [ -n "$retInboxTo" ] && { [ "$retRig" = "-" ] || [ "$retRig" = "ambiguous" ] ; } ; then retRig="$retInboxTo" ; fi
+		## The owner's word item by item: the line of the item in the file given, for an item no run placed.
+		if [ "$retKind" = inbox ] && [ -n "$retPlaceFrom" ] && { [ "$retRig" = "-" ] || [ "$retRig" = "ambiguous" ] ; } ; then
+			retPlaced="$( LC_ALL=C awk -F'\t' -v rel="$retRel" '$2 == rel { print $1 ; exit ; }' "$retPlaceFrom" )"
+			[ -z "$retPlaced" ] || retRig="$retPlaced"
+		fi
+		if { [ "$retKind" = board ] || [ "$retKind" = inbox ] ; } && [ "$retRig" != "-" ] && [ "$retRig" != "ambiguous" ] ; then
+			case "$retRig" in
+				*/*|.|..) ;;
+				*)
+					## The rig named is a workspace beside this one, never a path taken from the file.
+					retRigWs="${retWs%/*}/$retRig"
+					if [ -d "$retRigWs" ] && [ "$retRigWs" != "$retWs" ] && retRoot="$( AgentsToolsTeamDataRootOf "$retRigWs" )" && [ -n "$retRoot" ] && [ "$retRoot" != "$retStore" ] ; then
+						retDest="$retRoot/$retRel"
+						if [ ! -e "$retDest" ] ; then retVerdict=move
+						elif LC_ALL=C cmp -s "$retStore/$retRel" "$retDest" ; then retVerdict=same
+						elif [ -n "$retDrop" ] && [ "$retDest" -nt "$retStore/$retRel" ] ; then retVerdict=superseded
+						else retVerdict=differs
+						fi
+					fi
+				;;
+			esac
+		fi
+		if [ "$retApply" = "--apply" ] ; then
+			case "$retVerdict" in
+				move)
+					if mkdir -p "${retDest%/*}" 2> /dev/null && mv -n "$retStore/$retRel" "$retDest" 2> /dev/null && [ ! -e "$retStore/$retRel" ] ; then
+						retVerdict=moved ; retMoved=$(( retMoved + 1 ))
+					else
+						retVerdict=differs ; retLeft=$(( retLeft + 1 ))
+					fi
+				;;
+				superseded)
+					## The live file at the destination is newer and differs: this stray copy is the older one, and goes.
+					rm -f "$retStore/$retRel" 2> /dev/null && retVerdict=removed && retRemoved=$(( retRemoved + 1 )) || retLeft=$(( retLeft + 1 ))
+				;;
+				same)
+					rm -f "$retStore/$retRel" 2> /dev/null && retVerdict=removed && retRemoved=$(( retRemoved + 1 )) || retLeft=$(( retLeft + 1 ))
+				;;
+				*) retLeft=$(( retLeft + 1 )) ;;
+			esac
+		fi
+		printf '%s\t%s\t%s\n' "$retVerdict" "$retRel" "$retDest"
+	done < <( AgentsToolsStrayStoreList "$retWs" 2> /dev/null )
+	if [ "$retApply" = "--apply" ] ; then
+		echo "# returned from the stray store of $retWs: $retMoved moved, $retRemoved removed as identical or superseded, $retLeft left (differs or unplaced)" >&2
+	else
+		echo "# the plan for the stray store of $retWs: nothing moved; run again with --apply to move" >&2
+	fi
+	return 0
+}

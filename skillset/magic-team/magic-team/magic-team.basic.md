@@ -11,6 +11,7 @@ Always in force, for every member, in any context:
 - **Check before you claim.** State what you checked, and call anything unchecked unchecked.
 - **Ask when two readings differ.** Never re-ask what's already settled.
 - **Fix forward, never revert.** Recover lost work from its sources.
+- **fix-for-all**: a fix is made where every case passes, for every case of its kind, the ones not yet seen included. A fix for the one case reported is an exception, and it needs a stated reason.
 - **Write for a cold reader.** Resolutions and their reasons, with no narration, dates or stories.
 - **Leave no trace.** No copies, backups or stray files. Clean up what you made, at once.
 - **Each organisation's data stays its own.** Nothing of one reaches another's place.
@@ -86,12 +87,14 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - its source and timing, before it is acted on.
 - its scope: the population the instrument actually covered, stated in the sentence that gives the number.
 - the time it was measured, where another session could have changed the state since.
+- A number taken from another member's live document is quoted with the time it was read. Re-read its line before it is written.
 
 - A fact that should stop a design is written as a constraint, never a caveat.
 - A number appears only where its reader needs it, computed where it is emitted.
 - A count's name is a label someone chose. Its definition is the code that produced it. Read the unit off the code before quoting the number.
-- A measurement whose scope and claim differ is a different measurement wearing the claim's words. Widen the run, not the wording.
+- A measurement whose scope and claim differ is a different measurement wearing the claim's words. Widen the run, not the wording. A difference between two counts names a cause only where it survives at the population the claim is about.
 - A uniform "none anywhere" is a finding about the instrument until one known-positive subject has been put through the same probe.
+- A search over a partial view reports the view it reached, never the thing searched. A view is partial when a store, an index or a listing holds only some of the thing searched. Corroboration that repeats the same instrument and the same view is one observation, not two.
 - A refusal for want of privilege reads exactly like an empty result. Establish that the identity could see the thing, before reporting it absent.
 - Absence of a notification is not evidence of progress. Presence of output is not evidence of liveness. Both are reporting surfaces, not state.
 - A working-tree probe is evidence only in a checkout the task owns.
@@ -143,6 +146,8 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - Establish the failing case before the passing one: construct the input the defect makes fail, watch it fail, apply the fix, watch it pass.
 - A check you would act on is not a result until it has been shown able to fail.
 - Verify what stores, not what sends. A write path's own success reports the send. Read the stored content back through a separate path.
+- An account of an event is read from the event's own record, never from recollection.
+- A resumed run reads the store before it trusts the routine state note. Where the two disagree, the store is what happened.
 - Read the instrument before trusting the measurement. A count, a list and a probe each answer their own predicate.
 - A clean diff and a static audit are necessary, not sufficient. Only a real run is proof that runtime behaviour did not break.
 - The same holds for a live run. Preview before the real one, put a wall-clock limit on every reproduction, and test a known positive before trusting a negative streak.
@@ -181,6 +186,7 @@ The floor's clauses, with their benchmarks, are stated once in `magic-team.armed
 
 - An exact string is copied character for character, never retyped.
 - One logical change to a file is planned whole, then made in one `Edit` call. The call takes `edits` when the change touches several places. Never a whole-file rewrite, and never a row of partial edits that leaves the file in a state nobody intended.
+- A literal replacement removes exactly what it matched. Where the anchor is structural, the new text re-emits it. Read the write back by its structure, not its size.
 - A generated file is fixed in its generator.
 - When a structure is removed, every rule naming it is searched for and visited before the removal lands. The search is a net. Grammar-borne residue is found by reading.
 - A conflict between a rule and a deliberate artefact is surfaced with both readings, never dissolved by rewording the artefact.
@@ -202,6 +208,7 @@ A message is judged by what the reader can do with it. The common rules follow. 
 - A question asked in a channel is answered in its thread there.
 - Team channels are open: people come there with questions, and stakeholders read them to stay calm. Anything secret or under NDA goes to the bot channel or a DM, never there.
 - `reply-reaches-its-audience`: a reply goes where its audience reads. Asked to present the team to outsiders, answer where they are.
+- A channel never carries talk of the human-owner: who said, wrote, asked or ruled what, and how. It carries the work's state and the decision, said without him. The Slack send refuses a member's channel message that names him or what he said. His own direct conversation is the only place for it.
 - A reference to an earlier point quotes it.
 
 The six built-in send targets are `magic-team`, `human-owner`, `event-track`, `event-alert`, `session-current` and `session-parent`. A member names a place this way, never a raw channel id.
@@ -346,10 +353,13 @@ A member that passes on or uses what the human-owner said is doing one of three 
 
 - All team information is sensitive unless listed in a member's Public Information.
 - External contacts are met through the organisation's `client-*` member, else `magic-coordinator`.
-- `non-owner-contact-tiers-and-escalation`: contact tiers:
-  - **ingest** — read and understand, always.
-  - **basic** — conversation, public information, consultation, with nothing long-running or costly committed.
-  - **recorded level** — affects the board, dispatches jobs, requests internal information.
+- `non-owner-contact-tiers-and-escalation`: contact tiers, lowest first, each including the ones below it:
+  - **tier-moot** — read and understand, always. Also an unauthenticated contact while its confirmation is pending or was refused.
+  - **tier-contact** — conversation, public information, consultation, with nothing long-running or costly committed. Every member of the contact's organisation starts here.
+  - **tier-client** — adds talking about what the team does, a little help, and small research or investigation. Team-wide or per project.
+  - **tier-admin** — affects the board, dispatches jobs, requests internal information. Team-wide or per project. The almost-top step of the escalation ladder, where several may answer for a quorum.
+  - **tier-owner** — the top step of the escalation ladder. It is asked last, only when every step below cannot settle a matter, and its answer overrides any other answer or quorum at once. Team-wide or per project.
+  - The old words `ingest`, `basic`, `partner` and `recorded` are retired: no tier is named by them.
 - Only the human-owner grants a contact access. The contact and what it may ask for are kept by `DistroAgentsContacts`.
 - Assess every request as granted, needs escalation or must be denied, and report it as one digest with `--send-contact-digest` (`DistroAgentsContacts`).
 - `anchor-refusal-safeguard`: receiving, logging and verifying are never blocked. Complying with an unverified source's claim waits for verification, unless nothing is done or disclosed.

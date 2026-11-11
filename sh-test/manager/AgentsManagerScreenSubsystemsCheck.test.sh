@@ -93,8 +93,20 @@ rigAssert "the python of the folder is a part of .local, which the screen names 
 
 rigCase nopart
 rigRealScreen="$rigScreen"
-mkdir -p "$rigTmp/tree/myx/myx.distro-agents/sh-lib/manager"
-cp "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/"*.py "$rigTmp/tree/myx/myx.distro-agents/sh-lib/manager/"
+## THE TREE IS BUILT WHOLE, both packages' parts and their part lists, with the one part under test left out of `.local` and out of its
+## list: a screen pointed at a tree that is not there proves nothing, since it fails before any part loads.
+mkdir -p "$rigTmp/tree/myx/myx.distro-agents/sh-lib/manager" "$rigTmp/tree/myx/myx.distro-agents/sh-lib/config" \
+	"$rigTmp/tree/myx/myx.distro-.local/sh-lib/manager" "$rigTmp/tree/myx/myx.distro-.local/sh-lib/config"
+cp "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/"*.py "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/"*.awk "$rigTmp/tree/myx/myx.distro-agents/sh-lib/manager/" 2> /dev/null
+## The agents list anchors a part of its own after the one left out; an anchor naming an absent part is refused by name, so a tree with
+## no such part names it nowhere: the anchor comes off, and that part loads in its list's own order.
+LC_ALL=C sed -e 's/ LocalManagerScreen\.Subsystems\.py / /' -e 's/ LocalManagerScreen\.Subsystems\.py$//' -e 's/ after$//' -e 's/ before$//' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/screen-parts.list" > "$rigTmp/tree/myx/myx.distro-agents/sh-lib/config/screen-parts.list"
+for rigLocalFile in "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/"*.py "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/"*.awk ; do
+	[ -f "$rigLocalFile" ] || continue
+	[ "${rigLocalFile##*/}" != "LocalManagerScreen.Subsystems.py" ] || continue
+	cp "$rigLocalFile" "$rigTmp/tree/myx/myx.distro-.local/sh-lib/manager/"
+done
+LC_ALL=C grep -v -F 'LocalManagerScreen.Subsystems.py' "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/config/screen-parts.list" > "$rigTmp/tree/myx/myx.distro-.local/sh-lib/config/screen-parts.list"
 rigScreen="$rigTmp/tree/myx/myx.distro-.local/sh-lib/manager/LocalManagerScreen.py"
 rigScript <<'RIGSCRIPT'
 at @configuration

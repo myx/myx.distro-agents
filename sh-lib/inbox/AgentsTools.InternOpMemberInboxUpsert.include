@@ -156,7 +156,7 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: $itemName is a processed item of $memberName's inbox, which this call does not see -- give --include-processed to update it; nothing was written" >&2
 			set +e ; return 1
 		fi
-		target="${existingPath:-$( AgentsToolsInboxDir "$memberName" )/$itemName}"
+		target="${existingPath:-$MDAT_DATA_ROOT/inboxes/$memberName/incoming/$itemName}"
 		if [ "$bodyMode" = "patch" ] ; then
 			local patchJson existingContent
 			patchJson="$( cat )"
@@ -226,6 +226,9 @@ case "$1" in
 			[ -z "$fromMember" ] || createDefaults="${createDefaults}default"$'\t'"from"$'\t'"$fromMember"$'\n'
 			createDefaults="${createDefaults}default"$'\t'"date"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
 			createDefaults="${createDefaults}default"$'\t'"owner"$'\t'"$memberName"$'\n'
+			## The writer's workspace and session, tooling keys of the contracts (S12.18): a stray item names its rig by them, exactly.
+			[ -z "${MMDAPP:-}" ] || createDefaults="${createDefaults}default"$'\t'"from-workspace"$'\t'"${MMDAPP##*/}"$'\n'
+			[ -z "${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-}}" ] || createDefaults="${createDefaults}default"$'\t'"from-session"$'\t'"${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-}}"$'\n'
 			if [ -n "$createType" ] && AgentsToolsDocValidateContractFile "inbox-item.$createType" > /dev/null ; then
 				createDefaults="${createDefaults}default"$'\t'"document-contract"$'\t'"inbox-item.$createType"$'\n'
 			fi

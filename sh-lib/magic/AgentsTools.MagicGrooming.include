@@ -898,7 +898,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		printf '%s\n\n' "## state-and-lock (routine-grooming)"
-		local lockNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154332Z-grooming-state-and-lock.md"
+		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260809T154332Z-grooming-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## team-roster (cache)"
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

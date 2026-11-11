@@ -73,8 +73,11 @@ case "$1" in
 					memberBroughtFrom="${memberBrought#*$'\t'}"
 					memberBrought="${memberBrought%%$'\t'*}"
 					shift
-					## A caller still naming this same member first (the harness's Wait) is not read as the operation's own argument.
-					[ "${1:-}" != "$memberName" ] || shift
+					## THE POSITIONAL IS RETIRED FOR EVERY OPERATION BUT ONE (S21.3): only the harness's own Wait still names this same member
+					## first, and only there is it not read as the operation's argument. For every other operation a positional member, the
+					## acting one included, is one argument too many and the operation's own check refuses it, so the retired form is
+					## honoured on no route.
+					[ "$frontOpName" != "--wait-for-input" ] || [ "${1:-}" != "$memberName" ] || shift
 					set -- "$frontOpName" "$memberName" "$@"
 					if [ -n "$memberBrought" ] && [ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
 						AgentsToolsMemberSettingsBorrowedSay "$memberName" "$frontOpName" "$memberBroughtFrom"

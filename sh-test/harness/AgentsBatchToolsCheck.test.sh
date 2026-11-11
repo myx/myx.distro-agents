@@ -196,6 +196,12 @@ rigListedOps="$( { LC_ALL=C sed -n '/^[[:space:]]*\(local \)\{0,1\}agentsToolOpe
 rigAssert "the list beside the option is exactly the operations behind the tools" \
 	"$( printf '%s\n' "$rigHarnessOps" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' "$rigListedOps" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
 
+echo "-- auto: no mode given --"
+rigServe auto-reads "{\"calls\":[{\"tool\":\"Read\",\"arguments\":{\"file_path\":\"$rigFix/a.txt\"}},{\"tool\":\"Read\",\"arguments\":{\"file_path\":\"$rigFix/b.txt\"}}]}"
+rigAssert "no mode, every call a read: run at once (parallel-all-through), both ok" "$( rigSummary auto-reads )" "parallel-all-through 2/2"
+rigServe auto-write "{\"calls\":[{\"tool\":\"Read\",\"arguments\":{\"file_path\":\"$rigFix/a.txt\"}},{\"tool\":\"Bash\",\"arguments\":{\"command\":\"touch $rigFix/marks/auto-write\"}}]}"
+rigAssert "no mode, one call may write: one after another (sequence-all-through)" "$( rigSummary auto-write | LC_ALL=C cut -d' ' -f1 )" "sequence-all-through"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BATCH TOOLS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

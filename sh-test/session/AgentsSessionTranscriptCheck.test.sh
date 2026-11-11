@@ -74,7 +74,8 @@ rigAssert "file content never reaches a line" "$( printf '%s' '{"file_path":"/f"
 rigTodoArgs='{"todos":[{"content":"Read it","status":"completed","activeForm":"Reading it"},{"content":"Write the check","status":"in_progress","activeForm":"Writing the check"}]}'
 for rigTodoTool in TodoWrite CheckList mcp__myx_distro__CheckList ; do
 	rigLine="$( printf '%s' "$rigTodoArgs" | STL_TS=T0 STL_TOOL="$rigTodoTool" STL_OUTCOME=ok STL_COMMENT='model text' LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
-	rigAssert "a $rigTodoTool line's comment is its item in progress" "$rigLine" "T0 TOOL $rigTodoTool args=${#rigTodoArgs}B -> ok | \"Writing the check\""
+	## A served name is shown as the tool it means (AgentsClaudeStreamJsonFormat.awk: mcp__myx_distro__Read is Read), so the line says CheckList for both forms.
+	rigAssert "a $rigTodoTool line's comment is its item in progress" "$rigLine" "T0 TOOL ${rigTodoTool#mcp__myx_distro__} args=${#rigTodoArgs}B -> ok | \"Writing the check\""
 done
 rigLine="$( printf 'one\ntwo\x01three\n' | STL_CAP=9 LC_ALL=C awk -v stlStandalone=body -f "$rigFormat" )"
 rigAssert "a body is > lines, control bytes folded, cut with its full size named" "$rigLine" $'> one\n> two t\n> [... cut at 9 of 13 bytes]'
@@ -153,6 +154,9 @@ rigAssert "a Wait result keeps its text" "$( LC_ALL=C grep -A2 ' WAIT-RESULT$' "
 rigAssert "DISMISSED is its own event" "$( rigHas "$rigT" ' DISMISSED' )" 1
 rigAssert "an ask and its answer are both kept" "$( rigHas "$rigT" 'ASK to=human-owner' )$( rigHas "$rigT" '> ANSWER: the second' )" 11
 rigAssert "milestones: message out, handback, wait going idle x2, dismissed, the ask going idle and its message out" "$( awk '{ $1 = "" ; print }' "$rigWs/.local/agents/sessions/$rigSid/milestones" | tr '\n' '|' )" ' message out| handback| wait going idle| wait going idle| dismissed| ask going idle| message out|'
+## The milestone commits go through the one team-data thread, so the last one lands after the run ends, under a load average of 100 well past
+## 15 s: counted once they settle, 60 s at most.
+rigSettle=0 ; while [ "$rigSettle" -lt 120 ] && [ "$(( $( rigCommits ) - rigBefore ))" -lt 5 ] ; do sleep 0.5 ; rigSettle=$(( rigSettle + 1 )) ; done
 rigAssert "each milestone with something new is one commit; a Wait with nothing new is none" "$(( $( rigCommits ) - rigBefore ))" 5
 rigAssert "and the transcript is committed clean" "$( git -C "$rigStore" status --porcelain -- "$rigRel" )" ""
 rigAssert "a session with no transcript writes nothing and fails nothing" "$( MDAT_SPAWN_SESSION_ID=nobody AgentsTranscriptToolDone Read '{}' x loop ; echo rc=$? )" rc=0
@@ -166,41 +170,41 @@ rigAssert "the NOTE line and its text" "$( LC_ALL=C grep -A1 'NOTE by=magic-test
 rigAssert "no session is refused" "$( AgentsTranscriptNote '' magic-tester x ; echo " rc=$?" )" "ERROR: no session resolves for this call (no session id in this process), so there is no transcript to note in. Nothing was written.
  rc=1"
 rigAssert "a session with no transcript is refused" "$( AgentsTranscriptNote no-such magic-tester x | cut -c1-36 )" "ERROR: session no-such has no transc"
-rigOut="$( "$rigFn" --append-transcript magic-tester --message 'from the op' 2>/dev/null )"
+rigOut="$( "$rigFn" --append-transcript --team-member magic-tester --message 'from the op' 2>/dev/null )"
 rigAssert "the op with no --transcript-name resolves the session itself" "$rigOut" "OK: appended to ${rigT##*/}"
 rigAssert "the op's line is there" "$( rigHas "$rigT" '> from the op' )" 1
 rigAssert "speaker defaults to the member, timestamp to now (UTC)" "$( LC_ALL=C grep -B1 '^> from the op$' "$rigT" | head -1 | LC_ALL=C grep -Ec ' NOTE by=magic-tester at=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' )" 1
-"$rigFn" --append-transcript magic-tester --speaker human-owner --timestamp 2026-10-08T01:02:03Z --message 'given speaker' > /dev/null 2>&1
+"$rigFn" --append-transcript --team-member magic-tester --speaker human-owner --timestamp 2026-10-08T01:02:03Z --message 'given speaker' > /dev/null 2>&1
 rigAssert "a given speaker and timestamp are kept" "$( LC_ALL=C grep -B1 '^> given speaker$' "$rigT" | head -1 | sed 's/^[^ ]* //' )" "NOTE by=human-owner at=2026-10-08T01:02:03Z"
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester --message 'no session line' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript --team-member magic-tester --message 'no session line' 2>&1 ; echo "rc=$?" )"
 rigAssert "the op refuses where no session resolves" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
 rigAssert "and says so" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'ERROR: .*--append-transcript: no session resolves' )" 1
 rigAssert "and writes nothing" "$( rigHas "$rigT" '> no session line' )" 0
-rigOut="$( "$rigFn" --append-transcript magic-tester --message 'create on existing' --create 2>&1 ; echo "rc=$?" )"
+rigOut="$( "$rigFn" --append-transcript --team-member magic-tester --message 'create on existing' --create 2>&1 ; echo "rc=$?" )"
 rigAssert "--create on a session that has a transcript just appends" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=0
 rigAssert "into that same transcript" "$( rigHas "$rigT" '> create on existing' )" 1
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester --session-id "$rigSid" --message 'by session id' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript --team-member magic-tester --session-id "$rigSid" --message 'by session id' 2>&1 ; echo "rc=$?" )"
 rigAssert "a member cannot name another session (--session-id is refused)" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
 rigAssert "and nothing is written" "$( rigHas "$rigT" '> by session id' )" 0
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester --speaker x --timestamp 2026-10-08T01:02:03Z --message 'by name' --transcript-name "${rigT##*/}" 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript --team-member magic-tester --speaker x --timestamp 2026-10-08T01:02:03Z --message 'by name' --transcript-name "${rigT##*/}" 2>&1 ; echo "rc=$?" )"
 rigAssert "a member cannot name a session's own log" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
 rigAssert "and nothing is written to it" "$( rigHas "$rigT" '> by name' )" 0
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-coordinator --of-session "$rigSid" --message 'by the coordinator' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript --team-member magic-coordinator --of-session "$rigSid" --message 'by the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "the coordinator appends to a session it names" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=0
 rigAssert "and the line is in that session's transcript" "$( rigHas "$rigT" '> by the coordinator' )" 1
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-coordinator --message 'no id' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript --team-member magic-coordinator --message 'no id' 2>&1 ; echo "rc=$?" )"
 rigAssert "the coordinator, naming no session and having none, has nowhere to append" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
-rigOut="$( MDAT_SPAWN_AGENT=magic-developer "$rigFn" --append-transcript magic-tester --message 'impersonated' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_AGENT=magic-developer "$rigFn" --append-transcript --team-member magic-tester --message 'impersonated' 2>&1 ; echo "rc=$?" )"
 rigAssert "a spawned session appends as no other member" "$( printf '%s\n' "$rigOut" | tail -1 ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'this session acts as magic-developer' ):$( rigHas "$rigT" '> impersonated' )" rc=1:1:0
-rigOut="$( MDAT_SPAWN_AGENT=magic-tester "$rigFn" --append-transcript magic-tester --message 'as itself' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_AGENT=magic-tester "$rigFn" --append-transcript --team-member magic-tester --message 'as itself' 2>&1 ; echo "rc=$?" )"
 rigAssert "and appends as its own member" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> as itself' )" rc=0:1
-rigOut="$( MDAT_SPAWN_AGENT=magic-developer MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --append-transcript magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, impersonated' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_AGENT=magic-developer MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --append-transcript --team-member magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, impersonated' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
 rigAssert "a named transcript is refused to a session naming another member" "$( printf '%s\n' "$rigOut" | tail -1 ):$( [ -f "$rigStore/audit/2026-10/transcript-2026-10-08-rig-access.md" ] && echo written || echo absent )" rc=1:absent
-rigOut="$( MDAT_SPAWN_AGENT=magic-tester MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --append-transcript magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, as itself' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_AGENT=magic-tester MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --append-transcript --team-member magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, as itself' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
 rigAssert "and taken from the member's own session" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigStore/audit/2026-10/transcript-2026-10-08-rig-access.md" '> shared, as itself' )" rc=0:1
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester "$rigSid" --message 'not the coordinator' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript --team-member magic-tester "$rigSid" --message 'not the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "the coordinator op runs as magic-coordinator only" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> not the coordinator' )" rc=1:0
-rigOut="$( MDAT_SPAWN_SESSION_ID= MDAT_SPAWN_AGENT=magic-tester "$rigFn" --append-transcript magic-coordinator "$rigSid" --message 'a member as the coordinator' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= MDAT_SPAWN_AGENT=magic-tester "$rigFn" --append-transcript --team-member magic-coordinator "$rigSid" --message 'a member as the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "and from no member's session naming it" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> a member as the coordinator' )" rc=1:0
 rigOut="$( printf '%s' '{"note":"served note"}' | MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-tester "$rigHarness" --intern-tool SessionTranscriptAppend 2>/dev/null )"
 rigAssert "the SessionTranscriptAppend tool appends through the served harness" "$rigOut" "OK: appended to ${rigT##*/}"
@@ -364,7 +368,8 @@ rigAssert "the loop: the call with one ran as without, its result back to the mo
 ## unconditional, and a session without a place for a list refuses it at execution (F1.2).
 ## One description property for each tool the request offers (the count of tools is read off the same request, so a
 ## tool added to the harness does not stale this row; a tool that lost it fails it).
-rigToolsOffered="$( LC_ALL=C grep -o -E '"type":"function","function":\{"name":"' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )"
+## The built-ins alone: a served server's tool is declared as the server sent it, with no description added (AgentsHarnessMcpCheck), so it is not counted here.
+rigToolsOffered="$( LC_ALL=C grep -o -E '"type":"function","function":\{"name":"[A-Za-z_]*"' "$rigLoop2/req.1" | LC_ALL=C grep -v -c '"name":"mcp__' || : )"
 rigAssert "the request declared the description to the model, on every tool it offers (and offers some)" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' ) of $rigToolsOffered" "$rigToolsOffered of $rigToolsOffered"
 rigAssert "control: the tools offered were counted" "$( [ "$rigToolsOffered" -gt 5 ] && echo yes || echo no )" yes
 

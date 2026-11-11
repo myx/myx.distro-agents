@@ -374,8 +374,13 @@ rigCall "$rigCurrent" RequestPermission '{"to":"session-parent","address_to":"hu
 rigAssert "RequestPermission with no parent: the one line, nothing posted" "$( rigPosts ):$( rigFirst )" "0:ERROR: RequestPermission: $rigNoParent Nothing was sent."
 
 ## What the session's stored wait holds as its sources, as the wait operation recorded them.
+## The sources of a wait as a set: the Wait orders them by their check interval (S5.7), which is the
+## Wait's own business, so a row compares the words sorted, on both sides.
+rigSorted(){ ## words...
+	printf '%s\n' "$*" | LC_ALL=C awk '{ for ( i = 1 ; i <= NF ; i++ ) print $i }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
+}
 rigWaited(){ ## session id (default: the spawn's)
-	LC_ALL=C sed -n 's/^sources: //p' "$rigScenarioDir/ws/.local/agents/sessions/${1:-rig-child-id}/wait/state" 2>/dev/null | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/ $//'
+	rigSorted "$( LC_ALL=C sed -n 's/^sources: //p' "$rigScenarioDir/ws/.local/agents/sessions/${1:-rig-child-id}/wait/state" 2>/dev/null )"
 }
 rigWaitEnded(){ ## how the wait ended: the first word after WAIT-RESULT:
 	rigFirst | LC_ALL=C sed -n 's/^WAIT-RESULT: \([A-Z]*\).*/\1/p'
@@ -384,11 +389,11 @@ rigWaitEnded(){ ## how the wait ended: the first word after WAIT-RESULT:
 ## The floor given is later than every message of the rig, so each wait ends by its bound.
 echo "-- Wait takes both names as sources --"
 rigRow waitCurrent "$rigCurrent" Wait '{"sources":"slack:session-current","timeout":1,"since_utime":"1700000100"}'
-rigAssert "slack:session-current: the session thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:chat:rig-child-id slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "slack:session-current: the session thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:$( rigSorted "chat:rig-child-id slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember" )"
 rigRow waitParent "$rigCurrent" Wait '{"sources":"slack:session-parent","timeout":1,"since_utime":"1700000100"}'
-rigAssert "slack:session-parent: the parent's thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:chat:rig-child-id slack:$rigParent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "slack:session-parent: the parent's thread was waited on" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:$( rigSorted "chat:rig-child-id slack:$rigParent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember" )"
 rigRow waitMixed "$rigCurrent" Wait "{\"sources\":\"file:$rigTmp/waitMixed/drop slack:session-parent slack:session-current\",\"timeout\":1,\"since_utime\":\"1700000100\"}"
-rigAssert "beside other sources: each name its own thread, the rest as given" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:chat:rig-child-id file:$rigTmp/waitMixed/drop slack:$rigParent:conversation slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "beside other sources: each name its own thread, the rest as given" "$( rigWaitEnded ):$( rigWaited )" "TIMEOUT:$( rigSorted "chat:rig-child-id file:$rigTmp/waitMixed/drop slack:$rigParent:conversation slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember" )"
 rigRow waitNoCurrent "" Wait '{"sources":"slack:session-current","timeout":1}'
 rigAssert "no session thread: the one line, nothing waited on"    "$( rigFirst )" "ERROR: $rigNoCurrent Nothing was waited on."
 rigStart waitNoParent
@@ -398,7 +403,7 @@ rigAssert "no parent: the one line, nothing waited on"            "$( rigFirst )
 
 echo "-- the wait operation takes both names as sources, as the Wait tool does --"
 rigOpSources(){ ## the sources the wait operation says it waited on
-	LC_ALL=C sed -n 's/^# sources: //p' "$rigScenarioDir/op.out" | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/ $//'
+	rigSorted "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigScenarioDir/op.out" )"
 }
 rigScene opWaitCurrent
 rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-current --wait-timeout 1 --wait-since-utime 1700000100
@@ -408,17 +413,17 @@ rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-parent --wait-t
 rigAssert "slack:session-parent: the parent's thread was waited on" "$rigOpRc:$( LC_ALL=C sed -n '1p' "$rigScenarioDir/op.out" ):$( rigOpSources )" "0:WAIT-RESULT: TIMEOUT:slack:$rigParent:conversation"
 rigScene opWaitStored
 rigOp "$rigCurrent" --wait-for-input --wait-default --wait-session-id rig-child-id --wait-source "file:$rigTmp/opWaitStored/drop" --wait-source slack:session-parent --wait-source slack:session-current --wait-timeout 1 --wait-since-utime 1700000100
-rigAssert "a stored wait keeps each name as its thread, the rest as given" "$rigOpRc:$( rigWaited )" "0:replies:rig-child-id file:$rigTmp/opWaitStored/drop slack:$rigParent:conversation slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "a stored wait keeps each name as its thread, the rest as given" "$rigOpRc:$( rigWaited )" "0:$( rigSorted "replies:rig-child-id file:$rigTmp/opWaitStored/drop slack:$rigParent:conversation slack:$rigCurrent:conversation dms:$rigMember mentions:$rigMember wake:$rigMember" )"
 rigScene opWaitNoCurrent
 : > "$RIG_CURL_LOG"
 rigOp "" --wait-for-input --wait-source slack:session-current --wait-timeout 1
 rigAssert "no session thread: refused before the wait starts"     "$rigOpRc:$( LC_ALL=C sed -n '1p' "$rigScenarioDir/op.out" )" "1:WAIT-RESULT: ERROR"
-rigAssert "by the one line, the same as the Wait tool gives"      "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --wait-for-input: $rigNoCurrent Nothing was waited on."
+rigAssert "by the one line, the same as the Wait tool gives"      "$( rigOpErrors )" "⛔ ERROR: DistroAgentsSession --wait-for-input: $rigNoCurrent Nothing was waited on."
 rigAssert "and nothing was read"                                  "$( LC_ALL=C grep -c . "$RIG_CURL_LOG" )" 0
 rigStart opWaitNoParent
 rigRecords none "$rigParent"
 rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-parent --wait-timeout 1
-rigAssert "no parent: refused by the one line"                    "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --wait-for-input: $rigNoParent Nothing was waited on."
+rigAssert "no parent: refused by the one line"                    "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsSession --wait-for-input: $rigNoParent Nothing was waited on."
 
 echo "-- a session that is itself the coworking session: the name and the default are one thing --"
 rigScene nativeSendName
@@ -457,34 +462,34 @@ rigScene nativeWaitName
 rigSessionRecord rig-native-id "$rigNativeThread"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"RIG-NATIVE-OPENER"}],"has_more":false}\n' "${rigNativeThread#*:}" > "$rigScenarioDir/replies.${rigNativeThread#*:}.json"
 rigCall native Wait '{"sources":"slack:session-current","timeout":1,"since_utime":"1700000100"}'
-rigAssert "Wait on slack:session-current: its recorded thread"    "$( rigWaitEnded ):$( rigWaited rig-native-id )" "TIMEOUT:chat:rig-native-id slack:$rigNativeThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "Wait on slack:session-current: its recorded thread"    "$( rigWaitEnded ):$( rigWaited rig-native-id )" "TIMEOUT:$( rigSorted "chat:rig-native-id slack:$rigNativeThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember" )"
 
 echo "-- a bare Wait in such a session watches its recorded thread beside the two team conversations --"
 rigScene nativeWaitBare
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigCall native Wait '{"timeout":1}'
-rigAssert "the Wait tool: the floor, the two conversations, and the session thread" "$( rigWaited rig-native-id )" "chat:rig-native-id slack:magic-team slack:human-owner slack:$rigNativeThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "the Wait tool: the floor, the two conversations, and the session thread" "$( rigWaited rig-native-id )" "$( rigSorted "chat:rig-native-id slack:magic-team slack:human-owner slack:$rigNativeThread:conversation dms:$rigMember mentions:$rigMember wake:$rigMember" )"
 rigScene nativeWaitBareNone
 rigCall native Wait '{"timeout":1}'
-rigAssert "with no thread recorded: the floor and the two conversations alone" "$( rigWaited rig-native-id )" "chat:rig-native-id slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "with no thread recorded: the floor and the two conversations alone" "$( rigWaited rig-native-id )" "$( rigSorted "chat:rig-native-id slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember" )"
 rigScene nativeOpWaitBare
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigOp native --wait-for-input --wait-timeout 1
-rigAssert "the wait operation: the same three sources"            "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner slack:$rigNativeThread:conversation"
+rigAssert "the wait operation: the same three sources"            "$rigOpRc:$( rigOpSources )" "0:$( rigSorted "slack:magic-team slack:human-owner slack:$rigNativeThread:conversation" )"
 rigScene nativeOpWaitBareNone
 rigOp native --wait-for-input --wait-timeout 1
-rigAssert "with no thread recorded: the two conversations alone, as before" "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner"
+rigAssert "with no thread recorded: the two conversations alone, as before" "$rigOpRc:$( rigOpSources )" "0:$( rigSorted "slack:magic-team slack:human-owner" )"
 rigScene nativeOpWaitBareBad
 rigSessionRecord rig-native-id not-a-thread
 rigOp native --wait-for-input --wait-timeout 1
-rigAssert "a record that holds no thread adds nothing"            "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner"
+rigAssert "a record that holds no thread adds nothing"            "$rigOpRc:$( rigOpSources )" "0:$( rigSorted "slack:magic-team slack:human-owner" )"
 rigScene spawnOpWaitBare
 rigOp "$rigCurrent" --wait-for-input --wait-timeout 1
 rigAssert "control: a spawn's bare wait is its session thread alone" "$rigOpRc:$( rigOpSources )" "0:slack:$rigCurrent:conversation"
 rigScene spawnOpWaitBareNone
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigOp "" --wait-for-input --wait-timeout 1
-rigAssert "control: a spawn with no thread, beside another session's record: the two alone" "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner"
+rigAssert "control: a spawn with no thread, beside another session's record: the two alone" "$rigOpRc:$( rigOpSources )" "0:$( rigSorted "slack:magic-team slack:human-owner" )"
 
 ## The built-in aliases beside the two session addresses, and one message of an alias's
 ## conversation. A scenario that names event-track or event-alert has them set.
@@ -599,7 +604,7 @@ rigAssert "slack:session-parent:<ts>:conversation: any new post in the thread of
 rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-current:conversation --wait-timeout 1 --wait-since-utime 1700000100
 rigAssert "slack:session-current:conversation: the session thread, as the name alone" "$rigOpRc:$( rigOpSources )" "0:slack:$rigCurrent:conversation"
 rigOp "" --wait-for-input --wait-source "slack:session-current:$rigMessage" --wait-timeout 1 --wait-since-utime "$rigMessage" --wait-addressee URIGOWNER
-rigAssert "with no session thread: the one line"                  "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --wait-for-input: $rigNoCurrent Nothing was waited on."
+rigAssert "with no session thread: the one line"                  "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsSession --wait-for-input: $rigNoCurrent Nothing was waited on."
 rigAliasScene toolMessageSend
 rigCall "$rigCurrent" SendMessage "{\"to\":\"session-parent:$rigMessage\",\"message\":\"m\"}"
 rigAssert "SendMessage to session-parent:<ts>: a reply in the thread of that message" "$( rigPosts )$( rigPostedTo "CPARENT1:$rigMessage" ):$( rigFirst )" "1yes:Sent to CPARENT1:$rigMessage (a message in the conversation of the thread of parent session rig-parent-id) as $rigMember. What the operation reported follows:"

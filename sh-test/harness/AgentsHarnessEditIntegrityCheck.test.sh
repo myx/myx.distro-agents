@@ -53,7 +53,8 @@ rigAssert(){ ## what is asserted, got, want
 ## status then stdout into $3; a call still running after 60s is killed, so a hang shows
 ## as a non-zero status and never as a pass.
 rigTool(){ ## tool, arguments JSON, result file
-	printf '%s\n' "$2" | MMDAPP="$rigTmp/ws" bash "$rigHarness" --intern-tool "$1" \
+	## The rig is its own member: a served call with no member runs as magic-coordinator, whose deny rows cover the scratch tree this rig lives in.
+	printf '%s\n' "$2" | MMDAPP="$rigTmp/ws" MDAT_SPAWN_AGENT=rig-member bash "$rigHarness" --intern-tool "$1" \
 		--access-read-root "$rigTmp/ws/IN" --access-write-root "$rigTmp/ws/IN" > "$3.out" 2>/dev/null &
 	local toolPid=$! toolRc=0
 	rigProcNote "$toolPid"

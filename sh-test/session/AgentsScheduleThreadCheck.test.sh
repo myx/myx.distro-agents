@@ -158,7 +158,13 @@ rigStartsSaid(){ ## name -- how many starts the pass reported, in either stream
 echo "-- 1. the operation --"
 rigTool bare --intern-schedule
 rigAssert "a bare call prints its contract and starts nothing" "$rigInRc:$( rigSaidErr bare '--intern-schedule --run' ):$( [ -e "$rigWs/.local/agents/schedule-thread/thread.lock" ] && printf lock )" "1:1:"
-rigTool one --intern-schedule --one
+## The pass starts a routine due (the rig's auto routine), and a start asks the thread, which takes the lock: so with the thread off for this call, the lock
+## can only be one this call took itself.
+rigIn one MDAT_SCHEDULE_THREAD=off bash -c '
+	case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree: $MMDAPP" >&2 ; exit 99 ;; esac
+	! command -v claude > /dev/null 2>&1 || { echo "RIG-GUARD: an agent CLI is on PATH" >&2 ; exit 99 ; }
+	cd "$MMDAPP" && exec bash "$PKG/sh-scripts/DistroAgentsTools.fn.sh" "$@"
+' rig --intern-schedule --one
 rigAssert "--one makes one pass and ends, and holds no lock" "$rigInRc:$( [ -e "$rigWs/.local/agents/schedule-thread/thread.lock" ] && printf lock )" "0:"
 
 echo "-- 2. the pass is the schedule's steps --"
@@ -197,6 +203,23 @@ rigThreadUp ; sleep 0.3 ; rigPid2="$( rigThreadPid )"
 rigAssert "the ask after a kill starts it again, under a new pid" "$( rigOut ask4 | LC_ALL=C sed -n 's/^started [0-9][0-9]*$/started/p' ):$( [ -n "$rigPid2" ] && [ "$rigPid2" != "$rigPid1" ] && printf new )" "started:new"
 rigThreadEnd
 
+echo "-- 5b. a thread that ends on a change of its code is put back by itself --"
+## MDAT_SCHEDULE_CODE_EXTRA names a file of the rig that stands for the thread's code: one newer than its lock ends the thread, as the includes do.
+rm -rf "$rigWs/.local/agents/schedule-thread"
+rigCodeFile="$rigDir/code.stand-in"
+rm -f "$rigCodeFile"
+rigAsk ask5 MDAT_SCHEDULE_CODE_EXTRA="$rigCodeFile"
+rigThreadUp ; sleep 1 ; rigPid5="$( rigThreadPid )"
+: > "$rigCodeFile"
+rigWaited=0
+while [ "$rigWaited" -lt 120 ] ; do
+	rigPid6="$( rigThreadPid )"
+	{ [ -n "$rigPid6" ] && [ "$rigPid6" != "$rigPid5" ] ; } && break
+	sleep 0.5 ; rigWaited=$(( rigWaited + 1 ))
+done
+rigAssert "the thread ended on its code changing, and a new one holds the lock, started by the first with no ask from outside" "$( LC_ALL=C grep -c -F 'ends: its code changed' "$rigWs/.local/agents/schedule-thread/thread.log" ):$( { [ -n "$rigPid6" ] && [ "$rigPid6" != "$rigPid5" ] ; } && printf new || printf same )" "1:new"
+rigThreadEnd
+
 echo "-- 6. the passes are minutes apart --"
 rigRoutine ticks
 rigIn ticks bash -c '
@@ -225,6 +248,8 @@ rigAssert "with the thread on, one iteration asks for the thread and starts no r
 	"$( [ -e "$rigWs/.local/agents/schedule-thread/thread.wanted" ] && printf asked ):$( rigStartsSaid loopon ):$( rigRecordsOf keeper-rig-02.loop.routine.md )" \
 	"asked:0:1"
 rm -rf "$rigWs/.local/agents/schedule-thread"
+## The schedule starts one routine a pass and the rig's clock stands still, so the iteration of the thread-off case is a later one.
+rigAt $(( rigMon13 + 600 ))
 rigRoutine off
 rigIn loopoff MDAT_SCHEDULE_THREAD=off bash -c '
 	case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD" >&2 ; exit 99 ;; esac

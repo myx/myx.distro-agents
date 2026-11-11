@@ -324,7 +324,11 @@ def pluginsBuilt():
 ## Puts a build in the registries: the objects that other parts hold stay the same ones, changed in place.
 def pluginsApplied(built):
     global SECTION_GROUPS, ALPHABETICAL, MARKDOWN_ON, MARKDOWN_HELP, PLUGIN_BUILT
-    SECTIONS[:] = built["sections"]
+    ## THE ROOT LIST FOLLOWS THE GROUPS (ROOT_GROUPS), and within a group the order the plugins registered in: a root a later part
+    ## registers, such as `.local`'s Optional Features in the setup group, stands with its group, and Manuals stays last. Listed in
+    ## the order of registration, a late root fell after Manuals with a spacer of its own, outside every group.
+    sectionLabels = dict(built["sections"])
+    SECTIONS[:] = [(rootId, sectionLabels[rootId]) for group in ROOT_GROUPS for rootId in built["groups"][group]]
     SECTION_GROUPS = tuple(tuple(built["groups"][group]) for group in ROOT_GROUPS if built["groups"][group])
     SECTIONS_WHEN.clear()
     SECTIONS_WHEN.update(built["when"])

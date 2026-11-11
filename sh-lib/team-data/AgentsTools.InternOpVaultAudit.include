@@ -15,6 +15,11 @@
 
 type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
 
+## THE FILE NAME OF A VAULT ITEM (the human-owner's ruling): a vault item is a file with an extension, since the vault holds
+## many kinds of file. A name given with no extension names a Markdown document, `.md`, so `epic-blueprint-x` and
+## `epic-blueprint-x.md` are one item, on the read and on the write alike.
+## Inline at each reader (no function and no substitution on a call path): `case "$name" in *.*) ;; *) name="$name.md" ;; esac`.
+
 ## The optional line range both reads take, as a complete pair. Sets rangeArgs.
 AgentsToolsVaultAuditRange(){ ## op name, arguments...
 	local rangeOp="$1" rangeStart="" rangeEnd=""
@@ -60,6 +65,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$itemName" "<item-name>" intern-op-vault-item-read || { set +e ; return 1 ; }
+		case "$itemName" in *.*) ;; *) itemName="$itemName.md" ;; esac
 		AgentsToolsVaultAuditRange --intern-op-vault-item-read "$@" || { set +e ; return 1 ; }
 		AgentsToolsDataRead "$itemName" --context --intern-op-vault-item-read --lookup-folder "$MDAT_DATA_ROOT/vault" ${rangeArgs[@]+"${rangeArgs[@]}"}
 		return $?
@@ -85,6 +91,7 @@ case "$1" in
 			shift 2
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-write: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
+		case "$writeItem" in *.*) ;; *) writeItem="$writeItem.md" ;; esac
 		type AgentsToolsDocValidateVaultKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
 		writeWord="$( AgentsToolsDocValidateVaultItemWord "$writeItem" )" || writeWord=""
 		writeKind="$( AgentsToolsDocValidateVaultKind "$writeWord" )" || writeKind=""

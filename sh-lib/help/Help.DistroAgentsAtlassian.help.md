@@ -13,6 +13,7 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--assignee <contact>|me]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-project-delete [--team-member <team-member>] <project-key>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-list [--team-member <team-member>] <issue-key>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
@@ -54,6 +55,11 @@
 		--jira-issue-delete <issue-key>
 			Deletes one issue.
 
+		--jira-project-delete <project-key>
+			Deletes one project, after printing its own key and name. The
+			printed row is the confirmation. Runs only as `magic-coordinator`,
+			and Jira's undo window is off, so nothing restores the project.
+
 		--jira-comment-read <issue-key> [--format adf|rendered] [--start-at <n>]
 			Prints the comments of one issue, from the place named on.
 
@@ -93,8 +99,10 @@
 			parent page where `--parent-id` names one.
 
 		--confluence-page-update <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>)
-			Replaces one page's title and body at the version it is at, so a page changed
-			since it was read is not overwritten unseen.
+			Replaces one page's title and body. `--version <n>` is the version the page was
+			read at (`version.number` of --confluence-page-read): the operation writes
+			version n+1 itself, and the service refuses with 409 where the page has moved
+			past n, so a page changed since it was read is not overwritten unseen.
 
 		--confluence-page-delete <page-id>
 			Deletes one page.

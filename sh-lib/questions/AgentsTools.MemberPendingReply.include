@@ -181,7 +181,7 @@ case "$1" in
 		fi
 		if [ -z "$readCount" ] ; then
 			type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-			readRegistry="$( AgentsToolsRegistryFile pending-replies )"
+			readRegistry="$MMDAPP/.local/agents/pending-replies.registry"
 			if AgentsToolsRegistryPendingRepliesRebuild ; then
 				## That an open ask has no live asker is found in this same call, from the rows just
 				## written: the asking ids of the asks still open, each measured now. It is never

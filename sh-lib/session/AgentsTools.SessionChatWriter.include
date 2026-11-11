@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionChatWriter.include -- THE ONE HAND THAT APPENDS TO THE SESSION CHAT FILES (S5.8): a thread of the workspace
+## on the shared on-demand pattern (S12.11, AgentsTools.OnDemandThread.include). A writer hands it a request through its fifo
+## and reads the block's number back on its own reply fifo. The thread has parsed its includes once, holds no lock against
+## another writer while every writer comes through it, and ends on idle. Sourced, never run. Functions only.
+##
+## WHY A THREAD AND NOT THE LOCK. The direct append (AgentsToolsSessionChatAppendDirect, AgentsTools.SessionChat.include) takes
+## the session's file lock, which is a noclobber file and a one-second sleep between tries: two writers at once cost one of them a
+## second, and the live case of a session is the reader, a run and a wait writing together. Each writer also sources the chat
+## include before its one append. Through the thread an append is one line into a fifo and one line back.
+##
+## THE REQUEST IS ONE FILE, NEVER THE BODY ON THE LINE: a request is one tab-separated line and a body holds newlines, so the
+## writer puts the eight header fields, one a line, and the body after them into `<folder>/req.XXXXXX`, and the line carries
+## `append <that file>`. The thread reads the file, appends through the direct append (one implementation of the block's form,
+## the lock taken for the direct writers still there, the waits poked), removes the file and answers the block's number.
+##
+## THE DIRECT APPEND IS THE FALLBACK, never a second design: a request that brings no number falls back to it, so a thread that
+## cannot start (its operation absent from the dispatch, its folder unwritable) costs the caller the ask's bound and nothing else.
+## The path is on unless MDAT_SESSION_CHAT_WRITER is set to another word: `off` keeps every append on the direct, locked path.
+##
+## THE FOLDER: $MMDAPP/.local/agents/chat-writer/, one a workspace: request.fifo, thread.lock, thread.log, thread.idle, the reply
+## fifos and the request files, all the pattern's own but the request files.
+##
+
+agentsSessionChatWriterIdle="${MDAT_SESSION_CHAT_WRITER_IDLE_SECONDS:-600}"
+case "$agentsSessionChatWriterIdle" in ''|*[!0-9]*|0) agentsSessionChatWriterIdle=600 ;; esac
+## The bound a writer waits for the thread's answer, in seconds: the thread reads once a second, and a start takes one more.
+agentsSessionChatWriterBound="${MDAT_SESSION_CHAT_WRITER_BOUND_SECONDS:-5}"
+case "$agentsSessionChatWriterBound" in ''|*[!0-9]*|0) agentsSessionChatWriterBound=5 ;; esac
+
+AgentsToolsSessionChatWriterDir(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s\n' "$MMDAPP/.local/agents/chat-writer"
+}
+
+## rc 0 where appends go through the thread: the switch is not off, and this process is not the thread itself.
+AgentsToolsSessionChatWriterOn(){
+	[ "${MDAT_SESSION_CHAT_WRITER:-on}" = "on" ] || return 1
+	[ -z "${agentsSessionChatWriterServing:-}" ] || return 1
+	return 0
+}
+
+## ONE APPEND THROUGH THE THREAD: the same arguments as the direct append, the body on stdin. Prints the block's number, rc 0.
+## rc 1 and nothing printed where the thread brought no number: the caller appends directly then. Nothing of the request is left.
+AgentsToolsSessionChatWriterAppend(){ ## session, from, to, ts, where, origin, time (optional), seen (optional) -- the body on stdin
+	local writerDir writerReq writerAnswer=""
+	writerDir="$( AgentsToolsSessionChatWriterDir )" || return 1
+	mkdir -p "$writerDir" 2> /dev/null || return 1
+	AgentsToolsSessionChatWriterReady "$writerDir" || return 1
+	writerReq="$( mktemp "$writerDir/req.XXXXXX" 2> /dev/null )" || return 1
+	## Eight header lines, one field each, a field's own newlines folded as the direct append folds them, then the body as given.
+	{
+		printf '%s\n' "$1" "$( printf '%s' "${2:-}" | LC_ALL=C tr '\r\n' '  ' )" "$( printf '%s' "${3:-}" | LC_ALL=C tr '\r\n' '  ' )" "${4:--}" "${5:--}" "${6:-own}" "${7:-}" "${8:-}"
+		cat
+	} > "$writerReq" 2> /dev/null || { rm -f "$writerReq" 2> /dev/null ; return 1 ; }
+	type AgentsToolsOnDemandThreadRequest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	writerAnswer="$( AgentsToolsOnDemandThreadRequest "$writerDir" "$agentsSessionChatWriterBound" --intern-session-chat-writer --run -- append "$writerReq" 2> /dev/null )" || writerAnswer=""
+	writerAnswer="${writerAnswer%%$'\n'*}"
+	case "$writerAnswer" in
+		''|*[!0-9]*)
+			rm -f "$writerReq" 2> /dev/null
+			return 1
+		;;
+	esac
+	printf '%s\n' "$writerAnswer"
+	return 0
+}
+
+## THE FIRST REQUEST OF A WORKSPACE STARTS THE THREAD AND WAITS FOR NOBODY: a thread that is not there yet costs its first
+## caller the start and the thread's own initialisation, up to the ask's bound (a Wait's chat probe missed its 5 s bound on
+## exactly that, `AgentsThisSessionCheck`), so the thread is started detached here and the caller writes directly this once;
+## the next request finds it serving. Live: the request fifo stands and the lock names a process that lives. rc 0 live, rc 1
+## not, the start made.
+AgentsToolsSessionChatWriterReady(){ ## the writer folder
+	local readyLock="" readyPid
+	if [ -p "$1/request.fifo" ] && { IFS= read -r readyLock < "$1/thread.lock" || [ -n "$readyLock" ] ; } 2> /dev/null ; then
+		readyPid="${readyLock%% *}"
+		case "$readyPid" in ''|*[!0123456789]*) ;; *) ! kill -0 "$readyPid" 2> /dev/null || return 0 ;; esac
+	fi
+	type AgentsToolsOnDemandThreadStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	AgentsToolsOnDemandThreadStart "$1" --intern-session-chat-writer --run > /dev/null 2>&1 || :
+	return 1
+}
+
+## A WRITE WITH NO BODY -- a stamp, a pointer, an import (S5.8 rework: every write of the chat files goes through the one
+## thread, the lock is the fallback alone): the request file holds the call's arguments, one a line, and the thread answers
+## `ok` once the direct write is done. rc 1 and nothing printed where the thread brought no `ok`: the caller writes directly.
+AgentsToolsSessionChatWriterRequest(){ ## kind (stamp, pointer-set, pointer-unset, import), the arguments of the direct write
+	local writerDir writerReq writerAnswer="" writerKind="$1" writerField
+	shift
+	writerDir="$( AgentsToolsSessionChatWriterDir )" || return 1
+	mkdir -p "$writerDir" 2> /dev/null || return 1
+	AgentsToolsSessionChatWriterReady "$writerDir" || return 1
+	writerReq="$( mktemp "$writerDir/req.XXXXXX" 2> /dev/null )" || return 1
+	{
+		for writerField in "$@" ; do printf '%s\n' "$( printf '%s' "$writerField" | LC_ALL=C tr '\r\n' '  ' )" ; done
+	} > "$writerReq" 2> /dev/null || { rm -f "$writerReq" 2> /dev/null ; return 1 ; }
+	type AgentsToolsOnDemandThreadRequest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	writerAnswer="$( AgentsToolsOnDemandThreadRequest "$writerDir" "$agentsSessionChatWriterBound" --intern-session-chat-writer --run -- "$writerKind" "$writerReq" 2> /dev/null )" || writerAnswer=""
+	[ "${writerAnswer%%$'\n'*}" = "ok" ] || { rm -f "$writerReq" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## THE THREAD'S HANDLER: `append <request file>` appends the file's block through the direct append and answers its number on
+## descriptor 3; `stamp`, `pointer-set`, `pointer-unset` and `import <request file>` make that direct write with the file's lines
+## as its arguments and answer `ok`. Any other request is said in the log and answered with nothing. The request file goes
+## with the request.
+AgentsToolsSessionChatWriterHandler(){ ## kind, the request file
+	local handlerKind="${1:-}" handlerFile="${2:-}" handlerNo="" handlerSession handlerFrom handlerTo handlerTs handlerWhere handlerOrigin handlerTime handlerSeen handlerArgs=() handlerLine
+	case "$handlerKind" in
+		append|stamp|pointer-set|pointer-unset|import) ;;
+		*) printf '%s a request of a kind this thread does not take: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${handlerKind:--}" >&2 ; return 0 ;;
+	esac
+	case "$handlerFile" in
+		"$agentsSessionChatWriterFolder"/req.*) ;;
+		*) printf '%s a request names a file outside this folder: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${handlerFile:--}" >&2 ; return 0 ;;
+	esac
+	[ -f "$handlerFile" ] || { printf '%s a request names a file that is gone: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$handlerFile" >&2 ; return 0 ; }
+	if [ "$handlerKind" != append ] ; then
+		while IFS= read -r handlerLine || [ -n "$handlerLine" ] ; do handlerArgs+=( "$handlerLine" ) ; done < "$handlerFile"
+		rm -f "$handlerFile" 2> /dev/null
+		case "$handlerKind" in
+			stamp) AgentsToolsSessionChatStampDirect "${handlerArgs[@]}" ;;
+			pointer-set) AgentsToolsSessionChatPointerSetDirect "${handlerArgs[@]}" ;;
+			pointer-unset) AgentsToolsSessionChatPointerUnsetDirect "${handlerArgs[@]}" ;;
+			import) AgentsToolsSessionChatImportDirect "${handlerArgs[@]}" ;;
+		esac > /dev/null 2>&1 || printf '%s the %s for session %s failed\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$handlerKind" "${handlerArgs[0]:--}" >&2
+		printf 'ok\n' >&3
+		return 0
+	fi
+	{
+		IFS= read -r handlerSession && IFS= read -r handlerFrom && IFS= read -r handlerTo && IFS= read -r handlerTs \
+			&& IFS= read -r handlerWhere && IFS= read -r handlerOrigin && IFS= read -r handlerTime && IFS= read -r handlerSeen
+	} < "$handlerFile" || { printf '%s a request file has fewer than eight header lines: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$handlerFile" >&2 ; rm -f "$handlerFile" ; return 0 ; }
+	handlerNo="$( LC_ALL=C tail -n +9 "$handlerFile" | AgentsToolsSessionChatAppendDirect "$handlerSession" "$handlerFrom" "$handlerTo" "$handlerTs" "$handlerWhere" "$handlerOrigin" "$handlerTime" "$handlerSeen" )" \
+		|| printf '%s the append for session %s failed\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$handlerSession" >&2
+	rm -f "$handlerFile" 2> /dev/null
+	[ -z "$handlerNo" ] || printf '%s\n' "$handlerNo" >&3
+	return 0
+}
+
+## THE THREAD'S OPERATION: `--run` serves it on the shared on-demand thread, under the workspace's folder, until idle or TERM.
+AgentsToolsInternSessionChatWriter(){ ## --run
+	local writerMode="${1:-}"
+	shift
+	case "$writerMode" in
+		--run) ;;
+		*)
+			printf '%s\n' "${MDSC_CMD:-DistroAgentsTools} --intern-session-chat-writer -- the one hand that appends to the session chat files of this workspace (S5.8), on the shared on-demand thread (S12.11)." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  ${MDSC_CMD:-DistroAgentsTools} --intern-session-chat-writer --run" >&2
+			printf '%s\n' "      The thread: one write a request -- an append, its block number answered; a stamp, a pointer or an import, ok answered -- ending after MDAT_SESSION_CHAT_WRITER_IDLE_SECONDS (600) with none, or on TERM." >&2
+			set +e ; return 1
+		;;
+	esac
+	type AgentsToolsOnDemandThreadServe > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	type AgentsToolsSessionChatAppendDirect > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	agentsSessionChatWriterFolder="$( AgentsToolsSessionChatWriterDir )" || return 1
+	mkdir -p "$agentsSessionChatWriterFolder" 2> /dev/null || return 1
+	## The thread appends directly, never through itself.
+	agentsSessionChatWriterServing=yes
+	exec < /dev/null >> "$agentsSessionChatWriterFolder/thread.log" 2>&1
+	cd / 2> /dev/null
+	## The code this thread runs for hours: a change to one of these ends it, and the next send starts one on the current code (AgentsToolsOnDemandThreadServe).
+	agentsOnDemandCodeFiles="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
+	AgentsToolsOnDemandThreadServe "$agentsSessionChatWriterFolder" "$agentsSessionChatWriterIdle" AgentsToolsSessionChatWriterHandler - no
+	return $?
+}

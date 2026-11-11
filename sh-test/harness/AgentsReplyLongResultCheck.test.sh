@@ -5,7 +5,7 @@
 ## tool at once, and the long text is written to the file before the reply is encoded: the JSON of an MCP reply
 ## carries only the reference. A file is a printed value: the masking rule applies to it as to a reply.
 ## The reply holds the path, the size in bytes and lines, a preview -- the whole lines that fit in 2 KB, or the first
-## 20 lines, whichever is bigger, never over 8 KB -- and a one-line hint to read the rest by line range. A native root caller over MCP has the folder of its client
+## 10 lines, whichever is bigger, never over 3.5 KB -- and a one-line hint to read the rest by line range. A native root caller over MCP has the folder of its client
 ## session id, .local/agents/sessions/<id>/, as the session store already does.
 ## Held, served by the harness (--intern-tool), by the MCP server's tools/call, and in the harness's own model loop,
 ## for a result of about 20 KB and one of about 2 KB:
@@ -76,7 +76,7 @@ rigBytes(){ ## name -- the size of its reply
 	LC_ALL=C wc -c < "$rigTmp/$1.out" | LC_ALL=C tr -d ' '
 }
 rigShort(){ ## name -- whether its reply is short: under 8 KB
-	[ "$( rigBytes "$1" )" -lt 8192 ] && printf short || printf "long:$( rigBytes "$1" )"
+	[ "$( rigBytes "$1" )" -lt 4096 ] && printf short || printf "long:$( rigBytes "$1" )"
 }
 rigHasBody(){ ## name, marker -- how many lines of its reply hold the marker
 	LC_ALL=C grep -c -F -- "$2" "$rigTmp/$1.out" || :
@@ -97,9 +97,9 @@ rigAssert "and holds none of the lines past the first screen" "$( rigHasBody lon
 rigLongFile="$( rigNamed long 'rig line 0399 of the long result' )"
 rigAssert "it names a file holding the result"                "$( [ -n "$rigLongFile" ] && printf named || printf none )" named
 rigAssert "it gives the file's size, in bytes and in lines"   "$( [ -n "$rigLongFile" ] && LC_ALL=C grep -q -w -- "$( LC_ALL=C wc -c < "$rigLongFile" | LC_ALL=C tr -d ' ' )" "$rigTmp/long.out" && LC_ALL=C grep -q -w -- "$( LC_ALL=C wc -l < "$rigLongFile" | LC_ALL=C tr -d ' ' )" "$rigTmp/long.out" && printf sized || printf not-sized )" sized
-## The preview: the whole lines of the result that fit in 2 KB, or its first 20 lines, whichever is more, never over 8 KB.
+## The preview: the whole lines of the result that fit in 1 KB, or its first 10 lines, whichever is more, never over 3.5 KB (halved 2026-11-10).
 rigPreviewLines(){ ## file -- how many lines the preview of that result holds
-	LC_ALL=C awk '{ total += length( $0 ) + 1 ; if ( total <= 2048 ) fit = NR } END { print ( fit > 20 ) ? fit : 20 }' "$1"
+	LC_ALL=C awk '{ total += length( $0 ) + 1 ; if ( total <= 1024 ) fit = NR } END { print ( fit > 10 ) ? fit : 10 }' "$1"
 }
 rigPreviewEnds(){ ## reply name, result file -- `ends-right` where the reply holds the preview's last line and not the line after it
 	local endsAt endsLast endsNext
@@ -108,7 +108,7 @@ rigPreviewEnds(){ ## reply name, result file -- `ends-right` where the reply hol
 	endsLast="$( LC_ALL=C sed -n "${endsAt}p" "$2" )" ; endsNext="$( LC_ALL=C sed -n "$(( endsAt + 1 ))p" "$2" )"
 	LC_ALL=C grep -q -F -- "$endsLast" "$rigTmp/$1.out" && ! LC_ALL=C grep -q -F -- "$endsNext" "$rigTmp/$1.out" && printf ends-right || printf "ends-wrong-at-$endsAt"
 }
-rigAssert "the preview: the first line, and the whole lines that fit in 2 KB or 20, whichever is more" "$( rigHasBody long 'RIG-FIRST-LINE of the long result' ) $( rigPreviewEnds long "${rigLongFile:-/nonexistent}" )" "1 ends-right"
+rigAssert "the preview: the first line, and the whole lines that fit in 1 KB or 10, whichever is more" "$( rigHasBody long 'RIG-FIRST-LINE of the long result' ) $( rigPreviewEnds long "${rigLongFile:-/nonexistent}" )" "1 ends-right"
 rigAssert "and one line that says to read the rest by line range, naming the original file and not the kept copy" "$( LC_ALL=C grep -F -- "$rigFix/long.txt" "$rigTmp/long.out" | LC_ALL=C grep -c -i -E 'range|offset|start-line' ) $( [ -n "$rigLongFile" ] && LC_ALL=C grep -F -- "$rigLongFile" "$rigTmp/long.out" | LC_ALL=C grep -c -i -E 'range|offset|start-line' )" "1 0"
 
 echo "-- 2. that file is in the session's folder, and holds the whole result --"

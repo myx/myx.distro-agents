@@ -18,13 +18,13 @@ run(){ ( cd "$rigWs" && env -i HOME="$rigWs" PATH="$rigWs/bin:/usr/bin:/bin:/usr
 	MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ) 2> /dev/null ; }
 
 echo "-- the record in a folder not named by the session id --"
-printf 'spawn-id: sess-abc\n' > "$rigWs/.local/agents/spawned/folder-x/sess-abc.spawn.md"
+printf -- '---\nspawn-id: sess-abc\n---\n' > "$rigWs/.local/agents/spawned/folder-x/sess-abc.spawn.md"
 printf '# My list\n- [ ] one thing\n' > "$rigWs/.local/agents/spawned/folder-x/magic-tester.checklist.md"
 check "the checklist is found there and printed whole" "$( run --manager-session-checklist-read --session-id sess-abc magic-tester | tr '\n' ' ' )" "# My list - [ ] one thing "
 
 echo "-- the folder named by the id, and the fallback under sessions/ --"
 mkdir -p "$rigWs/.local/agents/spawned/sess-plain"
-printf 'spawn-id: sess-plain\n' > "$rigWs/.local/agents/spawned/sess-plain/sess-plain.spawn.md"
+printf -- '---\nspawn-id: sess-plain\n---\n' > "$rigWs/.local/agents/spawned/sess-plain/sess-plain.spawn.md"
 printf -- '- [x] done\n' > "$rigWs/.local/agents/spawned/sess-plain/keeper-rig.checklist.md"
 check "a folder named by the id is found too" "$( run --manager-session-checklist-read --session-id sess-plain keeper-rig )" "- [x] done"
 

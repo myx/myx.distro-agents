@@ -153,6 +153,8 @@ AgentsToolsCommsSlackUnreachableReport(){ ## the addressees, the sending member
 		reportOut="$reportOut$reportMember "
 	done
 	[ -z "$reportOut" ] || printf 'SENT_MESSAGE_UNREACHABLE_MEMBERS=%s\n' "${reportOut% }"
+	## The same said plainly, for the agent that reads the send's answer: the key line is for the readers that pick it out by name.
+	[ -z "$reportOut" ] || printf 'NOTE: no live run of %s: the message was posted, and is read at that member'"'"'s next start\n' "$( printf '%s' "${reportOut% }" | LC_ALL=C sed 's/ /, /g' )"
 }
 
 ## between `*_` and `_*`, never by its alias.
@@ -351,6 +353,57 @@ case "$1" in
 				fi
 			;;
 		esac
+		## EVERY MEMBER POSTS IN ITS SESSION'S THREAD, NEVER AT THE ROOT OF THE TEAM CHANNEL (his design: the team channel is open, and a
+		## report, findings or handback is internal): a magic-team target from any member, in any session, is delivered to its own session thread, else its
+		## parent session's thread, else the coordinator's duty-session thread, else the human-owner's conversation with the bot, addressed to magic-coordinator unless it names someone.
+		## Only a step told to post in the channel passes: --told in argv, or a work-duty's day-first greeting (its record carries
+		## `day-first: yes`, and its first post to magic-team this month is that greeting).
+		if [ "$target" = "magic-team" ] ; then
+			local dutyTold=""
+			case " $* " in *" --told "*) dutyTold="argv" ;; esac
+			if [ -z "$dutyTold" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" ] \
+				&& LC_ALL=C grep -q -x 'day-first: yes' "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md" 2> /dev/null \
+				&& ! LC_ALL=C awk -F '\t' -v run="$MDAT_SPAWN_SESSION_ID" '$3 == "magic-team" && $NF == run { found = 1 ; exit } END { exit found ? 0 : 1 }' "$MMDAPP/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log" 2> /dev/null ; then
+				dutyTold="day-first"
+			fi
+			if [ -z "$dutyTold" ] ; then
+				## The coordinator's duty-session thread comes before the human-owner's conversation: that is where it reads its runs.
+				local runDuty="" runDutyThread=""
+				runDuty="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/schedule/duty-session/magic-coordinator" 2> /dev/null )" || runDuty=""
+				case "$runDuty" in ''|*/*|.|..) ;; *) runDutyThread="$( head -1 "$MMDAPP/.local/agents/sessions/$runDuty/session.thread" 2> /dev/null )" || runDutyThread="" ;; esac
+				case "$runDutyThread" in [CDG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) runDutyThread="" ;; esac
+				local runWhere=""
+				for runWhere in session-current session-parent $runDutyThread human-owner ; do
+					DistroAgentsToolsResolveTarget "$runWhere" "$memberName" > /dev/null 2>&1 && break
+					runWhere=""
+				done
+				if [ -n "$runWhere" ] ; then
+					target="$runWhere"
+					case " $* " in *" --address-to "*) ;; *) set -- "$@" --address-to magic-coordinator ;; esac
+					echo "# $MDSC_CMD --slack-send-message: a run posts in its session's thread, never at the root of the team channel: delivered to $runWhere, addressed to magic-coordinator. The channel takes a step told to post there (--told) or a work-duty's day-first greeting." >&2
+				fi
+			fi
+		fi
+		## A SESSION ADDRESS THAT CANNOT BE RESOLVED (session-current or session-parent: an opener that failed, a session with no thread)
+		## falls through to the parent session's thread, the coordinator's duty-session thread, and only then the human-owner's
+		## conversation with the bot, addressed to magic-coordinator: never nowhere, never the channel root.
+		if { [ "$target" = "session-current" ] || [ "$target" = "session-parent" ] ; } && ! DistroAgentsToolsResolveTarget "$target" "$memberName" > /dev/null 2>&1 ; then
+			## The coordinator's duty-session thread comes before the human-owner's conversation: that is where it reads its runs.
+			local runDuty="" runDutyThread=""
+			runDuty="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/schedule/duty-session/magic-coordinator" 2> /dev/null )" || runDuty=""
+			case "$runDuty" in ''|*/*|.|..) ;; *) runDutyThread="$( head -1 "$MMDAPP/.local/agents/sessions/$runDuty/session.thread" 2> /dev/null )" || runDutyThread="" ;; esac
+			case "$runDutyThread" in [CDG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) runDutyThread="" ;; esac
+			local runFallback=""
+			for runFallback in $( [ "$target" = session-current ] && printf 'session-parent' ) $runDutyThread human-owner ; do
+				DistroAgentsToolsResolveTarget "$runFallback" "$memberName" > /dev/null 2>&1 && break
+				runFallback=""
+			done
+			if [ -n "$runFallback" ] ; then
+				target="$runFallback"
+				case " $* " in *" --address-to "*) ;; *) set -- "$@" --address-to magic-coordinator ;; esac
+				echo "# $MDSC_CMD --slack-send-message: this session has no thread of its own, so the post goes to $runFallback, addressed to magic-coordinator." >&2
+			fi
+		fi
 		AgentsToolsEmitRequestDetailHeader "$memberName" "$target"
 		local resolved rc channel="" threadTs="" failoverRouting=""
 		resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
@@ -401,6 +454,56 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		## A PERSON OUTSIDE THE TEAM IS ANSWERED IN THEIR OWN THREAD (the contact rule; 2026-11-10 09:31, three replies to two people went to the wrong
+		## person, under a name read nowhere, with an internal cause and promises): a direct conversation that is not the human-owner's takes a message
+		## only as the answer to one of that person's messages, the thread named and its author no account of ours. A post at the top of their
+		## conversation, or under our own post, is refused: it is how one person's note was answered to another. client-* members, whose role
+		## is that conversation, are exempt. Checked here, before any body, token or identity work: a refused send reads nothing else.
+		## The other party is read from the conversation itself (conversations.info, the one counterparty reader), never from the
+		## addressee the caller names. The human-owner's own conversation and a team account's pass; a person is also a known contact,
+		## asked of the contact store with no team filter, since the store keys a Slack id by its workspace and the acting member is none.
+		local outsidePerson="false" outsideParty="" outsideOwner=""
+		## The human-owner's account: magic-team's SLACK_CHANNEL_HUMAN_OWNER where that is an account id, else the mention cache.
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
+		outsideOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || outsideOwner=""
+		case "$outsideOwner" in [UW][A-Z0-9]*) ;; *) outsideOwner="$( LC_ALL=C sed -n 's/^human-owner=\([A-Z0-9]*\).*/\1/p' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null | head -1 )" ;; esac
+		case "$channel" in D[A-Z0-9]*)
+			case "$memberName" in client-*) ;; *)
+				local outsideInfo="" outsideAuthor="" outsideRead=""
+				## The conversation is read under the identity that is in it: the member's own account first, the team bot's where that
+				## account is not a party (the human-owner's conversation with the bot is such a one).
+				local outsideIdentity
+				for outsideIdentity in "" bot ; do
+					outsideInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "$memberName" --api conversations.info --resolve-target "$channel" ${outsideIdentity:+--identity "$outsideIdentity"} --context "--slack-send-message" 2> /dev/null )" || outsideInfo=""
+					outsideParty="$( printf '%s\n' "$outsideInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" 2> /dev/null )" || outsideParty=""
+					[ -z "$outsideParty" ] || break
+				done
+				if [ -z "$outsideParty" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-send-message: whose direct conversation $channel is could not be read, so nothing is posted there: a message to a person goes under their own message, and the person must be known. Nothing was posted. NEXT: send it as the reply to their message, target <conversation>:<ts of their message>; where the person is not known, DistroAgentsContacts.fn.sh --contacted-by <their account> first; where the conversation still cannot be read, file this line to magic-coordinator with post-inquiry and do not retry." >&2
+					set +e ; return 1
+				fi
+				## A PERSON OUTSIDE THE TEAM IS ANSWERED IN THE THREAD OF THEIR OWN MESSAGE, AND ONLY A KNOWN PERSON IS WRITTEN TO (the team
+				## rules, Channels and threads): a top-level send into their conversation goes into the thread of the newest message they
+				## asked this member in, the one the Wait handed it (schedule/owed/<member>); with nothing asked, it opens a new subject as
+				## named. The contact store must know the person, else the send is refused (AgentsToolsContactAssertKnown, the one gate).
+				## The human-owner's conversation and a team account's are not this case.
+				if [ "$outsideParty" != "$outsideOwner" ] && ! LC_ALL=C grep -q -E "^[^=]+=$outsideParty(=|\$)" "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null ; then
+					if [ -z "$threadTs" ] ; then
+						case " $* " in *" --update-ts "*) ;; *)
+							local outsideOwed=""
+							outsideOwed="$( LC_ALL=C awk -F '\t' -v want="slack:$channel:" 'index( $2, want ) == 1 { last = $2 } END { if ( last != "" ) print last }' "$MMDAPP/.local/agents/schedule/owed/$memberName" 2> /dev/null )" || outsideOwed=""
+							if [ -n "$outsideOwed" ] ; then
+								threadTs="${outsideOwed##*:}"
+								echo "# $MDSC_CMD --slack-send-message: the person asked in the thread $outsideOwed, so this message goes there." >&2
+							fi
+						;; esac
+					fi
+					type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"
+					AgentsToolsContactAssertKnown "$memberName" --tool slack-send-message --target "$outsideParty" || { set +e ; return 1 ; }
+					outsidePerson="true"
+				fi
+			;; esac
+		;; esac
 		local format="markdown" fromStdin="false" identityAsBot="false" textGroup=""
 		local textArgs stdinContent
 		local bodySourceKind="argv"
@@ -424,12 +527,40 @@ case "$1" in
 		## decide whether something is input leave a tooling post that is not addressed to the reader out (AgentsTools.TrackingDrop.include).
 		local sendTracking=""
 		[ "${MDAT_SEND_FLOOR:-}" = "hold" ] || sendTracking=",\"tracking\":\"tooling\""
+		## THE ORIGIN OF THE POST (epic S6, "a post outside its own session thread states its origin routine and its real sender
+		## member"): the routine of the run that sends, read once from its own spawn record, short (`work-duty`,
+		## `supervision-session`); `console` for a send from no run. Three coordinator runs, a duty, a supervision and a console,
+		## post under one name and one alias, and the owner could not tell which spoke. The origin travels in the metadata here
+		## and in the author line below, as `@alias/origin`, a form `memberSendHeaderLength` accepts (`@[^ ]+`) and the mention
+		## converter skips (a slash is outside a member name).
+		local sendOrigin="" sendOriginRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" sendOriginLine="" sendOriginN=0
+		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$sendOriginRecord" ] ; then
+			while IFS= read -r sendOriginLine && [ "$sendOriginN" -lt 60 ] ; do
+				sendOriginN=$(( sendOriginN + 1 ))
+				case "$sendOriginLine" in
+					'routine: '*) sendOrigin="${sendOriginLine#routine: }" ; break ;;
+				esac
+			done < "$sendOriginRecord"
+			sendOrigin="${sendOrigin%.routine.md}" ; sendOrigin="${sendOrigin#*.}"
+			case "$sendOrigin" in *[!A-Za-z0-9._-]*) sendOrigin="" ;; esac
+		elif [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+			sendOrigin="console"
+		fi
+		[ -z "$sendOrigin" ] || sendTracking="$sendTracking,\"origin\":\"$sendOrigin\""
 		local sendMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$memberName\"$sendTracking}}"
-		local defaultMetadata="$sendMetadata"
+		local defaultMetadata="$sendMetadata" sendAgain="" ownerNow=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--identity-bot)
 					identityAsBot="true" ; shift
+				;;
+				## The routine step told this work-duty to post to the team channel (the default above reads it from argv).
+				--told)
+					shift
+				;;
+				## A repeat of a message sent to the same place within the half hour, meant as such.
+				--again)
+					sendAgain="true" ; shift
 				;;
 				--metadata)
 					if [ $# -lt 2 ] || [ -z "$2" ] ; then
@@ -452,7 +583,7 @@ case "$1" in
 						;;
 					esac
 					if printf '%s' "$2" | LC_ALL=C tr -d ' \t\r\n' | LC_ALL=C sed "s/\"sender\":\"$memberName\"//g" | LC_ALL=C grep -q '"sender":' ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --metadata names another sender than $memberName, the member this send acts as. A message carries its own member as its sender, and no other. Nothing was sent." >&2
+						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --metadata names another sender than $memberName, the member this send acts as. A message carries its own member as its sender, and no other. Nothing was sent. NEXT: send it again with --metadata naming $memberName as its sender, or without --metadata." >&2
 						set +e ; return 1
 					fi
 					sendMetadata="$2" ; shift 2
@@ -606,6 +737,16 @@ blocks|verbatim|caller|stdin file"
 		elif [ -n "$memberUserToken" ] ; then
 			sendIdentity="user"
 		fi
+		## HIS CONVERSATION IS THE BOT'S, NEVER A PERSONA'S (his ruling, 2026-11-10 11:54: three coordinator posts sat unthreaded in the
+		## persona account's own direct message with him): a post under a member's user identity to his account, or into a direct
+		## conversation whose other party is he, is refused; the same message under --identity-bot reaches his conversation with the team bot.
+		## The send takes the bot itself, so no caller has to know: the line below says what was done. A REPLY IS NOT THIS CASE: a reply goes
+		## into the thread of the message it answers (the team rule), under the identity that is in that conversation, so a send naming a
+		## thread keeps its identity; switching it would leave the thread unreachable and the answer at the top of another conversation.
+		if [ "$sendIdentity" = "user" ] && [ -z "$threadTs" ] && [ -n "$outsideOwner" ] && { [ "$channel" = "$outsideOwner" ] || [ "$outsideParty" = "$outsideOwner" ] ; } ; then
+			sendIdentity="bot"
+			echo "# $MDSC_CMD --slack-send-message: a message to the human-owner goes under the team bot, into his conversation with the bot, never under a member's own account into the persona's direct message with him: sent as the bot." >&2
+		fi
 		## TO THE HUMAN-OWNER the rule is the same as to anyone: a member with a Slack account of its
 		## own posts under it, and a member with none posts as the team bot, in the bot's own
 		## conversation with the owner, as its question to the owner does (AgentsHarnessAsk).
@@ -715,6 +856,12 @@ blocks|verbatim|caller|stdin file"
 		## Its alias stands beside its name only where it is another word (AgentsToolsCommsSlackAliasShown).
 		local fromShown
 		fromShown="$( AgentsToolsCommsSlackAliasShown "$fromName" "$fromAlias" )"
+		## The origin routine follows the alias in parentheses, outside the poster's own session thread and inside the team only
+		## (sendOrigin above): `@dispatchr (supervision-session)`, the form the owner named. The header parsers accept the
+		## parenthesised tail after an alias and after a bare name (AgentsDismissalMatch.awk, AgentsEscalationVerdict.awk).
+		if [ -n "${sendOrigin:-}" ] && [ "$target" != "session-current" ] && [ "$presentExternal" != "true" ] ; then
+			fromShown="${fromShown:+$fromShown }($sendOrigin)"
+		fi
 		local fromText="${fromMark:+$fromMark }*_${fromName}_* ${fromShown:+$fromShown }"
 		case "$fromMark" in
 			"")	;;
@@ -746,7 +893,56 @@ blocks|verbatim|caller|stdin file"
 		## failing a send over a header field.
 		## Whether the addressees are ids the send read itself, below, and not words of its caller.
 		local addressInferred=""
-		if [ -z "$addressToList" ] ; then
+		## A REPLY ANSWERS A PERSON, AND IS ADDRESSED TO THEM: in any conversation and any thread, the author of the message at the target ts, read from
+		## Slack, is the reply's addressee, whether the caller named anyone or not. Only a
+		## person counts: a bot's message, the team's own accounts (the mention cache) and the posting account leave the addressee to the caller.
+		local replyAuthor=""
+		case "$channel" in U*) ;; *)
+			if [ -n "$threadTs" ] ; then
+				local rpArgs rpInfo="" rpSelf=""
+				rpArgs=( "$memberName" --api conversations.replies --resolve-target "$channel" --form "ts=$threadTs" --form "oldest=$threadTs" --form inclusive=true --form limit=1 )
+				[ "$sendIdentity" != "bot" ] || rpArgs+=( --identity bot )
+				rpArgs+=( --context "--slack-send-message" )
+				local rpErr="" rpErrFile=""
+				rpErrFile="$( mktemp "${MMDAPP:-/tmp}/.local/temp/mdat-reply-parent.XXXXXX" 2> /dev/null )" || rpErrFile=""
+				rpInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${rpArgs[@]}" 2> "${rpErrFile:-/dev/null}" )" || rpInfo=""
+				[ -z "$rpErrFile" ] || { rpErr="$( cat "$rpErrFile" 2> /dev/null )" ; rm -f "$rpErrFile" ; }
+				local rpMessage="" rpSelectRc=0
+				rpMessage="$( printf '%s\n' "$rpInfo" | LC_ALL=C awk -v wantTs="$threadTs" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessageSelect.awk" 2> /dev/null )" || { rpSelectRc=$? ; rpMessage="" ; }
+				## A REPLY GOES UNDER A MESSAGE OF THIS VERY CONVERSATION, OR NOWHERE: Slack answered and holds no message of that ts here (selector
+				## rc 1, or thread_not_found), so a post would land at the top level of this conversation, a channel's root for a reply meant for a thread elsewhere.
+				## Refused before anything is posted. A read that failed (rc 2, no access) says nothing either way and stops nothing.
+				case "$rpErr" in *'"error":"thread_not_found"'*) rpSelectRc=1 ;; esac
+				if [ "$rpSelectRc" = 1 ] && [ -z "$updateTs" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the thread $channel:$threadTs is no thread of this conversation: Slack holds no message of that ts here, and a reply under it would be posted at the top level of $channel. Nothing was sent. NEXT: reply in the conversation the message was read from, with the <conversation>:<ts> it was read as (its Wait or read line names both); never move a ts to another conversation." >&2
+					set +e ; return 1
+				fi
+				replyAuthor="$( printf '%s\n' "$rpMessage" | LC_ALL=C awk -v path=messages.0.user -v optional=1 -v dialect=slack \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || replyAuthor=""
+				case "$replyAuthor" in U[A-Z0-9][A-Z0-9]*) ;; *) replyAuthor="" ;; esac
+				## A message a bot posted (the team's own bot, an integration) answers to no person: the addressee stays the caller's.
+				! printf '%s' "$rpMessage" | LC_ALL=C grep -q -E '"bot_id":"|"subtype":"bot_message"' || replyAuthor=""
+				if [ -n "$replyAuthor" ] && LC_ALL=C grep -q "=$replyAuthor\([^A-Z0-9]\|\$\)" "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null && ! LC_ALL=C grep -q "^human-owner=$replyAuthor" "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null ; then
+					replyAuthor=""
+				fi
+			fi
+		;; esac
+		## The reply goes to its author, set here from what it answers: the caller's addressees do not replace it. A person who is not the
+		## human-owner is written to only as a known contact (AgentsToolsContactAssertKnown, the one gate), in a channel as in a direct
+		## conversation; an unknown author is refused with the escalation the gate writes.
+		if [ -n "$replyAuthor" ] ; then
+			[ -z "${addressToList// /}" ] || [ "${addressToList// /}" = "$replyAuthor" ] || echo "# $MDSC_CMD --slack-send-message: this reply answers $replyAuthor's message ($channel:$threadTs), so it is addressed to $replyAuthor, not to${addressToList}." >&2
+			addressToList=" $replyAuthor"
+			if [ "$replyAuthor" != "$outsideOwner" ] ; then
+				type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"
+				AgentsToolsContactAssertKnown "$memberName" --tool slack-send-message --target "$replyAuthor" || { set +e ; return 1 ; }
+			fi
+		fi
+		## A STATUS POST NAMES NOBODY (2026-11-10: duty status notices in the human-owner's conversation carried his mention): a send to
+		## session-current or session-parent is the run's own record, read by whoever reads the session, so no other party is inferred
+		## as its addressee. A caller that wants a person named names them.
+		if [ -z "$addressToList" ] && [ "$target" != "session-current" ] && [ "$target" != "session-parent" ] ; then
 			local dmParties="" dmInfo="" dmIsMpim="" dmSelfId="" dmParty="" dmIndex=0 dmKept=""
 			local dmArgs
 			case "$channel" in
@@ -809,6 +1005,37 @@ blocks|verbatim|caller|stdin file"
 			addressToList="$dmParties"
 			addressInferred="true"
 		fi
+		## A DIRECT MESSAGE HAS ONE OTHER PARTY (the human-owner's order, 2026-11-10: a reply to one person went out headed for another): in a
+		## one-to-one conversation an account the caller names as the addressee must be that other party, or the send is refused and says whose
+		## conversation it is. A word that is no account (a team member's name) is not judged here.
+		if [ -n "$addressToList" ] && [ "$addressInferred" != "true" ] ; then
+			case "$channel" in
+				D[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
+					local imArgs imInfo imParty imWho
+					imArgs=( "$memberName" --api conversations.info --resolve-target "$channel" )
+					[ "$sendIdentity" != "bot" ] || imArgs+=( --identity bot )
+					imArgs+=( --context "--slack-send-message" )
+					imInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${imArgs[@]}" )" || imInfo=""
+					imParty="$( printf '%s\n' "$imInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" )" || imParty=""
+					if [ -n "$imParty" ] ; then
+						local imKept="" imSwapped=""
+						for imWho in $addressToList ; do
+							case "$imWho" in
+								U[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]*)
+									if [ "$imWho" != "$imParty" ] ; then
+										imSwapped="$imSwapped $imWho" ; imWho="$imParty"
+									fi
+								;;
+							esac
+							case " $imKept " in *" $imWho "*) ;; *) imKept="$imKept $imWho" ;; esac
+						done
+						addressToList="${imKept# }"
+						[ -z "$imSwapped" ] || echo "# $MDSC_CMD --slack-send-message: the direct message $channel is with $imParty, so the message is addressed to that party in place of${imSwapped}." >&2
+					fi
+				;;
+			esac
+		fi
 		## Who the message is for.
 		local addressedText="" addressedElems=""
 		## Every addressee that resolved to a real Slack account, which is the value a
@@ -861,6 +1088,11 @@ blocks|verbatim|caller|stdin file"
 					addressedText="$addressedText<#$addrWho>"
 					addressedElems="$addressedElems{\"type\":\"channel\",\"channel_id\":\"$addrWho\"},"
 				;;
+				*:@here|*:@channel)
+					## Said by the caller, never defaulted: the one way a send pings everyone in the place.
+					addressedText="$addressedText<!${addrWho#@}>"
+					addressedElems="$addressedElems{\"type\":\"broadcast\",\"range\":\"${addrWho#@}\"},"
+				;;
 				*@*)
 					echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --address-to '$addrWho': an email addressee is a declared direction that is not built yet. Pass a team member name, a Slack user id, or a conversation id." >&2
 					set +e ; return 1
@@ -870,8 +1102,27 @@ blocks|verbatim|caller|stdin file"
 					## it is held to the same bare-name shape as the sender's own. A word that is
 					## neither a member nor an id names nobody: refused in one line that says so.
 					type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+					## A CONTACT BY ITS ID: a word that is no team member but a contact's id is that person's Slack account, read from the record.
+					## A record holding no Slack id, or more than one, is refused and says so: the person is never guessed.
+					if AgentsToolsAssertBareName "$addrWho" "--address-to" slack-send-message 2> /dev/null && ! AgentsToolsTeamMemberDirectory "$addrWho" > /dev/null 2>&1 ; then
+						local addrRecord="" addrIds=""
+						addrRecord="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contact-record "$addrWho" 2> /dev/null < /dev/null )" || addrRecord=""
+						if [ -n "$addrRecord" ] ; then
+							addrIds="$( printf '%s\n' "$addrRecord" | LC_ALL=C sed -n 's/^slack-id: //p' | LC_ALL=C tr ', ' '\n\n' | LC_ALL=C sed -n 's/^[^:]*:\(U[A-Z0-9]\{8,\}\)$/\1/p' | LC_ALL=C sort -u )"
+							case "$addrIds" in
+								U*[!A-Z0-9]*|"")
+									echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --address-to '$addrWho': the contact record holds ${addrIds:+more than one Slack id}${addrIds:-no Slack id}, so the person cannot be addressed here. Nothing was sent. NEXT: a reply needs no --address-to, it goes to the author of the message it answers -- send it again without it. A new message: take the account from the message they wrote (its user, or user_record in --slack-read), and address that account; DistroAgentsContacts.fn.sh --contacted-by <that account> records it where they are an organisation contact." >&2
+									set +e ; return 1
+								;;
+							esac
+							addressedText="$addressedText<@$addrIds>"
+							addressedIds="$addressedIds$addrIds "
+							addressedElems="$addressedElems{\"type\":\"user\",\"user_id\":\"$addrIds\"},"
+							continue
+						fi
+					fi
 					if ! AgentsToolsAssertBareName "$addrWho" "--address-to" slack-send-message 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$addrWho" > /dev/null ; then
-						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." >&2
+						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: --address-to '$addrWho': no such team member and no contact of that id -- expected $MDAT_SKILLSET_ROOT/$addrWho or a contact id the store holds. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent. NEXT: a reply needs no --address-to, it goes to the author of the message it answers -- send it again without it. A person: address their account as it stands on their message (its user, or user_record in --slack-read), never a name; DistroAgentsContacts.fn.sh --find-contact <word> shows whether a contact is meant." >&2
 						set +e ; return 1
 					fi
 					## Inside our own team an addressee is shown as a sender is (AgentsToolsCommsSlackMemberTeamPresentation); a member with no row reads as its name.
@@ -942,9 +1193,11 @@ blocks|verbatim|caller|stdin file"
 		## only ever meant for a handful: on 2026-10-27 ninety-seven thread replies carried
 		## "→ @here" into a client's channel because this default applied to them. A reply says who
 		## it is for in its own words, or names them, and gets no default addressee.
+		## @HERE ONLY WHERE THE CALLER MEANT IT (--address-to @here). A reply is addressed to the author of the message it answers (above).
+		## A bare message naming nobody heads itself to "this conversation" in plain text, which pings nobody.
 		if [ -z "$addressToList" ] ; then
-			addressedText="@here"
-			addressedElems="{\"type\":\"text\",\"text\":\"@here\"},"
+			addressedText="this conversation"
+			addressedElems="{\"type\":\"text\",\"text\":\"this conversation\"},"
 		fi
 		## ---- blocks generator ----
 		case "$formatBlocksGen" in
@@ -979,7 +1232,7 @@ blocks|verbatim|caller|stdin file"
 				set +e ; return 1
 			fi
 			local blocksTrimmed
-			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\0"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
+			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\004"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
 			case "$blocksTrimmed" in
 				'['*']')
 				;;
@@ -994,6 +1247,33 @@ blocks|verbatim|caller|stdin file"
 		## The newline is deliberate: Slack flattens it to one space, which is
 		## exactly the ". " seam, and where no blocks travel and nothing
 		## flattens, the body still starts on its own line.
+		## A BARE ACCOUNT ID IN A BODY IS SAID AS A PERSON (his complaint, 2026-11-10 11:45: "from U04RSR5LKPV", whom nobody could place):
+		## an account id written plain, not inside a mention, becomes what the contact store says of it, "<name>, <organisation>", or
+		## "an account with no record"; never a mention, which would ping an outside person, and never the bare id. A default, not a refusal.
+		if LC_ALL=C grep -q -E '(^|[^@<A-Z0-9])[UW][A-Z0-9]{8,}([^A-Z0-9>]|$)' <<< "$rawText" ; then
+			local bareId bareSaid bareRow bareIds
+			bareIds="$( printf '%s\n' "$rawText" | LC_ALL=C grep -o -E '(^|[^@<A-Z0-9])[UW][A-Z0-9]{8,}([^A-Z0-9>]|$)' | LC_ALL=C grep -o -E '[UW][A-Z0-9]{8,}' | sort -u )"
+			for bareId in $bareIds ; do
+				bareSaid=""
+				bareRow="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --find-contact "$bareId" 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "contact" { print ; exit }' )" || bareRow=""
+				if [ -n "$bareRow" ] ; then
+					bareSaid="$( printf '%s\n' "$bareRow" | LC_ALL=C awk -F '\t' '{ printf "%s%s", $3, ( $4 != "" && $4 != "-" ? ", " $4 : "" ) }' )"
+				fi
+				[ -n "$bareSaid" ] || bareSaid="an account with no record"
+				rawText="$( printf '%s\n' "$rawText" | LC_ALL=C awk -v id="$bareId" -v said="$bareSaid" '
+					{
+						out = "" ; s = $0
+						while ( ( at = index( s, id ) ) > 0 ) {
+							before = substr( s, 1, at - 1 ) ; after = substr( s, at + length( id ) )
+							pre = ( at > 1 ? substr( s, at - 1, 1 ) : "" ) ; post = substr( after, 1, 1 )
+							if ( pre ~ /[@<A-Z0-9]/ || post ~ /[A-Z0-9>]/ ) { out = out before id ; s = after ; continue }
+							out = out before said ; s = after
+						}
+						print out s
+					}' )"
+				echo "# $MDSC_CMD --slack-send-message: the account id $bareId in the body is said as '$bareSaid'." >&2
+			done
+		fi
 		rawText="→ $addressedText.${rawText:+$'\n'$rawText}"
 		if [ -n "$blocksJson" ] ; then
 			local headerBlock="$headerOpen{\"type\":\"text\",\"text\":\"→ \"},$addressedElems{\"type\":\"text\",\"text\":\".\"}]}]}]"
@@ -1024,7 +1304,7 @@ blocks|verbatim|caller|stdin file"
 		if [ "$presentExternal" = "true" ] ; then
 			type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"
 			AgentsToolsContactAssertKnown "$memberName" \
-				--tool slack-send-message --target "$channel" --team "$memberName" \
+				--tool slack-send-message --target "$channel" \
 				--message "$rawText" || { set +e ; return 1 ; }
 		fi
 		if [ -n "$blocksJson" ] ; then
@@ -1073,8 +1353,36 @@ blocks|verbatim|caller|stdin file"
 			read -r botTokenSource token <<< "$botTokenLine"
 		fi
 		if [ -z "$token" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)$( AgentsToolsSlackSideNote "$memberName" )" >&2
+			echo "⛔ ERROR: $MDSC_CMD --slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)$( AgentsToolsSlackSideNote "$memberName" ) NEXT: this is the setup, not the message -- do not retry; file this line to magic-coordinator with post-inquiry, and carry on with work that needs no Slack." >&2
 			set +e ; return 1
+		fi
+		## HIS WORDS NEVER GO TO A CHANNEL (his ruling, 2026-11-09): a body that carries the human-owner's quoted words, the verbatim marker a
+		## relay of his answer wears, is sent to a direct conversation alone (a D… id: the asker's DM, his own). A channel, public or private, is
+		## read by people his words were not typed for. There is no override: a ruling goes to a channel in the sender's own words.
+		case "${messageText:-$sourceText}" in
+			*"Human-owner verbatim"*|*"human-owner verbatim"*)
+				case "$channel" in
+					D*) ;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the message quotes the human-owner (Human-owner verbatim) and $channel is a channel, not a direct conversation: his words never go to a channel. A relay of his answer goes to the asker's DM; a ruling for a channel is said in your own words. Nothing was posted." >&2
+						set +e ; return 1
+					;;
+				esac
+			;;
+		esac
+		## NO TALK OF HIM IN A CHANNEL (his ruling, 2026-11-10): a member's own message that names the human-owner, what he said, wrote or asked,
+		## goes to a direct conversation alone (a D… id). A channel is for the work's state and decision, never for who said what and how. There is
+		## no override: the message is said again without him. A send of the tooling's own (MDAT_SEND_FLOOR not `hold`) is not looked at.
+		if [ "${MDAT_SEND_FLOOR:-}" = "hold" ] ; then
+			case "$channel" in
+				D*) ;;
+				*)
+					if printf '%s' "${messageText:-$sourceText}" | LC_ALL=C grep -q -i -E 'human[- ]owner|\<he (wrote|said|asked|ruled|told|answered)\>|\<his (ruling|word|words|answer|order)\>' ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the message talks of the human-owner (who said, wrote or asked what) and $channel is a channel, not a direct conversation: a channel carries the work's state and the decision, never who said what. Say the state or the decision without him, and send it again. Nothing was posted." >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
 		fi
 		## The team's plain-language floor, on the body exactly as the caller gave
 		## it -- nothing has altered sourceText since it was read. It sits after
@@ -1100,6 +1408,28 @@ blocks|verbatim|caller|stdin file"
 			type AgentsToolsOutputStyleRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 			[ "${MDAT_SEND_FLOOR:-}" != "hold" ] || printf '%s' "$floorText" | AgentsToolsOutputStyleRetiredMarker || { floorRc=$? ; set +e ; return "$floorRc" ; }
 			printf '%s' "$floorText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" "$floorGating" || { floorRc=$? ; set +e ; return "$floorRc" ; }
+		fi
+		## A REPEATED MESSAGE IS A LOOP, NOT A CORRECTION (his ruling): the same body to the same place within the half hour is refused unless
+		## --again says the repeat is meant. It is judged after the floor, so a body the floor holds back comes back as its CORRECTION, never as
+		## a repeat; and on the whole body, not its first line, so two asks under one caption are two messages. The last fifty sends of the
+		## run are kept in sessions/<id>/sent.recent as `<epoch>\t<place>\t<cksum of the body>`.
+		local sentBody="${messageText:-$sourceText}"
+		if [ -z "$sendAgain" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "$sentBody" ] ; then
+			local sentRecent="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/sent.recent" sentKey sentAt sentTo sentText sentSum sentNow
+			sentSum="$( printf '%s' "$sentBody" | LC_ALL=C cksum )" ; sentSum="${sentSum%% *}"
+			sentKey="${channel}:${threadTs}"
+			sentNow="${ownerNow:-$( date +%s )}"
+			if [ -f "$sentRecent" ] ; then
+				while IFS=$'\t' read -r sentAt sentTo sentText ; do
+					[ "$sentTo" = "$sentKey" ] && [ "$sentText" = "$sentSum" ] || continue
+					case "$sentAt" in ''|*[!0-9]*) continue ;; esac
+					if [ $(( sentNow - sentAt )) -lt 1800 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the same message was sent to $sentKey $(( ( sentNow - sentAt ) / 60 )) minutes ago: a repeat is a loop, not a correction. Say the new thing, or pass --again where the repeat is meant. Nothing was posted." >&2
+						set +e ; return 1
+					fi
+				done < "$sentRecent"
+			fi
+			{ [ ! -f "$sentRecent" ] || tail -n 49 "$sentRecent" ; printf '%s\t%s\t%s\n' "$sentNow" "$sentKey" "$sentSum" ; } > "$sentRecent.tmp" 2> /dev/null && mv -f "$sentRecent.tmp" "$sentRecent" 2> /dev/null || :
 		fi
 		## Token on curl's stdin, never argv -- keeps it out of ps. Reassigned
 		## in place at the identity swap below, as the header file was rewritten.
@@ -1210,8 +1540,9 @@ blocks|verbatim|caller|stdin file"
 		local chatCopies=""
 		if [ -z "$updateTs" ] && [ -n "${threadTs:-}" ] && [ -n "${channel:-}" ] && ! AgentsToolsSlackClientSide "$memberName" ; then
 			type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			AgentsToolsSessionChatKeyInto
 			! type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 \
-				|| chatCopies="$( AgentsToolsSessionChatDeliverCopy "$( AgentsToolsSessionChatKey )" "$memberName" "$addressToList" "$channel:$threadTs" "$chatBody" 2> /dev/null )" || chatCopies=""
+				|| chatCopies="$( AgentsToolsSessionChatDeliverCopy "$agentsSessionChatKey" "$memberName" "$addressToList" "$channel:$threadTs" "$chatBody" 2> /dev/null )" || chatCopies=""
 		fi
 		## THE SESSION THREAD IS ASYNC (owner 2026-10-28), for a caller that asks (MDAT_SEND_ASYNC=true, the SendMessage tool): a post
 		## to the run's own session thread, recorded above, goes to the session's outbox while the comms reader runs, and the call
@@ -1226,7 +1557,15 @@ blocks|verbatim|caller|stdin file"
 			fi
 			asyncPid="${asyncLock%% *}"
 			case "$asyncPid" in ''|*[!0-9]*) asyncPid="" ;; esac
-			if [ "$asyncOwn" = "$channel:$threadTs" ] && [ -n "$asyncPid" ] && kill -0 "$asyncPid" 2> /dev/null ; then
+			## The thread of this host's own session, or of another session of this host whose chat file took the copy above: both are posts the
+			## chat files already carry, so Slack's copy of them is queued. Any other thread is a person's, and is posted before the call returns.
+			if { [ "$asyncOwn" = "$channel:$threadTs" ] || [ -n "$chatCopies" ] ; } && [ -n "$asyncPid" ] && kill -0 "$asyncPid" 2> /dev/null ; then
+				## THE BLOCK IS THE SESSION'S FROM NOW, WHETHER SLACK ANSWERS OR NOT: its conversation is the thread already, its ts is set by the
+				## writer when it has posted. A reader's floor passes a block with a conversation, so a slow or failing Slack holds nothing back and
+				## the order of the file is the order everyone reads (AgentsSessionChatRead.awk). The copies of it in another session's file keep
+				## their rows for the writer, which sets the same ts on them.
+				AgentsToolsSessionChatStamp "$chatKey" "$chatNo" - "$channel:$threadTs" 2> /dev/null || :
+				[ -z "$chatCopies" ] || AgentsToolsSessionChatCopiesKeep "$chatKey" "$chatNo" "$chatCopies" 2> /dev/null || :
 				## Into the outbox of the session thread's channel in the comms cache (S21.13), which the comms reader pushes in order;
 				## the session's own outbox where that cannot take it, or for the other organisation's side, which the writer refuses.
 				type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include" 2> /dev/null || :
@@ -1239,6 +1578,9 @@ blocks|verbatim|caller|stdin file"
 				echo "SENT_MESSAGE_CHANNEL=$channel" >&2
 				echo "SENT_MESSAGE_TS=" >&2
 				echo "SENT_MESSAGE_THREAD_TS=$threadTs" >&2
+				## The reply the member owed here is answered (AgentsTools.OwedReplies.include).
+				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" 2> /dev/null || :
+				! type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "$threadTs"
 				echo "SENT_MESSAGE_LOCAL=$chatKey:$chatNo" >&2
 				echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
 				[ -z "$addressedMembers" ] || echo "SENT_MESSAGE_ADDRESSEE_MEMBERS=${addressedMembers% }" >&2
@@ -1439,6 +1781,9 @@ blocks|verbatim|caller|stdin file"
 				echo "SENT_MESSAGE_CHANNEL=$sentChannel" >&2
 				echo "SENT_MESSAGE_TS=$sentTs" >&2
 				echo "SENT_MESSAGE_THREAD_TS=$sentThreadTs" >&2
+				## The reply the member owed here is answered (AgentsTools.OwedReplies.include).
+				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" 2> /dev/null || :
+				! type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "${sentThreadTs:-$threadTs}"
 			else
 				echo "SENT_MESSAGE_CHANNEL=" >&2
 				echo "SENT_MESSAGE_TS=" >&2

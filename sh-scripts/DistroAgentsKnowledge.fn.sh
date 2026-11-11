@@ -64,6 +64,12 @@ DistroAgentsKnowledgeMoved(){
 			return $?
 		;;
 
+		## The one write a member makes to a MAGIC.md: one section, by its heading (S10.23).
+		--magic-section-upsert)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpMagicSection.include"
+			return $?
+		;;
+
 		--member-help)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
 			return $?
@@ -123,7 +129,14 @@ DistroAgentsKnowledge(){
 	return $?
 }
 
+## A relative or symlinked path to this very file dispatches too: it is resolved to the real file before the match, and only a path that
+## resolves elsewhere is refused. Sourced ($0 differs from BASH_SOURCE[0]), nothing is resolved.
+selfPath="$0"
 case "$0" in
+	*/myx/myx.distro-agents/sh-scripts/*.fn.sh) ;;
+	*) [ "${BASH_SOURCE[0]:-}" != "$0" ] || selfPath="$( cd "$( dirname "$0" )" 2> /dev/null && pwd -P )/${0##*/}" ;;
+esac
+case "$selfPath" in
 	*/myx/myx.distro-agents/sh-scripts/DistroAgentsKnowledge.fn.sh)
 
 		set -e

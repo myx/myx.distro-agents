@@ -23,8 +23,10 @@
 ## to the folder the session already has, is in the next read, with every time made older than the registry; so
 ## is a session started since, an ask asked since, and an ask answered. What a record of the session says, a
 ## status that moved among it, is read from the record at every call, and no registry is rewritten for that.
-## Nothing else of the workspace is written, and no scratch file is left. Another session's record and store,
-## made unreadable, change nothing.
+## Nothing else of the workspace is written, and no scratch file is left but the tooling's 10 s kept process
+## list. The registry's own housekeeping thread, which a rebuild starts at most every 5 minutes and detached
+## (AgentsToolsRegistryHousekeepingDue), is held off here with AGENTS_REGISTRY_HOUSEKEEPING: its writes are
+## its own, checked where it is. Another session's record and store, made unreadable, change nothing.
 ## A call from inside a member's session is refused, as every operation of the family is. And the help pair,
 ## with the six row forms the output is checked against. A fake `curl` first on PATH would log a request: none
 ## is made. Offline; only the rig's own tree is read or written.
@@ -94,9 +96,12 @@ rigRecord(){ ## sandbox, record name -- stdin: the header lines of the record, a
 rigAsk(){ ## record name, the id of the run that asked, status
 	printf -- '---\nstatus: %s\nowner: keeper-rig\nsession-id: %s\nkind: question\n---\nq\n' "$3" "$2" > "$rigPend/$1.md"
 }
+## The tooling keeps the process list it read for 10 s (AgentsToolsRegistryProcessArgs, .local/temp/ps-args.txt): a change of
+## the rig's list drops the kept one, so the next call reads the list as it stands.
+rigPsChanged(){ rm -f "$rigWs/.local/temp/ps-args.txt" ; }
 rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --session-id word
 	local liveId livePid=900100
-	: > "$rigTmp/ps.list"
+	: > "$rigTmp/ps.list" ; rigPsChanged
 	for liveId in "$@" ; do
 		livePid=$(( livePid + 1 ))
 		printf '%s claude --verbose --session-id %s --agent rig-member the brief\n' "$livePid" "$liveId" >> "$rigTmp/ps.list"
@@ -105,7 +110,7 @@ rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --ses
 rigPre=()
 rigRun(){ ## tool arguments... -- one dispatcher call in the rig workspace; rc in rigRc, stdout in out, stderr in err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWs" && env -i AGENTS_REGISTRY_HOUSEKEEPING=1 HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigRows(){ ## row kind -- the rows of that kind in the last output, TAB written as a space
@@ -121,8 +126,8 @@ rigPrint(){ ## file -- its inode and the sum of its bytes; no-file where there i
 	[ -f "$1" ] || { printf 'no-file\n' ; return 0 ; }
 	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
 }
-rigOthers(){ ## -- every file of the rig workspace but the two session registries, each with the sum of its bytes, as one sum
-	( cd "$rigWs" && find . -type f ! -name spawned-sessions.registry ! -name pending-replies.registry | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
+rigOthers(){ ## -- every file of the rig workspace but the two session registries and the kept process list, each with the sum of its bytes, as one sum
+	( cd "$rigWs" && find . -type f ! -name spawned-sessions.registry ! -name pending-replies.registry ! -name ps-args.txt | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
 }
 
 ## THE STORES. One session of three: its founder, live and inside a Wait; a member, live and working; a member that
@@ -291,7 +296,7 @@ rigAssert "a bare word is no id: the second word of the operation is its own arg
 
 echo "-- 6. the registries are read as they lie --"
 rigAssert "the first call found no registry and built both: a missing registry is rebuilt first" "$( LC_ALL=C awk 'NF == 17 { whole++ } END { print NR ":" whole + 0 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk 'END { print NR + 0 }' "$rigAgents/pending-replies.registry" )" "6:6 4"
-rigAssert "nothing else of the workspace was written by any call so far, and no scratch file is left" "$( rigOthers ) $( find "$rigWs/.local/temp" -type f 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "$rigOthersBefore 0"
+rigAssert "nothing else of the workspace was written by any call so far, and no scratch file is left but the kept process list" "$( rigOthers ) $( find "$rigWs/.local/temp" -type f ! -name ps-args.txt 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "$rigOthersBefore 0"
 rigRegBefore="$( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "a call that finds the registries fresh rewrites neither: both are the files they were" "$rigRc $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "0 $rigRegBefore"
@@ -365,7 +370,7 @@ rigAsk ask-9 run-j reply-pending
 rigOld "$rigPend/ask-9.md" "$rigPend"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "and an ask asked since is one: the asks' registry is rebuilt where it does not hold an ask the store has now" "$rigRc $( rigNoneNewer "$rigAgents/pending-replies.registry" "$rigPend/ask-9.md" ) $( rigRows store | LC_ALL=C awk '$2 == "run-j" { print $9 }' )" "0 none-newer ask-9"
-: > "$rigTmp/ps.list"
+: > "$rigTmp/ps.list" ; rigPsChanged
 rigRun "$rigOp" --session-id sess-a
 rigAssert "with no live process the session reads waiting, on the open asks of its runs, and its founder waiting with no activity: live is measured at each call and never stored" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $4 }' ) $( rigRows run | LC_ALL=C awk '$3 == "sess-a" { print $6, $7, $NF }' )" "0 waiting gone waiting -"
 rigLive sess-a
@@ -422,7 +427,7 @@ rigControlRows(){ ## -- the `control` rows of the last output, TAB written as a 
 	printf '%s / %s\n' "$( rigRows control )" "$( rigRows control | LC_ALL=C awk 'END { print NR + 0 }' )"
 }
 rigRun "$rigOp" --session-id sess-n
-rigAssert "a session that never had a control thread has its one control row all the same: no state, no date, none and no process" "$rigRc $( [ -e "$rigStores/sess-n/control" ] && echo control || echo no-control ) $( rigControlRows )" "0 no-control control sess-n - - none - / 1"
+rigAssert "a session that never had a control thread, its control folder holding a death record and no pid file or lock, has its one control row all the same: no state, no date, none and no process" "$rigRc $( [ -e "$rigStores/sess-n/control/pid" ] || [ -e "$rigStores/sess-n/control/lock" ] && echo thread || echo no-thread ) $( rigControlRows )" "0 no-thread control sess-n - - none - / 1"
 rigStand ; rigLivePid="$rigStandPid" ; rigLiveNamed="$rigStandNamed"
 mkdir -p "$rigStores/sess-a/control"
 printf 'state: running\nstate-at: 2026-10-13 10:21 +0300\nreason: a run of the session is alive on this host\n' > "$rigStores/sess-a/control/state"

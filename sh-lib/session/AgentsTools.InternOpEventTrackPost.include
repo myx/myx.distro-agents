@@ -21,7 +21,7 @@
 ## (AgentsEventTrackPostFill.awk): 3000 characters to a section, 10 children to a box, 50
 ## blocks to a post with a box's children counted too; what is beyond goes in the next
 ## post. A post whose blocks Slack refuses goes once more as plain text, each block under
-## its header line, in posts of at most 4000 characters, Slack's limit for a message's
+## its header line, in posts of at most 8192 characters, the cut of a message's
 ## `text`, with a warning, so nothing is lost. It posts each once and never
 ## edits a post: what is learned later is a new post, a reply in the thread. Nothing of
 ## the member send's addressing runs: no addressee, no author line, no conversation lookup.
@@ -458,8 +458,10 @@ case "$1" in
 		fi
 		etpSeq="${etpRecord##*/}"
 		## A caller never waits for a post into a thread: it is queued, a drain is started apart, and the call returns. Only a root post,
-		## whose ts opens the thread, is waited for below.
-		if [ -n "$etpThread" ] || [ "${MDAT_EVENT_TRACK_POST_NOWAIT:-}" = 1 ] ; then
+		## whose ts opens the thread, is waited for below. MDAT_EVENT_TRACK_POST_NOWAIT spares the wait for a root post only where it
+		## opens no session's thread: a session's first post is the one whose ts its caller records as that session's thread
+		## (AgentsToolsEventTrackThreadPost), and one not waited for left the session with none, so every later post opened another.
+		if [ -n "$etpThread" ] || { [ "${MDAT_EVENT_TRACK_POST_NOWAIT:-}" = 1 ] && [ -z "$etpSession" ] ; } ; then
 			rm -rf "$etpDir"
 			( AgentsToolsEventTrackSendDrain "$etpQueue" AgentsEventTrackPostSend ) > /dev/null 2>&1 < /dev/null &
 			return 0

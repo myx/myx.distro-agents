@@ -26,7 +26,7 @@ case "$BASH" in
 esac
 
 AgentTestingTools(){
-	local MDSC_CMD='AgentTestingTools'
+	local MDSC_CMD='AgentTestingTools' frontDone="" frontRc=0
 	## The family's context, here and in this file's arm, for a console that calls this function.
 	if [ -z "$MDLT_ORIGIN" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
 		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include"
@@ -35,14 +35,10 @@ AgentTestingTools(){
 	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
-	case "${agentsCommonFronted:-}:${2:-}" in
-		:--team-member|:--session-id|:--spawn-id|:--select-workspace|:--tooling-origin)
-			local commonRc=0
-			type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
-			AgentsToolsCommonRun AgentTestingTools AgentTestingTools.fn.sh "$@" || commonRc=$?
-			return "$commonRc"
-		;;
-	esac
+	## The front door every operation of this file passes, as the DistroAgents* tools pass it: the common options after the name taken, and the member
+	## from the environment placed first for a member-first operation where no --team-member is given.
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
 	case "$1" in
 
 		''|--help|--help-syntax)
@@ -135,7 +131,14 @@ AgentTestingTools(){
 	esac
 }
 
+## A relative or symlinked path to this very file dispatches too: it is resolved to the real file before the match, and only a path that
+## resolves elsewhere is refused. Sourced ($0 differs from BASH_SOURCE[0]), nothing is resolved.
+selfPath="$0"
 case "$0" in
+	*/myx/myx.distro-agents/sh-scripts/*.fn.sh) ;;
+	*) [ "${BASH_SOURCE[0]:-}" != "$0" ] || selfPath="$( cd "$( dirname "$0" )" 2> /dev/null && pwd -P )/${0##*/}" ;;
+esac
+case "$selfPath" in
 	*/myx/myx.distro-agents/sh-scripts/AgentTestingTools.fn.sh)
 
 		set -e

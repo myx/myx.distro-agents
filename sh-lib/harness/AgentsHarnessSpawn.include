@@ -32,12 +32,35 @@ AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
 		printf '%s' "$MDAT_DATA_ROOT/board/$dispatchState/$handleText"
 		return 0
 	done
+	## The dispatch items of the handle's runs by name: a run's record names the dispatch it works in `spawns:`
+	## (else `spawned-by:`), and the session's records come from the kept per-session list
+	## (AgentsTools.StartedRecords.include), so a handle is looked up in a few items, in board order, never in
+	## every dispatch item of the board on a tool call. Where no record names the handle here, every dispatch
+	## item is read, as before.
+	local dispatchRecord dispatchNamed dispatchNames=" "
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for dispatchRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$handleText.spawn.md" $( AgentsToolsSpawnedSessionRecords "$handleText" own 2> /dev/null ) ; do
+		[ -f "$dispatchRecord" ] || continue
+		dispatchNamed="$( AgentsHarnessDispatchField "$dispatchRecord" spawns )"
+		[ -n "$dispatchNamed" ] || dispatchNamed="$( AgentsHarnessDispatchField "$dispatchRecord" spawned-by )"
+		dispatchNamed="${dispatchNamed%%,*}" ; dispatchNamed="${dispatchNamed%% *}" ; dispatchNamed="${dispatchNamed%.md}"
+		case "$dispatchNamed" in dispatch-*) ;; *) continue ;; esac
+		case "$dispatchNamed" in */*|.|..) continue ;; esac
+		case "$dispatchNames" in *" $dispatchNamed "*) ;; *) dispatchNames="$dispatchNames$dispatchNamed " ;; esac
+	done
 	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
-		for dispatchFile in "$MDAT_DATA_ROOT"/board/"$dispatchState"/dispatch-*.md ; do
-			[ -f "$dispatchFile" ] || continue
-			dispatchFiles+=( "$dispatchFile" )
+		for dispatchNamed in $dispatchNames ; do
+			[ ! -f "$MDAT_DATA_ROOT/board/$dispatchState/$dispatchNamed.md" ] || dispatchFiles+=( "$MDAT_DATA_ROOT/board/$dispatchState/$dispatchNamed.md" )
 		done
 	done
+	if [ "${#dispatchFiles[@]}" -eq 0 ] ; then
+		for dispatchState in running pending review blocked parked processed archived retained backlog ; do
+			for dispatchFile in "$MDAT_DATA_ROOT"/board/"$dispatchState"/dispatch-*.md ; do
+				[ -f "$dispatchFile" ] || continue
+				dispatchFiles+=( "$dispatchFile" )
+			done
+		done
+	fi
 	[ "${#dispatchFiles[@]}" -gt 0 ] || return 0
 	if [ "${2:-}" = "every" ] ; then
 		## The first session-id and the first spawn-id of each frontmatter, compared as text.
@@ -377,8 +400,12 @@ AgentsHarnessRegistryRunLog(){ ## handle
 	local registryRun registrySpawn logPath
 	[ -f "$registryInclude" ] || { printf 'error the spawned-sessions registry reader is missing at %s, so this handle cannot be resolved through it\n' "$registryInclude" ; return 0 ; }
 	registryRun="$( { . "$registryInclude"
-		AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || { printf 'error the spawned-sessions registry at %s could not be rebuilt, so this handle was not looked up in it\n' "$( AgentsToolsRegistryFile spawned-sessions )" ; exit 0 ; }
-		AgentsToolsRegistryMeasureRows "$( AgentsToolsRegistryFile spawned-sessions )" "" "" 14
+		## The registry as it stands (AgentsToolsSpawnedRegistryFile, AgentsTools.StartedRecords.include): a tool
+		## call never rebuilds it from every record; it is rebuilt once only where a record landed since.
+		type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		registryStanding="$( AgentsToolsSpawnedRegistryFile 2> /dev/null )" || registryStanding=""
+		[ -n "$registryStanding" ] || { printf 'error the spawned-sessions registry at %s could not be read, so this handle was not looked up in it\n' "$( AgentsToolsRegistryFile spawned-sessions )" ; exit 0 ; }
+		AgentsToolsRegistryMeasureRows "$registryStanding" "" "" 14
 		printf '%s' "$measuredDated" | MDAT_HARNESS_WANT_ID="$1" LC_ALL=C awk '
 			NF != 16 { next ; }
 			{
@@ -703,7 +730,10 @@ AgentsHarnessOthersRunning(){
 		othersSession="$( AgentsToolsSpawnSandboxRecordHeader "$othersRecord" session-id )"
 		[ -n "$othersSession" ] || return 1
 		type AgentsReviewChildLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || return 1
-		othersRecords="$( LC_ALL=C grep -l -x -F "session-id: $othersSession" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || return 1
+		## The session's records from the kept per-session list (AgentsTools.StartedRecords.include), never a grep of every record on a harness call.
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || return 1
+		othersRecords="$( AgentsToolsSpawnedSessionRecords "$othersSession" own 2> /dev/null )" || return 1
+		[ -n "$othersRecords" ] || return 1
 		while IFS= read -r othersFile ; do
 			[ -n "$othersFile" ] && [ -f "$othersFile" ] || continue
 			[ "${othersFile##*/}" != "${MDAT_SPAWN_SESSION_ID:-/}.spawn.md" ] || continue
@@ -729,6 +759,13 @@ AgentsHarnessCallerMember(){
 	callerMember="$( AgentsToolsSessionParentMember 2> /dev/null )" || return 0
 	## The bare name the member send itself holds an addressee to.
 	case "$callerMember" in .|..|-*) return 0 ;; esac
+	## THE HUMAN-OWNER IS NEVER A HANDBACK'S ADDRESSEE (his ruling, twice): his record has a skill folder like a member's, so a session he, or
+	## the schedule for him, started named him here, and every report of its runs tagged him. Such a run reports to magic-coordinator, as the
+	## person route does (AgentsHarnessToolSubagentHandbackRun); the coordinator's own run reports to no one.
+	if [ "$callerMember" = "human-owner" ] ; then
+		[ "${harnessAgent:-}" != "magic-coordinator" ] || return 0
+		callerMember="magic-coordinator"
+	fi
 	AgentsHarnessBareName "$callerMember" && [ "$callerMember" != "$harnessAgent" ] || return 0
 	AgentsToolsTeamMemberDirectory "$callerMember" > /dev/null 2>&1 || return 0
 	printf '%s' "$callerMember"

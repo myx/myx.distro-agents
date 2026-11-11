@@ -46,7 +46,7 @@ printf -- '---\nname: magic-tester\n---\nrig identity\n' > "$rigHome/skills/magi
 rigRun(){ ## the operation and its words; prints what it printed and sets rigRc, rigOut, rigErr
 	rigOut="$( cd "$rigWs" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LC_ALL=en_US.UTF-8 \
 		MDAT_WORKSPACE_MODE=team-rig MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigStore" \
-		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH=/bin/bash MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigHome/skills" MDAT_BASH="$BASH" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$rigFn" "$@" 2> "$rigTmp/last.err" )"
 	rigRc=$?
 	rigErr="$( cat "$rigTmp/last.err" )"

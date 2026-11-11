@@ -142,7 +142,8 @@ rigInThread(){ ## thread ts -> the JSON field that puts a post in that thread
 }
 rigAnswer(){ ## answering member, its session, operation, verdict
 	rigMark
-	RIG_OP_AGENT="$1" RIG_OP_SESSION="$2" rigOp "$3" "$1" "$rigPend" "$4"
+	## A public operation names its member with --team-member; only the --intern-op-* operations take it as their first word.
+	RIG_OP_AGENT="$1" RIG_OP_SESSION="$2" rigOp "$3" --team-member "$1" "$rigPend" "$4"
 }
 
 echo "-- an allow that is applied: one reply, which says what is granted --"

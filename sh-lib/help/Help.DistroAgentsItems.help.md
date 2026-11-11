@@ -1,40 +1,43 @@
 📘 syntax: DistroAgentsItems.fn.sh --advance-batch-outcome [--team-member <team-member>] --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...
-📘 syntax: DistroAgentsItems.fn.sh --advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsItems.fn.sh --move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --create-running [--team-member <team-member>] <item-filename> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
 📘 syntax: DistroAgentsItems.fn.sh --commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]
 📘 syntax: DistroAgentsItems.fn.sh --repair-team-data-checkout [--team-member <team-member>] [--keep-merged|--take-remote]
 📘 syntax: DistroAgentsItems.fn.sh --get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsItems.fn.sh --list-inbox-items [--team-member <member>] [--of <member>] [--include-processed] [--grep <text>]
 📘 syntax: DistroAgentsItems.fn.sh --trash-inbox-item [--team-member <member>] <item-filename> [--exclude-incoming]
-📘 syntax: DistroAgentsItems.fn.sh --mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --trash-board-item [--team-member <member>] <item-filename> --from-state:<state>
+📘 syntax: DistroAgentsItems.fn.sh --mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsItems.fn.sh --get-my-board-items <team-member>
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>
 📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
@@ -62,7 +65,7 @@
 			The same move into processed, with its receipt and `processed-at` stamps, and it
 			releases the item's spawned child as it goes.
 
-		--create-running <item-filename> (--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin)
+		--create-running <item-filename> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>)
 			Writes a new board item straight into running/, its body from stdin by one of the
 			three edit forms.
 
@@ -82,6 +85,9 @@
 		--repair-team-data-checkout [--keep-merged|--take-remote]
 			Repairs the team-data checkout that diverged from origin: trial-merges, applies
 			the mode, moves the flat inbox items by their processed stamp, and pushes.
+			`--keep-merged` keeps every local commit, merged with origin.
+			`--take-remote` keeps every local commit reachable at a
+			`team-data-checkout-set-aside-*` ref, and takes the remote.
 
 		--grooming-create-backlog <item-filename> --owner-header-value <value> (...edit...)
 		--grooming-create-blocked <item-filename> --owner-header-value <value> (...edit...)
@@ -106,6 +112,11 @@
 			Finds one board item by its name, in the states named or in every state, and
 			prints it, or the lines of it named.
 
+		--get-my-board-items <team-member>
+			The board items the member can act on now, as its duty's scan lists them: the
+			same collection, so a member and its duty never disagree. Read only; blocked and
+			review items are not in it.
+
 		--get-inbox-item <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
 			Prints one inbox item, an item still wanted, or with `--include-processed` a
 			processed one too, or the lines of it named.
@@ -114,17 +125,19 @@
 			Prints one audit document, or the lines of it named.
 
 		--get-vault-item <item-name> [--start-line <N> --end-line <N>]
-			Prints one vault item, or the lines of it named.
+			Prints one vault item, or the lines of it named. A vault item is a file with an
+			extension, since the vault holds many kinds of file: a name given with none is the
+			Markdown document of that name, `.md`, here and on every vault write.
 
-		--upsert-vault-item <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-item <item-name> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 			Writes a vault document, creating it or overwriting it whole. It refuses a name that
 			starts with the type word of a vault contract (`investigation`, `adr`, `verbatim-record`,
 			`epic-blueprint`): that name belongs to the typed write below.
 
-		--upsert-vault-investigation-report <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--upsert-vault-decision-record <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--upsert-vault-verbatim-record <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--upsert-vault-epic-blueprint <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-investigation-report <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-decision-record <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-verbatim-record <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-epic-blueprint <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 			Writes a vault document of one contract: `investigation-*` (vault-item.investigation-report),
 			`adr-*` (vault-item.decision-record), `verbatim-record-*` (vault-item.verbatim-record) or
 			`epic-blueprint-*` (vault-item.epic-blueprint). The name must
@@ -132,13 +145,18 @@
 			`document-contract` where it names none. The document is checked against its contract, and
 			a fault the contract refuses on stops the write.
 
-		--upsert-inbox-note <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+		--upsert-inbox-note <item-filename> [--from-member <member>] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 			Writes a note into a member's own inbox, creating it or overwriting it.
 
-		--upsert-inbox-reflection <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+		--upsert-inbox-reflection <item-filename> [--from-member <member>] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 			The same for a reflection: what was learned, and why it is worth keeping.
 
 		--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>|--upsert-from-slots] [--reply]
+			One inquiry, one place: <member> is magic-coordinator by default. A target alias names the kind: @coordinator (also
+			@all, @team, @grooming), @retro @docs @conventions (librarian), @design, @ops, @tests, @code, @ui. Several targets,
+			comma-separated, go to the coordinator as one inquiry. A member is written to directly only by the coordinator, as
+			the librarian or a domain owner (keeper-*, partner-*, client-*), or as the reply to its inquiry of the last day;
+			any other goes to the coordinator, and the call says so.
 			Files an inquiry into another member's inbox: a question that needs an answer, or
 			a piece of work handed over. `--reply` asks for a note with the outcome.
 
@@ -146,9 +164,20 @@
 			Handles one inbox item: stamps `processed-at`, moves it from `incoming/` into
 			`processed/`, and writes the header edits given.
 
+		--list-inbox-items [--of <member>] [--include-processed] [--grep <text>]
+			The items of an inbox, one row each, newest first: <state> <item> <type> <from> <date> <title>. Your own, or
+			another member's with --of; processed items too with --include-processed; --grep keeps the items whose name or
+			title holds the text. Read several items whole in one BatchTools call of --get-inbox-item entries.
+
 		--trash-inbox-item <item-filename> [--exclude-incoming]
 			Discards one inbox item out of the queue, and, unless `--exclude-incoming` says
 			otherwise, out of `incoming/` too.
+
+		--trash-board-item <item-filename> --from-state:<state>
+			The coordinator's alone: removes one board item that must not stand, such as one
+			written under a name with no `.md`. A git store commits the deletion through the
+			team-data thread and keeps the item in its history; any other store moves it to
+			`trash/`.
 
 		--request-review <item-filename> --reason <text>
 			Asks the item's reviewer to settle the handback, saying why the work is ready.
@@ -174,3 +203,7 @@
 
 		The syntax lines above are this command's own; a word given to
 		--help-syntax after it prints that operation's line alone.
+
+		`--team-member <member>` goes directly after the operation, ahead of any
+		item name, as the syntax lines print it. Put after the item name it is
+		refused as an invalid option.

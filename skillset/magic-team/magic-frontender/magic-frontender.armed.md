@@ -191,7 +191,12 @@ Read this when a value is set in a manifest, in markup, in CSS, or in an environ
 - Installability: is the install path gated on `beforeinstallprompt`? If so, iOS is lost.
 - Service worker: is a takeover silent? Is the offline fallback a real route?
 - Dependencies: is a new one justified against the native-first default, and is the bundle lazy where it can be?
+- A source said to be unreadable is reported with its host and path. A rendered
+  table, a documentation page and a specification each have a source repository,
+  and that is where the data is read from.
 - Evidence: what did the real browser run show, and at what viewport and network condition?
+- A sentence that counts the evidence behind the work is a claim, not framing.
+  Re-read it against the list of reads behind it before the draft leaves.
 
 ## Idle-Tasks
 

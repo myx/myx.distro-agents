@@ -17,9 +17,11 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsScheduleStartFailsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## Every thread a scene started ends before the rig goes (rigControlThreadsEnd, T1905Z).
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigReal="$MMDAPP"
 rigWs="$rigTmp/ws"

@@ -40,7 +40,8 @@ function flushElement( elementText, isListed,    sentenceList, sentenceTotal, se
 		gsub( /^[[:space:]]+|[[:space:]]+$/, "", oneSentence ) ;
 		if ( oneSentence == "" ) { continue ; }
 		wordCount = split( oneSentence, wordList, /[[:space:]]+/ ) ;
-		shownText = ( length( oneSentence ) > 120 ) ? substr( oneSentence, 1, 117 ) "..." : oneSentence ;
+		shownText = oneSentence ;
+		if ( length( shownText ) > 120 ) { shownText = substr( shownText, 1, 117 ) ; sub( /[\300-\377][\200-\277]*$/, "", shownText ) ; shownText = shownText "..." ; }
 		if ( wordCount > wordCap ) {
 			printf "word-cap\t%d words against a cap of %d: %s\n", wordCount, wordCap, shownText ;
 			faultTotal++ ;
@@ -49,11 +50,25 @@ function flushElement( elementText, isListed,    sentenceList, sentenceTotal, se
 			printf "semicolon\ta semicolon, which this floor does not allow: %s\n", shownText ;
 			faultTotal++ ;
 		}
+		## Two reporting predicates of the produce rule (epic S10.27): a produced document attributes
+		## no ruling or words to a person, and carries no session id. Both report only: the caller
+		## names what it refuses on, and these have run no corpus yet. The attribution test reads a
+		## possessive or a pronoun before the words a decision is told by; a member name is not a
+		## person here, so `magic-tester's verdict` passes and `his verdict` does not.
+		if ( oneSentence ~ /(^|[^A-Za-z])([Hh]is|[Hh]er|[Hh]e|[Ss]he) (ruling|rulings|verdict|decision|decided|ruled|said|says|words|answer|answered|order|ordered|wants|wanted|asked)([^A-Za-z]|$)/ ) {
+			printf "attribution\ta ruling or words attributed to a person, which a produced document does not carry: %s\n", shownText ;
+			faultTotal++ ;
+		}
+		if ( oneSentence ~ /[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/ ) {
+			printf "session-id\ta session id, which a document for a later reader does not carry: %s\n", shownText ;
+			faultTotal++ ;
+		}
 		elementWords += wordCount ;
 		if ( wordCount >= 3 ) { elementSentences++ ; }
 	}
 	if ( ! elementCaps || isListed ) { return ; }
-	shownText = ( length( elementText ) > 120 ) ? substr( elementText, 1, 117 ) "..." : elementText ;
+	shownText = elementText ;
+	if ( length( shownText ) > 120 ) { shownText = substr( shownText, 1, 117 ) ; sub( /[\300-\377][\200-\277]*$/, "", shownText ) ; shownText = shownText "..." ; }
 	gsub( /^[[:space:]]+/, "", shownText ) ;
 	## Per paragraph, which is the unit the standard names. A chat message is one
 	## paragraph, so the message case is unchanged, and a document of many sound
@@ -138,6 +153,10 @@ BEGIN {
 		printf "MEASURED, every group but relay:\n" ;
 		printf "  a sentence over %d words\n", wordCap ;
 		printf "  a semicolon\n" ;
+		printf "  a ruling or words attributed to a person (his ruling, she said):\n" ;
+		printf "    reporting only, as the produce rule of the team file states it.\n" ;
+		printf "    A member's name is no person here.\n" ;
+		printf "  a session id (a UUID) in the text: reporting only.\n" ;
 		printf "MEASURED, message group only:\n" ;
 		printf "  more than %d sentences in ONE PARAGRAPH, outside a list\n", sentenceGate ;
 		printf "  a paragraph over %d words carrying no list. A sentence under\n", paragraphGate ;

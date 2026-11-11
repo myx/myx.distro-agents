@@ -61,7 +61,7 @@ AgentsToolsInboxNotePath(){ ## member, note name
 	if AgentsToolsInboxNoteProcessed "$1" "$2" ; then
 		printf '%s/%s\n' "$( AgentsToolsInboxDirFor "$1" yes )" "$2"
 	else
-		printf '%s/%s\n' "$( AgentsToolsInboxDir "$1" )" "$2"
+		printf '%s/%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming" "$2"
 	fi
 }
 

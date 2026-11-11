@@ -61,9 +61,15 @@ AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-
 	## The transcript: every part of it, its last lines taken together. Its pointer is in the store of the session, and beside the
 	## record where a run keeps its own. A run that kept none reads `-`.
 	readAny=""
-	for readPath in "$readFolder/transcript" "$MMDAPP/.local/agents/sessions/${readSession:-$readRun}/transcript" ; do
-		[ -s "$readPath" ] || continue
-		IFS= read -r readLine < "$readPath" || readLine=""
+	## THE RUN'S OWN TRANSCRIPT FIRST: the `transcript:` header of the record asked for names the audit log of that run. The pointer files below
+	## belong to the session and name the log of its FIRST run, so a later run of the session (a restart, a second leg) was read from an old log
+	## that ended before it began (found 2026-11-09: a supervisor's scans saw none of a run's 19 edits).
+	readHeader="$( AgentsToolsSpawnSandboxRecordHeader "$readRecord" transcript )"
+	readOwn=""
+	case "$readHeader" in ''|-|/*) ;; *) [ -z "${MDAT_DATA_ROOT:-}" ] || readOwn="$MDAT_DATA_ROOT/$readHeader" ;; esac
+	for readPath in "$readOwn" "$readFolder/transcript" "$MMDAPP/.local/agents/sessions/${readSession:-$readRun}/transcript" ; do
+		[ -n "$readPath" ] && [ -s "$readPath" ] || continue
+		if [ "$readPath" = "$readOwn" ] ; then readLine="$readPath" ; else IFS= read -r readLine < "$readPath" || readLine="" ; fi
 		[ -n "$readLine" ] && [ -f "$readLine" ] || continue
 		readParts=( "$readLine" )
 		while [ -f "${readLine%.log}-part$(( ${#readParts[@]} + 1 )).log" ] ; do

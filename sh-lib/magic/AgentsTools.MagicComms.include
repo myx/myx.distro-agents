@@ -860,6 +860,32 @@ case "$1" in
 		return 0
 	;;
 
+	--jira-project-delete)
+		shift
+		local actingMember="${1:-}" projectKey="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-project-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-project-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-project-delete: <project-key> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$projectKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-project-delete: <project-key> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-project-delete: not accepted: $actingMember $projectKey $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" jira-project-delete || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --jira-project-delete: runs only as magic-coordinator, and $actingMember is not it -- a project is the site's own top-level container, so only the coordinator deletes one" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		DistroAgentsTools --intern-op-atlassian-jira-project-delete --member "$actingMember" --context jira-project-delete --project-key "$projectKey" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
 	--confluence-page-search)
 		shift
 		local actingMember="${1:-}" cqlQuery="${2:-}"

@@ -276,7 +276,7 @@ rigCommand='
 	printf "%s\n" "$PATH" > "$RIG_OUT/path"
 	printf "%s\n" "${MDAT_BASH:-}" > "$RIG_OUT/handed"
 	"$RIG_HOOK" < "$RIG_OUT/payload" > "$RIG_OUT/hook.out" 2> "$RIG_OUT/hook.err" ; printf "%s" "$?" > "$RIG_OUT/hook.rc"
-	RIG_FILED="$RIG_OUT/screen.filed" python3 -I -B "$RIG_TMP/starters.py" screen "$rigCoreHere/manager/LocalManagerScreen.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/screen.out" 2>&1
+	RIG_FILED="$RIG_OUT/screen.filed" python3 -I -B "$RIG_TMP/starters.py" screen "$RIG_CORE_LIB/manager/LocalManagerScreen.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/screen.out" 2>&1
 	RIG_FILED="$RIG_OUT/socket.filed" SOCKET_MODE_LOG_DIR="$RIG_OUT/log" python3 -I -B "$RIG_TMP/starters.py" socket "$RIG_LIB/comms/AgentsSlackSocketMode.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/socket.out" 2>&1
 	:
 '
@@ -285,7 +285,7 @@ rigEntered(){ ## run name, the PATH it is entered with
 	mkdir -p "$enteredDir"
 	rigPayload Read "$rigMemory/MEMORY.md" > "$enteredDir/payload"
 	( cd "$rigExecWs" && printf '%s\n' "$rigCommand" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$2" MMDAPP="$rigExecWs" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
-		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_OUT="$enteredDir" RIG_LIB="$rigHere" RIG_HOOK="$rigProj/.claude/hooks/deny-memory-md-read.sh" \
+		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_OUT="$enteredDir" RIG_LIB="$rigHere" RIG_CORE_LIB="$rigCoreHere" RIG_HOOK="$rigProj/.claude/hooks/deny-memory-md-read.sh" \
 		RIG_BASH_ASKED="$enteredDir/asked" RIG_REAL_BASH="$rigRealBash" CLAUDE_PROJECT_DIR="$rigProj" \
 		"$rigRealBash" "$rigFn" --intern-mcp-execute ) > "$enteredDir/run.out" 2>&1
 	printf '%s' "$?" > "$enteredDir/run.rc"

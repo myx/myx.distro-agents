@@ -43,6 +43,15 @@ AgentsToolsSuperviseGuide(){ ## <run-id> [--text <text>|--from-file <path>] [--w
 		guideBody="$( cat )" || guideBody=""
 	fi
 	case "$guideBody" in *[![:space:]]*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the guidance is empty -- nothing was posted" >&2 ; return 1 ;; esac
+	## HIS WORDS ARE NEVER GUIDANCE (his ruling, 2026-11-09): what the human-owner typed to the coordinator is the coordinator's to act on, in the
+	## tooling and the rules. A guide is a direct message in the coordinator's own words, as requirements. A quote of him, and the verbatim
+	## marker that carries a relay of his answer, are refused here, whatever the thread: a session thread is a channel others read.
+	case "$guideBody" in
+		*"Human-owner verbatim"*|*"human-owner verbatim"*|*"Human-owner's words"*|*"human-owner said"*|*"Human-owner said"*)
+			echo "$MDSC_CMD: ⛔ ERROR: --supervise-guide: the guidance quotes the human-owner. His words to the coordinator are the coordinator's to act on, never a run's to read, and a quote of him never goes to a channel: say what the run is to do in your own words, as requirements. Nothing was posted" >&2
+			return 1
+		;;
+	esac
 	type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"

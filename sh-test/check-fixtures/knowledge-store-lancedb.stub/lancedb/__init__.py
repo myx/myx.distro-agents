@@ -1,6 +1,7 @@
 # Stand-in for the `lancedb` module, for the knowledge store checks: a store on disk is a plain JSON file,
 # `<store>/sections.json`, and `<store>/sections.fts` records that the full-text index stands. Mirrors the calls
-# AgentsKnowledgeStore.py makes -- connect, table_names, open_table, create_table, drop_table, count_rows, create_index,
+# AgentsKnowledgeStore.py makes -- connect, table_names, open_table, create_table, drop_table, count_rows (with a filter too),
+# add, delete, create_index,
 # search(None).limit(n).to_list(), and the hybrid builder's search(query_type=...).vector().text().rerank().limit().to_list()
 # -- and nothing else. A fused answer here ranks by reciprocal rank over two legs, the vector leg by dot product and the
 # text leg by the words a row shares with the query, which is enough for a check to tell a vector-only hit from a
@@ -69,6 +70,49 @@ class _Search(object):
         return [rows[at] for at in fused[:self._count]]
 
 
+def _literals(text):
+    # The SQL string literals of a predicate, in order: a doubled quote inside one is one quote.
+    found, at = [], 0
+    while True:
+        start = text.find("'", at)
+        if start < 0:
+            return found
+        value, at = "", start + 1
+        while at < len(text):
+            if text[at] == "'" and text[at + 1:at + 2] == "'":
+                value, at = value + "'", at + 2
+            elif text[at] == "'":
+                break
+            else:
+                value, at = value + text[at], at + 1
+        found.append(value)
+        at += 1
+
+
+def _matches(row, where):
+    # The predicate forms the store writes, joined by AND: `<column> = '<text>'` and `<column> IN ('<text>', ...)`.
+    for clause in _clauses(where):
+        column = clause.split()[0]
+        if row.get(column, "") not in _literals(clause):
+            return False
+    return True
+
+
+def _clauses(where):
+    # Split on AND outside a literal.
+    parts, current, inside, at = [], "", False, 0
+    while at < len(where):
+        if where[at] == "'":
+            inside = not inside
+        if not inside and where[at:at + 5] == " AND ":
+            parts.append(current)
+            current, at = "", at + 5
+            continue
+        current, at = current + where[at], at + 1
+    parts.append(current)
+    return [part.strip() for part in parts if part.strip()]
+
+
 class _Table(object):
     def __init__(self, store_dir, name):
         self._file = os.path.join(store_dir, name + ".json")
@@ -83,8 +127,18 @@ class _Table(object):
     def hasIndex(self):
         return os.path.exists(self._indexFile)
 
-    def count_rows(self):
-        return len(self.rows())
+    def count_rows(self, filter=None):
+        return len([row for row in self.rows() if filter is None or _matches(row, filter)])
+
+    def add(self, rows):
+        self._write(self.rows() + list(rows))
+
+    def delete(self, where):
+        self._write([row for row in self.rows() if not _matches(row, where)])
+
+    def _write(self, rows):
+        with open(self._file, "w") as handle:
+            json.dump(rows, handle)
 
     def search(self, query=None, **options):
         vector = query if isinstance(query, list) else None

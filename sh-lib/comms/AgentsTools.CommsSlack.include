@@ -237,16 +237,22 @@ AgentsToolsSlackReadBounded(){ ## output file, error file, then the command and 
 	## $PPID is this shell's parent as bash recorded it at start, and a subshell inherits
 	## it, so the read would never see it change. ps reads the real parent now.
 	boundCaller="$( ps -o ppid= -p $$ 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	## THE DETACHED COMMUNICATIONS READER IS ITS OWN ASKER (--intern-session-comms --run, AgentsTools.InternSessionComms.include):
+	## it is started disowned, so its parent is 1 by design once the shell that started it has gone, and no run waits on its
+	## answer but itself. For it the parent tests stand down, and the wall-clock bound below still applies. Any other shell
+	## whose parent is already 1 was started by one that has gone, and that is the incident this guard exists for.
+	[ "${commsMode:-}" != "--run" ] || boundCaller=""
 	## Already 1 means the read was started by a shell that has gone before it began: its
 	## answer has nobody to reach, and it is the exact incident this guard exists for.
-	if [ "${boundCaller:-1}" = "1" ] ; then
+	if [ -n "$boundCaller" ] && [ "$boundCaller" = "1" ] ; then
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: a Slack read was not started because the process that asked for it has gone, so its answer would have nobody to reach. Nothing was read." >&2
 		return 1
 	fi
 	"$@" > "$boundOut" 2> "$boundErr" &
 	boundPid=$!
 	while kill -0 "$boundPid" 2> /dev/null ; do
-		boundNow="$( ps -o ppid= -p $$ 2> /dev/null | LC_ALL=C tr -d ' ' )"
+		boundNow="$boundCaller"
+		[ -z "$boundCaller" ] || boundNow="$( ps -o ppid= -p $$ 2> /dev/null | LC_ALL=C tr -d ' ' )"
 		if [ "$boundNow" != "$boundCaller" ] ; then
 			{ kill -TERM "$boundPid" 2> /dev/null ; sleep 1 ; kill -KILL "$boundPid" 2> /dev/null ; wait "$boundPid" 2> /dev/null ; } 2> /dev/null
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: a Slack read was ended because the process that asked for it has gone, so its answer had nobody to reach. Nothing was read." >&2
@@ -591,7 +597,22 @@ DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 ## a client-* member's own token is the other organisation's, read on the client side only,
 ## where the team's shared token never stands in for it.
 ## Prints `<source> <token>`; returns 1 with nothing printed when neither holds one.
+## READ ONCE PER PROCESS (call-path audit row 25): the line a member resolved to is kept in memory, one slot by member, so a
+## process that makes many Slack calls reads the config once; a process serving another member reads again. A miss resolves
+## below and keeps what it got; a resolution that found nothing is not kept, so a token set later is found.
 AgentsToolsResolveSlackBotToken(){
+	local memberName="$1" memoLine=""
+	if [ "${agentsSlackBotTokenMemoMember:-}" = "$memberName" ] && [ -n "${agentsSlackBotTokenMemoLine:-}" ] ; then
+		printf '%s\n' "$agentsSlackBotTokenMemoLine"
+		return 0
+	fi
+	memoLine="$( AgentsToolsResolveSlackBotTokenRead "$memberName" )" || return 1
+	[ -n "$memoLine" ] || return 1
+	agentsSlackBotTokenMemoMember="$memberName" ; agentsSlackBotTokenMemoLine="$memoLine"
+	printf '%s\n' "$memoLine"
+	return 0
+}
+AgentsToolsResolveSlackBotTokenRead(){
 	local memberName="$1"
 	local resolvedToken=""
 	## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone, with
@@ -709,6 +730,24 @@ AgentsToolsEmitRequestDetailHeader(){
 	printf 'X-Request-Detail: slack-workspace=%s; client-member=%s; channel-id=%s\n' \
 		"$detailWorkspace" "$detailMember" "$detailChannel" >&2
 }
+## Whether a transport failure of a Slack call is retried: rc 0 after waiting (3 s, then 10 s), rc 1 not. A connection never made
+## (curl 6, 7) is retried for any method, nothing having reached Slack; a timeout or a dropped connection (curl 28, 35, 52, 56) only for
+## a read, since a post or an edit may have landed. Three attempts in all, counted in slackTransportTries of the caller's call.
+AgentsToolsSlackTransportRetry(){ ## the curl output, the api method
+	local retryCode=""
+	retryCode="$( printf '%s' "$1" | LC_ALL=C sed -n 's/.*curl: (\([0-9]*\)).*/\1/p' | head -1 )"
+	case "$retryCode" in
+		6|7) ;;
+		28|35|52|56) case "$2" in conversations.*|users.*|auth.test|search.*|team.*|bots.*|reactions.get|files.info|emoji.list) ;; *) return 1 ;; esac ;;
+		*) return 1 ;;
+	esac
+	slackTransportTries=$(( ${slackTransportTries:-0} + 1 ))
+	[ "$slackTransportTries" -lt 3 ] || return 1
+	echo "$MDSC_CMD: slack-call: ⚠️ WARNING: $2 transport failure (curl $retryCode), attempt $slackTransportTries of 3 -- retrying" >&2
+	sleep $(( slackTransportTries == 1 ? 3 : 10 ))
+	return 0
+}
+
 ## The one rate-limit rule for every --intern-op-slack-call branch. Slack answers a
 ## rate limit with HTTP 429, error `ratelimited`, and a Retry-After in seconds; it is
 ## waited out as asked, with a stated line, never failed at once. Works through its
@@ -1384,7 +1423,17 @@ case "$1" in
 			memberUserToken="${SLACK_USER_TOKEN:-}"
 		fi
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"
-		[ -n "$memberUserToken" ] || memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$callerMember" && AgentsToolsConfigOption "$callerMember" --select "$( AgentsToolsSlackSettingKey "$callerMember" SLACK_USER_TOKEN )" )" || memberUserToken=""
+		## THE MEMBER'S USER TOKEN IS READ ONCE PER PROCESS (call-path audit row 25): the config read runs in a subshell that sources the
+		## config include, so a process that makes many Slack calls for one member keeps what it read, in memory alone. One slot, by member:
+		## a process serving another member reads again. An empty read is kept too: no token is also an answer.
+		if [ -z "$memberUserToken" ] ; then
+			if [ "${agentsSlackUserTokenMemoMember:-}" = "$callerMember" ] && [ -n "${agentsSlackUserTokenMemoSet:-}" ] ; then
+				memberUserToken="$agentsSlackUserTokenMemoValue"
+			else
+				memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$callerMember" && AgentsToolsConfigOption "$callerMember" --select "$( AgentsToolsSlackSettingKey "$callerMember" SLACK_USER_TOKEN )" )" || memberUserToken=""
+				agentsSlackUserTokenMemoMember="$callerMember" ; agentsSlackUserTokenMemoValue="$memberUserToken" ; agentsSlackUserTokenMemoSet="yes"
+			fi
+		fi
 		local routineAuthored="false"
 		case "$callerMember" in
 			routine-*) routineAuthored="true" ;;
@@ -1427,15 +1476,30 @@ case "$1" in
 		## A rate-limited call is waited out and retried, never failed at once: sweeps run
 		## unattended and fan out. The response headers land here, for Retry-After; they
 		## are the server's, never the request's, so no credential reaches this file.
-		## ONE scratch directory per call holds the response headers, the form
-		## values and a JSON body alike -- one mktemp, not one per kind -- and is
-		## removed whole once the call is done.
-		local rateAttempt=0 rateAttemptMax=5 rateLimitReason="" rateVerdict=0 rateHeaderFile callDir
-		callDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-slack-call.XXXXXX" )" || {
+		## ONE scratch name per call, `mdat-slack-call.<pid>.<random>`, prefixes the response headers,
+		## the form values and a JSON body alike, and every file of it is removed once the call is
+		## done. The name is claimed with no process: the temp folder is made once per process, and
+		## the headers file is created under noclobber, which fails on a name another call of this
+		## process holds, so a second random is drawn. mktemp cost a subshell and two processes per
+		## call, 22 of 40 call sites being inside `$( )`.
+		local rateAttempt=0 rateAttemptMax=5 rateLimitReason="" rateVerdict=0 rateHeaderFile callDir callClobber=""
+		[ -d "$MMDAPP/.local/temp" ] || mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || {
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: could not create the response-header file under $MMDAPP/.local/temp -- nothing was called" >&2
 			set +e ; return 1
 		}
-		rateHeaderFile="$callDir/headers"
+		case "$-" in *C*) callClobber="set" ;; esac
+		set -C
+		callDir="$MMDAPP/.local/temp/mdat-slack-call.$$.$RANDOM$RANDOM"
+		while ! { : > "$callDir.headers" ; } 2> /dev/null ; do
+			[ -d "$MMDAPP/.local/temp" ] || break
+			callDir="$MMDAPP/.local/temp/mdat-slack-call.$$.$RANDOM$RANDOM"
+		done
+		[ -n "$callClobber" ] || set +C
+		[ -f "$callDir.headers" ] || {
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: could not create the response-header file under $MMDAPP/.local/temp -- nothing was called" >&2
+			set +e ; return 1
+		}
+		rateHeaderFile="$callDir.headers"
 		while true ; do
 			: > "$rateHeaderFile"
 			## DM resolution under THIS identity, when the caller asked for it.
@@ -1491,7 +1555,8 @@ case "$1" in
 					failMsg="raw authenticated GET transport failure under $sendIdentity identity for $fetchUrl: $fetchOut"
 					break
 				}
-				fetchLine="$( printf '%s\n' "$fetchOut" | tail -1 )"
+				## The -w line is the last line of what curl printed: taken by the shell, no tail process (call-path audit row 24).
+				fetchLine="${fetchOut##*$'\n'}"
 				local fetchStatus="" fetchBytes="" fetchType=""
 				read -r fetchStatus fetchBytes fetchType <<< "$fetchLine"
 				printf 'FETCH_HTTP_STATUS=%s\n' "$fetchStatus" >&2
@@ -1526,7 +1591,8 @@ case "$1" in
 				## it fails before the transfer, and empty could not be told from 0.
 				local uploadStatus="not-reported" uploadBytes="not-reported"
 				local uploadLine=""
-				uploadLine="$( printf '%s\n' "$uploadOut" | tail -1 )"
+				## The -w line is the last line of what curl printed: taken by the shell, no tail process (call-path audit row 24).
+				uploadLine="${uploadOut##*$'\n'}"
 				## Digits enumerated, never a bracket range -- see MAGIC.md.
 				case "$uploadLine" in
 					[0123456789]*" "[0123456789]*)
@@ -1540,17 +1606,23 @@ case "$1" in
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $uploadOut"
 					break
 				fi
-				## Everything but that last -w line is the response body.
-				response="$( printf '%s\n' "$uploadOut" | sed '$d' )"
+				## Everything but that last -w line is the response body: cut by the shell, no sed process; an output of the -w line alone is an empty body.
+				case "$uploadOut" in
+					*$'\n'*) response="${uploadOut%$'\n'*}" ;;
+					*) response="" ;;
+				esac
 			elif [ -n "$jsonBody" ] ; then
 				## The body travels in a file, never argv, which a long one outgrows; stdin is the header's.
-				response="$( bodyFile="$callDir/body"
+				response="$( bodyFile="$callDir.body"
 					printf '%s' "$jsonBody" > "$bodyFile" || exit 1
 					curl -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" -X POST "https://slack.com/api/$apiMethod" \
 					-H @- \
 					-H "Content-type: application/json" \
 					--data-binary "@$bodyFile" <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
+					## A TRANSPORT FAILURE IS RETRIED, EVERY CALL ALIKE (AgentsToolsSlackTransportRetry): a connection never made, any method;
+					## a timeout or a dropped connection, a read only, since a post may have landed.
+					if AgentsToolsSlackTransportRetry "$response" "$apiMethod" ; then failMsg="" ; continue ; fi
 					break
 				}
 			else
@@ -1558,11 +1630,14 @@ case "$1" in
 				## Named by the argument count at that point, which no two pairs share.
 				response="$( curlArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" "https://slack.com/api/$apiMethod" -H @- )
 					for formPair in "${formArgs[@]}" ; do
-						printf '%s' "${formPair#*=}" > "$callDir/form.${#curlArgs[@]}" || exit 1
-						curlArgs+=( --data-urlencode "${formPair%%=*}@$callDir/form.${#curlArgs[@]}" )
+						printf '%s' "${formPair#*=}" > "$callDir.form.${#curlArgs[@]}" || exit 1
+						curlArgs+=( --data-urlencode "${formPair%%=*}@$callDir.form.${#curlArgs[@]}" )
 					done
 					curl "${curlArgs[@]}" <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
+					## A TRANSPORT FAILURE IS RETRIED, EVERY CALL ALIKE (AgentsToolsSlackTransportRetry): a connection never made, any method;
+					## a timeout or a dropped connection, a read only, since a post may have landed.
+					if AgentsToolsSlackTransportRetry "$response" "$apiMethod" ; then failMsg="" ; continue ; fi
 					break
 				}
 			fi
@@ -1615,7 +1690,7 @@ case "$1" in
 			fi
 			break
 		done
-		rm -rf "$callDir"
+		rm -f "$callDir".* 2> /dev/null
 		## THE single exit path -- one failure branch, no degrade.
 		if [ -n "$failMsg" ] ; then
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: $failMsg" >&2
@@ -1627,6 +1702,27 @@ case "$1" in
 			return 0
 		fi
 		AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" on-stdout
+		## EVERY SLACK RESPONSE THAT NAMES A PERSON CARRIES WHO THEY ARE (AgentsToolsMemberSlackSenderMark): this is the one call every
+		## read goes through, so each "user" in it gains its "user_record" from the contact store here, for every operation, reader and
+		## run alike, and one with no record is recorded on contact where the rules allow. Not inside the marking itself.
+		## A reaction on the team's own post is a learning signal (AgentsToolsSlackReactionSignals), read here for every read that carries one.
+		case "$response" in *'"reactions":['*)
+			if [ -z "${MDAT_SENDER_MARKING:-}" ] ; then
+				type AgentsToolsSlackReactionSignals > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SlackSenderMark.include" 2> /dev/null || :
+				! type AgentsToolsSlackReactionSignals > /dev/null 2>&1 || MDAT_SENDER_MARKING=1 AgentsToolsSlackReactionSignals "$response" || :
+			fi
+		;; esac
+		case "$response" in
+			*'"user":"U'*)
+				if [ -z "${MDAT_SENDER_MARKING:-}" ] ; then
+					type AgentsToolsMemberSlackSenderMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SlackSenderMark.include" 2> /dev/null || :
+					if type AgentsToolsMemberSlackSenderMark > /dev/null 2>&1 ; then
+						printf '%s\n' "$response" | MDAT_SENDER_MARKING=1 AgentsToolsMemberSlackSenderMark
+						return 0
+					fi
+				fi
+			;;
+		esac
 		printf '%s\n' "$response"
 		return 0
 	;;

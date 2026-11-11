@@ -13,14 +13,25 @@ case "$1" in
 
 	--member-help)
 		shift
-		local targetMember="$1"
-		shift || true
+		## THE MEMBER AS ITS HELP STATES IT: `--member-help [--team-member <team-member>]`, the calling member where none is named. A bare name
+		## is the same word, and a name given twice the same way is one name (112 refused calls on 2026-11-10 gave it so). Two different
+		## names are refused.
+		local targetMember="" helpWord
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--team-member) helpWord="${2:-}" ; shift 2 || shift ;;
+				*) helpWord="$1" ; shift ;;
+			esac
+			[ -n "$helpWord" ] || continue
+			if [ -n "$targetMember" ] && [ "$targetMember" != "$helpWord" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-help: two members named, $targetMember and $helpWord: name one, or none for your own" >&2
+				set +e ; return 1
+			fi
+			targetMember="$helpWord"
+		done
+		[ -n "$targetMember" ] || targetMember="${MDAT_SPAWN_AGENT:-}"
 		if [ -z "$targetMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-help: syntax is <team-member>" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-help: takes exactly one argument" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-help: syntax is [--team-member <team-member>], and this call comes from no member's run, so it names none" >&2
 			set +e ; return 1
 		fi
 

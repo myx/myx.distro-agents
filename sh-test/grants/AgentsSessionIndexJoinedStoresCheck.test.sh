@@ -162,7 +162,7 @@ rigRunsRows(){ ## session, member
 ## The item returned from review by the coordinator: the run its return started, by its spawn id.
 rigReturn(){ ## item stem, sandbox folder, spawn ids known so far (space-separated)
 	local returnRecord returnId
-	rigOp "$rigTmp/return.out" --return-review magic-coordinator "$1" --message "redo the rig step"
+	rigOp "$rigTmp/return.out" --return-review --team-member magic-coordinator "$1" --message "redo the rig step"
 	for returnRecord in "$rigSpawned/$2"/*.spawn.md ; do
 		[ -f "$returnRecord" ] || continue
 		returnId="${returnRecord##*/}" ; returnId="${returnId%.spawn.md}"

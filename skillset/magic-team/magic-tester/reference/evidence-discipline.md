@@ -15,7 +15,9 @@ managing blast radius when the run itself has real consequences.
 - Read the instrument before trusting the measurement
 - A system's enforcement path and its reporting path are different surfaces
 - A refusal for want of privilege reads exactly like an empty result
+- One store's operations do not share a name grammar
 - A probe answers its own predicate, not the question it was asked
+- A check over a cumulative source measures a window it never named
 - A measurement carries its timestamp
 - A refusal and a failure share one status
 - A guard that fires is evidence. A guard that stays silent carries none
@@ -88,10 +90,22 @@ difference between them is the apparatus. One session read a subject with
 `head -14` and its control with `head -4`, and reported its own truncation as a
 property of the subject. Take the control through the identical shape.
 
-The second clause is polarity. A two-sided probe whose two poles agree has
-measured nothing: agreement across a deliberate flip is the signature of an
-instrument that never reached its subject. It is re-taken before anything is
-said about it, never read as weak evidence of no effect.
+**A two-sided probe is read against the flip its arm must see.** The flip is a
+change in the subject with every other input held. An input is held only when
+it cannot move between the two readings. A clock read twice a second apart is
+not held at all. Two poles that differ across that flip prove the arm reads the
+subject. Two poles that differ across a change in the arm's own environment
+prove only that the arm follows the environment. Two poles that agree prove
+nothing until the flip is named. An arm correct by design ignores the flip it
+was tested with, so agreement there is the arm working. The instrument is
+broken when the arm agrees under a flip it must respond to. Name that flip
+before the probe runs, hold every other input, and keep one arm that must move
+beside it.
+
+**A rule drawn from an evidence table is quoted against every row of that
+table.** A row where the subject passes is a subject behaving correctly, not an
+instrument failing to fire. A generalisation that the table's own passing row
+refutes is the draft being wrong, and the row is the evidence.
 
 ## Verify what stores, not what sends
 
@@ -179,6 +193,23 @@ before the sweep's result is offered as a result.
 its Principles, for recursive searches whose empty output looks the same either
 way.
 
+A control measures only against an answer written down before it runs. Without
+that number, a second run agrees with the first for the same wrong reason.
+
+**A non-zero count is not self-validating.** A plausible number clears the instrument
+that produced it, so nothing in the count shows whether the walk reached the whole
+population. A count offered as evidence is confirmed by a second instrument over the same
+population, walking by a different method. Their agreement is the evidence. A
+known-positive control covers the other direction, and answers for a negative alone.
+
+**A control proves the instrument reaches its own subject, never that a count reached the
+whole population.** In the case behind this rule, a search whose command was not kept reported four `layout`
+directories where the truth was seven. The known-positive control ran on a different
+name over the same tree, and reported seven. That figure belongs to the control's own
+subject, so neither number could be read against the other. It proved the walk runs, and
+left the count's completeness untested. The count was settled instead by a second
+instrument over the same population, which agreed at seven.
+
 **A census whose categories are drawn from the rule under test can only confirm
 it.** A proposal held that a quotation closes a sentence where a capital follows. It
 was tested by counting every quotation site in the canon, bucketed by whether
@@ -251,11 +282,37 @@ shape, under the identical identity. Establish that the identity used actually h
 that before reporting the thing absent. The output alone never carries that
 difference.
 
+A refusal line describes the call, not the store. One known-good item through
+the same call, with its full name and its processed flag, settles what "not
+found" means here.
+
+## One store's operations do not share a name grammar
+
+One store's operations do not share a name grammar. A refusal from one says
+nothing about what the next operation does with the same name. Read each
+operation's own check before describing what the store holds.
+
+The inbox is the worked case. Three operations over one folder apply three
+different rules to one string.
+
+- `--get-inbox-item` gates the prefix and not the suffix. `note-*`,
+  `inquiry-*`, `reflection-*` and `warning-*` pass, and the stored name is
+  then opened as given.
+- `--trash-inbox-item` and `--mark-inbox-processed` gate the suffix and not
+  the prefix. A name not ending in `.md` is refused.
+- The work-duty scan globs `incoming/*.md`, so any other name never lists
+  and never wakes a wait.
+
+An item stored with no suffix is therefore readable by that exact name,
+unclosable by both closing operations, and absent from the scan. A probe that
+reads it answers for the read alone. Two closing operations that refuse it
+answer for the closers alone. Neither result describes the store.
+
 ## A probe answers its own predicate, not the question it was asked
 
 A check that runs cleanly reports on the condition it actually evaluates. A
 false positive lives in the distance between that condition and the claim it
-gets quoted for. Two shapes it takes, each producing a wrong
+gets quoted for. Four shapes it takes, each producing a wrong
 report to the owner:
 
 - **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Where most files of a kind are empty, a `[ -f ]` probe
@@ -278,6 +335,12 @@ requires nothing. A console
   on stderr while the pipeline still returns 0. Assert the exit status *and* a non-empty result. Neither alone separates the
   two. A baseline captured before an ingest is worth nothing, whichever it
   was.
+- **A name lookup answers about the search path, not the machine.** `command -v` answers from this
+  shell's own list, never from what the machine holds. An external executable answers only where `PATH`
+  lists its folder. So a JavaScript engine in a framework bundle answers nothing, and that silence is a
+  fact about one list. Reach that name by a second route before reporting it absent. That route is a
+  known install location, a framework bundle, or a package that ships it. Re-running the same lookup does
+  not widen it.
 
 So state the claim, read the predicate the probe evaluates, and check the two
 are the same sentence. Where they differ, the fix is the stronger probe rather
@@ -293,6 +356,18 @@ check nor a substring check sees a guard. So state the behaviour the
 prohibition protects, and reach the guards above the guarded line. A text
 check answers about bytes, and is never reported as answering about behaviour.
 
+## A check over a cumulative source measures a window it never named
+
+A journal, a shared log, a rotated file and a whole-host probe all hold
+earlier events. A match over one of them is evidence about its whole extent,
+never about the event under test.
+
+Bound the read to the event: the unit's own start timestamp, the marker the
+operation wrote, or the file it created. A tail length is a size, never a
+start.
+
+State the window in the report, beside the result.
+
 ## A measurement carries its timestamp
 
 Where several sessions edit one tree concurrently, a file read is true of a
@@ -306,7 +381,13 @@ called wrong. Where the conclusion matters, capture the evidence with its instan
 command output plus the commit or mtime it was taken at. A disagreement then
 resolves by ordering, rather than by argument.
 
-**A refusal and a failure share one status.** A check that cannot reach its subject
+- State the file's `mtime` beside the claim's own stamp.
+- An absent-at-read with a file stamp earlier than the claim is a finding about the claim.
+- An absent-at-read with a file stamp later than the claim is a finding about the reader.
+
+## A refusal and a failure share one status
+
+A check that cannot reach its subject
 stops with a non-zero status, and so does a check that ran and found the defect.
 A suite result read by status alone cannot tell them apart. One check refused four
 times on a machine holding 18 to 24 other runs, saying in its own last line that
@@ -518,7 +599,8 @@ per behaviour.
   grep over literal paths sees them. List the sibling directories and keep the
   packages. The listing over-reaches and needs the packages picked out: in the
   `ws-myx-devops` source tree, `find "$MDLT_ORIGIN/myx" -maxdepth 1 -type d`
-  returns 14 directories, of which 7 carry a `project.inf` and 3 are dot
-  directories. Take the count in the tree that `MDLT_ORIGIN` names, and say
-  which tree that was. Meant for `ws-myx-devops/source/myx`, it is 7. Meant for
-  `ws-myx.prv-farm/.local/myx`, it is 6.
+  lists 15 entries, the origin itself and 14 children, of which 7 carry a
+  `project.inf` and 3 are dot directories. Take the count in the tree that
+  `MDLT_ORIGIN` names, and say which tree that was. Meant for
+  `ws-myx-devops/source/myx`, it is 7. Meant for `ws-myx.prv-farm/.local/myx`,
+  it is 6.

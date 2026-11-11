@@ -51,7 +51,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **read-input-whole**: Read the dispatch-named sketch or epic draft whole, once. Keep its facts — who owns it, what is settled, what is open — in the run's state document, through the tooling (`--intern-op-state-note-upsert`).
+1. **read-input-whole**: Read the dispatch-named sketch or epic draft whole, once. Keep its facts — who owns it, what is settled, what is open — in the run's state document, through the tooling.
 2. **draft-or-complete-epic**: Draft or complete the epic file: the stages, the features stated as open work with an owner each, the order of work, the ground rules and the settled lines, and an empty `## Done` section last. Write it through the tooling; never edit the epic by hand. It stands alone for a reader with no context: the top of the file states its audience, its goal and its next step, and every feature keeps its own state.
 3. **interview-owner**: Interview the owner through the tooling, one round at a
 time, at most ten questions a round. Each question is a pick, never one the

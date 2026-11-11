@@ -50,6 +50,7 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `participants` — who worked on it, added as they join.
 - `restart-session` — members to spawn as a coworking session instead of running inline.
 - `review-by` — the reviewer of a `board-review` item. Unset, it is the run's `reports-to`. `none` means no review: the item closes straight to `board-processed`.
+- `mark` — the item's tier, `important`, `urgent` or `emergency`. Grooming sets it, and a subtask inherits its parent's. It leads priority, and the two time-bound tiers pass `holding`. Every board type whose contract declares it may carry one.
 - `access-control` — the approved permission set the tracked session carries, in the rows of a routine's `access-control:` with the grant appended: `participants:allow-read:<target>:<granted-by>:<stamp>`, `participants:allow-write:<target>:<granted-by>:<stamp>` or `participants:allow-tool:<tool>:<target>:<granted-by>:<stamp>`. `<stamp>` is `YYYYMMDD'T'HHmm'Z'`, the target %-escaped, `granted-by` a holder and not the session's own member. A row holds for the session on its dispatch item, and for the task on the item it tracks. Written by tooling when the set is approved (`--request-permission-set`).
 - `tracks` — on a `dispatch-*`, the item its session's work is tracked in.
 - `archive: true` — keep this processed item permanently.

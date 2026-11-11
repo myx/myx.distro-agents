@@ -158,6 +158,161 @@ AgentsHarnessToolStreams(){ ## stdin file, stdout file, stderr file, output mode
 ## No sandboxing beyond the cwd bound, matching copilot's own --allow-all-tools trust
 ## model. Output goes to a scratch file rather than $( ): a model-supplied command may
 ## background a child that holds a capture pipe open forever.
+## Whether a command text kills by pattern (epic S10.20): `pkill` or `killall` standing as a command (first on the line, or
+## after `;`, `&&`, `||`, `|`, `(`, `$(`, a backtick, `then`, `do`, `exec`, `sudo`, `xargs` or `nohup`); a `kill` whose
+## targets come from `pgrep`, `ps` or `xargs`; or a `kill` of every process, `-1`. rc 0 when it does, with the shape found
+## in harnessKillPattern. Comments and the text of a single-quoted string are not read: the words there run nothing.
+AgentsHarnessBashKillByPattern(){ ## command text
+	local killText
+	harnessKillPattern=""
+	## Comments and single-quoted strings go, line by line, so a word quoted as data is not a command.
+	killText="$( printf '%s\n' "$1" | LC_ALL=C sed -e "s/'[^']*'/''/g" -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#.*$//' )"
+	## A command stands first on its line or after a separator, with any run of wrapper words (sudo, nohup, exec, ...) before it.
+	local killAt='(^|[;&|(`])[[:space:]]*((then|do|else|exec|sudo|xargs|nohup|command|builtin|time)[[:space:]]+)*'
+	if printf '%s\n' "$killText" | LC_ALL=C grep -q -E "$killAt"'(pkill|killall)([[:space:]]|$)' ; then
+		harnessKillPattern="pkill or killall" ; return 0
+	fi
+	if printf '%s\n' "$killText" | LC_ALL=C grep -q -E "$killAt"'kill[[:space:]]+[^;&|]*(\$\([[:space:]]*(pgrep|ps)([[:space:]]|\))|`[[:space:]]*(pgrep|ps)([[:space:]]|`))' ; then
+		harnessKillPattern="kill of what pgrep or ps lists" ; return 0
+	fi
+	if printf '%s\n' "$killText" | LC_ALL=C grep -q -E '\|[[:space:]]*xargs([[:space:]]+-[^[:space:]]+)*[[:space:]]+kill([[:space:]]|$)' ; then
+		harnessKillPattern="kill through xargs" ; return 0
+	fi
+	if printf '%s\n' "$killText" | LC_ALL=C grep -q -E "$killAt"'kill[[:space:]]+(-[A-Za-z0-9]+[[:space:]]+)*-1([[:space:]]|$)' ; then
+		harnessKillPattern="kill of every process" ; return 0
+	fi
+	return 1
+}
+
+## Whether a command text scans a whole tree (the hot-path rule, the human-owner's): a recursive `grep` (-r, -R, --recursive, alone or
+## inside a flag run such as -rln) or a `find`, standing as a command, whose path is a workspace root, a store root or the
+## source tree as a whole -- `/`, `~`, `$HOME`, `$MMDAPP`, `.local`, `.local/agents`, one store under it (`spawned`,
+## `sessions`, `inboxes`, `team-data-root`, ...), `source` or one namespace under it, `/Users/<u>/Workspaces/<ws>`,
+## `/Volumes/<v>/<ws>` and those same places under them, or `.` when the call's cwd is one of them. A workspace has about
+## 1300 folders and 900 projects, so such a scan costs every other call its pace for minutes; four of them held this
+## machine at a load of 60 to 80 for an afternoon. rc 0 when the text scans wide, with the path in harnessScanWide.
+## Comments and single-quoted strings are not read, as in AgentsHarnessBashKillByPattern.
+AgentsHarnessBashScanWide(){ ## command text, cwd
+	harnessScanWide=""
+	case "$1" in *grep*|*find*) ;; *) return 1 ;; esac
+	local scanText scanLine scanWord scanIsScan scanCwd="${2:-}"
+	scanText="$( printf '%s\n' "$1" | LC_ALL=C sed -e "s/'[^']*'/''/g" -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#.*$//' )"
+	scanText="${scanText//[;&|(]/$'\n'}" ; scanText="${scanText//\`/$'\n'}"
+	set -f
+	while IFS= read -r scanLine ; do
+		scanIsScan=""
+		set -- $scanLine
+		## The wrapper words before the command go.
+		while [ $# -gt 0 ] ; do case "$1" in then|do|else|exec|sudo|xargs|nohup|command|builtin|time|env|LC_ALL=*|[A-Z_]*=*) shift ;; *) break ;; esac ; done
+		[ $# -gt 0 ] || continue
+		case "${1##*/}" in
+			find) scanIsScan=find ; shift ;;
+			grep|egrep|fgrep|rg)
+				scanIsScan="" ; shift
+				for scanWord in "$@" ; do
+					case "$scanWord" in
+						--recursive|--dereference-recursive) scanIsScan=grep ;;
+						--*) ;;
+						-*) case "${scanWord#-}" in *r*|*R*) scanIsScan=grep ;; esac ;;
+					esac
+				done
+			;;
+		esac
+		[ -n "$scanIsScan" ] || continue
+		## THE PLACE IS JUDGED BY ITS COMPONENTS, since a `*` in a shell pattern crosses slashes: the path is made absolute
+		## (`.`, `~`, `$HOME` and `$MMDAPP` by their values), the workspace root found by shape (/Users/<u>/Workspaces/<ws>,
+		## /Volumes/<v>/<ws>, or $MMDAPP itself), and the rest counted: the root, `.local`, `.local/agents`, one store under
+		## it, `source`, one namespace under it are wide; anything deeper is one folder and runs.
+		local scanPath scanBase scanRest scanDepth scanFirst scanSecond scanParts
+		for scanWord in "$@" ; do
+			case "$scanWord" in -*) continue ;; esac
+			scanPath="${scanWord%/}"
+			case "$scanPath" in
+				.|'') scanPath="${scanCwd%/}" ;;
+				\~|\~/*) scanPath="${HOME:-/nonexistent}${scanPath#\~}" ;;
+				\$HOME|\$HOME/*) scanPath="${HOME:-/nonexistent}${scanPath#\$HOME}" ;;
+				\$MMDAPP|\$MMDAPP/*) scanPath="${MMDAPP:-/nonexistent}${scanPath#\$MMDAPP}" ;;
+			esac
+			case "$scanPath" in /*) ;; *) continue ;; esac
+			case "$scanPath" in /|/Users|/Volumes|"${HOME:-/nonexistent}") harnessScanWide="$scanIsScan over $scanWord" ; set +f ; return 0 ;; esac
+			## The workspace root: the configured workspace where the path is under it, else by shape.
+			scanBase=""
+			if [ -n "${MMDAPP:-}" ] && [ "${scanPath#"${MMDAPP%/}"}" != "$scanPath" ] ; then
+				scanBase="${MMDAPP%/}"
+			else
+				case "$scanPath" in
+					/Users/*/Workspaces) harnessScanWide="$scanIsScan over $scanWord" ; set +f ; return 0 ;;
+					/Users/*/Workspaces/*) scanBase="${scanPath#/Users/}" ; scanBase="/Users/${scanBase%%/*}/Workspaces/" ; scanRest="${scanPath#"$scanBase"}" ; scanBase="$scanBase${scanRest%%/*}" ;;
+					/Volumes/*) scanBase="${scanPath#/Volumes/}" ; scanBase="/Volumes/${scanBase%%/*}" ; scanRest="${scanPath#"$scanBase"}" ; scanRest="${scanRest#/}" ; [ -n "$scanRest" ] || { harnessScanWide="$scanIsScan over $scanWord" ; set +f ; return 0 ; } ; scanBase="$scanBase/${scanRest%%/*}" ;;
+				esac
+			fi
+			[ -n "$scanBase" ] || continue
+			scanRest="${scanPath#"$scanBase"}" ; scanRest="${scanRest#/}"
+			scanParts="${scanRest//[!\/]/}" ; scanDepth=$(( ${#scanParts} + 1 )) ; [ -n "$scanRest" ] || scanDepth=0
+			scanFirst="${scanRest%%/*}" ; scanSecond="${scanRest#*/}" ; scanSecond="${scanSecond%%/*}"
+			case "$scanDepth" in
+				0) harnessScanWide="$scanIsScan over $scanWord" ; set +f ; return 0 ;;
+				1) case "$scanFirst" in .local|source) harnessScanWide="$scanIsScan over $scanWord" ; set +f ; return 0 ;; esac ;;
+				2) case "$scanFirst/$scanSecond" in .local/agents|source/*) harnessScanWide="$scanIsScan over $scanWord" ; set +f ; return 0 ;; esac ;;
+				3) case "$scanFirst/$scanSecond" in .local/agents) harnessScanWide="$scanIsScan over $scanWord" ; set +f ; return 0 ;; esac ;;
+			esac
+		done
+	done <<< "$scanText"
+	set +f
+	return 1
+}
+
+## Whether a command text signals a pid number this run does not own (epic S10.20, the part a pattern guard leaves): the
+## numbers that stand after a `kill` are read against the run's own process set at the call (AgentsHarnessSessionPids with
+## `own-word`, and this harness's own pid), and the first not in it is in harnessKillForeign, rc 0. A signal 0 (`-0`, `-s 0`,
+## `-n 0`) is a probe and ends nothing, so it is not read; a `-l` lists and signals nothing. A pid that stands in a variable or a
+## substitution is no number here and is not read. Comments and single-quoted strings go as in AgentsHarnessBashKillByPattern.
+## Only a text that holds the word kill is read, and the own set is read once per call, only where a pid number is found.
+AgentsHarnessBashKillForeign(){ ## command text
+	harnessKillForeign=""
+	case "$1" in *kill*) ;; *) return 1 ;; esac
+	local killText killLine killWord killOpts killProbe killPids killPid killOwn="" killOwnRead=""
+	killText="$( printf '%s\n' "$1" | LC_ALL=C sed -e "s/'[^']*'/''/g" -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#.*$//' )"
+	## One command a line: the separators become line ends, and the words of a line are read without globbing.
+	killText="${killText//[;&|(]/$'\n'}" ; killText="${killText//\`/$'\n'}"
+	set -f
+	while IFS= read -r killLine ; do
+		set -- $killLine
+		while [ $# -gt 0 ] ; do
+			case "$1" in then|do|else|exec|sudo|xargs|nohup|command|builtin|time) shift ; continue ;; esac
+			break
+		done
+		[ "${1:-}" = kill ] || continue
+		shift
+		killOpts=yes ; killProbe="" ; killPids=""
+		while [ $# -gt 0 ] ; do
+			killWord="$1" ; shift
+			if [ -n "$killOpts" ] ; then
+				case "$killWord" in
+					--) killOpts="" ; continue ;;
+					-0|-s0|-n0|-l|-L) killProbe=yes ; continue ;;
+					-s|-n) [ "${1:-}" != 0 ] || killProbe=yes ; shift ; continue ;;
+					-*) continue ;;
+				esac
+				killOpts=""
+			fi
+			case "$killWord" in -[0-9]*) killWord="${killWord#-}" ;; esac
+			case "$killWord" in ''|*[!0-9]*) continue ;; esac
+			killPids="$killPids $killWord"
+		done
+		[ -z "$killProbe" ] && [ -n "$killPids" ] || continue
+		if [ -z "$killOwnRead" ] ; then
+			killOwnRead=yes
+			killOwn=" $$ $( AgentsHarnessSessionPids "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" own-word 2> /dev/null | LC_ALL=C tr '\n' ' ' ) "
+		fi
+		for killPid in $killPids ; do
+			case "$killOwn" in *" $killPid "*) ;; *) harnessKillForeign="$killPid" ; set +f ; return 0 ;; esac
+		done
+	done <<< "$killText"
+	set +f
+	return 1
+}
+
 AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
 	local toolCwd="$1" toolCommand="$2" toolTimeout="$3" toolDetach="$4" toolHandle="$5" toolStop="$6" toolOffset="$7" toolLimit="$8" toolStdin="$9" toolOutputMode="${10}" toolStatus=0 toolBytes
 	case "$toolOutputMode" in
@@ -172,7 +327,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 			process-*) ;;
 			*) printf 'ERROR: handle must be one a detached Bash start returned, such as process-1, and this is not one: %s. Nothing was read or stopped.\n' "$toolHandle" ; return 0 ;;
 		esac
-		processSession="$( AgentsHarnessSessionKey )"
+		processSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 		if [ -z "$processSession" ] ; then
 			printf 'ERROR: this run belongs to no session, so there is no folder a detached process of it lives in. Nothing was read or stopped.\n' ; return 0
 		fi
@@ -286,15 +441,80 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		AgentsHarnessWindowedRead "$harnessScratch/process.read" "$toolOffset" "$toolLimit"
 		return 0
 	fi
+	## No kill by pattern (epic S10.20): a run owns its own processes alone, and a `pkill`, a `killall`, a `kill` fed by
+	## `pgrep`, `ps` or `xargs`, or a `kill` of every process (`-1`) ends whatever matches on the whole workstation,
+	## on every rig at once. Refused before anything runs; a `kill <pid>` of a number this run knows is not a pattern.
+	## Nor a kill of a pid number this run does not own (the part a pattern guard leaves): the run's own process set is read at
+	## this call, only where the text signals a number. A signal 0 probe runs.
+	if AgentsHarnessBashKillForeign "$toolCommand" ; then
+		printf 'ERROR: the command signals pid %s, which is no process of this run; a run owns only the processes it started, read at this call. Stop a detached process by its handle (stop: true), or signal one pid this run started; a signal 0 probe runs. Nothing was run.\n' "$harnessKillForeign"
+		return 0
+	fi
+	if AgentsHarnessBashKillByPattern "$toolCommand" ; then
+		printf 'ERROR: the command kills by pattern (%s), which ends whatever matches on this machine, and this run owns only the processes it started: stop a detached process by its handle (stop: true), or signal one pid this run knows. Nothing was run.\n' "$harnessKillPattern"
+		return 0
+	fi
+	## NO SCAN OF A WHOLE TREE (the hot-path rule): a recursive grep or a find over a workspace root, a store root or the source
+	## tree as a whole is refused before anything runs. Name the one folder the task needs, or ask the tooling's own index.
+	if AgentsHarnessBashScanWide "$toolCommand" "$toolCwd" ; then
+		printf 'ERROR: the command scans a whole tree (%s), which costs every other call on this machine its pace for minutes: a workspace holds about 1300 folders and 900 projects. Name the one folder the task needs (a project folder, one session or store entry), read the registries the tooling keeps (--spawns, --tasks, the member index), or ask the owner of that store for a read operation. Nothing was started.\n' "$harnessScanWide"
+		return 0
+	fi
+	## THE STALE TREE IS NEVER READ OR WRITTEN (AgentsHarnessStaleTree, AgentsHarnessAccess.include), where the workspace does not run
+	## from `.local`. An ABSOLUTE path of this workspace's `.local/myx/` is run on the tree the workspace does run from,
+	## `$MDLT_ORIGIN/myx/`, the same path below it, and a line says so: the member learnt it from a link of the stale copy, so the
+	## tooling sends it where it meant to go rather than refusing it (31 refused calls on 2026-11-10). A path is a path, so the rewrite
+	## is the absolute form alone: every text holding `.local/myx/` also holds another workspace's path, a comment, or a spelling that
+	## only looks relative, and rewriting those invents paths that exist nowhere. A RELATIVE `.local/myx/` is refused where the call runs
+	## from the workspace root, the one folder where it resolves into the stale copy, and is left alone from any other folder, where it
+	## names something else entirely.
+	if [ -n "${MMDAPP:-}" ] && [ -n "${MDLT_ORIGIN:-}" ] && [ "${MDLT_ORIGIN%/}" != "${MMDAPP%/}/.local" ] ; then
+		case "$toolCommand" in
+			*"${MMDAPP%/}/.local/myx/"*)
+				local staleFrom="${MMDAPP%/}/.local/myx/" staleTo="${MDLT_ORIGIN%/}/myx/"
+				toolCommand="${toolCommand//"$staleFrom"/$staleTo}"
+				printf '# the command named %s/.local/myx, a stale copy of the tooling: it runs on %s/myx, the tree this workspace runs from.\n' "${MMDAPP%/}" "${MDLT_ORIGIN%/}"
+			;;
+			*'.local/myx/'*)
+				## Both sides are resolved before they are compared, as the gate resolves them: a trailing
+				## or doubled slash, or a symlinked spelling of the root, names the same folder.
+				local staleCwd="${toolCwd:-.}" staleRoot="${MMDAPP%/}"
+				staleCwd="$( cd "$staleCwd" 2> /dev/null && pwd -P )" || staleCwd=""
+				staleRoot="$( cd "$staleRoot" 2> /dev/null && pwd -P )" || staleRoot="${MMDAPP%/}"
+				case "$staleCwd" in
+					"$staleRoot")
+						## A word that begins with the path is a relative path; the same text inside a longer
+						## word is another folder's absolute path, and is left alone.
+						local staleWord
+						for staleWord in $toolCommand ; do
+							case "$staleWord" in
+								\"*|\'*) staleWord="${staleWord#?}" ;;
+							esac
+							case "$staleWord" in
+								.local/myx/*|./.local/myx/*)
+									printf 'ERROR: the command names .local/myx relative to the workspace root %s, where it resolves into a stale copy of the tooling this workspace does not run from (MDLT_ORIGIN is %s): name the path in full instead. Nothing was run.\n' "${MMDAPP%/}" "${MDLT_ORIGIN:-unset}"
+									return 0
+								;;
+							esac
+						done
+					;;
+				esac
+			;;
+		esac
+	fi
+	## A tooling command resolves by its name here as in the console and in execute (epic S12.25): the one path include, read once per
+	## harness process, puts the family's sh-scripts after the path it was handed. Seven folder tests, no subprocess.
+	case ":$PATH:" in *":$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/console-.local-path.include" 2> /dev/null || : ;; esac
 	## No command links a sandbox into source (epic S23.11): the guard ln is first on PATH, for the command and for what it starts.
-	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
+	## And no shell `grep -r` blocks on a request fifo (epic S10.26): the guard grep beside it puts `-D skip` before the arguments.
+	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
 	if [ "$toolDetach" = "true" ] || [ "$toolDetach" = "1" ] || [ "$toolDetach" = "yes" ] ; then
 		if ! AgentsHarnessCwdAllowed "$toolCwd" ; then return 0 ; fi
 		toolCwd="$harnessResolvedPath"
 		if [ ! -d "$toolCwd" ] ; then
 			printf 'ERROR: no such directory: %s. Nothing was started.\n' "$toolCwd" ; return 0
 		fi
-		processSession="$( AgentsHarnessSessionKey )"
+		processSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 		if [ -z "$processSession" ] ; then
 			printf 'ERROR: this run belongs to no session, so it has no folder to own a detached process in. Nothing was started.\n' ; return 0
 		fi
@@ -402,12 +622,23 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 			(
 				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
-				sleep "$toolTimeout"
+				## The sleep is a child of this watchdog: the TERM that ends the watchdog once the call
+				## returned must end the sleep too, else one `sleep <timeout>` outlives every call under launchd.
+				## The trap ends every background child of this watchdog, by the job list, not by a pid kept in a variable: a TERM that
+				## lands between the sleep's fork and the assignment of its pid left one `sleep <timeout>` under launchd a call (the
+				## restart check counted three such sleeps after its run).
+				watchSleep="" ; trap 'kill $( jobs -p ) 2>/dev/null ; exit 0' TERM
+				sleep "$toolTimeout" & watchSleep=$!
+				wait "$watchSleep" || exit 0
+				watchSleep=""
 				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM "$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
 			) >/dev/null &
 			harnessWatchPid=$!
 			printf '%s\n' "$harnessWatchPid" > "$harnessScratch/watch.pid"
+			## The child's own run is not machinery time (the owner's pace ruling): its span is kept for the call's record (mach_ms).
+			harnessRunT0="$( AgentsTranscriptNowMs 2> /dev/null )" || harnessRunT0=""
 			wait "$harnessRunPid" || toolStatus=$?
+			case "$harnessRunT0" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( $( AgentsTranscriptNowMs 2> /dev/null || printf 0 ) - harnessRunT0 )) ; [ "$harnessToolRunMs" -ge 0 ] || harnessToolRunMs=0 ;; esac
 			kill -TERM "$harnessWatchPid" 2>/dev/null || :
 			wait "$harnessWatchPid" 2>/dev/null || :
 			## Reaped normally: the records exist so the cleanup can reach a child the
@@ -428,7 +659,40 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	[ ! -f "$harnessScratch/run.timedout" ] || printf '... TIMED OUT after %s seconds ...\n' "$toolTimeout"
 	printf '(exit status %s)\n' "$toolStatus"
 }
+## A COMMAND THAT ONLY READS: rc 0 where every part of it (after a leading `cd <dir> &&` or `;`) begins with a read -- ls, cat, head,
+## tail, sed -n, grep, rg, find, wc, echo, printf, stat, file, pwd -- and every pipe feeds only head, tail, wc, sort, uniq, cut, tr,
+## column or nl, with no redirect, no loop, no substitution and no find action that changes anything. Anything else is no pure read.
+AgentsHarnessBashReadOnly(){ ## command
+	printf '%s' "$1" | LC_ALL=C awk '
+		BEGIN { split( "ls cat head tail grep rg find wc echo printf stat file pwd", r, " " ) ; for ( i in r ) reads[r[i]] = 1
+		        split( "head tail wc sort uniq cut tr column nl grep", f, " " ) ; for ( i in f ) feeds[f[i]] = 1 }
+		{ all = all $0 "\n" }
+		END {
+			if ( all ~ /[<>]|\$\(|`|(^|[ ;&|])(for|while|until|if|case|function)[ ;]|-delete|-exec|-execdir|sed -i|xargs/ ) exit 1
+			n = split( all, parts, /;|&&|\|\||\n/ ) ; seen = 0
+			for ( p = 1 ; p <= n ; p++ ) {
+				part = parts[p] ; gsub( /^[ \t]+|[ \t]+$/, "", part ) ; if ( part == "" ) continue
+				m = split( part, pipes, /\|/ )
+				for ( q = 1 ; q <= m ; q++ ) {
+					seg = pipes[q] ; gsub( /^[ \t]+/, "", seg ) ; split( seg, w, /[ \t]+/ )
+					if ( q == 1 && w[1] == "cd" && m == 1 ) continue
+					if ( q == 1 ) { if ( w[1] == "sed" ) { if ( w[2] != "-n" ) exit 1 } else if ( !( w[1] in reads ) ) exit 1 }
+					else if ( !( w[1] in feeds ) ) exit 1
+					seen = 1
+				}
+			}
+			exit seen ? 0 : 1
+		}'
+}
+
 AgentsHarnessToolBash(){ ## cwd, command, timeout, detach, handle, stop, offset, limit, stdin, output mode
+	## ONE READ IS NO ROUND OF ITS OWN (BatchTools, F7.8): a lone Bash call that only reads re-sends the whole context to learn a few
+	## lines. It is answered with the batched form instead of run; inside a BatchTools call it runs, as a batch's reads are the point.
+	## A detached, handled or stopped call is never this case.
+	if [ -z "${MDAT_REPLY_IN_BATCH:-}" ] && [ -z "${4:-}${5:-}${6:-}" ] && [ -n "${2:-}" ] && AgentsHarnessBashReadOnly "$2" && { type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include" 2> /dev/null ; } && ! AgentsToolsEmergencyHolds ; then
+		printf '%s\n' "NOT RUN: this command only reads, and a read is no round of its own: each round re-sends your whole context. Put every read you need now into ONE BatchTools call -- Read for a file or its lines (offset, limit), Grep for a pattern, Glob for names, or Bash entries for shell reads -- and read the results together. For example: BatchTools calls=[{tool: Read, arguments: {file_path: <a>}}, {tool: Grep, arguments: {pattern: <p>, path: <dir>}}, {tool: Bash, arguments: {command: \"ls <dir>\"}}]. A command that changes something runs here as before."
+		return 0
+	fi
 	## S19.2: a command is held at its EXIT, so it ran and its result waits for the pause to end.
 	local pauseRc=0
 	AgentsHarnessToolBashRun "$@" || pauseRc=$?
@@ -472,12 +736,21 @@ AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 			(
 				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
-				sleep "$toolTimeout"
+				## The sleep is a child of this watchdog: the TERM that ends the watchdog once the call
+				## returned must end the sleep too, else one `sleep <timeout>` outlives every call under launchd.
+				## The trap ends every background child by the job list, as above: no sleep outlives the call.
+				watchSleep="" ; trap 'kill $( jobs -p ) 2>/dev/null ; exit 0' TERM
+				sleep "$toolTimeout" & watchSleep=$!
+				wait "$watchSleep" || exit 0
+				watchSleep=""
 				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM -- "-$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
 			) >/dev/null &
 			harnessWatchPid=$!
 			printf '%s\n' "$harnessWatchPid" > "$harnessScratch/watch.pid"
+			## The child's own run is not machinery time (the owner's pace ruling): its span is kept for the call's record (mach_ms).
+			harnessRunT0="$( AgentsTranscriptNowMs 2> /dev/null )" || harnessRunT0=""
 			wait "$harnessRunPid" || toolStatus=$?
+			case "$harnessRunT0" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( $( AgentsTranscriptNowMs 2> /dev/null || printf 0 ) - harnessRunT0 )) ; [ "$harnessToolRunMs" -ge 0 ] || harnessToolRunMs=0 ;; esac
 			kill -TERM "$harnessWatchPid" 2>/dev/null || :
 			wait "$harnessWatchPid" 2>/dev/null || :
 			rm -f "$harnessScratch/run.pid" "$harnessScratch/watch.pid"

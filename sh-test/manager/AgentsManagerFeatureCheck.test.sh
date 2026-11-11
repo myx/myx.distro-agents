@@ -116,6 +116,22 @@ rigToolKept="$rigTool" ; rigTool="$rigLocalTool" ; rigRun "" --manager-feature-l
 rigAssert "DistroLocalTools --manager-feature-list ends 0 and prints the rows the agents tool printed (S7.25)" "$rigRc $( cmp -s "$rigTmp/out" "$rigTmp/out.agents" && printf same || printf differ )" "0 same"
 ## The rows and the calls of the agents run stand again, so what follows reads that run alone.
 cp "$rigTmp/out.agents" "$rigTmp/out" ; cp "$rigTmp/calls.agents" "$rigState/calls"
+## S7.1: a feature that declares itself, in a folder that is no setup.feature-*, is listed through the declares index of the workspace, from its own folder,
+## and is not listed where the workspace has no index. The index is planted as the system build writes it, `<project> <declaration>` a row.
+rigExtra="$rigOrigin/myx/mdci-packages-myx/feature.extra"
+mkdir -p "$rigExtra/host/install" "$rigExtra/data" "$rigWs/.local/system-index"
+rigMake "$rigExtra/host/install/feature-extra.check.txt" '#!/bin/sh' 'echo "CHECK extra FILES=${MDCI_FILES_PATH:-}" >> "$RIG_STATE/calls"' 'printf "extra: installed\nplatform: rig\n"' 'exit 0'
+printf 'myx/mdci-packages-myx/feature.extra mdci-installable:feature:feature.extra\nmyx/mdci-packages-myx/setup.feature-lancedb mdci-installable:feature:setup.feature-lancedb\n' > "$rigWs/.local/system-index/distro-declares.txt"
+rigRun "" --manager-feature-list
+rigAssert "a declared feature is listed, from its own folder, and the declared lancedb once" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' ) $( LC_ALL=C grep -c 'CHECK extra FILES=.*/feature.extra/data' "$rigState/calls" )" "0 feature.extra setup.feature-lancedb setup.feature-local-ai  1"
+rm -f "$rigWs/.local/system-index/distro-declares.txt"
+rigRun "" --manager-feature-list
+rigAssert "with no index the folders alone are listed: the extra feature is not among them" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "feature" { print $2 }' "$rigTmp/out" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "0 setup.feature-lancedb setup.feature-local-ai "
+rm -rf "$rigExtra"
+rigReset
+rigRun "" --manager-feature-list
+cp "$rigTmp/out" "$rigTmp/out.agents" ; cp "$rigState/calls" "$rigTmp/calls.agents"
+cp "$rigTmp/out.agents" "$rigTmp/out" ; cp "$rigTmp/calls.agents" "$rigState/calls"
 rigAssert "chat-a installed: its bytes, its memory, running, an update and an uninstall and no install" "$( rigRow part chat-a 4-10 )" "installed 100 116 yes - $rigCmd update $rigAi_ chat-a $rigCmd uninstall $rigAi_ chat-a"
 rigAssert "chat-b broken: the same two commands, and why in its detail" "$( rigRow part chat-b 4-4 ) $( rigRow part chat-b 11 )" "broken part=chat;_why=the_file_size_differs_from_the_manifest"
 rigAssert "stt-a not installed: only an install, nothing running, the memory it would take" "$( rigRow part stt-a 4-10 )" "not-installed 0 50 no $rigCmd install $rigAi_ stt-a - -"

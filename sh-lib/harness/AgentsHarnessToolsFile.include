@@ -168,7 +168,7 @@ AgentsHarnessChangeMode(){ ## tool, the gate's answer
 	local modeAsk
 	if [ -n "$harnessChangeApply" ] ; then
 		modeAsk="$( AgentsHarnessChangeKept ask )"
-		if [ "$harnessChangeApply" != "$MMDAPP/.local/agents/sessions/$( AgentsHarnessSessionKey )/changes/${harnessChangeApply##*/}" ] \
+		if [ "$harnessChangeApply" != "$MMDAPP/.local/agents/sessions/${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}/changes/${harnessChangeApply##*/}" ] \
 			|| [ "$( AgentsHarnessChangeKept tool )" != "$1" ] || ! AgentsHarnessBareName "$modeAsk" \
 			|| ! LC_ALL=C grep -q -x -F 'verdict: approve' "$MMDAPP/.local/agents/pending/$modeAsk.answered/verdict" 2>/dev/null ; then
 			printf 'ERROR: %s: this call names a kept change to apply, and it is not that change of this session with its approval noted, so nothing was written\n' "$1"
@@ -211,7 +211,7 @@ AgentsHarnessChangeBaseSame(){ ## resolved target
 ## says nothing is held, and why. The member is never kept waiting here.
 AgentsHarnessChangeHold(){ ## tool, resolved target, the file as it stands (empty: there is none), the file as the call leaves it, raw arguments, what each edit matched (Edit)
 	local holdTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" holdSession holdOut="" holdRc=0 holdId holdShown holdCut=""
-	holdSession="$( AgentsHarnessSessionKey )"
+	holdSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	if [ -z "$holdSession" ] || [ -z "$harnessAgent" ] || [ ! -x "$holdTools" ] ; then
 		printf 'ERROR: %s: a change to %s needs the approval of the human-owner, and this session has no session id or team identity to hold it under, so nothing is held and nothing was written\n' "$1" "$2"
 		return 0
@@ -257,6 +257,21 @@ AgentsHarnessToolWriteRun(){
 	if AgentsHarnessWriteExcluded "$toolPath" ; then
 		AgentsHarnessRefusal Write "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0
 	fi
+	## A MAGIC.md CHANGES THROUGH ITS OPERATION ALONE (S10.23): three runs on two days changed one by hand, so the tool refuses the file by its name and names the way.
+	case "${toolPath##*/}" in MAGIC.md)
+		AgentsHarnessRefusal Write "$toolPath" "ERROR: a MAGIC.md changes through DistroAgentsKnowledge --magic-section-upsert <path> --section <heading> alone, one section a call, never Write or Edit (S10.23) -- nothing was written: $toolPath" ; return 0
+	;; esac
+	## A SKILLSET FILE CHANGES BY ITS MAINTAINERS' AGREEMENT, WRITTEN BY magic-librarian (magic-team.armed.md, the quorum rule): a member that edits
+	## its own reference modules after two guides is held by the tool, not by a third guide. A member's inbox folders under its skillset folder
+	## stay its own. The root coordinator writes under the human-owner's grant.
+	case "$toolPath" in
+		*/skillset/magic-team/*/incoming/*|*/skillset/magic-team/*/processed/*) ;;
+		*/skillset/magic-team/*)
+			case "${harnessAgent:-}" in magic-librarian|magic-coordinator|'') ;; *)
+				AgentsHarnessRefusal Write "$toolPath" "ERROR: a skillset file changes by its maintainers' agreement and magic-librarian writes it: put the change, with what it measured, into an inquiry to magic-librarian -- nothing was written: $toolPath" ; return 0
+			;; esac
+		;;
+	esac
 	if ! AgentsToolsDocGuardDecide "$toolPath" "$( [ ! -e "$toolPath" ] || cat -- "$toolPath" 2>/dev/null )" "$toolContent" harness ; then
 		printf 'ERROR: the document-contract guard refused the write of %s -- nothing was written\n' "$toolPath" ; return 0
 	fi
@@ -432,6 +447,21 @@ AgentsHarnessToolEditRun(){
 		editsSource="$editsOut" ; editsOut="$editsSpare" ; editsSpare="$editsSource"
 		editsIndex=$(( editsIndex + 1 ))
 	done
+	## A MAGIC.md CHANGES THROUGH ITS OPERATION ALONE (S10.23), as for Write: refused by its name, nothing written.
+	case "${toolPath##*/}" in MAGIC.md)
+		AgentsToolsLocalLockGive "$toolLock"
+		AgentsHarnessRefusal Edit "$toolPath" "ERROR: a MAGIC.md changes through DistroAgentsKnowledge --magic-section-upsert <path> --section <heading> alone, one section a call, never Write or Edit (S10.23) -- nothing was written: $toolPath" ; return 0
+	;; esac
+	## A skillset file changes by its maintainers' agreement, written by magic-librarian, as for Write; a member's inbox folders stay its own.
+	case "$toolPath" in
+		*/skillset/magic-team/*/incoming/*|*/skillset/magic-team/*/processed/*) ;;
+		*/skillset/magic-team/*)
+			case "${harnessAgent:-}" in magic-librarian|magic-coordinator|'') ;; *)
+				AgentsToolsLocalLockGive "$toolLock"
+				AgentsHarnessRefusal Edit "$toolPath" "ERROR: a skillset file changes by its maintainers' agreement and magic-librarian writes it: put the change, with what it measured, into an inquiry to magic-librarian -- nothing was written: $toolPath" ; return 0
+			;; esac
+		;;
+	esac
 	if ! AgentsToolsDocGuardDecide "$toolPath" "$( cat -- "$toolPath" 2>/dev/null )" "$( cat "$editsSource" )" harness ; then
 		printf 'ERROR: the document-contract guard refused the edit of %s -- nothing was written\n' "$toolPath" ; return 0
 	fi

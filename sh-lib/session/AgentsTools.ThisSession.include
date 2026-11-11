@@ -42,7 +42,7 @@ AgentsToolsThisSessionNeedMember(){ ## operation
 ## The session the call belongs to (AgentsToolsSessionChatKey), and its folder. rc 1, with a plain line, for a call of no session.
 AgentsToolsThisSessionNeedSession(){ ## operation
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	thisSessionKey="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; thisSessionKey="$agentsSessionChatKey"
 	[ -z "$thisSessionKey" ] || AgentsToolsSessionChatDir "$thisSessionKey" > /dev/null 2>&1 || thisSessionKey=""
 	[ -z "$thisSessionKey" ] || return 0
 	echo "$MDSC_CMD: ⛔ ERROR: $1: the call belongs to no session -- the operation is locked to the session it is called from. Nothing was done." >&2
@@ -486,8 +486,10 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 			## The item that means this very call, by its text alone. Three forms are in use: the duty's own list item,
 			## `wait for more: run --idle-wait`; a seeded routine step, which the seed keeps as the bare `wait-for-more`;
 			## and the words a run puts on the item itself, measured on two live duties as "Wait for the next arrival".
+			## A run also writes the first form in its own words, with a capital and the operation with no dashes ("Wait for more:
+			## idle-wait"). Taken for open work, that item turned every idle wait back, so the run never returned to its checkpoint.
 			case "$idleLine" in
-				*--idle-wait*|*wait-for-more*|*wait\ for\ more*) continue ;;
+				*--idle-wait*|*[Ww]ait-for-more*|*[Ww]ait\ for\ more*) continue ;;
 				*[Ww]ait\ for\ the\ next\ arrival*) continue ;;
 			esac
 			idleBusy="$idleBusy$idleLine"$'\n'
@@ -597,8 +599,9 @@ AgentsToolsThisSessionSetTopic(){ ## the operation's arguments: <text...>
 	fi
 	AgentsToolsThisSessionSetGuard --set-session-topic || return $?
 	local setTopicText="$*" setTopicRecord setTopicFounder="" setTopicBy="" setTopicRoot=""
-	## The title on every record of the session (the session-comment header).
-	for setTopicRecord in $( LC_ALL=C grep -l -x -F "session-id: $thisSessionKey" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null ) ; do
+	## The title on every record of the session (the session-comment header), the records from the kept per-session list (AgentsTools.StartedRecords.include).
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for setTopicRecord in $( AgentsToolsSpawnedSessionRecords "$thisSessionKey" own 2> /dev/null ) ; do
 		[ -f "$setTopicRecord" ] || continue
 		AgentsToolsAuthorityFieldSet "$setTopicRecord" session-comment "$setTopicText" || :
 	done
@@ -729,7 +732,8 @@ AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
 	done
 	[ -n "$topicSession" ] && [ -n "$topicText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-topic: syntax is --session-id <id> <text>. Nothing was set." >&2 ; return 1 ; }
 	type AgentsToolsAuthorityFieldSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
-	for topicFile in $( LC_ALL=C grep -l -x -F "session-id: $topicSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for topicFile in $( AgentsToolsSpawnedSessionRecords "$topicSession" own 2> /dev/null ) ; do
 		AgentsToolsAuthorityFieldSet "$topicFile" session-comment "$topicText" 2> /dev/null && topicWritten="yes" || topicRc=1
 	done
 	if [ -z "$topicWritten" ] ; then

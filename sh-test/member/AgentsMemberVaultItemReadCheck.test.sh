@@ -37,7 +37,7 @@ rigRead(){ ## read arguments after the member
 	rigRc=0
 	( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" \
-		bash "$rigTool" --get-vault-item magic-tester "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
+		bash "$rigTool" --get-vault-item --team-member magic-tester "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 
 echo "-- an item under vault/ --"
@@ -70,7 +70,7 @@ rigAssert "vault: with the flag named"               "$( rigHolds "$rigTmp/err" 
 rigRc=0
 ( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" \
-	bash "$rigTool" --get-audit-item magic-tester transcript-2026-09-29-rig.md --end-line ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
+	bash "$rigTool" --get-audit-item --team-member magic-tester transcript-2026-09-29-rig.md --end-line ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 rigAssert "audit: --end-line alone fails"            "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigAssert "audit: with the flag named"               "$( rigHolds "$rigTmp/err" '--end-line requires a value' )" yes
 
@@ -89,14 +89,14 @@ rigOp(){ ## op, arguments...
 echo "-- an audit transcript, from its month folder --"
 mkdir -p "$rigTmp/data/audit/2026-09"
 printf 'transcript line\n' > "$rigTmp/data/audit/2026-09/transcript-2026-09-29-rig.md"
-rigOp --get-audit-item magic-tester transcript-2026-09-29-rig.md
+rigOp --get-audit-item --team-member magic-tester transcript-2026-09-29-rig.md
 rigAssert "it is read, rc 0"                         "$rigRc" 0
 rigAssert "with its content"                         "$( rigHolds "$rigTmp/out" 'transcript line' )" yes
-rigOp --get-audit-item magic-tester verbatim-20260929T1000Z-audit-only.md
+rigOp --get-audit-item --team-member magic-tester verbatim-20260929T1000Z-audit-only.md
 rigAssert "a name that is no transcript is refused"   "$( rigHolds "$rigTmp/err" 'only transcript-* documents and session-*.log transcripts are allowed' )" yes
 
 echo "-- the stubs check who is asking --"
-rigOp --get-vault-item no-such-member verbatim-20260929T1000Z-rig.md
+rigOp --get-vault-item --team-member no-such-member verbatim-20260929T1000Z-rig.md
 rigAssert "an unknown member is refused"             "$( rigHolds "$rigTmp/err" 'no such member skill directory' )" yes
 rigAssert "and nothing is read"                      "$( rigHolds "$rigTmp/out" 'line one' )" no
 

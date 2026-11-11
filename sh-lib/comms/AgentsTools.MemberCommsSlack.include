@@ -10,7 +10,12 @@
 ## This file's one case, as a function of its own: an operation dispatched here, and the intern arm behind it,
 ## run in the process that already sourced this file. Calling the dispatcher again would parse the kernel, the
 ## front door and this file a second time for one operation (MAGIC.md, section 1).
+type AgentsToolsMemberSlackSenderMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SlackSenderMark.include"
+
 AgentsToolsMemberCommsSlackRun(){ ## arguments as the case below takes them
+## The bare-name gate the arms below call: the kernel loads it for a tooling process, and a sourcer that runs an operation
+## here in its own process (a Wait's probe) has it from this line, as every include outside the kernel takes it.
+type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 case "$1" in
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
 		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the

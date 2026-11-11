@@ -403,6 +403,33 @@ rigWaited=0
 while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" != "${rigDaemon2:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "a lock whose holder is gone is taken over"                  "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" "${rigDaemon2:-none}"
 rigProcSignal TERM "${rigDaemon2:-0}"
+## A reader that ends on a change of its code starts again at once, with the lock given up and taken by the new one (MDAT_COMMS_CODE_EXTRA names a file of the rig
+## that stands for its code: one newer than the lock ends it, as the includes do).
+rigScene recode
+rigLive
+rigThreadData "$( rigMsg "$rigRoot" URIGOWNER RIG-ROOT "$rigRoot" )"
+rigCodeFile="$rigDir/code.stand-in"
+rigOpEnv="MDAT_COMMS_CODE_EXTRA=$rigCodeFile"
+rigOp recode-start --start < /dev/null
+rigOpEnv=""
+rigDaemon3="$( LC_ALL=C sed -n 's/^started \([0-9][0-9]*\)$/\1/p' "$rigDir/recode-start.out" | head -1 )"
+[ -z "$rigDaemon3" ] || { rigProcNote "$rigDaemon3" ; rigStarted="$rigStarted $rigDaemon3" ; }
+rigWaited=0
+while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )" != "${rigDaemon3:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
+sleep 1
+: > "$rigCodeFile"
+rigWaited=0
+while [ "$rigWaited" -lt 160 ] ; do
+	rigNow3="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"
+	{ [ -n "$rigNow3" ] && [ "$rigNow3" != "${rigDaemon3:-none}" ] ; } && break
+	sleep 0.5 ; rigWaited=$(( rigWaited + 1 ))
+done
+rigDaemon4="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 }' )"
+[ -z "$rigDaemon4" ] || { rigProcNote "$rigDaemon4" ; rigStarted="$rigStarted $rigDaemon4" ; }
+rigAssert "a reader that ends on a change of its code is replaced at once: the lock names a new process" "$( { [ -n "$rigDaemon4" ] && [ "$rigDaemon4" != "${rigDaemon3:-none}" ] ; } && printf new || printf same )" new
+rigAssert "the old process is gone, the new one lives" "$( rigProcStill "${rigDaemon3:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( rigProcStill "${rigDaemon4:-0}" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0:1"
+rigAssert "its log says why the first ended" "$( LC_ALL=C grep -c 'ends: its code changed' "$rigDir/ws/.local/agents/comms/log" 2> /dev/null )" 1
+rigProcSignal TERM "${rigDaemon4:-0}"
 rigScene idle
 rigOpEnv="MDAT_COMMS_IDLE_SECONDS=3"
 rigOp idle-start --start < /dev/null
@@ -466,6 +493,46 @@ rigChatBlock 2 100 keeper-old all - refused own TWO
 rigChatBlock 3 50 keeper-old all - unknown own THREE
 rigPointerSet read:keeper-exec 0
 rigAssert "a post given up is no stop, and is not delivered"             "$( rigFloor keeper-exec | LC_ALL=C tr '\n' ' ' )" "1 newest=3 "
+
+echo "-- 7b. the Slack copy is queued: the chat file first, Slack when the writer reaches it --"
+## The comms reader lives (a lock that names a live stand-in), and the send is the SendMessage tool's: MDAT_SEND_ASYNC=true.
+rigSendAsync(){ ## body, thread
+	printf '%s' "$1" | ( cd "$rigDir/ws" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_THREAD -u CLAUDE_CODE_SESSION_ID -u MDAT_TEAM_MEMBER -u MDAT_SPAWN_AGENT \
+		"PATH=$rigTmp/bin-fast:$rigPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_SESSION_ID=$rigSession" "MDAT_SEND_ASYNC=true" \
+		bash "$rigTool" --slack-send-message --team-member keeper-rig "$2" --from-stdin ) > "$rigDir/send.out" 2> "$rigDir/send.err"
+	rigRc=$?
+}
+rigCommsLock(){ mkdir -p "$rigDir/ws/.local/agents/comms" && ln -sf "$rigStandPid rig" "$rigDir/ws/.local/agents/comms/lock" ; }
+rigScene queued
+rigLive
+rigCommsLock
+printf 'curl:7\ncurl:7\ncurl:7\ncurl:7\ncurl:7\n' > "$rigDir/post-script"
+rigSendAsync "Q-ONE" "$rigThread"
+rigAssert "a send into the session's own thread returns queued, and no Slack call was made, though Slack would not answer" "$rigRc:$( LC_ALL=C grep -c '"queued":true' "$rigDir/send.out" ):$( rigCalls chat.postMessage )" "0:1:0"
+rigAssert "its block has the thread from the start and no ts yet" "$( rigIndex 1 )" "- CRIGSES01:$rigRoot own"
+rigSendAsync "Q-TWO" "$rigThread"
+rigPointerSet read:keeper-exec 0
+rigAssert "another member's floor has both at once, in the order sent, with Slack down" "$( rigFloor keeper-exec | LC_ALL=C tr '\n' ' ' ):$( rigFloorHolds keeper-exec Q-ONE )$( rigFloorHolds keeper-exec Q-TWO )" "2 newest=2 :11"
+rigPush queued-out
+rigAssert "an outage at the push keeps both in the outbox, and the floor still has both" "$( [ -s "$rigOutbox" ] || [ -s "${rigOutbox%/*}/outbox.pushing.txt" ] && printf kept || printf gone ):$( rigPointerSet read:keeper-two 0 ; rigFloor keeper-two | LC_ALL=C tr '\n' ' ' )" "kept:2 newest=2 "
+printf '' > "$rigDir/post-script"
+rm -f "${rigOutbox%/*}/.push.txt" 2> /dev/null || :
+rigPush queued-ok
+rigAssert "when Slack answers, the copy arrives in the order sent: block 1 has the earlier ts" "$( LC_ALL=C awk -F'\t' '$1 == 1 { a = $2 } $1 == 2 { b = $2 } END { print ( a != "-" && b != "-" && a < b ) ? "in-order" : "a=" a " b=" b }' "$rigChat.index" )" "in-order"
+rigScene queued-x
+rigLive
+rigCommsLock
+rigOtherThread="CRIGSES01:$(( rigNow - 300 )).000009"
+rigOtherDir="$rigDir/ws/.local/agents/sessions/rig-other"
+mkdir -p "$rigOtherDir"
+printf '%s\n' "$rigOtherThread" > "$rigOtherDir/session.thread"
+printf '' > "$rigDir/post-script"
+rigSendAsync "QX-ONE" "$rigOtherThread"
+rigAssert "a send into another session's thread is queued too, no Slack call made" "$rigRc:$( LC_ALL=C grep -c '"queued":true' "$rigDir/send.out" ):$( rigCalls chat.postMessage )" "0:1:0"
+rigAssert "the other session's file holds it at once, from the start in its own thread, no ts" "$( LC_ALL=C awk -F'\t' '$1 == 1 { print $2 " " $3 " " $4 }' "$rigOtherDir/session.chat.index" )" "- $rigOtherThread delivered"
+rigAssert "the sender's block has the thread already, and the copies' rows are kept for the writer" "$( rigIndex 1 ):$( ls "$rigSessDir/chat.copies" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "- $rigOtherThread own:1 "
+rigPush queued-x-ok
+rigAssert "after the writer's post the copy has the ts too, and the rows are gone" "$( LC_ALL=C awk -F'\t' '$1 == 1 { print ( $2 != "-" ) ? "has-ts" : "no-ts" }' "$rigOtherDir/session.chat.index" ):$( ls "$rigSessDir/chat.copies" 2> /dev/null | LC_ALL=C grep -c . || : )" "has-ts:0"
 
 echo "-- 8. the places --"
 rigProxy="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"

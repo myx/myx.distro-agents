@@ -172,7 +172,7 @@ AgentsToolsManagerTeamMemberLive(){ ## the rows of the list of sessions
 ## The note of a workspace with no names registry, on stderr, once.
 AgentsToolsManagerTeamMemberNamesSay(){ ## the operation as it was called
 	local sayFile
-	sayFile="$( AgentsToolsRegistryFile team-members-names )"
+	sayFile="$MMDAPP/.local/agents/team-members-names.registry"
 	[ -f "$sayFile" ] || echo "# $MDSC_CMD $1: no names registry is at $sayFile, so the mark and the names of each member of this workspace read - (--make-harness-indices builds it)" >&2
 	return 0
 }
@@ -285,7 +285,7 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 		break
 	done <<< "$readText"
 	## Its home, where the machine keeps one: a member found in more than one workspace.
-	readFile="$( AgentsToolsTeamSharedDir )/member-homes.registry"
+	readFile="${HOME:-}/.agents/magic-team/member-homes.registry"
 	if [ -f "$readFile" ] ; then
 		while IFS=$'\t' read -r readName readPath readRest ; do
 			[ "$readName" = "$readMember" ] && [ -n "$readPath" ] || continue

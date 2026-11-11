@@ -35,16 +35,13 @@ type AgentsToolsScheduleWorkDuty > /dev/null 2>&1 || rigRefuse "the schedule's f
 ## What the loop asks of the rest of the tooling, and what this check says.
 rigFlags="" rigMemberFlags="" rigLive="" rigDemand="" rigTagNews="" rigSlow="" rigRestart=""
 rigSpawnLog="$rigTmp/spawn.log" rigDismissLog="$rigTmp/dismiss.log" rigLifeLog="$rigTmp/life.log"
-rigRoster="magic-coordinator	/r/c
-magic-developer	/r/d
-magic-tester	/r/t
-keeper-myx	/r/k
-keeper-ae3	/r/a
-partner-ndm-ndxs	/r/p
-warden-x	/r/w
-client-ndm	/r/n
-magic-team	/r/m
-human-owner	/r/h"
+## A member stands only where its folder holds its armed file (AgentsToolsScheduleStanding), so each roster folder is a real one of this rig with that file.
+rigRoster=""
+for rigRow in magic-coordinator:c magic-developer:d magic-tester:t keeper-myx:k keeper-ae3:a partner-ndm-ndxs:p warden-x:w client-ndm:n magic-team:m human-owner:h ; do
+	mkdir -p "$rigTmp/r/${rigRow#*:}" && : > "$rigTmp/r/${rigRow#*:}/${rigRow%%:*}.armed.md"
+	rigRoster="${rigRoster:+$rigRoster
+}${rigRow%%:*}	$rigTmp/r/${rigRow#*:}"
+done
 AgentsToolsTeamMemberDirectoryText(){ printf '%s\n' "$rigRoster" ; }
 AgentsToolsTeamMemberReferenceOnly(){ return 1 ; }
 AgentsToolsScheduleCurrentFlags(){ printf '%s\n' "$rigFlags" ; }
@@ -52,7 +49,9 @@ AgentsToolsSchedulePaceText(){ if [ -n "$rigSlow" ] ; then printf 'pace: 9000 of
 AgentsToolsSchedulePaceAllows(){ [ -z "$rigSlow" ] ; }
 AgentsToolsScheduleDutyStaleClose(){ return 0 ; }
 AgentsToolsScheduleMemberFlag(){ case " $rigMemberFlags " in *" $1:$2 "*) printf 'on\n' ;; esac ; return 0 ; }
-AgentsToolsScheduleWorkDutyRecord(){ case " $rigLive " in *" $1 "*) printf '/rec/%s.spawn.md\n' "$1" ; return 0 ;; esac ; return 1 ; }
+## A duty started in this scene is live from then on, as the record a real start leaves would say: the pass runs in a capture, so the started
+## members are read from the spawn log's file and not from a variable the capture cannot change.
+AgentsToolsScheduleWorkDutyRecord(){ case " $rigLive $( [ -f "$rigSpawnLog.members" ] && LC_ALL=C tr '\n' ' ' < "$rigSpawnLog.members" ) " in *" $1 "*) printf '/rec/%s.spawn.md\n' "$1" ; return 0 ;; esac ; return 1 ; }
 AgentsToolsScheduleDutyLifetime(){ printf '%s allowed=%s\n' "$2" "$3" >> "$rigLifeLog" ; }
 AgentsToolsScheduleDutyRestartDue(){ case " $rigRestart " in *" $1 "*) return 0 ;; esac ; return 1 ; }
 AgentsToolsScheduleDemand(){ case " $rigDemand " in *" $1 "*) return 0 ;; esac ; return 1 ; }
@@ -63,13 +62,24 @@ AgentsToolsScheduleTagCarry(){ return 0 ; }
 AgentsToolsScheduleTagGive(){ return 0 ; }
 AgentsToolsScheduleDutyRoutine(){ printf 'magic-team.work-duty.routine.md\n' ; }
 AgentsToolsInboxDir(){ printf '%s\n' "$rigTmp/inbox-$1" ; }
+## A duty started is a duty live from then on (the record a real start leaves), so the next pass starts the next member and not this one again.
 AgentsToolsScheduleSpawn(){ printf '%s\n' "${2:-$1}" >> "$rigSpawnLog" ; case "$1" in work-duty.*) printf '%s\n' "${1#work-duty.}" >> "$rigSpawnLog.members" ;; esac ; return 0 ; }
 AgentsToolsScheduleDismiss(){ printf '%s\n' "$1" >> "$rigDismissLog" ; }
 AgentsToolsSpawnSandboxRecordHeader(){ LC_ALL=C awk -F': ' -v key="$2" '$0 == "---" && NR > 1 { exit } $1 == key { print $2 ; exit }' "$1" ; }
 
 rigReset(){ rm -f "$rigSpawnLog" "$rigSpawnLog.members" "$rigDismissLog" "$rigLifeLog" "$rigData"/board/pending/*.md "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null ; rigFlags="" rigMemberFlags="" rigLive="" rigDemand="" rigTagNews="" rigSlow="" rigRestart="" ; }
 rigStarted(){ [ -f "$rigSpawnLog.members" ] && LC_ALL=C sort "$rigSpawnLog.members" | tr '\n' ' ' | sed 's/ $//' ; printf '' ; }
-rigRunLoop(){ rigOut="$( AgentsToolsScheduleWorkDuty 2>&1 )" ; }
+## ONE START A PASS (the owner's rule): the passes run until one starts nothing, six at most, so a row reads what a few passes start.
+rigRunLoop(){
+	local loopPass=0 loopBefore
+	rigOut=""
+	while [ "$loopPass" -lt 6 ] ; do
+		loopPass=$(( loopPass + 1 ))
+		loopBefore="$( wc -l < "$rigSpawnLog.members" 2> /dev/null || echo 0 )"
+		rigOut="$rigOut${rigOut:+$'\n'}$( AgentsToolsScheduleWorkDuty 2>&1 )"
+		[ "$( wc -l < "$rigSpawnLog.members" 2> /dev/null || echo 0 )" != "$loopBefore" ] || break
+	done
+}
 rigRecord(){ ## member, status -- a spawn record of a work-duty run
 	mkdir -p "$rigWs/.local/agents/spawned/$1"
 	printf '%s\n' '---' "spawn-id: $1-run" "status: $2" "owner: $1" 'routine: magic-team.work-duty.routine.md' '---' > "$rigWs/.local/agents/spawned/$1/$1-run.spawn.md"

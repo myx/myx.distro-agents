@@ -72,6 +72,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - what others build on comes first. In software, a definition comes before its callers.
    - after each piece, the work stays usable. A piece that breaks it until a later one lands is split or reordered.
    - record each dependency as `blocks`/`blocked-by` between the pieces.
+   - an order is a claim about the state of the work each piece meets when it runs. Probe each piece against that state, and name every piece you did not probe.
 6. **name-what-each-piece-needs**: for each piece, make the best guess its dispatch can carry, steps:
    - the members and expertise, the access permissions, and the tools, worked out from its targets: paths, pages, any text.
    - every piece's access together, as one Permission set asked at the first dispatch, per `spawn-one-dispatch`'s **spawn-ask-access-once**.

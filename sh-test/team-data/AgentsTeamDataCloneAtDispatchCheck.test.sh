@@ -14,9 +14,11 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataCloneAtDispatchCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## The store's commit thread, and every other thread a scene started, ends before the rig goes (rigControlThreadsEnd, T1905Z).
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
 
 ## The remote every scenario clones from: one seed commit on main.
@@ -43,13 +45,14 @@ rigScenario(){ ## name, TEAM_DATA_GIT_REMOTE value
 }
 ## One op writing a note, guarded; the store is $rigDir/store unless named.
 rigOp(){ ## result file, store path
-	printf 'rig note\n' | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$2" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" MDAT_SPAWN_AGENT=magic-tester \
+	printf 'rig note\n' > "$rigDir/note.in"
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$2" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" MDAT_SPAWN_AGENT=magic-tester \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid \
-		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
+		RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_NOTE="$rigDir/note.in" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MDAT_DATA_ROOT outside the rig tree" >&2 ; exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$RIG_FN" --upsert-inbox-note magic-tester note-rig.md
+			cd "$MMDAPP" && exec bash "$RIG_FN" --upsert-inbox-note --team-member magic-tester note-rig.md --from-file "$RIG_NOTE"
 		' > "$1" 2> "$1.err"
 	printf '%s' "$?" > "$1.rc"
 }

@@ -8,8 +8,8 @@
 📘 syntax: AgentDispatcherTools.fn.sh --retro-lock-refresh [--team-member <team-member>]
 📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-advance [--team-member <team-member>] <ts>
 📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-read [--team-member <team-member>]
-📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --spawns [--team-member <team-member>] [--active|--waiting|--all]
 📘 syntax: AgentDispatcherTools.fn.sh --flags [--team-member <team-member>]
 📘 syntax: AgentDispatcherTools.fn.sh --tasks [--team-member <team-member>]
@@ -70,12 +70,12 @@
 			The standing lock of one routine refreshed, so it does not go stale while
 			the routine runs.
 
-		--roster-upsert [--from-file <path>|--edit-patch-from-stdin]
+		--roster-upsert [--edit-patch-from-stdin|--from-file <path>]
 			The team roster written whole, or patched by an edit patch.
 
 		--sweep-state-advance <ts>
 		--sweep-state-read
-		--sweep-state-upsert [--from-file <path>|--edit-patch-from-stdin]
+		--sweep-state-upsert [--edit-patch-from-stdin|--from-file <path>]
 			The communication sweep's state note: its stored last_swept_ts read,
 			advanced to a time, or written whole.
 

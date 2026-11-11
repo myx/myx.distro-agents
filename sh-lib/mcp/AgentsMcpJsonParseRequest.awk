@@ -100,6 +100,7 @@ function emitLeaf(path, raw, val,   f, idx, argName) {
 	else if (path == "params.name") { f = outDir "/tool_name"; print val > f; close(f); }
 	else if (path == "params.uri") { f = outDir "/uri"; print val > f; close(f); }
 	else if (path == "params.requestId") { f = outDir "/cancel_request_id"; print raw > f; close(f); }
+	else if (path == "params._meta.progressToken") { f = outDir "/progress_token"; print raw > f; close(f); }
 	else if (path == "params.clientInfo.name") { f = outDir "/client_name"; print val > f; close(f); }
 	else if (path == "params.clientInfo.version") { f = outDir "/client_version"; print val > f; close(f); }
 	else if (path == "params.clientInfo.sessionId") { f = outDir "/client_session"; print val > f; close(f); }
@@ -125,7 +126,7 @@ function emitLeaf(path, raw, val,   f, idx, argName) {
 	}
 }
 
-function parseValue(path,   c, startp, val, raw) {
+function parseValue(path,   c, startp, val, raw, f) {
 	skipws()
 	c = substr(s, p, 1)
 	if (c == "\"") {
@@ -134,7 +135,11 @@ function parseValue(path,   c, startp, val, raw) {
 		raw = substr(s, startp, p - startp)
 		emitLeaf(path, raw, val)
 	} else if (c == "{") {
+		startp = p
 		parseObject(path)
+		# The tool arguments as the bytes of the request, for a served tool that takes them whole (call-path audit row 14):
+		# already escaped for JSON, so the reader hands them over unchanged.
+		if (path == "params.arguments") { f = outDir "/arguments_raw"; print substr(s, startp, p - startp) > f; close(f); }
 	} else if (c == "[") {
 		parseArray(path)
 	} else if (c == "t") {

@@ -74,12 +74,54 @@ def resumeAnswered(text, about, width):
     return ("the resume",) + pauseAnswer(text, "resume", width)
 
 
+## What `--manager-session-stop` printed (S7.19): a `stop` row a run, the session, the run, its member and the outcome, or one `none`
+## row with its words. Each run is said with its member and the head of its id.
+def stopAnswered(text, about, width):
+    lines = []
+    said = []
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] == "stop" and len(fields) >= 5:
+            words = "%s: %s %s" % (fields[4], fields[3], fields[2][:8])
+        elif fields[0] == "none" and len(fields) >= 5:
+            words = fields[4]
+        else:
+            continue
+        said.append(words)
+        lines.extend("  " + part for part in wrapToCells(words, max(10, width - 3)))
+    return "the stop", lines, "stop: " + ("; ".join(said) if said else "the operation named no run")
+
+
+## What `--manager-session-restart` printed: a `restart` row, `session run member outcome detail`, or a `none` row. The status line
+## says each outcome with its member and run; the pane says the detail under it, the item and what the restart said.
+def restartAnswered(text, about, width):
+    lines = []
+    said = []
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] == "restart" and len(fields) >= 6:
+            words = "%s: %s %s" % (fields[4], fields[3], fields[2][:8])
+            detail = fields[5]
+        elif fields[0] == "none" and len(fields) >= 5:
+            words = fields[4]
+            detail = ""
+        else:
+            continue
+        said.append(words)
+        lines.extend("  " + part for part in wrapToCells(words, max(10, width - 3)))
+        if detail and detail != "-":
+            lines.extend("    " + part for part in wrapToCells(detail, max(10, width - 5)))
+    return "the restart", lines, "restart: " + ("; ".join(said) if said else "the operation named no run")
+
+
 ACTION_ANSWERS["kill"] = killAnswered
 ACTION_ANSWERS["control"] = controlAnswered
 ACTION_ANSWERS["start"] = startAnswered
 ACTION_ANSWERS["setting"] = settingAnswered
 ACTION_ANSWERS["pause"] = pauseAnswered
 ACTION_ANSWERS["resume"] = resumeAnswered
+ACTION_ANSWERS["stop"] = stopAnswered
+ACTION_ANSWERS["restart"] = restartAnswered
 
 
 ## The answer of an action, taken into the state. What the operation printed is set out
@@ -107,7 +149,7 @@ def applyCall(state, result):
         lines, summary = startAnswer(result["text"], about.get("name", ""), state.viewWidth)
     if result["status"] != 0:
         what += " failed"
-        tell(state, what[0].upper() + what[1:], ([summary] if lines else []) + failureLines(result))
+        tell(state, what[0].upper() + what[1:], ([summary] if lines and about["action"] == "control" else []) + failureLines(result))
         summary = ""
         lines = lines + wrapToCells(result["error"], max(10, state.viewWidth - 1))
     title = "%s, answered %s:" % (what, time.strftime("%H:%M:%S", time.localtime(nowEpoch())))

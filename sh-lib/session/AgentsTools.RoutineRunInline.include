@@ -59,6 +59,8 @@ AgentsToolsRoutineRunInline(){ ## routine selector
 			inlineTemp="$( mktemp "${MMDAPP:-.}/.local/temp/routine-run-inline.XXXXXX" )" || return 1
 			inlineResult="$inlineTemp"
 		fi
+		## The scan runs to its end before anything else is printed, so the caller is told what it waits for (on stderr, never in the run's text).
+		printf '%s\n' "RUN-INLINE: $inlineName runs its input scan ($inlineNames) for $inlineMember first; nothing more is printed until the scan ends." >&2
 		AgentsToolsInputScanDefRun "$inlineScans" "$inlineMember" "$inlineSession" "$inlineSpawn" "$inlineResult" || { [ -z "$inlineTemp" ] || rm -f "$inlineTemp" ; return 1 ; }
 		if [ -z "$inlineTemp" ] ; then
 			inlineLine="$( printf 'input-scan: input/%s of your sandbox holds the result of this routine'"'"'s input scan (%s), which this call ran for you now. In the steps below, "this run'"'"'s input scan result" means that file. Read it by line range; do not run the scan again.' "${inlineResult##*/}" "$inlineNames" )"

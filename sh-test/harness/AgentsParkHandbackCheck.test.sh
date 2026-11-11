@@ -22,8 +22,10 @@ mkdir -p "$MMDAPP/.local/temp"
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsParkHandbackCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
-mkdir -p "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/magic-team" "$rigTmp/skills/human-owner"
+mkdir -p "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/magic-team" "$rigTmp/skills/human-owner" "$rigTmp/skills/magic-coordinator"
 printf -- '---\nname: human-owner\nstatus: reference-only\n---\nrig owner\n' > "$rigTmp/skills/human-owner/SKILL.md"
+## The coordinator is a member of every team: a person-routed handback is addressed to it (AgentsHarnessReports.include).
+printf -- '---\nname: magic-coordinator\n---\nrig coordinator\n' > "$rigTmp/skills/magic-coordinator/SKILL.md"
 
 cat > "$rigTmp/bin/curl" <<'RIGCURL'
 #!/usr/bin/env bash
@@ -116,6 +118,10 @@ rigScene(){ ## scene name
 	printf '0' > "$rigDir/round"
 	: > "$rigDir/slack.calls"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+	## A person-routed run hands back to magic-coordinator's own conversation (the human-owner's ruling, AgentsHarnessReports.include),
+	## so the rig's coordinator needs a Slack account: its mention id is seeded in the cache the send reads, under the lock
+	## generation of a rig with no advance and heartbeat notes (the cksum of empty input). The fake curl opens the DM.
+	printf '%s\nmagic-coordinator=URIGCOORD1\n' "$( printf '' | cksum )" > "$rigWs/.local/.agents/slack-mention-ids.cache"
 	for rigMember in magic-coordinator human-owner ; do
 		mkdir -p "$rigWs/.local/agents/members/$rigMember"
 		printf -- '---\nname: %s\n---\nrig member\n' "$rigMember" > "$rigWs/.local/agents/members/$rigMember/SKILL.md"

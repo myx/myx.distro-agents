@@ -20,7 +20,7 @@ AgentsWaitProbeDms(){
 	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0 probeText=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
-	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
+	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
 	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
 	if [ -n "$probeKey" ] ; then
 		probePointer="$( AgentsToolsSessionChatPointer "$probeKey" "dms:$probeMember" 2> /dev/null )" || probePointer=""
@@ -29,7 +29,7 @@ AgentsWaitProbeDms(){
 		{ IFS= read -r probePointer < "$probeOut.pointer" ; } 2> /dev/null || probePointer=""
 	fi
 	probePointer="${probePointer:-$probeFloor}"
-	probeNow="$( date +%s )"
+	probeNow="${agentsWaitRoundNow:-$( date +%s )}"
 	case "$probeMember" in
 		client-*)
 			probeText=""
@@ -48,7 +48,9 @@ AgentsWaitProbeDms(){
 		*)
 			## The roster, kept for its time in the session: a list of conversations changes far more rarely than they are read.
 			if [ -n "$probeRosterFile" ] && [ -s "$probeRosterFile" ] && [ $(( probeNow - $( LC_ALL=C stat -f %m "$probeRosterFile" 2> /dev/null || stat -c %Y "$probeRosterFile" 2> /dev/null || echo 0 ) )) -lt "$agentsWaitDmsRosterSeconds" ] ; then
-				probeRoster="$( cat "$probeRosterFile" 2> /dev/null )"
+				## The kept roster is read by the shell, no process (call-path audit row 15); the trailing newlines go as a command substitution took them.
+				probeRoster="" ; IFS= read -r -d '' probeRoster < "$probeRosterFile" 2> /dev/null || :
+				while [ "${probeRoster%$'\n'}" != "$probeRoster" ] ; do probeRoster="${probeRoster%$'\n'}" ; done
 			else
 				type AgentsToolsCommsSlackConversationsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include" 2> /dev/null || :
 				## A roster one identity could not list is a partial one, used for what it names. A roster that lists nothing is a member
@@ -90,7 +92,8 @@ AgentsWaitProbeDms(){
 				while IFS= read -r probeLine ; do
 					case "$probeLine" in "CONV|"*) ;; *) continue ;; esac
 					probeConv="" probeKind="" probeIdentity="" probeParty=""
-					for probeIdentArg in $( printf '%s\n' "$probeLine" | LC_ALL=C tr '|' ' ' ) ; do
+					## The line is split by the shell, no tr process per line (call-path audit row 15).
+					for probeIdentArg in ${probeLine//|/ } ; do
 						case "$probeIdentArg" in
 							id=*) probeConv="${probeIdentArg#id=}" ;;
 							kind=*) probeKind="${probeIdentArg#kind=}" ;;
@@ -132,7 +135,7 @@ AgentsWaitDmsCommit(){ ## member, the file holding the newest ts
 	[ -f "$2" ] && IFS= read -r commitTs < "$2" || return 0
 	[ -n "$commitTs" ] || return 0
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
-	commitKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || commitKey=""
+	AgentsToolsSessionChatKeyInto ; commitKey="$agentsSessionChatKey"
 	if [ -n "$commitKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$commitKey" ] ; then
 		AgentsToolsSessionChatPointerSet "$commitKey" "dms:$1" "$commitTs"
 	else

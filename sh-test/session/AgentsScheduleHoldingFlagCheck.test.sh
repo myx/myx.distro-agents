@@ -6,15 +6,19 @@
 ##   1. SETTING holding stores an override with no end, and the override answers `holding: yes`.
 ##   2. --current-flags lists it, `holding: yes` while it holds and `holding: no` after `--override-flag --no holding`.
 ##   3. A TTL SETS AN END, and the flags line carries the seconds left.
-##   4. WHILE IT HOLDS THE LOOP STARTS NOTHING: no autorun, no duty, no supervision, no emergency start.
+##   4. WHILE IT HOLDS THE LOOP STARTS NOTHING: no autorun, no duty, no pending board item, no supervision, no emergency start.
 ##   5. AND IT STILL REPORTS AND LEARNS: what ended is reported and the learning step still runs, and those change no running state.
 ##   6. CLEARED, THE LOOP STARTS AGAIN, so the flag is a hold and not a one-way switch.
-## The settings reader is a stand-in over a key file of the rig's own, so no setting of any workspace is read or written here. The five
-## steps of the pass are stand-ins that record their own call: which routines are due is AgentsScheduleLoopCheck's and
-## AgentsAutorunCheck's question.
+## The settings reader is a stand-in over a key file of the rig's own, so no setting of any workspace is read or written here. Every step
+## of the pass is a stand-in that records its own call, so no board item is advanced and no session is made: which routines are due is
+## AgentsScheduleLoopCheck's and AgentsAutorunCheck's question. Until 2026-11-09 `AgentsToolsScheduleStartPending` had no stand-in, so
+## the pass reached the real `$MDAT_DATA_ROOT/board/pending` and advanced a real item while this check reported itself offline.
 ## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06:
-##   the holding gate at :1372-1377 deleted — row 4 fails with all four of its "starts nothing" assertions, and row 5's holding line fails.
-##   `holding` removed from the flags list at :204 — row 2 fails, and only row 2.
+##   the holding gate (the `MDAT_SCHEDULE_HOLDING` test that returns before the pass's steps, :1728-1732 at 2026-11-09 02:57) deleted —
+##   row 4 fails with all five of its "starts nothing" assertions, and row 5's holding line fails.
+##   `holding` removed from the flags list (the `for flagsFlag in` line, :227) — row 2 fails, and only row 2.
+## Measured 2026-11-09 on a copy: with `AgentsToolsScheduleStartPending` called above the holding gate instead of below it, the run reads
+## OK at 17 of 17 before this check's stand-in and assertion, and 1 of 18 red after it, on the row `no pending board item was started`.
 ## Offline: the include this check loads, a rig of its own, and no spawner, git or network.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -82,6 +86,7 @@ AgentsToolsScheduleAutorun(){ printf 'autorun\n' >> "$RIG_CALLS" ; }
 AgentsToolsScheduleWorkDuty(){ printf 'duty\n' >> "$RIG_CALLS" ; }
 AgentsToolsScheduleSupervision(){ printf 'supervision\n' >> "$RIG_CALLS" ; }
 AgentsToolsScheduleImportantEmergency(){ printf 'emergency\n' >> "$RIG_CALLS" ; }
+AgentsToolsScheduleStartPending(){ printf 'start-pending\n' >> "$RIG_CALLS" ; }
 PRELUDE
 ## EVERY CALL IS BOUNDED: a step that is not a stand-in would otherwise run the whole schedule in this rig, so the check says a call
 ## stood still rather than standing still with it. The words land in rigOut, and a call that overran is named as such.
@@ -136,6 +141,7 @@ rigAssert "no autorun was started" "$( rigLog autorun )" 0
 rigAssert "no duty was started" "$( rigLog duty )" 0
 rigAssert "no supervision was started" "$( rigLog supervision )" 0
 rigAssert "no emergency start was made" "$( rigLog emergency )" 0
+rigAssert "no pending board item was started" "$( rigLog start-pending )" 0
 rigAssert "what ended was still reported" "$( rigLog report )" 1
 rigAssert "and the learning step still ran" "$( rigLog learn )" 1
 

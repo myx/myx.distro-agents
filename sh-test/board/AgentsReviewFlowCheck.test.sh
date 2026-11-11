@@ -157,6 +157,16 @@ rigDecisions(){ ## item path, pattern -- matching Decisions lines
 	LC_ALL=C grep -c -E "^- [0-9TZ:-]+ [a-z-]+ $2" "$1" 2> /dev/null || :
 }
 rigPosts(){ LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" 2> /dev/null || : ; }
+## A send to a session thread is queued for the comms reader (S21.13), so the record stands in an outbox of the comms cache and the
+## fake curl sees no post: the records queued for one thread, those holding a text, counted off every outbox of the rig.
+rigQueued(){ ## thread ts, text the record holds
+	cat "$rigWs"/.local/cache/comms/*/*/outbox.messages.txt "$rigWs"/.local/cache/comms/*/*/outbox.pushing.txt 2> /dev/null | LC_ALL=C grep -F -- "$1" | LC_ALL=C grep -c -F -- "$2" || :
+}
+## A message to a session's thread is recorded in that session's chat first (the chatRecord of --intern-op-comms-slack-send-message), which
+## every reader of the session reads: whether the chat of a session holds a text, 1 or 0.
+rigChatHolds(){ ## session id, text
+	[ -f "$rigWs/.local/agents/sessions/$1/session.chat" ] && LC_ALL=C grep -q -F -- "$2" "$rigWs/.local/agents/sessions/$1/session.chat" && printf 1 || printf 0
+}
 rigWaitFor(){ ## seconds, test command...
 	local waitLeft="$1" ; shift
 	while ! "$@" && [ "$waitLeft" -gt 0 ] ; do sleep 1 ; waitLeft=$(( waitLeft - 1 )) ; done
@@ -611,7 +621,7 @@ rigTranscript rig-live-arc-$$
 sleep 1
 rigOp "$rigTmp/e1" --grooming-to-archived --team-member magic-coordinator dispatch-20261008T1200Z-arc.md --from-state:review --owner-header-value keeper-myx
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/e1.rc" ):$( rigLoc dispatch-20261008T1200Z-arc )" 0:archived
-rigAssert "DISMISSED went to the child"                    "$( LC_ALL=C grep -c '^END-DISMISS (archived): sent DISMISSED' "$rigTmp/e1" ):$( rigPosts )" 1:1
+rigAssert "DISMISSED went to the child: said sent, and recorded in the child session's chat" "$( LC_ALL=C grep -c '^END-DISMISS (archived): sent DISMISSED' "$rigTmp/e1" ):$( rigChatHolds "rig-live-arc-$$" DISMISSED )" 1:1
 rigAssert "Decisions: dismissed archived"                  "$( rigDecisions "$rigData/board/archived/dispatch-20261008T1200Z-arc.md" 'dismissed: archived: sent DISMISSED' )" 1
 rigAssert "transcript: ENDING"                             "$( LC_ALL=C grep -c " ENDING item=dispatch-20261008T1200Z-arc " "$rigTmp/tr-rig-live-arc-$$.log" )" 1
 
@@ -622,7 +632,7 @@ rigItem review dispatch-20261008T1200Z-tra rig-live-tr-$$
 sleep 1
 rigOp "$rigTmp/e2" --intern-op-board-trash magic-coordinator review dispatch-20261008T1200Z-tra.md
 rigAssert "the trash succeeds"                             "$( cat "$rigTmp/e2.rc" ):$( rigLoc dispatch-20261008T1200Z-tra )" 0:not-found
-rigAssert "DISMISSED went to the child"                    "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CTRA00001"' "$rigTmp/bodies" )" 1:1
+rigAssert "DISMISSED went to the child: recorded in the trashed item's child session chat" "$( rigChatHolds "rig-live-tr-$$" DISMISSED ):$( rigChatHolds "rig-live-tr-$$" magic-coordinator )" 1:1
 rigAssert "the trashed copy records the ending"            "$( rigDecisions "$rigData/trash/dispatch-20261008T1200Z-tra.md" 'dismissed: trashed: sent DISMISSED' )" 1
 
 echo "-- 15. shutdown: every live child dismissed, recorded on its item --"
@@ -644,11 +654,14 @@ printf '%s claude --add-dir %s/rig-held-sd3-%s/input --session-id rig-other-run-
 disown "$!" 2> /dev/null || :
 rigItem running dispatch-20261008T1200Z-sd1 rig-live-sd1-$$
 sleep 1
-rigOp "$rigTmp/e3" --shutdown-runs --team-member magic-coordinator
+rigOp "$rigTmp/e3p" --shutdown-runs --team-member magic-coordinator
+rigAssert "the bare form reads out: one plan line a live child, and a count that says none was ended" "$( LC_ALL=C grep -c -E "^SHUTDOWN-PLAN: spawn rig-live-sd[12]-$$: would be ended" "$rigTmp/e3p" ):$( LC_ALL=C grep -c -E '^SHUTDOWN-PLAN: 2 live spawn\(s\) would be ended, and none was' "$rigTmp/e3p" )" "2:1"
+rigAssert "and it ends nothing: no SHUTDOWN line, and no ending recorded on the item" "$( LC_ALL=C grep -c '^SHUTDOWN: ' "$rigTmp/e3p" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sd1.md" 'dismissed: shutdown: dismissed by the tooling' )" "0:0"
+rigOp "$rigTmp/e3" --shutdown-runs --team-member magic-coordinator --execute
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/e3.rc" )" 0
-rigAssert "both live children were sent DISMISSED"         "$( LC_ALL=C grep -c -E "^SHUTDOWN: spawn rig-live-sd[12]-$$: sent keeper-myx" "$rigTmp/e3" ):$( LC_ALL=C grep -c -x 'SHUTDOWN: 2 of 2 live spawn(s) dismissed' "$rigTmp/e3" )" 2:1
+rigAssert "both live children were dismissed by the tooling" "$( LC_ALL=C grep -c -E "^SHUTDOWN: spawn rig-live-sd[12]-$$: dismissed by the tooling" "$rigTmp/e3" ):$( LC_ALL=C grep -c -x 'SHUTDOWN: 2 of 2 live spawn(s) dismissed' "$rigTmp/e3" )" 2:1
 rigAssert "a spawn whose id only stands on another process's command line is no live child: nothing is said or sent for it" "$( LC_ALL=C grep -c -F "rig-held-sd3-$$" "$rigTmp/e3" )" 0
-rigAssert "the item records shutdown"                      "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sd1.md" 'dismissed: shutdown: sent keeper-myx' )" 1
+rigAssert "the item records shutdown"                      "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sd1.md" 'dismissed: shutdown: dismissed by the tooling' )" 1
 
 echo "-- 16. TaskStop: the process stopped as before, the ending recorded --"
 ## The runs stopped below report to nobody this rig names: the owners role granted the coordinator,
@@ -1171,7 +1184,7 @@ rigOp "$rigTmp/fl2" --intern-op-comms-slack-send-message magic-coordinator CFL00
 rigAssert "a send of the tooling's own, over the floor, is sent and reported" \
 	"$( cat "$rigTmp/fl2.rc" ):$( LC_ALL=C grep -c 'IT WAS WRITTEN ANYWAY' "$rigTmp/fl2" ):$( LC_ALL=C grep -c '^SENT_MESSAGE_TS=' "$rigTmp/fl2" ):$( LC_ALL=C grep -c '^CORRECTION' "$rigTmp/fl2" )" 0:1:1:0
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
-rigOp "$rigTmp/fl3" --slack-send-message magic-coordinator CFL00001:1700000000.000950 "$rigLongText"
+rigOp "$rigTmp/fl3" --slack-send-message --team-member magic-coordinator CFL00001:1700000000.000950 "$rigLongText"
 rigEnv=()
 rigAssert "a member's own send of the same text is not sent: a correction, with its own code" \
 	"$( cat "$rigTmp/fl3.rc" ):$( LC_ALL=C grep -c '^CORRECTION: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c '^- word-cap: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c '^- semicolon: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c -x 'NEXT: rewrite the sentences or paragraphs named above and send the message again' "$rigTmp/fl3" ):$( rigPosts )" 6:1:1:1:1:0

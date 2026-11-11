@@ -24,7 +24,7 @@ AgentsToolsRegistryFile(){ ## registry name
 ## place: a rebuild that merged would keep a row nobody can delete alive forever.
 AgentsToolsRegistryWrite(){ ## registry name, rows function
 	local registryFile registryTemp
-	registryFile="$( AgentsToolsRegistryFile "$1" )"
+	registryFile="$MMDAPP/.local/agents/$1.registry"
 	mkdir -p "${registryFile%/*}" || return 1
 	## A temp file of this rebuild's own, by mktemp and never by $$: a rebuild started in a
 	## subshell (a command a harness runs for its member) has its shell's $$, so two at
@@ -290,7 +290,7 @@ AgentsToolsRegistryAgentsIndicesBuild(){ ## the operation as it was called, regi
 	[ $# -eq 0 ] || shift
 	while read -r indicesName indicesRebuild ; do
 		[ $# -eq 0 ] || case " $* " in *" $indicesName "*) ;; *) continue ;; esac
-		indicesFile="$( AgentsToolsRegistryFile "$indicesName" )"
+		indicesFile="$MMDAPP/.local/agents/$indicesName.registry"
 		if "$indicesRebuild" ; then
 			indicesRows="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$indicesFile" )"
 			echo "# $MDSC_CMD $registryBuildOp: wrote $indicesFile ($indicesRows rows)" >&2
@@ -408,9 +408,9 @@ AgentsToolsRegistryHousekeepingDue(){
 AgentsToolsRegistryPendingSessionOpen(){ ## session-id
 	local wantSession="$1" pendingFile spawnedFile
 	[ -n "$wantSession" ] && [ "$wantSession" != "-" ] || return 1
-	pendingFile="$( AgentsToolsRegistryFile pending-replies )"
+	pendingFile="$MMDAPP/.local/agents/pending-replies.registry"
 	[ -f "$pendingFile" ] || return 1
-	spawnedFile="$( AgentsToolsRegistryFile spawned-sessions )"
+	spawnedFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	[ -f "$spawnedFile" ] || spawnedFile=""
 	## pending-replies columns: key source session-id owner status blocked-on
 	## communication-channel-id -- session-id is field 3, source is field 2,
@@ -544,11 +544,8 @@ AgentsToolsRegistryDeriveState(){ ## status, live, session-id, run id
 	esac
 	[ "$dsLive" != "remote" ] || { printf 'unclosed\n' ; return 0 ; }
 	[ "$dsLive" != "running" ] || { printf 'running\n' ; return 0 ; }
-	if AgentsToolsRegistryPendingSessionOpen "$dsSession" ; then
-		printf 'waiting\n'
-	else
-		printf 'unclosed\n'
-	fi
+	## A run with no live process never reads waiting (sketch 5.4): an open ask of the session leaves the run unclosed; the ask stands on the session row.
+	printf 'unclosed\n'
 }
 
 ## The session ids of a spawned-sessions registry that AgentsToolsRegistryPendingSessionOpen
@@ -560,7 +557,7 @@ AgentsToolsRegistryDeriveState(){ ## status, live, session-id, run id
 ## session too, as that function finds it: an ask carries the id of the run that asked.
 AgentsToolsRegistryPendingOpenSessions(){ ## spawned-sessions registry file
 	local openPending
-	openPending="$( AgentsToolsRegistryFile pending-replies )"
+	openPending="$MMDAPP/.local/agents/pending-replies.registry"
 	printf '\n'
 	[ -f "$openPending" ] && [ -f "$1" ] || return 0
 	LC_ALL=C awk '
@@ -1159,14 +1156,8 @@ AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-sessi
 	esac
 	[ "$2" != "remote" ] || { derivedState="unclosed" ; return 0 ; }
 	[ "$2" != "running" ] || { derivedState="running" ; return 0 ; }
+	## A run with no live process never reads waiting (sketch 5.4): an open ask of its session leaves the run unclosed.
 	derivedState="unclosed"
-	[ -n "$3" ] && [ "$3" != "-" ] || return 0
-	case "$3" in
-		*\\*) ! AgentsToolsRegistryPendingSessionOpen "$3" || derivedState="waiting" ;;
-		*) case "$4" in *"
-$3
-"*) derivedState="waiting" ;; esac ;;
-	esac
 	return 0
 }
 
@@ -1279,7 +1270,7 @@ $askerId
 ## fresh; an empty one says it is empty, which is not the same statement.
 AgentsToolsRegistryRenderPlain(){ ## heading, registry name, columns, rebuild function
 	local registryFile registryRow sawRow="false"
-	registryFile="$( AgentsToolsRegistryFile "$2" )"
+	registryFile="$MMDAPP/.local/agents/$2.registry"
 	printf '%s\n\n' "## $1"
 	if ! "$4" ; then
 		printf '%s\n\n' "**NOTE:** no scan was made -- the registry could not be rebuilt at $registryFile"
@@ -1472,9 +1463,9 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 }' "$measuredFile" 2> /dev/null | LC_ALL=C
 				}
 				if ( rowLive == "remote" ) return "unclosed" ;
 				if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
-				if ( rowSession == "" || rowSession == "-" ) return "unclosed" ;
-				if ( index( rowSession, "\\" ) > 0 ) { return ( index( backslashSet, "\n" rowSession "\n" ) > 0 ) ? "waiting" : "unclosed" ; }
-				return ( index( openSet, "\n" rowSession "\n" ) > 0 ) ? "waiting" : "unclosed" ;
+				## A RUN WITH NO LIVE PROCESS NEVER READS waiting (sketch 5.4): an open ask of the session does not make a dead run wait,
+				## it leaves the run unclosed, and the ask stands on the session. The open-ask sets stay for the session row.
+				return "unclosed" ;
 			}
 			## The routine a run started from: the first record of its spawn, and the first
 			## `routine: ` line of that record frontmatter, as the awk this replaces read it.
@@ -1576,7 +1567,7 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
 	local registryFile thisHost thisWorkspace rowState rowLive
 	local extendedRows="" registryRow sawRow="false" sawAny="false" measuredRows="" measuredDated="" measuredAny="false"
-	registryFile="$( AgentsToolsRegistryFile spawned-sessions )"
+	registryFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	printf '%s\n\n' "## spawned sessions"
 	if [ ! -d "$MMDAPP/.local/agents/spawned" ] ; then
 		printf '%s\n\n' "**NOTE:** no scan was made -- no spawn sandbox root exists yet, so no spawn has ever run in this workspace"

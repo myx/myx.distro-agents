@@ -28,6 +28,11 @@ AgentsToolsDocGuardRegistry(){
 AgentsToolsDocGuardMatch(){ ## path
 	case "$1" in
 		*.routine.md) return 0 ;;
+		## The vault kinds (S12.30), by the type word that opens the file's name, as their contracts state it: a vault holds many file
+		## types, so the kind is the name's prefix and the extension stays the file's own. The planning and tracking kinds are declared
+		## and have no contract yet; MAGIC.md the same.
+		*/epic-blueprint-*.md|epic-blueprint-*.md|*/investigation-*.md|investigation-*.md|*/adr-*.md|adr-*.md|*/verbatim-record-*.md|verbatim-record-*.md) return 0 ;;
+		*/planning-*.md|planning-*.md|*/tracking-*.md|tracking-*.md|*/MAGIC.md|MAGIC.md) return 0 ;;
 		*) return 1 ;;
 	esac
 }
@@ -40,8 +45,10 @@ AgentsToolsDocGuardRow(){ ## path
 	while IFS=$'\t' read -r regKind regExt regState regContract ; do
 		[ -n "$regKind" ] || continue
 		case "$regKind" in '#'*) continue ;; esac
-		case "$1" in
-			*"$regExt") printf '%s\t%s\t%s\n' "$regKind" "$regState" "$regContract" ; return 0 ;;
+		## A column holding `*` is a name pattern, matched on the file's own name; any other is the name's ending.
+		case "$regExt" in
+			*'*'*) case "${1##*/}" in $regExt) printf '%s\t%s\t%s\n' "$regKind" "$regState" "$regContract" ; return 0 ;; esac ;;
+			*) case "$1" in *"$regExt") printf '%s\t%s\t%s\n' "$regKind" "$regState" "$regContract" ; return 0 ;; esac ;;
 		esac
 	done < "$regFile"
 	return 1

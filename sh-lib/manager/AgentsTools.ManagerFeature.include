@@ -22,17 +22,51 @@
 AgentsToolsManagerFeatureRoot(){
 	printf '%s\n' "$MDLT_ORIGIN/myx/mdci-packages-myx"
 }
-AgentsToolsManagerFeatureNames(){ ## the features, one a line: the folders setup.feature-* that have a check fragment
-	local namesDir
+## AN INSTALLABLE DECLARES ITSELF (S7.1): a package that is a feature of the console says so in its own project.inf,
+## `Declares: mdci-installable:feature:<name>`, and the console finds it in the declares index the system build keeps
+## (`.local/system-index/distro-declares.txt`, a row `<project> <declaration>`), never by walking a tree and never by a
+## list of its own. The feature's folder is its project's. The index is read where it stands and never built here: a
+## workspace with no index, or a package that declares nothing yet, is served by the folders setup.feature-* of
+## mdci-packages-myx, as before. A declared name wins over the folder of the same name.
+AgentsToolsManagerFeatureDeclared(){ ## -- `<name><TAB><folder>` a line, from the declares index of this workspace, where it has one
+	local declaredIndex="${MMDAPP%/}/.local/system-index/distro-declares.txt"
+	[ -f "$declaredIndex" ] || return 0
+	LC_ALL=C awk -v origin="$MDLT_ORIGIN" '
+		NF >= 2 && index( $2, "mdci-installable:feature:" ) == 1 {
+			name = substr( $2, 26 )
+			if ( name == "" || ( name in seen ) ) next
+			seen[name] = 1
+			print name "\t" origin "/" $1
+		}' "$declaredIndex" 2> /dev/null || :
+}
+AgentsToolsManagerFeatureDir(){ ## feature -- its folder: the project that declares it, else the folder of its name under the features' root
+	local dirName dirFolder
+	while IFS=$'\t' read -r dirName dirFolder ; do
+		[ "$dirName" = "$1" ] || continue
+		printf '%s\n' "$dirFolder"
+		return 0
+	done <<< "$( AgentsToolsManagerFeatureDeclared )"
+	printf '%s\n' "$( AgentsToolsManagerFeatureRoot )/$1"
+}
+AgentsToolsManagerFeatureNames(){ ## the features, one a line: those declared, then the folders setup.feature-* not declared, each with a check fragment
+	local namesDir namesName namesFolder namesSeen=" "
+	while IFS=$'\t' read -r namesName namesFolder ; do
+		[ -n "$namesName" ] && [ -d "$namesFolder/host/install" ] || continue
+		AgentsToolsManagerFeatureFragment "$namesName" check > /dev/null || continue
+		namesSeen="$namesSeen$namesName "
+		printf '%s\n' "$namesName"
+	done <<< "$( AgentsToolsManagerFeatureDeclared )"
 	for namesDir in "$( AgentsToolsManagerFeatureRoot )"/setup.feature-* ; do
 		[ -d "$namesDir/host/install" ] || continue
+		case "$namesSeen" in *" ${namesDir##*/} "*) continue ;; esac
 		AgentsToolsManagerFeatureFragment "${namesDir##*/}" check > /dev/null || continue
 		printf '%s\n' "${namesDir##*/}"
 	done
 }
 AgentsToolsManagerFeatureFragment(){ ## feature, install|uninstall|check -- the path of that fragment, rc 1 where the feature has none
-	local fragmentFile
-	for fragmentFile in "$( AgentsToolsManagerFeatureRoot )/$1"/host/install/*."$2".txt "$( AgentsToolsManagerFeatureRoot )/$1"/host/install/*."$2".sh ; do
+	local fragmentFile fragmentDir
+	fragmentDir="$( AgentsToolsManagerFeatureDir "$1" )"
+	for fragmentFile in "$fragmentDir"/host/install/*."$2".txt "$fragmentDir"/host/install/*."$2".sh ; do
 		[ -f "$fragmentFile" ] || continue
 		printf '%s\n' "$fragmentFile"
 		return 0
@@ -44,7 +78,7 @@ AgentsToolsManagerFeatureFragment(){ ## feature, install|uninstall|check -- the 
 AgentsToolsManagerFeatureCheck(){ ## feature
 	local checkFile
 	checkFile="$( AgentsToolsManagerFeatureFragment "$1" check )" || return 2
-	env MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDCI_FILES_PATH="$( AgentsToolsManagerFeatureRoot )/$1/data" MDCI_CHECK_PARSE=1 sh "$checkFile" 2> /dev/null < /dev/null
+	env MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDCI_FILES_PATH="$( AgentsToolsManagerFeatureDir "$1" )/data" MDCI_CHECK_PARSE=1 sh "$checkFile" 2> /dev/null < /dev/null
 }
 
 ## The rows of one feature's check, on standard input: `feature` first, then a `part` for each part. The fields are the same in both:
@@ -71,7 +105,10 @@ AgentsToolsManagerFeatureRows(){ ## feature
 			at = index( $0, ": " )
 			if ( at == 0 ) { next }
 			key = substr( $0, 1, at - 1 ) ; value = substr( $0, at + 2 )
-			if ( ++lines == 1 ) { first = value ; next }
+			## The state is the first line whose value is a state word, wherever the check puts it: a check may print its
+			## platform, home and size before `<feature>: installed`, and a first-line reading then called an installed feature broken.
+			lines++
+			if ( first == "" && ( value == "installed" || value == "not installed" || value == "broken" || value == "not supported here" ) ) { first = value ; next }
 			values[key] = value
 			if ( key ~ /^part\..*\.part$/ ) { id = substr( key, 6, length( key ) - 10 ) ; ids[++count] = id }
 			if ( key ~ /^engine\.[a-z]+\.state$/ ) { detail = detail ( detail == "" ? "" : "; " ) substr( key, 1, length( key ) - 6 ) "=" value ; next }
@@ -79,6 +116,7 @@ AgentsToolsManagerFeatureRows(){ ## feature
 		}
 		END {
 			if ( lines == 0 ) { first = "broken" ; detail = "the check printed nothing" }
+			else if ( first == "" ) { first = "broken" ; detail = detail ( detail == "" ? "" : "; " ) "the check named no state" }
 			state = norm( first )
 			disk = "-" ; memory = "-" ; running = "-"
 			if ( ( "disk_bytes" in values ) ) { disk = values["disk_bytes"] }
@@ -113,7 +151,8 @@ AgentsToolsManagerFeaturePartState(){ ## feature, part
 		{
 			at = index( $0, ": " ) ; if ( at == 0 ) { next }
 			key = substr( $0, 1, at - 1 ) ; value = substr( $0, at + 2 )
-			if ( ++lines == 1 ) { first = value ; next }
+			lines++
+			if ( first == "" && ( value == "installed" || value == "not installed" || value == "broken" || value == "not supported here" ) ) { first = value ; next }
 			if ( key ~ /^part\..*\.part$/ ) { parts[substr( key, 6, length( key ) - 10 )] = value ; anyparts = 1 }
 			if ( key == "part." part ".state" ) { found = norm( value ) }
 		}
@@ -192,7 +231,7 @@ case "$1" in
 			*) echo "⛔ ERROR: $MDSC_CMD $partOp: syntax is $partSyntax, got: ${partAction:-no action}" >&2 ; set +e ; return 1 ;;
 		esac
 		AgentsToolsManagerFeatureNames | LC_ALL=C grep -q -x -F -- "$partFeature" || { AgentsToolsManagerFeatureRefuse "$partOp" "no such feature: $partFeature" ; set +e ; return 1 ; }
-		partDir="$( AgentsToolsManagerFeatureRoot )/$partFeature"
+		partDir="$( AgentsToolsManagerFeatureDir "$partFeature" )"
 		partCheck="$( AgentsToolsManagerFeatureCheck "$partFeature" )" || :
 		partState="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeaturePartState "$partFeature" "$partPart" )" || { AgentsToolsManagerFeatureRefuse "$partOp" "$partFeature has no part $partPart" ; set +e ; return 1 ; }
 		case "$partAction:$partState" in

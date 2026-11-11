@@ -1,8 +1,8 @@
 📘 syntax: DistroAgentsContacts.fn.sh --send-contact-digest [--team-member <team-member>] [<origin team-member>] (--resolved|--needs-ruling) <text...>
-📘 syntax: DistroAgentsContacts.fn.sh --collect-contact [--team-member <team-member>] --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier ingest|basic|partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
+📘 syntax: DistroAgentsContacts.fn.sh --collect-contact [--team-member <team-member>] --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--language <word>] [--owner yes|no] [--tier tier-moot|tier-contact|tier-client|tier-admin|tier-owner] [--scope-tier <scope>=<tier>]... [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
 📘 syntax: DistroAgentsContacts.fn.sh --collect-organisation [--team-member <team-member>] --id <slug> [--name <text>] [--domain <text>] [--note <text>] [--correct]
-📘 syntax: DistroAgentsContacts.fn.sh --find-contact [--team-member <team-member>] <value> [--team <scope>] [--reached-by <member>]
-📘 syntax: DistroAgentsContacts.fn.sh --all-contacts [--team-member <team-member>] [--organisation <slug>] [--reached-by <member>]
+📘 syntax: DistroAgentsContacts.fn.sh --find-contact [--team-member <team-member>] <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]
+📘 syntax: DistroAgentsContacts.fn.sh --all-contacts [--team-member <team-member>] [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]
 📘 syntax: DistroAgentsContacts.fn.sh --all-organisations [--team-member <team-member>]
 📘 syntax: DistroAgentsContacts.fn.sh --contact-record [--team-member <team-member>] <id>
 📘 syntax: DistroAgentsContacts.fn.sh --contacted-by [--team-member <team-member>] <value> [--team <scope>]
@@ -27,24 +27,34 @@
 			One digest of the contacts' open questions into the contacts' channel,
 			said as resolved or as needing the human-owner's ruling.
 
-		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier ingest|basic|partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
+		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--language <word>] [--owner yes|no] [--tier tier-moot|tier-contact|tier-client|tier-admin|tier-owner] [--scope-tier <scope>=<tier>]... [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]
 			A contact recorded, or filled where it is recorded already. The calling
 			member is added to who holds it. A coordinate is dropped with
 			`--drop`, and `--correct` says the record was wrong rather than merely
-			incomplete. `--tier` is the human-owner's alone: `ingest`, `basic`,
-			`partner` or `recorded`, each including the tiers below it, and a value
-			that is none of them is refused. A member's `--tier` call writes nothing:
+			incomplete. `--tier` is the human-owner's alone: `tier-moot`,
+			`tier-contact`, `tier-client`, `tier-admin` or `tier-owner`, lowest first,
+			each including the tiers below it. The old words `ingest`, `basic`,
+			`partner` and `recorded` are read as `tier-moot`, `tier-contact`,
+			`tier-client` and `tier-admin`. A value that is none of them is refused. A member's `--tier` call writes nothing:
 			it asks him once, in his own conversation, naming the contact and the
 			tier it proposes, and prints `ASKED <contact> <tier> <ask>`. His word is
 			what the record takes, and the action his answer runs is that same call.
+			`--scope-tier <scope>=<tier>` gives the contact a tier for one project,
+			product or team scope, as `rmm2=tier-client`, and is repeated for more
+			scopes. It is the human-owner's to set, as `--tier` is: a member's call
+			(one scope a call) writes nothing, asks him once for that scope and prints
+			`ASKED <contact> <scope>=<tier> <ask>`; his word, used once, is the scope's
+			tier. A contact of an
+			organisation, given no tier, holds `tier-contact` at once, without an ask.
+			`--contacted-by <value> --team <scope>` reads the tier of that scope.
 
 		--collect-organisation --id <slug> [--name <text>] [--domain <text>] [--note <text>] [--correct]
 			An organisation recorded, or filled where it is recorded already.
 
-		--find-contact <value> [--team <scope>] [--reached-by <member>]
-			The contacts a value names, a row each; rc 1 with none.
+		--find-contact <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]
+			The contacts a value names, a row each, the last field the contact's scope tiers; rc 1 with none. --scope keeps the contacts holding that scope tier.
 
-		--all-contacts [--organisation <slug>] [--reached-by <member>]
+		--all-contacts [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]
 		--all-organisations
 			Every contact, or every organisation, a row each; the contacts narrow to
 			one organisation or to those a member reaches.

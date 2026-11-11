@@ -104,7 +104,7 @@ AgentsHarnessSendProse(){ ## values...
 ## on stdin, where no shell quoting can reach it -- a single apostrophe in a composed
 ## send emptied one live message in this estate.
 AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
-	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" toolNext="${7:-}" sendRc=0 toolShown="" toolSession toolInbox
+	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" toolInboxOnly="" toolNext="${7:-}" toolAgain="${9:-}" sendRc=0 toolShown="" toolSession toolInbox
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -118,9 +118,23 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 	## rule is the send operation's too (AgentsToolsCommsPrintbackSessionOwnTarget), so served and direct
 	## sends default alike. An ad-hoc/solo spawn holding no channel keeps today's explicit-target
 	## requirement exactly -- the error just below fires precisely as it always has.
+	## A SEND NAMING NO TARGET GOES WHERE THE MEMBER WAS LAST ASKED (his design, 2026-11-10): the newest reply this member owes, the one
+	## a Wait handed it from a person (schedule/owed/<member>, AgentsTools.OwedReplies.include), is the place of a plain reply; with
+	## nothing owed, the run's own session thread. A handback keeps its own route.
+	if [ -z "$toolTarget" ] && [ "$toolNext" = "reply" ] ; then
+		local owedNewest=""
+		owedNewest="$( LC_ALL=C awk -F '\t' '$2 ~ /^slack:[A-Z0-9]+:[0-9.]+$/ { last = $2 } END { if ( last != "" ) print substr( last, 7 ) }' "$MMDAPP/.local/agents/schedule/owed/$harnessAgent" 2> /dev/null )" || owedNewest=""
+		if [ -n "$owedNewest" ] ; then
+			toolTarget="$owedNewest"
+			toolShown="$owedNewest (the thread of the newest message you were asked in)"
+		fi
+	fi
 	if [ -z "$toolTarget" ] ; then
 		type AgentsToolsCommsPrintbackSessionOwnTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
 		toolTarget="$( AgentsToolsCommsPrintbackSessionOwnTarget 2> /dev/null )" || toolTarget=""
+	fi
+	if [ -z "$toolTarget" ] || [ -z "$toolMessage" ] ; then
+		printf 'ERROR: both to and message are required, and one of them was empty. Nothing was sent.\n' ; return 0
 	fi
 	case "$toolTarget" in
 		"$harnessCurrentName"|"$harnessCurrentName":*|"$harnessParentName"|"$harnessParentName":*)
@@ -137,12 +151,15 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 			if [ -n "$toolSession" ] ; then
 				toolShown="$toolTarget (${toolSession#* })"
 				toolTarget="${toolSession%% *}"
+			else
+				## A MEMBER'S MESSAGE TO A MEMBER NEVER GOES TO A DM (the human-owner's ruling, 2026-11-10): a member's DM is the owner's own channel with
+				## that persona, so a handback or a note sent there landed in his personal conversation. With no live session of the member to
+				## reach, the message goes to its inbox. A question that waits for its answer (toolNoInbox) is not this: it keeps the DM.
+				[ "$toolNoInbox" = "true" ] || toolInboxOnly="true"
 			fi
 		;;
 	esac
-	if [ -z "$toolTarget" ] || [ -z "$toolMessage" ] ; then
-		printf 'ERROR: both to and message are required, and one of them was empty. Nothing was sent.\n' ; return 0
-	fi
+
 	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other send path exists here. Nothing was sent.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
@@ -151,8 +168,10 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 	case "$toolAsBot" in
 		true|1|yes) set -- "$@" --identity-bot ;;
 	esac
+
 	[ -z "$toolAddressTo" ] || set -- "$@" --address-to "$toolAddressTo"
 	[ "$toolBroadcast" != "true" ] || set -- "$@" --reply-broadcast
+	[ "$toolAgain" != "true" ] || set -- "$@" --again
 	## Output to a file rather than a capture: the operation forks curl, and a capture
 	## returns on pipe EOF rather than on the command it ran.
 	## send.delivered is written only by a delivery that succeeded, Slack or inbox: what a
@@ -164,7 +183,10 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 	[ "$toolNext" != "reply" ] || toolAsync="true"
 	## Only the sender's own words are measured against the plain-language floor: named by
 	## the caller in harnessSendProse for this one send, else the whole message is theirs.
-	if [ "${harnessSendProse+set}" = "set" ] ; then
+	if [ "$toolInboxOnly" = "true" ] ; then
+		sendRc=1
+		printf 'ERROR: --slack-send-message: NO-SLACK-DM: a member reaches a member by its live session or its inbox, never by the DM, which is the human-owner'"'"'s own channel\n' > "$harnessScratch/send.out"
+	elif [ "${harnessSendProse+set}" = "set" ] ; then
 		printf '%s' "$harnessSendProse" > "$harnessScratch/send.prose"
 		printf '%s' "$toolMessage" | MDAT_SEND_ASYNC="$toolAsync" MDAT_SEND_PROSE_FILE="$harnessScratch/send.prose" "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
 	else
@@ -183,7 +205,7 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$harnessAgent" "$( date +'%Y-%m-%d %H:%M %z' )" "$toolTarget" "$toolMessage" ; } \
 			| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --upsert-inbox-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
 			printf 'inbox %s %s\n' "$toolTarget" "$toolInbox" > "$harnessScratch/send.delivered"
-			printf 'Sent to the inbox of %s as %s, because that team member has no Slack DM channel of its own. It is read only when that member next processes its inbox.\n' "$toolTarget" "$toolInbox"
+			printf 'Sent to the inbox of %s as %s, because that team member has no live session to reach and its DM is the own channel of the human-owner, which no member message uses. It is read only when that member next processes its inbox.\n' "$toolTarget" "$toolInbox"
 		else
 			printf 'ERROR: %s has no Slack DM channel, and its inbox refused the hand-off, so nothing was sent. What the operation reported follows:\n' "$toolTarget"
 			cat "$harnessScratch/inbox.out"
@@ -389,7 +411,8 @@ AgentsHarnessSendDismissRefused(){ ## target as given, message, address to
 	[ -n "$dismissSession" ] || return 1
 	dismissRun="$( AgentsToolsSessionSeatHolder "$dismissSession" "$dismissMember" )" || dismissRun=""
 	if [ -z "$dismissRun" ] ; then
-		for dismissCandidate in $( LC_ALL=C grep -l -x -F "session-id: $dismissSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+		for dismissCandidate in $( AgentsToolsSpawnedSessionRecords "$dismissSession" own 2> /dev/null ) ; do
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$dismissCandidate" owner )" = "$dismissMember" ] || continue
 			AgentsToolsSessionRecordLive "$dismissCandidate" || continue
 			dismissRun="${dismissCandidate##*/}" ; dismissRun="${dismissRun%.spawn.md}"
@@ -408,8 +431,8 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s. Nothing was appended.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
-	appendOut="$( MDAT_SPAWN_SESSION_ID="$( AgentsHarnessSessionKey )" "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
-		--append-transcript "${harnessAgent:-unknown}" --message "$1" 2>&1 )" || appendRc=$?
+	appendOut="$( MDAT_SPAWN_SESSION_ID="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+		--append-transcript --team-member "${harnessAgent:-unknown}" --message "$1" 2>&1 )" || appendRc=$?
 	if [ "$appendRc" != "0" ] ; then
 		appendOut="$( printf '%s\n' "$appendOut" | LC_ALL=C grep -F 'ERROR:' | tail -1 )"
 		[ -n "$appendOut" ] || appendOut="ERROR: the append failed (rc=$appendRc). Nothing was appended."
@@ -468,7 +491,7 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 	esac
 	## The member this call resolved is the member the operation acts as, and the session is the one
 	## the call runs in: the tool file takes neither as an argument, which is what locks it to them.
-	toolOut="$( MDAT_SPAWN_AGENT="$harnessAgent" MDAT_SPAWN_SESSION_ID="$( AgentsHarnessSessionKey )" \
+	toolOut="$( MDAT_SPAWN_AGENT="$harnessAgent" MDAT_SPAWN_SESSION_ID="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" \
 		"$BASH" "$toolFn" "${toolArgs[@]}" 2>&1 )" || toolRc=$?
 	if [ "$toolRc" != "0" ] ; then
 		## A CORRECTION from the plain-language floor is no error: it is the member's to rewrite, and is returned whole.

@@ -10,7 +10,7 @@
 📘 syntax: DistroAgentsSession.fn.sh --wait-session-channel [--team-member <team-member>] [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]
 📘 syntax: DistroAgentsSession.fn.sh --get-dispatch-text [--team-member <team-member>]
 📘 syntax: DistroAgentsSession.fn.sh --get-uninvited-participants [--team-member <team-member>]
-📘 syntax: DistroAgentsSession.fn.sh --update-routine-state [--team-member <team-member>] [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsSession.fn.sh --update-routine-state [--team-member <team-member>] [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--edit-patch-from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsSession.fn.sh --executor-checkpoint-push [--team-member <team-member>] [<name>]
 📘 syntax: DistroAgentsSession.fn.sh --executor-checkpoint-rewind [--team-member <team-member>] [<name>] [--from-stdin]
 📘 syntax: DistroAgentsSession.fn.sh --executor-checkpoint-exit [--team-member <team-member>]
@@ -89,12 +89,13 @@
 			Closes a question that was settled elsewhere, so it stops waiting for an answer,
 			and says why. `--withdraw` closes it with no verdict at all.
 
-		--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]
+		--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--edit-patch-from-stdin|--from-file <path>]
 			The update of the locked document of the session's routine. The session
-			knows the routine and the document the spawner locked, so the call names
-			neither and any participant of a locked session may make it. The
-			lock-owned fields stay as the spawner set them, and the update is
-			committed before it returns.
+			knows the routine and the document the spawner locked, so the call needs
+			neither, and any participant of a locked session may make it. `--document`
+			is optional: where given it is the bare filename of the locked note, and
+			the namespaced form is refused. The lock-owned fields stay as the
+			spawner set them, and the update is committed before it returns.
 
 		--executor-checkpoint-push [<name>]
 		--executor-checkpoint-rewind [<name>] [--from-stdin]

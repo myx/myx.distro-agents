@@ -32,13 +32,28 @@ if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 		if [ -z "$actingName" ] && [ -n "${MMDAPP:-}" ] ; then
 			## An MCP server hands its adopted root session down as MDAT_SPAWN_SESSION_ID, so that id is
 			## read here too: a root session has no spawn record, and its own store names its member.
-			actingStore="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-}}}"
+			actingStore="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 			case "$actingStore" in
 				''|*/*|.|..) ;;
 				*)
-					actingRoutine="$MMDAPP/.local/agents/sessions/$actingStore/root-session.routine"
-					[ -f "$actingRoutine" ] || actingRoutine=""
-					[ -z "$actingRoutine" ] || actingName="$( LC_ALL=C sed -n 's/^\([a-z][a-z0-9-]*\)\..*$/\1/p' "$actingRoutine" 2> /dev/null | head -1 )"
+					## The session's home is the workspace the call came from; a call run against another workspace
+					## reads that one second. A minted root session names its member by its routine; a native root
+					## session, never minted, by the one member whose CheckList its store keeps, the rule the spawn
+					## proxy names a root session's starter by. Several CheckLists in one store name no one.
+					local actingHome="" actingLists=""
+					for actingHome in "${MDAT_CALLER_WORKSPACE:-$MMDAPP}" "$MMDAPP" ; do
+						[ -d "$actingHome/.local/agents/sessions/$actingStore" ] || continue
+						actingRoutine="$actingHome/.local/agents/sessions/$actingStore/root-session.routine"
+						[ -f "$actingRoutine" ] || actingRoutine=""
+						[ -z "$actingRoutine" ] || actingName="$( LC_ALL=C sed -n 's/^\([a-z][a-z0-9-]*\)\..*$/\1/p' "$actingRoutine" 2> /dev/null | head -1 )"
+						[ -z "$actingName" ] || break
+						actingLists="$( cd "$actingHome/.local/agents/sessions/$actingStore" 2> /dev/null && ls -1 2> /dev/null | LC_ALL=C sed -n 's/^\([a-z][a-z0-9-]*\)\.checklist\.md$/\1/p' )" || actingLists=""
+						case "$actingLists" in
+							'') ;;
+							*$'\n'*) break ;;
+							*) actingName="$actingLists" ; break ;;
+						esac
+					done
 				;;
 			esac
 		fi
@@ -116,12 +131,17 @@ fi
 
 if ! type AgentsToolsManagerCallerCheck >/dev/null 2>&1 ; then
 	## A --manager-* op is the console's own, and the tooling's: refused, rc 1 with the
-	## reason, from a spawned session, whichever member it acts as, magic-coordinator among
-	## them. A call from no such session, a person at a console or a script, is accepted.
+	## reason, from a spawned session, whichever member it acts as -- EXCEPT magic-coordinator.
+	## THE COORDINATOR MANAGES (the owner's ruling, 2026-11-09): its supervision runs list, read,
+	## message, kill and restart the runs they watch (`end-and-resume`), and a supervision session
+	## is a spawned session acting as magic-coordinator, so the gate let it do none of that and
+	## every stuck run stood. A call from no such session, a person at a console or a script, is
+	## accepted; the per-operation checks of the manager include (the kill gate among them) still run.
 	AgentsToolsManagerCallerCheck(){ ## operation
 		local checkActing
 		checkActing="$( AgentsToolsActingMember )"
 		[ -n "$checkActing" ] || return 0
+		[ "$checkActing" != magic-coordinator ] || return 0
 		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done: run it at the console directly, outside any member's session" >&2
 		return 1
 	}

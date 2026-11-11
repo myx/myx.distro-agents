@@ -206,7 +206,8 @@ rigAssert "control: the channel watch of the field case, with no floor, misses t
 rigFieldScene field-named
 rigWait field-named --wait-default --wait-session-id "$rigSession" --wait-source slack:CRIGDM001 --wait-timeout 3
 rigAssert "the same watch in a session: the floor is always in, and returns the reply" "$( rigFirstLine ):$( rigHolds 'RIG-FIELD-REPLY' )" "WAIT-RESULT: RECEIVED:yes"
-rigAssert "the sources named are added to the floor, behind it"  "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:CRIGDM001 dms:$rigMember mentions:$rigMember wake:$rigMember"
+## The sources are read shortest check interval first (S5.7), so the set is compared, sorted, not the order.
+rigAssert "the sources named are added to the floor's set"  "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' "replies:$rigSession" slack:CRIGDM001 "dms:$rigMember" "mentions:$rigMember" "wake:$rigMember" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
 rigAssert "the conversation the Wait names is not read twice: the floor leaves it" "$( [ "$( rigReads conversations.history CRIGDM001 )" -le 1 ] && printf 1 || printf more )" 1
 
 ## ---------------------------------------------------------------------------
@@ -433,11 +434,13 @@ rigPost="$( rigAt 300 100 )"
 rigRecord "CRIGDM001:$rigPost $rigPost URIGADDR1 - - 0 - 0"
 rigThread CRIGDM001 "$rigPost" "$( rigMsg "$rigPost" URIGSELF1 RIG-QUESTION '' "$rigOwnMeta" )"
 rigPlain sources 2
-rigAssert "the plain Wait names the floor among its sources, first" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
+## The sources are read shortest check interval first (S5.7): the set is compared, sorted, with the floor in it.
+rigSourcesWant="$( printf '%s\n' "replies:$rigSession" slack:magic-team slack:human-owner "dms:$rigMember" "mentions:$rigMember" "wake:$rigMember" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
+rigAssert "the plain Wait names the floor among its sources" "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$rigSourcesWant"
 rigWait sources-continue --wait-continue --wait-session-id "$rigSession" --wait-timeout 2
-rigAssert "a continued wait keeps it"                                "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession slack:magic-team slack:human-owner dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "a continued wait keeps it"                                "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$rigSourcesWant"
 rigWait sources-named --wait-default --wait-session-id "$rigSession" --wait-source "file:$rigDir/nothing" --wait-timeout 2
-rigAssert "a Wait that names a source replaces the stored set, and the floor stands beside it"      "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "replies:$rigSession file:$rigDir/nothing dms:$rigMember mentions:$rigMember wake:$rigMember"
+rigAssert "a Wait that names a source replaces the stored set, and the floor stands beside it"      "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' "replies:$rigSession" "file:$rigDir/nothing" "dms:$rigMember" "mentions:$rigMember" "wake:$rigMember" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
 rigWait sources-none --wait-timeout 2
 rigAssert "a call with no session has no record of posts to read: no floor"  "$( rigHolds 'replies:' )" no
 

@@ -138,6 +138,22 @@ function jfNodeHook(path, nodeType, nodeValue, fromPos, toPos,   idx, rest, afte
 		else if (afterJ == "mimetype") fileTypeOf[idx, j] = nodeValue
 		return
 	}
+	## A message's attachments (Slack's attachments[]): a shared or quoted message arrives as one, its text here and the message it
+	## shares in from_url. Each is said on the head line as `[quoted: slack:<channel>:<ts>] <text>`, so a reader sees the question a
+	## "do we have an answer yet?" is about, and the thread it lives in. Measured: a person's 13:24 question reached three runs only as
+	## this attachment and was answered nowhere, because the line showed the quoting post alone.
+	if (index(afterIdx, "attachments.") == 1) {
+		afterReactions = substr(afterIdx, length("attachments.") + 1)
+		j = afterReactions
+		sub(/\..*/, "", j)
+		if (j !~ /^[0-9]+$/) return
+		jNum = j + 0
+		if (!(idx in attachCountPerMsg) || jNum + 1 > attachCountPerMsg[idx]) attachCountPerMsg[idx] = jNum + 1
+		afterJ = substr(afterReactions, length(j) + 2)
+		if (afterJ == "text") attachTextOf[idx, j] = nodeValue
+		else if (afterJ == "from_url" || afterJ == "original_url") { if (!((idx, j) in attachUrlOf) || afterJ == "from_url") attachUrlOf[idx, j] = nodeValue }
+		return
+	}
 	if (index(afterIdx, "reactions.") == 1) {
 		afterReactions = substr(afterIdx, length("reactions.") + 1)
 		j = afterReactions
@@ -221,6 +237,24 @@ END {
 				gsub(/[\]\n]/, "_", fName)
 				annotations = annotations sprintf(" [file: %s %s (%s bytes, %s)]", fileIdOf[i, j], fName, \
 					(((i, j) in fileSizeOf) ? fileSizeOf[i, j] : "?"), (((i, j) in fileTypeOf) ? fileTypeOf[i, j] : "?"))
+			}
+		}
+
+		if (i in attachCountPerMsg) {
+			for (j = 0; j < attachCountPerMsg[i]; j++) {
+				if (!((i, j) in attachTextOf) && !((i, j) in attachUrlOf)) continue
+				qText = ((i, j) in attachTextOf) ? attachTextOf[i, j] : ""
+				gsub(/[\]\n\r]/, " ", qText)
+				if (length(qText) > 400) { qText = substr(qText, 1, 400) ; sub(/[\300-\377][\200-\277]*$/, "", qText) ; qText = qText "…" ; }
+				qWhere = ""
+				qUrl = ((i, j) in attachUrlOf) ? attachUrlOf[i, j] : ""
+				if (match(qUrl, /\/archives\/[A-Z0-9]+\/p[0-9]+/)) {
+					qWhere = substr(qUrl, RSTART + 10, RLENGTH - 10)
+					qChan = qWhere ; sub(/\/.*/, "", qChan)
+					qDigits = qWhere ; sub(/.*\/p/, "", qDigits)
+					qWhere = "slack:" qChan ":" substr(qDigits, 1, 10) "." substr(qDigits, 11)
+				}
+				annotations = annotations sprintf(" [quoted: %s] %s", (qWhere != "" ? qWhere : "-"), qText)
 			}
 		}
 

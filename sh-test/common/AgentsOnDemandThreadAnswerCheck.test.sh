@@ -15,6 +15,7 @@ rigInc="$rigPkg/sh-lib/common/AgentsTools.OnDemandThread.include"
 rigFn="$rigPkg/sh-scripts/DistroAgentsTools.fn.sh"
 [ -f "$rigInc" ] || { echo "ERROR: no thread include at $rigInc" >&2 ; exit 1 ; }
 . "$rigPkg/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPkg/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsOnDemandThreadAnswerCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigThreadsStop ; rm -rf -- "$rigTmp"' EXIT
@@ -30,7 +31,7 @@ rigTick(){ return 0 ; }
 RIGOWNER
 
 rigThreadPids=""
-rigThreadsStop(){ for rigPid in $rigThreadPids ; do kill -TERM "$rigPid" 2> /dev/null || : ; done ; rigThreadPids="" ; return 0 ; }
+rigThreadsStop(){ [ -z "$rigThreadPids" ] || rigProcSignal TERM $rigThreadPids ; rigThreadPids="" ; return 0 ; }
 rigServe(){ ## folder, idle, handler
 	(
 		cd "$rigTmp" || exit 1
@@ -38,7 +39,7 @@ rigServe(){ ## folder, idle, handler
 		. "$rigOwner" || exit 1
 		AgentsToolsOnDemandThreadServe "$1" "$2" "$3" rigTick no
 	) >> "$1.log" 2>&1 &
-	rigThreadPids="$rigThreadPids $!"
+	rigThreadPids="$rigThreadPids $!" ; rigProcNote "${rigThreadPids##* }"
 	rigWaited=0
 	while [ "$rigWaited" -lt 20 ] && [ ! -p "$1/request.fifo" ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 	[ -p "$1/request.fifo" ] || { echo "ERROR: no request fifo in $1" >&2 ; exit 1 ; }

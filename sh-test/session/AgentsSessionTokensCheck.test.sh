@@ -34,7 +34,7 @@ git -C "$rigStore" init -q || rigRefuse "could not init the temp store"
 printf 'seed\n' > "$rigStore/README.md"
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the temp store"
 unset CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID MDAT_SPAWN_AGENT MDAT_MCP_SERVED_MARKER MDAT_SESSION_ID CLAUDE_CODE_ENTRYPOINT harnessSessionId
-export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN HOME="$rigTmp/home"
+export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN HOME="$rigTmp/home" MDAT_TEAM_DATA_COMMIT_THREAD=off
 
 rigPassCount=0
 rigFailCount=0
@@ -121,7 +121,7 @@ rigAssert "an item with none carries no line" "$( printf '%s\n' "$rigScan" | LC_
 rigBeat="$( set +u ; MDSC_CMD=rig ; set -- --rig-none ; . "$rigHere/magic/AgentsTools.MagicCoordinatorState.include" 2>/dev/null ; AgentsToolsBoardActiveItems )"
 rigAssert "an active-item line carries its totals" "$( printf '%s\n' "$rigBeat" | LC_ALL=C grep '^running/dispatch-20261008T1000Z-rig-a.md' )" \
 	'running/dispatch-20261008T1000Z-rig-a.md -- tokens: in=1100 cache-read=200 cache-write=300 out=1400 (incl. 1 sub-session)'
-rigProc="$( "$rigFn" --move-to-processed magic-tester task-20261008T1000Z-rig.md --from-state:backlog 2>/dev/null )"
+rigProc="$( "$rigFn" --move-to-processed --team-member magic-tester task-20261008T1000Z-rig.md --from-state:backlog 2>/dev/null )"
 rigAssert "closing a task reports its totals" "$( printf '%s\n' "$rigProc" | LC_ALL=C grep '^tokens: ' )" \
 	'tokens: in=1111 cache-read=222 cache-write=333 out=1444 (incl. 3 sub-sessions)'
 
@@ -157,7 +157,7 @@ rigAssert "START names member, service, parent and item" "$( LC_ALL=C grep -c " 
 rigAssert "the stream's lines are there" "$( LC_ALL=C grep -c 'TOOL Glob pattern="\*.md" path=/p -> ok 9B/2L' "$rigT" )$( LC_ALL=C grep -c ' RESULT outcome=ok' "$rigT" )" 11
 rigAssert "END carries outcome, exit and the session's tokens" "$( LC_ALL=C grep -c ' END outcome=succeeded exit=0 tokens="in=10 cache-read=1000 cache-write=100 out=40"' "$rigT" )" 1
 rigAssert "the dispatch item's tokens header, as the CLI reported its usage" "$( rigHeader "$rigStore/board/review/$rigDispatch" tokens )" 'in=10 cache-read=1000 cache-write=100 out=40'
-rigAssert "milestones: start and end" "$( awk '{ $1 = "" ; print }' "$rigWs/.local/agents/sessions/$rigSpawn/milestones" | tr '\n' '|' )" ' start| end|'
+rigAssert "milestones: start (with its steps) and end" "$( awk '{ print $2 }' "$rigWs/.local/agents/sessions/$rigSpawn/milestones" | tr '\n' '|' )" 'start|end|'
 rigAssert "two transcript commits, one per milestone" "$( git -C "$rigStore" log --format=%s -n "$(( $( rigCommits ) - rigBefore ))" | LC_ALL=C grep -c "session transcript" )" 2
 rigAssert "and the store is clean" "$( git -C "$rigStore" status --porcelain --untracked-files=all )" ""
 

@@ -187,7 +187,7 @@ rigCalls(){ ## text -- how many starts of the stand-in name it in their words, t
 rigCallsIn(){ ## file, text -- the same in a copy of the calls
 	LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$1" | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigAsksCount="--read-pending-reply magic-coordinator --any-owner --count"
+rigAsksCount="--read-pending-reply --team-member magic-coordinator --any-owner --count"
 rigFolderCalls(){ ## how many starts were of the lists that only a folder asks for: not of those that are read whatever is shown
 	LC_ALL=C grep -c -v -e '^--manager-dashboard-read$' -e '^--manager-place-list$' -e '^--manager-session-list' -e "^$rigAsksCount\$" "$MANAGER_SCREEN_RIG/calls" || :
 }

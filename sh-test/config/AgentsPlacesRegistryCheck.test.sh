@@ -171,7 +171,8 @@ echo "-- 4. registration, the earlier list, and the readers --"
 rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigHere/config/AgentsTools.Make.include" )"
 rigAssert "every update registers the workspace: --make-workspace-integrations runs the registration, then the member homes after the part of the install that writes the member registry" \
 	"$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --intern-directory-register / { a = NR } /DistroAgentsTools --install-workspace-integrations / && !b { b = NR } /DistroAgentsTools --intern-member-home-register / { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" ordered
-rigAssert "the member install registers no workspace" "$( LC_ALL=C grep -c -e '--owner-workspace-upsert' -e 'directories.registry' "$rigHere/config/AgentsTools.Install.include" )" 0
+## The row counts the operations that register a workspace. The install reads the registry file to place a path in a rig (AgentsToolsInstallRigWorkspacePlace), and reading it registers nothing, so the file name is not what the row looks for.
+rigAssert "the member install registers no workspace" "$( LC_ALL=C grep -c -e '--owner-workspace-upsert' -e '--intern-directory-register' "$rigHere/config/AgentsTools.Install.include" )" 0
 rigAssert "the * grant expansion walks the known workspace roots, this workspace first" "$( LC_ALL=C grep -c 'agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$regWs" )"' "$rigHere/grants/AgentsTools.Grants.include" )" 1
 rigRoots(){ ## workspace name -- LocalToolsPlacesWorkspaceRoots from there under rigRunHome
 	env -i HOME="$rigRunHome" PATH=/usr/bin:/bin MMDAPP="$rigTmp/$1" bash -c '. "$1/LocalTools.Places.include" ; LocalToolsPlacesWorkspaceRoots "$MMDAPP"' rig "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places" | rigCut | LC_ALL=C tr '\n' ' '

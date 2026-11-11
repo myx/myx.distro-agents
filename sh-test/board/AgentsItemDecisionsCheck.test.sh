@@ -56,10 +56,11 @@ rigHolds(){ ## file, fixed string
 	[ -f "$1" ] || set -- "${1%/*}/closed/${1##*/}" "$2"
 	LC_ALL=C grep -q -F -- "$2" "$1" 2>/dev/null && printf yes || printf no
 }
+## The rig is a team rig: a workspace in the default mode, just-agents, keeps no team data, and the board edit a decision is is refused there.
 rigOp(){ ## output name, op, arguments... (stdin passes through); RIG_AGENT, when set, is the spawned session's member
 	local opOut="$1" ; shift
 	rigRc=0
-	( cd "$rigTmp/ws" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
+	( cd "$rigTmp/ws" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" \
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
@@ -127,7 +128,7 @@ rigAssert "a permission needs the same refusal"   "$( cat "$rigTmp/early4" )" ""
 
 echo "-- AskQuestion posts nothing for an answered question --"
 ( cd "$rigTmp/ws" && printf '%s' '{"to":"human-owner","address_to":"human-owner","question":"Should the rig keep the vendor contract clause?","wait":false}' \
-	| env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT HOME="$rigTmp/home" MDAT_SPAWN_SESSION_ID=rig-session-a MMDAPP="$rigTmp/ws" \
+	| env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" MDAT_SPAWN_SESSION_ID=rig-session-a MMDAPP="$rigTmp/ws" \
 		MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-$rigTmp/skills}" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
 		bash "$rigHarness" --intern-tool AskQuestion ) > "$rigTmp/ask1" 2> "$rigTmp/ask1.err"
 rigAssert "it reads received"                     "$( head -1 "$rigTmp/ask1" )" "ASK-RESULT: RECEIVED"
@@ -148,7 +149,7 @@ rigAssert "with the answer read there"            "$( rigField "$rigStore/$rigId
 rigAssert "and not written there twice"           "$( rigSection "$rigBoard/blocked/$rigTask.md" | wc -l | tr -d ' ' )" "$rigLinesBefore"
 
 echo "-- shown first: conversation.md and a named-item scan --"
-( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" bash -c '
+( cd "$rigTmp/ws" && env MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" bash -c '
 	DistroAgentsTools(){ return 1 ; }
 	MDSC_CMD=rig
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
@@ -227,7 +228,7 @@ rigEsc(){ ## id, status, session, item, extra header lines
 rigCurlBefore="$( LC_ALL=C grep -c 'chat.postMessage' "$RIG_CURL_LOG" )"
 rigOp dec1 --intern-op-decisions-append magic-coordinator "$rigTask" --kind verdict --text "D1 Which rig release train should ship the fix? -> option-b" --source rig-earlier
 rigEsc 33333333-0000-0000-0000-000000000001 reply-pending rig-session-f "$rigTask" ""
-rigOp fwd1 --forward-escalation magic-coordinator 33333333-0000-0000-0000-000000000001
+rigOp fwd1 --forward-escalation --team-member magic-coordinator 33333333-0000-0000-0000-000000000001
 rigAssert "answered in Decisions: not forwarded"  "$( head -1 "$rigTmp/fwd1" )" "ESCALATION: 33333333-0000-0000-0000-000000000001 answered-earlier"
 rigAssert "it prints the earlier answer"          "$( sed -n 2p "$rigTmp/fwd1" | cut -d' ' -f1-2 )/$( rigHolds "$rigTmp/fwd1" '-> option-b' )" "EARLIER-DECISION $rigTask/yes"
 rigEsc 33333333-0000-0000-0000-000000000002 reply-received rig-session-g "" "verdict: option-a
@@ -236,7 +237,7 @@ resolved-at: 2026-10-08 12:05 +0300
 resolved-epoch: 1700000000
 "
 rigEsc 33333333-0000-0000-0000-000000000003 reply-pending rig-session-g "" ""
-rigOp fwd2 --forward-escalation magic-coordinator 33333333-0000-0000-0000-000000000003
+rigOp fwd2 --forward-escalation --team-member magic-coordinator 33333333-0000-0000-0000-000000000003
 rigAssert "answered in a closed record: not forwarded" "$( head -1 "$rigTmp/fwd2" )" "ESCALATION: 33333333-0000-0000-0000-000000000003 answered-earlier"
 rigAssert "it prints that record's answer"        "$( sed -n 2p "$rigTmp/fwd2" )" "EARLIER-RECORD 33333333-0000-0000-0000-000000000002 | option-a | URIGOWNER | 2026-10-08 12:05 +0300"
 rigAssert "nothing was posted, nothing recorded"  "$( LC_ALL=C grep -c 'chat.postMessage' "$RIG_CURL_LOG" )/$( LC_ALL=C grep -c '^forward-ts: ' "$rigStore/33333333-0000-0000-0000-000000000001.md" "$rigStore/33333333-0000-0000-0000-000000000003.md" | LC_ALL=C awk -F: '{ s += $NF } END { print s }' )" "$rigCurlBefore/0"
@@ -249,19 +250,19 @@ mkdir -p "$rigTmp/ws/.local/agents/spawned/rig-spawn-p" "$rigTmp/ws/.local/agent
 printf -- '---\nsession-id: rig-spawn-p\nowner: keeper-exec\nstatus: spawn-started\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-spawn-p/rig-spawn-p.spawn.md"
 printf -- '---\nsession-id: rig-spawn-q\nowner: keeper-link\nstatus: spawn-started\nspawned-by: %s\n---\n' "$rigParty" > "$rigTmp/ws/.local/agents/spawned/rig-spawn-q/rig-spawn-q.spawn.md"
 rigPartyLines(){ rigSection "$rigBoard/running/$rigParty.md" | wc -l | tr -d ' ' ; }
-rigOp par1 --record-decision keeper-other "$rigParty" --kind clarification --text "not a party"
+rigOp par1 --record-decision --team-member keeper-other "$rigParty" --kind clarification --text "not a party"
 rigAssert "a member that is no party is refused"   "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigPartyLines ):$( LC_ALL=C grep -c 'is not the owner, executor or reviewer' "$rigTmp/par1.err" )" refused:0:1
-rigOp par2 --record-decision keeper-other "$rigParty" --kind resolved --text "clearing it" --clears-blocker
+rigOp par2 --record-decision --team-member keeper-other "$rigParty" --kind resolved --text "clearing it" --clears-blocker
 rigAssert "and clears no blocker"                  "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigField "$rigBoard/running/$rigParty.md" blocked-on )" "refused:the rig gate"
-rigOp par3 --record-decision keeper-rev "$rigParty" --kind clarification --text "by the reviewer"
+rigOp par3 --record-decision --team-member keeper-rev "$rigParty" --kind clarification --text "by the reviewer"
 rigAssert "its review-by reviewer records"         "$rigRc:$( rigPartyLines )" 0:1
-rigOp par4 --record-decision keeper-exec "$rigParty" --kind clarification --text "by its spawned session's member"
+rigOp par4 --record-decision --team-member keeper-exec "$rigParty" --kind clarification --text "by its spawned session's member"
 rigAssert "its spawned session's member records"   "$rigRc:$( rigPartyLines )" 0:2
-rigOp par5 --record-decision keeper-link "$rigParty" --kind resolved --text "by the executor" --clears-blocker
+rigOp par5 --record-decision --team-member keeper-link "$rigParty" --kind resolved --text "by the executor" --clears-blocker
 rigAssert "a spawn working it records and clears"  "$rigRc:$( rigPartyLines ):$( rigField "$rigBoard/running/$rigParty.md" blocked-on )" 0:3:
-RIG_AGENT=keeper-other rigOp par6 --record-decision magic-tester "$rigParty" --kind clarification --text "naming the owner"
+RIG_AGENT=keeper-other rigOp par6 --record-decision --team-member magic-tester "$rigParty" --kind clarification --text "naming the owner"
 rigAssert "a session naming another member is refused" "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigPartyLines ):$( LC_ALL=C grep -c 'this session acts as keeper-other' "$rigTmp/par6.err" )" refused:3:1
-RIG_AGENT=magic-tester rigOp par7 --record-decision magic-tester "$rigParty" --kind clarification --text "the owner itself"
+RIG_AGENT=magic-tester rigOp par7 --record-decision --team-member magic-tester "$rigParty" --kind clarification --text "the owner itself"
 rigAssert "the owner's own session records"        "$rigRc:$( rigPartyLines )" 0:4
 
 echo

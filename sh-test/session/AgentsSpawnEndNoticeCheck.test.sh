@@ -546,7 +546,7 @@ echo "-- 7. a return starts an ended run again, in the same session, sandbox and
 rigReturn(){ ## scenario, item stem
 	rigDir="$rigTmp/$1"
 	rm -f "$rigDir/first.began" "$rigDir/release-first" "$rigDir/release-retry"
-	( cd "$rigWs" && rigEnv "$rigDir" "${rigAsParent[@]}" bash "$rigTool" --return-review rig-member-b "$2" --message "redo the rig step" ) > "$rigDir/return.out" 2>&1 < /dev/null
+	( cd "$rigWs" && rigEnv "$rigDir" "${rigAsParent[@]}" bash "$rigTool" --return-review --team-member rig-member-b "$2" --message "redo the rig step" ) > "$rigDir/return.out" 2>&1 < /dev/null
 	rigRunStarted "$1" first
 }
 rigRestarted(){ ## item stem, the run that ended, its session, its sandbox -- what the return said, where the item is, and what the record of the run started again says

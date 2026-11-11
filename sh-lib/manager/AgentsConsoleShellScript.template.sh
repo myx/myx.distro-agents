@@ -176,6 +176,12 @@ done
 ## returns 1 for every name that is not one. Name and file are two lines rather
 ## than one delimited line, because a path may legally contain any separator a
 ## single line would have to choose.
+## BOTH SPELLINGS OF A CLI SERVICE'S NAME SELECT ITS LEG: the table names a leg
+## by its file, lowercased with no hyphen (`standardv1`), while the CLI services
+## list and --spawn-cli-service carry the service's own name (`standard-v1`). A
+## preset is a user's named configuration and names its service by that name.
+## A name is matched with its hyphens taken out on both sides, so neither
+## spelling misses the leg and no arm below lists spellings of its own.
 DagcLegFileFor(){
 	local legSought="$1" legLine legPending=""
 	case " $DAGC_VENDOR_CLIS " in
@@ -187,7 +193,7 @@ DagcLegFileFor(){
 		if [ -z "$legPending" ] ; then
 			legPending="$legLine"
 		else
-			if [ "$legPending" = "$legSought" ] ; then
+			if [ "${legPending//-/}" = "${legSought//-/}" ] ; then
 				printf '%s\n' "$legLine"
 				return 0
 			fi
@@ -744,11 +750,22 @@ DagcHarnessEffortExport(){
 	[ -z "$DAGC_EFFORT" ] || export "HARNESS_EFFORT=$DAGC_EFFORT"
 	return 0
 }
+## THE ENDPOINT (F10.1). The endpoint the preset of this spawn names as its PRESET_ENDPOINT_URL, read as the models are and
+## exported for the leg, a parent's dropped: a leg that states its own is moved off it by an inherited URL. Nothing exported
+## leaves the endpoint the leg itself states.
+DagcHarnessEndpointExport(){
+	local DAGC_ENDPOINT_URL
+	unset HARNESS_ENDPOINT_URL
+	DAGC_ENDPOINT_URL="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_ENDPOINT_URL 2>/dev/null )" || DAGC_ENDPOINT_URL=""
+	[ -z "$DAGC_ENDPOINT_URL" ] || export "HARNESS_ENDPOINT_URL=$DAGC_ENDPOINT_URL"
+	return 0
+}
 if DagcCliIsLeg "$DAGC_CLI" ; then
 	DagcHarnessModelExport
 	DagcHarnessCacheTimeExport
 	DagcHarnessContextExport
 	DagcHarnessEffortExport
+	DagcHarnessEndpointExport
 fi
 
 ## claude-native: the probe adds a configured key where one is set, and warns an interactive console. It never

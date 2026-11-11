@@ -32,6 +32,10 @@
 ## AND THE SCHEDULE'S SERVICE THREAD (S12.12), the same: its start line is in schedule-thread/thread.log and its lock, schedule-thread/thread.lock,
 ## names it (sh-lib/session/AgentsTools.ScheduleThread.include).
 ##
+## AND THE STORE'S ONE COMMIT THREAD (S12.4, T1905Z): any write of a scene into a rig's team-data store starts it, and it can still be
+## writing when the rig is removed; its lock, team-data-commit/thread.lock in the store's git folder, names it the same way
+## (sh-lib/team-data/AgentsTools.TeamDataThread.include).
+##
 ##   rigControlThreadNotes <dir>...   the notes found under those rig trees, `<pid> <start>` a line
 ##   rigControlThreadsEnd <dir>...    ends every such process that is still itself, with what it started (the
 ##                                    sleep it waits on), the hard way: nothing of it is wanted any more
@@ -52,6 +56,7 @@ rigControlThreadNotes(){ ## dir...
 	PATH="$rigProcPath" find "$@" -path '*/schedule-thread/thread.log' -type f -exec cat {} + 2> /dev/null \
 		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a thread is started here: pid \([0-9][0-9]*\)$/\1/p'
 	PATH="$rigProcPath" find "$@" -path '*/schedule-thread/thread.lock' -type f -exec cat {} + 2> /dev/null
+	PATH="$rigProcPath" find "$@" -path '*/team-data-commit/thread.lock' -type f -exec cat {} + 2> /dev/null
 	return 0
 }
 

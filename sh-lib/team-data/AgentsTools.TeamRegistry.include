@@ -48,13 +48,13 @@ AgentsToolsTeamSharedDir(){
 	printf '%s\n' "${HOME:-}/.agents/magic-team"
 }
 AgentsToolsTeamSharedMembers(){
-	printf '%s\n' "$( AgentsToolsTeamSharedDir )/members.registry"
+	printf '%s\n' "${HOME:-}/.agents/magic-team/members.registry"
 }
 AgentsToolsTeamSharedWorkspaces(){
-	printf '%s\n' "$( AgentsToolsTeamSharedDir )/known-workspaces.registry"
+	printf '%s\n' "${HOME:-}/.agents/magic-team/known-workspaces.registry"
 }
 AgentsToolsTeamSharedGrants(){
-	printf '%s\n' "$( AgentsToolsTeamSharedDir )/permissions.registry"
+	printf '%s\n' "${HOME:-}/.agents/magic-team/permissions.registry"
 }
 AgentsToolsTeamLocalFile(){ ## workspace, name
 	printf '%s\n' "${1%/}/.local/agents/$2"
@@ -84,14 +84,14 @@ AgentsToolsTeamGrantWorkspaces(){ ## workspace
 		printf '%s\n' "$grantSelf"
 		grantSeen="$grantSeen$grantSelf"$'\n'
 	fi
-	[ -f "$( AgentsToolsTeamSharedGrants )" ] || return 0
+	[ -f "${HOME:-}/.agents/magic-team/permissions.registry" ] || return 0
 	while IFS= read -r grantRoot ; do
 		grantRoot="${grantRoot%/}"
 		case "$grantRoot" in /*) ;; *) continue ;; esac
 		case "$grantSeen" in *$'\n'"$grantRoot"$'\n'*) continue ;; esac
 		grantSeen="$grantSeen$grantRoot"$'\n'
 		printf '%s\n' "$grantRoot"
-	done < "$( AgentsToolsTeamSharedGrants )"
+	done < "${HOME:-}/.agents/magic-team/permissions.registry"
 }
 
 ## The machine-wide grant rows (`member:workspace:kind:grant`), or tag rows: each
@@ -111,7 +111,7 @@ AgentsToolsTeamGrantRows(){ ## workspace, permissions.registry|permissions-tags.
 ## lock. Non-zero only when the file could not be written.
 AgentsToolsTeamGrantPointerUpsert(){ ## workspace
 	local upsertFile upsertLock upsertWait=0 upsertRc=0
-	upsertFile="$( AgentsToolsTeamSharedGrants )"
+	upsertFile="${HOME:-}/.agents/magic-team/permissions.registry"
 	mkdir -p "${upsertFile%/*}" || return 1
 	upsertLock="$upsertFile.lock"
 	until mkdir "$upsertLock" 2>/dev/null ; do
@@ -151,9 +151,9 @@ AgentsToolsTeamMemberIndexText(){ ## workspace
 ## client sweeps); never written into a workspace. Each name once.
 AgentsToolsTeamMemberDirectoryText(){
 	local directoryRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:+${MMDAPP%/}/.local/agents/members}}" directoryShared directoryHomes directoryEntry
-	directoryShared="$( AgentsToolsTeamSharedMembers )"
+	directoryShared="${HOME:-}/.agents/magic-team/members.registry"
 	[ -f "$directoryShared" ] || directoryShared=/dev/null
-	directoryHomes="$( AgentsToolsTeamSharedDir )/member-homes.registry"
+	directoryHomes="${HOME:-}/.agents/magic-team/member-homes.registry"
 	[ -f "$directoryHomes" ] || directoryHomes=/dev/null
 	LC_ALL=C awk -F'\t' '
 		FILENAME == ARGV[1] { if ( $1 != "" && !( $1 in seen ) ) { seen[$1] = 1 ; print $1 "\t" $2 ; } next ; }

@@ -21,8 +21,10 @@ rigRefuse(){
 command -v git > /dev/null || rigRefuse "git is not installed"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataWritersCommitCheck )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## The store's commit thread, and every other thread a scene started, ends before the rig goes (rigControlThreadsEnd, T1905Z).
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigStore="$rigTmp/store"
 mkdir -p "$rigWs/.local" "$rigStore/audit" "$rigStore/inboxes/magic-coordinator" "$rigStore/inboxes/magic-tester"
@@ -46,28 +48,46 @@ rigAssert(){ ## what, got, want
 		rigFailCount=$(( rigFailCount + 1 )) ; printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3"
 	fi
 }
-rigCommits(){ git -C "$rigStore" rev-list --count HEAD ; }
-rigClean(){ [ -z "$( git -C "$rigStore" status --porcelain --untracked-files=all )" ] && printf clean || printf dirty ; }
+## A writer leaves an entry and the store's one commit thread commits it (AgentsTools.TeamDataCommit.include), so the count is read once no
+## entry waits in the thread's folder, within 30 seconds; a commit that never lands still counts short.
+rigWaitThread(){
+	local rigWait=0 rigEntry
+	while [ "$rigWait" -lt 60 ] ; do
+		for rigEntry in "$rigStore"/.git/team-data-commit/*.entry ; do [ -e "$rigEntry" ] && break ; rigEntry="" ; done
+		[ -n "$rigEntry" ] || break
+		sleep 0.5 ; rigWait=$(( rigWait + 1 ))
+	done
+}
+rigCommits(){ rigWaitThread ; git -C "$rigStore" rev-list --count HEAD ; }
+## Every read of the store's history waits for the thread first.
+rigHistory(){ rigWaitThread ; git -C "$rigStore" "$@" ; }
+rigClean(){ rigWaitThread ; [ -z "$( git -C "$rigStore" status --porcelain --untracked-files=all )" ] && printf clean || printf dirty ; }
 rigBefore=0
 rigStep(){ rigBefore="$( rigCommits )" ; }
 rigAfter(){ ## writer name
+	local rigNow
+	rigNow="$( rigCommits )"
 	rigAssert "$1: the store is clean afterwards"     "$( rigClean )" clean
-	rigAssert "$1: exactly one new commit"             "$(( $( rigCommits ) - rigBefore ))" 1
+	rigAssert "$1: exactly one new commit"             "$(( rigNow - rigBefore ))" 1
 }
+## What a writer printed, and what the store's commit thread logged for it: the commit, and its warnings, are the thread's.
+rigSaid(){ cat "$rigTmp/out" "$rigStore"/.git/team-data-commit/thread.log 2> /dev/null ; }
 
 echo "-- writer: --sweep-state-upsert --"
 rigStep
-printf 'last_swept_ts: 1700000000.000100\n' | "$rigFn" --sweep-state-upsert magic-tester > "$rigTmp/out" 2>&1
+printf 'last_swept_ts: 1700000000.000100\n' > "$rigTmp/sweep.in"
+"$rigFn" --sweep-state-upsert --team-member magic-tester --from-file "$rigTmp/sweep.in" > "$rigTmp/out" 2>&1
 rigAfter "sweep-state"
 
 echo "-- writer: --roster-upsert --"
 rigStep
-printf '# Roster\n\nmember one\n' | "$rigFn" --roster-upsert magic-coordinator > "$rigTmp/out" 2>&1
+printf '# Roster\n\nmember one\n' > "$rigTmp/roster.in"
+"$rigFn" --roster-upsert --team-member magic-coordinator --from-file "$rigTmp/roster.in" > "$rigTmp/out" 2>&1
 rigAfter "team-roster"
 
 echo "-- writer: --append-transcript --"
 rigStep
-"$rigFn" --append-transcript magic-tester --speaker rig --timestamp 2026-09-29T00:00:00Z \
+"$rigFn" --append-transcript --team-member magic-tester --speaker rig --timestamp 2026-09-29T00:00:00Z \
 	--message "one line" --transcript-name transcript-2026-09-29-rig.md --create > "$rigTmp/out" 2>&1
 rigAfter "session-transcript"
 
@@ -89,7 +109,7 @@ rigStep
 printf 'outside\n' > "$rigTmp/outside.txt"
 ( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataCommitPaths "rig" "$rigTmp/outside.txt" ) > "$rigTmp/out" 2>&1
 rigAssert "outside path: no commit"                  "$(( $( rigCommits ) - rigBefore ))" 0
-rigAssert "outside path: a warning names it"          "$( grep -q 'not under the team-data store' "$rigTmp/out" && printf yes || printf no )" yes
+rigAssert "outside path: a warning names it"          "$( rigSaid | grep -q 'not under the team-data store' && printf yes || printf no )" yes
 
 echo "-- the dirty-store warning --"
 ( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataDirtyWarning "rig clean" ) > "$rigTmp/out" 2>&1
@@ -108,7 +128,7 @@ git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "seed rig-old"
 "$rigFn" --intern-op-board-rename rig-old.md rig-new.md --do-not-track > "$rigTmp/out" 2>&1
 rigAssert "board-rename: the item moved"              "$( [ -f "$rigStore/board/backlog/rig-new.md" ] && [ ! -e "$rigStore/board/backlog/rig-old.md" ] && printf yes || printf no )" yes
 rigAssert "board-rename: the store is clean afterwards" "$( rigClean )" clean
-rigAssert "board-rename: git no longer holds the old name" "$( [ -z "$( git -C "$rigStore" ls-files -- board/backlog/rig-old.md )" ] && printf yes || printf no )" yes
+rigAssert "board-rename: git no longer holds the old name" "$( [ -z "$( rigHistory ls-files -- board/backlog/rig-old.md )" ] && printf yes || printf no )" yes
 
 echo "-- board-trash: an item git never knew is deleted without an error --"
 printf -- '---\nowner: rig\n---\nuntracked\n' > "$rigStore/board/backlog/rig-untracked.md"
@@ -117,7 +137,7 @@ rigTrashRc=$?
 rigAssert "board-trash untracked: exit 0"             "$rigTrashRc" 0
 rigAssert "board-trash untracked: the item is gone"   "$( [ -e "$rigStore/board/backlog/rig-untracked.md" ] && printf present || printf gone )" gone
 rigAssert "board-trash untracked: the store is clean" "$( rigClean )" clean
-rigAssert "board-trash untracked: history keeps the item" "$( git -C "$rigStore" log --all --format=%H -- board/backlog/rig-untracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2
+rigAssert "board-trash untracked: history keeps the item" "$( rigHistory log --all --format=%H -- board/backlog/rig-untracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2
 ## The keep-commit fails after its add succeeds: the item must stay, with no deletion.
 printf -- '---\nowner: rig\n---\nkeep me\n' > "$rigStore/board/backlog/rig-keep.md"
 printf '#!/bin/sh\nexit 1\n' > "$rigStore/.git/hooks/pre-commit" && chmod +x "$rigStore/.git/hooks/pre-commit"
@@ -131,7 +151,7 @@ printf -- '---\nowner: rig\n---\ntracked\n' > "$rigStore/board/backlog/rig-track
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "seed rig-tracked"
 "$rigFn" --intern-op-board-trash magic-coordinator backlog rig-tracked.md > "$rigTmp/out" 2>&1
 rigAssert "board-trash tracked (control): exit 0, gone, clean" "$?:$( [ -e "$rigStore/board/backlog/rig-tracked.md" ] && printf present || printf gone ):$( rigClean )" "0:gone:clean"
-rigAssert "board-trash tracked (control): add plus delete in history" "$( git -C "$rigStore" log --all --format=%H -- board/backlog/rig-tracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2
+rigAssert "board-trash tracked (control): add plus delete in history" "$( rigHistory log --all --format=%H -- board/backlog/rig-tracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2
 
 echo "-- push at a close point: a temp bare origin named by TEAM_DATA_GIT_REMOTE --"
 rigBare="$rigTmp/origin.git"
@@ -141,15 +161,20 @@ printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigBare" > "$rigWs/.local/.agents/magic-tea
 git -C "$rigStore" remote add origin "$rigBare"
 rigBranch="$( git -C "$rigStore" rev-parse --abbrev-ref HEAD )"
 git -C "$rigStore" push -q -u origin "$rigBranch" 2>/dev/null || rigRefuse "could not seed the temp bare origin"
-rigPush(){ ( MDSC_CMD=rig ; . "$rigFn" ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataPushIfAhead "rig close" ) > "$rigTmp/out" 2>&1 ; }
+## The tooling is not written for `set -u` (SystemContext.include reads "$1" of its sourcing), so the close runs without it, as a close does.
+rigPush(){ ( set +u ; MDSC_CMD=rig ; . "$rigFn" ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataPushIfAhead "rig close" ) > "$rigTmp/out" 2>&1 ; }
 rigOriginHead(){ git --git-dir="$rigBare" rev-parse "refs/heads/$rigBranch" 2>/dev/null ; }
 
 rigPush
 rigAssert "nothing ahead: no push is attempted"       "$( grep -q 'pushed\|push failed\|rejected' "$rigTmp/out" && printf attempted || printf none )" none
 
-printf 'more\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
-printf 'more again\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
-rigAssert "two writer commits sit local before the close" "$( git -C "$rigStore" rev-list --count "origin/$rigBranch..HEAD" )" 2
+## THIS SECTION MEASURES THE CLOSE PUSH (AgentsToolsTeamDataPushIfAhead), which a close still runs. A writer's commit goes through the
+## store's commit thread, which pushes on its own (S12.4); so the local commits here are made with git, and the thread has no part in it.
+rigLocal(){ printf '%s\n' "$1" >> "$rigStore/roster.md" && git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "rig: $1" ; }
+rigWaitThread
+rigLocal more
+rigLocal 'more again'
+rigAssert "two local commits sit local before the close" "$( git -C "$rigStore" rev-list --count "origin/$rigBranch..HEAD" )" 2
 rigPush
 rigAssert "close: origin equals local head"           "$( rigOriginHead )" "$( git -C "$rigStore" rev-parse HEAD )"
 rigAssert "close: the push and its read-back are stated" "$( grep -q "team-data pushed, origin/$rigBranch = " "$rigTmp/out" && printf yes || printf no )" yes
@@ -159,7 +184,7 @@ rigOther="$rigTmp/other"
 git clone -q "$rigBare" "$rigOther" 2>/dev/null && git -C "$rigOther" config user.email rig@example.invalid && git -C "$rigOther" config user.name rig
 printf 'from another host\n' > "$rigOther/other-host.md"
 git -C "$rigOther" add -A && git -C "$rigOther" commit -q -m other && git -C "$rigOther" push -q origin HEAD 2>/dev/null
-printf 'local after\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
+rigLocal 'local after'
 rigLocalBefore="$( git -C "$rigStore" rev-parse HEAD )"
 rigPush
 rigAssert "rejected: origin now holds the local commit" "$( git --git-dir="$rigBare" merge-base --is-ancestor "$rigLocalBefore" "refs/heads/$rigBranch" && printf yes || printf no )" yes
@@ -173,7 +198,7 @@ rigAssert "rejected: the main loop's next clonePull fast-forwards" "$( "$MYXROOT
 echo "-- an unreachable origin: warned, commits kept, a later close succeeds --"
 git -C "$rigStore" remote set-url origin "$rigTmp/missing.git"
 printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigTmp/missing.git" > "$rigWs/.local/.agents/magic-team.agent.env"
-printf 'while offline\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
+rigLocal 'while offline'
 rigOffline="$( git -C "$rigStore" rev-parse HEAD )"
 rigPush
 rigAssert "unreachable: a stated warning"              "$( grep -q 'team-data push failed' "$rigTmp/out" && printf yes || printf no )" yes

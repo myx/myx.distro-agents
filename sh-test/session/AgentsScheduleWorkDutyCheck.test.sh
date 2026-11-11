@@ -10,6 +10,7 @@
 ##   5. THE COORDINATOR starts in emergency out of hours, whatever it owns.
 ##   6. A `dispatch-*` pending item is never the reason a member starts. That one rule is declared and is NOT met: see the row that names it.
 ##   7. A member with a duty already running is left alone.
+##   8. OUT OF WORKTIME WITH NO FLAG ON the coordinator alone is started, on demand: its off-duty. The keepers wait.
 ## Offline: no clock is faked, no workspace is read, and the spawner is a counter.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -24,7 +25,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigData="$rigTmp/data" rigMembers="$rigTmp/members" rigSpawned="$rigTmp/spawned"
-for m in keeper-rig-one keeper-rig-two magic-coordinator ; do mkdir -p "$rigMembers/$m" ; printf "status: active\n" > "$rigMembers/$m/SKILL.md" ; done
+for m in keeper-rig-one keeper-rig-two magic-coordinator ; do mkdir -p "$rigMembers/$m" ; printf "status: active\n" > "$rigMembers/$m/SKILL.md" ; printf '# armed\n' > "$rigMembers/$m/$m.armed.md" ; done
 mkdir -p "$rigData/board/pending" "$rigData/inboxes" "$rigMembers/keeper-rig-one" "$rigMembers/keeper-rig-two" "$rigSpawned" "$rigTmp/home" || exit 1
 
 rigPassCount=0
@@ -54,6 +55,8 @@ rigNoPending(){ rm -f "$rigData/board/pending"/*.md ; }
 rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of each
 	: > "$rigTmp/calls"
 	: > "$rigTmp/run.out"
+	## THE SCHEDULE STARTS ONE DUTY A PASS, so the pass runs three times, a pass for each member there is; a member started in one pass holds its duty in the next.
+	for rigPassNo in 1 2 3 ; do
 	env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		RIG_FLAGS="$rigTmp/flags" RIG_CALLS="$rigTmp/calls" RIG_MEMBERS="$rigMembers" RIG_DUTY="$rigTmp/duty" \
 		RIG_DATA="$rigData" RIG_SPAWNED="$rigSpawned" \
@@ -75,11 +78,13 @@ rigRun(){ ## -- the reasons the pass stated, from RIG_CALLS, and the line of eac
 			AgentsToolsScheduleTagCarry(){ return 0 ; }
 			AgentsToolsScheduleDemand(){ return 0 ; }
 			AgentsToolsScheduleDutyRestartDue(){ return 1 ; }
-			AgentsToolsScheduleWorkDutyRecord(){ case "$1" in *) [ -s "$RIG_DUTY" ] && [ "$( cat "$RIG_DUTY" )" = "$1" ] && { printf "%s/rig.spawn.md\n" "$RIG_SPAWNED" ; return 0 ; } ; return 1 ;; esac ; }
+			AgentsToolsScheduleWorkDutyRecord(){ { [ -s "$RIG_DUTY" ] && [ "$( cat "$RIG_DUTY" )" = "$1" ] ; } || LC_ALL=C grep -q -x -F "work-duty.$1" "$RIG_CALLS" 2> /dev/null && { printf "%s/rig.spawn.md\n" "$RIG_SPAWNED" ; return 0 ; } ; return 1 ; }
 			AgentsToolsScheduleDutyLifetime(){ return 0 ; }
 			AgentsToolsScheduleWorkDuty 2> /dev/null
 		' > "$rigTmp/run.out" 2> /dev/null
-	printf '%s' "$( LC_ALL=C grep -E '^work-duty\.' "$rigTmp/calls" 2> /dev/null | LC_ALL=C sed 's/^work-duty\.//' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
+	done
+	## In the order the pass started them (S12.24), never sorted: the order is part of what the rows read.
+	printf '%s' "$( LC_ALL=C grep -E '^work-duty\.' "$rigTmp/calls" 2> /dev/null | LC_ALL=C sed 's/^work-duty\.//' | LC_ALL=C tr '\n' ' ' )"
 }
 rigFlags(){ ## the flag lines the pass will read
 	printf '%s\n' "$@" > "$rigTmp/flags"
@@ -95,7 +100,8 @@ for m in keeper-rig-one keeper-rig-two magic-coordinator ; do mkdir -p "$rigData
 
 echo "-- 1. worktime --"
 rigInWorktime ; rigNoPending
-rigAssert "in worktime every standing member with work is started, the coordinator too" "$( rigRun )" "keeper-rig-one keeper-rig-two magic-coordinator "
+## The set order (S12.24): the coordinator first, then the magic-* members, then every other member; the directory lists the keepers first.
+rigAssert "in worktime every standing member with work is started, the coordinator first" "$( rigRun )" "magic-coordinator keeper-rig-one keeper-rig-two "
 
 echo "-- 2. overtime alone --"
 rigOvertime ; rigNoPending
@@ -108,7 +114,7 @@ rigNoPending ; rigPending task-20261106T000000Z-rig keeper-rig-one important
 ## The marks that pass out of hours are bound by time and not by importance: urgent and emergency pass, important does not (AgentsToolsScheduleWorkDuty, dutyOwners).
 rigAssert "out of hours a member does not start for a pending task it owns that carries an important mark" "$( rigRun )" "magic-coordinator "
 rigNoPending ; rigPending task-20261106T000001Z-rig keeper-rig-two emergency
-rigAssert "and for one that carries an emergency mark" "$( rigRun )" "keeper-rig-two magic-coordinator "
+rigAssert "and for one that carries an emergency mark" "$( rigRun )" "magic-coordinator keeper-rig-two "
 
 echo "-- 4. an unmarked pending task out of hours --"
 rigNoPending ; rigPending task-20261106T000002Z-rig keeper-rig-one
@@ -124,7 +130,14 @@ rigAssert "a dispatch-* pending item starts no keeper out of hours" "$( rigRun )
 
 echo "-- 7. a member whose duty already runs --"
 rigInWorktime ; rigNoPending ; rigDuty keeper-rig-one
-rigAssert "a member whose duty is already running is not started again" "$( rigRun )" "keeper-rig-two magic-coordinator "
+rigAssert "a member whose duty is already running is not started again" "$( rigRun )" "magic-coordinator keeper-rig-two "
+rm -f "$rigTmp/duty"
+
+echo "-- 8. out of worktime, no flag on: the coordinator's off-duty alone --"
+rigOutOfTime ; rigNoPending
+rigAssert "worktime off, overtime and emergency off: only the coordinator is started, on its demand, the keepers wait" "$( rigRun )" "magic-coordinator "
+rigOutOfTime ; rigNoPending ; rigDuty magic-coordinator
+rigAssert "a coordinator whose duty already runs is not started again, and no keeper is" "$( rigRun )" ""
 rm -f "$rigTmp/duty"
 
 if [ "$rigFailCount" -ne 0 ] ; then

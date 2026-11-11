@@ -25,7 +25,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --roster-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local stateDir="$( AgentsToolsInboxDir magic-coordinator )"
+		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --roster-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
@@ -102,7 +102,7 @@ case "$1" in
 		}
 		## Same fixed literal filename as --roster-upsert above --
 		## must match exactly, since this is a read of the SAME document.
-		local target="$( AgentsToolsInboxDir magic-coordinator )/note-20260804T0000Z-team-roster.md"
+		local target="$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming/note-20260804T0000Z-team-roster.md"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else

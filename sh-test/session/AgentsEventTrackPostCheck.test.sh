@@ -14,7 +14,7 @@
 ## bytes (3000 to a section, 10 children to a box, 50 blocks to a post with children counted,
 ## 150 to a subtitle), with nothing cut inside a line or a date token; every post carries a
 ## short text beside its boxes; a post whose blocks Slack refuses goes once more as plain
-## text, in posts of at most 4000 characters, with a warning; no line ends a post early
+## text, in posts of at most 8192 characters, with a warning; no line ends a post early
 ## (an error, a refusal or a session event included), the open post goes at its 7 s window or at the size limit,
 ## every post of a channel waits in that channel's outbox and goes in its turn there, oldest first, never two
 ## messages closer than 7 s, the ones that queued meanwhile collected into one post up to Slack's block limit
@@ -782,13 +782,15 @@ for rigN in $( seq 1 10 ) ; do printf '%s\n' "$rigWideLine" ; done >> "$rigWide"
 rigRender feed "$rigTmp/k-wide" "$rigWide"
 rigAssert "control: 40 such lines, over 3000 characters, are two sections, each within" \
 	"$( rigFlat "$rigTmp/k-wide/000001.blocks" | LC_ALL=C sed -n 's/^blocks\.0\.child_blocks=\[//p' ):$( [ "$( rigTextMax "$rigTmp/k-wide/000001.blocks" section )" -le 3000 ] && printf within || printf over )" "2:within"
-rigAssert "as plain text, counted in characters too: over 4000 bytes and under 4000 characters is one post" \
-	"$( ls "$rigTmp/k-wide" | LC_ALL=C grep -c '\.plain\.' ):$( [ "$( LC_ALL=C wc -c < "$rigTmp/k-wide/000001.plain.001" | tr -d ' ' )" -gt 4000 ] && printf over || printf under ):$( [ "$( rigChars "$rigTmp/k-wide/000001.plain.001" )" -le 4000 ] && printf within || printf over )" \
-	"1:over:within"
-for rigN in $( seq 1 20 ) ; do printf '%s\n' "$rigWideLine" ; done >> "$rigWide"
+for rigN in $( seq 1 40 ) ; do printf '%s\n' "$rigWideLine" ; done >> "$rigWide"
 rigRender feed "$rigTmp/k-wide" "$rigWide"
-rigAssert "control: 60 such lines, over 4000 characters, are two plain-text posts, each within" \
-	"$( for rigCheckPost in "$rigTmp/k-wide"/000001.plain.* ; do [ "$( rigChars "$rigCheckPost" )" -le 4000 ] && printf within || printf over ; printf ' ' ; done )" "within within "
+rigAssert "as plain text, counted in characters too: over 8192 bytes and under 8192 characters is one post" \
+	"$( ls "$rigTmp/k-wide" | LC_ALL=C grep -c '\.plain\.' ):$( [ "$( LC_ALL=C wc -c < "$rigTmp/k-wide/000001.plain.001" | tr -d ' ' )" -gt 8192 ] && printf over || printf under ):$( [ "$( rigChars "$rigTmp/k-wide/000001.plain.001" )" -le 8192 ] && printf within || printf over )" \
+	"1:over:within"
+for rigN in $( seq 1 80 ) ; do printf '%s\n' "$rigWideLine" ; done >> "$rigWide"
+rigRender feed "$rigTmp/k-wide" "$rigWide"
+rigAssert "control: 160 such lines, over 8192 characters, are two plain-text posts, each within" \
+	"$( for rigCheckPost in "$rigTmp/k-wide"/000001.plain.* ; do [ "$( rigChars "$rigCheckPost" )" -le 8192 ] && printf within || printf over ; printf ' ' ; done )" "within within "
 
 echo "-- a date token is never cut in two: it goes whole, or not at all --"
 rigToken='<!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>'
@@ -829,15 +831,15 @@ rigAssert "each post carries its own short text, none empty" \
 	"$( cat "$rigTmp/k-many/000001.text" ):$( cat "$rigTmp/k-many/000005.text" ):$( for rigCheckPost in "$rigTmp/k-many"/*.text ; do [ -s "$rigCheckPost" ] || printf 'empty ' ; done )" \
 	'magic-tester, magic-tester (run abcdef01) · 25 lines:magic-tester, magic-tester (run abcdef01) · 20 lines:'
 
-echo "-- the same post as plain text, for a Slack that refuses its blocks: posts of at most 4000 characters --"
+echo "-- the same post as plain text, for a Slack that refuses its blocks: posts of at most 8192 characters --"
 rigCheckOver=0 ; rigCheckHead=0 ; rigCheckFence=0
 for rigCheckPost in "$rigTmp/k-long"/000001.plain.* ; do
-	[ "$( rigChars "$rigCheckPost" )" -le 4000 ] || rigCheckOver=$(( rigCheckOver + 1 ))
+	[ "$( rigChars "$rigCheckPost" )" -le 8192 ] || rigCheckOver=$(( rigCheckOver + 1 ))
 	[ -n "$( head -1 "$rigCheckPost" | rigPlainHeaders )" ] || rigCheckHead=$(( rigCheckHead + 1 ))
 	[ "$( LC_ALL=C grep -c -F '```' "$rigCheckPost" )" = 0 ] || rigCheckFence=$(( rigCheckFence + 1 ))
 done
 rigAssert "the long post is several plain-text posts" "$( [ "$( ls "$rigTmp/k-long" | LC_ALL=C grep -c '\.plain\.' )" -gt 2 ] && printf yes || printf no )" yes
-rigAssert "none over 4000 characters, each opening with its block's header, none with a code fence" "$rigCheckOver:$rigCheckHead:$rigCheckFence" 0:0:0
+rigAssert "none over 8192 characters, each opening with its block's header, none with a code fence" "$rigCheckOver:$rigCheckHead:$rigCheckFence" 0:0:0
 rigAssert "the operations, joined again, are every one given, in order, once" "$( rigOpsOf "$rigTmp/k-long"/000001.plain.* )" "$rigLongOps"
 rigAssert "and nothing else: one line per operation, besides the headers and the empty line before each" \
 	"$( LC_ALL=C awk 1 "$rigTmp/k-long"/000001.plain.* | LC_ALL=C grep -c -v -e '^👤 ' -e '^🧵 session ' -e '^⚙️ system' -e '^$' )" "$(( rigLongCount + rigLongCount / 25 ))"

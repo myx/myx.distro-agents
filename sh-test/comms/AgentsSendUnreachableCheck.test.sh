@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on S5.4: a message addressed to a member with no live run is reported as such where it is sent,
 ## and the message is posted all the same.
-## The report is one line, `SENT_MESSAGE_UNREACHABLE_MEMBERS=<member>...`, and it names the addressees only, never
-## the sender. Held here, with a Slack-shaped fake curl that answers every post and opens no socket:
+## The report is the line `SENT_MESSAGE_UNREACHABLE_MEMBERS=<member>...`, then the same said plainly on a `NOTE:` line, and it
+## names the addressees only, never the sender. Held here, with a Slack-shaped fake curl that answers every post and opens no socket:
 ##   1. an addressee with no spawn record at all is named.
 ##   2. control: an addressee whose run is alive is not named.
 ##   3. control: the sending member is never named, however it was addressed.
@@ -40,7 +40,8 @@ rigReport(){ ## addressees, sender
 }
 
 echo "-- 1. an addressee with no spawn record is named (S5.4) --"
-rigAssert "the unreachable member is named"  "$( rigReport magic-tester magic-coordinator )" "SENT_MESSAGE_UNREACHABLE_MEMBERS=magic-tester"
+rigAssert "the unreachable member is named"  "$( rigReport magic-tester magic-coordinator | head -1 )" "SENT_MESSAGE_UNREACHABLE_MEMBERS=magic-tester"
+rigAssert "and it is said plainly"  "$( rigReport magic-tester magic-coordinator | sed -n 2p )" "NOTE: no live run of magic-tester: the message was posted, and is read at that member's next start"
 
 echo "-- 2. control: an addressee whose run is alive is not named --"
 mkdir -p "$rigWs/.local/agents/spawned/rig-run"

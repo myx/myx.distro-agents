@@ -686,7 +686,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		syncRc=$?
 		set -e
 		if [ "$syncRc" -ne 0 ] ; then
-			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- the board could not be synced even after discarding this session's own commit, so ownership is UNKNOWN, not lost; this routine must not continue: $syncOut" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- the team-data sync failed after this session's own commit was discarded, so whether the lock is still held is UNKNOWN: $syncOut" >&2
 			if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep as-is "the board could not be synced, and this close's own commit was discarded" ; fi
 			set +e ; return 1
 		fi

@@ -1111,7 +1111,9 @@ case "$1" in
 					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the inherited data root $MDAT_DATA_ROOT is another workspace's, so this spawn uses ${MMDAPP%/}'s own" >&2
 					MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" 2> /dev/null )" || MDAT_DATA_ROOT=""
 					[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
-					export MDAT_DATA_ROOT
+					## The workspace the root is for goes with it, so the spawn's every call keeps it on one compare (AgentsContext.UseAgentsTools.include).
+					MDAT_DATA_ROOT_OF="${MMDAPP%/}"
+					export MDAT_DATA_ROOT MDAT_DATA_ROOT_OF
 				fi
 			;;
 		esac
@@ -1192,7 +1194,15 @@ case "$1" in
 				if [ -z "$joinSessionId" ] && [ -s "$dutyKeptFile" ] ; then
 					IFS= read -r dutyKeptId < "$dutyKeptFile" || dutyKeptId=""
 					case "$dutyKeptId" in ''|*[!A-Za-z0-9._-]*) dutyKeptId="" ;; esac
-					if [ -n "$dutyKeptId" ] && ! LC_ALL=C grep -q -x -F "session-id: $dutyKeptId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ; then
+					type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+					## Before either drop, the kept session's read pointer into the tagged source is kept (AgentsToolsDutyKeptTagFold).
+					if [ -n "$dutyKeptId" ] && [ -z "$( AgentsToolsSpawnedSessionRecords "$dutyKeptId" own 2> /dev/null )" ] ; then
+						! type AgentsToolsDutyKeptTagFold > /dev/null 2>&1 || AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
+						rm -f "$dutyKeptFile" ; dutyKeptId=""
+					fi
+					## A kept session of an earlier day is no session of today's duty: dropped, so the start opens one of its own (AgentsToolsDutyKeptStale).
+					if [ -n "$dutyKeptId" ] && type AgentsToolsDutyKeptStale > /dev/null 2>&1 && AgentsToolsDutyKeptStale "$dutyKeptId" ; then
+						! type AgentsToolsDutyKeptTagFold > /dev/null 2>&1 || AgentsToolsDutyKeptTagFold "$callerName" "$dutyKeptId"
 						rm -f "$dutyKeptFile" ; dutyKeptId=""
 					fi
 					if [ -n "$dutyKeptId" ] ; then joinSessionId="$dutyKeptId" ; sessionNew="" ; fi
@@ -1261,6 +1271,8 @@ case "$1" in
 				trackedMode="true"
 				trackedItemName="$fromVaultName"
 				AgentsToolsAssertBareName "$fromVaultName" "<vault-item-name>" agent-spawn-proxy || { set +e ; return 1 ; }
+				## A name with no extension is the Markdown document of that name (the ruling in AgentsTools.InternOpVaultAudit.include).
+				case "$fromVaultName" in *.*) ;; *) fromVaultName="$fromVaultName.md" ; trackedItemName="$fromVaultName" ;; esac
 				spawnContext="$( AgentsToolsDataRead "$fromVaultName" --lookup-folder "$MDAT_DATA_ROOT/vault" --context "$opContext" )" || { set +e ; return 1 ; }
 			;;
 			audit)
@@ -1716,8 +1728,12 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: 🙋 WARNING: $callerName already runs in session $sessionId: run $seatHolder holds its seat there, so a second run of it is not started -- send it what it should do there instead, with SendMessage to $sessionId:$callerName; nothing was started" >&2
 			set +e ; return 1
 		fi
-		if [ "$sessionOfCaller" = "true" ] && [ "$callerName" = "$spawnCallMember" ] && [ -z "$restartedFromSaid" ] \
-			&& [ -z "$( ls "$MMDAPP"/.local/agents/spawned/*/"$sessionId.spawn.md" 2> /dev/null )" ] ; then
+		## Whether a record of the session stands in the store: its usual path first, else one glob test (call-path audit row 44).
+		local callerRecordAny="" callerRecordOne
+		if [ -f "$MMDAPP/.local/agents/spawned/$sessionId/$sessionId.spawn.md" ] ; then callerRecordAny=yes ; else
+			for callerRecordOne in "$MMDAPP"/.local/agents/spawned/*/"$sessionId.spawn.md" ; do [ ! -e "$callerRecordOne" ] || { callerRecordAny=yes ; break ; } ; done
+		fi
+		if [ "$sessionOfCaller" = "true" ] && [ "$callerName" = "$spawnCallMember" ] && [ -z "$restartedFromSaid" ] && [ -z "$callerRecordAny" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: 🙋 WARNING: $callerName already runs in session $sessionId: the client session itself runs as it, so a second run of it is not started there; nothing was started" >&2
 			set +e ; return 1
 		fi
@@ -2090,7 +2106,8 @@ case "$1" in
 			## A work-duty's root is posted in the owner's conversation and every other session's in the team's.
 			local rootTitle="$sessionCommentKept"
 			if [ -z "$rootTitle" ] ; then
-				rootTitle="$( LC_ALL=C grep -l -x -F "session-id: $sessionId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1 )" || rootTitle=""
+				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+				rootTitle="$( AgentsToolsSpawnedSessionRecords "$sessionId" own 2> /dev/null | head -1 )" || rootTitle=""
 				[ -z "$rootTitle" ] || rootTitle="$( AgentsToolsSpawnSandboxRecordHeader "$rootTitle" session-comment )"
 			fi
 			[ -n "$rootTitle" ] || rootTitle="$callerName"
@@ -2412,6 +2429,9 @@ case "$1" in
 			[ -z "$prefixRoutineRecorded" ] || printf 'prefix-routine: %s\n' "$prefixRoutineRecorded"
 			printf 'status: %s\n' "spawn-started"
 			printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			## The day-first mark the schedule set for a work-duty (MDAT_SPAWN_DAY_FIRST), kept on the record so the send knows which
+			## run the routine told to greet the team channel: that run's first post to magic-team is the greeting.
+			[ -z "${MDAT_SPAWN_DAY_FIRST:-}" ] || printf 'day-first: %s\n' "$MDAT_SPAWN_DAY_FIRST"
 			printf 'execution-receipt: %s\n' "$receiptId"
 			[ -z "$outputFile" ] || printf 'output-file: %s\n' "$outputFile"
 			## The tooling-written session transcript, relative to the team data root.
@@ -2491,13 +2511,14 @@ case "$1" in
 			"Writable output, for deliverables and working files: $sandboxRoot/output" \
 			"Your own scratch inside it: $sandboxRoot/output/$callerName" )"
 		## A start with no routine has no tooling block to list the session thread (F7.2), BatchTools (F7.8) and Contacts (F7.10) in, so its
-		## brief carries the same lines; the kind routines' tooling blocks list them for every routine run.
+		## brief carries the same lines; the kind routines' tooling blocks list them for every routine run. The BatchTools line
+		## is the one line of the routine files' tooling blocks, character for character (AgentsThisSessionCheck counts it).
 		local contactsLine="Contacts, the people you meet and reach, are kept by tooling and not by hand: DistroAgentsContacts.fn.sh --contacted-by <value> when someone writes to you, --reach-contact <id> to write to someone, --collect-contact to record one."
 		[ -n "$routineFilePath" ] || spawnContext="$( printf '%s\n' \
 			"$spawnContext" \
 			"" \
 			"Your session thread, read with no network call: DistroAgentsSession.fn.sh --get-session-thread [--own]" \
-			"BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other." \
+			'- `BatchTools` — several tool calls in one round, much quicker for calls that do not depend on each other.' \
 			"$contactsLine" )"
 		## input/ gets what the task reads: the brief as given, its board item, MAGIC.md copies, pointers.
 		local sandboxItem=""
@@ -2530,7 +2551,7 @@ case "$1" in
 		## bytes on every work-duty run of the member, so it caches after the first; the sandbox block before them is this run's
 		## own roots and opens the variable tail.
 		if [ -n "$workDutyDispatchFile" ] ; then
-			spawnContext="$( printf '%s\n\n%s\n' "$spawnContext" "$( AgentsToolsWorkDutyDispatchVariables "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$timestamp" "$inputScanFile" )" )"
+			spawnContext="$( printf '%s\n\n%s\n' "$spawnContext" "$( AgentsToolsWorkDutyDispatchVariables "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$timestamp" "$inputScanFile" "$callerName" )" )"
 		fi
 		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName" "$conversationThreads" "$inputScanFile"
 		## THE EXECUTOR'S CHECKLIST IS SEEDED HERE, once, before its first turn (S22.4), as pending items of the member this spawn runs, mixed from every source

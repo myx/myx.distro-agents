@@ -1,6 +1,7 @@
 # AgentsContactsIndex.awk -- the one reader of the contact records (F7.10), over the person files of the store given as the input
 # files. One row a record that is asked for, TAB-separated:
-#   contact <id> <display-name> <organisation> <reached-by> <matched-on>
+#   contact <id> <display-name> <organisation> <reached-by> <matched-on> <scope-tiers>
+#   scope-tiers is the record's `scope=tier,...` list, `-` with none. -v scopefilter=<scope> or <scope>=<tier> keeps the records holding that entry.
 # The mode (-v mode=):
 #   all      every record; -v orgfilter=<slug> keeps one organisation's, -v member=<name> the ones that member holds. matched-on is `-`.
 #   find     the records -v want=<text> names: its id, a name (equal, or contained from three characters), a coordinate (a Slack id, conversation
@@ -44,8 +45,18 @@ function handleHas(list, text,    count, parts, at, entry, colon, entryTeam, ent
 	}
 	return 0
 }
+## The record's scope-tiers list holds the entry asked for: `<scope>` (any tier) or `<scope>=<tier>`.
+function scopeHas(list, text,    count, parts, at, entry, eq) {
+	count = split(list, parts, /, */)
+	eq = index(text, "=")
+	for (at = 1 ; at <= count ; at++) {
+		entry = lower(trim(parts[at]))
+		if (eq > 0 ? entry == lower(text) : substr(entry, 1, index(entry, "=") - 1) == lower(text)) return 1
+	}
+	return 0
+}
 function reset() {
-	id = "" ; name = "" ; recOrg = "" ; reached = "" ; slackId = "" ; slackHandle = "" ; slackConv = "" ; email = ""
+	scopeTiers = "" ; id = "" ; name = "" ; recOrg = "" ; reached = "" ; slackId = "" ; slackHandle = "" ; slackConv = "" ; email = "" ; language = ""
 	front = 0 ; seen = 0
 }
 function flush(    matched) {
@@ -53,6 +64,7 @@ function flush(    matched) {
 	matched = "-"
 	if (mode == "all" && orgfilter != "" && lower(orgOf()) != lower(orgfilter)) return
 	if (member != "" && ! inlist(reached, member)) return
+	if (scopefilter != "" && ! scopeHas(scopeTiers, scopefilter)) return
 	if (mode == "find") {
 		matched = ""
 		if (lower(id) == want) matched = "id"
@@ -70,7 +82,8 @@ function flush(    matched) {
 		else if (inlist(email, want)) matched = "email"
 		if (matched == "") return
 	}
-	printf "contact\t%s\t%s\t%s\t%s\t%s\n", id, name, orgOf(), reached, matched
+	## The last column is the language the person prefers (- for none recorded), kept last so every reader of the columns before it is unchanged.
+	printf "contact\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, name, orgOf(), reached, matched, (scopeTiers == "" ? "-" : scopeTiers), (language == "" ? "-" : language)
 }
 function orgOf() { return (recOrg == "none" ? "" : recOrg) }
 BEGIN { mode = (mode == "" ? "all" : mode) ; want = lower(want) ; reset() }
@@ -87,10 +100,12 @@ FNR == 1 { flush() ; reset() }
 		else if (key == "display-name") name = value
 		else if (key == "organisation") recOrg = value
 		else if (key == "reached-by") reached = value
+		else if (key == "scope-tiers") scopeTiers = value
 		else if (key == "slack-id") slackId = value
 		else if (key == "slack-handle") slackHandle = value
 		else if (key == "slack-conversation") slackConv = value
 		else if (key == "email") email = value
+		else if (key == "language") language = value
 	}
 }
 END { flush() }

@@ -174,11 +174,12 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 			echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: $runName takes a value -- nothing was done" >&2 ; return 1
 		fi
 		case "$runName" in
-			--team-member) [ -z "$runGivenMember" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --team-member is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenMember="$2" ;;
-			--session-id) [ -z "$runGivenSession" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --session-id is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenSession="$2" ;;
-			--spawn-id) [ -z "$runGivenSpawn" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --spawn-id is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenSpawn="$2" ;;
-			--select-workspace) [ -z "$runGivenWs" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --select-workspace is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenWs="$2" ;;
-			--tooling-origin) [ -z "$runGivenOrigin" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --tooling-origin is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenOrigin="$2" ;;
+			## A value given twice the same way is one value (36 refused calls on 2026-11-10 named --team-member twice, the same member both times); two different values are refused.
+			--team-member) [ -z "$runGivenMember" ] || [ "$runGivenMember" = "$2" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --team-member is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenMember="$2" ;;
+			--session-id) [ -z "$runGivenSession" ] || [ "$runGivenSession" = "$2" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --session-id is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenSession="$2" ;;
+			--spawn-id) [ -z "$runGivenSpawn" ] || [ "$runGivenSpawn" = "$2" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --spawn-id is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenSpawn="$2" ;;
+			--select-workspace) [ -z "$runGivenWs" ] || [ "$runGivenWs" = "$2" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --select-workspace is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenWs="$2" ;;
+			--tooling-origin) [ -z "$runGivenOrigin" ] || [ "$runGivenOrigin" = "$2" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --tooling-origin is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenOrigin="$2" ;;
 		esac
 		shift 2
 	done

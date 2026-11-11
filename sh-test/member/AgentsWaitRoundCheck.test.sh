@@ -298,6 +298,8 @@ rigCall 45 Wait "{\"sources\":\"file:$rigScenarioDir/quiet.txt\",\"timeout\":144
 ## THE CHECKLIST LINE IS THE GATE'S AND NO PART OF THE RESULT (epic 20261026 line 426), so it stands beside the one line.
 rigAssert "one line and no more: nothing arrived, and Wait mode=continue goes on" \
 	"$rigKilled:$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
+## The lines themselves, where the count is not one: a red row that names the extra line is a finding, one that gives a number is a riddle.
+[ "$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" )" = 1 ] || LC_ALL=C sed 's/^/        out: /' "$rigScenarioDir/out" >&2
 rigCall 45 Wait '{"mode":"continue"}'
 rigAssert "and going on is the same one line again" \
 	"$rigKilled:$( LC_ALL=C awk '! /^(WAIT-NEVER-READ|CHECKLIST): / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: run --idle-wait, if you are waiting for new work or a dismissal$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"

@@ -205,11 +205,17 @@ END {
 		## The block number of each delivered block, in order: a wait keys an eyes reaction on it (S6.48).
 		for ( deliveredAt = 1 ; deliveredAt <= delivered ; deliveredAt++ ) {
 			print "block " deliveredNo[deliveredAt] > side ;
-			## The conversation and ts of each delivered block a person sent: the eyes reaction a wait puts on it (S6.48).
+			## The conversation and ts of each delivered block a person sent that tags the member, its name among the addressees after
+			## `->`: the eyes reaction a wait puts on it (S6.48). A block for others, or for `all`, gets none -- each reaction is a Slack call.
 			eyeAt = deliveredAtNo[deliveredAt] ;
 			if ( eyeAt < 1 ) { continue ; }
 			eyeFrom = text[idxLine[eyeAt]] ;
-			sub(/^[^ ]+ /, "", eyeFrom) ; sub(/ -> .*$/, "", eyeFrom) ;
+			sub(/^[^ ]+ /, "", eyeFrom) ;
+			eyeTo = eyeFrom ;
+			sub(/ -> .*$/, "", eyeFrom) ;
+			if ( ! sub(/^[^ ]+ -> /, "", eyeTo) ) { eyeTo = "" ; }
+			sub(/:[ \t\r]*$/, "", eyeTo) ;
+			if ( index( "," eyeTo ",", "," member "," ) == 0 ) { continue ; }
 			if ( eyeAt > 0 && idxTs[eyeAt] ~ /^[0-9]+\.[0-9]+$/ && idxWhere[eyeAt] ~ /^[CDG][A-Z0-9]+:[0-9]+\.[0-9]+$/ && eyeFrom != member ) {
 				eyeChannel = idxWhere[eyeAt] ; sub(/:.*$/, "", eyeChannel) ;
 				print "eye " eyeChannel ":" idxTs[eyeAt] > side ;

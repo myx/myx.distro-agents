@@ -69,7 +69,9 @@ AgentsToolsRoutineStackShown(){ ## the `routine-stack:` lines
 ## no record here names the session.
 AgentsToolsSessionRoutineStackRecord(){ ## session id
 	local stackRecord="" stackNamed="" stackFrames=""
-	for stackRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned/$1/$1.spawn.md" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md ; do
+	## The session's own record first, then the records that name it, from the kept per-session list (AgentsTools.StartedRecords.include), never every record on a move.
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+	for stackRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned/$1/$1.spawn.md" $( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null ) ; do
 		[ -f "$stackRecord" ] || continue
 		stackFrames="$( LC_ALL=C anchor="$1" awk '
 			NR == 1 { if ( $0 != "---" ) exit 1 ; next ; }

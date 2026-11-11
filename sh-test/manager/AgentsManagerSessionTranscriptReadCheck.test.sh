@@ -17,7 +17,10 @@
 ## names nothing is one error line and status 1. A MEMBER THAT JOINS A RUNNING SESSION after the registry was
 ## built, its record added to the folder the session already has, is in the next read with its feed, whatever
 ## the clock says. It writes nothing but a registry it had to rebuild: no post is
-## made, the wait set the tracking poster keeps beside a run's feed is not written, and no scratch file is left.
+## made, the wait set the tracking poster keeps beside a run's feed is not written, and no scratch file is left
+## but the tooling's 10 s kept process list. The registry's own housekeeping thread, started by a rebuild at most
+## every 5 minutes (AgentsToolsRegistryHousekeepingDue), is held off with AGENTS_REGISTRY_HOUSEKEEPING: its
+## writes are its own, checked where it is.
 ## A call from inside a member's session is refused. And the help pair, with the three row forms the output is
 ## checked against. A fake `curl` first on PATH would log a request: none is made. Offline; only the rig's own
 ## tree is read or written.
@@ -87,7 +90,7 @@ rigTranscript(){ ## spawn id, file name in the rig's team data -- stdin: the lin
 rigPre=()
 rigRun(){ ## tool arguments... -- one dispatcher call in the rig workspace; rc in rigRc, stdout in out, stderr in err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWs" && env -i AGENTS_REGISTRY_HOUSEKEEPING=1 HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigTroubles(){ ## -- how many lines of the last stderr are an error or a warning, but for the one every rig of this package gets
@@ -101,7 +104,7 @@ rigPrint(){ ## file -- its inode and the sum of its bytes; no-file where there i
 	printf '%s:%s\n' "$( ls -i "$1" | LC_ALL=C awk '{ print $1 ; exit }' )" "$( cksum < "$1" | LC_ALL=C tr -s ' \t' '-' )"
 }
 rigOthers(){ ## -- every file of the rig workspace and its team data but the two session registries, each with the sum of its bytes, as one sum
-	( cd "$rigTmp" && find ws data -type f ! -name spawned-sessions.registry ! -name pending-replies.registry | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
+	( cd "$rigTmp" && find ws data -type f ! -name spawned-sessions.registry ! -name pending-replies.registry ! -name ps-args.txt | LC_ALL=C sort | while IFS= read -r othersFile ; do printf '%s %s\n' "$othersFile" "$( cksum < "$othersFile" )" ; done ) | cksum
 }
 rigFeed(){ ## -- the feed rows of the last output as `<time> <spawn-id> <text>`, a line each
 	LC_ALL=C awk -F'\t' '$1 == "feed" { print $2, $3, $7 }' "$rigTmp/out"
@@ -273,7 +276,7 @@ rigRun "$rigOp" --session-id run-a --raw
 rigAssert "and so is an argument it does not take" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: syntax is $rigSyntaxTail, got: --raw" )" "1 0 1"
 
 echo "-- 6. it only reads --"
-rigAssert "nothing of the workspace or of the team data was written by any call so far but the two registries, and no scratch file is left" "$( rigOthers ) $( find "$rigWs/.local/temp" -type f 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "$rigOthersBefore 0"
+rigAssert "nothing of the workspace or of the team data was written by any call so far but the two registries, and no scratch file is left but the tooling's 10 s kept process list" "$( rigOthers ) $( find "$rigWs/.local/temp" -type f ! -name ps-args.txt 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "$rigOthersBefore 0"
 rigRegBefore="$( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )"
 rigRun "$rigOp" --session-id sess-t
 rigAssert "a call that finds the registries fresh rewrites neither" "$rigRc $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "0 $rigRegBefore"

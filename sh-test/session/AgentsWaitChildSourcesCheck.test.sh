@@ -261,7 +261,8 @@ rigAssert "a round with an arrival in hand reads every source it holds" "$( rigN
 
 echo "-- 8: a source inside its slow gap is not one never read --"
 rigQuietSource="slack:$rigChannel:$(( rigNow - 600 )).000002:conversation"
-printf '%s\t%s\n' "$rigQuietSource" "$(( rigNow - 3 ))" >> "$rigAws/.local/agents/sessions/$rigSess/wait/probed"
+## Probed a moment ago by the clock of this row, not of the check's start: the rows before take minutes, and a mark that old is past its gap.
+printf '%s\t%s\n' "$rigQuietSource" "$(( $( date +%s ) - 1 ))" >> "$rigAws/.local/agents/sessions/$rigSess/wait/probed"
 rigPollSeconds="" rigWaitEcho gap-skipped --wait-default --wait-session-id "$rigSess" --wait-timeout 5 --wait-source-ttl 2 \
 	--wait-source "$rigQuietSource" > /dev/null 2>&1
 rigAssert "a source the slow gap skipped was read within its gap" "$( rigNeverRead )" none

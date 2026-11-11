@@ -55,6 +55,9 @@
 ##
 ## A write takes the one local lock of the session's file for the length of one append, one stamp, one import or one pointer,
 ## so the number of a block and the line of its header are what they say, however many runs and waits of the session write at once.
+## AN APPEND GOES THROUGH THE WORKSPACE'S CHAT WRITER where that thread is on (AgentsTools.SessionChatWriter.include, S5.8): one
+## hand appends, warm, and answers the block's number over a fifo; the locked append here is what the thread itself runs, and the
+## fallback of a writer the thread did not answer.
 ##
 
 agentsSessionChatName="session.chat"
@@ -72,8 +75,14 @@ AgentsToolsSessionChatDir(){ ## session
 
 ## The session this call belongs to, empty for none: the team session of a run, else the run's own, else the
 ## client's. The same chain the session's thread is found by (AgentsToolsSessionCurrentThreadFind).
+## Sets agentsSessionChatKey and prints nothing: the form a call path takes, since printing makes every caller a subshell for a parameter expansion.
+AgentsToolsSessionChatKeyInto(){
+	agentsSessionChatKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
+}
+## The same value printed, for a caller that is a one-off or an interactive reader.
 AgentsToolsSessionChatKey(){
-	printf '%s' "${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
+	AgentsToolsSessionChatKeyInto
+	printf '%s' "$agentsSessionChatKey"
 }
 
 ## The UTC time, as a header keeps it, before which a post that has no ts yet is given up by a floor.
@@ -132,8 +141,22 @@ AgentsToolsSessionChatLockGive(){
 ## One block appended to the session's chat file; prints its number. The body is read from the standard input.
 ## <ts> and <where> are `-` for a message not posted yet, <origin> says how it came in, <time> is the header's time
 ## (now, in UTC, where none is given), <seen> the members whose Wait delivers it itself. rc 1, nothing written, where
-## the session has no folder to be kept in.
+## the session has no folder to be kept in. Through the chat writer thread where it is on, else directly here.
 AgentsToolsSessionChatAppend(){ ## session, from, to, ts, where, origin, time (optional), seen (optional) -- the body on stdin
+	local appendIn
+	type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include" 2> /dev/null || :
+	if type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 && AgentsToolsSessionChatWriterOn ; then
+		## The body is read once, so the fallback has it too.
+		appendIn="$( cat ; printf x )" ; appendIn="${appendIn%x}"
+		if printf '%s' "$appendIn" | AgentsToolsSessionChatWriterAppend "$@" ; then return 0 ; fi
+		printf '%s' "$appendIn" | AgentsToolsSessionChatAppendDirect "$@"
+		return $?
+	fi
+	AgentsToolsSessionChatAppendDirect "$@"
+}
+
+## The locked append itself: one block, its number printed. The thread's own hand, and the fallback of every writer.
+AgentsToolsSessionChatAppendDirect(){ ## session, from, to, ts, where, origin, time (optional), seen (optional) -- the body on stdin
 	local appendDir appendFile appendBody appendNo appendLine appendTime="${7:-}" appendFrom appendTo chatLock=""
 	appendDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	mkdir -p "$appendDir" 2>/dev/null || return 1
@@ -160,7 +183,24 @@ AgentsToolsSessionChatAppend(){ ## session, from, to, ts, where, origin, time (o
 }
 
 ## Sets the Slack ts and the conversation:thread of a block once Slack has taken the message it was recorded as.
+## A write with no body -- a stamp, a pointer, an import -- goes through the chat writer thread where it is on (S5.8 rework:
+## one hand for every write of the chat files, the lock the fallback alone). rc 1 where the thread brought no answer, so
+## the caller makes the direct write itself.
+AgentsToolsSessionChatViaWriter(){ ## kind, the arguments of the direct write
+	type AgentsToolsSessionChatWriterOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatWriter.include" 2> /dev/null || return 1
+	AgentsToolsSessionChatWriterOn || return 1
+	AgentsToolsSessionChatWriterRequest "$@"
+}
+
+## DIRECT, not through the thread, as the pointer below: a stamp is written on the delivery path of a Wait's chat probe
+## (AgentsToolsSessionChatDeliverStamp), and through the thread its first request in a workspace starts the thread inside
+## that probe, which then misses its bound (`AgentsThisSessionCheck`, the --to-@any scene: `WAIT-NEVER-READ: [chat:...]`,
+## 7 s of a 5 s bound); the ask costs five processes against the direct write's three besides. The thread takes `stamp` all
+## the same, for the day an ask costs less than the lock (S12.11).
 AgentsToolsSessionChatStamp(){ ## session, block number, ts, conversation:thread
+	AgentsToolsSessionChatStampDirect "$@"
+}
+AgentsToolsSessionChatStampDirect(){ ## session, block number, ts, conversation:thread
 	local stampDir stampFile stampTmp chatLock=""
 	stampDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	stampFile="$stampDir/$agentsSessionChatName.index"
@@ -181,7 +221,7 @@ AgentsToolsSessionChatStamp(){ ## session, block number, ts, conversation:thread
 ## the call has no session or its folder cannot be kept. Quiet: the send's output is never changed by it.
 AgentsToolsSessionChatSend(){ ## member, addressees (spaced; may be empty), body
 	local sendKey sendNo
-	sendKey="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; sendKey="$agentsSessionChatKey"
 	[ -n "$sendKey" ] || return 0
 	## The origin is `own`, the run's; the writer of the console sends with MDAT_CHAT_ORIGIN=console.
 	sendNo="$( printf '%s' "$3" | AgentsToolsSessionChatAppend "$sendKey" "$1" "$( AgentsToolsSessionChatTo $2 )" - - "${MDAT_CHAT_ORIGIN:-own}" 2> /dev/null )" || return 0
@@ -204,7 +244,7 @@ AgentsToolsSessionChatThreadRoots(){
 	[ -n "${MMDAPP:-}" ] || return 0
 	printf '%s\n' "${MMDAPP%/}"
 	type AgentsToolsTeamSharedDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || return 0
-	rootsFile="$( AgentsToolsTeamSharedDir )/directories.registry"
+	rootsFile="${HOME:-}/.agents/magic-team/directories.registry"
 	[ -f "$rootsFile" ] || return 0
 	while IFS=$'\t' read -r rootsName rootsPath ; do
 		rootsPath="${rootsPath%/}"
@@ -291,9 +331,50 @@ AgentsToolsSessionChatDeliverStamp(){ ## the copies' rows, ts
 	return 0
 }
 
-## What a reader has got to: the value kept for it, nothing and rc 1 for none.
+## THE COPIES OF A QUEUED POST (the Slack copy is deferred, the chat file is the channel): a message queued for the comms writer that went into
+## the thread of another session leaves its copies' rows in chat.copies/<block number> of the sending session, which the writer takes when it has
+## posted the message and sets the ts on (AgentsToolsSessionChatDeliverStamp). Quiet, rc 1 where it could not be kept.
+AgentsToolsSessionChatCopiesKeep(){ ## session, block number, the copies' rows
+	local keepDir
+	keepDir="$( AgentsToolsSessionChatDir "$1" )/chat.copies" || return 1
+	case "$2" in ''|*[!0123456789]*) return 1 ;; esac
+	mkdir -p "$keepDir" 2> /dev/null || return 1
+	{ printf '%s\n' "$3" > "$keepDir/$2.aside" && mv -f "$keepDir/$2.aside" "$keepDir/$2" ; } 2> /dev/null || { rm -f "$keepDir/$2.aside" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## A POINTER IS ITS READER'S, AND THE READER IS THE MEMBER: every pointer is one of the member, kept in member-pointers/<member>.pointers,
+## which every session of the member reads and moves. A member holds one duty session, and what any of its runs read is handled: a pointer
+## per session would hand one message to two runs. The one exception is the session-thread macro, read in its session by each participant:
+## the thread and its chat (`import:`, `topup:`), and a participant's floors on it (`read:`, `remove:`) -- the background tasks, notices
+## and system messages injected into one session for one participant stay in that session. A collect's pointer names its member second
+## (`collect:<member>:<source>`); every other names it last (`mentions:`, `mentions-checked:`, `dms:`, `scan:<routine>:<member>`, and
+## any kind added later). Prints the member a reader key is kept for, nothing for a key of the session-thread macro.
+AgentsToolsSessionChatPointerMember(){ ## reader
+	local ownerName=""
+	case "$1" in
+		read:*|remove:*|import:*|topup:*) return 0 ;;
+		collect:?*:?*) ownerName="${1#collect:}" ; ownerName="${ownerName%%:*}" ;;
+		*:?*) ownerName="${1##*:}" ;;
+		*) return 0 ;;
+	esac
+	case "$ownerName" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	printf '%s' "$ownerName"
+}
+
+## What a reader has got to: the value kept for it, nothing and rc 1 for none. A member's source is read from the member's pointers; one
+## not kept there yet is read from the session's own file, where it was kept before, and moves to the member's at its next set.
 AgentsToolsSessionChatPointer(){ ## session, reader
-	local pointerDir pointerValue
+	local pointerDir pointerValue pointerMember
+	pointerMember="$( AgentsToolsSessionChatPointerMember "$2" )"
+	if [ -n "$pointerMember" ] && [ -f "$MMDAPP/.local/agents/member-pointers/$pointerMember.pointers" ] ; then
+		if pointerValue="$( LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { value = $2 ; found = 1 ; } END { if ( found ) { print value ; } else { exit 1 ; } }' "$MMDAPP/.local/agents/member-pointers/$pointerMember.pointers" 2> /dev/null )" ; then
+			printf '%s' "$pointerValue"
+			return 0
+		fi
+	fi
+	[ -n "${1:-}" ] || return 1
 	pointerDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	[ -f "$pointerDir/$agentsSessionChatName.pointers" ] || return 1
 	pointerValue="$( LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { value = $2 ; found = 1 ; } END { if ( found ) { print value ; } else { exit 1 ; } }' "$pointerDir/$agentsSessionChatName.pointers" 2> /dev/null )" || return 1
@@ -302,12 +383,30 @@ AgentsToolsSessionChatPointer(){ ## session, reader
 
 ## Keeps what a reader has got to. With `max` as the fourth word a number only ever goes forward: a reader that is late
 ## with its commit never takes another run's pointer back.
+## DIRECT, not through the thread: a pointer moves on every floor read, and one ask to the thread costs its caller four
+## processes (a reply fifo made and removed by mktemp, rm, mkfifo, rm: AgentsToolsOnDemandThreadAsk) and the request file a
+## fifth, against the three of the direct write (mktemp, awk, mv). The thread takes `pointer-set` and `pointer-unset` all the
+## same, for the day an ask costs less than the lock (one reply fifo a caller process, S12.11).
 AgentsToolsSessionChatPointerSet(){ ## session, reader, value, max (optional)
-	local pointerDir pointerFile pointerTmp chatLock=""
-	pointerDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
-	mkdir -p "$pointerDir" 2> /dev/null || return 1
-	pointerFile="$pointerDir/$agentsSessionChatName.pointers"
-	AgentsToolsSessionChatLockTake "$1"
+	AgentsToolsSessionChatPointerSetDirect "$@"
+}
+AgentsToolsSessionChatPointerSetDirect(){ ## session, reader, value, max (optional)
+	local pointerDir pointerFile pointerTmp chatLock="" pointerMember
+	pointerMember="$( AgentsToolsSessionChatPointerMember "$2" )"
+	if [ -n "$pointerMember" ] ; then
+		## A member's position only ever goes forward: a run late with its commit never hands a message read already to another run. A value
+		## that is no position (a scan's checksum, `<cksum>-<size>`) is replaced as given.
+		pointerDir="$MMDAPP/.local/agents/member-pointers"
+		mkdir -p "$pointerDir" 2> /dev/null || return 1
+		pointerFile="$pointerDir/$pointerMember.pointers"
+		case "$3" in ''|*[!0123456789.]*|*.*.*) ;; *) set -- "$1" "$2" "$3" max ;; esac
+		AgentsToolsSessionChatLockTake "member.$pointerMember"
+	else
+		pointerDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+		mkdir -p "$pointerDir" 2> /dev/null || return 1
+		pointerFile="$pointerDir/$agentsSessionChatName.pointers"
+		AgentsToolsSessionChatLockTake "$1"
+	fi
 	pointerTmp="$( mktemp "$pointerFile.XXXXXX" 2> /dev/null )" || pointerTmp=""
 	if [ -n "$pointerTmp" ] ; then
 		{ [ ! -f "$pointerFile" ] || cat "$pointerFile" ; } 2> /dev/null | LC_ALL=C awk -F'\t' -v OFS='\t' -v want="$2" -v value="$3" -v onlyForward="${4:-}" '
@@ -321,7 +420,10 @@ AgentsToolsSessionChatPointerSet(){ ## session, reader, value, max (optional)
 }
 
 ## Removes a reader's pointer line, where one is kept. Quiet, and no error where there is none.
-AgentsToolsSessionChatPointerUnset(){ ## session, reader
+AgentsToolsSessionChatPointerUnset(){ ## session, reader -- direct, as the pointer set above
+	AgentsToolsSessionChatPointerUnsetDirect "$@"
+}
+AgentsToolsSessionChatPointerUnsetDirect(){ ## session, reader
 	local unsetDir unsetFile unsetTmp chatLock=""
 	unsetDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	unsetFile="$unsetDir/$agentsSessionChatName.pointers"
@@ -509,7 +611,15 @@ AgentsToolsSessionChatSeen(){ ## session, member, block number...
 ## hold yet become blocks, under the file's lock (AgentsSessionChatImport.awk). Quiet, and no reason for a caller to fail.
 ## <origin> is slack, or reply:<member>; <seen> the member whose own Wait delivers these itself, `-` for none. The first time a
 ## thread is read, what was there before the run began is history: a message at or before the run's launch.
+## Through the thread where it is on. The direct write reads two things of its caller that the thread does not have, so the
+## request carries them: the rendering's path made absolute (the thread's working directory is another), and the caller's
+## launch marker, the history cut-off of a thread imported for the first time (without it every message read as history).
 AgentsToolsSessionChatImport(){ ## session, conversation:thread, rendering file, origin, seen (optional)
+	local importFile="${3:-}"
+	case "$importFile" in ''|/*) ;; *) importFile="$PWD/$importFile" ;; esac
+	AgentsToolsSessionChatViaWriter import "${1:-}" "${2:-}" "$importFile" "${4:-}" "${5:-}" "${MDAT_SPAWN_LAUNCH_MARKER:-}" || AgentsToolsSessionChatImportDirect "$@"
+}
+AgentsToolsSessionChatImportDirect(){ ## session, conversation:thread, rendering file, origin, seen (optional), launch marker (optional: the caller's, given by the thread's request; the environment's otherwise)
 	local importDir importWork importHistory=0 importStamp importMarker importMap chatLock="" importLine importNo
 	importDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
 	[ -f "$3" ] || return 0
@@ -518,7 +628,7 @@ AgentsToolsSessionChatImport(){ ## session, conversation:thread, rendering file,
 	AgentsToolsSessionChatLockTake "$1"
 	if ! AgentsToolsSessionChatPointer "$1" "import:$2" > /dev/null ; then
 		importHistory="$( date +%s )"
-		importMarker="${MDAT_SPAWN_LAUNCH_MARKER:-}"
+		importMarker="${6:-${MDAT_SPAWN_LAUNCH_MARKER:-}}"
 		if [ -n "$importMarker" ] && [ -f "$importMarker" ] ; then
 			importStamp="$( stat -f %m "$importMarker" 2> /dev/null || stat -c %Y "$importMarker" 2> /dev/null )" || importStamp=""
 			case "$importStamp" in ''|*[!0123456789]*) ;; *) importHistory="$importStamp" ;; esac

@@ -9,7 +9,10 @@
 ##      the untouched fault is not charged to the write;
 ##   5. the same fixture gives the same verdict through the in-tool door and through the hook;
 ##   6. a registry row in `refusing` whose contract file is missing refuses, and names the missing file;
-##   7. the guard is called from the two harness doors and the hook, and from no team writer.
+##   7. the guard is called from the two harness doors and the hook, and from no team writer;
+##   8. the vault kinds are registered by the type word that opens the name (S12.30): the four with a contract report, the
+##      planning and tracking kinds are absent and allowed, a vault file of no registered kind is no document type, and a
+##      Write of a vault epic-blueprint goes on under its reporting row.
 ## Offline: MMDAPP and HOME are this rig's own; the guard reads only its own files and the contract.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -173,6 +176,20 @@ echo "-- 7. the guard is called from the two harness doors and the hook, and fro
 rigAssert "two door calls, one hook call" \
 	"$( LC_ALL=C grep -c 'AgentsToolsDocGuardDecide \"' "$rigHere/harness/AgentsHarnessToolsFile.include" ):$( LC_ALL=C grep -c 'AgentsToolsDocGuardDecide \"' "$rigHere/client-hooks/document-contract-guard.sh" )" "2:1"
 rigAssert "no team writer calls the guard" "$( LC_ALL=C grep -rc 'AgentsToolsDocGuardDecide' "$rigHere/board" "$rigHere/inbox" 2>/dev/null | LC_ALL=C grep -v ':0' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0"
+
+echo "-- 8. the vault kinds, by the type word that opens the name --"
+rigVaultRow(){ ## path -> "<match rc>:<row or ->"
+	( . "$rigGuard" ; if AgentsToolsDocGuardMatch "$1" ; then printf '0:' ; AgentsToolsDocGuardRow "$1" || printf -- '-' ; else printf '1:-' ; fi ) 2> /dev/null | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr -d '\n'
+}
+rigAssert "an epic-blueprint reports against its contract, under the kind the validator knows" "$( rigVaultRow /rig/vault/epic-blueprint-20261102-refactorings.md )" "0:vault-item.epic-blueprint reporting vault-item.epic-blueprint.contract.format.md"
+rigAssert "an investigation, an adr and a verbatim record the same" "$( rigVaultRow /rig/vault/investigation-20261101T1509Z-model.md | LC_ALL=C cut -d ' ' -f 2 ):$( rigVaultRow /rig/vault/adr-20261101T1509Z-x.md | LC_ALL=C cut -d ' ' -f 2 ):$( rigVaultRow /rig/vault/verbatim-record-20261101T1509Z-x.md | LC_ALL=C cut -d ' ' -f 2 )" "reporting:reporting:reporting"
+rigAssert "planning and tracking are declared, absent"     "$( rigVaultRow /rig/vault/planning-20261109-sprint.md ):$( rigVaultRow /rig/vault/tracking-20261102-refactorings.md )" "0:planning absent -:0:tracking absent -"
+rigAssert "a vault file of no registered kind is no document type" "$( rigVaultRow /rig/vault/product-card-ae3.md )" "1:-"
+rigAssert "a routine is still matched by its ending"       "$( rigVaultRow /rig/team/x.routine.md | LC_ALL=C cut -d ' ' -f 1-2 )" "0:routine refusing"
+mkdir -p "$rigDir/vault"
+rigEpic="$( printf -- '---\ntype: epic-blueprint\ndocument-contract: vault-item.epic-blueprint\nfrom: user-rig\ndate: 2026-11-08 14:37 +0200\n---\n\n# A rig epic\n\nOne goal.\n' )"
+rigRequest 8 Write "$( rigWriteArgs "$rigDir/vault/epic-blueprint-20261108-rig.md" "$rigEpic" )" | rigServer 8
+rigAssert "a Write of a vault epic-blueprint goes on under its reporting row" "$( [ -f "$rigDir/vault/epic-blueprint-20261108-rig.md" ] && printf landed || printf none ):$( LC_ALL=C grep -c 'the document-contract guard refuses:' "$rigTmp/err.8" )" "landed:0"
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ DOC CONTRACT GUARD SLICE 1 CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

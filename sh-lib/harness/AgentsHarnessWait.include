@@ -76,6 +76,27 @@ AgentsHarnessRefusalKeep(){ ## the reason, one line
 	## `refused:` header. `.refused` above stays the single latest reason alone, for
 	## end-reason; this is the count, never read for its own text.
 	printf '%s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" >> "$keepRoot/$keepSession.refused-log" 2> /dev/null || :
+	## A REFUSAL FOR MONEY IS THE RIG'S, NOT THIS RUN'S: a provider that answers "Insufficient Balance" or a quota or billing
+	## error refuses every run of the rig alike, and a start made meanwhile dies on its first round and burns one more refused
+	## call. One mark at the rig's schedule, the reason as its line, read by the schedule's pace (AgentsToolsSchedulePaceText),
+	## which holds every start while the mark is fresh. The mark's age is its clock: nothing clears it but time or a start that
+	## reaches a round (AgentsHarnessRefusalClear).
+	case "$keepReason" in
+		*[Ii]nsufficient\ [Bb]alance*|*insufficient_quota*|*[Bb]illing*|*[Qq]uota\ exceeded*)
+			if [ -n "${MMDAPP:-}" ] && mkdir -p "$MMDAPP/.local/agents/schedule" 2> /dev/null ; then
+				keepTemp="$( mktemp "$MMDAPP/.local/agents/schedule/provider-refused.tmp.XXXXXX" 2> /dev/null )" || return 0
+				{ printf '%s\n' "$keepReason" > "$keepTemp" 2>/dev/null && chmod 644 "$keepTemp" && mv -f "$keepTemp" "$MMDAPP/.local/agents/schedule/provider-refused" ; } 2>/dev/null || rm -f -- "$keepTemp"
+			fi
+		;;
+	esac
+	return 0
+}
+
+## A run that reached a model round clears the rig's provider mark: the provider answers again, and the starts may go on.
+AgentsHarnessRefusalClear(){
+	[ -n "${MMDAPP:-}" ] || return 0
+	[ -f "$MMDAPP/.local/agents/schedule/provider-refused" ] || return 0
+	rm -f "$MMDAPP/.local/agents/schedule/provider-refused" 2> /dev/null || :
 	return 0
 }
 
@@ -245,7 +266,7 @@ AgentsHarnessWaitCheckListLine(){
 ## is still running, unfinished work of this run, so every Wait names it and how to collect it.
 AgentsHarnessWaitBackgroundLine(){
 	local bgSession bgDir bgFile bgName bgPid bgRest bgList="" bgCount=0
-	bgSession="$( AgentsHarnessSessionKey )" || return 0
+	bgSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" || return 0
 	[ -n "$bgSession" ] && AgentsHarnessBareName "$bgSession" || return 0
 	bgDir="$MMDAPP/.local/agents/sessions/$bgSession/processes"
 	for bgFile in "$bgDir"/process-*.pid ; do
@@ -318,7 +339,7 @@ AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
 AgentsHarnessWaitChatDismissal(){
 	local peekKey="" peekFloor=""
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
-	peekKey="$( AgentsToolsSessionChatKey )"
+	AgentsToolsSessionChatKeyInto ; peekKey="$agentsSessionChatKey"
 	[ -n "$peekKey" ] && [ -n "$harnessAgent" ] || return 1
 	peekFloor="$( AgentsToolsSessionChatFloor "$peekKey" "$harnessAgent" 2> /dev/null )" || return 1
 	[ -n "$peekFloor" ] || return 1
@@ -350,6 +371,50 @@ AgentsHarnessWaitCheckListAnswered(){
 ## A call naming a mode (arguments 7 to 11: mode, seen, note, done, wait) is a stateful wait kept per
 ## session; an internal caller passing six arguments or fewer gets today's stateless wait. The mode
 ## `once` is the exception: it reads one named source in one round and keeps nothing (S22 item 8).
+## A FLOOR WAIT IS A DUTY'S CYCLE END (S12.122, magic-architect's review of 2026-11-11, the human-owner's clarification): an arrival on a
+## work duty's Wait that came only on permanent records, which carry their own context after the conversation is dropped (an ask's
+## answer, an inbox document, an input-scan update, the floor's records), returns the duty to its checkpoint, once its last round's prompt has reached half of its own restart threshold and the snapshot's tools and system sums still
+## match (the cache gate). The request is the round end's own rewind, with the arrival as the next input: no second return path.
+## Anything else keeps the conversation; a gate that cannot measure says so in one NOTE line. idle-wait is untouched.
+AgentsHarnessWaitFloorRewind(){ ## the sources the Wait named, the wait result file
+	local fwSource fwTarget="" fwRow="" fwSum="" fwHalf
+	[ -n "${harnessCheckpointDir:-}" ] || return 0
+	type AgentsHarnessWorkDuty > /dev/null 2>&1 && AgentsHarnessWorkDuty || return 0
+	## In an emergency the conversation is kept (AgentsToolsEmergencyHolds).
+	{ type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include" 2> /dev/null ; } ; ! AgentsToolsEmergencyHolds || return 0
+	## WHAT ARRIVED MUST CARRY ITS OWN CONTEXT, since the rewind drops the conversation that asked: each source this arrival came on is a
+	## permanent record -- an ask's answer (the floor notice restates the question and the verdict), an inbox document, an input-scan update,
+	## the session floor's own records -- never a raw channel message (slack:, mentions:, tagged:, dms:), which would arrive without it.
+	local fwArrived=""
+	fwArrived="$( LC_ALL=C sed -n 's/^# arrived on: //p' "$2" 2> /dev/null | LC_ALL=C tr ',' ' ' )"
+	[ -n "${fwArrived// /}" ] || return 0
+	for fwSource in $fwArrived ; do
+		case "$fwSource" in
+			ask:*|inbox:*|scan:*|chat:*|floor|board:*) ;;
+			*) return 0 ;;
+		esac
+	done
+	case "${harnessPromptLast:-}:${harnessContextTokens:-}" in
+		*[!0-9:]*|:*|*:) printf 'NOTE: no return to the checkpoint on this floor wait: the size of the last round or the restart threshold is not known.\n' ; return 0 ;;
+	esac
+	fwHalf=$(( harnessContextTokens / 2 ))
+	[ "$harnessPromptLast" -ge "$fwHalf" ] || return 0
+	if AgentsHarnessSnapshotHeld opening ; then fwTarget=opening ; elif AgentsHarnessSnapshotHeld armed ; then fwTarget=armed ; fi
+	if [ -z "$fwTarget" ] ; then
+		printf 'NOTE: no return to the checkpoint on this floor wait: this duty holds no opening or armed snapshot.\n' ; return 0
+	fi
+	fwRow="$( printf '%s\n' "${harnessSnapshots:-}" | LC_ALL=C awk -F '\t' -v want="$fwTarget" '$1 == want { print $4 " " $5 ; exit }' )"
+	fwSum="$( AgentsHarnessCheckpointSum )"
+	if [ -z "$fwRow" ] || [ "$fwRow" != "$fwSum" ] ; then
+		printf 'NOTE: no return to the checkpoint on this floor wait: the tools or the system text changed since the snapshot %s, so its cached prefix would not be read.\n' "$fwTarget" ; return 0
+	fi
+	printf 'rewind %s\n' "$fwTarget" >> "$harnessCheckpointDir/checkpoint.request" 2> /dev/null || return 0
+	{ cat "$2" 2> /dev/null
+	  printf '\nYou returned to your checkpoint at this floor wait, as a duty does at its cycle end. What you did before it is recorded in your CheckList and in the Decisions of the items you worked: read them before you act on this.\n'
+	} > "$harnessCheckpointDir/checkpoint.dispatch" 2> /dev/null || :
+	printf 'NOTE: this duty returns to its checkpoint %s at the end of this round (its last round was %s tokens, half its restart threshold is %s): this arrival is its next input.\n' "$fwTarget" "$harnessPromptLast" "$fwHalf"
+}
+
 AgentsHarnessToolWait(){
 	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread waitOwnSources="$1" waitIdleReturn=""
 	local waitCounts waitBusy waitFloorOnly="" waitAll waitOpen waitActive
@@ -448,11 +513,26 @@ AgentsHarnessToolWait(){
 	## seconds (AgentsTools.ReviewFlow.include): bounded to what is left, and at the limit the
 	## tooling ends it, recorded. The item stays in review. Only the tool's own stateful wait.
 	## Nothing is loaded for a session with no spawn record, which has no item to review.
-	if [ "$waitTool" = "true" ] && [ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] && [ -n "$( AgentsHarnessSessionKey )" ] \
-		&& [ -n "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$( AgentsHarnessSessionKey ).spawn.md" 2> /dev/null )" ] ; then
+	## The session's own record is found by one key read and its usual path, the spawn folder named by the session, else by the kept
+	## per-session list (AgentsTools.StartedRecords.include): never a glob over every spawn folder, nor an `ls` process, at every Wait
+	## call (call-path audit rows 29 and 44).
+	local waitOwnKey="" waitOwnRecord=""
+	if [ "$waitTool" = "true" ] && [ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] ; then
+		waitOwnKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+		if [ -n "$waitOwnKey" ] && [ -n "${MMDAPP:-}" ] ; then
+			if [ -f "$MMDAPP/.local/agents/spawned/$waitOwnKey/$waitOwnKey.spawn.md" ] ; then
+				waitOwnRecord="$MMDAPP/.local/agents/spawned/$waitOwnKey/$waitOwnKey.spawn.md"
+			elif [ -d "$MMDAPP/.local/agents/spawned" ] ; then
+				type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include" 2> /dev/null || :
+				! type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || waitOwnRecord="$( AgentsToolsSpawnedSessionRecords "$waitOwnKey" own 2> /dev/null | LC_ALL=C sed -n '1p' )"
+				[ -z "$waitOwnRecord" ] || [ -f "$waitOwnRecord" ] || waitOwnRecord=""
+			fi
+		fi
+	fi
+	if [ -n "$waitOwnRecord" ] ; then
 		local waitReviewLeft=""
 		type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || :
-		waitReviewLeft="$( AgentsReviewWaitLeft "$( AgentsHarnessSessionKey )" 2> /dev/null )" || waitReviewLeft=""
+		waitReviewLeft="$( AgentsReviewWaitLeft "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" 2> /dev/null )" || waitReviewLeft=""
 		case "$waitReviewLeft" in
 			'') ;;
 			expired)
@@ -460,7 +540,7 @@ AgentsHarnessToolWait(){
 				if [ -n "$waitRecord" ] && AgentsToolsSessionLimitHeld "$waitRecord" > /dev/null ; then
 					waitReviewLeft=""
 				else
-					waitDismissedEarlier="$( AgentsReviewWaitExpire "${harnessAgent:-unknown}" "$( AgentsHarnessSessionKey )" 2> /dev/null )" || :
+					waitDismissedEarlier="$( AgentsReviewWaitExpire "${harnessAgent:-unknown}" "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" 2> /dev/null )" || :
 					[ -z "$waitDismissedEarlier" ] || printf '%s\n' "$waitDismissedEarlier"
 					waitDismissedEarlier="$( printf '%s\n' "$waitDismissedEarlier" | LC_ALL=C sed -n 's/^WAIT-DISMISSED-BY: //p' | head -1 )"
 					[ -z "$waitDismissedEarlier" ] || AgentsHarnessDismissedKeep "$waitDismissedEarlier"
@@ -514,7 +594,7 @@ AgentsHarnessToolWait(){
 	## would. One call, its own result printed as it comes back, never the rest of
 	## this function's wait/mode handling below.
 	if [ "$waitUnwaitMode" = "true" ] ; then
-		waitSession="$( AgentsHarnessSessionKey )"
+		waitSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 		set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input --team-member "$harnessAgent" --unwait "$toolSources"
 		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
 		waitDiag="$( "$@" 2>&1 1>"$harnessScratch/wait.out" )" || waitRc=$?
@@ -545,7 +625,7 @@ AgentsHarnessToolWait(){
 		set -- "$@" --wait-source "$waitSource"
 	done
 	if [ "$waitStateful" = "true" ] ; then
-		waitSession="$( AgentsHarnessSessionKey )"
+		waitSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 		set -- "$@" "--wait-$toolMode"
 		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
 		[ -z "$toolSeen" ] || set -- "$@" --wait-react-seen "$toolSeen"
@@ -600,6 +680,10 @@ AgentsHarnessToolWait(){
 	## model's context, and that it is normal is said once, in the tool description. Only a
 	## source never read adds its WAIT-NEVER-READ line, since its silence means nothing, and
 	## the CheckList's own line follows, which is what the member's list costs a quiet round.
+	## THE SECONDS WAITED ARE NOT MACHINERY TIME (the owner's pace ruling): the call's record keeps what the tooling spent around the
+	## wait (mach_ms), from the wait's own `# waited: <n>s` line, which both a TIMEOUT and a RECEIVED carry.
+	waitWaitedSec="$( LC_ALL=C sed -n 's/^# waited: \([0-9]*\)s of .*/\1/p' "$harnessScratch/wait.out" 2> /dev/null | head -1 )"
+	case "$waitWaitedSec" in ''|*[!0-9]*) ;; *) harnessToolRunMs=$(( waitWaitedSec * 1000 )) ;; esac
 	if [ "$waitTool" = "true" ] && [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: TIMEOUT" ] ; then
 		waitCounts="$( AgentsHarnessCheckListCounts )" || waitCounts=""
 		waitOpen="" waitActive=""
@@ -626,6 +710,7 @@ AgentsHarnessToolWait(){
 	[ "$waitTool" = "true" ] || return 0
 	## An asked question's wait item that arrived is taken into its record here, as the asking call would.
 	[ "$( head -1 "$harnessScratch/wait.out" )" != "WAIT-RESULT: RECEIVED" ] || AgentsHarnessWaitAskResolve "$harnessScratch/wait.out"
+	[ "$( head -1 "$harnessScratch/wait.out" )" != "WAIT-RESULT: RECEIVED" ] || AgentsHarnessWaitFloorRewind "$toolSources" "$harnessScratch/wait.out"
 	case "$( head -1 "$harnessScratch/wait.out" )" in
 		"WAIT-RESULT: RECEIVED")
 			## An arrival is the moment a member is about to act on something new: the list's own line comes with it, and the

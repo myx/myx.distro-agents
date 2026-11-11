@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+## lane: alone
 ## Behavioural check on the session chat file as a source of Wait (F3.3's floor in Wait, F9.2): `chat:<session>` is the floor of a
 ## run beside the replies to its own posts, read from the file by pointer; Wait brings the file up to date itself; both paths run
 ## together and a message comes once; the floor first, then the rest of what arrived in one group sorted by time, each message
@@ -35,7 +36,7 @@ rigRefuse(){
 [ -f "$rigHere/session/AgentsTools.SessionChat.include" ] || rigRefuse "the chat include is missing"
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsWaitChatFloorCheck )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigCommsThreadEnd ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/skills/$rigMember"
 printf '%s\n' "$rigMember" > "$rigTmp/skills/$rigMember/$rigMember.basic.md"
 cp "$rigFixtures/wait-own-post-replies.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
@@ -61,6 +62,7 @@ rigStamp(){ ## epoch -- a touch -t stamp of it, BSD or GNU date
 	date -r "$1" +%Y%m%d%H%M.%S 2> /dev/null || date -d "@$1" +%Y%m%d%H%M.%S
 }
 rigScene(){ ## scenario name
+	rigCommsThreadEnd
 	rigNow="$( date +%s )"
 	rigDir="$rigTmp/$1"
 	rigSession="rig-sess-$1"
@@ -77,6 +79,8 @@ rigScene(){ ## scenario name
 	printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigDir/history.CRIG00001.json"
 	printf '{"ok":true,"messages":[],"has_more":false}\n' > "$rigDir/history.DRIGOWN01.json"
 	touch -t "$( rigStamp $(( rigNow - 300 )) )" "$rigDir/launch.marker"
+	## THE RIG'S COMMS SERVICE THREAD (the owner's design): the Wait reads the cache this thread fills through the fake Slack, and never Slack itself.
+	rigCommsThreadStart "PATH=$rigWaitPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_SPAWN_LAUNCH_MARKER=$rigDir/launch.marker"
 }
 rigMsg(){ ## ts user text [thread ts] [fields]
 	printf '{"ts":"%s","user":"%s","text":"%s"%s%s}' "$1" "$2" "$3" "${4:+,\"thread_ts\":\"$4\"}" "${5:+,$5}"

@@ -147,7 +147,13 @@
 				## The asking call's own source is the one it marks itself.
 				[ -z "${MDAT_WAIT_SEEN_OWN:-}" ] || [ "$seenSource" != "${MDAT_WAIT_SEEN_OWN_SOURCE:-}" ] || continue
 				[ -f "$seenFile" ] || continue
-				seenIds="$seenIds$( AgentsWaitSeenIds "$memberName" "$seenSource" "$seenFile" "$seenOwnId" ) "
+				local seenThese="" seenNoted=""
+				seenThese="$( AgentsWaitSeenIds "$memberName" "$seenSource" "$seenFile" "$seenOwnId" )"
+				seenIds="$seenIds$seenThese "
+				## What the session thread hands over, the member has: a mentions read leaves it out from now on (AgentsWaitSessionReceivedNote).
+				if [ "$seenKind" = chat ] ; then
+					for seenNoted in $seenThese ; do AgentsWaitSessionReceivedNote "$memberName" "$seenNoted" ; done
+				fi
 			done
 			for seenOne in $( printf '%s\n' $seenIds | LC_ALL=C sort -u ) ; do
 				## The store of seen messages (AgentsTools.SeenReaction.include): a message handed over before, by a Wait or a collect, is not reacted to again.
@@ -160,6 +166,21 @@
 		fi
 
 		echo "WAIT-RESULT: $waitOutcome"
+		## THE REPLIES THE MEMBER OWES open every result (AgentsTools.OwedReplies.include): a person's message this wait hands over is noted by
+		## its reply address, and the ones unanswered in their own thread for half an hour are listed first, until a send of the member lands there.
+		if [ -n "$waitMode" ] ; then
+			type AgentsToolsOwedRepliesPrint > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" 2> /dev/null || :
+			if type AgentsToolsOwedRepliesNote > /dev/null 2>&1 ; then
+				local owedOne owedKind
+				for owedOne in $waitHits ; do
+					owedKind="${owedOne#*=}" ; owedKind="${owedKind%%:*}"
+					case "$owedKind" in slack|replies|chat|dms|mentions) ;; *) continue ;; esac
+					[ -f "$waitDir/now.${owedOne%%=*}" ] || continue
+					AgentsToolsOwedRepliesNote "$memberName" "" < "$waitDir/now.${owedOne%%=*}"
+				done
+				AgentsToolsOwedRepliesPrint "$memberName" ""
+			fi
+		fi
 		[ -z "$waitMode" ] || echo "WAIT-MODE: $waitMode"
 		[ -z "$seenFailed" ] || echo "# ERROR: the seen reaction (eyes) failed on ${seenFailed% }, so those messages show no sign that they were read"
 		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
@@ -210,6 +231,73 @@
 					LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" -f "$waitAddrInvocation" < "$waitDir/now.$waitHitIndex" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
 					[ -f "$waitDir/addr.$waitHitIndex" ] || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex"
 				done
+				## EVERY MESSAGE FROM A PERSON OUTSIDE THE TEAM CARRIES WHO THAT PERSON IS (AgentsWaitSenderMark.awk). The contact store is asked here, by the
+				## tooling, once for each account that wrote, so no run starts from a bare Slack id or has to remember to look. An account the store does
+				## not know reads `no record: do not address by name, escalate`. The human-owner and the team's own posts are never marked.
+				local waitSenderMark="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitSenderMark.awk" waitSenderOwner="" waitSenderMap="$waitDir/senders.map" waitSenderId waitSenderRow waitSenderTab=$'\t'
+				if [ -f "$waitSenderMark" ] ; then
+					## The owner's account is the rig's own, as the send reads it: magic-team's SLACK_CHANNEL_HUMAN_OWNER where that is an account id, else the mention cache.
+					if type AgentsToolsConfigOption > /dev/null 2>&1 ; then waitSenderOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || waitSenderOwner="" ; fi
+					case "$waitSenderOwner" in [UW][A-Z0-9]*) ;; *) waitSenderOwner="$( LC_ALL=C sed -n 's/^human-owner=\([A-Z0-9]*\).*/\1/p' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null | head -1 )" ;; esac
+					: > "$waitSenderMap"
+					for waitHit in $waitHits ; do
+						waitHitIndex="${waitHit%%=*}"
+						waitHitKind="${waitHit#*=}" ; waitHitKind="${waitHitKind%%:*}"
+						case "$waitHitKind" in slack|channel|thread|dms|mentions|replies) ;; *) continue ;; esac
+						for waitSenderId in $( LC_ALL=C grep -o -E '^[0-9]+\.[0-9]+ \| U[A-Z0-9]+ \|' "$waitDir/addr.$waitHitIndex" 2> /dev/null | LC_ALL=C awk '{ print $3 }' | LC_ALL=C sort -u | head -8 ) ; do
+							[ "$waitSenderId" != "$waitSenderOwner" ] || continue
+							! LC_ALL=C grep -q "^$waitSenderId$waitSenderTab" "$waitSenderMap" || continue
+							waitSenderRow="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --find-contact "$waitSenderId" 2> /dev/null | head -1 )" || waitSenderRow=""
+							## A person with no record is recorded on contact, from the Slack profile (--contacted-by), and read again.
+							case "$waitSenderRow" in contact"$waitSenderTab"*) ;; *)
+								if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$waitSenderId" > /dev/null 2>&1 < /dev/null ; then
+									waitSenderRow="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --find-contact "$waitSenderId" 2> /dev/null | head -1 )" || waitSenderRow=""
+									case "$waitSenderRow" in contact"$waitSenderTab"*) waitSenderRow="$waitSenderRow"$'\t'"recorded-now" ;; esac
+								fi
+							;; esac
+							case "$waitSenderRow" in
+								contact"$waitSenderTab"*) printf '%s\t%s\n' "$waitSenderId" "$( printf '%s' "$waitSenderRow" | LC_ALL=C awk -F'\t' -v id="$waitSenderId" '{ print $3 ", " $4 ", contact " $2 ( $8 != "" && $8 != "-" ? ", writes in " $8 : "" ) ( $NF == "recorded-now" ? ", first contact: recorded now from the Slack profile alone (tier-contact where it has an organisation); DistroAgentsContacts.fn.sh --contacted-by " id " gives the rules and the next step" : "" ) }' )" >> "$waitSenderMap" ;;
+							esac
+						done
+						LC_ALL=C awk -v map="$waitSenderMap" -v owner="$waitSenderOwner" -f "$waitSenderMark" < "$waitDir/addr.$waitHitIndex" > "$waitDir/addr.$waitHitIndex.sender" 2> /dev/null && mv -f "$waitDir/addr.$waitHitIndex.sender" "$waitDir/addr.$waitHitIndex" 2> /dev/null || rm -f "$waitDir/addr.$waitHitIndex.sender"
+					done
+				fi
+				## WHAT THE SESSION CHAT GAVE IS NOT GIVEN AGAIN BY A SLACK SOURCE OF THE SAME RETURN. The chat file hands over a message delivered
+				## into the session even where a Slack source of this Wait reads that thread too (AgentsSessionChatRead.awk), and the chat probe
+				## names each block it handed over that Slack holds, `<conversation>:<ts>` (its `eye` lines). A Slack source's message of that same
+				## conversation and ts is dropped from its rendering here, and a source left with no message is no arrival of this return.
+				local waitChatGiven="$waitDir/chat.given" waitGivenHits=""
+				: > "$waitChatGiven"
+				for waitHit in $waitHits ; do
+					case "${waitHit#*=}" in chat:*) LC_ALL=C sed -n 's/^eye //p' "$waitDir/now.${waitHit%%=*}.newest" >> "$waitChatGiven" 2> /dev/null || : ;; esac
+				done
+				if [ -s "$waitChatGiven" ] ; then
+					for waitHit in $waitHits ; do
+						waitHitIndex="${waitHit%%=*}"
+						waitHitKind="${waitHit#*=}" ; waitHitKind="${waitHitKind%%:*}"
+						case "$waitHitKind" in
+							slack|channel|thread)
+								LC_ALL=C awk -v given="$waitChatGiven" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" '
+									BEGIN { while ( ( getline line < given ) > 0 ) { seen[line] = 1 ; } }
+									function convOf( word ) { sub(/:.*$/, "", word) ; return ( word ~ /^[CDG][A-Z0-9]+$/ ) ? word : conv ; }
+									/^# in / || /^# via slack:/ { conv = convOf( $3 ) ; drop = 0 ; print ; next }
+									/^# / { drop = 0 ; print ; next }
+									/^[0-9]+\.[0-9]+ \| / { drop = ( ( conv ":" $1 ) in seen ) ; if ( ! drop ) { kept++ ; } }
+									! drop { print }
+									END { exit ( kept > 0 ? 0 : 3 ) }
+								' "$waitDir/addr.$waitHitIndex" > "$waitDir/addr.$waitHitIndex.given" 2> /dev/null
+								case "$?" in
+									0) mv -f "$waitDir/addr.$waitHitIndex.given" "$waitDir/addr.$waitHitIndex" ; waitGivenHits="$waitGivenHits $waitHit" ;;
+									3) rm -f "$waitDir/addr.$waitHitIndex.given" ;;
+									*) rm -f "$waitDir/addr.$waitHitIndex.given" ; waitGivenHits="$waitGivenHits $waitHit" ;;
+								esac
+							;;
+							*) waitGivenHits="$waitGivenHits $waitHit" ;;
+						esac
+					done
+					waitHits="${waitGivenHits# }"
+				fi
+				rm -f "$waitChatGiven"
 				## THE FLOOR FIRST, then all the rest together in one group sorted by time, each message naming the source it
 				## came from and consecutive messages of one source under one block (AgentsWaitArrivalsOrder.awk).
 				: > "$waitDir/rest.manifest"
@@ -248,7 +336,7 @@
 				done
 				## AN INBOX BLOCK CLOSES WITH ITS INSTRUCTION (S18.3), the one line magic-librarian words: what the run does with each
 				## unprocessed item it was just handed. Read once, and only where an inbox source arrived in this wait.
-				local waitInboxLine=""
+				local waitInboxLine="" waitCutOne
 				case " $waitHits " in *"=inbox:"*)
 					type AgentsToolsInboxInstruction > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 					waitInboxLine="$( AgentsToolsInboxInstruction )"
@@ -257,7 +345,11 @@
 				## The inbox line travels in the environment, never as -v, which would decode a backslash out of it (S18.3).
 				[ ! -s "$waitDir/rest.manifest" ] || INBOX_LINE="${waitInboxLine:-}" LC_ALL=C awk -v manifest="$waitDir/rest.manifest" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitArrivalsOrder.awk" < /dev/null
 				## The line that reads a cut message in full stands once in a return, not once for each message.
-				[ -z "$( ls "$waitDir"/mode.*.cut 2> /dev/null )" ] || echo "# short forms: read one in full with --slack-read $memberName <source>:<ts> --thread, the source and ts as the message shows them"
+				for waitCutOne in "$waitDir"/mode.*.cut ; do
+					[ -e "$waitCutOne" ] || break
+					echo "# short forms: read one in full with --slack-read $memberName <source>:<ts> --thread, the source and ts as the message shows them"
+					break
+				done
 				## What the wait has said is stored, and the last ts of each Slack source named.
 				for waitHit in $waitHits ; do
 					waitHitIndex="${waitHit%%=*}"

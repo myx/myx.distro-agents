@@ -78,7 +78,13 @@ DistroAgentsItems(){
 			return $?
 		;;
 
-		--get-audit-item|--get-board-item|--get-inbox-item|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--upsert-vault-decision-record|--upsert-vault-epic-blueprint|--upsert-vault-investigation-report|--upsert-vault-item|--upsert-vault-verbatim-record)
+		## The board items a member can act on now, as its duty's scan lists them (S10.33): read only.
+		--get-my-board-items)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
+			return $?
+		;;
+
+		--get-audit-item|--get-board-item|--get-inbox-item|--list-inbox-items|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--trash-board-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection|--upsert-vault-decision-record|--upsert-vault-epic-blueprint|--upsert-vault-investigation-report|--upsert-vault-item|--upsert-vault-verbatim-record)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
 			return $?
 		;;
@@ -95,7 +101,14 @@ DistroAgentsItems(){
 	esac
 }
 
+## A relative or symlinked path to this very file dispatches too: it is resolved to the real file before the match, and only a path that
+## resolves elsewhere is refused. Sourced ($0 differs from BASH_SOURCE[0]), nothing is resolved.
+selfPath="$0"
 case "$0" in
+	*/myx/myx.distro-agents/sh-scripts/*.fn.sh) ;;
+	*) [ "${BASH_SOURCE[0]:-}" != "$0" ] || selfPath="$( cd "$( dirname "$0" )" 2> /dev/null && pwd -P )/${0##*/}" ;;
+esac
+case "$selfPath" in
 	*/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh)
 
 		set -e

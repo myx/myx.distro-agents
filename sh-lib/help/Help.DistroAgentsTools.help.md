@@ -20,14 +20,14 @@
 📘 syntax: DistroAgentsSlack.fn.sh --slack-socket-stop [--team-member <team-member>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-resolve-ids [--team-member <team-member>] [--user-name <name>]... [--channel-name <name>]... [--raw]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... [<text...>|--from-stdin|--from-file <path>] [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--reply-broadcast] [--again] [--update-ts <ts>] [--address-to <who>]... [<text...>|--from-stdin|--from-file <path>] [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--format markdown|text] [--in-reply-to <message-id>] [--text-group report|brief|relay]
 📘 syntax: DistroAgentsMail.fn.sh --email-mark-seen [--team-member <team-member>] <uid>
 📘 syntax: AgentDispatcherTools.fn.sh --client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]
 📘 syntax: DistroAgentsMail.fn.sh --email-check [--team-member <team-member>]
 📘 syntax: DistroAgentsTrello.fn.sh --trello-check [--team-member <team-member>]
 📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> [<text...>|--from-stdin|--from-file <path>]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot] [--wait <seconds>]
 📘 syntax: DistroAgentsMail.fn.sh --email-read [--team-member <team-member>] <uid> [--seen]
 📘 syntax: DistroAgentsTrello.fn.sh --trello-read [--team-member <team-member>] <notification-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]
@@ -60,6 +60,7 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-project-delete [--team-member <team-member>] <project-key>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-list [--team-member <team-member>] <issue-key>
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-link-page [--team-member <team-member>] <issue-key> --url <page-url> --title <text>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
@@ -118,21 +119,24 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash [--team-member <team-member>] <item-filename> --from-inbox:<member> [--exclude-incoming]
-📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsSession.fn.sh --append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
 📘 syntax: DistroAgentsItems.fn.sh --get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --trash-inbox-item [--team-member <member>] <item-filename> [--exclude-incoming]
-📘 syntax: DistroAgentsItems.fn.sh --mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --trash-board-item [--team-member <member>] <item-filename> --from-state:<state>
+📘 syntax: DistroAgentsItems.fn.sh --mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
 📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsMonitoring.fn.sh --health [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --commands-list [--names]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list
@@ -213,12 +217,14 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --session-id <id> <member>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <unset|none|low|normal|high>
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-stop --session-id <id> [--run]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-restart --session-id <id> [--run]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-pause --session-id <id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-resume --session-id <id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]...
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>
-📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member [--team-member <team-member>] [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-agent [--cli-service <cli-name>] [--goal <text>] [--from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>
@@ -228,25 +234,25 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-run <command>
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
-📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files [--team-member <team-member>] [<file>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read [--full] <team-member>
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsItems.fn.sh --grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]
 📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-read [--team-member <team-member>]
 📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-advance [--team-member <team-member>] <ts>
-📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsKnowledge.fn.sh --get-roster [--team-member <team-member>]
 📘 syntax: DistroAgentsItems.fn.sh --commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]
 📘 syntax: DistroAgentsItems.fn.sh --repair-team-data-checkout [--team-member <team-member>] [--keep-merged|--take-remote]
@@ -268,37 +274,50 @@
 📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
 📘 syntax: DistroAgentsItems.fn.sh --return-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
 📘 syntax: DistroAgentsItems.fn.sh --reject-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
-📘 syntax: DistroAgentsItems.fn.sh --follow-up-review [--team-member <team-member>] <item-filename> <new-item-name> --from-stdin
-📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>]
+📘 syntax: DistroAgentsItems.fn.sh --follow-up-review [--team-member <team-member>] <item-filename> <new-item-name> (--message <text>|--from-stdin)
+📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>] [--execute]
 📘 syntax: DistroAgentsTesting.fn.sh --retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
 📘 syntax: DistroAgentsTesting.fn.sh --retest-drain [--rest [--about <scratch-folder>]]
 📘 syntax: DistroAgentsTesting.fn.sh --retest-result <request-id>...
 📘 syntax: AgentDispatcherTools.fn.sh --config-check
-📘 syntax: DistroAgentsItems.fn.sh --advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsItems.fn.sh --advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>]
+📘 syntax: DistroAgentsItems.fn.sh --create-running [--team-member <team-member>] <item-filename> (--edit-patch-from-stdin|--upsert-from-stdin|--upsert-body:<text>|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]...
 📘 syntax: AgentDispatcherTools.fn.sh --advance-sleep-run
 📘 syntax: AgentDispatcherTools.fn.sh --state-note-lock-acquire [--team-member <team-member>] <owner-label>
 📘 syntax: AgentDispatcherTools.fn.sh --grooming-lock-refresh [--team-member <team-member>]
 📘 syntax: AgentDispatcherTools.fn.sh --daily-lock-refresh [--team-member <team-member>]
 📘 syntax: AgentDispatcherTools.fn.sh --retro-lock-refresh [--team-member <team-member>]
 📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]
+📘 syntax: AgentDispatcherTools.fn.sh --epic-update [--team-member <team-member>] <epic-file|epic-item> (--set-status <feature-id> <status>|--add-settled <feature-id> <text...>)
+📘 syntax: AgentDispatcherTools.fn.sh --epic-read <epic-file|epic-item> [--feature <feature-id>]
+📘 syntax: AgentDispatcherTools.fn.sh --epic-list [<folder>]
+📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-scan [--workspace <path>]... [--since <epoch>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-resume [--workspace <path>]...
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-guide <run-id> [--text <text>|--from-file <path>] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-checklist-add <run-id> (--item <text>)... [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-fault <run-id> --owner <member> --title <one line> [--from-file <path>] [--workspace <path>]
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-close-orphans [--execute] [--workspace <path>]...
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-copy <from-run-id> <source-path> <to-run-id> <destination-path>
+📘 syntax: AgentDispatcherTools.fn.sh --supervise-commit-transcripts [--dry-run]
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
-📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>
+📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine [--team-member <team-member>] <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
-📘 syntax: DistroAgentsTesting.fn.sh --test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
-📘 syntax: DistroAgentsTesting.fn.sh --test-unregister <test-id>
-📘 syntax: DistroAgentsTesting.fn.sh --test-invalidate <test-id>
-📘 syntax: DistroAgentsTesting.fn.sh --test-list [--project <p>] [--namespace <n>] [--keyword <k>]
-📘 syntax: DistroAgentsTesting.fn.sh --run-oldest-untested [--wait|--no-wait]
-📘 syntax: DistroAgentsTesting.fn.sh --run-all-nightly-regressions [--wait|--no-wait]
+📘 syntax: DistroAgentsTesting.fn.sh --test-update [--team-member <team-member>] <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+📘 syntax: DistroAgentsTesting.fn.sh --test-unregister [--team-member <team-member>] <test-id>
+📘 syntax: DistroAgentsTesting.fn.sh --test-invalidate [--team-member <team-member>] <test-id>
+📘 syntax: DistroAgentsTesting.fn.sh --test-list [--team-member <team-member>] [--project <p>] [--namespace <n>] [--keyword <k>]
+📘 syntax: DistroAgentsTesting.fn.sh --run-oldest-untested [--team-member <team-member>] [--wait|--no-wait]
+📘 syntax: DistroAgentsTesting.fn.sh --run-all-nightly-regressions [--team-member <team-member>] [--wait|--no-wait]
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --owner-clear-just-agents [--check|--apply]
 📘 syntax: DistroAgentsKnowledge.fn.sh --member-help [--team-member <team-member>]
@@ -307,6 +326,7 @@
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 📘 syntax: DistroAgentsTools.fn.sh --intern-context-show [--team-member <team-member>] [--session-id <session-id>] [--spawn-id <spawn-id>] [--select-workspace <place-name|absolute-path>] [--tooling-origin <spec|absolute-path>]
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-spread <path> [--keep <glob>]...
+📘 syntax: DistroAgentsTools.fn.sh --knowledge-index-build
 📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-retire <path> --section <glob>...
 📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
 📘 syntax: DistroAgentsTools.fn.sh --undo-record <kind> <target> [--from-state <state>] [--to-state <state>] [--entity <id>] [--base <path>] [--result <path>] [--session-id <id>] [--actor <member>]
@@ -321,7 +341,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-harness-read
 📘 syntax: DistroAgentsTools.fn.sh --manager-harness-apply
 
-**IMPORTANT -- for `mcp__myx_distro__execute` and team-harness `Bash` callers:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. Those execution contexts already have `DistroAgentsTools` defined as a shell function before your command runs (except a harness `Bash` command run under a timeout); every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
+**IMPORTANT -- for `mcp__myx_distro__execute`, team-harness `Bash` and console callers alike:** call every operation as the command, by its name: `DistroAgentsTools.fn.sh <op> [args...]`, as shown throughout this file. Every tooling command of the family and every project command the workspace's prepared index names is on PATH in all three contexts, so no path is written by hand. Never call a tool as a bare function (`DistroAgentsTools <op>`): a function is a prepared tooling script's own and does not pick up source changes.
 
 ##  Summary:
 
@@ -480,7 +500,7 @@
 			--member-config-option: a scope holds credentials, so settings
 			are the tooling's and the console's, never a member op.
 
-		--slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
+		--slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--again] [--update-ts <ts>] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 			Posts <text> to magic-team, human-owner, event-track,
 			event-alert, session-current, session-parent, a
 			<channel>:<ts> thread, a bare
@@ -1703,7 +1723,9 @@
 		--confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 			Runs only as `magic-coordinator`; any other name is
 			refused with 1. A page is editable only by identities it
-			is shared with.
+			is shared with. `--version <n>` is the version the page was
+			read at: the operation writes version n+1 itself, and the
+			service refuses with 409 where the page has moved past n.
 
 			`<n>` is the version already read, from page-read's
 			stderr diagnostic; this operation submits `<n>+1`, so a
@@ -2078,6 +2100,28 @@
 			A failure prints one stderr line: the mark, this
 			operation's name, the status, and Jira's body verbatim.
 
+		--jira-project-delete [--team-member <team-member>] <project-key>
+			Prints the project's own `KEY` and `NAME` on stdout, then
+			deletes it. The printed row is the whole confirmation this
+			operation gets, and it prints before any delete is sent.
+			Jira's undo window is off, so nothing restores the project.
+			Stdout carries that row alone.
+
+			Runs only as `magic-coordinator`; any other name, or a
+			missing `<team-member>`/`<project-key>`, is refused with 1,
+			naming the missing parameter. A project the read cannot find
+			is refused before any delete, so a typo never deletes. A
+			print-back that cannot be written is refused with 1, and
+			nothing is deleted.
+
+			Returns 0 when deleted. **3**: UNKNOWN -- the read answered
+			without the project's name and key, or the delete may still
+			have taken effect. Read the project before acting again, and
+			never repeat blindly. Every other status means not deleted.
+
+			A failure prints one stderr line: the mark, this
+			operation's name, the status, and Jira's body verbatim.
+
 		--client-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential, against that external organisation's own Jira;
@@ -2276,7 +2320,7 @@
 			moved to `trash/`, recoverable only by hand -- this op still
 			won't restore it. Treat every call as final.
 
-		--librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Marks one item in `<team-member>`'s own inbox processed:
 			stamps `processed-at` into its frontmatter (creating the
 			block when the item has none) and commits it. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders.
@@ -2299,7 +2343,7 @@
 			plain re-mark succeeds as a no-op; an edit needs
 			`--include-processed`.
 
-		--mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Marks one of `<team-member>`'s OWN inbox items handled:
 			`processed-at` stamped, and the item moved to `processed/`,
 			exactly as
@@ -2312,7 +2356,7 @@
 			name ending `.md`. `--header:*` and the three body-input
 			modes behave as on the `--move-to-*` family.
 
-		--upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+		--upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 			Writes (creates or overwrites) a note into `<member>`'s own
 			inbox. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. The item lands in
 			the folder its processed stamp picks, `incoming/` or
@@ -2392,7 +2436,7 @@
 			`from:` member, as `--request-update --reply` does for a
 			librarian update request.
 
-		--upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+		--upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 			Writes (creates or overwrites) a reflection-type item into a
 			member's own inbox, own inbox only as for
 			`--upsert-inbox-note`. Same arguments, lazy inbox creation,
@@ -2474,15 +2518,17 @@
 			pair.
 
 		--get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
-		--upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-item [--team-member <team-member>] <item-name> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 			Writes a vault document, creating it or overwriting it whole. It refuses a name that
 			starts with the type word of a vault contract (`investigation`, `adr`, `verbatim-record`,
-			`epic-blueprint`): that name belongs to the typed write below.
+			`epic-blueprint`): that name belongs to the typed write below. A vault item is a file
+			with an extension, since the vault holds many kinds of file: a name given with none is
+			the Markdown document of that name, `.md`, on the read and on every vault write.
 
-		--upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--upsert-vault-decision-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
+		--upsert-vault-investigation-report [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-decision-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
+		--upsert-vault-epic-blueprint [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 			Writes a vault document of one contract: `investigation-*` (vault-item.investigation-report),
 			`adr-*` (vault-item.decision-record), `verbatim-record-*` (vault-item.verbatim-record) or
 			`epic-blueprint-*` (vault-item.epic-blueprint). The name must
@@ -4926,6 +4972,36 @@
 			line, where the id is no bare name or names no store of this
 			workspace, or the effort is not one of those listed in the syntax.
 
+		--manager-session-stop --session-id <id> [--run]
+			One of the console's own operations (see Notes). The soft stop:
+			every live run the id names is dismissed the proper way, by the
+			tooling's own mark and a DISMISSED block in the session's chat
+			addressed to its member, and each run ends itself at its next
+			Wait, its handback given. No process is signalled: that is
+			--manager-session-kill. <id> is taken as the kill takes it: a
+			session's id stops every live run of it, and `--run` takes <id>
+			as one run's own. One `stop` row a run, `session run member
+			outcome`, the outcome `dismissed` or `already-dismissed`; a
+			`none` row where the id names no live run of this workspace.
+
+		--manager-session-restart --session-id <id> [--run]
+			One of the console's own operations (see Notes). The restart, by
+			the human-owner's ruling: a start again of what has stopped or
+			finished, never of what runs. <id> is a session's id, whose
+			founding run is started again, or with `--run` one run's own.
+			The run is started again by the one restart path the tooling
+			has, the return of a review: in the same session, sandbox and
+			board item, resumed from its kept context where that can be,
+			else as a new process from its item with its Decisions first.
+			A run that still lives is not touched: its row says `live`,
+			and --manager-session-stop or --manager-session-kill comes
+			first. A run no board item names cannot be started again:
+			`no-item`. One `restart` row, `session run member outcome
+			detail`, the outcome `resumed`, `new-process`, `live`,
+			`no-item` or `failed`, the detail the item and what the
+			restart said; a `none` row where the id names no record of
+			this workspace.
+
 		--manager-session-pause --session-id <id>
 		--manager-session-resume --session-id <id>
 			One of the console's own operations (see Notes). The paused
@@ -5063,7 +5139,7 @@
 			`join <session-id> <member> <dispatch-item>`
 			<member> is `magic-coordinator`, <dispatch-item> the item the start made.
 
-		--manager-spawn-member [--team-member <team-member>] [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+		--manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 			One of the console's own operations (see Notes). Starts one
 			member with a prompt, in a new coworking session of its own,
 			and does not wait for it. The prompt is stdin (default) or
@@ -5315,7 +5391,7 @@
 			says so. Exit 1, nothing printed, where a registry cannot be
 			rebuilt.
 
-		--manager-team-member-files [--team-member <team-member>] [<file>]
+		--manager-team-member-files <team-member> [<file>]
 			One of the console's own operations (see Notes). Lists the
 			files of one member's skillset folder, where the member is set
 			up, here or in another workspace of this machine, or prints one
@@ -5370,7 +5446,7 @@
 			member whose workspace cannot be reached, or a part that
 			cannot be read.
 
-		--grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Moves a board item to board/backlog/ and/or patches its
 			frontmatter, one call -- no full-content rewrite required.
 			`--edit-patch-from-stdin` takes a JSON array of `{"old":
@@ -5385,7 +5461,7 @@
 			body-input modes pass through for whatever else the move
 			also needs.
 
-		--grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Same shape as `--grooming-to-backlog`, target fixed to
 			board/pending/ -- the Advancement-review case (backlog ->
 			pending), e.g. `--header:upsert:approved-by:"<team-member>
@@ -5394,11 +5470,11 @@
 			`<team-member> (<session-id>, <date-time>)` with an ISO UTC
 			date-time (suffix `Z`).
 
-		--grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Same shape as `--grooming-to-backlog`, target fixed to
 			board/processed/.
 
-		--grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Same shape as `--grooming-to-backlog`, target fixed to
 			board/parked/ -- a deliberate deferral by the team's own
 			choice (distinct from board/blocked/, a stall on something
@@ -5406,7 +5482,7 @@
 			supplied via `--header:*` -- triage judgments this op cannot
 			compute.
 
-		--grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Same shape as `--grooming-to-backlog`, target fixed to
 			board/blocked/ -- stalled on something external (distinct
 			from board/parked/, a deliberate stop). Stamps `owner`/
@@ -5415,7 +5491,7 @@
 			target state, but that one stamps nothing. `recheck-date`
 			and `condition` are caller-supplied via `--header:*`.
 
-		--grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Same shape as `--grooming-to-backlog`, target fixed to
 			board/running/. Distinct from `--advance-to-running`,
 			which targets the same state under a different owning
@@ -5425,7 +5501,7 @@
 			into board/running/ -- pass
 			`--header:upsert:started-at:<date-time>` to override it.
 
-		--grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Same shape as `--grooming-to-backlog`, target fixed to
 			board/archived/ -- a Drop outcome, or a re-check step
 			concluding a parked trigger is never coming or a blocked
@@ -5435,7 +5511,7 @@
 			later reader needs. The archived reason text is caller-
 			supplied via `--header:*` or the body-input modes.
 
-		--grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Same shape as `--grooming-to-backlog`, target fixed to
 			board/retained/ -- but a SAME-STATE PATCH, not a move: call
 			with `--from-state:retained` so source and target match and
@@ -5446,7 +5522,7 @@
 			meaning groomed while sitting there, not arrived from
 			elsewhere.
 
-		--grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			Creates a board-item directly in board/backlog/ -- a first
 			write, not a move: the promoted default landing for an inbox
 			item the authority group promotes. `--from-state:` is
@@ -5461,27 +5537,27 @@
 			`--create-running`; `owner` stays the
 			`--owner-header-value`.
 
-		--grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--grooming-create-backlog`, target board/processed/
 			-- a promoted-or-denied item landing with its resolution
 			text attached.
 
-		--grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--grooming-create-backlog`, target board/pending/
 			-- a promotion where the group's own context already
 			warrants approval at creation.
 
-		--grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--grooming-create-backlog`, target board/blocked/
 			-- a promotion that needs human-owner approval, so the item
 			lands blocked.
 
-		--grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--grooming-create-backlog`, target board/running/
 			-- the approval-* item the human-owner approval negotiation
 			runs in.
 
-		--sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+		--sweep-state-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]
 			Writes (creates or overwrites) routine-communication-sweep's own
 			state record FOR THAT MEMBER. Takes no filename or path argument --
 			storage is the operation's own concern; `<team-member>` says whose
@@ -5514,7 +5590,7 @@
 			The same value is a no-op; an older one is REFUSED, as is a
 			<ts> more than a minute in the future. Commits the record.
 
-		--roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+		--roster-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]
 			Writes the team's roster cache -- member/domain/posture rows plus
 			the per-member persona subsections, one record. Call it after
 			re-deriving either from the members' own live skill files, to
@@ -6421,7 +6497,9 @@
 			`verdict: follow-up: <new-item-name>` on the original. It
 			combines with any other verdict, as often as needed.
 
-		--shutdown-runs [--team-member <team-member>]
+		--shutdown-runs [--team-member <team-member>] [--execute]
+			The bare form only reads out one `SHUTDOWN-PLAN: spawn <id>: would be ended`
+			line per live spawn and ends nothing. With --execute it ends them all:
 			Shutdown: sends DISMISSED, addressed to its member, into the
 			session thread of every live spawn, and records `dismissed:
 			shutdown` on the item each one works. Prints one
@@ -6540,7 +6618,7 @@
 			or failing entry is reported inline without aborting the
 			rest; any failure makes the whole call exit non-zero.
 
-		--advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			Moves a board item into board/running/, and/or patches its
 			frontmatter, in one call. `--from-state:<state>` is
 			required; `--from-state:running` is also valid (same-state,
@@ -6568,7 +6646,7 @@
 			Auto-stamps `started-at` (date-time) on every move into
 			board/running/.
 
-		--advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			As `--advance-to-running` for arguments and body-input
 			shape, target board/parked/ -- routine-advance's own
 			check-execute-board fallback when a required spawn could not
@@ -6578,11 +6656,11 @@
 			falls to routine-grooming's slower cadence, so this op never
 			invents one.
 
-		--move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			As `--advance-to-running` for arguments and body-input
 			shape, target board/pending/. No auto-stamp.
 
-		--move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			As `--advance-to-running` for arguments and body-input
 			shape, target board/blocked/. One auto-stamp:
 			`execution-receipt` defaults to `blocked:<timestamp>` unless
@@ -6590,11 +6668,11 @@
 			receipt:*`/`--header:append:execution-receipt:*`, in which
 			case the caller's value stands.
 
-		--move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			As `--advance-to-running` for arguments and body-input
 			shape, target board/backlog/. No auto-stamp.
 
-		--move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			As `--advance-to-running` for arguments and body-input
 			shape, target board/parked/ -- check-process-board's own
 			move, the board-mechanical-moves counterpart. No auto-stamp
@@ -6603,7 +6681,7 @@
 			own fields instead). `recheck-date`/`condition` are caller-
 			supplied via `--header:*`.
 
-		--move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 			As `--advance-to-running` for arguments and body-input
 			shape, target board/processed/ -- the RUNNING->PROCESSED leg
 			whose other two legs are `--move-to-blocked` and
@@ -6642,7 +6720,7 @@
 			target is reported and skipped; the approval move stands.
 			Re-running changes nothing.
 
-		--create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--create-running [--team-member <team-member>] <item-filename> (--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			Creates a board-item directly in board/running/ --
 			check-process-board's own and only creating step: the
 			approval-* item raised when a board-backlog item is flagged
@@ -6933,7 +7011,7 @@
 			Refused with its reason for no or more than one routine argument, or a
 			routine that matches no file or several.
 
-		--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]
+		--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--edit-patch-from-stdin|--from-file <path>]
 			ThisSession's operation (DistroAgentsSession.fn.sh). Updates the state
 			record of the routine the calling session runs: the document its
 			spawner locked for the session (`routine-lock-document:`). The session
@@ -7371,7 +7449,19 @@
 			not installed, or no store stands beside the file. On success it prints how
 			many records were removed.
 
-		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
+		--knowledge-index-build
+			Builds or refreshes the workspace's knowledge index, the one the query
+			searches when every term is a keyword. It indexes every section of the
+			source docs of every project, the board, the vault and every inbox. A
+			section whose text is unchanged keeps its row, a changed one is embedded
+			again, and the rows of sections gone are deleted, so a run is safe to
+			repeat. Which hits a member may read is decided at query time, per file.
+			Runs under the index lock, and refuses while another build holds it.
+			Refuses, rc 1, when the store is off, not installed, or has no model, or
+			when no team data root is set. Prints `built: <n> section(s), <n>
+			embedded, <n> deleted`. Takes no arguments.
+
+		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--language <word>] [--owner yes|no] [--tier partner|recorded] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
 			Contacts' operation (DistroAgentsContacts.fn.sh), the people subsystem: every
 			member uses it, the coordinator and the client-* members most. Records a person,
 			or fills the record of one recorded already, in the team data root's
@@ -7398,21 +7488,22 @@
 			fills one, as `--collect-contact` does a person. Prints `ORGANISATION: <id>
 			created|updated|unchanged`.
 
-		--find-contact <value> [--team <scope>] [--reached-by <member>]
+		--find-contact <value> [--team <scope>] [--reached-by <member>] [--scope <scope>[=<tier>]]
 			Contacts' operation (DistroAgentsContacts.fn.sh). The contacts a value names, as
 			TAB-separated rows `contact <id> <display-name> <organisation> <reached-by>
-			<matched-on>`: by its id, a name (equal, or contained from three characters), a
+			<matched-on> <scope-tiers>`: by its id, a name (equal, or contained from three characters), a
 			Slack id or conversation (with or without its team), a handle (with or without
 			`@`) or an e-mail (without regard to case); `matched-on` says which. `--team`
 			keeps the Slack coordinates of one team, `--reached-by` the contacts a member
-			holds. rc 1 with none, saying what was searched.
+			holds, `--scope <scope>[=<tier>]` the contacts holding that scope tier. `scope-tiers` is
+			the record's `scope=tier,...` list, `-` with none. rc 1 with none, saying what was searched.
 
-		--all-contacts [--organisation <slug>] [--reached-by <member>]
+		--all-contacts [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]
 		--all-organisations
 		--contact-record <id>
 			Contacts' operations (DistroAgentsContacts.fn.sh), read-only. `--all-contacts`:
-			every contact, a row each as `--find-contact` prints it (the last field `-`),
-			by id, with the same two filters. `--all-organisations`: a row each, `organisation
+			every contact, a row each as `--find-contact` prints it (`matched-on` is `-`),
+			by id, with the same filters. `--all-organisations`: a row each, `organisation
 			<id> <display-name> <domain> <how many contacts>`. `--contact-record`: the record
 			of one contact, whole; rc 1 for an id not recorded. A store that is not there is
 			empty, and a read creates nothing.

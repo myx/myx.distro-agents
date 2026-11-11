@@ -16,7 +16,7 @@
 ## failed (nothing left), 3 this platform is not covered (nothing written, the store stays off).
 ##
 
-AgentsToolsKnowledgeStoreRefuse(){ ## text -- why, on standard error; rc 1
+AgentsToolsInstallKnowledgeStoreRefuse(){ ## text -- why, on standard error; rc 1
 	echo "$MDSC_CMD: ⛔ ERROR: --install-knowledge-store: $1" >&2
 	return 1
 }
@@ -38,31 +38,31 @@ AgentsToolsKnowledgeStoreInstall(){ ## the arguments after the operation word
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--from-folder)
-				[ $# -ge 2 ] || { AgentsToolsKnowledgeStoreRefuse "$1 needs a folder" ; return 1 ; }
+				[ $# -ge 2 ] || { AgentsToolsInstallKnowledgeStoreRefuse "$1 needs a folder" ; return 1 ; }
 				fromFolder="$2" ; fromFolderSet="true" ; shift 2
 			;;
 			*)
-				AgentsToolsKnowledgeStoreRefuse "invalid option: $1"
+				AgentsToolsInstallKnowledgeStoreRefuse "invalid option: $1"
 				return 1
 			;;
 		esac
 	done
-	[ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local" ] || { AgentsToolsKnowledgeStoreRefuse "no workspace: MMDAPP is not set, or has no .local" ; return 1 ; }
+	[ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local" ] || { AgentsToolsInstallKnowledgeStoreRefuse "no workspace: MMDAPP is not set, or has no .local" ; return 1 ; }
 
 	if [ "$( AgentsToolsKnowledgeStoreSetting )" != "on" ] ; then
-		AgentsToolsKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE), so nothing was installed. Turn it on with: DistroAgentsTools.fn.sh --manager-config-set MDAT_KNOWLEDGE_STORE on"
+		AgentsToolsInstallKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE), so nothing was installed. Turn it on with: DistroAgentsTools.fn.sh --manager-config-set MDAT_KNOWLEDGE_STORE on"
 		return 1
 	fi
 
 	## --from-folder is checked here, where the person gave it, so a wrong folder is refused before the feature is asked
 	if [ -n "$fromFolderSet" ] ; then
-		[ -d "$fromFolder" ] || { AgentsToolsKnowledgeStoreRefuse "not a folder: $fromFolder" ; return 1 ; }
+		[ -d "$fromFolder" ] || { AgentsToolsInstallKnowledgeStoreRefuse "not a folder: $fromFolder" ; return 1 ; }
 		fromFolder="$( cd "$fromFolder" && pwd -P )"
 	fi
 
 	## the install itself is the feature setup.feature-lancedb: its fragment, run as it is, with the workspace and the origin it needs
 	featureFile="$MDLT_ORIGIN/myx/mdci-packages-myx/setup.feature-lancedb/host/install/feature-lancedb.install.txt"
-	[ -f "$featureFile" ] || { AgentsToolsKnowledgeStoreRefuse "the feature setup.feature-lancedb is not here ($featureFile), so the knowledge store stays off and nothing was installed" ; return 1 ; }
+	[ -f "$featureFile" ] || { AgentsToolsInstallKnowledgeStoreRefuse "the feature setup.feature-lancedb is not here ($featureFile), so the knowledge store stays off and nothing was installed" ; return 1 ; }
 	env MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" sh "$featureFile" ${fromFolderSet:+--from-folder "$fromFolder"} || featureRc=$?
 	return "$featureRc"
 }
