@@ -1036,8 +1036,11 @@ AgentsToolsContactsAllow(){ ## the operation, its arguments...
 
 ## ---- the two scenarios ----
 
-## --contacted-by <value> [--team <scope>]: being contacted. The sender looked up: the record, then what it holds and the tiers and next step of the
-## template. A sender nobody has recorded is said so, with the next step; rc 1 then, and where the value names more than one contact (rows, narrow it).
+## --contacted-by <value> [--team <team>] [--scope <scope>]: being contacted. The sender looked up: the record, then what it holds and the tiers and
+## next step of the template. A sender nobody has recorded is said so, with the next step; rc 1 then, and where the value names more than one contact
+## (rows, narrow it). `--team` is the Slack workspace the value is looked up in, as in `--find-contact`, since an account id is unique within one
+## workspace only. `--scope` is the project, product or team whose tier is read (AgentsToolsContactsTierFor). A scope is no Slack workspace, so the
+## two questions keep two words.
 ## THE KNOWN-NOT-ADDED LIST of the contacts machinery: Slack accounts asked on contact and not recorded (a bot, an account of no
 ## organisation), so no spam sender reaches the contact store and none is asked of Slack again while the answer holds. One line each,
 ## `<id> TAB <epoch> TAB <profile>`, machine-local beside the store (never committed with it). An entry holds 12 hours, and only while
@@ -1068,22 +1071,23 @@ AgentsToolsContactsNotAddedPut(){ ## id, profile
 }
 
 AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
-	local byOp="$1" byValue="" byTeam="" byRows byCount byId byTier
+	local byOp="$1" byValue="" byTeam="" byScope="" byRows byCount byId byTier
 	shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
-			--team)
-				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: --team takes a value" >&2 ; return 1 ; }
-				byTeam="$2" ; shift 2
+			--team|--scope)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --team) byTeam="$2" ;; *) byScope="$2" ;; esac
+				shift 2
 			;;
-			-*) echo "$MDSC_CMD: ⛔ ERROR: $byOp: unknown option: $1 -- syntax is <value> [--team <scope>]" >&2 ; return 1 ;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: $byOp: unknown option: $1 -- syntax is <value> [--team <team>] [--scope <scope>]" >&2 ; return 1 ;;
 			*)
 				[ -z "$byValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: one value, got a second: $1" >&2 ; return 1 ; }
 				byValue="$1" ; shift
 			;;
 		esac
 	done
-	[ -n "$byValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: syntax is <value> [--team <scope>]" >&2 ; return 1 ; }
+	[ -n "$byValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: syntax is <value> [--team <team>] [--scope <scope>]" >&2 ; return 1 ; }
 	AgentsToolsContactsStore "$byOp" || return 1
 	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
 	byRows="$( AgentsToolsContactsIndex find "$byValue" "$byTeam" "" "" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
@@ -1148,7 +1152,7 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 					done
 					if LC_ALL=C grep -l -E "^slack-id:.*:$byValue(,|\$| )" "$contactsPersons"/*.md > /dev/null 2>&1 ; then
 						rmdir "$byLock" 2> /dev/null || :
-						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byTeam:+--team "$byTeam"} < /dev/null
+						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byTeam:+--team "$byTeam"} ${byScope:+--scope "$byScope"} < /dev/null
 						return $?
 					fi
 					## AN UPSERT, NEVER A SECOND RECORD OF ONE PERSON: the record of the same e-mail is theirs; so is the record of the same name
@@ -1172,7 +1176,7 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 						rmdir "$byLock" 2> /dev/null || :
 						echo "CONTACT-RECORDED: $byValue wrote and no record held the account; it is an organisation contact (${byProfileMember1:+a full member of this Slack workspace}${byProfileMember1:+${byProfileOrg:+, }}${byProfileOrg:+organisation $byProfileOrg}), so the tooling recorded it now as $byNewId: $byProfile. FIRST CONTACT: the record holds only what the Slack profile gives, and stands at ${byProfileOrg:+tier-contact, as a member of $byProfileOrg}${byProfileOrg:-no tier, having no organisation}; answer within what the rules below allow, and record what the exchange brings with --collect-contact."
 						[ -z "$byMaybeSame" ] || echo "LIKELY-SAME-PERSON: $byNewId and $byMaybeSame -- the e-mail names one and the name the other. Do not write to either as two people; file it to magic-coordinator with post-inquiry for a merge (no merge operation yet)." 
-						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byTeam:+--team "$byTeam"} < /dev/null
+						MDAT_CONTACT_RECORDED_ON_CONTACT=1 "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsContacts.fn.sh" --contacted-by "$byValue" ${byTeam:+--team "$byTeam"} ${byScope:+--scope "$byScope"} < /dev/null
 						return $?
 					fi
 					rmdir "$byLock" 2> /dev/null || :
@@ -1194,7 +1198,7 @@ AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
 	printf '\n'
 	## The tier's own rules, whole: the record's `tier:`, and every tier below it. No tier, or a value that is none, reads as `none`.
 	AgentsToolsContactsPersonRead "$contactsPersons/$byId.md" || :
-	byTier="$( AgentsToolsContactsTierName "$( AgentsToolsContactsTierFor "$byTeam" )" || true )"
+	byTier="$( AgentsToolsContactsTierName "$( AgentsToolsContactsTierFor "$byScope" )" || true )"
 	contactsEffectiveTier="$byTier"
 	AgentsToolsContactsTierKnown "$byTier" || byTier=tier-none
 	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" ASKP_F_tiers="$( AgentsToolsEscalationNote "Contacts/$byTier" )" AgentsToolsEscalationNote "Contacts/contacted-known"
