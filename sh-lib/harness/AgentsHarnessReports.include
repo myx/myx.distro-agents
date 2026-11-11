@@ -228,7 +228,7 @@ AgentsHarnessToolSubagentHandbackRun(){
 	## run whose handback is given, so the harness ends it once this call is over
 	## (AgentsHarnessDismissedAfter). Its report moves nothing to review.
 	## A work duty is the exception: it lives on in its wait, and the main loop decides when it goes (AgentsToolsScheduleDutyLifetime).
-	if [ "$toolRoute" = none ] && [ -f "$harnessScratch/send.delivered" ] && ! AgentsHarnessWorkDuty ; then
+	if [ -f "$harnessScratch/send.delivered" ] && AgentsHarnessReportsNone && ! AgentsHarnessWorkDuty ; then
 		## One that runs still need ends once they have ended (F6.9): kept until then.
 		if AgentsHarnessDismissWaits > /dev/null ; then
 			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "tooling (this run reports to no one, and its report is given)" handback-given
@@ -414,7 +414,7 @@ AgentsHarnessArtifactPublish(){
 	[ -z "$toolKind" ] || pubArgs+=( --kind "$toolKind" )
 	pubSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 	[ -z "$pubSession" ] || pubArgs+=( --session-id "$pubSession" )
-	"$BASH" "$pubTools" --intern-artifact-publish "$harnessAgent" --title "$toolTitle" "${pubArgs[@]}" \
+	"$BASH" "$pubTools" --intern-artifact-publish "$harnessAgent" --title "$toolTitle" ${pubArgs[@]+"${pubArgs[@]}"} \
 		> "$harnessScratch/artifact.out" 2> "$harnessScratch/artifact.err" < /dev/null || pubRc=$?
 	toolUrl="$( LC_ALL=C sed -n 's/^ARTIFACT_URL=//p' "$harnessScratch/artifact.out" | head -1 )"
 	if [ "$pubRc" != 0 ] ; then

@@ -94,7 +94,7 @@ AgentsToolsKnowledgeStoreSpread(){ ## the arguments after the operation word
 		trap "rm -rf -- $( printf '%q' "$spreadScratch" )" EXIT
 		spreadKept="$spreadScratch/kept.md"
 		spreadManifest="$spreadScratch/manifest"
-		SPREAD_KEEP="$( printf '%s\n' "${spreadKeep[@]}" )" SPREAD_KEPT="$spreadKept" SPREAD_MANIFEST="$spreadManifest" SPREAD_DIR="$spreadScratch" \
+		SPREAD_KEEP="$( printf '%s\n' ${spreadKeep[@]+"${spreadKeep[@]}"} )" SPREAD_KEPT="$spreadKept" SPREAD_MANIFEST="$spreadManifest" SPREAD_DIR="$spreadScratch" \
 			LC_ALL=C awk -v file="$spreadPath" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStoreSpread.awk" || exit 1
 		if [ ! -s "$spreadManifest" ] ; then
 			echo "$MDSC_CMD: --knowledge-store-spread: every section of $spreadRef is kept; nothing moved" >&2
@@ -146,7 +146,7 @@ AgentsToolsKnowledgeStoreRetire(){ ## the arguments after the operation word
 		retireScratch="$( mktemp -d "$retireBase/knowledge-store-retire.XXXXXX" )" || exit 1
 		trap "rm -rf -- $( printf '%q' "$retireScratch" )" EXIT
 		retireSectionsFile="$retireScratch/sections"
-		printf '%s\n' "${retireSections[@]}" > "$retireSectionsFile"
+		printf '%s\n' ${retireSections[@]+"${retireSections[@]}"} > "$retireSectionsFile"
 		retireRemoved="$( "$retirePython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStore.py" remove --store "$retireStore" --sections "$retireSectionsFile" )" || exit 1
 		echo "$MDSC_CMD: --knowledge-store-retire: removed $retireRemoved record(s) of $retireStore" >&2
 		printf '%s\n' "$retireRemoved"
@@ -164,9 +164,9 @@ AgentsToolsKnowledgeIndexBuild(){ ## the arguments after the operation word: non
 	type AgentsToolsKnowledgeFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Knowledge.include"
 	[ "$( AgentsToolsKnowledgeStoreSetting )" = "on" ] || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE); nothing was built" ; return 1 ; }
 	local buildPython="" buildModel="" buildRoot="" buildData="${MDAT_DATA_ROOT%/}" buildSections=""
+	[ -n "$buildData" ] && [ -d "$buildData" ] || { AgentsToolsKnowledgeStoreRefuse "no team data root (MDAT_DATA_ROOT); nothing was built" ; return 1 ; }
 	buildPython="$( AgentsToolsKnowledgeStorePython )" || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is not installed; run --install-knowledge-store first" ; return 1 ; }
 	buildModel="$( AgentsToolsKnowledgeIndexModel )" || { AgentsToolsKnowledgeStoreRefuse "the embedding model of the store does not stand; run --install-knowledge-store first" ; return 1 ; }
-	[ -n "$buildData" ] && [ -d "$buildData" ] || { AgentsToolsKnowledgeStoreRefuse "no team data root (MDAT_DATA_ROOT); nothing was built" ; return 1 ; }
 	buildRoot="$( AgentsToolsKnowledgeIndexRoot )"
 	buildSections="$( {
 		AgentsToolsKnowledgeFiles --add-source-docs --add-board-items --add-vault-items --

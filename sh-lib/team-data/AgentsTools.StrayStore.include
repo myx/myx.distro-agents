@@ -93,7 +93,7 @@ AgentsToolsStrayStoreRunsTable(){ ## team data root
 		inHead && index($0, "started-at: ") == 1 { start = epochOf(substr($0, 13)) }
 		inHead && index($0, "resolved-at: ") == 1 { end = epochOf(substr($0, 14)) }
 		inHead && index($0, "processed-at: ") == 1 && end < 0 { end = epochOf(substr($0, 15)) }
-		END { flush() }' "${tableFiles[@]}"
+		END { flush() }' ${tableFiles[@]+"${tableFiles[@]}"}
 }
 
 ## THE RIG OF AN INBOX ITEM: the one rig whose table holds a run of the writer covering the moment; `ambiguous` for several, `-` for none.

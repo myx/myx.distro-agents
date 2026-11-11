@@ -65,9 +65,9 @@ AgentsToolsSuperviseCommitTranscripts(){ ## [--workspace <path>] [--dry-run]
 		## restart of that rig's run is made with (AgentsTools.SuperviseResume.include).
 		[ "$commitDry" = yes ] || ( MMDAPP="$commitWs" MDAT_DATA_ROOT="$commitRoot" ; export MMDAPP MDAT_DATA_ROOT
 			MDAT_TEAM_DATA_COMMIT_WAIT=yes AgentsToolsTeamDataCommitPaths \
-				"transcripts left changed after their run ended" "${commitPaths[@]}" > /dev/null 2>&1 || :
+				"transcripts left changed after their run ended" ${commitPaths[@]+"${commitPaths[@]}"} > /dev/null 2>&1 || :
 			AgentsToolsTeamDataPushIfAhead "the transcript sweep" ) || :
-		for commitPath in "${commitPaths[@]}" ; do
+		for commitPath in ${commitPaths[@]+"${commitPaths[@]}"} ; do
 			printf 'commit\t%s\n' "${commitPath#"$commitRoot"/}"
 		done
 	fi

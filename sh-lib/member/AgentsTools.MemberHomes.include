@@ -178,7 +178,7 @@ AgentsToolsMemberHomesNewest(){ ## candidate rows
 			printf 'row\t%s\t%s\t%s\n' "$newestRoot" "$newestKind" "$newestDir"
 			newestDirs[${#newestDirs[@]}]="$newestDir/."
 		done <<< "$1"
-		[ "${#newestDirs[@]}" -eq 0 ] || AgentsToolsMemberHomesChanged "$newestStat" "${newestDirs[@]}"
+		[ "${#newestDirs[@]}" -eq 0 ] || AgentsToolsMemberHomesChanged "$newestStat" ${newestDirs[@]+"${newestDirs[@]}"}
 	} | LC_ALL=C awk -F'\t' '
 		$1 == "row" { n++ ; row[n] = $2 "\t" $3 "\t" $4 ; dir[n] = $4 ; known[$4] = 1 ; next ; }
 		{

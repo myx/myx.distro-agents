@@ -253,7 +253,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	done
 	## The sources a run of the routine waits on besides its scans (`wait-sources: <source> ...`, read by --idle-wait): `inbox:{{team-member}}`, the own inbox,
 	## `tagged:{{team-member}}`, what is for the member by name, `mentions:{{team-member}}`, its mentions anywhere, and `board:<state>`, one state of the board.
-	for routineIncSection in "${routineWaitLines[@]}" ; do
+	for routineIncSection in ${routineWaitLines[@]+"${routineWaitLines[@]}"} ; do
 		for routineIncWord in $routineIncSection ; do
 			case "$routineIncWord" in
 				"inbox:{{team-member}}"|"tagged:{{team-member}}"|"mentions:{{team-member}}"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;

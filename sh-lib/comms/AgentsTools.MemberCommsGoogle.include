@@ -204,6 +204,14 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --google-file-find: --raw-query cannot be combined with --full-text or --include-trashed -- with --raw-query the argument is the complete Drive query and those flags would have nothing to shape. Put the condition in the query itself instead" >&2
 				set +e ; return 1
 			fi
+			## A TERM THAT READS AS A DRIVE QUERY is still searched as a name, so its empty answer says nothing about the query: the note says so.
+			if [ -z "$googleRawQuery" ] ; then
+				case " $googleQuery " in
+					*" = "*|*"!="*|*" contains "*|*" in parents"*|*" in owners"*|*"trashed"*|*"mimeType"*|*"modifiedTime"*)
+						echo "# NOTE: $MDSC_CMD --google-file-find: the term reads as a Drive query, and is searched as a name: name contains '$googleQuery'. To run it as a query, add --raw-query" >&2
+					;;
+				esac
+			fi
 			local googleClientId googleClientSecret googleRefreshToken
 			AgentsToolsGoogleResolveMember google-file-find "$memberName" || { set +e ; return 1 ; }
 			local googleRc=0

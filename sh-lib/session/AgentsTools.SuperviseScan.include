@@ -79,7 +79,7 @@ AgentsToolsSuperviseScan(){
 	## `scanBegan` every process with the moment it began, the form a record's `run-process:` is kept in.
 	scanLive="$( printf '%s\n' "$scanPs" | AgentsToolsRegistryRunWords )" || scanLive=""
 	scanBegan="$( printf '%s\n' "$scanPs" | LC_ALL=C awk 'NF { print $1 }' | AgentsToolsRegistryProcessesBegan )" || scanBegan=""
-	for scanWs in "${scanWorkspaces[@]}" ; do
+	for scanWs in ${scanWorkspaces[@]+"${scanWorkspaces[@]}"} ; do
 		scanAgents="$scanWs/.local/agents"
 		[ -d "$scanAgents" ] || { printf 'error %s - no .local/agents here\n' "${scanWs##*/}" ; continue ; }
 		## EVERY RECORD'S SEVEN FIELDS IN ONE READ OF THEM ALL, before any question is read, since the asks below answer from it: a record
@@ -255,7 +255,7 @@ AgentsToolsSuperviseScan(){
 						while [ -f "${scanBase%.log}-part$(( ${#scanParts[@]} + 1 )).log" ] ; do
 							scanParts+=( "${scanBase%.log}-part$(( ${#scanParts[@]} + 1 )).log" )
 						done
-						scanLine="$( LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 } END { if (at != "") print at " " name }' "${scanParts[@]}" )" || scanLine=""
+						scanLine="$( LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 } END { if (at != "") print at " " name }' ${scanParts[@]+"${scanParts[@]}"} )" || scanLine=""
 					fi
 				fi
 				scanStamp="${scanLine%% *}" ; scanName="${scanLine#* }"

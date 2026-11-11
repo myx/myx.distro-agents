@@ -106,7 +106,7 @@ AgentsToolsCommsSlackFileInfo(){ ## <team-member> <file-id> [--identity-bot] | -
 	chmod 600 "$diagFile"
 	echo "# $MDSC_CMD --slack-file-info: GET files.info file=$fileId (metadata only -- no file content is retrieved by this op, acting member $memberName)" >&2
 	local response callRc=0
-	response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+	response="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${opArgs[@]+"${opArgs[@]}"} 2>"$diagFile" )" || callRc=$?
 	local diag
 	## Tested, so nothing between the file's creation and its removal can
 	## abort under `set -e` and leave it behind.

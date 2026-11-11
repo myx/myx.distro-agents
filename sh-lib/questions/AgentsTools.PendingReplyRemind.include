@@ -226,7 +226,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 	## forward's addressees (-: the ask is where it was asked; none: it went up with no forward).
 	local remindFile remindKey remindValue remindId remindEpoch remindAge remindStages
 	local fStatus fOwner fChannel fQts fTts fAddr fAddressees fIdentity fAskedAt f30 f2h fDaily fCount fLastAt
-	local fFwdChannel fFwdTs fFwdAddr fFwdBy fForward fFailedAt fRerouted
+	local fFwdChannel fFwdTs fFwdAddr fFwdBy fForward fFailedAt fRerouted fItem mootState mootReason mootBoard
 	: > "$remindWork/due"
 	## Which records are looked at: every open one, or those of the ids given.
 	if [ -z "$remindOnly" ] ; then
@@ -240,7 +240,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 	while IFS= read -r remindFile ; do
 		[ -f "$remindFile" ] || continue
 		fStatus="" fOwner="" fChannel="" fQts="" fTts="" fAddr="" fAddressees="" fIdentity="" fAskedAt="" f30="" f2h="" fDaily="" fCount="" fLastAt=""
-		fFwdChannel="" fFwdTs="" fFwdAddr="" fFwdBy="" fForward="-" fFailedAt="" fRerouted=""
+		fFwdChannel="" fFwdTs="" fFwdAddr="" fFwdBy="" fForward="-" fFailedAt="" fRerouted="" fItem=""
 		while IFS=$'\t' read -r remindKey remindValue ; do
 			case "$remindKey" in
 				status) fStatus="$remindValue" ;;
@@ -263,10 +263,34 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 				forwarded-by) fFwdBy="$remindValue" ;;
 				last-reminder-failed) fFailedAt="$remindValue" ;;
 				rerouted-from) fRerouted="$remindValue" ;;
+				item) fItem="$remindValue" ;;
 			esac
 		done < <( AgentsToolsPendingReplyCollectFields "$remindFile" )
 		[ "$fStatus" = "reply-pending" ] || continue
 		remindId="${remindFile##*/}" ; remindId="${remindId%.md}"
+		## A QUESTION WHOSE WORK IS GONE IS MOOT, AND IS CLOSED BEFORE ANY REMINDER (the human-owner's rule): where the board item it gates
+		## lies in processed, archived or retained, or on the board no more, nobody needs its answer. It is withdrawn with the reason, the
+		## withdraw posts its one-line note in the question's own thread, and no reminder goes.
+		if [ -n "$fItem" ] && [ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] ; then
+			type AgentsToolsBoardReady > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
+			mootState=""
+			for mootBoard in $agentsBoardStates ; do
+				[ ! -f "$MDAT_DATA_ROOT/board/$mootBoard/${fItem%.md}.md" ] || { mootState="$mootBoard" ; break ; }
+			done
+			case "$mootState" in
+				processed|archived|retained|'')
+					mootReason="moot: ${fItem%.md} is in $mootState, so its work no longer waits on this answer"
+					[ -n "$mootState" ] || mootReason="moot: ${fItem%.md} is on the board no more, so its work no longer waits on this answer"
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" > /dev/null 2>&1
+					if DistroAgentsTools --settle-pending-reply --team-member "${fOwner:-magic-coordinator}" "$remindId" --reason "$mootReason" --withdraw > /dev/null 2>&1 ; then
+						printf 'REMIND-MOOT: %s withdrawn -- %s\n' "$remindId" "$mootReason"
+					else
+						echo "$MDSC_CMD: ⚠️ WARNING: $remindId is moot ($mootReason), but its withdraw failed; it is not reminded this run" >&2
+					fi
+					continue
+				;;
+			esac
+		fi
 		## An ask that went on to the human-owner is his where he has it: the forward's own
 		## thread, a post of the team bot's made by the member that forwarded it, and the
 		## moment of the forward is when he was asked.

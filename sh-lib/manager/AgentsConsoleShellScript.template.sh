@@ -991,9 +991,9 @@ DagcRunClaudeStreaming(){
 	## A resume (MDAT_SPAWN_RESUME_EVENT_MARKER, from the proxy) marks its first stream-json
 	## event, so a resume that fails before it is told apart from one that ran.
 	if [ -n "${MDAT_SPAWN_RESUME_EVENT_MARKER:-}" ] ; then
-		exec 3> >( DagcResumeEventTee | LC_ALL=C awk -f "$progressAwkPath" "${transcriptAwkArgs[@]}" -f "$streamAwkPath" )
+		exec 3> >( DagcResumeEventTee | LC_ALL=C awk -f "$progressAwkPath" ${transcriptAwkArgs[@]+"${transcriptAwkArgs[@]}"} -f "$streamAwkPath" )
 	else
-		exec 3> >( LC_ALL=C awk -f "$progressAwkPath" "${transcriptAwkArgs[@]}" -f "$streamAwkPath" )
+		exec 3> >( LC_ALL=C awk -f "$progressAwkPath" ${transcriptAwkArgs[@]+"${transcriptAwkArgs[@]}"} -f "$streamAwkPath" )
 	fi
 	awkPid=$!
 	## $DAGC_CLI_EXEC, not $DAGC_CLI: this launches a BINARY, and the two differ
@@ -1009,7 +1009,7 @@ DagcRunClaudeStreaming(){
 	local DAGC_VENDOR_MODEL="" DAGC_VENDOR_MODEL_ARGS=()
 	DAGC_VENDOR_MODEL="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_MODEL_MAIN 2>/dev/null )" || DAGC_VENDOR_MODEL=""
 	[ -z "$DAGC_VENDOR_MODEL" ] || DAGC_VENDOR_MODEL_ARGS=( --model "$DAGC_VENDOR_MODEL" )
-	"$DAGC_CLI_EXEC" --verbose --output-format stream-json "${DAGC_VENDOR_MODEL_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
+	"$DAGC_CLI_EXEC" --verbose --output-format stream-json ${DAGC_VENDOR_MODEL_ARGS[@]+"${DAGC_VENDOR_MODEL_ARGS[@]}"} ${DAGC_ACCESS_ARGS[@]+"${DAGC_ACCESS_ARGS[@]}"} ${DAGC_SESSION_ID_ARGS[@]+"${DAGC_SESSION_ID_ARGS[@]}"} ${DAGC_AGENT_ARGS[@]+"${DAGC_AGENT_ARGS[@]}"} ${DAGC_PROMPT_ARGS[@]+"${DAGC_PROMPT_ARGS[@]}"} "$claudePrompt" >&3 &
 	claudePid=$!
 	## Installed immediately after capture, before anything else -- including
 	## the otherwise-harmless `exec 3>&-` below -- so there is no window in
@@ -1084,14 +1084,14 @@ if [ "$1" == "--non-interactive" ] ; then
 		if [ "$DAGC_CLI_EXEC" = "claude" ] ; then
 			DagcRunClaudeStreaming "$*"
 		fi
-		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_POLICY_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
+		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS ${DAGC_POLICY_ARGS[@]+"${DAGC_POLICY_ARGS[@]}"} ${DAGC_ACCESS_ARGS[@]+"${DAGC_ACCESS_ARGS[@]}"} ${DAGC_SESSION_ID_ARGS[@]+"${DAGC_SESSION_ID_ARGS[@]}"} ${DAGC_AGENT_ARGS[@]+"${DAGC_AGENT_ARGS[@]}"} ${DAGC_PROMPT_ARGS[@]+"${DAGC_PROMPT_ARGS[@]}"} "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
 	if [ "$DAGC_CLI_EXEC" = "claude" ] ; then
 		DagcRunClaudeStreaming "$( cat )"
 	fi
-	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_POLICY_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
+	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS ${DAGC_POLICY_ARGS[@]+"${DAGC_POLICY_ARGS[@]}"} ${DAGC_ACCESS_ARGS[@]+"${DAGC_ACCESS_ARGS[@]}"} ${DAGC_SESSION_ID_ARGS[@]+"${DAGC_SESSION_ID_ARGS[@]}"} ${DAGC_AGENT_ARGS[@]+"${DAGC_AGENT_ARGS[@]}"} ${DAGC_PROMPT_ARGS[@]+"${DAGC_PROMPT_ARGS[@]}"} "$( cat )"
 fi
 
 echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-exec "$DAGC_CLI_EXEC" "${DAGC_POLICY_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"
+exec "$DAGC_CLI_EXEC" ${DAGC_POLICY_ARGS[@]+"${DAGC_POLICY_ARGS[@]}"} ${DAGC_ACCESS_ARGS[@]+"${DAGC_ACCESS_ARGS[@]}"} ${DAGC_SESSION_ID_ARGS[@]+"${DAGC_SESSION_ID_ARGS[@]}"} ${DAGC_AGENT_ARGS[@]+"${DAGC_AGENT_ARGS[@]}"} "$@"

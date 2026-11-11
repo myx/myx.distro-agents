@@ -21,7 +21,7 @@ if [ -z "$cmd" ] || [ "$COMP_CWORD" -eq 1 ] && ! printf '%s\n' $roots | grep -qx
 		;;
 		*)
 			COMPREPLY=( $(compgen -W "$roots" -- "") )
-			COMPREPLY=( $(printf '%s\n' "${COMPREPLY[@]}" | sort -u) )
+			COMPREPLY=( $(printf '%s\n' ${COMPREPLY[@]+"${COMPREPLY[@]}"} | sort -u) )
 			return 0
 		;;
 	esac

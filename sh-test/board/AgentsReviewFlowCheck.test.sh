@@ -200,24 +200,33 @@ rigItem running dispatch-20261008T1200Z-ib rig-child-ib
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-ib )
 rigTool "$rigTmp/h1b" SubagentHandback '{"outcome":"inbox work done","to":"magic-tester"}'
 rigEnv=()
-rigAssert "the handback goes to the inbox"                 "$( LC_ALL=C grep -c '^Sent to the inbox of magic-tester as inquiry-' "$rigTmp/h1b" ):$( ls "$rigData/inboxes/magic-tester/incoming"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' )" 1:1
+## A HANDBACK GOES WHERE ITS RUN REPORTS TO, set by the tooling: a `to` naming another is not used, and a NOTE says so.
+rigAssert "the handback goes to the inbox of the member the run reports to, and says the to was not used" "$( LC_ALL=C grep -c '^Sent to the inbox of magic-coordinator as inquiry-' "$rigTmp/h1b" ):$( ls "$rigData/inboxes/magic-coordinator/incoming"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' ):$( LC_ALL=C grep -c '^NOTE: to magic-tester was not used' "$rigTmp/h1b" )" 1:1:1
 rigAssert "the item moved running -> review"               "$( rigLoc dispatch-20261008T1200Z-ib )" review
 rigAssert "one Decisions handback line"                    "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-ib.md" 'handback: handback: inbox work done' )" 1
 rigRecord rig-child-nf spawn-started "" dispatch-20261008T1200Z-nf rig-child-nf
 rigItem running dispatch-20261008T1200Z-nf rig-child-nf
-mkdir -p "$rigData/inboxes" && : > "$rigData/inboxes/magic-coordinator"
+## The inbox refused: a file where its folder goes. The folder 1b delivered into is set aside meanwhile, and put back after.
+mkdir -p "$rigData/inboxes" && { [ ! -d "$rigData/inboxes/magic-coordinator" ] || mv "$rigData/inboxes/magic-coordinator" "$rigData/inboxes/magic-coordinator.kept" ; } && : > "$rigData/inboxes/magic-coordinator"
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-nf )
 rigTool "$rigTmp/h1c" SubagentHandback '{"outcome":"never delivered","to":"magic-coordinator"}'
 rigEnv=()
 rm -f "$rigData/inboxes/magic-coordinator"
+[ ! -d "$rigData/inboxes/magic-coordinator.kept" ] || mv "$rigData/inboxes/magic-coordinator.kept" "$rigData/inboxes/magic-coordinator"
 rigAssert "a refused inbox delivers nothing"               "$( LC_ALL=C grep -c '^ERROR: magic-coordinator has no Slack DM channel, and its inbox refused the hand-off' "$rigTmp/h1c" )" 1
 rigAssert "and moves nothing"                              "$( rigLoc dispatch-20261008T1200Z-nf ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-nf.md" 'handback:' )" running:0
+## A run that reports into its parent's session thread (as in 1), whose Slack send fails.
+rigRecord rig-child-sf spawn-started "" dispatch-20261008T1200Z-sf rig-child-sf 'parent-spawn-id: rig-par-1
+parent-session-id: rig-par-1
+'
+LC_ALL=C sed -i.bak 's/^parent-spawn-id: none$/parent-spawn-id: rig-par-1/' "$rigSpawned/rig-child-sf/rig-child-sf.spawn.md" && rm -f "$rigSpawned/rig-child-sf/rig-child-sf.spawn.md.bak"
+rigItem running dispatch-20261008T1200Z-sf rig-child-sf
 printf '7\n7\n7\n7\n7\n7\n' > "$rigTmp/post-exits"
-rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-nf )
-rigTool "$rigTmp/h1d" SubagentHandback '{"outcome":"never posted","to":"CNF000001:1700000000.000150"}'
+rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-sf )
+rigTool "$rigTmp/h1d" SubagentHandback '{"outcome":"never posted"}'
 rigEnv=()
 rm -f "$rigTmp/post-exits"
-rigAssert "a failed Slack send moves nothing"              "$( LC_ALL=C grep -c '^ERROR: the send failed' "$rigTmp/h1d" ):$( rigLoc dispatch-20261008T1200Z-nf ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-nf.md" 'handback:' )" 1:running:0
+rigAssert "a failed Slack send moves nothing"              "$( LC_ALL=C grep -c '^ERROR: the send failed' "$rigTmp/h1d" ):$( rigLoc dispatch-20261008T1200Z-sf ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sf.md" 'handback:' )" 1:running:0
 
 echo "-- 2. a review request (a member or the human): running -> review with its reason --"
 rigItem running dispatch-20261008T1200Z-rq ""

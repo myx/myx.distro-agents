@@ -96,6 +96,9 @@
 			is optional: where given it is the bare filename of the locked note, and
 			the namespaced form is refused. The lock-owned fields stay as the
 			spawner set them, and the update is committed before it returns.
+			With no mode named, the whole record is read from standard input and
+			replaces the stored one. A JSON array given as a whole record, there or
+			by --from-file, is refused: a patch goes with --edit-patch-from-stdin.
 
 		--executor-checkpoint-push [<name>]
 		--executor-checkpoint-rewind [<name>] [--from-stdin]

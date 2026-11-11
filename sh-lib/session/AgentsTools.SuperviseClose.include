@@ -24,7 +24,7 @@ AgentsToolsSuperviseCloseOrphans(){ ## [--execute] [--workspace <path>]...
 		esac
 	done
 	[ ${#closeWorkspaces[@]} -gt 0 ] || closeWorkspaces=( "${MMDAPP%/}" )
-	for closeWs in "${closeWorkspaces[@]}" ; do
+	for closeWs in ${closeWorkspaces[@]+"${closeWorkspaces[@]}"} ; do
 		closeAgents="$closeWs/.local/agents"
 		[ -d "$closeAgents/spawned" ] || { printf 'error %s - no .local/agents/spawned here\n' "${closeWs##*/}" ; continue ; }
 		while IFS= read -r closeFile ; do

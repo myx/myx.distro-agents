@@ -2,7 +2,7 @@
 type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-access-control: magic-librarian:allow-tool:skillset-upsert
+access-control: magic-librarian:allow-tool:skillset-upsert, executors:allow-tool:--executor-checkpoint-push
 requires-session-kind: standalone
 routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: work-duty --session-id {{session-id}}

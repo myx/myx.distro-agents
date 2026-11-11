@@ -104,7 +104,7 @@ case "$1" in
 			local inboxProcessedDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/processed"
 			local inboxSourcePath="" inboxCandidateDir="" inboxCandidates=( "$inboxRootDir" "$inboxProcessedDir" )
 			[ -z "$inboxExcludeIncoming" ] || inboxCandidates=( "$inboxProcessedDir" )
-			for inboxCandidateDir in "${inboxCandidates[@]}" ; do
+			for inboxCandidateDir in ${inboxCandidates[@]+"${inboxCandidates[@]}"} ; do
 				inboxDirResolved="$( cd "$inboxCandidateDir" 2>/dev/null && pwd -P )" || inboxDirResolved=""
 				if [ -z "$inboxDirResolved" ] ; then continue ; fi
 				## Per candidate, never once for the pair: a processed/ reached

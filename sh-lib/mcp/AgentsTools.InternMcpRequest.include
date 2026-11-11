@@ -238,7 +238,7 @@ AgentsMcpExecuteRun(){
 AgentsMcpSecondaryRun(){
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh"
 	AgentsMcpMemberOptionSet
-	"$mcpToolName" "$mcpSecondaryOp" ${mcpMemberOption[@]+"${mcpMemberOption[@]}"} "${mcpSecondaryArgs[@]}" 2>&1
+	"$mcpToolName" "$mcpSecondaryOp" ${mcpMemberOption[@]+"${mcpMemberOption[@]}"} ${mcpSecondaryArgs[@]+"${mcpSecondaryArgs[@]}"} 2>&1
 }
 
 ## The member option the call gets: the calling session's member, unless the caller names one itself right after the operation. Every operation
@@ -709,7 +709,7 @@ case "$1" in
 						mcpCallStart="$( date +%s )"
 						mcpExitCode=0
 						set -m
-						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh" ; AgentsMcpMemberOptionSet ; "$mcpToolName" "$mcpSecondaryOp" ${mcpMemberOption[@]+"${mcpMemberOption[@]}"} "${mcpSecondaryArgs[@]}" ) > "$mcpOutFile" 3>&- 2>&1 &
+						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh" ; AgentsMcpMemberOptionSet ; "$mcpToolName" "$mcpSecondaryOp" ${mcpMemberOption[@]+"${mcpMemberOption[@]}"} ${mcpSecondaryArgs[@]+"${mcpSecondaryArgs[@]}"} ) > "$mcpOutFile" 3>&- 2>&1 &
 						mcpCmdPid=$!
 						AgentsMcpCallWatch 3600 "$mcpCmdPid" "$mcpKillFile" 3>&- &
 						mcpWatchPid=$!

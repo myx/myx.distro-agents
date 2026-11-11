@@ -145,6 +145,8 @@ rigUpdate hdr rig-run-grooming magic-coordinator "" --header:upsert:cut-off:42 -
 rigAssert "an upserted header is in the note, the value's colon kept" "$( cat "$rigTmp/hdr.rc" ):$( rigField magic-coordinator note-20260809T154332Z-grooming-state-and-lock.md cut-off ):$( rigField magic-coordinator note-20260809T154332Z-grooming-state-and-lock.md label )" "0:42:a:b"
 rigUpdate hdr2 rig-run-grooming magic-coordinator "" --header:upsert:cut-off:43 --header:remove:label
 rigAssert "a second upsert replaces, a removed header is gone, the state stays" "$( cat "$rigTmp/hdr2.rc" ):$( rigField magic-coordinator note-20260809T154332Z-grooming-state-and-lock.md cut-off ):$( LC_ALL=C grep -c '^label: ' "$( rigNotePath magic-coordinator note-20260809T154332Z-grooming-state-and-lock.md )" ):$( rigField magic-coordinator note-20260809T154332Z-grooming-state-and-lock.md state )" "0:43:0:grooming-running"
+rigUpdate patchwhole rig-run-grooming magic-coordinator '[{"op":"replace","old":"RIG","new":"X"}]'
+rigAssert "a JSON patch given as the whole record is refused, names the patch mode, and the note keeps its body" "$( cat "$rigTmp/patchwhole.rc" ):$( LC_ALL=C grep -c -F -e '--edit-patch-from-stdin' "$rigTmp/patchwhole.err" ):$( LC_ALL=C grep -c -F '"op"' "$( rigNotePath magic-coordinator note-20260809T154332Z-grooming-state-and-lock.md )" )" "1:1:0"
 
 echo "-- 4. the morning review keeps its cut-off in its locked state --"
 rigUpdate mr rig-run-mr magic-librarian "" --header:upsert:last_reviewed_ts:200

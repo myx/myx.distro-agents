@@ -61,7 +61,7 @@ AgentsToolsManagerTeamDataItems(){ ## store, folder (`-`: the store itself), the
 	[ "${#itemFiles[@]}" -gt 0 ] || return 0
 	## one count of the bytes of them all, and in the same pass the front matter of each; a
 	## name's own whitespace reads `_`, and so does a value's, an absent one `-`
-	itemRows="$( { wc -c -- "${itemFiles[@]}" 2> /dev/null || : ; } | LC_ALL=C awk -v OFS='\t' -v store="$1" -v folder="$2" -v at="${3%/}/" '
+	itemRows="$( { wc -c -- ${itemFiles[@]+"${itemFiles[@]}"} 2> /dev/null || : ; } | LC_ALL=C awk -v OFS='\t' -v store="$1" -v folder="$2" -v at="${3%/}/" '
 		function field( value ) { gsub( /[ \t]+/, "_", value ) ; return value == "" ? "-" : value }
 		function front( path,    line, count, key ) {
 			split( "", fronts ) ; count = 0
@@ -133,7 +133,7 @@ case "$1" in
 				while IFS= read -r readFrom ; do
 					readLookup+=( --lookup-folder "$readFrom" )
 				done < <( AgentsToolsInboxFolders "$readFolder" "$readProcessed" )
-				AgentsToolsDataRead "$readItem" --context "$readOp" "${readLookup[@]}" || { set +e ; return 1 ; }
+				AgentsToolsDataRead "$readItem" --context "$readOp" ${readLookup[@]+"${readLookup[@]}"} || { set +e ; return 1 ; }
 				return 0
 			fi
 			AgentsToolsManagerTeamDataInbox "$readFolder" "$readProcessed"

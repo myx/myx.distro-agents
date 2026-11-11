@@ -92,7 +92,7 @@ AgentsHarnessRootsFingerprint(){ ## workspace
 		fi
 	done
 	[ "${#printFiles[@]}" -gt 0 ] || return 0
-	printSums="$( LC_ALL=C cksum "${printFiles[@]}" 2>/dev/null )" || return 1
+	printSums="$( LC_ALL=C cksum ${printFiles[@]+"${printFiles[@]}"} 2>/dev/null )" || return 1
 	while read -r printCrc printSize printRest ; do
 		agentsRootsPrint="${agentsRootsPrint}sum:$printCrc $printSize"$'\n'
 		printCount=$(( printCount + 1 ))
@@ -230,7 +230,7 @@ AgentsHarnessRootsIndexUse(){ ## workspace, member name, write roots already giv
 			useIdx=$(( useIdx + 1 ))
 		done
 	else
-		useMerged="$( printf '%s\n' ${useReadRoots[@]+"${useReadRoots[@]}"} "${useExtra[@]}" | LC_ALL=C sort -u | LC_ALL=C awk 'NF' )" || return 1
+		useMerged="$( printf '%s\n' ${useReadRoots[@]+"${useReadRoots[@]}"} ${useExtra[@]+"${useExtra[@]}"} | LC_ALL=C sort -u | LC_ALL=C awk 'NF' )" || return 1
 		useIdx=0
 		while IFS= read -r useMergedLine ; do
 			useReal=""

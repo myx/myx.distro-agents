@@ -147,7 +147,7 @@ case "$1" in
 			echo "# $MDSC_CMD --slack-edit-message: chat.update channel=$channel ts=$threadTs (acting member $memberName)" >&2
 			## Response straight out on stdout, diagnostic captured -- as in --react.
 			local diag="" callRc=0
-			{ diag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
+			{ diag="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${opArgs[@]+"${opArgs[@]}"} 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
 			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
 			if [ "$callRc" != "0" ] ; then
 				local actingIdentity=""

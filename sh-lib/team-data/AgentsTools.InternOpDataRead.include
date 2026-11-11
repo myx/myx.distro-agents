@@ -103,7 +103,7 @@ AgentsToolsDataRead(){ ## <document-name> --lookup-folder <absolute-folder>... [
 	fi
 
 	local folder sourcePath="" candidate
-	for folder in "${lookupFolders[@]}" ; do
+	for folder in ${lookupFolders[@]+"${lookupFolders[@]}"} ; do
 		[ -d "$folder" ] || continue
 		candidate="$folder/$documentName"
 		if [ -f "$candidate" ] ; then

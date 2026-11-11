@@ -152,8 +152,18 @@ AgentsToolsSlackReactionSignals(){ ## the Slack response
 		LC_ALL=C grep -q -x -F -- "$sigTs $sigEmoji $sigUser" "$sigMark" 2> /dev/null && continue
 		sigPoster="$( LC_ALL=C awk -F '\t' -v want="ts=$sigTs" 'index( $7 " ", want " " ) { m = $2 } END { print m }' "$sigLog" 2> /dev/null )"
 		type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+		## A REACTION ON THE QUESTION OF AN OPEN ASK IS ITS ANSWER, never a reaction of no class: the record still pending whose question-ts
+		## is this post's names the ask, and a number emoji names the option. The run is told to take the verdict now, with the one call that
+		## reads the click; until it does, the ask stands open and nothing it gates moves.
+		local sigAsk="" sigOption=""
+		sigAsk="$( LC_ALL=C grep -l -x -F "question-ts: $sigTs" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null | while IFS= read -r sigAskFile ; do LC_ALL=C grep -q -x -F 'status: reply-pending' "$sigAskFile" && { basename "$sigAskFile" .md ; break ; } ; done )"
+		case "$sigEmoji" in one) sigOption=1 ;; two) sigOption=2 ;; three) sigOption=3 ;; four) sigOption=4 ;; five) sigOption=5 ;; six) sigOption=6 ;; seven) sigOption=7 ;; eight) sigOption=8 ;; nine) sigOption=9 ;; keycap_ten) sigOption=10 ;; esac
 		if [ -n "$sigPoster" ] && type AgentsToolsSessionChatAppend > /dev/null 2>&1 ; then
+			case "$sigAsk:$sigOption" in
+				?*:?*) sigKind=ask-answer ;;
+			esac
 			case "$sigKind" in
+				ask-answer) printf -v sigNotice 'ASK-ANSWER on your open question %s (post ts %s): :%s: by %s (%s) picks its option %s. Take the verdict now, before anything else: call the same ask tool with pending_id=%s, which reads the click and returns its VERDICT; then act on it. Until you do, the question stands open and nothing it gates moves.' "$sigAsk" "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" "$sigOption" "$sigAsk" ;;
 				negative) printf -v sigNotice 'REACTION-NEGATIVE on your post ts %s: :%s: by %s (%s). Your peer is unhappy with that message: read it again, and correct it now where it is wrong or unclear -- a reply in its thread, or an edit of your own post. Where you have any doubt what the reason is and it is worth it, ask them in a new thread of its own (a fork, so no other participant of this session is drawn in; it may grow into a persistent discussion), with your guess for them to confirm. Your call. Whatever the fork settles or you correct, say it in one short notice in this session’s thread.' "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" ;;
 				accepted) printf -v sigNotice 'REACTION-ACCEPTED on your post ts %s: :%s: by %s (%s), as a reply saying OK: your message landed and there is no problem with it. Nothing to do.' "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" ;;
 				*) printf -v sigNotice 'REACTION on your post ts %s: :%s: by %s (%s), of no class the tooling knows: read it as a short reply, and decide what it means and whether it asks anything of you.' "$sigTs" "$sigEmoji" "$sigUser" "${sigTier:-addressee}" ;;

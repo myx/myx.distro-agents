@@ -88,7 +88,7 @@ AgentsHarnessProcessPost(){ ## processes dir, handle, thread, address to, senten
 	fi
 	postArgs=( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message --team-member "$harnessAgent" "$3" )
 	printf '%s' "$5" > "$postDir/$postHandle.report.prose"
-	{ printf '%s\n' "$5" ; [ -z "$6" ] || printf '\n%s\n' "$6" ; } | MDAT_SEND_PROSE_FILE="$postDir/$postHandle.report.prose" "${postArgs[@]}" --from-stdin >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
+	{ printf '%s\n' "$5" ; [ -z "$6" ] || printf '\n%s\n' "$6" ; } | MDAT_SEND_PROSE_FILE="$postDir/$postHandle.report.prose" ${postArgs[@]+"${postArgs[@]}"} --from-stdin >> "$postDir/$postHandle.report" 2>&1 || postRc=$?
 	[ "$postRc" = 0 ] || printf 'ERROR: the report was NOT posted (rc=%s): %s\n' "$postRc" "$5" >> "$postDir/$postHandle.report"
 	return "$postRc"
 }
@@ -724,11 +724,11 @@ AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 	## establishes the workspace context (Distro, Require, Action). Output to a file and wait
 	## on the pid, never a capture: the script may leave a background child behind.
 	if [ "$toolTimeout" = 0 ] ; then
-		printf '%s' "$toolCommand" | "${toolArgs[@]}" > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
+		printf '%s' "$toolCommand" | ${toolArgs[@]+"${toolArgs[@]}"} > "$harnessScratch/run.out" 2>&1 || toolStatus=$?
 	else
 		{
 			set -m
-			( printf '%s' "$toolCommand" | "${toolArgs[@]}" ) > "$harnessScratch/run.out" 2>&1 &
+			( printf '%s' "$toolCommand" | ${toolArgs[@]+"${toolArgs[@]}"} ) > "$harnessScratch/run.out" 2>&1 &
 			harnessRunPid=$!
 			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
 			## The watchdog ends the group the call leads, as the MCP execute ends its own: the

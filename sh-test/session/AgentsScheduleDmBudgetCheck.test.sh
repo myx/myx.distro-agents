@@ -34,18 +34,27 @@ rigAssert(){ ## what is asserted, got, want
 
 ## One look, in a child shell: the include is sourced with the console, the tracking drop and the tag note as stand-ins. Prints the look's
 ## own output, then `reads=<n>` (the reads the stand-in served), then for each member `stamp:<member>=<yes|no> floor:<member>=<value|->`.
+## With RIG_BOT=yes the roster is the team bot's one DM, whose read holds a message tagging rig-b and a later one tagging nobody; the tag
+## note then prints `note:<member>=<ts>`.
 rigLook(){ ## budget, force, members within flags...
 	local lookBudget="$1" lookForce="$2" ; shift 2
-	rm -rf "$rigTmp/.local/agents/schedule/dms" "$rigTmp/.local/agents/schedule/dm-looked" "$rigTmp/reads"
-	env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SCHEDULE_DM_BUDGET_SECONDS="$lookBudget" RIG_TMP="$rigTmp" RIG_FORCE="$lookForce" RIG_MEMBERS="$*" bash -c '
+	rm -rf "$rigTmp/.local/agents/schedule/dms" "$rigTmp/.local/agents/schedule/dm-looked" "$rigTmp/reads" "$rigTmp/notes"
+	env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SCHEDULE_DM_BUDGET_SECONDS="$lookBudget" RIG_TMP="$rigTmp" RIG_FORCE="$lookForce" RIG_MEMBERS="$*" RIG_BOT="${RIG_BOT:-}" bash -c '
 		MMDAPP="$RIG_TMP" ; export MMDAPP
 		set +e +u
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" > /dev/null 2>&1
 		## The include defines every helper the look calls, so the stand-ins go in AFTER it is sourced, never before.
 		AgentsToolsTrackingDrop(){ cat ; }
-		AgentsToolsScheduleTagNote(){ : ; }
+		AgentsToolsScheduleTagNote(){ printf "note:%s=%s\n" "$1" "$2" >> "$RIG_TMP/notes" ; }
 		AgentsToolsSessionChatMemberId(){ printf "URIG%s\n" "$1" ; }
 		DistroAgentsTools(){
+			if [ "$RIG_BOT" = yes ] ; then
+				case "$1" in
+					--slack-conversations-roster) printf "CONV|identity=bot|id=DBOT1|kind=im\n" ;;
+					--intern-op-comms-slack-read) printf "%s\n" "1794237000.000100 | UOWNER | please look <@URIGrig-b>" "1794237000.000200 | UOWNER | for the coordinator" ; echo r >> "$RIG_TMP/reads" ;;
+				esac
+				return 0
+			fi
 			case "$1" in
 				--slack-conversations-roster) printf "CONV|identity=user|id=D%s1|kind=im\nCONV|identity=user|id=D%s2|kind=im\n" "$3" "$3" ;;
 				--intern-op-comms-slack-read) sleep 1 ; printf "%s\n" "1794237000.000100 | UPERSON | hello $2" ; echo r >> "$RIG_TMP/reads" ;;
@@ -60,6 +69,7 @@ rigLook(){ ## budget, force, members within flags...
 			if [ -f "$RIG_TMP/.local/agents/schedule/dms/$m" ] ; then f="$( cat "$RIG_TMP/.local/agents/schedule/dms/$m" )" ; else f="-" ; fi
 			printf "stamp:%s=%s floor:%s=%s\n" "$m" "$s" "$m" "$f"
 		done
+		cat "$RIG_TMP/notes" 2> /dev/null
 	' 2>&1
 }
 
@@ -84,6 +94,13 @@ rigAssert "a forced look prints no dms: line" "$( printf '%s\n' "$rigOut" | grep
 ## 5. Bound 0 is no bound.
 rigOut="$( rigLook 0 no rig-a rig-b )"
 rigAssert "bound 0 reads every conversation" "$( printf '%s\n' "$rigOut" | grep -c '^reads=4$' )" "1"
+
+## 6. The team bot's DM is the coordinator's: another member is called there only by a message that tags it, and every floor moves past all.
+rigOut="$( RIG_BOT=yes rigLook 60 no magic-coordinator rig-a rig-b )"
+rigAssert "the coordinator is called by the bot's DM, at its newest message" "$( printf '%s\n' "$rigOut" | grep -c -x 'note:magic-coordinator=1794237000.000200' )" "1"
+rigAssert "a member the DM does not tag is not called" "$( printf '%s\n' "$rigOut" | grep -c '^note:rig-a=' )" "0"
+rigAssert "a member the DM tags is called, at the message that tags it" "$( printf '%s\n' "$rigOut" | grep -c -x 'note:rig-b=1794237000.000100' )" "1"
+rigAssert "every member's floor moves past every message read, counted or not" "$( printf '%s\n' "$rigOut" | grep -c 'floor:[a-z-]*=1794237000.000200$' )" "3"
 
 printf '%s: %s passed, %s failed\n' "${0##*/}" "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" = 0 ]

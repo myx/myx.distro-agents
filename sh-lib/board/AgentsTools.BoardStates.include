@@ -107,7 +107,7 @@ AgentsToolsBoardItemDue(){ ## item file...
 				fm == 1 && index($0, "recheck-date: ") == 1 { seenRecheck = substr($0, 15) ; next } ;
 				fm == 1 && index($0, "last-round-at: ") == 1 { seenLast = substr($0, 16) ; next } ;
 				END { if (seenPath != "") { dueRow(seenPath, seenState, seenRecheck, seenLast) } } ;
-			' "${dueRead[@]}"
+			' ${dueRead[@]+"${dueRead[@]}"}
 		)" || return 2
 	fi
 	while IFS=$'\x1c' read -r duePath dueState dueRecheck dueLast ; do

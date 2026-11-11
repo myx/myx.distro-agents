@@ -728,10 +728,10 @@ AgentsToolsAuthorityRequestAct(){ ## request record
 			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "${actWords[1]:-}" > /dev/null 2>&1 || actRc=$?
 	elif [ -n "$actRun" ] ; then
 		env -u CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID="$actRun" MDAT_SPAWN_AGENT="$actBy" MDAT_AUTHORITY_REQUEST="$actId" \
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "${actWords[@]}" > /dev/null 2>&1 < /dev/null || actRc=$?
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ${actWords[@]+"${actWords[@]}"} > /dev/null 2>&1 < /dev/null || actRc=$?
 	else
 		env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID MDAT_AUTHORITY_REQUEST="$actId" \
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "${actWords[@]}" > /dev/null 2>&1 < /dev/null || actRc=$?
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ${actWords[@]+"${actWords[@]}"} > /dev/null 2>&1 < /dev/null || actRc=$?
 	fi
 	AgentsToolsAuthorityFieldSet "$actFile" act-result "$actRc" || :
 	printf 'ACTED %s: %s, exit %s\n' "$actId" "${actWords[*]}" "$actRc"

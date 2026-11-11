@@ -161,7 +161,7 @@ case "$1" in
 				--all-types --filter-owner "$clientMember" \
 				--do-inbox-inquiry-active --do-inbox-reflections \
 				--do-inbox-notes --do-inbox-other \
-				--do-all --member-scope-only --do-slack-tags "${commsCutoffArgs[@]}" "${sourceFloorArgs[@]}" \
+				--do-all --member-scope-only --do-slack-tags ${commsCutoffArgs[@]+"${commsCutoffArgs[@]}"} ${sourceFloorArgs[@]+"${sourceFloorArgs[@]}"} \
 				--context --intern-op-client-sweep-input-scan
 		)" || clientSweepStatus=$?
 

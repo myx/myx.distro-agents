@@ -989,7 +989,7 @@ magic-team MDAT_WORKSPACE_MODE"
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 				DistroAgentsTools --intern-op-owner-setup "$setupDomain" "$setupEngineMode" \
 					--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" \
-					"${setupDeclareArgs[@]}" \
+					${setupDeclareArgs[@]+"${setupDeclareArgs[@]}"} \
 					${setupOptionArgs[@]+"${setupOptionArgs[@]}"} \
 					${setupValuesFromStdin:+--values-from-stdin} \
 					${setupSetAsDefault:+--set-as-default} || setupApplyRc=$?
@@ -2819,7 +2819,7 @@ magic-team MDAT_WORKSPACE_MODE"
 			local setupStillMissing="" setupRenderRc=0
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			setupStillMissing="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-missing \
-				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" "${setupDeclareArgs[@]}" )" || setupRenderRc=$?
+				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" ${setupDeclareArgs[@]+"${setupDeclareArgs[@]}"} )" || setupRenderRc=$?
 			if [ "$setupRenderRc" -ne 0 ] ; then
 				setupRc="$setupRenderRc"
 			elif [ -n "$setupStillMissing" ] ; then
@@ -2837,7 +2837,7 @@ magic-team MDAT_WORKSPACE_MODE"
 			local setupFullCommand="" setupFullRc=0
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			setupFullCommand="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-full \
-				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" "${setupDeclareArgs[@]}" )" || setupFullRc=$?
+				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" ${setupDeclareArgs[@]+"${setupDeclareArgs[@]}"} )" || setupFullRc=$?
 			echo ""
 			echo "Block 2:"
 			if [ "$setupFullRc" -ne 0 ] ; then

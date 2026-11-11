@@ -93,7 +93,7 @@ AgentTestingTools(){
 			requestOut="$( mktemp "$MMDAPP/.local/temp/agent-testing-tools.XXXXXX" )" || { set +e ; return 1 ; }
 			## The queue checks the request first, and a refused one asks nobody. With --wait it stays until its batch is run, so it runs apart,
 			## and the inquiry is filed as soon as it has said the request's id.
-			( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --retest-queue --by "$requestMember" "${requestArgs[@]}" > "$requestOut" 2> "$requestOut.err" < /dev/null ) &
+			( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --retest-queue --by "$requestMember" ${requestArgs[@]+"${requestArgs[@]}"} > "$requestOut" 2> "$requestOut.err" < /dev/null ) &
 			requestPid=$!
 			requestLeft=300
 			while [ "$requestLeft" -gt 0 ] ; do

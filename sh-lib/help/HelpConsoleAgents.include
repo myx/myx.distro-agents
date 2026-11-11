@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 ## `Agents --help` prints this file: what the command runs, and every option it takes.
 echo "'Agents' command runs agents-stage distro commands in current Agents context." >&2
 echo "📘 syntax: Agents <distro-agents-command-name> [<arguments>...]" >&2

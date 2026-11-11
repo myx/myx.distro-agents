@@ -2,7 +2,7 @@
 ## Behavioural check on `AgentsToolsScheduleWorkDuty` (AgentsTools.DispatcherSchedule.include), run rather than read: who the schedule starts a work-duty for, by the
 ## flags. The roster, the flags, the pace, the demand, the mention news, the spawner and the dismissal are stubs, so the check decides what the loop chooses and
 ## nothing is started. Held: in worktime a magic or keeper member with something to work on is started, and a partner, a warden and a client never; out of
-## worktime, with no flag, nobody; under team overtime the magic members are started and the keepers are not; a member's own overtime starts that member alone; a
+## worktime, with no flag, the coordinator alone, on its own demand; under team overtime the magic members are started and the keepers are not; a member's own overtime starts that member alone; a
 ## member on vacation is started by nothing, a mention included, while a member next to it is; a member's live duty on vacation is left to its own lifetime, with the
 ## flags saying it is not allowed; a slow machine starts nothing and says so; a live duty of a partner, a warden or a client is told to go, and a magic or keeper
 ## member's is not; under the emergency flag a member is started for its own urgent pending task and no other. Offline.
@@ -75,9 +75,9 @@ rigRunLoop(){
 	rigOut=""
 	while [ "$loopPass" -lt 6 ] ; do
 		loopPass=$(( loopPass + 1 ))
-		loopBefore="$( wc -l < "$rigSpawnLog.members" 2> /dev/null || echo 0 )"
+		loopBefore="$( wc -l 2> /dev/null < "$rigSpawnLog.members" || echo 0 )"
 		rigOut="$rigOut${rigOut:+$'\n'}$( AgentsToolsScheduleWorkDuty 2>&1 )"
-		[ "$( wc -l < "$rigSpawnLog.members" 2> /dev/null || echo 0 )" != "$loopBefore" ] || break
+		[ "$( wc -l 2> /dev/null < "$rigSpawnLog.members" || echo 0 )" != "$loopBefore" ] || break
 	done
 }
 rigRecord(){ ## member, status -- a spawn record of a work-duty run
@@ -100,7 +100,7 @@ rigFlags="worktime: no
 overtime: no
 emergency: no" rigDemand="magic-developer keeper-myx magic-coordinator"
 rigRunLoop
-rigAssert "out of worktime with no flag: nobody is started, with work or not" "$( rigStarted )" ""
+rigAssert "out of worktime with no flag: only the coordinator is started, on its own demand; no other member, with work or not" "$( rigStarted )" "magic-coordinator"
 
 rigReset
 rigFlags="worktime: no

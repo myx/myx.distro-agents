@@ -154,9 +154,9 @@ case "$1" in
 		## (AgentsToolsTeamDataCommitPaths). skillset/ paths are excluded above.
 		local ctxForMsg="$opContext" commitPaths=( "$targetPath" "$sourcePath" )
 		if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-item-rename" ; fi
-		[ "${#renameCommitPaths[@]}" -eq 0 ] || commitPaths+=( "${renameCommitPaths[@]}" )
+		[ "${#renameCommitPaths[@]}" -eq 0 ] || commitPaths+=( ${renameCommitPaths[@]+"${renameCommitPaths[@]}"} )
 		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-		AgentsToolsTeamDataCommitPaths "renamed: $oldName -> $newName, $ctxForMsg" "${commitPaths[@]}"
+		AgentsToolsTeamDataCommitPaths "renamed: $oldName -> $newName, $ctxForMsg" ${commitPaths[@]+"${commitPaths[@]}"}
 		return 0
 	;;
 

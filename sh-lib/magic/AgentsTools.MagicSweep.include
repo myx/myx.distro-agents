@@ -155,7 +155,7 @@ case "$1" in
 			fi
 		fi
 
-		local commsArgs=( --do-all --do-slack-tags "${commsCutoffArgs[@]}" "${sourceFloorArgs[@]}" )
+		local commsArgs=( --do-all --do-slack-tags ${commsCutoffArgs[@]+"${commsCutoffArgs[@]}"} ${sourceFloorArgs[@]+"${sourceFloorArgs[@]}"} )
 
 		local phaseBArgs=( --state backlog --state pending --state running --state review --state blocked ) n
 		while IFS= read -r n ; do
@@ -199,7 +199,7 @@ case "$1" in
 				local accountStatus=0
 				if [ "$1" = "team" ] ; then
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-					DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" \
+					DistroAgentsTools --intern-op-session-context-scan "$callingMember" ${phaseBArgs[@]+"${phaseBArgs[@]}"} --all-types ${commsArgs[@]+"${commsArgs[@]}"} \
 						--do-inbox-inquiry-active --do-inbox-reflections \
 						--do-inbox-notes --do-inbox-other \
 						--no-board-related \

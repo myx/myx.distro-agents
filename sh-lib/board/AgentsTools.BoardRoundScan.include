@@ -80,7 +80,7 @@ AgentsToolsBoardRecheckDueSection(){
 		done
 	done
 	if [ ${#dueFiles[@]} -gt 0 ] ; then
-		dueRows="$( AgentsToolsBoardItemDue "${dueFiles[@]}" )" || dueRc=$?
+		dueRows="$( AgentsToolsBoardItemDue ${dueFiles[@]+"${dueFiles[@]}"} )" || dueRc=$?
 		while IFS=$'\x1c' read -r dueFile dueDue dueWhy dueRecheck dueLast ; do
 			[ -n "$dueFile" ] || continue
 			if [ "$dueWhy" = not-read ] ; then

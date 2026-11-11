@@ -404,7 +404,7 @@ AgentsToolsSessionControlRequestCarry(){ ## session id, the bound of a kill in s
 			carryMonitor="$BASH_SUBSHELL:$-"
 			set -m
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			( agentsSessionControlCarried="$carrySession $requestId" ; DistroAgentsTools --manager-session-kill "${carryWords[@]}" ) < /dev/null > "$carryOut" 2> "$carryErr" &
+			( agentsSessionControlCarried="$carrySession $requestId" ; DistroAgentsTools --manager-session-kill ${carryWords[@]+"${carryWords[@]}"} ) < /dev/null > "$carryOut" 2> "$carryErr" &
 			carryPid=$!
 			case "$carryMonitor" in 0:*m*) ;; *) set +m ;; esac
 			carryFrom="$SECONDS"

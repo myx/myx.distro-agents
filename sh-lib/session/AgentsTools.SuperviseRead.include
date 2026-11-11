@@ -80,7 +80,7 @@ AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-
 	done
 	printf 'transcript\t%s\n' "${readAny:--}"
 	if [ "${#readParts[@]}" -gt 0 ] ; then
-		cat "${readParts[@]}" 2> /dev/null | tail -n "$readTail" | while IFS= read -r readLine || [ -n "$readLine" ] ; do
+		cat ${readParts[@]+"${readParts[@]}"} 2> /dev/null | tail -n "$readTail" | while IFS= read -r readLine || [ -n "$readLine" ] ; do
 			printf 'tail\t%s\n' "$readLine"
 		done
 	fi

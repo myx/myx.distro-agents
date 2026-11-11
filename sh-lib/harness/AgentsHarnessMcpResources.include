@@ -12,10 +12,10 @@ AgentsHarnessMcpResourceServers(){ ## optional single server name; prints the se
 	local wantName="$1" haveName
 	[ "${#harnessMcpServers[@]}" -gt 0 ] || return 1
 	if [ -z "$wantName" ] ; then
-		printf '%s\n' "${harnessMcpServers[@]}"
+		printf '%s\n' ${harnessMcpServers[@]+"${harnessMcpServers[@]}"}
 		return 0
 	fi
-	for haveName in "${harnessMcpServers[@]}" ; do
+	for haveName in ${harnessMcpServers[@]+"${harnessMcpServers[@]}"} ; do
 		[ "$haveName" != "$wantName" ] || { printf '%s\n' "$wantName" ; return 0 ; }
 	done
 	return 2
@@ -104,7 +104,7 @@ AgentsHarnessToolListMcpResourcesTool(){ ## server (optional)
 			printf 'ERROR: ListMcpResourcesTool: this run enumerated no MCP server at all, so there is nothing to list. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
 		;;
 		*)
-			printf 'ERROR: ListMcpResourcesTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+			printf 'ERROR: ListMcpResourcesTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' ${harnessMcpServers[@]+"${harnessMcpServers[@]}"} )" ; return 0
 		;;
 	esac
 	while IFS= read -r listName ; do
@@ -156,7 +156,7 @@ AgentsHarnessToolReadMcpResourceTool(){ ## server, uri
 			printf 'ERROR: ReadMcpResourceTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
 		;;
 		*)
-			printf 'ERROR: ReadMcpResourceTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+			printf 'ERROR: ReadMcpResourceTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' ${harnessMcpServers[@]+"${harnessMcpServers[@]}"} )" ; return 0
 		;;
 	esac
 	if ! AgentsHarnessMcpResourceRead "$toolServer" "$toolUri" ; then
@@ -189,7 +189,7 @@ AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
 			printf 'ERROR: ReadMcpResourceDirTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
 		;;
 		*)
-			printf 'ERROR: ReadMcpResourceDirTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+			printf 'ERROR: ReadMcpResourceDirTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' ${harnessMcpServers[@]+"${harnessMcpServers[@]}"} )" ; return 0
 		;;
 	esac
 	if ! AgentsHarnessMcpResourceList "$toolServer" ; then

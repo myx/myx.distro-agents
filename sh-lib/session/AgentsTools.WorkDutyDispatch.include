@@ -54,7 +54,7 @@ AgentsToolsWorkDutyDispatchMemberStatic(){ ## skillset root, member
 	[ "${#dutyFiles[@]}" -gt 0 ] || return 0
 	printf '## The member'\''s static guidance -- the same for every work-duty run of %s\n\n' "$dutyMember"
 	printf 'Its reference files, carried here so the duty reads one set of bytes on every run. SKILL.md is not among them: it is the boot note, and this run is already armed.\n'
-	for dutyFile in "${dutyFiles[@]}" ; do
+	for dutyFile in ${dutyFiles[@]+"${dutyFiles[@]}"} ; do
 		printf '\n### %s (%s bytes)\n\n%s\n' "${dutyFile#"$dutyDir"/}" "$( wc -c < "$dutyFile" | tr -d ' ' )" "$( cat "$dutyFile" )"
 	done
 	return 0

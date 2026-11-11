@@ -1006,7 +1006,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				front == 1 && index( $0, "spawn-id: " ) == 1 { recSpawn = substr( $0, 11 ) ; }
 				front == 1 && index( $0, "parent-spawn-id: " ) == 1 { recParent = substr( $0, 18 ) ; }
 				front == 1 && index( $0, "owner: " ) == 1 { recOwner = substr( $0, 8 ) ; }
-			' "${partFiles[@]}" 2>/dev/null || :
+			' ${partFiles[@]+"${partFiles[@]}"} 2>/dev/null || :
 		fi
 		## A root-harness session has no spawn record: the coordinator is its one participant.
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then

@@ -99,6 +99,7 @@ rigLinkAdd(){ ## member, workspace, path -- one row of the installer's member re
 	printf '%s\t%s\tsource-symlink\t%s\t%s\n' "$1" "$rigTmp/$2" "${3:-myx/pkg/skillset/$1}" "$rigTmp/$2/source/${3:-myx/pkg/skillset/$1}" >> "$rigLinkedFile"
 }
 rigLinkDrop(){ ## member -- every row of that member out of the member registry
+	: "${rigLinkedFile:?rigLinkedFile is not set -- nothing was written}"
 	LC_ALL=C grep -v "^$1	" "$rigLinkedFile" > "$rigLinkedFile.next" ; mv "$rigLinkedFile.next" "$rigLinkedFile"
 }
 rigBuild(){ ## options... -- the registries build in the rig workspace; rc in rigBuildRc, stdout in $rigTmp/build.out, stderr in $rigTmp/build.err

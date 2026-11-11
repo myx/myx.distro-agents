@@ -78,7 +78,7 @@ AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
 			/^session-id:/ && itemSession == "" { itemSession = $0 ; sub(/^session-id:[ \t]*/, "", itemSession) ; itemSession = itemSession "" ; }
 			/^spawn-id:/ && itemSpawn == "" { itemSpawn = $0 ; sub(/^spawn-id:[ \t]*/, "", itemSpawn) ; itemSpawn = itemSpawn "" ; }
 			END { itemSaid() ; }
-		' "${dispatchFiles[@]}"
+		' ${dispatchFiles[@]+"${dispatchFiles[@]}"}
 		return 0
 	fi
 	## One pass over every candidate rather than one awk per file, and the id is matched
@@ -93,7 +93,7 @@ AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
 			sub(/^session-id:[ \t]*/, "", idValue)
 			if (idValue == ENVIRON["MDAT_HARNESS_WANT_ID"]) { print FILENAME ; exit ; }
 		}
-	' "${dispatchFiles[@]}"
+	' ${dispatchFiles[@]+"${dispatchFiles[@]}"}
 	return 0
 }
 

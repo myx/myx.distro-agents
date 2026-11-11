@@ -209,7 +209,7 @@ AgentsToolsTestbedUpdate(){ ## the operation, test id, options...
 		updPairs+=( "$updKey" "${updValue:--}" )
 	done
 	updPairs+=( updated-at "$updNow" invalidated-at "$( AgentsToolsTestbedGet "$updId" invalidated-at )" )
-	AgentsToolsTestbedWrite "$updId" "${updPairs[@]}" || return 1
+	AgentsToolsTestbedWrite "$updId" ${updPairs[@]+"${updPairs[@]}"} || return 1
 	echo "updated: $updId"
 }
 
@@ -232,7 +232,7 @@ AgentsToolsTestbedInvalidate(){ ## the operation, test id
 	rm -rf "$invDir/$invId" 2> /dev/null
 	invNow="$( date +"%Y-%m-%d %H:%M %z" )"
 	for invKey in project script functionality keywords rig documents resources nightly registered-at updated-at ; do invPairs+=( "$invKey" "$( AgentsToolsTestbedGet "$invId" "$invKey" )" ) ; done
-	AgentsToolsTestbedWrite "$invId" "${invPairs[@]}" invalidated-at "$invNow" || return 1
+	AgentsToolsTestbedWrite "$invId" ${invPairs[@]+"${invPairs[@]}"} invalidated-at "$invNow" || return 1
 	echo "invalidated: $invId"
 }
 
@@ -317,6 +317,8 @@ AgentsToolsTestbedList(){ ## the operation, its arguments...
 		printf '%s\n' "$listRuns" | LC_ALL=C awk -F'\t' -v id="$listId" '$1 == id && shown < 3 { shown++ ; printf "run\t%s\t%s\t%s\t%s\n", $1, $2, ( $3 == "0" ? "PASS" : "FAIL" ), $4 }'
 	done
 	printf 'tests\t%s\t%s\t%s\n' "$listTotal" "$listPassedCount" "$(( listTotal - listPassedCount ))"
+	## A zero with no registry counts the registry, not the tests on disk: said apart, on stderr, so the table stays as it is.
+	[ -d "$( AgentsToolsTestbedDir )" ] || echo "# $MDSC_CMD $listOp: this workspace has no testbed registry ($( AgentsToolsTestbedDir ) does not exist), so 0 counts the registry, not the checks on disk -- register them with --test-register --from-folder <sh-test folder> --project <p>" >&2
 }
 
 ## Tests put into the one retest queue of the machine (AgentsTools.MemberRetest.include), as the queue is called: the queue is the only one, and a

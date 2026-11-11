@@ -43,7 +43,7 @@ AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<st
 		set +e ; return 1
 	fi
 	local hasExecutionReceipt="false" passthroughEntry
-	for passthroughEntry in "${passthrough[@]}" ; do
+	for passthroughEntry in ${passthrough[@]+"${passthrough[@]}"} ; do
 		case "$passthroughEntry" in
 			--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
 				hasExecutionReceipt="true"
@@ -69,9 +69,9 @@ AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<st
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 		"$fromStateArg" \
-		"${moveStamps[@]}" \
+		${moveStamps[@]+"${moveStamps[@]}"} \
 		--context --move-to-processed \
-		"${passthrough[@]}" || processedRc=$?
+		${passthrough[@]+"${passthrough[@]}"} || processedRc=$?
 	## An accept releases the item's own spawned child (AgentsToolsBoardAcceptDismissChild):
 	## only on a real move into processed, never a same-state edit, and never failing the move.
 	if [ "$processedRc" = "0" ] && [ "${fromStateArg#--from-state:}" != "processed" ] && [ -f "$MDAT_DATA_ROOT/board/processed/$itemName" ] ; then
@@ -139,7 +139,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-pending \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 
@@ -175,7 +175,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local hasExecutionReceipt="false" passthroughEntry
-		for passthroughEntry in "${passthrough[@]}" ; do
+		for passthroughEntry in ${passthrough[@]+"${passthrough[@]}"} ; do
 			case "$passthroughEntry" in
 				--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
 					hasExecutionReceipt="true"
@@ -194,7 +194,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-blocked \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 
@@ -235,7 +235,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-backlog \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 
@@ -278,7 +278,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
 			--context --move-to-parked \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 
@@ -334,7 +334,7 @@ case "$1" in
 			--create \
 			--acting-member:"$callingMember" \
 			--context --create-running \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 

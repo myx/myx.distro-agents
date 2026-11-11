@@ -165,18 +165,18 @@ AgentsWaitProbeSlack(){
 			probeThread="true"
 			probeMode="conversation"
 			probeTarget="${probeTarget%:conversation}"
-			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
+			probeArgs=( ${probeArgs[@]+"${probeArgs[@]}"} "$probeTarget" --thread )
 		;;
 		*:*)
 			probeThread="true"
-			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
+			probeArgs=( ${probeArgs[@]+"${probeArgs[@]}"} "$probeTarget" --thread )
 		;;
 		*)
-			probeArgs=( "${probeArgs[@]}" "$probeTarget" )
-			[ -z "$probeSince" ] || probeArgs=( "${probeArgs[@]}" --oldest "$probeSince" )
+			probeArgs=( ${probeArgs[@]+"${probeArgs[@]}"} "$probeTarget" )
+			[ -z "$probeSince" ] || probeArgs=( ${probeArgs[@]+"${probeArgs[@]}"} --oldest "$probeSince" )
 		;;
 	esac
-	[ "$probeAsBot" != "true" ] || probeArgs=( "${probeArgs[@]}" --identity-bot )
+	[ "$probeAsBot" != "true" ] || probeArgs=( ${probeArgs[@]+"${probeArgs[@]}"} --identity-bot )
 	## A thread comes through the comms cache where it can (AgentsWaitThreadCached); else it is read here, as before.
 	local probeCached=1
 	if [ "$probeThread" = "true" ] ; then
@@ -200,7 +200,7 @@ AgentsWaitProbeSlack(){
 	if [ "$probeThread" = "false" ] && [ "$probeCached" != "0" ] ; then
 		probeQuickRc=0
 		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
-		probeQuick="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" 2> /dev/null < /dev/null )" || probeQuickRc=$?
+		probeQuick="$( AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${probeArgs[@]+"${probeArgs[@]}"} 2> /dev/null < /dev/null )" || probeQuickRc=$?
 		if [ "$probeQuickRc" = 0 ] ; then
 			probeQuickRest="${#probeQuick}:${probeQuick: -120}"
 			probeConvKey="$probeOut@$probeTarget/${probeAsBot:-}/${probeQuickRest//[[:space:]]/_}"
@@ -216,7 +216,7 @@ AgentsWaitProbeSlack(){
 		printf '%s\n' "$probeQuick" > "$probeOut.read" ; : > "$probeOut.err"
 	else
 	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
-	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" \
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${probeArgs[@]+"${probeArgs[@]}"} \
 		> "$probeOut.read" 2> "$probeOut.err" || probeRc=$?
 	fi
 	if [ "$probeRc" != "0" ] ; then
@@ -253,7 +253,7 @@ AgentsWaitProbeSlack(){
 	fi
 	if [ -n "$probePerson" ] ; then
 		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
-		if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${probeArgs[@]}" --identity-bot > "$probeOut.bot.read" 2> "$probeOut.bot.err" ; then
+		if AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${probeArgs[@]+"${probeArgs[@]}"} --identity-bot > "$probeOut.bot.read" 2> "$probeOut.bot.err" ; then
 			LC_ALL=C awk -v person="$probePerson" '
 				NR == 1 && /^## target=/ { next ; }
 				/^[0-9]+\.[0-9]+ \| / { split($0, f, " \\| ") ; keep = ( f[2] == person ) ; }

@@ -102,6 +102,8 @@ AgentsToolsBoardDependenciesFindings(){
 ## The signature of the board's shape (the names of its items and the states they lie in), and whether anything was written since the marker.
 AgentsToolsBoardDependenciesChanged(){ ## marker file, signature file
 	local changedRoot="$MDAT_DATA_ROOT/board" changedNow changedOld="" changedFile
+	## Both files are needed: an empty name would write `.next` into whatever folder the caller stands in.
+	[ -n "${1:-}" ] && [ -n "${2:-}" ] || { echo "⛔ ERROR: AgentsToolsBoardDependenciesChanged: the marker file and the signature file are needed -- nothing was written" >&2 ; return 2 ; }
 	[ -d "$changedRoot" ] || return 1
 	## The shell's own glob of board/<state>/*.md, in byte order, and one cksum: no find, no sort. A mark that starts with a dot is no item.
 	local LC_COLLATE=C

@@ -833,7 +833,7 @@ case "$1" in
 		## and no "after your session ended" note go out. Its own wait finds it closed.
 		## Read once a pass, and only when there is something to collect.
 		[ -z "$collectEnded" ] || [ "${#collectFiles[@]}" -eq 0 ] || collectRunning="$( AgentsToolsPendingReplySessionsRunning )"
-		for collectFile in "${collectFiles[@]}" ; do
+		for collectFile in ${collectFiles[@]+"${collectFiles[@]}"} ; do
 			[ -f "$collectFile" ] || continue
 			collectQuiet=""
 			if [ -n "$collectEnded" ] ; then

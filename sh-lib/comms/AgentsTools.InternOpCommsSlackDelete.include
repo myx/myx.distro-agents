@@ -82,7 +82,7 @@ case "$1" in
 			chmod 600 "$diagFile"
 			local deleteTotal="${#deleteTargets[@]}" deleteDone=0 deleteFailed=0
 			local oneTarget
-			for oneTarget in "${deleteTargets[@]}" ; do
+			for oneTarget in ${deleteTargets[@]+"${deleteTargets[@]}"} ; do
 				local resolved rc channel threadTs
 				rc=0
 				resolved="$( DistroAgentsToolsResolveTarget "$oneTarget" "$memberName" )" || rc=$?
@@ -113,7 +113,7 @@ case "$1" in
 				opArgs+=( --context "--slack-delete-message" )
 				echo "# $MDSC_CMD --slack-delete-message: chat.delete channel=$channel ts=$threadTs (acting member $memberName, target $(( deleteDone + deleteFailed + 1 )) of $deleteTotal)" >&2
 				local response callRc=0
-				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${opArgs[@]+"${opArgs[@]}"} 2>"$diagFile" )" || callRc=$?
 				local diag
 				## Tested, so nothing between the file's creation and its removal can
 				## abort under `set -e` and leave it behind.

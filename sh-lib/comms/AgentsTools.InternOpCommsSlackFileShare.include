@@ -127,7 +127,7 @@ case "$1" in
 			[ "$shareAsBot" = "false" ] || shareInfoArgs+=( --identity bot )
 			shareInfoArgs+=( --context "--slack-file-share" )
 			local shareInfoResp="" shareInfoRc=0
-			shareInfoResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareInfoArgs[@]}" )" || shareInfoRc=$?
+			shareInfoResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${shareInfoArgs[@]+"${shareInfoArgs[@]}"} )" || shareInfoRc=$?
 			if [ "$shareInfoRc" != "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: could not resolve target '$shareTarget' to a conversation (see the op's own diagnostic above) -- nothing was uploaded." >&2
 				set +e ; return 1
@@ -144,7 +144,7 @@ case "$1" in
 				[ "$shareAsBot" = "false" ] || shareRepliesArgs+=( --identity bot )
 				shareRepliesArgs+=( --context "--slack-file-share" )
 				local shareRepliesResp="" shareRepliesRc=0
-				shareRepliesResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareRepliesArgs[@]}" )" || shareRepliesRc=$?
+				shareRepliesResp="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${shareRepliesArgs[@]+"${shareRepliesArgs[@]}"} )" || shareRepliesRc=$?
 				if [ "$shareRepliesRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: could not read the thread at $shareThreadTs to find its parent (see the op's own diagnostic above) -- nothing was uploaded. A share is anchored to a thread's parent, and this call could not establish one." >&2
 					set +e ; return 1
@@ -197,7 +197,7 @@ case "$1" in
 			[ "$shareAsBot" = "false" ] || shareStep1Args+=( --identity bot )
 			shareStep1Args+=( --context "--slack-file-share" )
 			local shareStep1Resp="" shareStep1Rc=0
-			shareStep1Resp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareStep1Args[@]}" )" || shareStep1Rc=$?
+			shareStep1Resp="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${shareStep1Args[@]+"${shareStep1Args[@]}"} )" || shareStep1Rc=$?
 			if [ "$shareStep1Rc" != "0" ] ; then
 				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 				if [ -n "$shareSnippetType" ] ; then
@@ -234,7 +234,7 @@ case "$1" in
 			[ "$shareAsBot" = "false" ] || shareStep3Args+=( --identity bot )
 			shareStep3Args+=( --context "--slack-file-share" )
 			local shareStep3Resp="" shareStep3Rc=0
-			shareStep3Resp="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${shareStep3Args[@]}" )" || shareStep3Rc=$?
+			shareStep3Resp="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${shareStep3Args[@]+"${shareStep3Args[@]}"} )" || shareStep3Rc=$?
 			[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 			if [ "$shareStep3Rc" != "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --slack-file-share: STEP 3 OF 3 FAILED (completing the upload into the conversation) -- see the op's own diagnostic above. The bytes were sent but the upload was never completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared. THIS IS A FAILURE, not a partial success." >&2
@@ -251,7 +251,7 @@ case "$1" in
 				[ "$shareAsBot" = "false" ] || shareCommentArgs+=( --identity-bot )
 				local shareCommentRc=0
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				printf '%s\n' "$shareComment" | AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-send-message "${shareCommentArgs[@]}" --from-stdin >/dev/null || shareCommentRc=$?
+				printf '%s\n' "$shareComment" | AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-send-message ${shareCommentArgs[@]+"${shareCommentArgs[@]}"} --from-stdin >/dev/null || shareCommentRc=$?
 				if [ "$shareCommentRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-file-share: the file was shared as $shareFileId but its accompanying message could not be posted (see the send op's own diagnostic above). A shared file with no message beside it is a FAILED operation, not a partial success: the material is there and nothing says what it is for. Post the message yourself with --slack-send-message against $shareCommentTarget, or delete the file." >&2
 					set +e ; return 1

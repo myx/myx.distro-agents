@@ -176,7 +176,7 @@ AgentsHarnessContextSync(){ ## kind (user|assistant|tool), meta fragment
 AgentsHarnessContextFeed(){ ## first new message n
 	local feedStart="$1" feedLines feedPath
 	[ "$harnessContextLastAssistant" -lt 1 ] || [ "$harnessContextLastAssistant" -ge "$feedStart" ] || feedStart="$harnessContextLastAssistant"
-	feedLines="$( tail -n +"$(( feedStart + 3 ))" "$harnessContextFile" 2>/dev/null | LC_ALL=C awk -v from="$1" "${harnessContextAwk[@]}" 2>/dev/null )" || feedLines=""
+	feedLines="$( tail -n +"$(( feedStart + 3 ))" "$harnessContextFile" 2>/dev/null | LC_ALL=C awk -v from="$1" ${harnessContextAwk[@]+"${harnessContextAwk[@]}"} 2>/dev/null )" || feedLines=""
 	[ -n "$feedLines" ] || return 0
 	[ -z "$harnessContextFeed" ] || printf '%s\n' "$feedLines" >> "$harnessContextFeed" 2>/dev/null || :
 	feedPath="$( AgentsTranscriptPath "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" || return 0
@@ -248,7 +248,7 @@ AgentsHarnessContextResume(){
 	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask resumeRoots resumeCallId resumeCallIds resumeAnswered
 	if [ ! -s "$resumeFile" ] ; then
 		resumeWhy="no context file at $resumeFile"
-	elif ! resumeCount="$( LC_ALL=C awk -v mode=validate "${harnessContextAwk[@]}" "$resumeFile" 2>&1 )" ; then
+	elif ! resumeCount="$( LC_ALL=C awk -v mode=validate ${harnessContextAwk[@]+"${harnessContextAwk[@]}"} "$resumeFile" 2>&1 )" ; then
 		resumeWhy="$resumeFile does not parse: $resumeCount"
 	elif [ "$( AgentsHarnessContextHeader "$resumeFile" model )" != "$harnessModel" ] ; then
 		resumeWhy="the context was kept for model $( AgentsHarnessContextHeader "$resumeFile" model ), this run is $harnessModel"
@@ -268,7 +268,7 @@ AgentsHarnessContextResume(){
 		return 1
 	fi
 	resumeDir="$harnessScratch/resume"
-	mkdir -p "$resumeDir" && LC_ALL=C awk -v mode=extract -v dir="$resumeDir" "${harnessContextAwk[@]}" "$resumeFile" > /dev/null 2>&1 || {
+	mkdir -p "$resumeDir" && LC_ALL=C awk -v mode=extract -v dir="$resumeDir" ${harnessContextAwk[@]+"${harnessContextAwk[@]}"} "$resumeFile" > /dev/null 2>&1 || {
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the records of $resumeFile could not be read back. Nothing was sent." >&2
 		return 1
 	}

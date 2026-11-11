@@ -44,7 +44,7 @@ AgentsMagicCommsSlackListPaged(){
 		listArgs+=( --context "$listContext (page $listIndex)" )
 		listRc=0
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		listBody="$( DistroAgentsTools --intern-op-slack-call "${listArgs[@]}" )" || listRc=$?
+		listBody="$( DistroAgentsTools --intern-op-slack-call ${listArgs[@]+"${listArgs[@]}"} )" || listRc=$?
 		if [ "$listRc" != "0" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD: $listApi under the $listIdentity identity failed on page $listIndex. Pages 1..$(( listIndex - 1 )) are DISCARDED rather than returned: an inventory missing its tail reads as a workspace with fewer conversations than it has." >&2
 			return 1
@@ -190,7 +190,7 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 		local userInfoResp userInfoRc userInfoOk userInfoErr userInfoUser userInfoRow
 		local -a userTerms userInfoCells
 		IFS=',' read -r -a userTerms <<< "$userNamesCsv"
-		for userTerm in "${userTerms[@]}" ; do
+		for userTerm in ${userTerms[@]+"${userTerms[@]}"} ; do
 			[ -n "$userTerm" ] || continue
 			userTermRest=""
 			case "$userTerm" in

@@ -53,7 +53,7 @@ AgentsToolsTeamDataRepairMoveFlatItems(){
 	done
 	if [ "$flatMoved" -gt 0 ] ; then
 		echo "TEAM-DATA-FLAT-MOVED: $flatMoved flat item(s) moved by processed"
-		printf '%s\n' "${flatItems[@]}"
+		printf '%s\n' ${flatItems[@]+"${flatItems[@]}"}
 	else
 		echo "TEAM-DATA-FLAT-MOVED: 0 flat item(s)"
 	fi
@@ -281,7 +281,7 @@ case "$1" in
 			## The local commits are set aside, kept reachable at a ref, and the branch
 			## takes the remote. Nothing of them is lost, and nothing is pushed yet.
 			local asideRef=""
-			asideRef="refs/heads/team-data-checkout-set-aside-$( date +%Y%m%dT%H%M%SZ 2>/dev/null )"
+			asideRef="refs/heads/team-data-checkout-set-aside-$( date -u +%Y%m%dT%H%M%SZ 2>/dev/null )"
 			if ! git -C "$repoRoot" update-ref "$asideRef" HEAD 2>/dev/null ; then
 				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: could not set the local commits aside at $asideRef, nothing was changed" >&2
 				set +e ; return 1

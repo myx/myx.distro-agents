@@ -127,6 +127,7 @@ rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: 
 		done
 	done
 	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
+		: "${liveRecord:?liveRecord is not set -- nothing was written}"
 		LC_ALL=C awk '{ print } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
 	fi
 	rigLiveDoorOpen || return 1
@@ -163,7 +164,9 @@ rigOneRun(){ ## name of its output files -- one iteration of the real loop
 }
 rigWaitStarts(){ ## -- until the starts the loop made in the background have ended (at most 200 seconds)
 	local waitLeft=1000
-	while [ -n "$( LC_ALL=C ls "$rigWs/.local/agents/schedule/starting" 2> /dev/null | LC_ALL=C grep -v -e '\.rc$' -e '\.out$' )" ] && [ "$waitLeft" -gt 0 ] ; do sleep 0.2 ; waitLeft=$(( waitLeft - 1 )) ; done
+	## A live start is the bare <key> entry (AgentsToolsScheduleSpawn). Its markers -- .rc, .out, .fails, .hold and .escalated -- are records, never a start
+	## still going, and waiting on them ran every wait to its bound.
+	while [ -n "$( LC_ALL=C ls "$rigWs/.local/agents/schedule/starting" 2> /dev/null | LC_ALL=C grep -v -e '\.rc$' -e '\.out$' -e '\.fails$' -e '\.hold$' -e '\.escalated$' )" ] && [ "$waitLeft" -gt 0 ] ; do sleep 0.2 ; waitLeft=$(( waitLeft - 1 )) ; done
 	## The record of a start (spawn-started) is closed a moment after the start, by the run that ended (its exit-code is the mark): the loop no longer holds the check for the
 	## time a pass took, so the close is waited for here (at most 60 seconds), or a check that closes a record by hand has it closed again under it.
 	local waitRecord waitOpen

@@ -92,7 +92,7 @@ AgentsToolsDispatcherSubSessions(){ ## session id
 			for (s in roots) if ( spawnSession[s] != "" && !( spawnSession[s] in printed ) ) printed[spawnSession[s]] = 1 ;
 			for (ses in printed) if (ses != wantSession) print ses ;
 		}
-	' "${subFiles[@]}"
+	' ${subFiles[@]+"${subFiles[@]}"}
 }
 
 ## A file's change time in whole seconds since the epoch, portable; nothing and rc 1 where it cannot be read.

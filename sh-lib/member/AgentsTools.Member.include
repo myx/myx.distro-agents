@@ -129,7 +129,7 @@ case "$1" in
 						inquiryRebuilt+=( "$inquiryWord" )
 					done
 					inquiryRebuilt[1]="$inquirySame"
-					set -- "${inquiryRebuilt[@]}"
+					set -- ${inquiryRebuilt[@]+"${inquiryRebuilt[@]}"}
 				fi
 			fi
 		fi
@@ -548,7 +548,7 @@ case "$1" in
 		}
 		local readArgs=( "$itemName" --context --get-board-item )
 		local boardState
-		for boardState in "${boardStates[@]}" ; do
+		for boardState in ${boardStates[@]+"${boardStates[@]}"} ; do
 			readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
 		done
 
@@ -556,7 +556,7 @@ case "$1" in
 			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
 		fi
 		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
-		AgentsToolsDataRead "${readArgs[@]}"
+		AgentsToolsDataRead ${readArgs[@]+"${readArgs[@]}"}
 		return $?
 	;;
 
@@ -668,7 +668,7 @@ case "$1" in
 			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
 		fi
 		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
-		AgentsToolsDataRead "${readArgs[@]}"
+		AgentsToolsDataRead ${readArgs[@]+"${readArgs[@]}"}
 		return $?
 	;;
 
@@ -704,6 +704,12 @@ case "$1" in
 		##
 		local trashScanArg
 		for trashScanArg in "$@" ; do
+			## A ROUTINE'S LOCK NOTE IS THE TOOLING'S (AgentsToolsInboxIsLockNote, the index of the routines' own declarations): never trashed.
+			type AgentsToolsInboxIsLockNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+			if AgentsToolsInboxIsLockNote "$trashScanArg" ; then
+				echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: $trashScanArg is a routine's lock note, which the routine lock reads at its own place -- it is never trashed, and nothing was done" >&2
+				set +e ; return 1
+			fi
 			case "$trashScanArg" in
 				--from-inbox:*)
 					echo "⛔ ERROR: $MDSC_CMD --trash-inbox-item: $trashScanArg is not valid here -- this op trashes an item out of <member>'s own inbox, so the source inbox and the acting member are the same one positional. Use --librarian-inbox-item-trash for a cross-member inbox." >&2
@@ -789,6 +795,13 @@ case "$1" in
 		shift || true
 		local itemName="$1"
 		shift || true
+		## A ROUTINE'S LOCK NOTE IS THE TOOLING'S (AgentsToolsInboxIsLockNote, the index of the routines' own declarations): its folder is
+		## set by the routine lock, and a move by hand loses the lock, which then answers NO_LOCK_HELD.
+		type AgentsToolsInboxIsLockNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+		if AgentsToolsInboxIsLockNote "$itemName" ; then
+			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: $itemName is a routine's lock note, which the routine lock keeps in its own folder -- it is never marked by hand, and nothing was done" >&2
+			set +e ; return 1
+		fi
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --mark-inbox-processed: syntax is [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
@@ -825,7 +838,7 @@ case "$1" in
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-inbox-to-processed "$memberName" "$itemName" \
 			--context --mark-inbox-processed \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 

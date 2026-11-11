@@ -155,7 +155,7 @@ AgentsToolsThisSessionWait(){ ## the operation's arguments
 	local waitArgs=( --team-member "$thisSessionMember" --wait-source "chat:$thisSessionKey" )
 	[ -z "$waitBound" ] || waitArgs+=( --wait-timeout "$waitBound" )
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	MDAT_WAIT_CHAT_FILTER="${waitFilter# }" DistroAgentsTools --wait-for-input "${waitArgs[@]}"
+	MDAT_WAIT_CHAT_FILTER="${waitFilter# }" DistroAgentsTools --wait-for-input ${waitArgs[@]+"${waitArgs[@]}"}
 }
 
 ## --get-dispatch-text: the dispatch of the session as the run was given it, from the sandbox's input/ (MDAT_SPAWN_SANDBOX_ROOT, else the
@@ -203,7 +203,7 @@ AgentsToolsThisSessionDispatchText(){ ## the operation's arguments (none)
 		return $?
 	fi
 	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
-	AgentsToolsMergeMdFiles --section-limit 6 "${dispatchMixins[@]}"
+	AgentsToolsMergeMdFiles --section-limit 6 ${dispatchMixins[@]+"${dispatchMixins[@]}"}
 }
 
 ## ---- the executor's checkpoint operations (F10.5): --executor-checkpoint-push, -rewind and -exit ----

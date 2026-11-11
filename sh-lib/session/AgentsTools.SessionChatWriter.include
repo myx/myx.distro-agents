@@ -123,10 +123,10 @@ AgentsToolsSessionChatWriterHandler(){ ## kind, the request file
 		while IFS= read -r handlerLine || [ -n "$handlerLine" ] ; do handlerArgs+=( "$handlerLine" ) ; done < "$handlerFile"
 		rm -f "$handlerFile" 2> /dev/null
 		case "$handlerKind" in
-			stamp) AgentsToolsSessionChatStampDirect "${handlerArgs[@]}" ;;
-			pointer-set) AgentsToolsSessionChatPointerSetDirect "${handlerArgs[@]}" ;;
-			pointer-unset) AgentsToolsSessionChatPointerUnsetDirect "${handlerArgs[@]}" ;;
-			import) AgentsToolsSessionChatImportDirect "${handlerArgs[@]}" ;;
+			stamp) AgentsToolsSessionChatStampDirect ${handlerArgs[@]+"${handlerArgs[@]}"} ;;
+			pointer-set) AgentsToolsSessionChatPointerSetDirect ${handlerArgs[@]+"${handlerArgs[@]}"} ;;
+			pointer-unset) AgentsToolsSessionChatPointerUnsetDirect ${handlerArgs[@]+"${handlerArgs[@]}"} ;;
+			import) AgentsToolsSessionChatImportDirect ${handlerArgs[@]+"${handlerArgs[@]}"} ;;
 		esac > /dev/null 2>&1 || printf '%s the %s for session %s failed\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$handlerKind" "${handlerArgs[0]:--}" >&2
 		printf 'ok\n' >&3
 		return 0

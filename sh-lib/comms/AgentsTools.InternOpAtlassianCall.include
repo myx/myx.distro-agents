@@ -162,7 +162,7 @@ AgentsToolsAtlassianCall() {
 		fi
 		## Confluence refuses an upload without this header, as a cross-site request guard.
 		[ -z "$attachFile" ] || curlArgs+=( -H 'X-Atlassian-Token: no-check' -F "file=@$attachFile" )
-		printf '%s\n' "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" | curl "${curlArgs[@]}" )" || curlRc=$?
+		printf '%s\n' "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" | curl ${curlArgs[@]+"${curlArgs[@]}"} )" || curlRc=$?
 	if [ "$curlRc" -ne 0 ] ; then
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: curl exit $curlRc" >&2
 		return 3
@@ -635,7 +635,7 @@ AgentsToolsAtlassianConfluencePageRead() { ## --member <team-member> --page-id <
 	local confPRRawFlag=()
 	[ "$confPRFormat" = storage ] || confPRRawFlag=( -v raw=1 )
 	local confPRValue confPRValueRc=0
-	confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" "${confPRRawFlag[@]}" -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
+	confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" ${confPRRawFlag[@]+"${confPRRawFlag[@]}"} -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
 	if [ "$confPRValueRc" -ne 0 ] ; then
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $confPRFormat body unreadable" >&2
 		set +e ; return 3
@@ -1269,7 +1269,7 @@ case "$1" in
 			jiraCRRawFlag=( -v raw=body )
 		fi
 		local jiraCRRows jiraCRRowsRc=0
-		jiraCRRows="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v array=comments -v want="$jiraCRWant" "${jiraCRRawFlag[@]}" -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || jiraCRRowsRc=$?
+		jiraCRRows="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v array=comments -v want="$jiraCRWant" ${jiraCRRawFlag[@]+"${jiraCRRawFlag[@]}"} -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || jiraCRRowsRc=$?
 		if [ "$jiraCRRowsRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: comments field unreadable" >&2
 			set +e ; return 3

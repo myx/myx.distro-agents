@@ -142,7 +142,7 @@ rigRestart(){ ## -- the start the schedule makes of a duty, its tooling call rec
 	while [ ! -s "$rigTmp/spawn.args" ] && [ "$restartLeft" -gt 0 ] ; do sleep 0.1 ; restartLeft=$(( restartLeft - 1 )) ; done
 }
 rigRestart
-rigAssert "the restart's call joins the duty's session, names its routine and member, and carries no resume" "$( LC_ALL=C grep -c -F -e '--spawn-session --join-session rig-sess --session-thread:event-track --routine magic-coordinator.work-duty.routine.md magic-coordinator|resume-env=unset' "$rigTmp/spawn.args" ):$( LC_ALL=C grep -c -e '--resume' "$rigTmp/spawn.args" || : )" "1:0"
+rigAssert "the restart's call joins the duty's session, names the coordinator as its parent, its routine and member, and carries no resume" "$( LC_ALL=C grep -c -F -e '--spawn-session --join-session rig-sess --parent-member magic-coordinator --session-thread:event-track --routine magic-coordinator.work-duty.routine.md magic-coordinator|resume-env=unset' "$rigTmp/spawn.args" ):$( LC_ALL=C grep -c -e '--resume' "$rigTmp/spawn.args" || : )" "1:0"
 
 echo "-- 6. the board holders --"
 rm -f "$rigSp"/rigduty0[123].spawn.md

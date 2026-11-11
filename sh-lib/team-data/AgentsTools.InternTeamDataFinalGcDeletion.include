@@ -196,7 +196,7 @@ AgentsToolsFinalGcDependedNames(){
 		done
 	done
 	if [ "${#depFiles[@]}" -eq 0 ] ; then return 0 ; fi
-	gcDependedNames="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsToolsFinalGcDependedNames.awk" "${depFiles[@]}" | sort -u )$LF"
+	gcDependedNames="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsToolsFinalGcDependedNames.awk" ${depFiles[@]+"${depFiles[@]}"} | sort -u )$LF"
 	return 0
 }
 
@@ -255,11 +255,11 @@ AgentsToolsFinalGcScanInboxRoot(){
 		stampPaths+=( "$path" )
 		stampValues+=( "$normValue" )
 	done <<EOF
-$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" "${rootItems[@]}" )
+$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" ${rootItems[@]+"${rootItems[@]}"} )
 EOF
 	[ "${#stampPaths[@]}" -gt 0 ] || return 0
 	## One conversion for the whole root; every value was shape-checked above.
-	epochList="$( printf '%s\n' "${stampValues[@]}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" )" || {
+	epochList="$( printf '%s\n' ${stampValues[@]+"${stampValues[@]}"} | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" )" || {
 		echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: kept every marked item in $scanDir -- its processed-at dates could not be converted" >&2
 		return 0
 	}

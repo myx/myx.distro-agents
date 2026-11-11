@@ -197,7 +197,7 @@ AgentsToolsManagerPendingRecord(){ ## the operation as it was called, its syntax
 				fi
 				managerPendingId="$2" ; shift 2
 			;;
-			*) managerPendingRest=( "${managerPendingRest[@]}" "$1" ) ; shift ;;
+			*) managerPendingRest=( ${managerPendingRest[@]+"${managerPendingRest[@]}"} "$1" ) ; shift ;;
 		esac
 	done
 	if [ -z "$managerPendingId" ] ; then
@@ -270,8 +270,8 @@ case "$1" in
 		AgentsToolsManagerPendingRecord "$answerOp" "$answerSyntax" "$@" || { set +e ; return 1 ; }
 		## The escalation words (F6.10, AgentsTools.Authority.include), taken out wherever they stand.
 		type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
-		AgentsToolsAuthorityFlags "${managerPendingRest[@]}" || { set +e ; return 1 ; }
-		set -- "${agentsAuthorityRest[@]}"
+		AgentsToolsAuthorityFlags ${managerPendingRest[@]+"${managerPendingRest[@]}"} || { set +e ; return 1 ; }
+		set -- ${agentsAuthorityRest[@]+"${agentsAuthorityRest[@]}"}
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--answer|--text)
@@ -336,7 +336,7 @@ case "$1" in
 				[ -z "$answerWords" ] || answerAsk+=( --text "$answerWords" )
 				answerWhat="the ${answerWord%% -- *} of the $( AgentsToolsEscalationField "$managerPendingFile" kind ) of $( AgentsToolsEscalationField "$managerPendingFile" item ) as your own verdict, typed at the console${answerWords:+, with the words: $answerWords}"
 				agentsAuthorityForceConfirm=yes
-				answerGateOut="$( AgentsToolsAuthorityGate "$answerWhat" "$managerPendingId" "" "$managerPendingFile" console "${answerAsk[@]}" )" || answerGateRc=$?
+				answerGateOut="$( AgentsToolsAuthorityGate "$answerWhat" "$managerPendingId" "" "$managerPendingFile" console ${answerAsk[@]+"${answerAsk[@]}"} )" || answerGateRc=$?
 				agentsAuthorityForceConfirm=""
 				[ -z "$answerGateOut" ] || printf '%s\n' "$answerGateOut"
 				if [ "$answerGateRc" != 0 ] ; then
@@ -399,8 +399,8 @@ case "$1" in
 		shift
 		AgentsToolsManagerPendingRecord "$dismissOp" "$dismissSyntax" "$@" || { set +e ; return 1 ; }
 		type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
-		AgentsToolsAuthorityFlags "${managerPendingRest[@]}" || { set +e ; return 1 ; }
-		set -- "${agentsAuthorityRest[@]}"
+		AgentsToolsAuthorityFlags ${managerPendingRest[@]+"${managerPendingRest[@]}"} || { set +e ; return 1 ; }
+		set -- ${agentsAuthorityRest[@]+"${agentsAuthorityRest[@]}"}
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--reason)

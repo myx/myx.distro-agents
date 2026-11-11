@@ -304,8 +304,10 @@
 						;;
 					esac
 				fi
-				## A round reads every source it holds. A scan not yet begun stays unbegun once something has arrived or the bound has passed.
-				if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $(( waitStart + SECONDS - waitSecs0 )) -ge "$waitDeadline" ] ; } ; } ; then
+				## A round reads every source it holds. A scan not yet begun stays unbegun once something has arrived, or once the bound has passed
+				## after the first round: the first round reads every source whatever the bound says (above), so a start-up that spent the bound
+				## never leaves the scan unread and named in WAIT-NEVER-READ.
+				if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ "$waitRound" != "1" ] && [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $(( waitStart + SECONDS - waitSecs0 )) -ge "$waitDeadline" ] ; } ; } ; then
 					continue
 				fi
 				waitProbedAt[$roundIndex]="$roundNow"

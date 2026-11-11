@@ -132,7 +132,7 @@ case "$1" in
 			## The same all day, UTC (see the header): the processed-at of a sweep and the date of a healed file.
 			sweepStamp="$( date -u +"%Y-%m-%d 00:00 +0000" )"
 			## processed/ of each inbox the candidates are in: made here, before the one awk writes into it.
-			for sweepPath in "${sweepCandidates[@]}" ; do
+			for sweepPath in ${sweepCandidates[@]+"${sweepCandidates[@]}"} ; do
 				sweepDirs="${sweepPath%/incoming/*}/processed"
 				case "$LF$sweepMembers" in *"$LF$sweepDirs$LF"*) continue ;; esac
 				sweepMembers="$sweepMembers$sweepDirs$LF"
@@ -142,7 +142,7 @@ case "$1" in
 				}
 			done
 			sweepOut="$( LC_ALL=C awk -v cutoff="$sweepCutoff" -v stamp="$sweepStamp" -v reason="reflection-sweep-${sweepDays}d" \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsReflectionSweep.awk" "${sweepCandidates[@]}" )" || {
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsReflectionSweep.awk" ${sweepCandidates[@]+"${sweepCandidates[@]}"} )" || {
 				echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: the sweep pass failed -- the copies it made are overwritten by the next run, nothing was removed" >&2
 				set +e ; return 1
 			}
@@ -171,7 +171,7 @@ case "$1" in
 				sweepHi=$(( sweepHi + 1 ))
 			done
 			if [ "${#sweepSources[@]}" -gt 0 ] ; then
-				rm -f -- "${sweepSources[@]}" || {
+				rm -f -- ${sweepSources[@]+"${sweepSources[@]}"} || {
 					echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: could not remove the swept reflections from incoming/ -- the next run moves them again" >&2
 					set +e ; return 1
 				}

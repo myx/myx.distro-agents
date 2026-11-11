@@ -312,7 +312,7 @@ case "$1" in
 			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-member-inbox-upsert" ; fi
 			[ -z "$movedFrom" ] || commitPaths+=( "$movedFrom" )
 			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataCommitPaths "$msgPrefix $msgAction: $ctxForMsg" "${commitPaths[@]}"
+			AgentsToolsTeamDataCommitPaths "$msgPrefix $msgAction: $ctxForMsg" ${commitPaths[@]+"${commitPaths[@]}"}
 		fi
 		return 0
 	;;

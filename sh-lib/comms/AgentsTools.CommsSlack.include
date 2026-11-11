@@ -127,7 +127,7 @@ AgentsToolsSlackReadPagedConversation(){
 		fi
 		pagedArgs+=( --context "$pagedContext (page $pagedIndex)" )
 		pagedRc=0
-		pagedBody="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${pagedArgs[@]}" )" || pagedRc=$?
+		pagedBody="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${pagedArgs[@]+"${pagedArgs[@]}"} )" || pagedRc=$?
 		if [ "$pagedRc" != "0" ] ; then
 			if [ "$pagedIndex" -gt 1 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD: paged read of $pagedApi $pagedTarget failed on page $pagedIndex of an already-started conversation. Pages 1..$(( pagedIndex - 1 )) were read and are being DISCARDED rather than returned: a prefix returned without its remainder is exactly the silent truncation this read exists to remove." >&2
@@ -996,7 +996,7 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 				fi
 				if [ "$pretty" = "true" ] ; then
 					local legFmt="" legFmtRc=0
-					legFmt="$( AgentsToolsSlackFormatPagedConversation "$memberName" "${pagedPages[@]}" )" || legFmtRc=$?
+					legFmt="$( AgentsToolsSlackFormatPagedConversation "$memberName" ${pagedPages[@]+"${pagedPages[@]}"} )" || legFmtRc=$?
 					if [ "$legFmtRc" != "0" ] ; then
 						legReason="the response was read but could not be formatted (the formatter's own error is above)"
 						break
@@ -1026,7 +1026,7 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 					## second page's message index 0 cannot overwrite a first
 					## page's without one.
 					local legPageIndex=1 legPage
-					for legPage in "${pagedPages[@]}" ; do
+					for legPage in ${pagedPages[@]+"${pagedPages[@]}"} ; do
 						legRaw="$legRaw## dm=$legDm identity=$legIdentity (this DM's own raw API response, page $legPageIndex, follows)"$'\n'"$legPage"$'\n'
 						legPageIndex=$(( legPageIndex + 1 ))
 					done
@@ -1099,9 +1099,9 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 	if [ "$pretty" = "true" ] ; then
 		## Marker lines are deliberately not written on this path: they are
 		## not JSON, and this formatter parses every line it is given as a body.
-		AgentsToolsSlackFormatPagedConversation "$memberName" "${pagedPages[@]}" || awkStatus=$?
+		AgentsToolsSlackFormatPagedConversation "$memberName" ${pagedPages[@]+"${pagedPages[@]}"} || awkStatus=$?
 	else
-		for pageBody in "${pagedPages[@]}" ; do
+		for pageBody in ${pagedPages[@]+"${pagedPages[@]}"} ; do
 			## No `identity=` on this marker, deliberately -- see
 			## AgentsToolsSlackReadPagedConversation's own note.
 			printf '## dm=%s (page %s of this conversation'"'"'s own raw read follows)\n' "$channel" "$pageIndex"
@@ -1580,13 +1580,13 @@ case "$1" in
 				## Body on stdout, the -w line last on its own -- no response file.
 				uploadArgs+=( -w '\n%{http_code} %{size_upload}' )
 				uploadArgs+=( --form "${uploadFile%%=*}=@${uploadFile#*=}" )
-				for uploadPair in "${formArgs[@]}" ; do
+				for uploadPair in ${formArgs[@]+"${formArgs[@]}"} ; do
 					uploadArgs+=( --form "$uploadPair" )
 				done
 				## `||`, not `;` -- under set -e the shell leaves before an
 				## assignment on the next line is ever reached.
 				local uploadOut="" uploadRc=0
-				uploadOut="$( curl "${uploadArgs[@]}" <<< "$authHeader" 2>&1 )" || uploadRc=$?
+				uploadOut="$( curl ${uploadArgs[@]+"${uploadArgs[@]}"} <<< "$authHeader" 2>&1 )" || uploadRc=$?
 				## `not-reported` is a real state: curl writes no -w line at all when
 				## it fails before the transfer, and empty could not be told from 0.
 				local uploadStatus="not-reported" uploadBytes="not-reported"
@@ -1629,11 +1629,11 @@ case "$1" in
 				## Each value travels in its own file, never argv, which a long message outgrows.
 				## Named by the argument count at that point, which no two pairs share.
 				response="$( curlArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" "https://slack.com/api/$apiMethod" -H @- )
-					for formPair in "${formArgs[@]}" ; do
+					for formPair in ${formArgs[@]+"${formArgs[@]}"} ; do
 						printf '%s' "${formPair#*=}" > "$callDir.form.${#curlArgs[@]}" || exit 1
 						curlArgs+=( --data-urlencode "${formPair%%=*}@$callDir.form.${#curlArgs[@]}" )
 					done
-					curl "${curlArgs[@]}" <<< "$authHeader" 2>&1 )" || {
+					curl ${curlArgs[@]+"${curlArgs[@]}"} <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
 					## A TRANSPORT FAILURE IS RETRIED, EVERY CALL ALIKE (AgentsToolsSlackTransportRetry): a connection never made, any method;
 					## a timeout or a dropped connection, a read only, since a post may have landed.
@@ -1655,7 +1655,7 @@ case "$1" in
 					&& printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
 					joinAttempted="true"
 					local joinChannel="" joinPair joinResp=""
-					for joinPair in "${formArgs[@]}" ; do
+					for joinPair in ${formArgs[@]+"${formArgs[@]}"} ; do
 						case "$joinPair" in
 							channel=*) joinChannel="${joinPair#channel=}" ;;
 						esac
@@ -1772,7 +1772,7 @@ case "$1" in
 		fi
 		local srcOp srcScopes
 		local srcNames=() srcLists=()
-		for srcOp in "${scopeSources[@]}" ; do
+		for srcOp in ${scopeSources[@]+"${scopeSources[@]}"} ; do
 			## A source is an operation, or an in-context helper (AgentsTools*) that answers the same flag.
 			case "$srcOp" in
 				AgentsTools*) srcScopes="$( "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;

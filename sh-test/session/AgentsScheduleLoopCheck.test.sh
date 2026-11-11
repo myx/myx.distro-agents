@@ -94,8 +94,11 @@ rigAssert "and starts the first one no more: it ran today" "$( rigRecordsOf keep
 echo "-- 2. work duty by the flags --"
 rigAt $(( rigMon13 + 120 ))
 rigItem keeper-rig-02 ; rigItem keeper-rig-03
+## The schedule starts one duty a pass (the human-owner's rule), so the two duties are started by two passes, a second apart on the rig's clock.
 rigOneRun duty1 ; rigWaitStarts
-rigAssert "worktime, and an item in the inbox: the duty of keeper-rig-02 and of keeper-rig-03 is started" "$( rigSaid duty1 'work-duty: started the duty of keeper-rig-02' ):$( rigSaid duty1 'work-duty: started the duty of keeper-rig-03' )" "1:1"
+rigAt $(( rigMon13 + 121 ))
+rigOneRun duty1b ; rigWaitStarts
+rigAssert "worktime, and an item in the inbox: the duty of keeper-rig-02 and of keeper-rig-03 is started, one a pass" "$(( $( rigSaid duty1 'work-duty: started the duty of keeper-rig-02' ) + $( rigSaid duty1b 'work-duty: started the duty of keeper-rig-02' ) )):$(( $( rigSaid duty1 'work-duty: started the duty of keeper-rig-03' ) + $( rigSaid duty1b 'work-duty: started the duty of keeper-rig-03' ) ))" "1:1"
 rigAssert "each is a session of the work-duty routine owned by that member: one each, and none for a member with nothing to work on" "$( rigDutyCount keeper-rig-02 ):$( rigDutyCount keeper-rig-03 ):$( rigDutyCount keeper-rig-04 )" "1:1:0"
 rigItem oncall-rig ; rigItem human-owner
 rigAssert "an oncall member and human-owner get none, whatever is in their inbox: no line of them" "$( rigDutyCount oncall-rig ):$( rigDutyCount human-owner ):$( rigSaid duty1 'oncall-rig' ):$( rigSaid duty1 'human-owner' )" "0:0:0:0"
@@ -104,28 +107,28 @@ echo "-- 3. the end of a duty --"
 rigLive keeper-rig-02 idle ; rigSpawn02="$rigLiveSpawn" ; rigLive keeper-rig-03 working ; rigSpawn03="$rigLiveSpawn"
 rigAt "$rigMon18"
 rigOneRun end1
-rigAssert "worktime is over, and the run in its Wait still has an item in its inbox: it is not told to go at once (the lifetime is AgentsDutyLifetimeCheck's)" "$( rigSaid end1 "work-duty: $rigSpawn02 of" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "0:0"
+## OUT OF WORKTIME ONLY THE COORDINATOR RUNS: another member's duty is told to go at once, whatever input it still has, unless a person called
+## it. The run at work is told too, and takes DISMISSED at its next Wait, as every dismissal is taken: nothing stops it mid-work.
+rigAssert "worktime is over: each member's duty is told to go at once, the run in its Wait and the run at work, with DISMISSED in each session thread (the lifetime is AgentsDutyLifetimeCheck's)" "$( rigSaid end1 "work-duty: $rigSpawn02 of keeper-rig-02 is told to go" ):$( rigSaid end1 "work-duty: $rigSpawn03 of keeper-rig-03 is told to go" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:1:2"
 rm -f "$rigData/inboxes/keeper-rig-02/incoming/note-20261019T0900Z-rig-work.md"
 rigOneRun end2
-rigAssert "its input worked off, out of worktime, idle for more than an hour: the run in its Wait is told to go, once, with DISMISSED in its session thread" "$( rigSaid end2 "work-duty: $rigSpawn02 of keeper-rig-02 is told to go" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:1"
-rigAssert "the run at work is told nothing: never mid-work" "$( rigSaid end2 "work-duty: $rigSpawn03 of" )" "0"
 rigOneRun end2b
-rigAssert "the run already told is not told twice" "$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1"
+rigAssert "the runs already told are not told twice" "$( rigSaid end2 'is told to go' ):$( rigSaid end2b 'is told to go' ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "0:0:2"
 printf '2026-10-19T10:05:00Z wait going idle\n' >> "$rigStores/$rigSpawn03/milestones"
 rm -f "$rigData/inboxes/keeper-rig-03/incoming/note-20261019T0900Z-rig-work.md"
 rigOneRun end3
-rigAssert "at its next idle point, its input worked off, the other is told: DISMISSED reaches it" "$( rigSaid end3 "work-duty: $rigSpawn03 of keeper-rig-03 is told to go" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:2"
+rigAssert "...nor at the idle point of the run that was at work" "$( rigSaid end3 'is told to go' ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "0:2"
 rigItem keeper-rig-04
 rigTagsBefore="$( cksum < "$rigWs/.local/agents/schedule/team-channel" )"
 rigOneRun end4
 rigAssert "the demand of a member outside its flag starts nothing: the duty of keeper-rig-04 is not started" "$( rigStartsOf keeper-rig-04 ):$( rigSaid end4 'the duty of keeper-rig-04' )" "0:0"
 rigAssert "...and costs no read of the team channel: no member is eligible, so its record is as it was" "$( cksum < "$rigWs/.local/agents/schedule/team-channel" )" "$rigTagsBefore"
 rigItem magic-coordinator
-rigOneRun end5
-rigAssert "magic-coordinator is not on duty after worktime without emergency or overtime" "$( rigSaid end5 'the duty of magic-coordinator' )" "0"
+rigOneRun end5 ; rigWaitStarts
+rigAssert "out of worktime the coordinator alone runs: with an item for it, its duty is started" "$( rigSaid end5 'work-duty: started the duty of magic-coordinator' )" "1"
 rigDispatch --override-flag overtime
 rigOneRun end6 ; rigWaitStarts
-rigAssert "with overtime it is: its duty is started" "$( rigSaid end6 'work-duty: started the duty of magic-coordinator' )" "1"
+rigAssert "with overtime, no second start: its duty is on already" "$( rigSaid end6 'work-duty: started the duty of magic-coordinator' )" "0"
 rigAssert "...and it is the coordinator's own duty routine, which the others have none of" "$( rigRecordsOf magic-coordinator.work-duty.routine.md ):$( rigRecordsOf magic-team.work-duty.routine.md | LC_ALL=C awk '{ print ( $1 > 0 ) ? "team-duties-too" : "none" }' )" "1:team-duties-too"
 rigAt $(( rigMon13 + 86400 ))
 rigOneRun back1 ; rigWaitStarts
@@ -136,14 +139,19 @@ rigInquiries(){ ## session id -- the inquiries of the librarian's inbox that are
 	LC_ALL=C ls "$rigData/inboxes/magic-librarian/incoming" 2> /dev/null | LC_ALL=C grep -c -F -- "-learning-$1.md" || :
 }
 rigAssert "learning was on at the first look, and the session that had ended before it is history: marked, no inquiry (the sessions the loop started itself ended since, and have theirs)" "$( rigInquiries rig-hist-$rigTag ):$( [ -e "$rigWs/.local/agents/schedule/learned/rig-hist-$rigTag" ] && printf marked )" "0:marked"
-rigFinished rig-new-$rigTag keeper-rig-06 spawn-succeeded
-rigFinished rig-lib-$rigTag magic-librarian spawn-succeeded
+## Only a session with something to learn from is analysed: a reflection filed from it, or a learn mark on it. Each ended session below has the mark,
+## so what decides is the learning flag and the members of the session.
+rigLearnMark(){ ## session -- the learn mark on that session
+	mkdir -p "$rigWs/.local/agents/sessions/$1" && : > "$rigWs/.local/agents/sessions/$1/learn"
+}
+rigFinished rig-new-$rigTag keeper-rig-06 spawn-succeeded ; rigLearnMark rig-new-$rigTag
+rigFinished rig-lib-$rigTag magic-librarian spawn-succeeded ; rigLearnMark rig-lib-$rigTag
 rigOneRun learnA
 rigAssert "a session that ended since, learning on: one inquiry into magic-librarian's inbox, and a line says so" "$( rigInquiries rig-new-$rigTag ):$( rigSaid learnA "learning: session rig-new-$rigTag ended: one inquiry to magic-librarian" )" "1:1"
 rigAssert "the inquiry names the session and holds the words of the template" "$( LC_ALL=C grep -l -F "rig-new-$rigTag" "$rigData"/inboxes/magic-librarian/incoming/inquiry-*-learning-rig-new-* | wc -l | tr -d ' ' ):$( LC_ALL=C grep -q 'retro' "$rigData"/inboxes/magic-librarian/incoming/inquiry-*-learning-rig-new-* && printf words )" "1:words"
 rigAssert "a session whose only member is magic-librarian gets none" "$( rigInquiries rig-lib-$rigTag )" "0"
 rigDispatch --override-flag --no learning
-rigFinished rig-off-$rigTag keeper-rig-07 spawn-succeeded
+rigFinished rig-off-$rigTag keeper-rig-07 spawn-succeeded ; rigLearnMark rig-off-$rigTag
 rigOneRun learnB
 rigAssert "the next iteration sends no second one for the first, and none for a session that ended with learning off" "$( rigInquiries rig-new-$rigTag ):$( rigInquiries rig-off-$rigTag )" "1:0"
 rigDispatch --override-flag learning
@@ -164,6 +172,9 @@ rigOneRun nocheck ; rigWaitStarts
 rigAssert "the iteration fails and says why, and says that the schedule's starts are skipped" "$rigOneRc:$( rigSaid nocheck 'configuration check FAILED' ):$( rigSaid nocheck "the schedule's starts are skipped" )" "1:1:1"
 rigAssert "nothing was started: the routine that is due, and the duty of a member with work to do" "$( rigSaid nocheck 'autorun: started' ):$( rigSaid nocheck 'work-duty: started' ):$( rigRecordsOf keeper-rig-01.auto.routine.md ):$( rigDutyCount keeper-rig-04 )" "0:0:$rigAutoBefore:$rigDutyBefore"
 cp "$rigDir/team.env.kept" "$rigWs/.local/.agents/magic-team.agent.env" ; cp "$rigDir/coord.env.kept" "$rigWs/.local/.agents/magic-coordinator.agent.env"
+## Every start fails in this rig (no agent CLI), and a failed start holds its key for ten minutes by the real mtime of its .hold file. The rig's
+## clock lies before that mtime, so the hold would never end here: the routine's own hold and failure count are taken out, as ten minutes would.
+rm -f "$rigWs/.local/agents/schedule/starting/keeper-rig-01.auto.routine.md.hold" "$rigWs/.local/agents/schedule/starting/keeper-rig-01.auto.routine.md.fails"
 rigOneRun withcheck ; rigWaitStarts
 rigAssert "once the check passes the very next iteration starts what is due" "$rigOneRc:$( rigSaid withcheck 'configuration check passed' ):$( rigSaid withcheck 'autorun: started keeper-rig-01.auto.routine.md' )" "0:1:1"
 

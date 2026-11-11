@@ -75,7 +75,7 @@ AgentsToolsArtifactLastNumber(){ ## code
 		$0 == "---" { front++ ; next ; }
 		front == 1 && index( $0, "number: " code "-" ) == 1 { n = substr( $0, length( code ) + 10 ) ; if ( n ~ /^[0-9]+$/ && n + 0 > top ) { top = n + 0 ; } ; }
 		END { printf "%d", top ; }
-	' "${lastFiles[@]}"
+	' ${lastFiles[@]+"${lastFiles[@]}"}
 }
 
 ## The record of this document, one audit item: artRecord, rewritten whole at each state.

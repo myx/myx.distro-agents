@@ -78,7 +78,7 @@ case "$1" in
 			printf '%s\n' "$agentPrompt" | (
 				AgentsToolsSpawnConsoleLaunch -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SPAWN_SANDBOX_ROOT -u MDAT_SESSION_THREAD -u MDAT_SPAWN_RESUME -u MDAT_SPAWN_RESUME_FROM \
 					-u MDAT_CONVERSATION_THREADS -u MDAT_SKILLSET_ROOT -u MDAT_SPAWN_LAUNCH_MARKER -u MDAT_SPAWN_RESUME_EVENT_MARKER -u MDAT_HARNESS_RESUME_CONTEXT -u MDAT_HARNESS_RESUME_MARKER \
-					MDAT_SPAWN_BARE=true MDAT_SPAWN_AGENT= -- "${agentCliArgs[@]}"
+					MDAT_SPAWN_BARE=true MDAT_SPAWN_AGENT= -- ${agentCliArgs[@]+"${agentCliArgs[@]}"}
 			) > /dev/null 2>&1 || agentRc=$?
 			printf '%s bare-spawn ended %s exit %s\n' "$( date +"%Y-%m-%d %H:%M %z" )" "${agentCli:-configured}" "$agentRc" >> "$agentLog" 2> /dev/null
 		) > /dev/null 2>&1 < /dev/null &

@@ -118,7 +118,7 @@ case "$1" in
 			echo "# $MDSC_CMD --slack-file-fetch: reading metadata for $fetchFileId before fetching (expected size and type come from there)" >&2
 			## The metadata op's own diagnostic goes straight to stderr rather than
 			## through a capture: it was only ever re-emitted there.
-			infoOut="$( AgentsToolsCommsSlackFileInfo "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" )" || infoRc=$?
+			infoOut="$( AgentsToolsCommsSlackFileInfo "$memberName" "$fetchFileId" ${infoIdentityArgs[@]+"${infoIdentityArgs[@]}"} )" || infoRc=$?
 			case "$infoRc" in
 				0) ;;
 				3)
@@ -206,7 +206,7 @@ case "$1" in
 				## the merged stream is the diagnostic entire -- re-emitted here, and
 				## read below for the content type the server actually sent.
 				fetchDiag="" ; fetchCallRc=0
-				fetchDiag="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${fetchOpArgs[@]}" 2>&1 )" || fetchCallRc=$?
+				fetchDiag="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${fetchOpArgs[@]+"${fetchOpArgs[@]}"} 2>&1 )" || fetchCallRc=$?
 				[ -z "$fetchDiag" ] || printf '%s\n' "$fetchDiag" >&2
 				if [ "$fetchCallRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- the authenticated GET for $fetchFileId did not complete (see the op's own diagnostic above, which carries the HTTP status it saw). Whatever arrived was discarded with the temporary file, and '$fetchDestAbs' was not created or modified." >&2

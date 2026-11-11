@@ -122,12 +122,12 @@ function AgentsConsoleCompletionHelperAgents(){
 		for idx in "${!COMPREPLY[@]}"; do
 			if [[ ${COMPREPLY[$idx]} != "$cur"* ]]; then
 				COMPREPLY+=(" 🔀[ Filter by: \"$cur\" ]:")
-				printf '%b\n' "${COMPREPLY[@]}"
+				printf '%b\n' ${COMPREPLY[@]+"${COMPREPLY[@]}"}
 				return 0
 			fi
 		done
 
-		printf '%b\n' "${COMPREPLY[@]}"
+		printf '%b\n' ${COMPREPLY[@]+"${COMPREPLY[@]}"}
 		return 0
 	fi
 

@@ -640,7 +640,7 @@ fi
 ## every other one is resolved here, one subshell each, as always.
 harnessRoots=""
 harnessRootIdx=0
-for harnessRoot in "${harnessAccessRoots[@]}" ; do
+for harnessRoot in ${harnessAccessRoots[@]+"${harnessAccessRoots[@]}"} ; do
 	if [ -n "${harnessRootsFromIndex:-}" ] && [ -n "${harnessAccessRootsReal[$harnessRootIdx]-}" ] ; then
 		harnessRoots="${harnessRoots}${harnessAccessRootsReal[$harnessRootIdx]}"$'\n'
 	else
@@ -660,7 +660,7 @@ fi
 harnessWriteRoots=""
 if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 	harnessRootIdx=0
-	for harnessWriteRoot in "${harnessWriteAccessRoots[@]}" ; do
+	for harnessWriteRoot in ${harnessWriteAccessRoots[@]+"${harnessWriteAccessRoots[@]}"} ; do
 		if [ -n "${harnessWriteFromIndex:-}" ] && [ -n "${harnessWriteAccessRootsReal[$harnessRootIdx]-}" ] ; then
 			harnessWriteRoots="${harnessWriteRoots}${harnessWriteAccessRootsReal[$harnessRootIdx]}"$'\n'
 		else
@@ -748,7 +748,7 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 					*$'\n'"${harnessChildRecord#"$MMDAPP/.local/agents/spawned/"}"$'\n'*) harnessChildFiles+=( "$harnessChildRecord" ) ;;
 				esac
 			done
-			[ "${#harnessChildFiles[@]}" -eq 0 ] || harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "${harnessChildFiles[@]}" 2>/dev/null )" || harnessChildRecords=""
+			[ "${#harnessChildFiles[@]}" -eq 0 ] || harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" ${harnessChildFiles[@]+"${harnessChildFiles[@]}"} 2>/dev/null )" || harnessChildRecords=""
 		fi
 	else
 		harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2>/dev/null )" || harnessChildRecords=""

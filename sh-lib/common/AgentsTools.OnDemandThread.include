@@ -170,13 +170,13 @@ AgentsToolsOnDemandThreadRequest(){ ## folder, bound seconds or -, the operation
 	[ "${1:-}" != "--" ] || shift
 	askStartFields=( "$@" )
 	if [ -n "$askStartFolder" ] && [ "${#askStartRun[@]}" -gt 0 ] ; then
-		askStartOut="$( AgentsToolsOnDemandThreadAsk "$askStartFolder" "$askStartBound" "${askStartFields[@]}" 2> /dev/null )" && { printf '%s' "$askStartOut" ; return 0 ; }
+		askStartOut="$( AgentsToolsOnDemandThreadAsk "$askStartFolder" "$askStartBound" ${askStartFields[@]+"${askStartFields[@]}"} 2> /dev/null )" && { printf '%s' "$askStartOut" ; return 0 ; }
 	else
 		printf '⛔ ERROR: the shared ask path needs a folder, a bound, an operation before -- and the request after it\n' >&2
 		return 1
 	fi
 	## The thread is not there, or it ended between the ask and the request: the start makes the one that is there now.
-	askStartSaid="$( AgentsToolsOnDemandThreadStart "$askStartFolder" "${askStartRun[@]}" )" || {
+	askStartSaid="$( AgentsToolsOnDemandThreadStart "$askStartFolder" ${askStartRun[@]+"${askStartRun[@]}"} )" || {
 		printf '⛔ ERROR: the thread could not be started: %s\n' "${askStartSaid#failed - }" >&2
 		return 1
 	}
@@ -184,7 +184,7 @@ AgentsToolsOnDemandThreadRequest(){ ## folder, bound seconds or -, the operation
 		alive\ *|started\ *) ;;
 		*) printf '⛔ ERROR: the thread could not be started: %s\n' "$askStartSaid" >&2 ; return 1 ;;
 	esac
-	AgentsToolsOnDemandThreadAsk "$askStartFolder" "$askStartBound" "${askStartFields[@]}"
+	AgentsToolsOnDemandThreadAsk "$askStartFolder" "$askStartBound" ${askStartFields[@]+"${askStartFields[@]}"}
 }
 
 ## THE END OF THE SERVE LOOP, as a handler or tick asks it: the loop's own `serveEnd` is read and set here alone, so a caller in another

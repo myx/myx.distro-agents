@@ -235,7 +235,7 @@ AgentsEventTrackPostSend(){ ## record dir
 			done
 		done
 		if [ "$postRc" = "0" ] ; then
-			AgentsEventTrackPostPack "$postDir/packed" "${postAlsoParts[@]}" || postRc=1
+			AgentsEventTrackPostPack "$postDir/packed" ${postAlsoParts[@]+"${postAlsoParts[@]}"} || postRc=1
 			[ "$postRc" != "0" ] || postDirPosts="$postDir/packed"
 		fi
 	fi
@@ -269,7 +269,7 @@ AgentsEventTrackPostSend(){ ## record dir
 		type AgentsToolsCommsCacheOutboxAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 		AgentsToolsCommsCacheSlackDir "$postMember" true "$postChannel" "$postThread"
 		local postQueueNo="$( date +%s )$$" postQueued=0
-		for postFile in "${postPosts[@]}" ; do
+		for postFile in ${postPosts[@]+"${postPosts[@]}"} ; do
 			postText="$( LC_ALL=C awk -f "$agentsEventTrackPostLib/mcp/AgentsMcpJsonEscape.awk" < "${postFile%.blocks}.text" )"
 			postPayload="{\"channel\":\"$postChannel\",\"text\":\"$postText\",\"blocks\":$( cat "$postFile" ),\"thread_ts\":\"$postThread\",\"metadata\":$postMetadata}"
 			AgentsToolsCommsCacheOutboxAppend "$agentsCommsCacheDir" "${postMetaSession:-event-track}" "$postQueueNo$postQueued" "$postMember" bot chat.postMessage "$postPayload" "queued for the comms reader" || {
@@ -285,7 +285,7 @@ AgentsEventTrackPostSend(){ ## record dir
 	fi
 	local postIndex=0 postText postPayload postResponse postCallRc postJoined="false" postTs postError postErrorName
 	local postSends=() postSendAt postSendFile postAsText postBlocksRefused postSentAny="false"
-	for postFile in "${postPosts[@]}" ; do
+	for postFile in ${postPosts[@]+"${postPosts[@]}"} ; do
 		postIndex=$(( postIndex + 1 ))
 		## What goes for this post: its blocks; refused, its plain text parts in their place.
 		postSends=( "$postFile" ) ; postSendAt=0 ; postAsText=""

@@ -260,7 +260,7 @@ AgentsTranscriptMilestone(){ ## session id, reason
 	done <<< "$( AgentsTranscriptParts "$milestoneSession" )"
 	[ "${#milestoneParts[@]}" -gt 0 ] || return 0
 	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2>/dev/null || return 0
-	MDAT_DATA_ROOT="$milestoneRoot" AgentsToolsTeamDataCommitPaths "session transcript ${milestoneSession:0:8}: $milestoneReason" "${milestoneParts[@]}" >&2 || :
+	MDAT_DATA_ROOT="$milestoneRoot" AgentsToolsTeamDataCommitPaths "session transcript ${milestoneSession:0:8}: $milestoneReason" ${milestoneParts[@]+"${milestoneParts[@]}"} >&2 || :
 	return 0
 }
 

@@ -204,7 +204,7 @@ case "$1" in
 		[ -z "$readAnyOwner" ] || readOwnerFilter=""
 		[ -z "$readAll" ] || readOpenFilter=""
 		[ -z "$readCount" ] || readCountLine=only
-		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" "$readCountLine" "$readAskers" "${readFiles[@]}"
+		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" "$readCountLine" "$readAskers" ${readFiles[@]+"${readFiles[@]}"}
 		return 0
 	;;
 
@@ -295,9 +295,9 @@ case "$1" in
 			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
 				## It carries the addressee of the question it withdraws, as the question named it.
 				local settleArgs=( "$settleMember" "$settleChannel:$settleThread" --from-stdin ) settleTo
-				[ -z "$settleConsole" ] && [ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( "${settleArgs[@]}" --identity-bot )
+				[ -z "$settleConsole" ] && [ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( ${settleArgs[@]+"${settleArgs[@]}"} --identity-bot )
 				settleTo="$( AgentsToolsPendingReplyField "$settleFile" address-to )"
-				[ -z "$settleTo" ] || settleArgs=( "${settleArgs[@]}" --address-to "$settleTo" )
+				[ -z "$settleTo" ] || settleArgs=( ${settleArgs[@]+"${settleArgs[@]}"} --address-to "$settleTo" )
 				## Its text is the note template's (sh-lib/templates/tooling-note.post.format.md, `# Ask`, withdrawn).
 				type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 				## From the console it is the line of a dismissal (console-dismissed), which names the account.
@@ -305,7 +305,7 @@ case "$1" in
 					AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || settleNote=""
 				[ -n "$settleNote" ] || echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note that says so could not be filled from its template (tooling-note.post.format.md, Ask/withdrawn)" >&2
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${settleArgs[@]}" > /dev/null 2>&1 \
+				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message ${settleArgs[@]+"${settleArgs[@]}"} > /dev/null 2>&1 \
 					|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
 			fi
 			## The question's post takes no answer any more: it gets the cancelled mark of its

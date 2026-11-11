@@ -350,7 +350,7 @@ case "$1" in
 			local commitPaths=( "$targetPath" )
 			[ "$targetPath" = "$sourcePath" ] || commitPaths+=( "$sourcePath" )
 			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataCommitPaths "processed: $ctxForMsg" "${commitPaths[@]}"
+			AgentsToolsTeamDataCommitPaths "processed: $ctxForMsg" ${commitPaths[@]+"${commitPaths[@]}"}
 		fi
 
 		## THE REPLY: an inquiry that asked for its outcome (`reply-requested: yes`) and is not a librarian update request

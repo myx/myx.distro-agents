@@ -171,9 +171,9 @@ ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal
 		for reactName in "$@" ; do
 			[ -n "$reactName" ] || continue
 			reactArgs=( "$reactMember" "$reactAt" "$reactName" )
-			[ "$reactAs" != "bot" ] || reactArgs=( "${reactArgs[@]}" --identity-bot )
-			[ "$reactDo" != "remove" ] || reactArgs=( "${reactArgs[@]}" --remove )
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-react "${reactArgs[@]}" > /dev/null 2>&1 \
+			[ "$reactAs" != "bot" ] || reactArgs=( ${reactArgs[@]+"${reactArgs[@]}"} --identity-bot )
+			[ "$reactDo" != "remove" ] || reactArgs=( ${reactArgs[@]+"${reactArgs[@]}"} --remove )
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-react ${reactArgs[@]+"${reactArgs[@]}"} > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: ${MDSC_CMD:-ask-post}: :$reactName: could not be $reactDone on $reactAt, which changes nothing else" >&2
 		done
 		return 0
@@ -213,10 +213,10 @@ ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal
 		[ "$( AgentsToolsAskPostField "$closeFile" thread-ts )" = "$( AgentsToolsAskPostField "$closeFile" question-ts )" ] \
 			|| closeTarget="$closeChannel:$( AgentsToolsAskPostField "$closeFile" thread-ts )"
 		closeArgs=( "$closeOwner" "$closeTarget" --update-ts "$closeTs" --from-stdin )
-		[ "$closeAs" != "bot" ] || closeArgs=( "${closeArgs[@]}" --identity-bot )
+		[ "$closeAs" != "bot" ] || closeArgs=( ${closeArgs[@]+"${closeArgs[@]}"} --identity-bot )
 		closeTo="$( AgentsToolsAskPostField "$closeFile" address-to )"
-		[ -z "$closeTo" ] || closeArgs=( "${closeArgs[@]}" --address-to "$closeTo" )
-		printf '%s' "$closeText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "${closeArgs[@]}" > /dev/null 2>&1 \
+		[ -z "$closeTo" ] || closeArgs=( ${closeArgs[@]+"${closeArgs[@]}"} --address-to "$closeTo" )
+		printf '%s' "$closeText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message ${closeArgs[@]+"${closeArgs[@]}"} > /dev/null 2>&1 \
 			|| echo "⚠️ WARNING: ${MDSC_CMD:-ask-post}: the post $closeChannel:$closeTs could not be edited to drop its How to answer part, which changes nothing else" >&2
 		return 0
 	}

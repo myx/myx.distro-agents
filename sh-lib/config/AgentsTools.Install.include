@@ -2219,7 +2219,7 @@ case "$1" in
 		## The panel's files, named once: the check, the sum and the copy below all read this list.
 		local panelFile panelFiles=( "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/panel.js" "$panelSource/instructions.md" \
 			"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" )
-		for panelFile in "${panelFiles[@]}" ; do
+		for panelFile in ${panelFiles[@]+"${panelFiles[@]}"} ; do
 			if [ ! -f "$panelFile" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: panel source file missing: $panelFile" >&2
 				set +e ; return 1
@@ -2228,7 +2228,7 @@ case "$1" in
 		## The payload in a fixed order: the sum decides a rewrite, so a changed team text
 		## reaches the panel with no version bump.
 		local panelSum
-		panelSum="$( cat "${panelFiles[@]}" | cksum )" || {
+		panelSum="$( cat ${panelFiles[@]+"${panelFiles[@]}"} | cksum )" || {
 			echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: could not sum the panel payload" >&2
 			set +e ; return 1
 		}
@@ -2244,7 +2244,7 @@ case "$1" in
 				rm -rf "${panelHome%/*}"/.vscode-magic-team-panel.* || exit 1
 				panelBuild="$( mktemp -d "${panelHome%/*}/.vscode-magic-team-panel.XXXXXX" )" || exit 1
 				trap 'rm -rf "$panelBuild"' EXIT
-				cp "${panelFiles[@]}" "$panelBuild/" || exit 1
+				cp ${panelFiles[@]+"${panelFiles[@]}"} "$panelBuild/" || exit 1
 				printf '%s\n' "$panelSum" > "$panelBuild/.payload-sum" || exit 1
 				chmod 755 "$panelBuild" || exit 1
 				[ ! -e "$panelHome" ] || mv "$panelHome" "$panelBuild.old" || exit 1

@@ -119,7 +119,7 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 	[ "${#queueGiven[@]}" -gt 0 ] || { echo "$queueSyntax -- nothing to retest is named: a test, or a changed file with --file" >&2 ; return 1 ; }
 	queueRoot="$( AgentsToolsRetestCopyRoot "$queueOp" "$queueAbout" )" || { echo "⛔ ERROR: $MDSC_CMD $queueOp: nothing was queued" >&2 ; return 1 ; }
 	queueDir="$queueRoot/myx/myx.distro-agents/sh-test"
-	for queueName in "${queueGiven[@]}" ; do
+	for queueName in ${queueGiven[@]+"${queueGiven[@]}"} ; do
 		case "$queueName" in
 			file:*)
 				## below the package a file is named from there, whichever copy's path it was given by

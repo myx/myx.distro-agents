@@ -466,10 +466,10 @@ case "$1" in
 		## every path the cascade changed. The commit and the push are the team-data thread's (AgentsToolsTeamDataCommitPaths): this op writes files.
 		local commitPaths=( "$targetPath" ) moveFrom="$fromState"
 		[ "$isCreate" = "true" ] || [ "$sourcePath" = "$targetPath" ] || commitPaths+=( "$sourcePath" )
-		[ "${#approvalCascadePaths[@]}" -eq 0 ] || commitPaths+=( "${approvalCascadePaths[@]}" )
+		[ "${#approvalCascadePaths[@]}" -eq 0 ] || commitPaths+=( ${approvalCascadePaths[@]+"${approvalCascadePaths[@]}"} )
 		[ "$isCreate" != "true" ] || moveFrom="create"
 		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-		AgentsToolsTeamDataCommitPaths "board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" "${commitPaths[@]}"
+		AgentsToolsTeamDataCommitPaths "board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" ${commitPaths[@]+"${commitPaths[@]}"}
 		## The waits of the workspace are poked, so one that naps long still reads the move at once (AgentsToolsWakePoke).
 		type AgentsToolsWakePoke > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include" 2> /dev/null || :
 		! type AgentsToolsWakePoke > /dev/null 2>&1 || AgentsToolsWakePoke

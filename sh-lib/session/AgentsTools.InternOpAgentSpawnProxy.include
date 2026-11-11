@@ -343,7 +343,7 @@ AgentsToolsSpawnProxyWorkDutyContinue(){ ## session thread, session id, the sand
 		case "$( AgentsToolsSpawnSandboxRecordHeader "$contTracking" routine 2>/dev/null )" in *.work-duty.routine.md) ;; *) return 0 ;; esac
 		[ ! -e "$MMDAPP/.local/agents/sessions/$contSessionId/dismissed" ] || return 0
 		contRounds=$(( contRounds + 1 ))
-		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$contSessionId" MDAT_SESSION_THREAD="$contThread" MDAT_SPAWN_RESUME=true -- "${contCliArgs[@]}" \
+		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$contSessionId" MDAT_SESSION_THREAD="$contThread" MDAT_SPAWN_RESUME=true -- ${contCliArgs[@]+"${contCliArgs[@]}"} \
 			<<< "$( printf '%s\n%s\n' \
 				"This is a work-duty: your plain final answer is not its end." \
 				"Continue the duty now in this same session." )" >> "$contLog" 2>&1 ) &
@@ -380,7 +380,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 		local warnRetryPid warnWatchPid warnRetryRc
 		## Started with the broken pipe at its default: a waiting shell ignores it while it closes
 		## its run, and what it starts must not take that over.
-		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true -- "${warnCliArgs[@]}" \
+		( trap - PIPE ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true -- ${warnCliArgs[@]+"${warnCliArgs[@]}"} \
 			<<< "$( printf '%s\n%s\n%s\n' \
 				"Your previous run on this task ended without calling SubagentHandback." \
 				"Call SubagentHandback now with your outcome so far." \
@@ -1262,10 +1262,10 @@ case "$1" in
 					boardStates=( backlog pending running review blocked parked processed archived retained )
 				fi
 				local readArgs=( "$fromBoardName" --context "$opContext" ) boardState
-				for boardState in "${boardStates[@]}" ; do
+				for boardState in ${boardStates[@]+"${boardStates[@]}"} ; do
 					readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
 				done
-				spawnContext="$( AgentsToolsDataRead "${readArgs[@]}" )" || { set +e ; return 1 ; }
+				spawnContext="$( AgentsToolsDataRead ${readArgs[@]+"${readArgs[@]}"} )" || { set +e ; return 1 ; }
 			;;
 			vault)
 				trackedMode="true"
@@ -1285,7 +1285,7 @@ case "$1" in
 				while IFS= read -r auditReadFolder ; do
 					auditReadArgs+=( --lookup-folder "$auditReadFolder" )
 				done < <( AgentsToolsAuditFolders "$fromAuditName" )
-				spawnContext="$( AgentsToolsDataRead "${auditReadArgs[@]}" )" || { set +e ; return 1 ; }
+				spawnContext="$( AgentsToolsDataRead ${auditReadArgs[@]+"${auditReadArgs[@]}"} )" || { set +e ; return 1 ; }
 			;;
 			*)
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: internal source mode error: $sourceMode" >&2
@@ -1311,7 +1311,7 @@ case "$1" in
 			[ -z "$spawnCliService" ] || routineBriefArgs+=( --cli-service "$spawnCliService" )
 			[ -z "$spawnSettingsWorkspace" ] || routineBriefArgs+=( --settings-workspace "$spawnSettingsWorkspace" )
 			local routineBriefBlock
-			routineBriefBlock="$( DistroAgentsTools "${routineBriefArgs[@]}" --context "$opContext" )" || { set +e ; return 1 ; }
+			routineBriefBlock="$( DistroAgentsTools ${routineBriefArgs[@]+"${routineBriefArgs[@]}"} --context "$opContext" )" || { set +e ; return 1 ; }
 			spawnContext="$( printf '%s\n\n%s\n' "$routineBriefBlock" "$spawnContext" )"
 			## The routine file the brief resolved, by name, for the session record: its
 			## `allows:` hold for this session (AgentsTools.PermissionHolds.include).
@@ -2159,7 +2159,7 @@ case "$1" in
 			if [ -n "$spawnCallMember" ] && [ "$spawnCallMember" != "$callerName" ] && AgentsToolsAssertBareName "$spawnCallMember" "the calling member" agent-spawn-proxy 2> /dev/null \
 				&& AgentsToolsTeamMemberDirectory "$spawnCallMember" > /dev/null 2>&1 ; then
 				joinedTo="$spawnCallMember"
-				joinedArgs=( "${joinedArgs[@]}" --address-to "$joinedTo" )
+				joinedArgs=( ${joinedArgs[@]+"${joinedArgs[@]}"} --address-to "$joinedTo" )
 			fi
 			type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 			joinedLine="$( ASKP_BLOCK="Session/joined" ASKP_F_member="$callerName" ASKP_F_description="$spawnDescriptionKept" ASKP_F_address_to="$joinedTo" \
@@ -2173,7 +2173,7 @@ case "$1" in
 			elif [ -z "$sessionThread" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: no session thread to post the start line in" >&2
 			elif [ "$( printf '%s' "$joinedLine" \
-				| MDAT_SEND_FLOOR=hold DistroAgentsTools --intern-op-comms-slack-send-message "${joinedArgs[@]}" --from-stdin 2>&1 > /dev/null \
+				| MDAT_SEND_FLOOR=hold DistroAgentsTools --intern-op-comms-slack-send-message ${joinedArgs[@]+"${joinedArgs[@]}"} --from-stdin 2>&1 > /dev/null \
 				| LC_ALL=C awk -F= '$1 == "SENT_MESSAGE_TS" { tsSeen = 1 ; } END { print tsSeen + 0 ; }' )" != "1" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the start line was not posted in $sessionThread" >&2
 			fi
@@ -2294,7 +2294,7 @@ case "$1" in
 		type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
 		local eventTrackSessionDir="$MMDAPP/.local/agents/sessions/$sessionId" eventTrackThread="" eventTrackStart="" eventTrackRc=0
 		if AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 ; then
-			AgentsToolsEventTrackThreadPost "$callerName" "$eventTrackSessionDir" "${eventTrackFields[@]}" < /dev/null || eventTrackRc=$?
+			AgentsToolsEventTrackThreadPost "$callerName" "$eventTrackSessionDir" ${eventTrackFields[@]+"${eventTrackFields[@]}"} < /dev/null || eventTrackRc=$?
 			## The session's thread, also where this start post failed: what this spawn posts
 			## later still goes there. Its own start post is what its finish flag is put on.
 			eventTrackThread="$agentsEventTrackThread" ; eventTrackStart="$agentsEventTrackPost"
@@ -2675,17 +2675,17 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- "${spawnCliArgs[@]}" ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- "${spawnCliArgs[@]}" ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- "${spawnCliArgs[@]}" <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+				AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- "${spawnCliArgs[@]}" <<< "$spawnContext" >&2 4>&- &
+				AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" -- ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## The process this launch started, kept on the spawn's record: how its run is seen
@@ -2780,14 +2780,14 @@ case "$1" in
 			## A work-duty that ended on its final answer is resumed here, in its own kept session,
 			## before anything else reads this round's exit code (S4.6): see AgentsToolsSpawnProxyWorkDutyContinue.
 			local spawnProxyContinueExitCode="$exitCode"
-			AgentsToolsSpawnProxyWorkDutyContinue "$sessionThread" "$sessionId" "$sandboxTracking" "$outputFile" "$exitCode" "${spawnCliArgs[@]}" || :
+			AgentsToolsSpawnProxyWorkDutyContinue "$sessionThread" "$sessionId" "$sandboxTracking" "$outputFile" "$exitCode" ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} || :
 			exitCode="$spawnProxyContinueExitCode"
 			local spawnOutcome spawnHandback="seen"
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )" || spawnOutcome="failed"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER" || :
 			## The handback retry first, before any close step: it resumes this very session, so it
 			## runs while the record still says started.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}" || :
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} || :
 			## THE RECORD IS CLOSED FIRST, and then the item: both are files of this machine. Whatever
 			## is posted follows, in the order it always had, so a network that does not answer
 			## delays what is said about the end and never the close.
@@ -2859,7 +2859,7 @@ case "$1" in
 			## committed at its END above, is the record in the team data. Every way this
 			## spawn ends -- success, failure, timeout, interrupt -- reaches this line.
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
+			AgentsToolsSpawnSandboxCleanInputLast "$sandboxRoot" "$MDAT_SPAWN_SESSION_ID"
 			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close"
 			AgentsToolsTeamDataDirtyWarning "agent-spawn-proxy close"
 			if [ "$spawnOutcome" != "succeeded" ] ; then
@@ -2970,10 +2970,10 @@ case "$1" in
 			if [ -n "$resumeContextFile" ] ; then
 				type AgentsToolsSpawnProxyHarnessResumeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.HarnessResume.include"
 				AgentsToolsSpawnProxyHarnessResumeRun "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
-					"$resumeContextFile" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
+					"$resumeContextFile" "$resumeContext" "$callerName" "$trackedItemName" ${spawnCliArgs[@]+"${spawnCliArgs[@]}"}
 			else
 			AgentsToolsSpawnProxyConsoleRun "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
-				"$resumeFrom" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
+				"$resumeFrom" "$resumeContext" "$callerName" "$trackedItemName" ${spawnCliArgs[@]+"${spawnCliArgs[@]}"}
 			fi
 			bgExitCode=$?
 			## Each helper is signalled only while it is still the process this shell started, and is
@@ -2985,7 +2985,7 @@ case "$1" in
 			set -e
 			## A work-duty that ended on its final answer is resumed here too, as in the waiting branch (S4.6).
 			local spawnProxyContinueExitCode="$bgExitCode"
-			AgentsToolsSpawnProxyWorkDutyContinue "$sessionThread" "$sessionId" "$sandboxTracking" "$outputFile" "$bgExitCode" "${spawnCliArgs[@]}" || :
+			AgentsToolsSpawnProxyWorkDutyContinue "$sessionThread" "$sessionId" "$sandboxTracking" "$outputFile" "$bgExitCode" ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} || :
 			bgExitCode="$spawnProxyContinueExitCode"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER" || :
 			## Measured once, so the event-track close, the sandbox record and the board item
@@ -2993,7 +2993,7 @@ case "$1" in
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )" || bgOutcome="failed"
 			## The handback retry before any close step, as in the waiting branch: the record still says started.
 			agentsSpawnProxyHandbackNoticeLater="yes"
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}" || :
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" ${spawnCliArgs[@]+"${spawnCliArgs[@]}"} || :
 			## THE RECORD IS CLOSED FIRST, and then the item, as in the waiting branch: what is posted follows.
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode" || :
 			local bgEndReason=""
@@ -3026,7 +3026,7 @@ case "$1" in
 			local bgLaunched=""
 			if AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" ; then bgLaunched="yes" ; fi
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER" "$MDAT_SPAWN_LAUNCH_MARKER.noticed"
-			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
+			AgentsToolsSpawnSandboxCleanInputLast "$sandboxRoot" "$MDAT_SPAWN_SESSION_ID"
 			## Last, and silent. This subshell's own output IS the session log, which stays in
 			## the session's state and is never committed: the transcript, committed at its END
 			## above, is the record in the team data.

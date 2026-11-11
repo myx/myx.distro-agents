@@ -234,7 +234,7 @@ AgentsToolsItemRead(){ ## <team-member> [<selector>|<item-filename>] [--acquire-
 	fi
 
 	local itemPath="" folder
-	for folder in "${itemLookupFolders[@]}" ; do
+	for folder in ${itemLookupFolders[@]+"${itemLookupFolders[@]}"} ; do
 		if [ -f "$folder/$itemName" ] ; then itemPath="$folder/$itemName" ; break ; fi
 	done
 	[ -z "$itemPath" ] && itemPath="${itemLookupFolders[0]}/$itemName"
@@ -271,10 +271,10 @@ AgentsToolsItemRead(){ ## <team-member> [<selector>|<item-filename>] [--acquire-
 	esac
 	local commitMsgArgs=()
 	[ -n "$commitMessageOverride" ] && commitMsgArgs=( --commit-message "$commitMessageOverride" )
-	AgentsToolsItemUpsert "$callingMember" "${upsertSelectorArgs[@]}" \
+	AgentsToolsItemUpsert "$callingMember" ${upsertSelectorArgs[@]+"${upsertSelectorArgs[@]}"} \
 		--header:upsert:session-id:"$ownerLabel" \
-		"${headerArgs[@]}" \
-		"${commitMsgArgs[@]}" \
+		${headerArgs[@]+"${headerArgs[@]}"} \
+		${commitMsgArgs[@]+"${commitMsgArgs[@]}"} \
 		--context "$opContext"
 	local acquireRc=$?
 	if [ "$acquireRc" -ne 0 ] ; then
@@ -452,7 +452,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 
 	## Written where it is found, else into the folder it is looked for in first (F5.8).
 	local target="$itemWriteDir/$itemName" targetFolder
-	for targetFolder in "${itemLookupFolders[@]}" ; do
+	for targetFolder in ${itemLookupFolders[@]+"${itemLookupFolders[@]}"} ; do
 		[ ! -f "$targetFolder/$itemName" ] || { target="$targetFolder/$itemName" ; break ; }
 	done
 	mkdir -p "${target%/*}" || {
@@ -667,6 +667,13 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
 	set -e
+	## A PUSHED WRITE STANDS: with the push landed, this call's commit is on origin, and dropping it here would discard nothing
+	## but the local copy while saying the write was lost -- a caller who believes that sends it again, and the note then holds it twice.
+	## Only the read-back failed: said as that, with the commit kept, so nobody resends a write that landed.
+	if [ "$syncRc" -ne 0 ] && [ "${pushRc:-1}" -eq 0 ] ; then
+		echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- the write IS committed and pushed (it stands on origin); only the read-back sync failed, so whether this session still holds the lock is UNKNOWN. Do NOT send the write again: $syncOut" >&2
+		set +e ; return 1
+	fi
 	if [ "$syncRc" -ne 0 ] ; then
 		local relPath="${target#"$repoRoot"/}" dropSubject=""
 		set +e

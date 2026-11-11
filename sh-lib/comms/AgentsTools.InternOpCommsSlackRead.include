@@ -110,7 +110,7 @@ case "$1" in
 					local hoArgs=( "$memberName" human-owner )
 					[ "$identityAsBot" = "false" ] || hoArgs+=( --identity-bot )
 					[ -z "$readOldest" ] || hoArgs+=( --oldest "$readOldest" )
-					AgentsToolsSlackCheck "${hoArgs[@]}" 2> "${readErrFile:-/dev/null}" || readRc=$?
+					AgentsToolsSlackCheck ${hoArgs[@]+"${hoArgs[@]}"} 2> "${readErrFile:-/dev/null}" || readRc=$?
 					[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
 					[ "$readRc" = "0" ] || { set +e ; return 1 ; }
 					return 0
@@ -209,12 +209,12 @@ case "$1" in
 				local conversationArgs=( "$memberName" "$channel" )
 				[ "$identityAsBot" = "false" ] || conversationArgs+=( --identity-bot )
 				[ -z "$convFetch" ] || conversationArgs+=( --oldest "$convFetch" )
-				AgentsToolsSlackCheck "${conversationArgs[@]}" 2> "${readErrFile:-/dev/null}" > "${convTmp:-/dev/stdout}" || readRc=$?
+				AgentsToolsSlackCheck ${conversationArgs[@]+"${conversationArgs[@]}"} 2> "${readErrFile:-/dev/null}" > "${convTmp:-/dev/stdout}" || readRc=$?
 				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && [ -n "$readErrFile" ] && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$readErrFile" 2> /dev/null ; then
 					cat "$readErrFile" >&2
 					echo "# $MDSC_CMD --slack-read: the acting user identity cannot reach this conversation, reading once under bot identity" >&2
 					readRc=0
-					AgentsToolsSlackCheck "${conversationArgs[@]}" --identity-bot 2> "$readErrFile" > "${convTmp:-/dev/stdout}" || readRc=$?
+					AgentsToolsSlackCheck ${conversationArgs[@]+"${conversationArgs[@]}"} --identity-bot 2> "$readErrFile" > "${convTmp:-/dev/stdout}" || readRc=$?
 				fi
 				[ -z "$readErrFile" ] || { cat "$readErrFile" >&2 ; rm -f "$readErrFile" ; }
 				if [ -n "$convTmp" ] ; then
@@ -259,7 +259,7 @@ case "$1" in
 					--form "ts=$threadTs" \
 					--form "include_all_metadata=true" \
 					${oldestArgs[@]+"${oldestArgs[@]}"} \
-					"${identityArgs[@]}" \
+					${identityArgs[@]+"${identityArgs[@]}"} \
 					--context "--slack-read" || readRc=$?
 				if [ "$readRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$threadErrFile" 2> /dev/null ; then
 					cat "$threadErrFile" >&2
@@ -305,7 +305,7 @@ case "$1" in
 					--form "inclusive=true" \
 					--form "limit=1" \
 					--form "include_all_metadata=true" \
-					"${identityArgs[@]}" \
+					${identityArgs[@]+"${identityArgs[@]}"} \
 					--context "--slack-read" || callRc=$?
 				if [ "$callRc" != "0" ] && [ "$identityAsBot" = "false" ] && ! AgentsToolsSlackClientSide "$memberName" && LC_ALL=C grep -q -E 'channel_not_found|not_in_channel|thread_not_found' "$responseErrFile" 2> /dev/null ; then
 					cat "$responseErrFile" >&2

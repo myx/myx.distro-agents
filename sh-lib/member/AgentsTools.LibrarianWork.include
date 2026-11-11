@@ -745,7 +745,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 		[ -d "$MMDAPP/source/myx" ] || { echo "$MDSC_CMD: ⛔ ERROR: $driftOp: no path given and $MMDAPP/source/myx is not a directory -- nothing was done" >&2 ; return 1 ; }
 		for driftPkg in "$MMDAPP/source/myx"/* ; do [ -d "$driftPkg" ] && driftRoots+=( "$driftPkg" ) ; done
 	fi
-	for driftPkg in "${driftRoots[@]}" ; do
+	for driftPkg in ${driftRoots[@]+"${driftRoots[@]}"} ; do
 		[ -d "$driftPkg" ] || { echo "$MDSC_CMD: ⚠️ WARNING: $driftOp: $driftPkg is not a directory, skipped" >&2 ; continue ; }
 		driftDocNew="" driftCodeNew="" driftNewestFile=""
 		while IFS= read -r driftFile ; do
@@ -898,7 +898,7 @@ AgentsToolsLibrarianDocDrift(){ ## the operation, its arguments...
 	fi
 	## the packages: the ones named (each a directory that holds a project.inf), else every one of the source
 	if [ "${#driftNamed[@]}" -gt 0 ] ; then
-		for driftArg in "${driftNamed[@]}" ; do
+		for driftArg in ${driftNamed[@]+"${driftNamed[@]}"} ; do
 			driftPath="$driftArg"
 			case "$driftPath" in /*) ;; *) driftPath="$MDLT_ORIGIN/$driftPath" ;; esac
 			if [ ! -d "$driftPath" ] ; then
@@ -915,7 +915,7 @@ AgentsToolsLibrarianDocDrift(){ ## the operation, its arguments...
 			driftFound+=( "${driftFile%/project.inf}" )
 		done <<< "$( LC_ALL=C find "$MDLT_ORIGIN" \( -name .git -o -name .local \) -prune -o -type f -name project.inf -print 2> /dev/null | LC_ALL=C sort )"
 	fi
-	for driftPath in "${driftFound[@]}" ; do
+	for driftPath in ${driftFound[@]+"${driftFound[@]}"} ; do
 		[ -d "$driftPath" ] || continue
 		driftCodeNewest="$( AgentsToolsLibrarianDocDriftCodeNewest "$driftPath" )" || driftCodeNewest=0
 		case "$driftCodeNewest" in ''|*[!0-9]*) driftCodeNewest=0 ;; esac

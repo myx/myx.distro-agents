@@ -72,7 +72,7 @@ case "$1" in
 		done <<< "$MMDAPP"$'\n'"$historyRead"
 
 		local historyArg historyAbs historyBase historySuffix historyDir historySpec historyOut historyRc historyTop
-		for historyArg in "${historyPaths[@]}" ; do
+		for historyArg in ${historyPaths[@]+"${historyPaths[@]}"} ; do
 			case "$historyArg" in /*) historyAbs="$historyArg" ;; *) historyAbs="$MMDAPP/$historyArg" ;; esac
 			if [ -L "$historyAbs" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD $historyOp: path is a symbolic link, name its target instead: $historyArg" >&2

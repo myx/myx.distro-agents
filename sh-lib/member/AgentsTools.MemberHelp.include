@@ -113,7 +113,7 @@ case "$1" in
 		## The names of the tool files stand for their audiences: every member's, and the coordinator's own (the table of the tool files).
 		type AgentsToolsFrontNamesOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 		local expandedPrefixes=() prefixItem prefixName
-		for prefixItem in "${commonPrefixes[@]}" ; do
+		for prefixItem in ${commonPrefixes[@]+"${commonPrefixes[@]}"} ; do
 			case "$prefixItem" in
 				@member|@coordinator)
 					while IFS= read -r prefixName ; do
@@ -160,7 +160,7 @@ case "$1" in
 		floorOpNames="$( ExtractOpNames "$floorFile" | sort -u )"
 
 		local allNames
-		allNames="$( { printf '%s\n' "$floorOpNames" ; printf '%s\n' "$ownOpNames" ; printf '%s\n' "${expandedPrefixes[@]}" ; } | sort -u )"
+		allNames="$( { printf '%s\n' "$floorOpNames" ; printf '%s\n' "$ownOpNames" ; printf '%s\n' ${expandedPrefixes[@]+"${expandedPrefixes[@]}"} ; } | sort -u )"
 
 		echo "# Tooling help output" >&2
 		echo >&2

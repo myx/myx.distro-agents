@@ -7020,6 +7020,9 @@
 			Participants never lock or unlock it; they update it with this, as often
 			as they have updates, and each update is committed, and pushed where a
 			git remote is set, before the call returns.
+			With no mode named, the whole record is read from standard input and
+			replaces the stored one. A JSON array given as a whole record, there or
+			by --from-file, is refused: a patch goes with --edit-patch-from-stdin.
 			`--document <note>` names the note, and is needed only where the session
 			locked several (a routine that runs another inline).
 			Input source is exactly one of: stdin (default), `--from-file`,

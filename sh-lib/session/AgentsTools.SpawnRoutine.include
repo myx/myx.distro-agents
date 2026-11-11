@@ -67,7 +67,7 @@ AgentsToolsSpawnRoutineResolve(){ ## selector
 		*)
 			echo "⛔ ERROR: --routine $routineSelector: matches more than one routine file:" >&2
 			local routineMatch
-			for routineMatch in "${routineMatches[@]}" ; do
+			for routineMatch in ${routineMatches[@]+"${routineMatches[@]}"} ; do
 				echo "  ${routineMatch##*/}" >&2
 			done
 			return 1
@@ -433,7 +433,7 @@ AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value
 		;;
 	esac
 	IFS=',' read -r -a rosterList <<< "$rosterValue"
-	for rosterName in "${rosterList[@]}" ; do
+	for rosterName in ${rosterList[@]+"${rosterList[@]}"} ; do
 		rosterName="${rosterName#"${rosterName%%[![:space:]]*}"}"
 		rosterName="${rosterName%"${rosterName##*[![:space:]]}"}"
 		if [ -z "$rosterName" ] ; then
@@ -464,7 +464,7 @@ AgentsToolsSpawnRoutineInviteesRoster(){ ## invitees value
 	case "$rosterValue" in ''|none) return 0 ;; esac
 	case "$rosterValue" in '*'|'magic-team') printf 'any-member\n' ; return 1 ;; esac
 	IFS=',' read -r -a rosterList <<< "$rosterValue"
-	for rosterName in "${rosterList[@]}" ; do
+	for rosterName in ${rosterList[@]+"${rosterList[@]}"} ; do
 		rosterName="${rosterName#"${rosterName%%[![:space:]]*}"}"
 		rosterName="${rosterName%"${rosterName##*[![:space:]]}"}"
 		if [ -z "$rosterName" ] ; then

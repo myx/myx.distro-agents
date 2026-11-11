@@ -214,7 +214,7 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 		return 0
 	fi
 	cfArgs=( "$cfOwner" "$cfChannel:$cfThread" --from-stdin )
-	[ -z "$cfBot" ] || cfArgs=( "${cfArgs[@]}" --identity-bot )
+	[ -z "$cfBot" ] || cfArgs=( ${cfArgs[@]+"${cfArgs[@]}"} --identity-bot )
 	## It carries the addressee of the ask it follows, as the ask named it: in the thread of a
 	## forward, the human-owner the forward was addressed to (AgentsToolsEscalationForwardPost).
 	local cfTo
@@ -222,9 +222,9 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 	[ -z "$cfForward" ] || cfTo="human-owner"
 	## THE READ CONFIRMATION NAMES NOBODY (the owner's ruling, 2026-11-09): `Read: yes by human-owner. It is recorded` is the
 	## tooling closing the exchange, not a message for the person who just answered. Every other confirmation keeps its addressee.
-	[ "$cfBlock" = "taken" ] || [ -z "$cfTo" ] || cfArgs=( "${cfArgs[@]}" --address-to "$cfTo" )
+	[ "$cfBlock" = "taken" ] || [ -z "$cfTo" ] || cfArgs=( ${cfArgs[@]+"${cfArgs[@]}"} --address-to "$cfTo" )
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	printf '%s\n' "$cfText" | DistroAgentsTools --intern-op-comms-slack-send-message "${cfArgs[@]}" > /dev/null 2>&1 \
+	printf '%s\n' "$cfText" | DistroAgentsTools --intern-op-comms-slack-send-message ${cfArgs[@]+"${cfArgs[@]}"} > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the answer $cfVerdict for $cfId was read, but its confirmation was not posted in $cfChannel:$cfThread" >&2
 	return 0
 }
@@ -1147,9 +1147,9 @@ AgentsToolsEscalationConsoleTrace(){ ## record file, request id, block (console-
 	fi
 	traceArgs=( "$( AgentsToolsEscalationField "$1" owner )" "$traceChannel:$traceThread" --from-stdin --identity-bot )
 	traceTo="$( AgentsToolsEscalationField "$1" address-to )"
-	[ -z "$traceTo" ] || traceArgs=( "${traceArgs[@]}" --address-to "$traceTo" )
+	[ -z "$traceTo" ] || traceArgs=( ${traceArgs[@]+"${traceArgs[@]}"} --address-to "$traceTo" )
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	printf '%s\n' "$traceText" | DistroAgentsTools --intern-op-comms-slack-send-message "${traceArgs[@]}" > /dev/null 2>&1 \
+	printf '%s\n' "$traceText" | DistroAgentsTools --intern-op-comms-slack-send-message ${traceArgs[@]+"${traceArgs[@]}"} > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: $2 is answered from the console, but the line that says so was not posted in $traceChannel:$traceThread" >&2
 	return 0
 }
@@ -1496,7 +1496,7 @@ case "$1" in
 		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 		if [ "$answerOp" != "--manager-pending-reply-answer" ] ; then
 			AgentsToolsAuthorityFlags "$@" || { set +e ; return 1 ; }
-			set -- "${agentsAuthorityRest[@]}"
+			set -- ${agentsAuthorityRest[@]+"${agentsAuthorityRest[@]}"}
 		fi
 		local answerMember="$1" answerId="$2" answerVerdict="$3" answerText="${4:-}" answerFile answerKind answerOwner answerTo answerOptionLine answerFound=""
 		## From the console: the fifth word is the account at the console, the sixth `reject`
@@ -1824,7 +1824,7 @@ case "$1" in
 		## The post first: it shows the call before the record lets any answer grant it.
 		local addEditArgs=( "$addMember" "$addChannel" --update-ts "$addOpenTs" --identity-bot --address-to human-owner --from-stdin )
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		printf '%s\n' "$addBody" | DistroAgentsTools --intern-op-comms-slack-send-message "${addEditArgs[@]}" > /dev/null 2>&1 || {
+		printf '%s\n' "$addBody" | DistroAgentsTools --intern-op-comms-slack-send-message ${addEditArgs[@]+"${addEditArgs[@]}"} > /dev/null 2>&1 || {
 			AgentsToolsLocalLockGive "$addGate"
 			printf 'NOT-ADDED: the post of the open prompt %s could not be edited, so it stands as it was asked\n' "$addId"
 			return 0
@@ -1845,7 +1845,7 @@ case "$1" in
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || addText="$( AgentsToolsAskPostRecordFill closed "$addOpen" 2> /dev/null )" || addText=""
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || [ -z "$addText" ] || addWas="$addText"
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			printf '%s\n' "$addWas" | DistroAgentsTools --intern-op-comms-slack-send-message "${addEditArgs[@]}" > /dev/null 2>&1 \
+			printf '%s\n' "$addWas" | DistroAgentsTools --intern-op-comms-slack-send-message ${addEditArgs[@]+"${addEditArgs[@]}"} > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the post of $addId could not be put back as it was asked, so it shows a call its record does not hold: $addEntry" >&2
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-escalation-read "$addMember" "$addId" > /dev/null 2>&1 || :
@@ -1899,7 +1899,7 @@ case "$1" in
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || addText="$( AgentsToolsAskPostRecordFill closed "$addOpen" 2> /dev/null )" || addText=""
 			[ "$( AgentsToolsEscalationField "$addOpen" status )" != "withdrawn" ] || [ -z "$addText" ] || addWas="$addText"
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			printf '%s\n' "$addWas" | DistroAgentsTools --intern-op-comms-slack-send-message "${addEditArgs[@]}" > /dev/null 2>&1 \
+			printf '%s\n' "$addWas" | DistroAgentsTools --intern-op-comms-slack-send-message ${addEditArgs[@]+"${addEditArgs[@]}"} > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the post of $addId could not be put back as it was asked, so it shows a call its record does not hold: $addEntry" >&2
 			AgentsToolsLocalLockGive "$addGate"
 			printf 'NOT-ADDED: the record of the open prompt %s could not be written, so it stands as it was asked\n' "$addId"

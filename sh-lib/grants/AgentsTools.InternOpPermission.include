@@ -1103,10 +1103,10 @@ AgentsToolsPermissionSetTold(){ ## <pending-id> <allowed|denied> <answered by>
 	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	for toldPart in $toldParts ; do
 		! AgentsToolsAssertBareName "$toldPart" "a participant" permission-set-told 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$toldPart" > /dev/null 2>&1 \
-			|| toldArgs=( "${toldArgs[@]}" --address-to "$toldPart" )
+			|| toldArgs=( ${toldArgs[@]+"${toldArgs[@]}"} --address-to "$toldPart" )
 	done
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	printf '%s\n' "$toldText" | DistroAgentsTools --intern-op-comms-slack-send-message "${toldArgs[@]}" --from-stdin > /dev/null 2>&1 \
+	printf '%s\n' "$toldText" | DistroAgentsTools --intern-op-comms-slack-send-message ${toldArgs[@]+"${toldArgs[@]}"} --from-stdin > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the permission set $toldId is $toldWhat, but its participants were not told in the session thread $toldThread" >&2
 	return 0
 }
@@ -1641,7 +1641,7 @@ case "$1" in
 			done
 		done
 		[ "${#readCandidates[@]}" -gt 0 ] || readCandidates=( "$MDAT_DATA_ROOT"/board/*/dispatch-*.md )
-		for readItem in "${readCandidates[@]}" ; do
+		for readItem in ${readCandidates[@]+"${readCandidates[@]}"} ; do
 			[ -f "$readItem" ] || continue
 			readItemSession="" ; readItemSpawn="" ; readItemOwner="" ; readItemAllows="" ; readItemTracks="" ; readState=""
 			while IFS= read -r readLine ; do

@@ -72,7 +72,7 @@ AgentsHarnessPrefetchStamp(){ ## files... -- one line a file: its checksum, size
 	for stampFile in "$@" ; do
 		if [ -f "$stampFile" ] && [ -r "$stampFile" ] ; then stampPresent+=( "$stampFile" ) ; else printf 'absent %s\n' "$stampFile" ; fi
 	done
-	[ "${#stampPresent[@]}" -eq 0 ] || LC_ALL=C cksum "${stampPresent[@]}"
+	[ "${#stampPresent[@]}" -eq 0 ] || LC_ALL=C cksum ${stampPresent[@]+"${stampPresent[@]}"}
 }
 
 ## An entry: a line `stamp <n>`, the n lines of the stamp, a line `--`, then the text byte for byte.
@@ -146,7 +146,7 @@ AgentsHarnessMemberPlusText(){ ## skillset root, member
 		[ -n "$plusFile" ] && plusArgs+=( --mixin "$plusFile" "${plusFile##*/}" )
 	done <<< "$( find "$plusDir" -maxdepth 1 -type f -name '*.md' 2> /dev/null | LC_ALL=C sort )"
 	[ "${#plusArgs[@]}" -gt 0 ] || return 0
-	AgentsToolsMergeMdFiles --section-prefix 3 --section-limit 3 "${plusArgs[@]}" 2> /dev/null
+	AgentsToolsMergeMdFiles --section-prefix 3 --section-limit 3 ${plusArgs[@]+"${plusArgs[@]}"} 2> /dev/null
 }
 
 AgentsHarnessPrefetchBuild(){
@@ -365,7 +365,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 					skillMixins+=( --mixin "$skillTeamDir/magic-team.armed.md" "magic-team.armed.md" )
 				fi
 			fi
-			AgentsToolsMergeMdFiles --section-limit 6 "${skillMixins[@]}" > "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
+			AgentsToolsMergeMdFiles --section-limit 6 ${skillMixins[@]+"${skillMixins[@]}"} > "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
 				printf 'ERROR: Skill: the basic and armed files of %s could not be merged into the read: %s\n' "$skillMember" "$( head -1 "$harnessScratch/skill.merge.err" )" ; return 0
 			}
 		fi

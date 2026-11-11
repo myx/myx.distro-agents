@@ -136,6 +136,12 @@ case "$1" in
 			--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
 			--expect-id-kind SLACK_CHANNEL_HUMAN_OWNER:user \
 			--context --config-check || configRc=1
+		## EACH KEY IN THE SCOPE ITS CONSUMER READS: EMAIL_USER above is the coordinator's own mailbox login, and --send-report reads
+		## another one, human-owner's own (the address the report goes to), and refuses where only the coordinator's stands.
+		echo "# human-owner's own scope, which --send-report reads:"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InternOpCheckConfigs.include" --intern-op-check-configs human-owner \
+			--optional "EMAIL_USER:<email-address>" \
+			--context --config-check || configRc=1
 		## Unset, the team data is the workspace's own store, which the resolver
 		## already answered; a setting is an override and is checked as one.
 		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"

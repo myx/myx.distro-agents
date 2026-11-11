@@ -610,7 +610,11 @@ AgentsToolsScheduleDue(){ ## the operation as it was called, its arguments...
 ## Each step prints a line for each thing it did or could not do, and is never fatal. The chain of routines
 ## propels itself: a successor is due in the first iteration after its predecessor closed.
 ##
-type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+## The tool is loaded at its first call, not when this include is sourced: a load prints the system context's init line, and a
+## caller that only sources the include for its functions must not get it. The stub loads the tool, then makes the same call.
+if ! type DistroAgentsTools > /dev/null 2>&1 ; then
+	DistroAgentsTools(){ unset -f DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" || return 1 ; DistroAgentsTools "$@" ; }
+fi
 type AgentsToolsScheduleDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
 type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
 type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
@@ -1122,10 +1126,10 @@ AgentsToolsScheduleBoardDemand(){
 	[ "${#boardFiles[@]}" -gt 0 ] || return 1
 	[ -f "$boardNote" ] || return 0
 	## Newer than the note: the shell's own test, one stat a file, and no process for the pass.
-	for boardFile in "${boardFiles[@]}" ; do
+	for boardFile in ${boardFiles[@]+"${boardFiles[@]}"} ; do
 		[ ! "$boardFile" -nt "$boardNote" ] || return 0
 	done
-	boardRows="$( LC_ALL=C awk 'FNR == 1 { fm = ( $0 == "---" ) ; next } fm && $0 == "---" { fm = 0 ; next } fm && index( $0, "recheck-date: " ) == 1 { print substr( $0, 15 ) }' "${boardFiles[@]}" 2> /dev/null | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
+	boardRows="$( LC_ALL=C awk 'FNR == 1 { fm = ( $0 == "---" ) ; next } fm && $0 == "---" { fm = 0 ; next } fm && index( $0, "recheck-date: " ) == 1 { print substr( $0, 15 ) }' ${boardFiles[@]+"${boardFiles[@]}"} 2> /dev/null | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
 	while IFS= read -r boardEpoch ; do
 		case "$boardEpoch" in ''|*[!0123456789]*) continue ;; esac
 		[ "$boardEpoch" -gt "$boardBase" ] && [ "$boardEpoch" -le "$boardNow" ] && return 0
@@ -1244,7 +1248,7 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		## The member is the operation's --team-member: the front names the acting member, and a bare name after the operation is refused as an option.
 		dmRoster="$( DistroAgentsTools --slack-conversations-roster --team-member "$dmMember" --types im 2> /dev/null < /dev/null )" || dmRoster=""
-		dmSeen="" dmNewest="" dmHuman="" dmCut=""
+		dmSeen="" dmNewest="" dmHuman="" dmCut="" dmPassed="" dmPassedOne=""
 		while IFS= read -r dmLine ; do
 			case "$dmLine" in "CONV|"*) ;; *) continue ;; esac
 			## A member cut mid-roster keeps its floor and loses its stamp: the next pass reads all of it again from the same floor, so no DM is passed over.
@@ -1263,15 +1267,25 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 			dmSeen="$dmSeen $dmConv"
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			dmRead="$( DistroAgentsTools --intern-op-comms-slack-read "$dmMember" "$dmConv" $( [ "$dmIdentity" != "bot" ] || printf '%s' --identity-bot ) --oldest "$dmFloor" 2> /dev/null < /dev/null )" || continue
-			dmRead="$( printf '%s\n' "$dmRead" | AgentsToolsTrackingDrop "$dmMember" | DM_FLOOR="$dmFloor" DM_MEMBER="$dmMember" DM_ID="$dmId" DM_AUTH="$dmAuth" LC_ALL=C awk '
+			## THE TEAM BOT'S DM IS THE COORDINATOR'S (the human-owner's rule): every member's roster lists it under the bot identity, so for
+			## another member a message there counts only where it tags that member (<@id>, or a team post addressed to it).
+			dmRead="$( printf '%s\n' "$dmRead" | AgentsToolsTrackingDrop "$dmMember" | DM_FLOOR="$dmFloor" DM_MEMBER="$dmMember" DM_ID="$dmId" DM_AUTH="$dmAuth" \
+				DM_TAGGED_ONLY="$( [ "$dmIdentity" = bot ] && [ "$dmMember" != magic-coordinator ] && printf yes )" LC_ALL=C awk '
 				/^[0-9]+\.[0-9]+ \| / {
 					if ( $1 + 0 <= ENVIRON["DM_FLOOR"] + 0 ) next
+					if ( $1 + 0 > passed + 0 ) passed = $1
+					if ( ENVIRON["DM_TAGGED_ONLY"] == "yes" && ! ( ( ENVIRON["DM_ID"] != "" && index( $0, "<@" ENVIRON["DM_ID"] ">" ) > 0 ) || ( index( $0, " → " ) > 0 && index( $0, "*_" ENVIRON["DM_MEMBER"] "_*" ) > 0 ) ) ) next
 					if ( index( $0, "[sender: " ENVIRON["DM_MEMBER"] "]" ) > 0 ) next
 					if ( ENVIRON["DM_ID"] != "" && index( $0, $1 " | " ENVIRON["DM_ID"] " |" ) == 1 ) next
 					if ( $1 + 0 > newest + 0 ) newest = $1
 					if ( index( $0, "[sender: " ) == 0 && $3 != ENVIRON["DM_AUTH"] && $3 != ENVIRON["DM_ID"] && $0 !~ /:[a-z0-9_+-]+: \*_[a-z0-9-]+_\*/ && $1 + 0 > human + 0 ) human = $1
 				}
-				END { print newest "\t" human }' )"
+				END { print newest "\t" human "\t" passed }' )"
+			## The third field is the newest message read past the floor, counted or not: the floor moves past it, so no pass reads it again.
+			dmPassedOne="${dmRead##*$'\t'}" ; dmRead="${dmRead%$'\t'*}"
+			if [ -n "$dmPassedOne" ] ; then
+				if [ -z "$dmPassed" ] || [ "${dmPassedOne%%.*}" -gt "${dmPassed%%.*}" ] ; then dmPassed="$dmPassedOne" ; fi
+			fi
 			if [ -n "${dmRead%%$'\t'*}" ] ; then
 				if [ -z "$dmNewest" ] || [ "${dmRead%%.*}" -gt "${dmNewest%%.*}" ] ; then dmNewest="${dmRead%%$'\t'*}" ; fi
 			fi
@@ -1288,7 +1302,10 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 			agentsScheduleDmNewest="$dmNewest"
 			printf '%s\n' "$dmNewest" > "$dmStore/dms/$dmMember"
 			AgentsToolsScheduleTagNote "$dmMember" "$dmNewest" "$dmHuman"
-		elif [ ! -f "$dmStore/dms/$dmMember" ] ; then
+		fi
+		if [ -n "$dmPassed" ] && { [ -z "$dmNewest" ] || [ "$dmPassed" \> "$dmNewest" ] ; } ; then
+			printf '%s\n' "$dmPassed" > "$dmStore/dms/$dmMember"
+		elif [ -z "$dmNewest" ] && [ ! -f "$dmStore/dms/$dmMember" ] ; then
 			printf '%s\n' "$dmFloor" > "$dmStore/dms/$dmMember"
 		fi
 	done

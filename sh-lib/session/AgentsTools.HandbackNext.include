@@ -89,7 +89,7 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 	nextName="${nextWant%.routine.md}: ${nextInput##*/}"
 	nextTask="Handed over by the handback of run $nextSession ($nextRoutine). Input: $nextInput"
 	nextArgs=( --routine "$nextWant" --session-name-or-comment "$nextName" --description "$nextTask" --handed-over-by "$nextSession" magic-coordinator )
-	nextManual="DistroAgentsDispatcher.fn.sh --spawn-session$( printf ' %q' "${nextArgs[@]}" )"
+	nextManual="DistroAgentsDispatcher.fn.sh --spawn-session$( printf ' %q' ${nextArgs[@]+"${nextArgs[@]}"} )"
 	if [ "$nextLineCount" -gt 1 ] ; then
 		nextWhy="the outcome holds $nextLineCount next-routine lines, and one is allowed."
 	elif [ "$nextNamed" != "$nextWant" ] ; then
@@ -156,10 +156,10 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 	## The start is made apart: the spawner runs the input scans of the routine before its member begins, which the handback must not wait for.
 	(
 		if [ -n "${MDAT_HANDBACK_NEXT_SPAWNER:-}" ] ; then
-			nextOut="$( "$MDAT_HANDBACK_NEXT_SPAWNER" --spawn-session "${nextArgs[@]}" 2>&1 < /dev/null )" ; nextRc=$?
+			nextOut="$( "$MDAT_HANDBACK_NEXT_SPAWNER" --spawn-session ${nextArgs[@]+"${nextArgs[@]}"} 2>&1 < /dev/null )" ; nextRc=$?
 		else
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			nextOut="$( DistroAgentsTools --spawn-session "${nextArgs[@]}" 2>&1 < /dev/null )" ; nextRc=$?
+			nextOut="$( DistroAgentsTools --spawn-session ${nextArgs[@]+"${nextArgs[@]}"} 2>&1 < /dev/null )" ; nextRc=$?
 		fi
 		printf '%s\n' "$nextOut" > "$nextMarker.out"
 		if [ "$nextRc" != 0 ] ; then

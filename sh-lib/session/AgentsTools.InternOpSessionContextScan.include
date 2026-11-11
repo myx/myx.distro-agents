@@ -342,14 +342,14 @@ case "$1" in
 			fi
 			if [ ${#states[@]} -gt 0 ] ; then
 				local statesGiven="" statesWanted="" sg
-				for sg in "${states[@]}" ; do statesGiven+="|$sg" ; done
-				for sg in "${boardRelatedStates[@]}" ; do statesWanted+="|$sg" ; done
+				for sg in ${states[@]+"${states[@]}"} ; do statesGiven+="|$sg" ; done
+				for sg in ${boardRelatedStates[@]+"${boardRelatedStates[@]}"} ; do statesWanted+="|$sg" ; done
 				if [ "$statesGiven" != "$statesWanted" ] ; then
 					echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-board-related-* supplies its own state set ($boardRelatedStatesText) and the --state values given do not match it -- disagreeing values are an error, not an intersection" >&2
 					set +e ; return 1
 				fi
 			fi
-			states=( "${boardRelatedStates[@]}" )
+			states=( ${boardRelatedStates[@]+"${boardRelatedStates[@]}"} )
 		fi
 
 		if [ ${#states[@]} -eq 0 ] ; then
@@ -362,7 +362,7 @@ case "$1" in
 		}
 		local headersJoined="" sep=""
 		if [ ${#headers[@]} -gt 0 ] ; then
-			for h in "${headers[@]}" ; do
+			for h in ${headers[@]+"${headers[@]}"} ; do
 				headersJoined+="$sep$h"
 				sep=$'\034'
 			done
@@ -372,7 +372,7 @@ case "$1" in
 		local inboxEmittedPaths=()
 		local boardScanned=0
 		local state f base it tp matched ownerVal
-		for state in "${states[@]}" ; do
+		for state in ${states[@]+"${states[@]}"} ; do
 			for f in "$MDAT_DATA_ROOT/board/$state"/*.md ; do
 				[ -f "$f" ] || continue
 				boardScanned=$(( boardScanned + 1 ))
@@ -380,7 +380,7 @@ case "$1" in
 
 				if [ ${#items[@]} -gt 0 ] ; then
 					matched="false"
-					for it in "${items[@]}" ; do
+					for it in ${items[@]+"${items[@]}"} ; do
 						if [ "$it" = "$base" ] ; then matched="true" ; break ; fi
 					done
 					[ "$matched" = "true" ] || continue
@@ -388,7 +388,7 @@ case "$1" in
 
 				if [ "$allTypes" != "true" ] ; then
 					matched="false"
-					for tp in "${typePrefixes[@]}" ; do
+					for tp in ${typePrefixes[@]+"${typePrefixes[@]}"} ; do
 						case "$base" in
 							"$tp"*) matched="true" ; break ;;
 						esac
@@ -725,7 +725,7 @@ case "$1" in
 							## The last field closes the line, so it is never a value the
 							## seds read: each of theirs had to be followed by a "|".
 							unset "rosterFields[$(( ${#rosterFields[@]} - 1 ))]"
-							for rosterField in "${rosterFields[@]}" ; do
+							for rosterField in ${rosterFields[@]+"${rosterFields[@]}"} ; do
 								case "$rosterField" in
 									identity=*)	rosterIdentity="${rosterField#identity=}" ;;
 									auth=*)		rosterAuth="${rosterField#auth=}" ;;
@@ -1223,7 +1223,7 @@ case "$1" in
 
 				if [ "$commsMemberScopeOnly" != "true" ] && [ ${#matchedFiles[@]} -gt 0 ] ; then
 					local boardThreads
-					boardThreads="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextBoardThreadIds.awk" "${matchedFiles[@]}" )" || boardThreads=""
+					boardThreads="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextBoardThreadIds.awk" ${matchedFiles[@]+"${matchedFiles[@]}"} )" || boardThreads=""
 					[ -z "$boardThreads" ] || boardThreads="$( printf '%s\n' "$boardThreads" | sort -u )"
 					while IFS= read -r dt ; do
 						[ -n "$dt" ] || continue
@@ -1306,7 +1306,7 @@ case "$1" in
 						[ -f "$aboveStatus" ] || continue
 						[ ! -f "$threadFetchWorkDir/blocks.${aboveStatus##*.}" ] || aboveFiles+=( "$threadFetchWorkDir/blocks.${aboveStatus##*.}" )
 					done
-					{ printf '%s' "$imBlocks" ; [ ${#aboveFiles[@]} -eq 0 ] || cat "${aboveFiles[@]}" ; } | LC_ALL=C awk -v est="$1" '
+					{ printf '%s' "$imBlocks" ; [ ${#aboveFiles[@]} -eq 0 ] || cat ${aboveFiles[@]+"${aboveFiles[@]}"} ; } | LC_ALL=C awk -v est="$1" '
 						function tskey(v,   d, sec, frac) {
 							gsub(/^[ \t]+|[ \t\r]+$/, "", v)
 							d = index(v, ".")
@@ -1382,7 +1382,7 @@ case "$1" in
 				## (a mention, a board item, another source), and then it is read.
 				local staleOnlyCount=0
 				if [ ${#staleTargets[@]} -gt 0 ] ; then
-					staleOnlyCount="$( { printf '%s\n' "$uniqueThreads" | LC_ALL=C sed 's/^/T /' ; printf '%s\n' "${staleTargets[@]}" | LC_ALL=C sort -u | LC_ALL=C sed 's/^/S /' ; } \
+					staleOnlyCount="$( { printf '%s\n' "$uniqueThreads" | LC_ALL=C sed 's/^/T /' ; printf '%s\n' ${staleTargets[@]+"${staleTargets[@]}"} | LC_ALL=C sort -u | LC_ALL=C sed 's/^/S /' ; } \
 						| LC_ALL=C awk '$1 == "T" { t[$2] = 1 ; next } $1 == "S" && $2 != "" && !($2 in t) { n++ } END { print n + 0 }' )" || staleOnlyCount=0
 				fi
 
@@ -1840,7 +1840,7 @@ case "$1" in
 				inboxMembers+=( "$alsoSeen" )
 			done
 
-			for inboxMember in "${inboxMembers[@]}" ; do
+			for inboxMember in ${inboxMembers[@]+"${inboxMembers[@]}"} ; do
 				if [ "$inboxMember" != "$actingMember" ] ; then
 					printf '## Additional Inbox -- %s\n\n' "$inboxMember"
 					printf 'scope: inboxes/%s/ -- read-only widening. The acting identity stays %s: this scan does not act as %s, reads none of its credentials or comms sources, and writes nothing into its inbox.\n\n' \
@@ -1950,7 +1950,7 @@ case "$1" in
 					inboxOlderCount=$(( ${#inboxMatched[@]} - inboxSectionCap ))
 					[ "$inboxOlderCount" -le 0 ] || printf '**NOTE:** truncated -- %s items found, capped at %s -- NEWEST kept in full, %s older not shown in full\n' "${#inboxMatched[@]}" "$inboxSectionCap" "$inboxOlderCount"
 					printf '\n'
-					inboxOrdered="$( LC_ALL=C ls -tr "${inboxMatched[@]}" )" || inboxOrdered=""
+					inboxOrdered="$( LC_ALL=C ls -tr ${inboxMatched[@]+"${inboxMatched[@]}"} )" || inboxOrdered=""
 					inboxEmit=()
 					inboxOlderListed=0
 					ii=0
@@ -1975,7 +1975,7 @@ case "$1" in
 					[ ${#inboxEmit[@]} -eq 0 ] || LC_ALL=C awk \
 						-v bodyByteCap="$inboxSectionBytes" \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxItemBlockPrint.awk" \
-						"${inboxEmit[@]}"
+						${inboxEmit[@]+"${inboxEmit[@]}"}
 					## THE SECTION'S CLOSING INSTRUCTION (S18.3): the acting member's own unprocessed items, never a widened read-only inbox,
 					## whose items are not that member's to mark. A section is one block, so the line stands once in it.
 					if [ "$inboxMember" = "$actingMember" ] ; then
@@ -1984,20 +1984,20 @@ case "$1" in
 					## Named-item lookup below is the ACTING member's own inbox only, so
 					## only its paths belong in the already-emitted set.
 					if [ "$inboxMember" = "$actingMember" ] ; then
-						[ ${#inboxEmit[@]} -eq 0 ] || inboxEmittedPaths+=( "${inboxEmit[@]}" )
+						[ ${#inboxEmit[@]} -eq 0 ] || inboxEmittedPaths+=( ${inboxEmit[@]+"${inboxEmit[@]}"} )
 					fi
 				done
 			done
 
 		fi
 		local boardStatesText="" boardTypeText="" boardOwnerText="" boardScopeLine bs
-		for bs in "${states[@]}" ; do
+		for bs in ${states[@]+"${states[@]}"} ; do
 			boardStatesText="${boardStatesText:+$boardStatesText|}$bs"
 		done
 		if [ "$allTypes" = "true" ] ; then
 			boardTypeText="all types"
 		else
-			for bs in "${typePrefixes[@]}" ; do
+			for bs in ${typePrefixes[@]+"${typePrefixes[@]}"} ; do
 				boardTypeText="${boardTypeText:+$boardTypeText|}$bs"
 			done
 			boardTypeText="types: $boardTypeText"
@@ -2103,7 +2103,7 @@ case "$1" in
 			while IFS= read -r namedFolder ; do
 				namedFolders+=( "$namedFolder" )
 			done < <( AgentsToolsInboxFolders "$actingMember" "$itemIncludeProcessed" )
-			for it in "${items[@]}" ; do
+			for it in ${items[@]+"${items[@]}"} ; do
 				namedFound="false"
 				## Already rendered by the board walk above -- named, found,
 				## nothing further to do for it here.
@@ -2111,7 +2111,7 @@ case "$1" in
 					if [ "${f##*/}" = "$it" ] ; then namedFound="true" ; break ; fi
 				done
 				if [ "$namedFound" = "false" ] ; then
-					for namedFolder in "${namedFolders[@]}" ; do
+					for namedFolder in ${namedFolders[@]+"${namedFolders[@]}"} ; do
 						namedPath="$namedFolder/$it"
 						if [ -f "$namedPath" ] ; then
 							namedFound="true"
@@ -2133,10 +2133,10 @@ case "$1" in
 				LC_ALL=C awk \
 					-v bodyByteCap="$sessionContextCapInboxItemBytes" \
 					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxItemBlockPrint.awk" \
-					"${namedEmit[@]}"
+					${namedEmit[@]+"${namedEmit[@]}"}
 				## THE NAMED BLOCK CLOSES WITH THE SECTION'S OWN INSTRUCTION (S18.3) where it delivered an item out of incoming/:
 				## that is an unprocessed item handed to its member. An already-processed item is not one, and carries none.
-				for namedPath in "${namedEmit[@]}" ; do
+				for namedPath in ${namedEmit[@]+"${namedEmit[@]}"} ; do
 					if [ -f "$namedInboxDir/incoming/${namedPath##*/}" ] ; then
 						printf '%s\n\n' "$( AgentsToolsInboxInstruction )"
 						break

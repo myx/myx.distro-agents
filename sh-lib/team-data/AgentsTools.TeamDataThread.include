@@ -72,7 +72,7 @@ AgentsToolsTeamDataThreadOwed(){
 		[ -z "$owedPath" ] || owedPaths+=( "$owedPath" )
 	done < "$teamPassOwedFile"
 	[ "${#owedPaths[@]}" -gt 0 ] || return 0
-	AgentsToolsTeamDataCommitPathsNow "owed commit" "${owedPaths[@]}"
+	AgentsToolsTeamDataCommitPathsNow "owed commit" ${owedPaths[@]+"${owedPaths[@]}"}
 	AgentsToolsTeamDataPushIfAhead "the team-data thread"
 	return 0
 }

@@ -110,7 +110,7 @@ case "$1" in
 			local ctxForMsg="$opContext"
 			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-board-rename" ; fi
 			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataCommitPaths "renamed: $oldName -> $newName, $ctxForMsg" "${boardRenameCommitPaths[@]}"
+			AgentsToolsTeamDataCommitPaths "renamed: $oldName -> $newName, $ctxForMsg" ${boardRenameCommitPaths[@]+"${boardRenameCommitPaths[@]}"}
 		fi
 
 		local state oldFile renamed="false"

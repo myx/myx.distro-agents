@@ -28,9 +28,9 @@ AgentsToolsExternalOwnerRows(){ ## due|all
 	done
 	[ "${#extFiles[@]}" -gt 0 ] || return 0
 	if [ -f "$extMarker" ] ; then
-		extChanged="$( find "${extFiles[@]}" -newer "$extMarker" 2> /dev/null )"
+		extChanged="$( find ${extFiles[@]+"${extFiles[@]}"} -newer "$extMarker" 2> /dev/null )"
 	else
-		extChanged="$( printf '%s\n' "${extFiles[@]}" )"
+		extChanged="$( printf '%s\n' ${extFiles[@]+"${extFiles[@]}"} )"
 	fi
 	extNow="$( date +%s )"
 	while IFS=$'\t' read -r extFile extOwner extRecheck ; do
@@ -56,7 +56,7 @@ AgentsToolsExternalOwnerRows(){ ## due|all
 			if ( index( $0, "owner: " ) == 1 ) owner = substr( $0, 8 ) ;
 			else if ( index( $0, "recheck-date: " ) == 1 ) recheck = substr( $0, 15 ) ;
 		}
-	' "${extFiles[@]}" )"
+	' ${extFiles[@]+"${extFiles[@]}"} )"
 	return 0
 }
 

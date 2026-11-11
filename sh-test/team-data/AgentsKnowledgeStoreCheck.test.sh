@@ -150,6 +150,11 @@ rigStoreRun argbuild --knowledge-index-build stray
 rigAssert "the index build refuses an argument" "$( cat "$rigTmp/argbuild.rc" ):$( LC_ALL=C grep -c -F -e 'takes no arguments' "$rigTmp/argbuild.err" || : )" "1:1"
 rigStoreRun nomodelbuild --knowledge-index-build
 rigAssert "the index build refuses while the store names no model, and builds nothing" "$( cat "$rigTmp/nomodelbuild.rc" ):$( LC_ALL=C grep -c -F -e 'embedding model' "$rigTmp/nomodelbuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:none"
+rigNoDataRc=0
+( cd "$rigDws" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$rigPythonDir" MMDAPP="$rigDws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	MDAT_DATA_ROOT="$rigTmp/no-data-root" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_KNOWLEDGE_STORE=on RIG_LANCEDB_STUB="$rigLancedbStub" \
+	bash "$rigTool" --knowledge-index-build ) > "$rigTmp/nodatabuild.out" 2> "$rigTmp/nodatabuild.err" < /dev/null || rigNoDataRc=$?
+rigAssert "the index build refuses with no team data root, and builds nothing" "$rigNoDataRc:$( LC_ALL=C grep -c -F -e 'no team data root' "$rigTmp/nodatabuild.err" || : ):$( [ -e "$rigDws/.local/knowledge-index" ] && printf built || printf none )" "1:1:none"
 
 echo "-- 7 to 15. the index engine: one row a section, keyed by source and heading path --"
 ## The engine's own Python is the store's stand-in, so its `lancedb` and `model2vec` are staged side by side and imported

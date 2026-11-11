@@ -863,7 +863,7 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 			session) [ "$runsValue" = "-" ] || runsSession="$runsWs/.local/agents/sessions/$runsValue" ;;
 			store) runsStores="$runsStores$runsWs/.local/agents/sessions/$runsValue"$'\n' ;;
 		esac
-	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "${runsFiles[@]}" 2> /dev/null )
+	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" ${runsFiles[@]+"${runsFiles[@]}"} 2> /dev/null )
 	[ -n "$runsItem" ] && [ -n "$runsStores" ] || return 1
 	agentsGrantsItemRunsItem="$runsItem" ; agentsGrantsItemRunsSession="$runsSession" ; agentsGrantsItemRunsStores="${runsStores%$'\n'}"
 	return 0

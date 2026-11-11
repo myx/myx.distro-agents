@@ -545,7 +545,7 @@ case "$1" in
 				## --max-time 300, not the 120 an API call here gets: this one uploads the whole message.
 				curl -sS --connect-timeout 10 --max-time 300 --url "smtp://${smtpHost}:${smtpPort}" --ssl-reqd \
 					--netrc-file /dev/fd/0 \
-					--mail-from "$emailUser" "${rcptArgs[@]}" \
+					--mail-from "$emailUser" ${rcptArgs[@]+"${rcptArgs[@]}"} \
 					--upload-file "$msgFile" <<< "$netrcLine"
 			) || rc=$?
 

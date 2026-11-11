@@ -905,7 +905,7 @@ blocks|verbatim|caller|stdin file"
 				rpArgs+=( --context "--slack-send-message" )
 				local rpErr="" rpErrFile=""
 				rpErrFile="$( mktemp "${MMDAPP:-/tmp}/.local/temp/mdat-reply-parent.XXXXXX" 2> /dev/null )" || rpErrFile=""
-				rpInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${rpArgs[@]}" 2> "${rpErrFile:-/dev/null}" )" || rpInfo=""
+				rpInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${rpArgs[@]+"${rpArgs[@]}"} 2> "${rpErrFile:-/dev/null}" )" || rpInfo=""
 				[ -z "$rpErrFile" ] || { rpErr="$( cat "$rpErrFile" 2> /dev/null )" ; rm -f "$rpErrFile" ; }
 				local rpMessage="" rpSelectRc=0
 				rpMessage="$( printf '%s\n' "$rpInfo" | LC_ALL=C awk -v wantTs="$threadTs" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
@@ -953,7 +953,7 @@ blocks|verbatim|caller|stdin file"
 					dmArgs=( "$memberName" --api conversations.info --resolve-target "$channel" )
 					[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
 					dmArgs+=( --context "--slack-send-message" )
-					dmInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
+					dmInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${dmArgs[@]+"${dmArgs[@]}"} )" || dmInfo=""
 					dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" )" || dmParty=""
 					if [ -n "$dmParty" ] ; then
@@ -965,7 +965,7 @@ blocks|verbatim|caller|stdin file"
 						dmArgs=( "$memberName" --api conversations.members --form "channel=$channel" --form limit=100 )
 						[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
 						dmArgs+=( --context "--slack-send-message" )
-						dmInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
+						dmInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${dmArgs[@]+"${dmArgs[@]}"} )" || dmInfo=""
 						while : ; do
 							dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path="members.$dmIndex" -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || dmParty=""
 							[ -n "$dmParty" ] || break
@@ -991,7 +991,7 @@ blocks|verbatim|caller|stdin file"
 				dmArgs=( "$memberName" --api auth.test )
 				[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
 				dmArgs+=( --context "--slack-send-message" )
-				dmInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
+				dmInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${dmArgs[@]+"${dmArgs[@]}"} )" || dmInfo=""
 				dmSelfId="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || dmSelfId=""
 				if [ -z "$dmSelfId" ] ; then
 					echo "# $MDSC_CMD --slack-send-message: auth.test did not answer with the posting account's user id, so the addressee list for $channel is NOT known to exclude the sender -- it is sent as inferred rather than failing the send over a header field." >&2
@@ -1015,7 +1015,7 @@ blocks|verbatim|caller|stdin file"
 					imArgs=( "$memberName" --api conversations.info --resolve-target "$channel" )
 					[ "$sendIdentity" != "bot" ] || imArgs+=( --identity bot )
 					imArgs+=( --context "--slack-send-message" )
-					imInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${imArgs[@]}" )" || imInfo=""
+					imInfo="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${imArgs[@]+"${imArgs[@]}"} )" || imInfo=""
 					imParty="$( printf '%s\n' "$imInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackConversationCounterparty.awk" )" || imParty=""
 					if [ -n "$imParty" ] ; then

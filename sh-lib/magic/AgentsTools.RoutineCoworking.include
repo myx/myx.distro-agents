@@ -67,15 +67,15 @@ case "$1" in
 		else
 			phaseAArgs+=( --do-inbox-inquiry-active --do-inbox-reflections --do-inbox-notes --do-inbox-other )
 		fi
-		for s in "${allStates[@]}" ; do phaseAArgs+=( --state "$s" ) ; done
+		for s in ${allStates[@]+"${allStates[@]}"} ; do phaseAArgs+=( --state "$s" ) ; done
 		if [ ${#names[@]} -gt 0 ] ; then
-			for n in "${names[@]}" ; do phaseAArgs+=( --item "$n" ) ; done
+			for n in ${names[@]+"${names[@]}"} ; do phaseAArgs+=( --item "$n" ) ; done
 		fi
 
 		local phaseAOutput
 		[ -z "$scanNote" ] || printf '%s\n' "$scanNote"
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseAArgs[@]}" \
+		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" ${phaseAArgs[@]+"${phaseAArgs[@]}"} \
 			--header blocks --header blocked-by --all-types \
 			--no-slack --no-email --no-trello \
 			--no-board-related \
@@ -83,7 +83,7 @@ case "$1" in
 
 		local unionNames=()
 		if [ ${#names[@]} -gt 0 ] ; then
-			for n in "${names[@]}" ; do unionNames+=( "$n" ) ; done
+			for n in ${names[@]+"${names[@]}"} ; do unionNames+=( "$n" ) ; done
 		fi
 
 		## blocks:/blocked-by: carry bare names while --item compares against
@@ -104,11 +104,11 @@ case "$1" in
 		## Every real state on the display call -- a reached item may have
 		## moved to a terminal one.
 		local phaseBArgs=()
-		for s in "${allStates[@]}" ; do phaseBArgs+=( --state "$s" ) ; done
-		for n in "${unionNames[@]}" ; do phaseBArgs+=( --item "$n" ) ; done
+		for s in ${allStates[@]+"${allStates[@]}"} ; do phaseBArgs+=( --state "$s" ) ; done
+		for n in ${unionNames[@]+"${unionNames[@]}"} ; do phaseBArgs+=( --item "$n" ) ; done
 
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" \
+		DistroAgentsTools --intern-op-session-context-scan "$callingMember" ${phaseBArgs[@]+"${phaseBArgs[@]}"} \
 			--all-types --item-include-inbox \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \

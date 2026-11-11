@@ -155,7 +155,7 @@ case "$1" in
 				## --- check 1: declared id kind ---
 				local expectedKind="" ekEntry
 				if [ ${#expectKinds[@]} -gt 0 ] ; then
-					for ekEntry in "${expectKinds[@]}" ; do
+					for ekEntry in ${expectKinds[@]+"${expectKinds[@]}"} ; do
 						if [ "${ekEntry%%:*}" = "$checkKey" ] ; then expectedKind="${ekEntry#*:}" ; fi
 					done
 				fi
@@ -195,7 +195,7 @@ case "$1" in
 
 				local expectedPath="" epEntry
 				if [ ${#expectPaths[@]} -gt 0 ] ; then
-					for epEntry in "${expectPaths[@]}" ; do
+					for epEntry in ${expectPaths[@]+"${expectPaths[@]}"} ; do
 						if [ "${epEntry%%:*}" = "$checkKey" ] ; then expectedPath="${epEntry#*:}" ; fi
 					done
 				fi
@@ -212,12 +212,12 @@ case "$1" in
 					echo "$checkKey: OK"
 				elif [ -n "$idKindFault" ] ; then
 					echo "$checkKey: FAIL"
-					printf '%s\n' "${warnDetail[@]}"
+					printf '%s\n' ${warnDetail[@]+"${warnDetail[@]}"}
 					echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey: $idKindFault" >&2
 					requiredMissing=1
 				else
 					echo "$checkKey: WARN"
-					printf '%s\n' "${warnDetail[@]}"
+					printf '%s\n' ${warnDetail[@]+"${warnDetail[@]}"}
 				fi
 			else
 				## FAIL is a key that had to be set; an unset optional key is a SKIP.

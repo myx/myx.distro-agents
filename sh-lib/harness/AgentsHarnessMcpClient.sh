@@ -189,17 +189,17 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 		runRc=0
 		## A bound of 0 is none, as it is for Bash.
 		if [ "$runBound" = 0 ] ; then
-			env "${runEnv[@]}" "$runCommand" "${runArgs[@]}" \
+			env ${runEnv[@]+"${runEnv[@]}"} "$runCommand" ${runArgs[@]+"${runArgs[@]}"} \
 				> "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" || runRc=$?
 		elif [ -n "$harnessTimeoutCmd" ] ; then
-			env "${runEnv[@]}" "$harnessTimeoutCmd" "$runBound" "$runCommand" "${runArgs[@]}" \
+			env ${runEnv[@]+"${runEnv[@]}"} "$harnessTimeoutCmd" "$runBound" "$runCommand" ${runArgs[@]+"${runArgs[@]}"} \
 				> "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" || runRc=$?
 			[ "$runRc" != 124 ] || : > "$harnessScratch/mcp.timedout"
 		else
 			## Watchdog where no `timeout` exists, the shape AgentsHarnessToolBash uses.
 			## `<&0` is load-bearing: a background job's stdin is otherwise /dev/null.
 			{
-				env "${runEnv[@]}" "$runCommand" "${runArgs[@]}" \
+				env ${runEnv[@]+"${runEnv[@]}"} "$runCommand" ${runArgs[@]+"${runArgs[@]}"} \
 					<&0 > "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" &
 				runPid=$!
 				## The >/dev/null is load-bearing: without it the orphaned `sleep` holds
@@ -453,7 +453,7 @@ AgentsHarnessMcpEnumerate(){
 			harnessMcpConfigFault="MMDAPP is not set, so there is no workspace registration to resolve it against"
 		fi
 
-		for harnessMcpName in "${harnessMcpServers[@]}" ; do
+		for harnessMcpName in ${harnessMcpServers[@]+"${harnessMcpServers[@]}"} ; do
 			{
 				AgentsHarnessMcpHandshake
 				printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'

@@ -114,6 +114,7 @@ rigLive(){ ## spawn id
 	rm -f "$rigWs/.local/temp/ps-args.txt"
 }
 rigDead(){ ## spawn id
+	: "${RIG_PS_LIST:?rigDead: RIG_PS_LIST is not set -- nothing was written}"
 	LC_ALL=C awk -v gone="$1" '$NF != gone' "$RIG_PS_LIST" > "$RIG_PS_LIST.next" && mv -f "$RIG_PS_LIST.next" "$RIG_PS_LIST"
 	rm -f "$rigWs/.local/temp/ps-args.txt"
 }

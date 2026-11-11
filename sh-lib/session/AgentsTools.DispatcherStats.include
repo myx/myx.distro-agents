@@ -82,6 +82,15 @@ AgentsToolsStatsDerive(){ ## folder, full|refresh
 ## The store of the workspace, brought up to date (built when it is not there).
 AgentsToolsStatsEnsure(){
 	AgentsToolsStatsDerive "$MMDAPP/.local/agents/stats" refresh || { echo "$MDSC_CMD: ⛔ ERROR: the stats store could not be brought up to date" >&2 ; return 1 ; }
+	## AN INDEX SHORTER THAN ITS SOURCE IS DERIVED WHOLE: a refresh keeps every old row it does not read again, so an index once cut short
+	## would stay short for good, and a reader would take a lost row for no run. Fewer rows than run records means rows were lost.
+	local ensureRows ensureRecords
+	ensureRows="$(( $( wc -l < "$MMDAPP/.local/agents/stats/runs.index" 2> /dev/null || echo 1 ) - 1 ))"
+	ensureRecords="$( AgentsToolsStatsRecords | wc -l | tr -d '[:space:]' )"
+	if [ "$ensureRows" -lt "$ensureRecords" ] ; then
+		echo "# $MDSC_CMD: the stats index held $ensureRows run(s) of $ensureRecords run record(s), so it is derived whole" >&2
+		AgentsToolsStatsDerive "$MMDAPP/.local/agents/stats" full || { echo "$MDSC_CMD: ⛔ ERROR: the stats store could not be derived whole" >&2 ; return 1 ; }
+	fi
 }
 
 ## --rebuild-stats: the store derived anew from the run records, whole.

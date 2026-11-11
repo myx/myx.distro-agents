@@ -113,7 +113,7 @@ AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace 
 		[ "$addLeft" -gt 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: the list of $addMember is being written by another call and could not be taken in five seconds -- nothing was written" >&2 ; return 1 ; }
 		sleep 0.1
 	done
-	for addItem in "${addItems[@]}" ; do
+	for addItem in ${addItems[@]+"${addItems[@]}"} ; do
 		[ -n "$addItem" ] || continue
 		! { printf -- '- [ ] %s\n' "$addItem" >> "$addFile" && printf -- '- [ ] %s\n' "$addItem" >> "$addFile.added" ; } 2> /dev/null \
 			|| addCount=$(( addCount + 1 ))

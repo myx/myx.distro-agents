@@ -52,6 +52,17 @@
 		of every operation (or of one operation, or of those that a prefix ending in "-"
 		begins), and --help prints this manual.
 
+		The body of a write, in every operation below that takes one, comes in one of these forms:
+		- `--upsert-from-stdin` or `--from-file <path>`: the whole item, frontmatter and
+		  body, which replaces the stored one.
+		- `--edit-patch-from-stdin`: a JSON array of `{"old": <text>, "new": <text>,
+		  "replace_all": <bool, default false>}` patches on stdin, applied in order as exact
+		  literal match-and-replace on the stored item. The rest of the item stays as it is.
+		  An `old` that is not found refuses the write, and so does one found more than once
+		  without `"replace_all": true`. A refused patch writes nothing.
+		- `--upsert-body:<text>`, where an operation lists it: the whole item as an argument,
+		  taken as `--upsert-from-stdin` takes it on stdin.
+
 ##  Options:
 
 		--move-to-backlog <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...

@@ -48,7 +48,7 @@ case "$1" in
 
 			## No roots survived validation: find with no path would walk the cwd.
 			if [ ${#findRoots[@]} -gt 0 ] ; then
-				find -L "${findRoots[@]}" -type f -name '*.md' 2>/dev/null | while IFS= read -r foundPath ; do
+				find -L ${findRoots[@]+"${findRoots[@]}"} -type f -name '*.md' 2>/dev/null | while IFS= read -r foundPath ; do
 					printf '%s\n' "${foundPath#"$skillRoot"/}"
 				done | sort
 			fi
@@ -95,7 +95,7 @@ case "$1" in
 
 			## No roots survived validation: find with no path would walk the cwd.
 			if [ ${#findRoots[@]} -gt 0 ] ; then
-				find -L "${findRoots[@]}" -type f -name '*.md' 2>/dev/null | while IFS= read -r foundPath ; do
+				find -L ${findRoots[@]+"${findRoots[@]}"} -type f -name '*.md' 2>/dev/null | while IFS= read -r foundPath ; do
 					local mtime relPath
 					mtime="$( stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$foundPath" 2>/dev/null || stat -c '%y' "$foundPath" 2>/dev/null | cut -c1-19 )"
 					relPath="${foundPath#"$skillRoot"/}"
@@ -188,7 +188,7 @@ case "$1" in
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-inbox-to-processed "$callingMember" "$itemName" \
 				--context --librarian-inbox-to-processed \
-				"${passthrough[@]}"
+				${passthrough[@]+"${passthrough[@]}"}
 			return $?
 		;;
 

@@ -216,7 +216,13 @@ AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
 			contract-name|contract-store) gateShown="$gateText" ;;
 			*) gateShown="$gateName: $gateRule: $gateText${gateDetail:+: $gateDetail}" ;;
 		esac
-		if [ "$( AgentsToolsDocValidateDisposition "$gateRule" write )" = "refuse" ] ; then
+		## A CHANGE THAT DROPS THE FRONTMATTER REFUSES: the item had a complete block (the fault is new to it), and a write without it would
+		## take its creation facts -- from, date, owner, the contract -- which no later update stamps again, so its author could not
+		## write it back. A create keeps the table's report: a body whose block never closes is written as it was.
+		if [ "$gateRule" = contract-frontmatter ] && [ "$gateMode" = change ] ; then
+			echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateLabel: $gateShown -- the item has one now, and this write would drop it with its creation facts. NEXT: send the whole item with its frontmatter, or change the body alone with --edit-patch-from-stdin" >&2
+			gateRefused=$(( gateRefused + 1 ))
+		elif [ "$( AgentsToolsDocValidateDisposition "$gateRule" write )" = "refuse" ] ; then
 			echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateLabel: $gateShown" >&2
 			gateRefused=$(( gateRefused + 1 ))
 		else

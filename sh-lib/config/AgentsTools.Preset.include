@@ -157,7 +157,14 @@ AgentsToolsPresetCredentialKeys(){ ## cli service
 		legSplit="$( printf '%s' "$legCase" | LC_ALL=C sed -E 's/([a-z0-9])([A-Z])/\1-\2/g' | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
 		legCase="$( printf '%s' "$legCase" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
 		[ "$legCase" = "$legName" ] || [ "$legSplit" = "$legName" ] || continue
-		LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "$legFile" 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' '\n' | LC_ALL=C awk '/^[A-Z][A-Z0-9_]*$/ { printf "%s%s", sep, $0 ; sep = " " ; } END { print "" ; }'
+		## THE DECLARED VALUE IS SHELL, read as shell: the leg's one assignment line is evaluated alone, in an empty environment, so an
+		## expansion gives its default (the universal leg's ${HARNESS_CREDENTIAL_NAMES:-...}) and never names its own variable. Its words
+		## that are names are the keys; a joining word such as `or` is none.
+		local legAssign=""
+		legAssign="$( LC_ALL=C sed -n '/^HARNESS_CREDENTIAL_NAMES=/{p;q;}' "$legFile" 2> /dev/null )" || legAssign=""
+		[ -n "$legAssign" ] || { echo ; return 0 ; }
+		env -i /bin/bash -c "$legAssign"' ; printf "%s\n" "$HARNESS_CREDENTIAL_NAMES"' 2> /dev/null | LC_ALL=C tr ' \t' '\n\n' \
+			| LC_ALL=C awk '/^[A-Z][A-Z0-9_]*$/ { printf "%s%s", sep, $0 ; sep = " " ; } END { print "" ; }'
 		return 0
 	done
 	return 0

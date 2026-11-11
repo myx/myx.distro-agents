@@ -168,9 +168,9 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 		## It carries the addressee of the prompt it follows, as the prompt named it.
 		dropArgs=( "$dropOwner" "$dropChannel:$dropThread" --identity-bot --from-stdin )
 		dropTo="$( AgentsToolsAskPostField "$dropFile" address-to )"
-		[ -z "$dropTo" ] || dropArgs=( "${dropArgs[@]}" --address-to "$dropTo" )
+		[ -z "$dropTo" ] || dropArgs=( ${dropArgs[@]+"${dropArgs[@]}"} --address-to "$dropTo" )
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		[ -z "$dropNote" ] || printf '%s\n' "$dropNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${dropArgs[@]}" > /dev/null 2>&1 \
+		[ -z "$dropNote" ] || printf '%s\n' "$dropNote" | DistroAgentsTools --intern-op-comms-slack-send-message ${dropArgs[@]+"${dropArgs[@]}"} > /dev/null 2>&1 \
 			|| echo "⚠️ WARNING: ${MDSC_CMD:-change}: the held change $dropId is dropped, but its thread was not told" >&2
 		AgentsChangePostClose "$dropFile"
 		return 0

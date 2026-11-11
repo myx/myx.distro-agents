@@ -21,7 +21,7 @@ AgentsToolsCommsSlackSearchAnswer(){
 					--form count=100 --form "page=$pageNum"
 					--context "--slack-search-messages" )
 				local response callRc=0
-				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call "${opArgs[@]}" )" || callRc=$?
+				response="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${opArgs[@]+"${opArgs[@]}"} )" || callRc=$?
 				if [ "$callRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-search-messages: COULD NOT SEARCH $channel -- search.messages failed on page $pageNum (see the op's own diagnostic above). This is NOT an empty result: nothing is known from this call about whether that conversation holds matching messages. A not_allowed_token_type error here means the acting identity has no user token, which this operation requires and cannot work around." >&2
 					set +e ; return 1

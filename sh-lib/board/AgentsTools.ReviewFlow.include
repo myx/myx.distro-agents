@@ -806,8 +806,8 @@ AgentsReviewPromptClose(){ ## record file, pending id, who closes it, why
 	## It carries the addressee of the prompt it follows, as the prompt named it.
 	local pcArgs=( "$pcOwner" "$pcChannel:$pcTs" --identity-bot --from-stdin ) pcTo
 	pcTo="$( AgentsToolsDecisionsField "$pcFile" address-to )"
-	[ -z "$pcTo" ] || pcArgs=( "${pcArgs[@]}" --address-to "$pcTo" )
-	[ -z "$pcNote" ] || printf '%s\n' "$pcNote" | AgentsReviewTools --intern-op-comms-slack-send-message "${pcArgs[@]}" > /dev/null 2>&1 \
+	[ -z "$pcTo" ] || pcArgs=( ${pcArgs[@]+"${pcArgs[@]}"} --address-to "$pcTo" )
+	[ -z "$pcNote" ] || printf '%s\n' "$pcNote" | AgentsReviewTools --intern-op-comms-slack-send-message ${pcArgs[@]+"${pcArgs[@]}"} > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: ${MDSC_CMD:-review}: the review prompt $pcId is closed, but its thread was not told" >&2
 	AgentsToolsAskPostClose "$pcFile" "$pcTs" cancelled edit
 	return 0

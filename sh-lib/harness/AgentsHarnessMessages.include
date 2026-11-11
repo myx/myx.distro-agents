@@ -492,7 +492,7 @@ AgentsHarnessToolThisSession(){ ## operation, message, who the post is for, rout
 	## The member this call resolved is the member the operation acts as, and the session is the one
 	## the call runs in: the tool file takes neither as an argument, which is what locks it to them.
 	toolOut="$( MDAT_SPAWN_AGENT="$harnessAgent" MDAT_SPAWN_SESSION_ID="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" \
-		"$BASH" "$toolFn" "${toolArgs[@]}" 2>&1 )" || toolRc=$?
+		"$BASH" "$toolFn" ${toolArgs[@]+"${toolArgs[@]}"} 2>&1 )" || toolRc=$?
 	if [ "$toolRc" != "0" ] ; then
 		## A CORRECTION from the plain-language floor is no error: it is the member's to rewrite, and is returned whole.
 		case "$toolOut" in

@@ -50,7 +50,7 @@ AgentsToolsSuperviseResume(){ ## [--workspace <path>]...
 	resumeNow="$( date +%s )"
 	resumeWho="${MDAT_SPAWN_AGENT:-magic-coordinator}"
 	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
-	for resumeWs in "${resumeWorkspaces[@]}" ; do
+	for resumeWs in ${resumeWorkspaces[@]+"${resumeWorkspaces[@]}"} ; do
 		resumeAgents="$resumeWs/.local/agents"
 		[ -d "$resumeAgents" ] || { printf 'error %s - no .local/agents here\n' "${resumeWs##*/}" ; continue ; }
 		## THE BOARD OF THE RIG NAMED, never of the workspace this call runs in: the item a run left in review is that rig's item.

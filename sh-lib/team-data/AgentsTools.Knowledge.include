@@ -294,7 +294,7 @@ $knowStoreOut"
 			fi
 		done <<< "$knowGroups"
 		type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
-		AgentsToolsMergeMdFiles --section-limit 6 "${knowArgs[@]}"
+		AgentsToolsMergeMdFiles --section-limit 6 ${knowArgs[@]+"${knowArgs[@]}"}
 	)
 	return $?
 }

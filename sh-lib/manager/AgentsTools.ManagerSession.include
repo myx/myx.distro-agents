@@ -1230,7 +1230,7 @@ case "$1" in
 		## The escalation words (F6.10, AgentsTools.Authority.include), taken out wherever they stand.
 		type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 		AgentsToolsAuthorityFlags "$@" || { set +e ; return 1 ; }
-		set -- "${agentsAuthorityRest[@]}"
+		set -- ${agentsAuthorityRest[@]+"${agentsAuthorityRest[@]}"}
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id)

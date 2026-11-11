@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
 
 ##
 ## AgentsTools.InternOpUrlPostBytes.include -- AgentsToolsUrlPostBytes, an in-context helper

@@ -149,10 +149,10 @@ EOF
 			else
 				## An untracked source cannot be staged once removed (the move primitive's own rule).
 				local keptPaths=() keptPath
-				for keptPath in "${approvalCascadePaths[@]}" ; do
+				for keptPath in ${approvalCascadePaths[@]+"${approvalCascadePaths[@]}"} ; do
 					[ "$keptPath" = "$targetPath" ] || keptPaths+=( "$keptPath" )
 				done
-				approvalCascadePaths=( "${keptPaths[@]}" )
+				approvalCascadePaths=( ${keptPaths[@]+"${keptPaths[@]}"} )
 			fi
 			echo "# $logPrefix: approval cascade: moved blocked/$target.md to pending/$target.md" >&2
 		done <<EOF

@@ -210,16 +210,16 @@ AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
 		rm -f "$lockFile" 2> /dev/null || return 1
 		return 0
 	}
-	[ "${#addPaths[@]}" -eq 0 ] || gitOut="$( git -C "$repoRoot" add -A -- "${addPaths[@]}" 2>&1 )" || gitRc=$?
+	[ "${#addPaths[@]}" -eq 0 ] || gitOut="$( git -C "$repoRoot" add -A -- ${addPaths[@]+"${addPaths[@]}"} 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
 		gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2> /dev/null )" || gitDir=""
 		if gitAddStale "${gitDir:+$gitDir/index.lock}" ; then
 			gitRc=0
-			gitOut="$( git -C "$repoRoot" add -A -- "${addPaths[@]}" 2>&1 )" || gitRc=$?
+			gitOut="$( git -C "$repoRoot" add -A -- ${addPaths[@]+"${addPaths[@]}"} 2>&1 )" || gitRc=$?
 		fi
 	fi
 	if [ "$gitRc" -ne 0 ] ; then
-		AgentsToolsTeamDataCommitOwedAdd "${commitPaths[@]}"
+		AgentsToolsTeamDataCommitOwedAdd ${commitPaths[@]+"${commitPaths[@]}"}
 		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git add failed, so the commit is OWED and the next run carries it (${commitPaths[*]}): $gitOut" >&2
 		return 0
 	fi
@@ -228,11 +228,11 @@ AgentsToolsTeamDataCommitPathsNow(){ ## context, path...
 	local commitChanged=()
 	while IFS= read -r commitPath ; do
 		[ -z "$commitPath" ] || commitChanged+=( "$commitPath" )
-	done <<< "$( git -C "$repoRoot" diff --cached --no-renames --name-only -- "${commitPaths[@]}" 2>/dev/null )"
+	done <<< "$( git -C "$repoRoot" diff --cached --no-renames --name-only -- ${commitPaths[@]+"${commitPaths[@]}"} 2>/dev/null )"
 	[ "${#commitChanged[@]}" -gt 0 ] || return 0
-	gitOut="$( git -C "$repoRoot" commit -m "$commitSubject" -- "${commitChanged[@]}" 2>&1 )" || gitRc=$?
+	gitOut="$( git -C "$repoRoot" commit -m "$commitSubject" -- ${commitChanged[@]+"${commitChanged[@]}"} 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
-		AgentsToolsTeamDataCommitOwedAdd "${commitPaths[@]}"
+		AgentsToolsTeamDataCommitOwedAdd ${commitPaths[@]+"${commitPaths[@]}"}
 		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git commit failed, so the commit is OWED and the next run carries it (${commitPaths[*]}): $gitOut" >&2
 		return 0
 	fi

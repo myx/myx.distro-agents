@@ -71,6 +71,23 @@ AgentsToolsInboxInstruction(){
 	printf '%s\n' 'inbox items: handle each item, then trash it with --trash-inbox-item, or --mark-inbox-processed where the record must stay, or keep it with a stated reason.'
 }
 
+## THE INDEX OF LOCK NOTES: every note a routine declares as its `routine-lock-document` (`inbox:<member>:<note>`), read from the
+## routines of the member view (the root AgentsTools.SpawnRoutine.include reads), one note name a line, each once. A lock note is the
+## tooling's: the routine lock reads it at its own place, so no member operation moves or trashes one.
+AgentsToolsInboxLockNoteNames(){
+	local lockRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:-/nonexistent}/.local/agents/members}"
+	[ -d "$lockRoot" ] || return 0
+	find -L "$lockRoot" -name '*.routine.md' -type f 2> /dev/null | LC_ALL=C tr '\n' '\0' | LC_ALL=C xargs -0 grep -h '^routine-lock-document:' 2> /dev/null \
+		| LC_ALL=C awk '{ sub( /^routine-lock-document: */, "" ) ; n = split( $0, lockValues, /[ ,]+/ ) ; for ( i = 1 ; i <= n ; i++ ) { lockName = lockValues[i] ; sub( /.*:/, "", lockName ) ; if ( lockName ~ /^note-.*\.md$/ && !seenName[lockName]++ ) print lockName ; } }'
+}
+
+## Whether a note is a routine's lock note: by the index of the routines' own declarations, or by the convention's name, which also
+## covers a lock note no routine of this member view declares.
+AgentsToolsInboxIsLockNote(){ ## note name
+	case "$1" in note-*-state-and-lock.md) return 0 ;; note-*.md) ;; *) return 1 ;; esac
+	AgentsToolsInboxLockNoteNames | LC_ALL=C grep -q -x -F -- "$1"
+}
+
 ## Whether a standing note lives in processed/: rc 0 for the state and lock note of a routine (`note-<stamp>-<word>-state-and-lock.md`) in the inbox
 ## of a member other than magic-coordinator.
 AgentsToolsInboxNoteProcessed(){ ## member, note name

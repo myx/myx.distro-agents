@@ -1045,7 +1045,7 @@ AgentsHarnessAsk(){
 		case "$toolEscalate" in true|1|yes) askSetArgs+=( --escalate ) ;; esac
 		askWhere=""
 		askJoinedOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-set-ask "$harnessAgent" \
-			--session-id "$askSession" --refusal-id "$toolRefusalId" --task-ref "$toolTaskRef" --reason "$toolReason" "${askSetArgs[@]}" 2> "$harnessScratch/set-ask.err" )" || askSetRc=$?
+			--session-id "$askSession" --refusal-id "$toolRefusalId" --task-ref "$toolTaskRef" --reason "$toolReason" ${askSetArgs[@]+"${askSetArgs[@]}"} 2> "$harnessScratch/set-ask.err" )" || askSetRc=$?
 		case "$askSetRc:$askJoinedOut" in
 			0:'THERE: '*)
 				askJoinedOut="${askJoinedOut%%$'\n'*}"

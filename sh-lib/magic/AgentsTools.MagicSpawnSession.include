@@ -283,7 +283,7 @@ case "$1" in
 		local callerWild="false"
 		if [ "$rosterExpanded" = "false" ] ; then
 			local callerEntry callerOut callerOne callerExpanded=()
-			for callerEntry in "${spawnMembers[@]}" ; do
+			for callerEntry in ${spawnMembers[@]+"${spawnMembers[@]}"} ; do
 				case "$callerEntry" in
 					*-\*|*-\?)
 						if ! callerOut="$( AgentsToolsSpawnRoutineEntryMembers "$callerEntry" )" ; then
@@ -303,7 +303,7 @@ case "$1" in
 					[ -z "$callerOne" ] || callerExpanded+=( "$callerOne" )
 				done <<< "$callerOut"
 			done
-			spawnMembers=( "${callerExpanded[@]}" )
+			spawnMembers=( ${callerExpanded[@]+"${callerExpanded[@]}"} )
 		fi
 
 		## Who is in the session is the routine's own say, its frontmatter: the coordinator is
@@ -317,7 +317,7 @@ case "$1" in
 		## identity record, the check every start makes (AgentsToolsTeamMemberStartCheck,
 		## which the spawn proxy asks of each spawn).
 		local spawnCheckMember spawnCheckFolder
-		for spawnCheckMember in "${spawnMembers[@]}" ; do
+		for spawnCheckMember in ${spawnMembers[@]+"${spawnMembers[@]}"} ; do
 			AgentsToolsAssertBareName "$spawnCheckMember" "<team-member>" spawn-session || { set +e ; return 1 ; }
 			if ! spawnCheckFolder="$( AgentsToolsTeamMemberDirectory "$spawnCheckMember" )" ; then
 				echo "$MDSC_CMD: spawn-session: ⛔ ERROR: no such team member: $spawnCheckMember" >&2
@@ -425,7 +425,7 @@ case "$1" in
 		if [ ${#partitionScopes[@]} -eq 0 ] ; then
 			partitionQueue="${spawnMembers[*]}"
 		else
-			for spawnMember in "${spawnMembers[@]}" ; do
+			for spawnMember in ${spawnMembers[@]+"${spawnMembers[@]}"} ; do
 				for partitionScopeAt in "${!partitionScopes[@]}" ; do
 					partitionQueue="$partitionQueue${partitionQueue:+ }$spawnMember@$(( partitionScopeAt + 1 ))"
 				done
@@ -495,13 +495,13 @@ case "$1" in
 			[ -z "$sessionCliService" ] || partitionArgs+=( --spawn-cli-service "$sessionCliService" )
 			[ -z "$sessionSettingsWorkspace" ] || partitionArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
 			[ -z "${sessionParentMember:-}" ] || partitionArgs+=( --parent-member "$sessionParentMember" )
-			{ printf '%s\0' "${partitionArgs[@]}" > "${partitionRecord%/*}/partition.args" \
+			{ printf '%s\0' ${partitionArgs[@]+"${partitionArgs[@]}"} > "${partitionRecord%/*}/partition.args" \
 				&& printf '%s\n' "$spawnTaskText" > "${partitionRecord%/*}/partition.task" \
 				&& printf '%s' "$recordNotes" > "${partitionRecord%/*}/partition.notes" \
 				&& printf '%s\n' ${partitionScopes[@]+"${partitionScopes[@]}"} > "${partitionRecord%/*}/partition.scopes" ; } \
 				|| { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: could not keep what the starts of the agent-less parent $partitionParentId are given -- nothing was started" >&2 ; set +e ; return 1 ; }
 		fi
-		for spawnMember in "${spawnMembers[@]}" ; do
+		for spawnMember in ${spawnMembers[@]+"${spawnMembers[@]}"} ; do
 			local spawnArgs=( "$spawnMember" --dispatch-doc:create )
 			if [ "$routineDefault" = "true" ] ; then
 				spawnArgs+=( --routine-default )
@@ -522,7 +522,7 @@ case "$1" in
 				## This operation starts a session, so its first spawn asks for one of its own:
 				## otherwise it would be brought into the calling session's.
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --context --spawn-session )" || { set +e ; return 1 ; }
+				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy ${spawnArgs[@]+"${spawnArgs[@]}"} --session-new --context --spawn-session )" || { set +e ; return 1 ; }
 				spawnSessionId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 				if [ -z "$spawnSessionId" ] ; then
 					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: the first spawn ($spawnMember) reported no SESSION_ID -- refusing to spawn the rest into no session" >&2
@@ -533,7 +533,7 @@ case "$1" in
 			else
 				spawnArgs+=( --session-id "$spawnSessionId" )
 				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --spawn-session > /dev/null || { set +e ; return 1 ; }
+				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy ${spawnArgs[@]+"${spawnArgs[@]}"} --context --spawn-session > /dev/null || { set +e ; return 1 ; }
 			fi
 		done
 		if [ "$partitionRoster" = "true" ] ; then

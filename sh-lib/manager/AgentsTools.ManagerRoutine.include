@@ -389,7 +389,7 @@ case "$1" in
 			slotsLine="$slotsExec" ; [ "$slotsSide" = executors ] || slotsLine="$slotsInv"
 			case "$slotsLine" in ''|none) continue ;; esac
 			IFS=',' read -r -a slotsList <<< "$slotsLine"
-			for slotsEntry in "${slotsList[@]}" ; do
+			for slotsEntry in ${slotsList[@]+"${slotsList[@]}"} ; do
 				slotsEntry="${slotsEntry#"${slotsEntry%%[![:space:]]*}"}" ; slotsEntry="${slotsEntry%"${slotsEntry##*[![:space:]]}"}"
 				[ -n "$slotsEntry" ] || continue
 				case "$slotsEntry" in

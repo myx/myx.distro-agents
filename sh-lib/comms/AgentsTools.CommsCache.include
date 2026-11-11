@@ -251,10 +251,10 @@ AgentsToolsCommsCacheSlackThread(){ ## member, <channel>:<thread ts>, the render
 		return 1
 	fi
 	tcArgs=( "$1" "$2" --thread )
-	[ -z "$tcFetch" ] || tcArgs=( "${tcArgs[@]}" --oldest "$tcFetch" )
-	[ "$4" != "true" ] || tcArgs=( "${tcArgs[@]}" --identity-bot )
+	[ -z "$tcFetch" ] || tcArgs=( ${tcArgs[@]+"${tcArgs[@]}"} --oldest "$tcFetch" )
+	[ "$4" != "true" ] || tcArgs=( ${tcArgs[@]+"${tcArgs[@]}"} --identity-bot )
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	if ! DistroAgentsTools --intern-op-comms-slack-read "${tcArgs[@]}" > "$3.read" 2> "$3.err" ; then
+	if ! DistroAgentsTools --intern-op-comms-slack-read ${tcArgs[@]+"${tcArgs[@]}"} > "$3.read" 2> "$3.err" ; then
 		AgentsToolsCommsCachePullGive "$tcDir" ; return 2
 	fi
 	## THE ONE RENDERING (epic S11): the read operation, this cache and the Wait render through AgentsToolsSlackFormatPagedConversation,
@@ -383,7 +383,7 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 ## is the posts of the whole pass, spent channel by channel in turn: a backlog of one channel never spends it all, and a workspace with
 ## many channels still makes only that many posts, so the pass that drains them still takes the console's messages and reads the threads.
 AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
-	local allOut allSeen=" " allMost="${2:-0}" allLeft allMade=0
+	local allOut allSeen=" " allMost="${2:-0}" allLeft allMade=0 allDir allCount=0 allShare allRound allBound
 	agentsCommsCachePushAllMade=0
 	[ -n "${MMDAPP:-}" ] || return 0
 	case "$allMost" in ''|*[!0123456789]*) allMost=0 ;; esac
@@ -392,10 +392,24 @@ AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
 		[ -f "$allOut" ] || continue
 		case "$allSeen" in *" ${allOut%/*} "*) continue ;; esac
 		allSeen="$allSeen${allOut%/*} "
-		[ "$allMost" = 0 ] || [ "$allLeft" -gt 0 ] || break
-		AgentsToolsCommsCachePush "${allOut%/*}" "$1" "$allLeft"
-		allMade=$(( allMade + agentsCommsCachePushMade ))
-		[ "$allMost" = 0 ] || allLeft=$(( allLeft - agentsCommsCachePushMade ))
+		allCount=$(( allCount + 1 ))
+	done
+	[ "$allCount" -gt 0 ] || return 0
+	## THE BOUND IS SHARED, NEVER SPENT IN FOLDER ORDER: each outbox first gets its share of the pass (at least one post), then what is left
+	## goes round again in order, so a full folder ahead of a small one never starves it.
+	allShare=0
+	[ "$allMost" = 0 ] || allShare=$(( ( allMost + allCount - 1 ) / allCount ))
+	for allRound in share rest ; do
+		[ "$allRound" = share ] || [ "$allMost" != 0 ] || break
+		for allDir in $allSeen ; do
+			[ -f "$allDir/outbox.pushing.txt" ] || [ -f "$allDir/outbox.messages.txt" ] || continue
+			[ "$allMost" = 0 ] || [ "$allLeft" -gt 0 ] || break 2
+			allBound="$allLeft"
+			[ "$allMost" = 0 ] || [ "$allRound" != share ] || [ "$allShare" -ge "$allLeft" ] || allBound="$allShare"
+			AgentsToolsCommsCachePush "$allDir" "$1" "$allBound"
+			allMade=$(( allMade + agentsCommsCachePushMade ))
+			[ "$allMost" = 0 ] || allLeft=$(( allLeft - agentsCommsCachePushMade ))
+		done
 	done
 	## What the pass posted in all, for the thread's own end: a thread that is posting is at work.
 	agentsCommsCachePushAllMade="$allMade"
@@ -541,7 +555,7 @@ AgentsToolsCommsCacheServe(){ ## cache folder, floor ts, head|nohead
 			body = dir "/" $1 ".body.txt"
 			if ( index($0, " [body: " $1 ".body.txt]") ) { while ( ( getline line < body ) > 0 ) { print line ; } close(body) ; next ; }
 			line = $0 ; gsub(/\037/, "\n", line) ; print line
-		}' "${serveFiles[@]}"
+		}' ${serveFiles[@]+"${serveFiles[@]}"}
 }
 
 ## Merges a fresh read (rendered: `<ts> | ...` lines, its first line a `## target=` head or not) into a channel's cache: each

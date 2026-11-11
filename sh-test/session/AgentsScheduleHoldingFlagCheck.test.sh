@@ -56,6 +56,8 @@ cat > "$rigTmp/prelude.sh" <<'PRELUDE'
 ## magic-team --select-default <key> <fallback> | --upsert <key> <value> | --delete <key>
 AgentsToolsConfigOption(){
 	local optVerb="$2" optKey optValue="" optLine=""
+	## The settings file is needed: an empty name would write `.next` into whatever folder the call stands in.
+	[ -n "${RIG_SETTINGS:-}" ] || { echo "⛔ ERROR: rig AgentsToolsConfigOption: RIG_SETTINGS is not set -- nothing was written" >&2 ; return 2 ; }
 	shift 2
 	optKey="${1:-}"
 	while IFS= read -r optLine ; do

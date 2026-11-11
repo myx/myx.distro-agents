@@ -204,7 +204,7 @@ AgentsToolsBoardLiveHolders(){
 		fm == 1 && index($0, "spawn-id: ") == 1 { spawn = substr($0, 11) }
 		fm == 1 && index($0, "status: ") == 1 { status = substr($0, 9) }
 		fm == 1 && index($0, "exit-code: ") == 1 { ended = 1 }
-	' "${holdersFiles[@]}" 2> /dev/null
+	' ${holdersFiles[@]+"${holdersFiles[@]}"} 2> /dev/null
 }
 
 AgentsToolsBoardItemHolders(){ ## item file -- the live runs of the owner and the participants: `member<TAB>spawn-id<TAB>session-id` a line

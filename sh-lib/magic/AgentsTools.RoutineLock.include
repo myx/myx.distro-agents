@@ -204,6 +204,18 @@ AgentsToolsRoutineLockPath(){ ## value
 	AgentsToolsInboxNotePath "${pathParsed%%$'\t'*}" "${pathParsed#*$'\t'}"
 }
 
+## WHO HOLDS A LOCK, AS AN EVENT-TRACK THREAD SAYS WHERE A SESSION RUNS: the headers a take writes beside `session-id`. `held-on` is
+## the host and the workspace, `held-at` the moment it was taken, and `held-by` the member of the session's run where its spawn
+## record already names one. A refusal names the holder by them, so a reader can tell a live holder from a dead one.
+AgentsToolsRoutineLockHolderHeaders(){ ## session id -- one --header:upsert word a line
+	local holderMember=""
+	printf -- '--header:upsert:held-on:%s %s\n' "$( hostname -s 2> /dev/null || printf unknown )" "${MMDAPP##*/}"
+	printf -- '--header:upsert:held-at:%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+	case "${1:-}" in ''|*/*|.|..) return 0 ;; esac
+	holderMember="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "owner: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$MMDAPP/.local/agents/spawned/$1/$1.spawn.md" 2> /dev/null )" || holderMember=""
+	[ -z "$holderMember" ] || printf -- '--header:upsert:held-by:%s\n' "$holderMember"
+}
+
 ## A frontmatter field of a note, its first value.
 AgentsToolsRoutineLockField(){ ## note path, field
 	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
@@ -249,7 +261,9 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 	AgentsToolsItemStaleCheck "$lockPath"
 	if [ "$itemHeld" = "true" ] ; then
 		[ "$itemSession" != "$lockSession" ] || return 0
-		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the routine is already running: its locking document $lockNote ($lockMember) is held by session ${itemSession:-<none>} (state ${itemState:-<none>}, recheck-date ${itemRecheck:-<none>}) -- nothing was started" >&2
+		local heldBy heldOn heldAt
+		heldBy="$( AgentsToolsRoutineLockField "$lockPath" held-by )" ; heldOn="$( AgentsToolsRoutineLockField "$lockPath" held-on )" ; heldAt="$( AgentsToolsRoutineLockField "$lockPath" held-at )"
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the routine is already running: its locking document $lockNote ($lockMember) is held by session ${itemSession:-<none>}${heldBy:+ of $heldBy}${heldOn:+ on $heldOn}${heldAt:+, taken $heldAt} (state ${itemState:-<none>}, recheck-date ${itemRecheck:-<none>}) -- nothing was started" >&2
 		return 1
 	fi
 	## With a remote: refuse a conflicted or uncommitted copy, resync, refuse again, then refuse a copy that is not the head's.
@@ -291,10 +305,13 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 		agentsRoutineLockOutput="${agentsRoutineLockOutput}$( printf '%s\n' "$lockOut" | LC_ALL=C grep -v -x -e 'ACQUIRED' -e 'RECLAIMED_STALE:.*' || : )"$'\n'
 	else
 		lockRecheck="$( AgentsToolsRecheckDate "$( AgentsToolsRoutineLockMinutes )" )" || lockRecheck=""
+		local lockHolder=()
+		while IFS= read -r lockStamp ; do [ -z "$lockStamp" ] || lockHolder+=( "$lockStamp" ) ; done <<< "$( AgentsToolsRoutineLockHolderHeaders "$lockSession" )"
 		if ! AgentsToolsItemUpsert "$lockMember" --from-inbox "$lockMember" "$lockNote" \
 			--header:upsert:state:"$lockShort-running" \
 			--header:upsert:session-id:"$lockSession" \
 			--header:upsert:recheck-date:"$lockRecheck" \
+			${lockHolder[@]+"${lockHolder[@]}"} \
 			--commit-message "* $lockShort.routine: spawner lock" \
 			--context --intern-op-agent-spawn-proxy > /dev/null
 		then
@@ -713,6 +730,16 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	else
 		updContent="$( cat )"
 	fi
+	## A WHOLE RECORD IS A RECORD, NEVER A PATCH: a JSON array given to the whole-record modes (standard input, --from-file) would
+	## land as the body of the note, so it is refused, and the patch mode named.
+	if [ -z "$updHeaders" ] && [ "$updMode" != "patch" ] ; then
+		case "$( printf '%s' "$updContent" | LC_ALL=C tr -d ' \t\r\n' | LC_ALL=C cut -c1 )" in
+			'[')
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: the content is a JSON array, a patch, and this mode writes a whole record, which would put the patch in the body -- nothing was written. NEXT: send the patch with --edit-patch-from-stdin" >&2
+				return 1
+			;;
+		esac
+	fi
 	AgentsToolsRoutineStateWrite "$updMember" "$updNote" "$updOp" "$updContent"
 	return $?
 }
@@ -804,6 +831,8 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 		[ "$takeLastClose" != "$( date +%Y-%m-%d )" ] || takeFirst="no"
 	fi
 	takeRecheck="$( AgentsToolsRecheckDate "$takeMinutes" )"
+	local takeHolder=() takeStamp
+	while IFS= read -r takeStamp ; do [ -z "$takeStamp" ] || takeHolder+=( "$takeStamp" ) ; done <<< "$( AgentsToolsRoutineLockHolderHeaders "$takeOwner" )"
 	if [ "$takeWord" = advance ] ; then
 		AgentsToolsItemRead "$takeMember" \
 			--from-inbox "$takeMember" "$takeNote" \
@@ -811,6 +840,7 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 			--commit-message "* advance.routine: activate, lock" \
 			--header:upsert:state:advance-running \
 			--header:upsert:recheck-date:"$takeRecheck" \
+			${takeHolder[@]+"${takeHolder[@]}"} \
 			--context "$takeOp" || return 1
 	else
 		AgentsToolsItemRead "$takeMember" \
@@ -818,6 +848,7 @@ AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
 			--acquire-lock "$takeOwner" \
 			--header:upsert:state:"$takeWord"-running \
 			--header:upsert:recheck-date:"$takeRecheck" \
+			${takeHolder[@]+"${takeHolder[@]}"} \
 			--context "$takeOp" || return 1
 	fi
 	if [ "$takeWord" = advance ] && [ -n "${originUrl:-}" ] && [ -n "${repoRoot:-}" ] ; then

@@ -140,7 +140,7 @@ case "$1" in
 			spawnMembers+=( "$spawnAlsoOne" )
 		done
 		local spawnEach spawnDutyRoutine="" spawnDutyRecord=""
-		for spawnEach in "${spawnMembers[@]}" ; do
+		for spawnEach in ${spawnMembers[@]+"${spawnMembers[@]}"} ; do
 			AgentsToolsManagerSpawnMemberCheck "$spawnOp" "$spawnEach" || { set +e ; return 1 ; }
 			## A work-duty is one a member: where the member's duty runs already, no second is started.
 			if [ "$spawnKind" = "work-duty" ] ; then
@@ -188,14 +188,14 @@ case "$1" in
 			free) spawnRoutineArgs=() ;;
 		esac
 		local spawnArgs spawnOut spawnSession="" spawnItem spawnKept
-		for spawnEach in "${spawnMembers[@]}" ; do
+		for spawnEach in ${spawnMembers[@]+"${spawnMembers[@]}"} ; do
 			spawnArgs=( "$spawnEach" --from-stdin --dispatch-doc:create )
 			if [ -z "$spawnSession" ] ; then spawnArgs+=( --session-new ) ; else spawnArgs+=( --session-id "$spawnSession" ) ; fi
 			spawnArgs+=( ${spawnRoutineArgs[@]+"${spawnRoutineArgs[@]}"} )
 			[ -z "$spawnName" ] || spawnArgs+=( --session-name-or-comment "$spawnName" )
 			[ -z "$spawnDescription" ] || spawnArgs+=( --description "$spawnDescription" )
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			spawnOut="$( printf '%s\n' "$spawnPrompt" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context "$spawnOp" )" || { set +e ; return 1 ; }
+			spawnOut="$( printf '%s\n' "$spawnPrompt" | DistroAgentsTools --intern-op-agent-spawn-proxy ${spawnArgs[@]+"${spawnArgs[@]}"} --context "$spawnOp" )" || { set +e ; return 1 ; }
 			[ -n "$spawnSession" ] || spawnSession="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 			spawnItem="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "DISPATCH_ITEM" { print $2 ; exit ; }' )"
 			if [ -z "$spawnSession" ] ; then

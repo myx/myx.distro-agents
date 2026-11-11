@@ -144,7 +144,7 @@ AgentsToolsCollectCommit(){ ## what, push (yes|no)
 	local commitCount="${#agentsCollectWritten[@]}"
 	[ "$commitCount" -gt 0 ] || return 0
 	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || { agentsCollectWritten=() ; return 0 ; }
-	AgentsToolsTeamDataCommitPaths "$1: $commitCount new note(s)" "${agentsCollectWritten[@]}"
+	AgentsToolsTeamDataCommitPaths "$1: $commitCount new note(s)" ${agentsCollectWritten[@]+"${agentsCollectWritten[@]}"}
 	agentsCollectWritten=()
 	[ "${2:-no}" != "yes" ] || AgentsToolsTeamDataPushIfAhead "source collection"
 	return 0

@@ -521,18 +521,18 @@ AgentsHarnessToolGlob(){
 	fi
 	## A pattern holding a slash is matched against the root-relative path as an anchored ERE, built here; ENVIRON, never -v.
 	case "$toolPattern" in
-		'')  find -L "$toolPath/" -maxdepth 1 -exec stat "${globStat[@]}" {} + || : ;;
-		*/*) find -L "$toolPath/" -type f | GLOB_ROOT="$toolPath/" GLOB_PATTERN="$toolPattern" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGlobFilterInline.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r stat "${globStat[@]}" ;;
-		*)   find -L "$toolPath/" -type f -name "$toolPattern" -exec stat "${globStat[@]}" {} + || : ;;
+		'')  find -L "$toolPath/" -maxdepth 1 -exec stat ${globStat[@]+"${globStat[@]}"} {} + || : ;;
+		*/*) find -L "$toolPath/" -type f | GLOB_ROOT="$toolPath/" GLOB_PATTERN="$toolPattern" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGlobFilterInline.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r stat ${globStat[@]+"${globStat[@]}"} ;;
+		*)   find -L "$toolPath/" -type f -name "$toolPattern" -exec stat ${globStat[@]+"${globStat[@]}"} {} + || : ;;
 	esac 2> "$harnessScratch/glob.err" | LC_ALL=C sort -n | LC_ALL=C awk '{ sub(/^[0-9]+\t/, "") ; print ; }' > "$harnessScratch/glob.out"
 	## find -ls over the sorted paths, in slices well under any argv limit; every path is absolute, so none reads as an expression.
 	if [ -n "$toolLong" ] ; then
 		globSlice=()
 		while IFS= read -r globLine ; do
 			globSlice+=( "$globLine" )
-			[ "${#globSlice[@]}" -lt 1000 ] || { find -L "${globSlice[@]}" -maxdepth 0 -ls || : ; globSlice=() ; }
+			[ "${#globSlice[@]}" -lt 1000 ] || { find -L ${globSlice[@]+"${globSlice[@]}"} -maxdepth 0 -ls || : ; globSlice=() ; }
 		done < "$harnessScratch/glob.out" > "$harnessScratch/glob.ls" 2>&1
-		[ "${#globSlice[@]}" -eq 0 ] || find -L "${globSlice[@]}" -maxdepth 0 -ls >> "$harnessScratch/glob.ls" 2>&1 || :
+		[ "${#globSlice[@]}" -eq 0 ] || find -L ${globSlice[@]+"${globSlice[@]}"} -maxdepth 0 -ls >> "$harnessScratch/glob.ls" 2>&1 || :
 		mv -f "$harnessScratch/glob.ls" "$harnessScratch/glob.out"
 	fi
 	cat "$harnessScratch/glob.err" >> "$harnessScratch/glob.out"
@@ -599,11 +599,11 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 			printf 'ERROR: unrecognized file type: %s. Known types: %s. Use glob for any other set of files, such as *.ext. Nothing was searched.\n' "${18}" "$( AgentsHarnessGrepTypeGlobs )" ; return 0
 		}
 		read -r -a typeGlobs <<< "$typeGlobs"
-		for typeGlob in "${typeGlobs[@]}" ; do
+		for typeGlob in ${typeGlobs[@]+"${typeGlobs[@]}"} ; do
 			[ "${#typeFind[@]}" -eq 0 ] || typeFind+=( -o )
 			typeFind+=( -name "$typeGlob" )
 		done
-		typeFind=( '(' "${typeFind[@]}" ')' )
+		typeFind=( '(' ${typeFind[@]+"${typeFind[@]}"} ')' )
 	fi
 	case "${toolGlob#\*\*/}" in
 		*/*) ;;
@@ -672,7 +672,7 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 				printf 'ERROR: glob has an empty {} group, so it would match every file, got: %s\n' "$toolGlob" ; return 0
 			fi
 			IFS=, read -r -a globAlts <<< "$globGroup"
-			for globAlt in "${globAlts[@]}" ; do
+			for globAlt in ${globAlts[@]+"${globAlts[@]}"} ; do
 				grepFlags+=( --include="$globPrefix$globAlt$globSuffix" )
 			done
 		;;
@@ -685,13 +685,13 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	{
 		case "$toolGlob" in
 			*/*)
-				find "$toolPath" -type f ${typeFind[@]+"${typeFind[@]}"} 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGlobFilterFunction.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+				find "$toolPath" -type f ${typeFind[@]+"${typeFind[@]}"} 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessGlobFilterFunction.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep ${grepFlags[@]+"${grepFlags[@]}"} -H -- "$toolRegex" 2>&1 || :
 			;;
 			*)
 				if [ "${#typeFind[@]}" -gt 0 ] ; then
-					find "$toolPath" -type f "${typeFind[@]}" 2>&3 | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+					find "$toolPath" -type f ${typeFind[@]+"${typeFind[@]}"} 2>&3 | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep ${grepFlags[@]+"${grepFlags[@]}"} -H -- "$toolRegex" 2>&1 || :
 				else
-					grep "${grepFlags[@]}" -- "$toolRegex" "$toolPath" 2>&1 || :
+					grep ${grepFlags[@]+"${grepFlags[@]}"} -- "$toolRegex" "$toolPath" 2>&1 || :
 				fi
 			;;
 		esac

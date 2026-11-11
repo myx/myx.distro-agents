@@ -61,20 +61,20 @@ AgentsWaitReadRendered(){ ## member, read target, thread|conversation, oldest (a
 		readRc=0
 	fi
 	readArgs=( "$readMember" "$readTarget" )
-	[ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] || readArgs=( "${readArgs[@]}" --identity-bot )
+	[ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] || readArgs=( ${readArgs[@]+"${readArgs[@]}"} --identity-bot )
 	if [ "$readKind" = "thread" ] ; then
-		readArgs=( "${readArgs[@]}" --thread )
+		readArgs=( ${readArgs[@]+"${readArgs[@]}"} --thread )
 	elif [ -n "$readOldest" ] ; then
-		readArgs=( "${readArgs[@]}" --oldest "$readOldest" )
+		readArgs=( ${readArgs[@]+"${readArgs[@]}"} --oldest "$readOldest" )
 	fi
 	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
-	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${readArgs[@]}" > "$readOut.read" 2> "$readOut.err" || readRc=$?
+	AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${readArgs[@]+"${readArgs[@]}"} > "$readOut.read" 2> "$readOut.err" || readRc=$?
 	## A conversation the user identity cannot see, such as the bot's own DM with a person, is read again as the bot --
 	## on our own side only: a client: target is the other organisation's, where an identity of ours reads nothing.
 	if [ "$readRc" != "0" ] && [ "${MDAT_WAIT_READ_AS_BOT:-}" != "true" ] && [ "${readTarget#client:}" = "$readTarget" ] && LC_ALL=C grep -q 'channel_not_found' "$readOut.err" 2> /dev/null ; then
 		readRc=0
 		type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include" --intern-op-comms-slack-read --print-required-scopes > /dev/null
-		AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read "${readArgs[@]}" --identity-bot > "$readOut.read" 2> "$readOut.err" || readRc=$?
+		AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-read ${readArgs[@]+"${readArgs[@]}"} --identity-bot > "$readOut.read" 2> "$readOut.err" || readRc=$?
 	fi
 	if [ "$readRc" != "0" ] ; then
 		[ ! -s "$readOut.err" ] || cat "$readOut.err" >&2
@@ -184,15 +184,16 @@ AgentsWaitFloorAdvance(){ ## session, source (slack:<channel>:<ts>:conversation)
 }
 
 ## One part of the tags: the lines of a rendering that are for the member, after the floor, PRINTED for the caller to
-## gather into its rendering behind a `# in <where>` line. <what> is `mentions` (the messages that mention the member) or the Slack account of the other party of a DM.
+## gather into its rendering behind a `# in <where>` line. <what> is `mentions` (the messages that mention the member), `dm-mentions` (the
+## same, in a DM, which no session-thread drop touches) or the Slack account of the other party of a DM.
 ## With a seventh word of 1 the messages are shown elsewhere, and only the fact is said here. An eighth word is the FYI note of a
 ## part that is for the member's knowledge only -- a session thread where its own instance is present: each row of it carries
 ## `[fyi: <note>]` in its head line, right after the sender, and a `# fyi: <note> -- for your knowledge, not yours to answer` line
 ## stands before the part. That mark is what a reader of the rows (AgentsToolsInputScanReportEmpty) tells a message of no work by.
 AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags rendering, [shown elsewhere], [the FYI note]
 	local partOut="$6.part" partText=""
-	partText="$( LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsToolsSessionChatMemberId "$1" )" -v addressees="$( [ "$3" = mentions ] || printf '%s' "$3" )" \
-		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( [ "$3" = mentions ] && printf 1 || printf 0 )" \
+	partText="$( LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsToolsSessionChatMemberId "$1" )" -v addressees="$( case "$3" in mentions|dm-mentions) ;; *) printf '%s' "$3" ;; esac )" \
+		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( case "$3" in mentions|dm-mentions) printf 1 ;; *) printf 0 ;; esac )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
 		< "$5" 2> /dev/null )" || return 1
 	## A mention the member already received through a session thread it takes part in is left out (AgentsWaitSessionReceivedDrop.awk).

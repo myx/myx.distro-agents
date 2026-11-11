@@ -119,7 +119,7 @@ AgentsToolsInputScanCachedCall(){ ## scan words (one a line), session or spawn i
 		fi
 	fi
 	while IFS= read -r callWord ; do callArgs+=( "$callWord" ) ; done <<< "$1"
-	DistroAgentsTools "${callArgs[@]}" > "$4" 2> "$5" || callRc=$?
+	DistroAgentsTools ${callArgs[@]+"${callArgs[@]}"} > "$4" 2> "$5" || callRc=$?
 	[ "$callRc" != 0 ] || [ -z "$cachedFile" ] || cp "$4" "$cachedFile" 2> /dev/null || :
 	return "$callRc"
 }
@@ -148,7 +148,7 @@ AgentsToolsInputScanDefOne(){ ## definition line, team member, session id, spawn
 	local oneWords oneWord oneArgs=() oneRc=0
 	oneWords="$( AgentsToolsInputScanDefWords "$1" "$2" "$3" "$4" )" || return 1
 	while IFS= read -r oneWord ; do oneArgs+=( "$oneWord" ) ; done <<< "$oneWords"
-	DistroAgentsTools "${oneArgs[@]}" > "$5" 2> "$5.err" || oneRc=$?
+	DistroAgentsTools ${oneArgs[@]+"${oneArgs[@]}"} > "$5" 2> "$5.err" || oneRc=$?
 	if [ "$oneRc" -ne 0 ] ; then
 		{ printf 'The input scan failed (exit %s):\n' "$oneRc" ; cat "$5.err" 2> /dev/null ; } >> "$5"
 	fi
@@ -284,7 +284,7 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 		[ ${#runFiles[@]} -eq 0 ] || cat "${runFiles[0]}" >> "$5"
 	else
 		type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
-		AgentsToolsMergeMdFiles --section-prefix 2 "${runMixins[@]}" > "$5" || runMergeRc=$?
+		AgentsToolsMergeMdFiles --section-prefix 2 ${runMixins[@]+"${runMixins[@]}"} > "$5" || runMergeRc=$?
 		## A merge that could not be made is said in the file the agent reads, and each report follows as it came: a start
 		## that went on with an empty file would read as a start with nothing to do.
 		if [ "$runMergeRc" -ne 0 ] ; then

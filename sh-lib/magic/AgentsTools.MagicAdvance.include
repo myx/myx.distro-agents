@@ -114,7 +114,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
 			--context --advance-to-parked \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 
@@ -198,7 +198,15 @@ case "$1" in
 				[ ! -f "$MDAT_DATA_ROOT/board/$roundState/$itemName" ] || { itemState="$roundState" ; break ; }
 			done
 			if [ -z "$itemState" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: no active state holds $itemName" >&2
+				## The item is found by its name, never by a state its caller names (states change while a caller thinks): where it now lies
+				## outside the active states is said, so the reader reads it there instead of searching.
+				local roundElsewhere=""
+				for roundState in $agentsBoardStates ; do
+					[ ! -f "$MDAT_DATA_ROOT/board/$roundState/$itemName" ] || { roundElsewhere="$roundState" ; break ; }
+				done
+				local roundWhere="it is in no state of the board"
+				[ -z "$roundElsewhere" ] || roundWhere="it is in $roundElsewhere now, where a round records no outcome"
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: no active state ($agentsBoardActiveStates) holds $itemName -- $roundWhere" >&2
 				failCount=$(( failCount + 1 )) ; continue
 			fi
 			## ONE WRITER, FOR ONE ROUND (S26.4, re-scoped by S16 stage 2 item 1). The document's

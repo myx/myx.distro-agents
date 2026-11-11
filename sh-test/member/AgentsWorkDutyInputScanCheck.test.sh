@@ -148,12 +148,14 @@ rigScan account
 rigAssert "a mention by its Slack account tags it too"               "$( [ "$( rigTook account )" -lt 20 ] && echo quick || echo "took:$( rigTook account )" ):$( rigHolds account '# returned: immediate' )" "quick:1"
 
 echo "-- 6. any DM, and a mention in the session thread --"
-rigScene dm 25
+## THE TEAM BOT'S DM IS THE COORDINATOR'S: a member with no account of its own (keeper-rig, here) lists the bot's DMs, and takes from
+## them only what tags it.
+rigScene dmbot 25
 printf '[{"id":"DRIGDM001","is_im":true,"is_mpim":false,"user":"URIGFRIEND","is_user_deleted":false,"is_member":true}]\n' > "$rigDir/dms.json"
-rigHistory DRIGDM001 "$( rigMsg "$(( rigNow - 30 )).000001" URIGFRIEND RIG-DM-HELLO )"
-rigScan dm
-rigAssert "a DM message, no mention in it, ends the collect at once"  "$( [ "$( rigTook dm )" -lt 20 ] && echo quick || echo "took:$( rigTook dm )" ):$( rigHolds dm '# returned: immediate' ):$( rigHolds dm RIG-DM-HELLO )" "quick:1:1"
-rigAssert "behind the conversation it is of"                          "$( rigHolds dm '# in DRIGDM001' )" 1
+rigHistory DRIGDM001 "$( rigMsg "$(( rigNow - 30 )).000001" URIGFRIEND RIG-BOTDM-UNTAGGED )" "$( rigMsg "$(( rigNow - 20 )).000001" URIGFRIEND 'RIG-BOTDM-TAGGED @keeper-rig look' )"
+rigScan dmbot
+rigAssert "in the bot's DM, a message that tags the member ends the collect; one that tags nobody is not the member's" "$( [ "$( rigTook dmbot )" -lt 20 ] && echo quick || echo "took:$( rigTook dmbot )" ):$( rigHolds dmbot RIG-BOTDM-TAGGED ):$( rigHolds dmbot RIG-BOTDM-UNTAGGED )" "quick:1:0"
+rigAssert "behind the conversation it is of"                          "$( rigHolds dmbot '# in DRIGDM001' )" 1
 rigScene thread 25
 printf 'CRIGSES01:%s.000001\n' "$(( rigNow - 400 ))" > "$rigWs/.local/agents/sessions/$rigSession/session.thread"
 ## The member's instance in that session: its run and the seat it holds. The thread is where that instance is present, so its messages are FYI.
