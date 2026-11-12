@@ -531,7 +531,7 @@ rigOp "$rigCurrent" --slack-react "session-parent:$rigMessage" eyes
 rigAssert "react session-parent:<ts>"                             "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "POST reactions.add channel=CPARENT1 timestamp=$rigMessage name=eyes" )" "0:yes"
 rigOp "$rigCurrent" --slack-react "event-alert:$rigMessage" eyes
 rigAssert "react event-alert:<ts>"                                "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "POST reactions.add channel=CRIGALERT timestamp=$rigMessage name=eyes" )" "0:yes"
-rigOp "$rigCurrent" --slack-react magic-team eyes
+rigOp "$rigCurrent" --slack-react --team-member magic-team eyes
 rigAssert "react on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-react: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names"
 rigAssert "the three reactions asked for were placed, and no other" "$( LC_ALL=C sort "$rigScenarioDir/reactions" | tr '\n' '|' )" "$rigMessage eyes|$rigMessage eyes|$rigMessage eyes|"
 rigAliasScene opMessageEdit

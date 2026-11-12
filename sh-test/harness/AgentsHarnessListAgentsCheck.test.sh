@@ -69,10 +69,12 @@ rigRecord rig-remote rig-sess-remote rig-elsewhere
 ## A board item the old lister would have read; the registry lister must not need it.
 printf -- '---\nstatus: dispatch-started\n---\n' > "$rigWs/data/board/running/dispatch-rig-board-only.md"
 
-## A waiting row (still started, no live process, an open ask against its session)
+## A waiting row: a live run in its Wait (its process here, its activity mark `tool Wait`, S27.4), with an open ask against
+## its session. Waiting is a live run's activity: a started record with no process is no waiting run.
 ## and a finished row (status written by AgentsToolsSpawnProxyCloseSandbox on close),
 ## for the running/waiting/finished state filter proof below.
 rigRecord rig-waiting rig-sess-waiting "$rigThisHost"
+mkdir -p "$rigWs/.local/agents/sessions/rig-sess-waiting" && printf '2026-10-19T10:05:00Z 1 tool Wait\n' > "$rigWs/.local/agents/sessions/rig-sess-waiting/activity"
 mkdir -p "$rigWs/.local/agents/pending"
 printf -- '---\nsession-id: rig-sess-waiting\nowner: rig-member\nstatus: reply-pending\nblocked-on: -\ncommunication-channel-id: -\n---\n' > "$rigWs/.local/agents/pending/rig-ask-waiting.md"
 rigRecord rig-finished rig-sess-finished "$rigThisHost" spawn-succeeded
@@ -100,7 +102,7 @@ rigHasSession(){ ## result file, session id -- yes or no, for the sessions view
 }
 
 echo "-- with a live process that runs as the session id --"
-printf '900001 rig-run --session-id %s\n' "$rigSession" > "$rigTmp/ps.list"
+printf '900001 rig-run --session-id %s\n900002 rig-run --session-id rig-sess-waiting\n' "$rigSession" > "$rigTmp/ps.list"
 rigList "$rigTmp/l1" MMDAPP="$rigWs"
 ## Full row, all thirteen fields: the empty-sandbox row's own columns, then
 	## live (unknown, since it carries no spawn-id at all) and state
@@ -162,7 +164,8 @@ rigAssert "the state filter failed keeps it, and drops a finished row" "$( rigSt
 
 echo "-- after the process ends --"
 : > "$rigTmp/ps.list"
-rigList "$rigTmp/l2" MMDAPP="$rigWs"
+## A liveness reading is served as measured for AGENTS_LIVENESS_TTL seconds (S23.6): this listing, seconds after the last, measures again.
+rigList "$rigTmp/l2" MMDAPP="$rigWs" AGENTS_LIVENESS_TTL=0
 rigAssert "the same record is gone"                    "$( rigRow "$rigTmp/l2" rig-local )" gone
 
 echo "-- control: no MMDAPP --"

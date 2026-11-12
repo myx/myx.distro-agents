@@ -97,18 +97,18 @@ printf -- '---\nlast-iteration-date: 2026-01-02\nlast-iteration-timestamp: rig-g
 rigAssert "a given value wins, once"                      "$( rigField "$rigHbNote" last-iteration-date ) $( rigField "$rigHbNote" last-iteration-timestamp ) $( LC_ALL=C grep -c '^last-iteration-date: ' "$rigHbNote" )" "2026-01-02 rig-given 1"
 
 echo "-- test report --"
-rigOp "$rigTmp/r1" --send-report magic-coordinator
+rigOp "$rigTmp/r1" --send-report --team-member magic-coordinator
 rigAssert "refused with no recipient configured"          "$( cat "$rigTmp/r1.rc" ):$( LC_ALL=C grep -c 'EMAIL_USER is not set' "$rigTmp/r1" )" "1:1"
 printf 'EMAIL_USER=owner@example.com\n' > "$rigTmp/ws/.local/.agents/human-owner.agent.env"
 printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_SMTP_HOST=smtp.rig.invalid\nEMAIL_SMTP_PORT=587\n' > "$rigTmp/ws/.local/.agents/magic-coordinator.agent.env"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
 rigContactSeed "$rigData" magic-coordinator rig-owner - owner@example.com
-rigOp "$rigTmp/r2" --send-report magic-coordinator
+rigOp "$rigTmp/r2" --send-report --team-member magic-coordinator
 rigAssert "sent once due"                                 "$( cat "$rigTmp/r2.rc" ):$( LC_ALL=C grep -c '^SENT:to=owner@example.com:' "$rigTmp/r2" )" "0:1"
 rigAssert "addressed to the configured owner"             "$( LC_ALL=C grep -c -x 'To: owner@example.com' "$rigTmp/r2" )" 1
-rigAssert "the body carries the counts and the items"     "$( LC_ALL=C grep -c -x -E -e '- running: 1' -e '- blocked/task-rig-blocked.md' "$rigTmp/r2" | tr -d ' ' )" 2
+rigAssert "the body carries the counts and the items"     "$( LC_ALL=C grep -c -x -E -e '➤ running: 1' -e '➤ blocked/task-rig-blocked.md' "$rigTmp/r2" | tr -d ' ' )" 2
 rigAssert "last-test-email-sent is stamped now"           "$( rigField "$rigHbNote" last-test-email-sent | cut -c1-10 )" "$( date -u +%Y-%m-%d )"
-rigOp "$rigTmp/r3" --send-report magic-coordinator
+rigOp "$rigTmp/r3" --send-report --team-member magic-coordinator
 rigAssert "inside the hour it is not due, and sends nothing" "$( cat "$rigTmp/r3.rc" ):$( LC_ALL=C grep -c '^NOT_DUE:' "$rigTmp/r3" ):$( LC_ALL=C grep -c '^To: ' "$rigTmp/r3" )" "0:1:0"
 rigAssert "curl was never reached"                        "$( [ -f "$rigTmp/curl.log" ] && echo reached || echo never )" never
 

@@ -22,7 +22,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator" "$rigData/inboxes/rig-member/incoming" "$rigData/inboxes/rig-member/processed" "$rigData/inboxes/rig-other/incoming" "$rigData/inboxes/rig-other/processed"
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-coordinator" "$rigSkills/magic-coordinator" "$rigData/inboxes/rig-member/incoming" "$rigData/inboxes/rig-member/processed" "$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-coordinator/processed"
 
 rigPassCount=0
 rigFailCount=0
@@ -62,24 +62,24 @@ rigOp(){ ## result file, op and arguments...
 
 echo "-- 1. the option --"
 rigQ1=inquiry-20261021T0000Z-rig-ask.md
-printf 'Please answer me.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/r1" --upsert-inbox-inquiry rig-other "$rigQ1" --reply
-rigAssert "a reply-requested inquiry is filed, the key is yes" "$( cat "$rigTmp/r1.rc" ):$( rigField "$( rigInc rig-other )/$rigQ1" reply-requested )" "0:yes"
+printf 'Please answer me.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/r1" --upsert-inbox-inquiry magic-coordinator "$rigQ1" --reply
+rigAssert "a reply-requested inquiry is filed, the key is yes" "$( cat "$rigTmp/r1.rc" ):$( rigField "$( rigInc magic-coordinator )/$rigQ1" reply-requested )" "0:yes"
 rigQ2=inquiry-20261021T0001Z-rig-plain.md
-printf 'No outcome wanted.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/r2" --upsert-inbox-inquiry rig-other "$rigQ2"
-rigAssert "an inquiry filed without --reply carries no reply-requested key" "$( cat "$rigTmp/r2.rc" ):$( rigField "$( rigInc rig-other )/$rigQ2" reply-requested )" "0:"
+printf 'No outcome wanted.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/r2" --upsert-inbox-inquiry magic-coordinator "$rigQ2"
+rigAssert "an inquiry filed without --reply carries no reply-requested key" "$( cat "$rigTmp/r2.rc" ):$( rigField "$( rigInc magic-coordinator )/$rigQ2" reply-requested )" "0:"
 
 echo "-- 2. the bound --"
 rigN1=note-20261021T0002Z-rig-note.md
-printf 'a note\n' | RIG_AGENT=rig-member rigOp "$rigTmp/b1" --upsert-inbox-note rig-member "$rigN1" --reply
+printf 'a note\n' | RIG_AGENT=rig-member rigOp "$rigTmp/b1" --upsert-inbox-note --team-member rig-member "$rigN1" --reply
 rigAssert "--reply is for an inquiry: a note is refused, nothing written" "$( cat "$rigTmp/b1.rc" ):$( [ -f "$( rigInc rig-member )/$rigN1" ] && echo written || echo absent ):$( rigHolds "$rigTmp/b1" '--reply is for an inquiry' )" "1:absent:yes"
 
 echo "-- 3. the reply --"
-RIG_AGENT=rig-other rigOp "$rigTmp/m1" --mark-inbox-processed rig-other "$rigQ1"
+RIG_AGENT=magic-coordinator rigOp "$rigTmp/m1" --mark-inbox-processed --team-member magic-coordinator "$rigQ1"
 rigNote="$( rigNoteName rig-member )"
 rigAssert "marking the reply-requested inquiry processed sends one note to the requester" "$( cat "$rigTmp/m1.rc" ):$( rigNotes rig-member ):$( [ -n "$rigNote" ] && echo one )" "0:1:one"
-rigAssert "the note: from the member that processed it, to the requester, saying it is processed" "$( rigField "$( rigInc rig-member )/$rigNote" type ):$( rigField "$( rigInc rig-member )/$rigNote" from ):$( rigField "$( rigInc rig-member )/$rigNote" owner ):$( rigHolds "$( rigInc rig-member )/$rigNote" "# Note: your inquiry $rigQ1 is processed" )" "note:rig-other:rig-member:yes"
+rigAssert "the note: from the member that processed it, to the requester, saying it is processed" "$( rigField "$( rigInc rig-member )/$rigNote" type ):$( rigField "$( rigInc rig-member )/$rigNote" from ):$( rigField "$( rigInc rig-member )/$rigNote" owner ):$( rigHolds "$( rigInc rig-member )/$rigNote" "# Note: your inquiry $rigQ1 is processed" )" "note:magic-coordinator:rig-member:yes"
 rigAssert "the note meets the note contract: the validator finds no row" "$( rigValidateNote "$( rigInc rig-member )/$rigNote" )" "0"
-RIG_AGENT=rig-other rigOp "$rigTmp/m2" --mark-inbox-processed rig-other "$rigQ2"
+RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --mark-inbox-processed --team-member magic-coordinator "$rigQ2"
 rigAssert "marking an inquiry filed without --reply sends no note" "$( cat "$rigTmp/m2.rc" ):$( rigNotes rig-member )" "0:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then

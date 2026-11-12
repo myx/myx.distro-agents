@@ -431,7 +431,7 @@ rigIndexOn
 rigAssert "unchanged: a member in the current workspace answers byte for byte as with no index at all, stderr included" "$rigWith" "$rigWithout"
 rigRunIn ws-here --agents-config-option magic-team --select SLACK_CHANNEL_MAGIC_TEAM
 rigAssert "magic-team as the member argument: the current workspace's channel" "$rigRc $( cat "$rigTmp/out" )" "0 CHERE0001"
-rigRunIn ws-here --slack-send-message keeper-here magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-here magic-team RIG-BODY
 rigAssert "its send: its own token, channel and header"                      "$( rigTokens )$( rigChannel ) $( rigText )" 'rig-user-token-KHERE CHERE0001 🔧 *_keeper-here_* @herakeep → @here.\nRIG-BODY'
 rm -f "$( rigView ws-here )/magic-team"
 rigRunIn ws-here --member-help keeper-here
@@ -462,12 +462,12 @@ rigAssert "accepted sibling: a member set root the caller set somewhere else is 
 rigPre=()
 rigSumThere="$( rigTreeSum ws-there )"
 rigPre=( MDSC_CACHED=/stale/cache MDSC_ID_RIGSTALE=stale )
-rigRunIn ws-here --slack-send-message keeper-there magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigInvitedEnv="$( rigEnvLine chat.postMessage )"
 rigAssert "it is not carried: when curl was called MMDAPP was the workspace it was called from, and the tooling origin was kept" "$rigRc $( rigEnvOf chat.postMessage MMDAPP ) $( rigEnvOf chat.postMessage ORIGIN )" "0 $rigWork/ws-here $MDLT_ORIGIN"
 rigAssert "its team data is that workspace's own"                          "$( rigEnvOf chat.postMessage DATAROOT )" "$rigWork/ws-here/.local/agents/team-data-root"
 rigAssert "the member's own workspace is left as it was: nothing written under its .local" "$( rigTreeSum ws-there )" "$rigSumThere"
-rigRunIn ws-here --slack-send-message keeper-here magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-here magic-team RIG-BODY
 rigAssert "the environment its call ran in is, field for field, the one a member set up here gets" "$rigInvitedEnv" "$( rigEnvLine chat.postMessage )"
 rigPre=()
 rigRunIn ws-here --agents-config-option keeper-nowhere --select WHERE
@@ -544,13 +544,13 @@ rigRunIn ws-third --agents-config-option magic-team --select SLACK_WORKSPACE_DOM
 rigAssert "never for the team's own settings: a workspace whose magic-team scope lacks one answers none, whatever the others hold" "$rigRc [$( cat "$rigTmp/out" )] $( rigFallbackSaid )" "0 [] 0"
 rigRunIn ws-here --agents-config-option keeper-unknown --select SLACK_USER_TOKEN
 rigAssert "never for a name the index does not know" "$rigRc [$( cat "$rigTmp/out" )] $( rigFallbackSaid )" "0 [] 0"
-rigRunIn ws-here --slack-send-message keeper-there magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigAssert "a whole operation says it once, however many settings it reads on the way" "$rigRc $( rigFallbackSaid ) $( rigN "$rigTmp/err" "# DistroAgentsSlack --slack-send-message: member 'keeper-there' holds no settings of its own in $rigWork/ws-here for SLACK_*, EMAIL_*, JIRA_*" )" "0 1 1"
 rigPre=( "MDAT_SKILLSET_ROOT=$( rigView ws-there )" )
-rigRunIn ws-here --slack-send-message keeper-there magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigAssert "and inside its own session, which already reads its member set root, a call does not say it again, and reads the same" "$rigRc $( rigFallbackSaid ) $( rigTokens )" "0 0 rig-user-token-KTHERE "
 rigPre=()
-rigRunIn ws-here --slack-send-message keeper-here magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-here magic-team RIG-BODY
 rigAssert "control: nothing is said for a member set up here" "$rigRc $( rigFallbackSaid ) $( rigTokens )" "0 0 rig-user-token-KHERE "
 rigWorld
 
@@ -567,7 +567,7 @@ rigAssert "accepted sibling: a call that already reads the member's root goes on
 rigPre=()
 rigTraceIn ws-here --agents-config-option keeper-multi --select WHERE
 rigAssert "a member whose workspace is not the first row: once too, under that workspace's view and no other" "$rigRc $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=$( rigView ws-third )" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" )" "0 1 1"
-rigTraceIn ws-here --slack-send-message keeper-there magic-team RIG-BODY
+rigTraceIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigAssert "a send, whose stub reaches its implementation and the Slack call under it by the same door: one re-run still, one post" "$rigRc $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" ) $( rigN "$rigTmp/trace" "$rigReRun" ) $( rigN "$rigTmp/calls" "chat.postMessage " )" "0 1 1 1"
 
 echo "-- 7. an invited member talks in the Slack of the workspace it was called from, under its own identity --"
@@ -576,31 +576,31 @@ echo "-- 7. an invited member talks in the Slack of the workspace it was called 
 ## team's bot are the calling workspace's; its own identity, a Slack setting ws-here holds none of for it, is read
 ## from the workspace it is set up in, and so are its mark and alias, its row of that workspace's names registry.
 rigWorld
-rigRunIn ws-here --slack-send-message keeper-there magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigAssert "its send goes to the team's channel of the workspace it was called from, under its own identity, which that workspace holds none of and its own does" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-user-token-KTHERE CHERE0001"
 rigAssert "under its own name, with the mark and alias of its row in the names registry of the workspace it is set up in: the calling workspace's registry holds no row for it" "$( rigText )" '🔧 *_keeper-there_* @therekeep → @here.\nRIG-BODY'
 rigAssert "nothing of the team of the workspace it is set up in is used: not its bot, not its channel" "$( rigN "$rigTmp/calls" 'bot-token-THERE' ) $( rigN "$rigTmp/bodies" 'CTHERE0001' )" "0 0"
-rigRunIn ws-here --slack-read keeper-there magic-team
+rigRunIn ws-here --slack-read --team-member keeper-there magic-team
 rigAssert "its read is made under the same identity"                       "$rigRc $( rigHistoryToken )" "0 rig-user-token-KTHERE "
-rigRunIn ws-here --slack-send-message keeper-multi magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-multi magic-team RIG-BODY
 rigAssert "a member with no identity of its own in either workspace posts as the team bot of the workspace it was called from, in that team's channel" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-bot-token-HERE CHERE0001"
-rigRunIn ws-here --slack-react keeper-there CHERE0001:1.000001 eyes
+rigRunIn ws-here --slack-react --team-member keeper-there CHERE0001:1.000001 eyes
 rigAssert "an error says which Slack the call used and that it is the one of the workspace the operation runs in" "$( rigN "$rigTmp/err" "THIS CALL USED the Slack here.slack.invalid, by the settings of the workspace $rigWork/ws-here (the workspace this operation runs in)" )" 1
 rigAssert "and that a conversation of another Slack is not a missing bot"  "$( rigN "$rigTmp/err" 'check which Slack the target belongs to before reading this as a bot that is not in the channel' )" 1
 rigAssert "and where the member's own Slack settings were read from, being another workspace's" "$( rigN "$rigTmp/err" "(the workspace this operation runs in), the member's own Slack settings read from $rigWork/ws-there, the workspace it is set up in" )" 1
-rigRunIn ws-here --slack-react keeper-here CHERE0001:1.000001 eyes
+rigRunIn ws-here --slack-react --team-member keeper-here CHERE0001:1.000001 eyes
 rigAssert "control: for a member set up here the same error names this workspace's settings and no other workspace" "$( rigN "$rigTmp/err" "by the settings of the workspace $rigWork/ws-here (the workspace this operation runs in)" ) $( rigN "$rigTmp/err" "the member's own Slack settings read from" )" "1 0"
-rigRunIn ws-here --slack-react client-ndm CHERE0001:1.000001 eyes
+rigRunIn ws-here --slack-react --team-member client-ndm CHERE0001:1.000001 eyes
 rigAssert "nor for a client on our own organisation's side, where its own Slack settings are not read at all, wherever it is set up" "$( rigN "$rigTmp/err" "by the settings of the workspace $rigWork/ws-here (the workspace this operation runs in)" ) $( rigN "$rigTmp/err" "the member's own Slack settings read from" )" "1 0"
 printf '%s\n' 'keeper-there 🔧 There Keeper therekeep' >> "$rigWork/ws-here/.local/agents/team-members-names.registry"
-rigRunIn ws-here --slack-send-message keeper-there magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigAssert "accepted sibling: with a row for it in the names registry of the workspace it was called from, its header is that row's" "$( rigTokens )$( rigText )" 'rig-user-token-KTHERE 🔧 *_keeper-there_* @therekeep → @here.\nRIG-BODY'
 rigScopeOf ws-here keeper-there 'SLACK_USER_TOKEN=rig-user-token-KTHEREINHERE'
-rigRunIn ws-here --slack-send-message keeper-there magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigAssert "accepted sibling: with an identity for it in the settings of the workspace it was called from, it posts under that one, and its own workspace's is not read" "$rigRc $( rigTokens )$( rigChannel ) $( rigN "$rigTmp/calls" 'KTHERE ' )" "0 rig-user-token-KTHEREINHERE CHERE0001 0"
-rigRunIn ws-there --slack-send-message keeper-here magic-team RIG-BODY
+rigRunIn ws-there --slack-send-message --team-member keeper-here magic-team RIG-BODY
 rigAssert "and the other way: called from ws-there, a member set up only in ws-here posts under its own identity in ws-there's channel" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-user-token-KHERE CTHERE0001"
-rigRunIn ws-there --slack-send-message keeper-there magic-team RIG-BODY
+rigRunIn ws-there --slack-send-message --team-member keeper-there magic-team RIG-BODY
 rigAssert "control: called from the workspace it is set up in, its own identity, channel and header there" "$( rigTokens )$( rigChannel ) $( rigText )" 'rig-user-token-KTHERE CTHERE0001 🔧 *_keeper-there_* @therekeep → @here.\nRIG-BODY'
 
 echo "-- 8. a client-* member is invited like any other: its operation runs in the workspace it was called from --"
@@ -626,29 +626,29 @@ rigRunIn ws-here --member-help client-ndm
 rigAssert "its skillset is read from the view of the workspace it is set up in"  "$rigRc $( rigHelpNames "$( rigView ws-there )/client-ndm/client-ndm.armed.md" )" "0 1"
 rigSumThere="$( rigTreeSum ws-there )"
 rigPre=( MDSC_CACHED=/stale/cache MDSC_ID_RIGSTALE=stale "MDAT_DATA_ROOT=$rigWork/ws-here/.local/agents/team-data-root" )
-rigRunIn ws-here --slack-send-message client-ndm magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member client-ndm magic-team RIG-BODY
 rigClientEnv="$( rigEnvLine chat.postMessage )"
 rigAssert "its send is not carried: when curl was called MMDAPP was the workspace it was called from, the tooling origin was kept, and so was the data root the caller carried" "$rigRc $( rigEnvOf chat.postMessage MMDAPP ) $( rigEnvOf chat.postMessage ORIGIN ) $( rigEnvOf chat.postMessage DATAROOT )" "0 $rigWork/ws-here $MDLT_ORIGIN $rigWork/ws-here/.local/agents/team-data-root"
-rigRunIn ws-here --slack-send-message keeper-here magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member keeper-here magic-team RIG-BODY
 rigAssert "the environment its call ran in is, field for field, the one a member set up here gets" "$rigClientEnv" "$( rigEnvLine chat.postMessage )"
 rigPre=()
-rigRunIn ws-here --slack-send-message client-ndm magic-team RIG-BODY
+rigRunIn ws-here --slack-send-message --team-member client-ndm magic-team RIG-BODY
 rigAssert "a --member- send of a client reaches our own team: the bot and the channel of the workspace it was called from" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-bot-token-HERE CHERE0001"
 rigAssert "under its own name, with the mark of its row in the names registry of the workspace it is set up in, its member name as its alias and never its persona's, and its metadata" "$( rigText ) $( rigN "$rigTmp/bodies" '"metadata"' )" '🐭 *_client-ndm_* → @here.\nRIG-BODY 1'
 rigAssert "no token the client holds was used, in either workspace, and nothing of the workspace it is set up in" "$( rigN "$rigTmp/calls" 'NDMHERE' ) $( rigN "$rigTmp/calls" 'NDMTHERE' ) $( rigN "$rigTmp/calls" 'token-THERE' ) $( rigN "$rigTmp/bodies" 'CTHERE0001' )" "0 0 0 0"
-rigRunIn ws-here --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
+rigRunIn ws-here --client-comms-slack-send-message --team-member client-ndm CNDM00001 RIG-BODY
 rigAssert "a --client- send of the same client reaches the other organisation: the token this workspace holds for the client, the conversation named by its id" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-user-token-NDMHERE CNDM00001"
 rigAssert "under the names of the persona member's row in this workspace's registry, which is an invited client's row, with no client identifier and no metadata in the payload" "$( rigText ) $( rigN "$rigTmp/bodies" 'client-ndm' ) $( rigN "$rigTmp/bodies" '"metadata"' )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY 0 0'
 rigAssert "it ran in the workspace it was called from, and the team's bot and the other workspace's token for the client were not used" "$( rigEnvOf chat.postMessage MMDAPP ) $( rigN "$rigTmp/calls" 'rig-bot-token' ) $( rigN "$rigTmp/calls" 'NDMTHERE' )" "$rigWork/ws-here 0 0"
 rigAssert "the workspace the client is set up in is left as it was: nothing written under its .local" "$( rigTreeSum ws-there )" "$rigSumThere"
-rigRunIn ws-here --client-comms-jira-board-list client-ndm
+rigRunIn ws-here --client-comms-jira-board-list --team-member client-ndm
 rigAssert "a --client-* Jira operation runs here too: the call goes to the site this workspace's scope holds for the client, as that scope's user"  "$rigRc $( LC_ALL=C awk '$1 == "http" { print $2, $3 }' "$rigTmp/calls" ) $( rigEnvOf http MMDAPP )" "0 jira-here.invalid ndm-here@rig.invalid $rigWork/ws-here"
-rigRunIn ws-rig --client-comms-jira-board-list client-ndm
+rigRunIn ws-rig --client-comms-jira-board-list --team-member client-ndm
 rigAssert "from a workspace the index has no row for: its own scope's site" "$( LC_ALL=C awk '$1 == "http" { print $2, $3 }' "$rigTmp/calls" )" "jira-rig.invalid rig@rig.invalid"
-rigRunIn ws-rig --client-comms-slack-send-message client-ndm CRIG000001 RIG-BODY
+rigRunIn ws-rig --client-comms-slack-send-message --team-member client-ndm CRIG000001 RIG-BODY
 rigAssert "and there its own token and row for the client" "$( rigTokens )$( rigChannel ) $( rigText )" 'rig-user-token-NDMRIG CRIG000001 🐭 *_Rig Persona_* @rigalias → @here.\nRIG-BODY'
 rigIndexOff
-rigRunIn ws-here --client-comms-jira-board-list client-ndm
+rigRunIn ws-here --client-comms-jira-board-list --team-member client-ndm
 rigAssert "control: with no index the client is not invited, and is not set up here: refused, naming this workspace's view, no call made" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "no such member skill directory: $( rigView ws-here )/client-ndm" )" "1 0 1"
 rigIndexOn
 rigRunIn ws-here --intern-op-client-sweep-input-scan keeper-nowhere
@@ -656,7 +656,7 @@ rigAssert "a --client-* operation names the same refusal for a known member in n
 rigRunIn ws-here --intern-op-client-sweep-input-scan client-ndm
 rigAssert "accepted sibling: a client set up in another workspace is not refused there, its own operation answers" "$( rigN "$rigTmp/err" "present in no tracked workspace" ) $( rigN "$rigTmp/err" "is not present on this machine" )" "0 0"
 rm -f "$( rigView ws-there )/client-ndm"
-rigRunIn ws-here --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
+rigRunIn ws-here --client-comms-slack-send-message --team-member client-ndm CNDM00001 RIG-BODY
 rigAssert "(c) a client whose skillset cannot be brought is stopped as any invited member is, by name, and nothing is called" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --client-comms-slack-send-message: member 'client-ndm' cannot be brought into the workspace this operation runs from, $rigWork/ws-here: its skillset cannot be read -- nothing was done." )" "1 0 1"
 rigMemberAt ws-there client-ndm
 
@@ -1064,13 +1064,13 @@ done
 rigNoteOwner(){ ## -- whose workspace the note read last is: the RIG-<w>-SESSION it holds
 	LC_ALL=C grep -o -m1 'RIG-[a-z]*-SESSION' "$rigTmp/out" "$rigTmp/err" | LC_ALL=C sed 's/^.*://'
 }
-rigRunIn ws-here --get-inbox-item keeper-there note-20260809T155000Z-rig-read.md
+rigRunIn ws-here --get-inbox-item --team-member keeper-there note-20260809T155000Z-rig-read.md
 rigAssert "a read of the team data naming an invited member reads the team data of the workspace it was called from, not the member's" "$( rigNoteOwner )" "RIG-here-SESSION"
-rigRunIn ws-here --get-inbox-item keeper-here note-20260809T155000Z-rig-read.md
+rigRunIn ws-here --get-inbox-item --team-member keeper-here note-20260809T155000Z-rig-read.md
 rigAssert "control: for a member set up here it reads the same, this workspace's own"     "$( rigNoteOwner )" "RIG-here-SESSION"
-rigRunIn ws-there --get-inbox-item keeper-there note-20260809T155000Z-rig-read.md
+rigRunIn ws-there --get-inbox-item --team-member keeper-there note-20260809T155000Z-rig-read.md
 rigAssert "control: called from the member's own workspace it reads that one's"     "$( rigNoteOwner )" "RIG-there-SESSION"
-rigRunIn ws-here --get-inbox-item keeper-pre note-20260809T155000Z-rig-read.md
+rigRunIn ws-here --get-inbox-item --team-member keeper-pre note-20260809T155000Z-rig-read.md
 rigAssert "(a) a read of the team data names the same refusal"     "$rigRc $( rigN "$rigTmp/err" "member 'keeper-pre' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 1"
 rigRootIn(){ ## workspace, args... -- --intern-root-harness from that workspace
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
@@ -1220,7 +1220,7 @@ rigReturnItem(){ ## item stem -- that task on ws-here's board, running
 }
 rigReturn(){ ## item stem -- the coordinator returns that item for corrections; the restart it makes is waited for
 	rigPayClear
-	rigRunIn ws-here --return-review magic-coordinator "$1" --message "RIG-CORRECTIONS"
+	rigRunIn ws-here --return-review --team-member magic-coordinator "$1" --message "RIG-CORRECTIONS"
 	rigSettle HERE
 }
 rigReturnItem task-rig-paid
@@ -1244,7 +1244,7 @@ rigSpawnDocIn ws-here keeper-multi --from-board task-rig-gone.md --board-state r
 LC_ALL=C sed 's/^paying-workspace: ws-there$/paying-workspace: ws-nowhere/' "$( rigRecordOf ws-here keeper-multi )" > "$rigTmp/record.gone" && cat "$rigTmp/record.gone" > "$( rigRecordOf ws-here keeper-multi )"
 rigSpawnedBefore="$( rigSpawnedCount ws-here )"
 rigPayClear
-rigRunIn ws-here --return-review magic-coordinator task-rig-gone --message "RIG-CORRECTIONS"
+rigRunIn ws-here --return-review --team-member magic-coordinator task-rig-gone --message "RIG-CORRECTIONS"
 rigAssert "a record naming a workspace this machine no longer knows: the session is not restarted, said with the spawn's own reason, and nothing is started on another workspace's settings in its place" "$rigRc [$( rigLaunched )] $(( $( rigSpawnedCount ws-here ) - rigSpawnedBefore )) $( LC_ALL=C grep -c "^RETURN: not restarted: the spawn of keeper-multi for task-rig-gone failed (rc 1): .*'ws-nowhere' is named to pay for this spawn of keeper-multi (--spawn-settings-workspace), and no workspace this machine knows has that name" "$rigTmp/out" || : )" "1 [] 0 1"
 sleep 3
 rigPayClear

@@ -61,7 +61,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **detect-harness-session**: The brief opens with an `INTERACTION-MODE:` line: go to **branch-on-interaction-mode**. Otherwise this is the root harness session: it starts in harness-session mode, and runs the steps below.
 2. **route-execution-channel**: From the first action on, every `DistroAgentsTools` call follows "Execution mechanisms", in every mode, rules:
-   - rule: only `team-fix-session` may act on files. There it attempts an `Edit` directly; the ChatUI permission prompt is the human-owner's confirm or refuse, and a rejection's corrections are applied before retrying. A `Write` that succeeds is not itself his approval.
+   - rule: only `team-fix-session` may act on files, and only under a permission the row leaves that mode: an allow row for the write tools, or the human-owner's grant for that session. Without one the mode cannot start. With one, the ChatUI permission prompt is his confirm or refuse, and a rejection's corrections are applied before retrying. A write that succeeds is not itself his approval.
    - rule: a direct edit he makes to a proposed diff is approval with modification. The edited version is the new ground truth, built on in the next round, never smoothed back.
    - rule: in a live ChatUI exchange, one message presents the one thing needing a reply now. Several options for one decision may go together.
 3. **select-operating-mode**: Casual talk with nothing attached gets a plain reply, as `magic-coordinator.basic.md` allows. Otherwise arm first (`magic-coordinator.armed.md`, always, in every mode), assess, and choose:
@@ -69,7 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - `supervision-session` — **run-operating-mode-cycle** starts it in any of these cases:
      - the human-owner asks for it.
      - he leaves the team's work running and is away.
-     - `--current-flags` shows the rig `supervised` and no supervision session runs.
+     - `AgentDispatcherTools --flags` shows the rig `supervised` and no supervision session runs.
 4. **apply-harness-session-rules**: The root's standing rules:
    - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session, never assessed inline. It holds `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets a brief stating its requirements plainly, and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps ("What to hand off").
    - rule: "propose-only", "addressed to me" or small-looking is no exemption.
@@ -90,7 +90,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: source code is never edited here; it goes to a spawned coworking session in every mode.
    - rule: confined to this session's granted directories. Another checkout, even a sibling of the same repository, needs its own named go-ahead.
    - rule: assess-to-propose stages still spawn per **apply-harness-session-rules**. "Never spawns" means no nested self-directing `magic-coordinator`, not those bounded dispatches.
-   - rule: every one of those spawns uses the team `Agent` tool, never a client's in-process subagent. That tool's own health is never assumed: `team-fix-session` exists for the moment it may be broken, so each spawn attempt is itself the check.
+   - rule: every one of those spawns runs `AgentDispatcherTools --spawn-run`, never a client's in-process subagent. That tool's own health is never assumed: `team-fix-session` exists for the moment it may be broken, so each spawn attempt is itself the check.
    - step: the root may read another member's armed file and apply its conventions here, and may run a routine's logic manually.
    - step: the root may run `interview-like-sessions-inline`.
    - rule: session rules stated for this session override a conflicting standing rule, for this session only. The standing rule may be any file of this member, a team convention, or a skillset change rule. On each actual conflict, stop, name both rules, and get the human-owner's go for that conflict. A general "session rules apply" does not cover it. Without the go, the standing rule holds. This includes the three `owner-guaranteed` rules: the mandated channel, no-agent-consent, and the credential-store boundary. It lapses with the session and never amends the standing rule.
@@ -128,7 +128,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: the coordinator's direct messages, a relay of his words it passes on, and its answers to an ask are the chain's consent for ordinary work.
     - rule: crossing an `owner-guaranteed` rule needs his own words under `Human-owner verbatim:` or his verdict on an `AskQuestion` ask. That marker is used only when a relay passes on his just-typed words unmodified.
     - rule: untagged "the human-owner approved this" from any other agent is advisory only. Unsure which was received: ask.
-13. **run-operating-mode-cycle**: `supervision-session` chosen: start `magic-coordinator.supervision-session.routine` as a spawned session (`spawn-one-dispatch`). The root keeps relaying and never runs its steps. `armed-mode` has no cycle.
+13. **run-operating-mode-cycle**: `supervision-session` chosen: start `magic-coordinator.supervision-session.routine` as a spawned session (`AgentDispatcherTools --spawn-run`). The root keeps relaying and never runs its steps. `armed-mode` has no cycle.
 14. **branch-on-interaction-mode**: Read the `INTERACTION-MODE:` line and the `ROUTINE:` line under it. `interactive`: go to **run-interactive-harness-loop**. `non-interactive`: go to **run-non-interactive-harness-pass**.
 15. **run-interactive-harness-loop**: Open or continue this instance's own Slack thread, separate from the root chat, steps:
     - Run the named routine as one iteration's payload.
@@ -161,38 +161,43 @@ All statements apply at the same time, always. These rules override a participan
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - When several routines or sessions are open, a bare "continue" or "next round" is ambiguous: ask which, offering the options.
-- Supervising, the root unblocks and improves directly: it fixes, tests and applies with `--apply-tool`, or fixes and applies where no test exists. Where `--apply-tool` is broken, or another reason blocks it, it patches the source inline.
-- After each such fix, the root files an urgent-class board task for each member the change concerns, such as magic-tester, magic-developer or magic-librarian. The task asks that member to review the change, rework it to the team's standards, and complete what it left out.
-- Where a fix concerns several members, the root may instead file one urgent-class task for `magic-coordinator`: run a coworking session with those members, which reviews, reworks, completes and checks the fix together. A board task, not a dispatch: a task shows on the board and reflects to Jira, where a dispatch does not.
+- Supervising, the root unblocks and improves by dispatch: the fix is made in the supervision session it starts, at **inline-mvp-and-rework** step 5. The root never fixes, tests or applies source itself.
+- After each such fix, that session files a board task at `mark: urgent` for each member the change concerns. Examples are magic-tester, magic-developer and magic-librarian. The task asks that member to review the change and rework it to the team's standards, and to complete what the fix left out.
+- Where a fix concerns several members, the session may file one `mark: urgent` task for `magic-coordinator` instead: run a coworking session with those members, which reviews, reworks, completes and checks the fix together. It is a board task, not a dispatch: a task shows on the board and reflects to Jira, where a dispatch does not.
 - Each such fix, and its rework task, follows `magic-coordinator.supervision-session.routine`'s **inline-mvp-and-rework**.
 - While supervising, these rules override "source is outside every mode's reach" in the verbatim goals.
-- The root has no shell: it reads and acts on a rig through its own tools, `AgentDispatcherTools` (`--supervise-scan --workspace <path>`, `--spawns`, `--flags`, `--spawn-run --select-workspace <place>`), and on this workspace through `DistroAgentsDispatcher` and `DistroAgentsItems`.
-- A rig is stopped in order: set `holding`, then end its sessions, then end its schedule thread. It is resumed in order too: restart its schedule thread so it loads the current code, then clear `holding`.
-- After starting planned work, the root checks within one schedule pass that the board moves, from pending to running. A start that does not move is a blocker found now, and is unblocked or escalated at once.
-- Each round, the root reads the waiting sessions. One that has waited past a day is read: where its work is done, its handback is reviewed and the session closed, so finished work never sits waiting for days.
+- The root has no shell: it reads and acts on a rig through `AgentDispatcherTools` alone, with `--supervise-scan --workspace <path>`, `--spawns`, `--flags`, `--tasks` and `--spawn-run --select-workspace <place>`. It reaches this workspace and its board through that same file.
+- A rig is stopped in order: set `holding`, then end its sessions, then end its schedule thread. It is resumed in order too: restart its schedule thread so it loads the current code, then clear `holding`. The operations behind that order sit on tools the row denies this root, so the order is run for it (Gaps).
+- After starting planned work, the root checks within one schedule pass that the board moves, from pending to running, by reading the board with `--tasks`. A start that does not move is a blocker found now, and is unblocked or escalated at once.
+- Each round, the root reads the waiting sessions with `--spawns --waiting`. One that has waited past a day is read with `--supervise-read`. Where its work is done, its handback is reviewed and the session closed, so finished work never sits waiting for days. That review and close sit on tools the row denies this root, so they are run for it (Gaps).
 
 # Routine-specific tooling
 
-Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Its behaviour is read with `--member-help`. Steps use its name only.
+Every harness tool and `magic-tooling` operation this routine uses. A harness tool is called by its own name. An operation is called through the harness tool of its tool file, with `operation` and `args`. Steps use its name only.
 
 ## Harness tools
 
 - `AskQuestion` — asks one person one question, and waits in the same call. Pass `to` and `question`. Add `select` with `options` for a closed answer, and read the `VERDICT:` line.
-- `Agent` — the team tool that spawns a member, through `spawn-one-dispatch`. Never use a client's in-process subagent.
 - `Wait` — waits on the session thread, and on any `sources` you add. `RECEIVED` brings the new content. `TIMEOUT` is a normal result: call `Wait` with `mode=continue`. `DISMISSED` ends the run.
-- `BatchTools` — several tool calls in one round, much quicker for calls that do not depend on each other.
-- `Edit` and `Write` — only in `team-fix-session`. The permission prompt is the human-owner's confirm or refuse.
 - `RootSession` — `operation` is `mint`, `adopt` or `info`. `mint` returns a session id, its token and where to use them. `adopt` takes `session` and `token`. `info` returns the session this server carries.
 
 ## Tooling operations
 
-- `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
+- `--supervise-scan [--workspace <path>]... [--since <epoch>]` (`AgentDispatcherTools`)
+- `--supervise-read <run-id> [--tail <lines>] [--thread-lines <lines>] [--no-thread] [--no-checklist] [--log] [--workspace <path>]` (`AgentDispatcherTools`)
+- `--spawns [--active|--waiting|--all]` (`AgentDispatcherTools`)
+- `--flags` (`AgentDispatcherTools`)
+- `--tasks` (`AgentDispatcherTools`)
+- `--spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<--spawn-session options>]` (`AgentDispatcherTools`)
 
 ## Gaps
 
 A GAP is a planned tool the implementation lacks.
 
-- **GAP** the `supervised` flag (epic S13). `--current-flags` does not list it, so **select-operating-mode** cannot detect it yet.
+- **GAP** the `supervised` flag (epic S13). **select-operating-mode** cannot detect it yet: no permitted read is verified to list it.
+- **GAP** the operations behind a rig's stop and resume: setting and clearing `holding`, ending a rig's sessions, and ending or restarting its schedule thread sit on tools the row denies this root. Until a permitted route exists they are run for it.
+- **GAP** the operations behind a handback review and a session close: the review verdicts and the dismissal sit on tools the row denies this root. Until a permitted route exists a finished run stays waiting.
+- **GAP** the state read behind the board-moves check. `--tasks` prints the board's counts with the active items, and is not verified to state one item's state. So the check reads a count that changes, never the move itself.
 
 # Maintainer Notes
 

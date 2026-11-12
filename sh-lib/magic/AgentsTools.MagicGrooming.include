@@ -902,7 +902,7 @@ case "$1" in
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## team-roster (cache)"
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --get-roster "$callingMember"
+		DistroAgentsTools --get-roster --team-member "$callingMember"
 		## The board scope below is already all types / any owner, so an item a
 		## client-* member filed on the board has always been visible here. An
 		## INBOX item was not: the scan read inboxes/<calling member>/ alone, and an

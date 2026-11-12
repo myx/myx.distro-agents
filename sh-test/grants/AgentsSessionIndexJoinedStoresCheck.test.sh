@@ -199,7 +199,7 @@ rigAssert "and the served Write goes through, no error line" "$( rigWrite keeper
 ## one in the coworking session it works in, one in the session both runs were spawned from.
 rigPass(){ ## path, session -- the reference of the pass, or empty
 	rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-coord )
-	rigOp "$rigTmp/pass.out" --pass-permission magic-coordinator --to keeper-myx --tool Write --target "$1" --kind session --session-id "$2"
+	rigOp "$rigTmp/pass.out" --pass-permission --team-member magic-coordinator --to keeper-myx --tool Write --target "$1" --kind session --session-id "$2"
 	rigEnv=()
 	LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/pass.out" | head -1
 }

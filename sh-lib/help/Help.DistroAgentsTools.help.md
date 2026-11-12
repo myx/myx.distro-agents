@@ -7511,15 +7511,18 @@
 			of one contact, whole; rc 1 for an id not recorded. A store that is not there is
 			empty, and a read creates nothing.
 
-		--contacted-by <value> [--team <scope>]
+		--contacted-by <value> [--team <scope>] [--slack-team <team>]
 			Contacts' operation (DistroAgentsContacts.fn.sh): being contacted by a contact.
 			The sender looked up as `--find-contact` does: its record, then what the
-			permission model says it holds standing, the whole rules of the tier its record
-			names and of every tier below it, and the next step, the text of the template
-			`Contacts/contacted-known`. A record with no `tier:` gets the three tiers as they
-			were. A sender nobody recorded is said so with the next step
-			(`Contacts/contacted-unknown`), rc 1; a value that names more than one contact
-			prints their rows and asks for which, rc 1.
+			permission model says it holds standing, the whole rules of the tier the record
+			names for that scope and of every tier below it, and the next step, the text of
+			the template `Contacts/contacted-known`. `--team` names the project, product or
+			team whose tier is read, and of which the record holds one through
+			`--scope-tier`; left out, the record's own tier is read. `--slack-team` names the
+			Slack workspace the value is looked up in, as in `--find-contact`, since an
+			account id is unique within one workspace only. A sender nobody recorded is said
+			so with the next step (`Contacts/contacted-unknown`), rc 1; a value that names
+			more than one contact prints their rows and asks for which, rc 1.
 
 		--reach-contact <id>
 			Contacts' operation (DistroAgentsContacts.fn.sh): reaching a contact. Its

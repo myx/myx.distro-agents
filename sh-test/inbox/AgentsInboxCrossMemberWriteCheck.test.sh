@@ -36,16 +36,18 @@ rigViewB="$rigWsB/.local/agents/members"
 rigViewC="$rigWsC/.local/agents/members"
 rigIndex="$rigHome/.agents/magic-team/members.registry"
 mkdir -p "$rigHome/.agents/magic-team" "$rigViewA/rig-here" "$rigViewB/rig-elsewhere" \
-	"$rigViewC/rig-there" "$rigData/inboxes/rig-there/incoming"
+	"$rigViewC/rig-there" "$rigData/inboxes/rig-there/incoming" "$rigViewC/magic-coordinator" "$rigData/inboxes/magic-coordinator/incoming"
 printf 'rig\n' > "$rigViewA/rig-here/rig-here.basic.md"
 printf 'rig\n' > "$rigViewB/rig-elsewhere/rig-elsewhere.basic.md"
 printf 'rig\n' > "$rigViewC/rig-there/rig-there.basic.md"
+printf 'rig\n' > "$rigViewC/magic-coordinator/magic-coordinator.basic.md"
 ## the machine's member index: ws-a and ws-b are workspaces the caller knows, ws-c holds the members
 ## every call below writes to. A row for each workspace is what tells the resolver the caller's own
 ## workspace is tracked at all.
 printf '%s\t%s\tsource-symlink\tx\t%s\n' rig-here "$rigWsA" "$rigViewA/rig-here" > "$rigIndex"
 printf '%s\t%s\tsource-symlink\tx\t%s\n' rig-elsewhere "$rigWsB" "$rigViewB/rig-elsewhere" >> "$rigIndex"
 printf '%s\t%s\tsource-symlink\tx\t%s\n' rig-there "$rigWsC" "$rigViewC/rig-there" >> "$rigIndex"
+printf '%s\t%s\tsource-symlink\tx\t%s\n' magic-coordinator "$rigWsC" "$rigViewC/magic-coordinator" >> "$rigIndex"
 printf '%s\n' "$rigWsA" "$rigWsB" "$rigWsC" > "$rigHome/.agents/magic-team/known-workspaces.registry"
 printf 'rig-here\t%s\n' "$rigWsA" > "$rigHome/.agents/magic-team/member-homes.registry"
 
@@ -69,8 +71,8 @@ rigOp(){ ## acting member, args... -- stdout and stderr in out, rc in rigRc
 		MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_WAIT_REMIND=off \
 		bash "$rigFn" "$@" ) > "$rigTmp/out" 2>&1 < /dev/null || rigRc=$?
 }
-rigIn(){ ## item filename -- yes where it is in rig-there's incoming/, no otherwise
-	[ -f "$rigData/inboxes/rig-there/incoming/$1" ] && printf yes || printf no
+rigIn(){ ## item filename, member (default rig-there) -- yes where it is in that member's incoming/, no otherwise
+	[ -f "$rigData/inboxes/${2:-rig-there}/incoming/$1" ] && printf yes || printf no
 }
 rigSaid(){ ## fixed text -- how many lines of the last call's output hold it
 	LC_ALL=C grep -c -F -- "$2" "$rigTmp/out" 2> /dev/null || :
@@ -80,14 +82,16 @@ printf -- '---\ntype: inquiry\n---\n\nRIG-CROSS-ASK\n' > "$rigTmp/inq.md"
 printf -- '---\ntype: note\n---\n\nRIG-OWN-NOTE\n' > "$rigTmp/note.md"
 printf -- '---\ntype: reflection\n---\n\n# Reflection: rig\n\n## What happened\nrig\n\n## What this is worth\nrig\n' > "$rigTmp/refl.md"
 
+## AN INQUIRY GOES TO ONE PLACE, THE COORDINATOR BY DEFAULT: a member is written to directly only as the reply to its own inquiry, or as a
+## domain owner. The member this inquiry reaches is magic-coordinator, set up in ws-c alone.
 echo "-- 1. an inquiry reaches a member set up where the session's view does not look --"
-rigOp rig-elsewhere --upsert-inbox-inquiry rig-there inquiry-20261104T0900Z-rig-cross.md --from-file "$rigTmp/inq.md"
+rigOp rig-elsewhere --upsert-inbox-inquiry magic-coordinator inquiry-20261104T0900Z-rig-cross.md --from-file "$rigTmp/inq.md"
 rigAssert "the call succeeds" "$rigRc" 0
-rigAssert "the item is in that member's inbox" "$( rigIn inquiry-20261104T0900Z-rig-cross.md )" yes
+rigAssert "the item is in that member's inbox" "$( rigIn inquiry-20261104T0900Z-rig-cross.md magic-coordinator )" yes
 rigAssert "and it is the caller's own store that holds it: the workspace it runs from, not the member's" \
-	"$( [ -f "$rigWsC/.local/agents/team-data-root/inboxes/rig-there/incoming/inquiry-20261104T0900Z-rig-cross.md" ] && printf member-store || printf caller-store )" caller-store
+	"$( [ -f "$rigWsC/.local/agents/team-data-root/inboxes/magic-coordinator/incoming/inquiry-20261104T0900Z-rig-cross.md" ] && printf member-store || printf caller-store )" caller-store
 rigAssert "no refusal was said" "$( rigSaid x 'cannot be brought into the workspace' )" 0
-rigAssert "the write stamped the writer's workspace on it (S12.18)" "$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "from-workspace: ") == 1 { print substr($0, 17) }' "$rigData/inboxes/rig-there/incoming/inquiry-20261104T0900Z-rig-cross.md" )" "${rigWsA##*/}"
+rigAssert "the write stamped the writer's workspace on it (S12.18)" "$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit } index($0, "from-workspace: ") == 1 { print substr($0, 17) }' "$rigData/inboxes/magic-coordinator/incoming/inquiry-20261104T0900Z-rig-cross.md" )" "${rigWsA##*/}"
 
 echo "-- 2. a note and a reflection from a session whose own member is set up there alone --"
 rigOp rig-there --upsert-inbox-note note-20261104T0901Z-rig-own.md --from-file "$rigTmp/note.md"
@@ -107,10 +111,10 @@ rigAssert "and nothing is written for it" "$( ls "$rigData/inboxes" 2> /dev/null
 
 echo "-- 4. the caller's own member-set view is not the gate --"
 rigAssert "control: the member written to is unknown to the root the session carries" \
-	"$( [ -d "$rigViewB/rig-there" ] && printf known || printf unknown )" unknown
+	"$( [ -d "$rigViewB/magic-coordinator" ] && printf known || printf unknown )" unknown
 rigAssert "control: and it is unknown to the caller's own view as well" \
-	"$( [ -d "$rigViewA/rig-there" ] && printf known || printf unknown )" unknown
-rigAssert "the write above landed all the same" "$( rigIn inquiry-20261104T0900Z-rig-cross.md )" yes
+	"$( [ -d "$rigViewA/magic-coordinator" ] && printf known || printf unknown )" unknown
+rigAssert "the write above landed all the same" "$( rigIn inquiry-20261104T0900Z-rig-cross.md magic-coordinator )" yes
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ INBOX CROSS-MEMBER WRITE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

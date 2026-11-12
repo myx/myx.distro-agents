@@ -70,7 +70,7 @@ AgentsToolsBatchCancel(){ ## folder, call number
 ## mode, and the result as text or, with format json, as one JSON object.
 AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 	local batchRunner="$1" batchServes="$2" batchArgs="$3" batchMode batchWorkers batchFormat batchCount batchAt batchTool
-	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine
+	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine batchPid=""
 	batchMode="$( AgentsToolsBatchArg "$batchArgs" mode )"
 	## NO MODE IS AUTO: every call that only reads (Read, Grep, Glob, a Bash command that is a pure read) runs at once, and any batch
 	## holding one call that may write runs one call after another, every one. A Bash call is a write unless it matches a known read.
@@ -146,7 +146,20 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 			batchNext=1 batchStarted=""
 			while : ; do
 				batchRunning=0
-				for batchAt in $batchStarted ; do [ -f "$batchDir/$batchAt.rc" ] || batchRunning=$(( batchRunning + 1 )) ; done
+				for batchAt in $batchStarted ; do
+					[ ! -f "$batchDir/$batchAt.rc" ] || continue
+					## A CALL WITH NO PROCESS AND NO STATUS NEVER ENDS ON ITS OWN: its fork failed (the process limit), or it was killed
+					## before it wrote its status, which it writes before it exits. It ends here as an error, so the pool does not wait for ever.
+					batchPid="" ; IFS= read -r batchPid < "$batchDir/$batchAt.pid" 2> /dev/null || batchPid=""
+					if [ -z "$batchPid" ] || ! kill -0 "$batchPid" 2> /dev/null ; then
+						if [ ! -f "$batchDir/$batchAt.rc" ] ; then
+							printf 'ERROR: BatchTools: call %s has no process and no status: it could not be started (fork failed) or it was ended before it finished -- nothing is known of its result.\n' "$batchAt" >> "$batchDir/$batchAt.out"
+							printf '1\n' > "$batchDir/$batchAt.rc"
+						fi
+						continue
+					fi
+					batchRunning=$(( batchRunning + 1 ))
+				done
 				if [ "$batchMode" = parallel-all-any-match ] ; then
 					for batchAt in $batchStarted ; do
 						[ -f "$batchDir/$batchAt.rc" ] && [ "$( AgentsToolsBatchStatus "$batchDir" "$batchAt" )" = ok ] && { batchFound="$batchAt" ; break ; }

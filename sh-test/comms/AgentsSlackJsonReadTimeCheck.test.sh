@@ -224,7 +224,7 @@ chmod +x "$rigTmp/bin/curl"
 	"MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
 	"MDAT_DATA_ROOT=$rigTmp/scn/data" "RIG_SCN=$rigTmp/scn" "MDAT_SPAWN_AGENT=keeper-rig" "MDAT_SESSION_ID=rig-session" \
 	"MDAT_SLACK_THREAD_CACHE_SECONDS=0" "MDAT_COMMS_READER=off" \
-	bash "$rigTools" --slack-read keeper-rig CRIG00001:1793715757.435389 ) > "$rigTmp/read.out" 2> "$rigTmp/read.err" || :
+	bash "$rigTools" --slack-read --team-member keeper-rig CRIG00001:1793715757.435389 ) > "$rigTmp/read.out" 2> "$rigTmp/read.err" || :
 rigFormAsk="$( LC_ALL=C grep '^conversations.replies ' "$rigTmp/scn/calls" 2> /dev/null | LC_ALL=C tail -1 )"
 rigAssert "the one-message read asks with oldest, inclusive and limit=1" \
 	"$( printf '%s' "$rigFormAsk" | LC_ALL=C grep -c -e 'oldest=1793715757.435389' -e 'inclusive=true' -e 'limit=1' )" "1"

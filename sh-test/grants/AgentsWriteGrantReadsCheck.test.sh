@@ -183,7 +183,7 @@ rigHelper "$rigTmp/set.out" AgentsTools.InternOpPermission.include AgentsToolsPe
 rigSet="$( LC_ALL=C sed -n 's/^task:Edit:[^:]*:human-owner:[^:]*:\(set-[0-9a-f-]*\)$/\1/p' "$rigSessions/rig-cow/grants" 2> /dev/null | head -1 )"
 [ -n "$rigSet" ] || { cat "$rigTmp/set.out" >&2 ; rigRefuse "the rig's permission set was not granted" ; }
 rigAssert "control: the set is one grant, an Edit of the folder, and the item's planned allow" \
-	"$( LC_ALL=C grep -c . "$rigSessions/rig-cow/grants" ):$( LC_ALL=C grep -c -x -F -- "task:Edit:$rigIn/**:human-owner:$( LC_ALL=C sed -n 's/^task:Edit:[^:]*:human-owner:\([^:]*\):set-.*$/\1/p' "$rigSessions/rig-cow/grants" ):$rigSet" "$rigSessions/rig-cow/grants" ):$( LC_ALL=C grep -c "^allows: task:Edit:$rigIn/\*\*:human-owner:" "$rigData/board/running/$rigTask.md" )" 1:1:1
+	"$( LC_ALL=C grep -c . "$rigSessions/rig-cow/grants" ):$( LC_ALL=C grep -c -x -F -- "task:Edit:$rigIn/**:human-owner:$( LC_ALL=C sed -n 's/^task:Edit:[^:]*:human-owner:\([^:]*\):set-.*$/\1/p' "$rigSessions/rig-cow/grants" ):$rigSet" "$rigSessions/rig-cow/grants" ):$( LC_ALL=C grep -c "^access-control: .*participants:allow-write:$rigIn/\*\*:human-owner:" "$rigData/board/running/$rigTask.md" )" 1:1:1
 rigAssert "control: the Edit it was asked for goes through" "$( rigEdit keeper-myx rig-run-1 "$rigIn/a.txt" )" edited
 rigAssert "a Read inside the folder is allowed"            "$( rigRead keeper-myx rig-run-1 "$rigIn/a.txt" ):$( rigRead keeper-myx rig-run-1 "$rigIn/sub/b.txt" )" read:read
 rigAssert "a Grep inside it is allowed"                    "$( rigGrep keeper-myx rig-run-1 "$rigIn" ):$( rigGrep keeper-myx rig-run-1 "$rigIn/sub" )" found:found
@@ -216,7 +216,7 @@ rigAssert "revoked: the Read is refused, as the Edit is"   "$( rigRead keeper-my
 echo "-- 3. a Write passed on for the session reads too, and ends with the session --"
 rigRecord rig-coord rig-cow magic-coordinator ""
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-coord )
-rigOp "$rigTmp/pass.out" --pass-permission magic-coordinator --to keeper-myx --tool Write --target "$rigWs/PASS/in/**" --kind session
+rigOp "$rigTmp/pass.out" --pass-permission --team-member magic-coordinator --to keeper-myx --tool Write --target "$rigWs/PASS/in/**" --kind session
 rigEnv=()
 rigPass="$( LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/pass.out" | head -1 )"
 [ -n "$rigPass" ] || { cat "$rigTmp/pass.out" >&2 ; rigRefuse "the coordinator's pass was not written" ; }

@@ -96,6 +96,7 @@ Concrete, ready-to-execute work.
 - `workspace-name` — a workspace's basename, or `unknown`.
 - `audit-path` — a path under the audit store, as the audit reader names it.
 - `epoch-seconds` — whole seconds since the epoch.
+- `routine` — a routine's file name without `.md`, such as `magic-team.research.routine`.
 
 ## Body
 

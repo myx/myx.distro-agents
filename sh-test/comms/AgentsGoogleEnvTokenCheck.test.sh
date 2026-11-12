@@ -30,6 +30,8 @@ DistroAgentsTools(){
 	echo "scope-read should not run: $*" >&2
 	return 1
 }
+## The scope is read through the setting reader (AgentsToolsConfigOption), the same answers as above.
+AgentsToolsConfigOption(){ DistroAgentsTools --agents-config-option "$@" ; }
 AgentsToolsAssertBareName(){ return 0 ; }
 AgentsToolsCommsOwnSideCheck(){ return 0 ; }
 

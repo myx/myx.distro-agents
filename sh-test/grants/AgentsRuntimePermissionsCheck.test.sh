@@ -146,21 +146,21 @@ rigSessionRows(){ ## session, member, ref -- index rows naming it
 
 echo "-- 1. place names in a permission set request --"
 RIG_AGENT=magic-coordinator RIG_SESSION=s-coord
-rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@rw-dir:sub/**" --entry "Read:$rigTmp/rw-dir/sub/a.md" --scope task --session-id s-coord
+rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@rw-dir:sub/**" --entry "Read:$rigTmp/rw-dir/sub/a.md" --scope task --session-id s-coord
 rigAssert "an @name entry resolves to the place's path"         "$( rigN "$rigTmp/out" "PLACE: Read:$rigTmp/rw-dir/sub/** is rw-dir:sub/**" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigTmp/rw-dir/sub/**" )" "1:1"
 rigAssert "an absolute path in a place shows its name:relative" "$( rigN "$rigTmp/out" "PLACE: Read:$rigTmp/rw-dir/sub/a.md is rw-dir:sub/a.md" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigTmp/rw-dir/sub/a.md" )" "1:1"
-rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@ro-dir" --scope task --session-id s-coord
+rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@ro-dir" --scope task --session-id s-coord
 rigAssert "a read in a read-only place is asked for, the whole place" "$( rigN "$rigTmp/out" "PLACE: Read:$rigTmp/ro-dir/** is ro-dir:**" ):$( rigN "$rigTmp/err" 'read-only place' )" "1:0"
-rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@rw-dir:**" --entry "Edit:@ro-dir:notes/**" --scope task --session-id s-coord
+rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@rw-dir:**" --entry "Edit:@ro-dir:notes/**" --scope task --session-id s-coord
 rigAssert "a write in a read-only place is refused at request time" "$rigRc:$( rigN "$rigTmp/err" "ro-dir is a read-only place, so no write is granted there: Edit:@ro-dir:notes/**" ):$( rigN "$rigTmp/out" 'PARTICIPANTS:' )" "1:1:0"
 rigAssert "naming the session sandbox output/ as the route"   "$( rigN "$rigTmp/err" "write to the session sandbox output/ instead, or a folder under it: $rigMain/.local/agents/spawned/sb-c/output/" )" 1
-rigRun --request-permission-set magic-coordinator task-rig --entry "Write:$rigTmp/ro-dir/x.txt" --scope task --session-id s-none
+rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Write:$rigTmp/ro-dir/x.txt" --scope task --session-id s-none
 rigAssert "an absolute path too; with no sandbox, another location" "$rigRc:$( rigN "$rigTmp/err" "ro-dir is a read-only place, so no write is granted there: Write:$rigTmp/ro-dir/x.txt -- find another suitable location" )" "1:1"
-rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@no-such:**" --scope task --session-id s-coord
+rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@no-such:**" --scope task --session-id s-coord
 rigAssert "an unknown name is refused, said"                  "$rigRc:$( rigN "$rigTmp/err" 'unknown place: no-such' ):$( rigN "$rigTmp/out" 'PARTICIPANTS:' )" "1:1:0"
-rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@rw-dir:../ro-dir/**" --scope task --session-id s-coord
+rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@rw-dir:../ro-dir/**" --scope task --session-id s-coord
 rigAssert "a .. in the glob is refused"                        "$rigRc:$( rigN "$rigTmp/err" 'has a .. segment' )" "1:1"
-rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@rw-dir:*.md" --scope task --session-id s-coord
+rigRun --request-permission-set --team-member magic-coordinator task-rig --entry "Read:@rw-dir:*.md" --scope task --session-id s-coord
 rigAssert "a pattern glob the matcher cannot read is refused" "$rigRc:$( rigN "$rigTmp/err" 'no other pattern' )" "1:1"
 RIG_AGENT="" RIG_SESSION=""
 
@@ -229,11 +229,11 @@ rigAssert "revoked and ended grants are not listed"           "$( rigN "$rigTmp/
 rigAssert "control: the once grant admits once"               "$( rigRead keeper-d s-k "$rigTmp/rw-dir/sub/o.md" )" read
 mv "$rigData/board/running/task-rig.md" "$rigData/board/processed/task-rig.md"
 rigAssert "the closed item: the write is refused"              "$( rigWrite keeper-d s-k "$rigTmp/rw-dir/sub/t.txt" ):$( rigGrantRead keeper-d s-k Write "$rigTmp/rw-dir/sub/t.txt" )" "refused:none"
-RIG_AGENT=keeper-d RIG_SESSION=s-k rigRun --list-permissions keeper-d
+RIG_AGENT=keeper-d RIG_SESSION=s-k rigRun --list-permissions --team-member keeper-d
 cp "$rigTmp/out" "$rigTmp/list"
 rigAssert "the member lists its own"                           "$rigRc:$( rigRow session Read "$rigTmp/rw-dir/sub/c.md" | LC_ALL=C cut -d'|' -f3 )" "0:until session s-k ends"
 rigAssert "used and closed grants are not listed"              "$( rigN "$rigTmp/list" "$rigIdO" ):$( rigN "$rigTmp/list" "$rigIdT" )" "0:0"
-RIG_AGENT=magic-tester RIG_SESSION=s-coord rigRun --list-permissions keeper-d
+RIG_AGENT=magic-tester RIG_SESSION=s-coord rigRun --list-permissions --team-member keeper-d
 rigAssert "another member's list is refused"                   "$rigRc:$( rigN "$rigTmp/err" 'acts as magic-tester, so it cannot act as keeper-d' ):$( LC_ALL=C grep -c . "$rigTmp/out" )" "1:1:0"
 RIG_AGENT=keeper-d RIG_SESSION=s-k rigRun --list-permissions --member keeper-x
 rigAssert "another member's grants are the coordinator's to list" "$rigRc:$( rigN "$rigTmp/err" "keeper-x's are magic-coordinator's to list" )" "1:1"
@@ -298,30 +298,30 @@ RIG_AGENT=keeper-d RIG_SESSION=s-cw
 rigPassRef(){ ## -- the pass reference GRANT: session printed, or empty
 	LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/out" | head -1
 }
-rigRun --pass-permission keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session
+rigRun --pass-permission --team-member keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session
 rigPassP="$( rigPassRef )"
 rigAssert "passed by place name, said with its name:relative"  "$rigRc:$( [ -n "$rigPassP" ] && printf ref || printf none ):$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/p.md is rw-dir:p.md" )" "0:ref:1"
-rigRun --pass-permission keeper-d --to magic-tester --tool Write --target "$rigTmp/rw-dir/q.md" --kind session
+rigRun --pass-permission --team-member keeper-d --to magic-tester --tool Write --target "$rigTmp/rw-dir/q.md" --kind session
 rigPassQ="$( rigPassRef )"
 rigAssert "and by path, its own, with the same hint"           "$rigRc:$( [ -n "$rigPassQ" ] && [ "$rigPassQ" != "$rigPassP" ] && printf ref || printf none ):$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/q.md is rw-dir:q.md" )" "0:ref:1"
 rigAssert "a session grant signed by the passer, in its store" "$( LC_ALL=C grep -c -E "^session:Write:[^:]*:keeper-d:[0-9TZ]*:$rigPassP\$" "$rigMain/.local/agents/sessions/s-cw/grants" ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'owner: magic-tester' ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'passed-by: keeper-d' ):$( cat "$rigMain/.local/agents/sessions/s-cw/$rigPassP.places" 2>/dev/null )" "1:1:1:$rigTmp/rw-dir/p.md"$'\t'"rw-dir:p.md"
-rigRun --pass-permission keeper-d --to magic-tester --tool Write --target "@rw-dir:sub/**" --kind session
+rigRun --pass-permission --team-member keeper-d --to magic-tester --tool Write --target "@rw-dir:sub/**" --kind session
 rigAssert "what it does not hold is refused"                   "$rigRc:$( rigN "$rigTmp/err" 'keeper-d does not hold Write' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/out" )" "1:1:0"
-rigRun --pass-permission keeper-d --to magic-coordinator --tool Write --target "@rw-dir:p.md" --kind session
+rigRun --pass-permission --team-member keeper-d --to magic-coordinator --tool Write --target "@rw-dir:p.md" --kind session
 rigAssert "a member outside the session is refused"            "$rigRc:$( rigN "$rigTmp/err" 'magic-coordinator takes no part in session s-cw' )" "1:1"
 ## Session s-solo: magic-tester alone. keeper-d holds the write, the tester takes part, keeper-d does not.
 rigSpawn sb-solo s-solo magic-tester
-rigRun --pass-permission keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session --session-id s-solo
+rigRun --pass-permission --team-member keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session --session-id s-solo
 rigAssert "a session pass by a passer outside that session is refused" "$rigRc:$( rigN "$rigTmp/err" 'keeper-d takes no part in session s-solo, so it cannot pass a permission for it' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/out" ):$( [ -e "$rigMain/.local/agents/sessions/s-solo/grants" ] && printf written || printf none )" "1:1:0:none"
-rigRun --pass-permission keeper-d --to magic-tester --tool Write --target "@ro-dir:x.txt" --kind session
+rigRun --pass-permission --team-member keeper-d --to magic-tester --tool Write --target "@ro-dir:x.txt" --kind session
 rigAssert "a write in a read-only place is refused, its route named" "$rigRc:$( rigN "$rigTmp/err" "ro-dir is a read-only place, so no write is granted there: Write:@ro-dir:x.txt -- write to the session sandbox output/ instead, or a folder under it: $rigMain/.local/agents/spawned/sb-cw/output/" )" "1:1"
 RIG_AGENT=magic-tester RIG_SESSION=s-cw-t
-rigRun --pass-permission keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session
+rigRun --pass-permission --team-member keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session
 rigAssert "a member cannot pass as another"                    "$rigRc:$( rigN "$rigTmp/err" 'acts as magic-tester, so it cannot act as keeper-d' )" "1:1"
 RIG_AGENT="" RIG_SESSION=""
 rigAssert "the refused passes wrote nothing"                   "$( LC_ALL=C grep -c . "$rigMain/.local/agents/sessions/s-cw/grants" )" 2
 rigAssert "the tester's next check admits both"                "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/p.md" ):$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/q.md" )" "wrote:wrote"
-RIG_AGENT=magic-tester RIG_SESSION=s-cw-t rigRun --list-permissions magic-tester --session-id s-cw-t
+RIG_AGENT=magic-tester RIG_SESSION=s-cw-t rigRun --list-permissions --team-member magic-tester --session-id s-cw-t
 cp "$rigTmp/out" "$rigTmp/list"
 rigAssert "listed with the passer as origin, until the session ends" "$( rigRow session Write "$rigTmp/rw-dir/p.md" )" "rw-dir:p.md|$rigPassP by keeper-d|until session s-cw ends"
 RIG_AGENT=magic-coordinator RIG_SESSION=s-coord rigRun --revoke-permission "$rigPassP"

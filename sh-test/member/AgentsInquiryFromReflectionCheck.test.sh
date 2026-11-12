@@ -22,7 +22,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/board/pending" "$rigData/board/backlog"
+mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/magic-coordinator" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/board/pending" "$rigData/board/backlog"
 
 rigPassCount=0
 rigFailCount=0
@@ -64,37 +64,37 @@ rigInc(){ printf '%s/inboxes/%s/incoming/%s' "$rigData" "$1" "$2" ; }
 rigProc(){ printf '%s/inboxes/%s/processed/%s' "$rigData" "$1" "$2" ; }
 rigR1=reflection-20261006T0930Z-rig-lesson.md
 rigQ1=inquiry-20261006T0931Z-rig-lesson-filed.md
-printf 'A lesson learned.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/r1" --upsert-inbox-reflection rig-member "$rigR1"
+printf 'A lesson learned.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/r1" --upsert-inbox-reflection --team-member rig-member "$rigR1"
 rigAssert "the reflection is in incoming/" "$( cat "$rigTmp/r1.rc" ):$( [ -f "$( rigInc rig-member "$rigR1" )" ] && echo yes || echo no )" "0:yes"
 
 echo "-- 1. the exit --"
-printf 'Please take this lesson.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/f1" --upsert-inbox-inquiry rig-other "$rigQ1" --from-reflection "$rigR1"
-rigAssert "the call succeeds, the inquiry is in the other inbox" "$( cat "$rigTmp/f1.rc" ):$( [ -f "$( rigInc rig-other "$rigQ1" )" ] && echo yes || echo no )" "0:yes"
+printf 'Please take this lesson.\n' | RIG_AGENT=rig-member rigOp "$rigTmp/f1" --upsert-inbox-inquiry magic-coordinator "$rigQ1" --from-reflection "$rigR1"
+rigAssert "the call succeeds, the inquiry is in the other inbox" "$( cat "$rigTmp/f1.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ1" )" ] && echo yes || echo no )" "0:yes"
 rigAssert "the reflection left incoming/ and is in processed/" "$( [ -f "$( rigInc rig-member "$rigR1" )" ] && echo incoming || echo gone ):$( [ -f "$( rigProc rig-member "$rigR1" )" ] && echo processed || echo missing )" "gone:processed"
 rigAssert "stamped: processed-at, the disposition and the inquiry's name" "$( rigFieldCount "$( rigProc rig-member "$rigR1" )" processed-at ):$( rigField "$( rigProc rig-member "$rigR1" )" disposition ):$( rigField "$( rigProc rig-member "$rigR1" )" filed-as )" "1:filed-as-inquiry:$rigQ1"
-rigAssert "the inquiry carries no from-reflection option text" "$( rigHolds "$( rigInc rig-other "$rigQ1" )" 'from-reflection' )" "no"
+rigAssert "the inquiry carries no from-reflection option text" "$( rigHolds "$( rigInc magic-coordinator "$rigQ1" )" 'from-reflection' )" "no"
 
 echo "-- 2. nothing half done --"
 rigQ2=inquiry-20261006T0932Z-rig-lesson-two.md
-printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n1" --upsert-inbox-inquiry rig-other "$rigQ2" --from-reflection reflection-20261006T0999Z-rig-absent.md
-rigAssert "a reflection not there: refused, no inquiry" "$( cat "$rigTmp/n1.rc" ):$( [ -f "$( rigInc rig-other "$rigQ2" )" ] && echo written || echo absent ):$( rigHolds "$rigTmp/n1" 'not an unprocessed reflection' )" "1:absent:yes"
-printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n2" --upsert-inbox-inquiry rig-other "$rigQ2" --from-reflection "$rigR1"
-rigAssert "a reflection already processed: refused, no inquiry" "$( cat "$rigTmp/n2.rc" ):$( [ -f "$( rigInc rig-other "$rigQ2" )" ] && echo written || echo absent )" "1:absent"
-printf 'a note\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n3a" --upsert-inbox-note rig-member note-20261006T0933Z-rig-notreflection.md
-printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n3" --upsert-inbox-inquiry rig-other "$rigQ2" --from-reflection note-20261006T0933Z-rig-notreflection.md
-rigAssert "a name that is no reflection: refused, no inquiry, the note stays" "$( cat "$rigTmp/n3.rc" ):$( [ -f "$( rigInc rig-other "$rigQ2" )" ] && echo written || echo absent ):$( [ -f "$( rigInc rig-member note-20261006T0933Z-rig-notreflection.md )" ] && echo stays )" "1:absent:stays"
-rigR4=reflection-20261006T0934Z-rig-others.md
-printf 'theirs\n' | RIG_AGENT=rig-other rigOp "$rigTmp/n4a" --upsert-inbox-reflection rig-other "$rigR4"
-printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n4" --upsert-inbox-inquiry rig-other "$rigQ2" --from-reflection "$rigR4"
-rigAssert "another member's reflection: refused, no inquiry, theirs untouched" "$( cat "$rigTmp/n4.rc" ):$( [ -f "$( rigInc rig-other "$rigQ2" )" ] && echo written || echo absent ):$( [ -f "$( rigInc rig-other "$rigR4" )" ] && echo untouched )" "1:absent:untouched"
-printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n5" --upsert-inbox-inquiry rig-other "$rigQ2" --from-reflection
-rigAssert "a missing value: refused, no inquiry" "$( cat "$rigTmp/n5.rc" ):$( [ -f "$( rigInc rig-other "$rigQ2" )" ] && echo written || echo absent )" "1:absent"
+printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n1" --upsert-inbox-inquiry magic-coordinator "$rigQ2" --from-reflection reflection-20261006T0999Z-rig-absent.md
+rigAssert "a reflection not there: refused, no inquiry" "$( cat "$rigTmp/n1.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ2" )" ] && echo written || echo absent ):$( rigHolds "$rigTmp/n1" 'not an unprocessed reflection' )" "1:absent:yes"
+printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n2" --upsert-inbox-inquiry magic-coordinator "$rigQ2" --from-reflection "$rigR1"
+rigAssert "a reflection already processed: refused, no inquiry" "$( cat "$rigTmp/n2.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ2" )" ] && echo written || echo absent )" "1:absent"
+printf 'a note\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n3a" --upsert-inbox-note --team-member rig-member note-20261006T0933Z-rig-notreflection.md
+printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n3" --upsert-inbox-inquiry magic-coordinator "$rigQ2" --from-reflection note-20261006T0933Z-rig-notreflection.md
+rigAssert "a name that is no reflection: refused, no inquiry, the note stays" "$( cat "$rigTmp/n3.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ2" )" ] && echo written || echo absent ):$( [ -f "$( rigInc rig-member note-20261006T0933Z-rig-notreflection.md )" ] && echo stays )" "1:absent:stays"
+rigR4=reflection-20261006T0934Z-magic-coordinators.md
+printf 'theirs\n' | RIG_AGENT=magic-coordinator rigOp "$rigTmp/n4a" --upsert-inbox-reflection --team-member magic-coordinator "$rigR4"
+printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n4" --upsert-inbox-inquiry magic-coordinator "$rigQ2" --from-reflection "$rigR4"
+rigAssert "another member's reflection: refused, no inquiry, theirs untouched" "$( cat "$rigTmp/n4.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ2" )" ] && echo written || echo absent ):$( [ -f "$( rigInc magic-coordinator "$rigR4" )" ] && echo untouched )" "1:absent:untouched"
+printf 'x\n' | RIG_AGENT=rig-member rigOp "$rigTmp/n5" --upsert-inbox-inquiry magic-coordinator "$rigQ2" --from-reflection
+rigAssert "a missing value: refused, no inquiry" "$( cat "$rigTmp/n5.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ2" )" ] && echo written || echo absent )" "1:absent"
 
 echo "-- 3. without the option --"
 rigR6=reflection-20261006T0935Z-rig-kept.md
-printf 'kept\n' | RIG_AGENT=rig-member rigOp "$rigTmp/k0" --upsert-inbox-reflection rig-member "$rigR6"
-printf 'plain\n' | RIG_AGENT=rig-member rigOp "$rigTmp/k1" --upsert-inbox-inquiry rig-other "$rigQ2"
-rigAssert "the inquiry is filed, the reflection is untouched in incoming/" "$( cat "$rigTmp/k1.rc" ):$( [ -f "$( rigInc rig-other "$rigQ2" )" ] && echo written || echo absent ):$( [ -f "$( rigInc rig-member "$rigR6" )" ] && echo untouched )" "0:written:untouched"
+printf 'kept\n' | RIG_AGENT=rig-member rigOp "$rigTmp/k0" --upsert-inbox-reflection --team-member rig-member "$rigR6"
+printf 'plain\n' | RIG_AGENT=rig-member rigOp "$rigTmp/k1" --upsert-inbox-inquiry magic-coordinator "$rigQ2"
+rigAssert "the inquiry is filed, the reflection is untouched in incoming/" "$( cat "$rigTmp/k1.rc" ):$( [ -f "$( rigInc magic-coordinator "$rigQ2" )" ] && echo written || echo absent ):$( [ -f "$( rigInc rig-member "$rigR6" )" ] && echo untouched )" "0:written:untouched"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ INQUIRY FROM REFLECTION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

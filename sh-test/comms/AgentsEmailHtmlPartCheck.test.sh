@@ -36,7 +36,7 @@ chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 
-## The sender's own identity, under this rig's skillset root: `--email-send keeper-myx` reads
+## The sender's own identity, under this rig's skillset root: `--email-send --team-member keeper-myx` reads
 ## the member's folder there, and the rig is the only place that member exists. Exported, so
 ## every call this check makes resolves it the same way.
 mkdir -p "$rigWs/.local/agents/members/keeper-myx"
@@ -87,12 +87,12 @@ rigSend(){ ## recipient subject [format] [origin] -- the origin names the toolin
 	if [ -z "$fmt" ] ; then
 		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT MDAT_TEAM_MEMBER=keeper-myx RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
 			MMDAPP="$rigWs" MDLT_ORIGIN="$origin" \
-			bash "$origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin 2>"$rigTmp/stderr" )" \
+			bash "$origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --email-send --team-member keeper-myx "$recipient" -- "$subject" -- --from-stdin 2>"$rigTmp/stderr" )" \
 			|| { printf 'send-failed: %s' "$( grep ERROR "$rigTmp/stderr" | head -1 )" ; return 0 ; }
 	else
 		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT MDAT_TEAM_MEMBER=keeper-myx RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
 			MMDAPP="$rigWs" MDLT_ORIGIN="$origin" \
-			bash "$origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin --format "$fmt" 2>"$rigTmp/stderr" )" \
+			bash "$origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --email-send --team-member keeper-myx "$recipient" -- "$subject" -- --from-stdin --format "$fmt" 2>"$rigTmp/stderr" )" \
 			|| { printf 'send-failed: %s' "$( grep ERROR "$rigTmp/stderr" | head -1 )" ; return 0 ; }
 	fi
 	printf '%s' "$out"

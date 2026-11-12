@@ -451,7 +451,7 @@ echo "📘 syntax: DistroAgentsContacts.fn.sh --find-contact [--team-member <tea
 echo "📘 syntax: DistroAgentsContacts.fn.sh --all-contacts [--team-member <team-member>] [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --all-organisations [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --contact-record [--team-member <team-member>] <id>" >&2
-echo "📘 syntax: DistroAgentsContacts.fn.sh --contacted-by [--team-member <team-member>] <value> [--team <scope>]" >&2
+echo "📘 syntax: DistroAgentsContacts.fn.sh --contacted-by [--team-member <team-member>] <value> [--team <scope>] [--slack-team <team>]" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --reach-contact [--team-member <team-member>] <id>" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --contact-access [--team-member <team-member>] <id> [--tool <tool> --target <target>] [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsContacts.fn.sh --escalate-contact [--team-member <team-member>] <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]" >&2

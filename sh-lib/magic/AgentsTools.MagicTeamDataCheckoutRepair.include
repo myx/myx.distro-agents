@@ -227,8 +227,8 @@ case "$1" in
 		## No mode: the diagnosis above stands, and the two ways are offered. Nothing
 		## is applied.
 		if [ -z "$repairMode" ] ; then
-			echo "TEAM-DATA-REPAIR-OFFER: to keep the local commits merged: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --keep-merged"
-			echo "TEAM-DATA-REPAIR-OFFER: to set the local commits aside and take the remote: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --take-remote"
+			echo "TEAM-DATA-REPAIR-OFFER: to keep the local commits merged: DistroAgentsItems.fn.sh --repair-team-data-checkout --team-member magic-coordinator --keep-merged"
+			echo "TEAM-DATA-REPAIR-OFFER: to set the local commits aside and take the remote: DistroAgentsItems.fn.sh --repair-team-data-checkout --team-member magic-coordinator --take-remote"
 			return 0
 		fi
 

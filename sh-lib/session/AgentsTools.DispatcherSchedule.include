@@ -1270,7 +1270,8 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 			## THE TEAM BOT'S DM IS THE COORDINATOR'S (the human-owner's rule): every member's roster lists it under the bot identity, so for
 			## another member a message there counts only where it tags that member (<@id>, or a team post addressed to it).
 			dmRead="$( printf '%s\n' "$dmRead" | AgentsToolsTrackingDrop "$dmMember" | DM_FLOOR="$dmFloor" DM_MEMBER="$dmMember" DM_ID="$dmId" DM_AUTH="$dmAuth" \
-				DM_TAGGED_ONLY="$( [ "$dmIdentity" = bot ] && [ "$dmMember" != magic-coordinator ] && printf yes )" LC_ALL=C awk '
+				DM_TAGGED_ONLY="$( [ "$dmIdentity" = bot ] && [ "$dmMember" != magic-coordinator ] \
+					&& ! printf '%s\n' "$dmRoster" | LC_ALL=C grep -q -E "^CONV\|identity=user\|.*\|id=$dmConv\|" && printf yes )" LC_ALL=C awk '
 				/^[0-9]+\.[0-9]+ \| / {
 					if ( $1 + 0 <= ENVIRON["DM_FLOOR"] + 0 ) next
 					if ( $1 + 0 > passed + 0 ) passed = $1

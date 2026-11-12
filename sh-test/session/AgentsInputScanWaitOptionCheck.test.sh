@@ -37,7 +37,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'## input/ is emptied when the run closes: what the scan left there is read while the run is live.' \
 	'cp "$MDAT_SPAWN_SANDBOX_ROOT/input/input-scan.md" "$RIG_SCENARIO/input-scan.seen" 2> /dev/null || :' \
 	'## The run is in its session: its pointers, then the first wait on a scan the spawner ran, and one on a scan it did not.' \
-	'cp "$MMDAPP/.local/agents/sessions/$MDAT_SESSION_ID/session.chat.pointers" "$RIG_SCENARIO/pointers.seen" 2> /dev/null || :' \
+	'cat "$MMDAPP/.local/agents/sessions/$MDAT_SESSION_ID/session.chat.pointers" "$MMDAPP"/.local/agents/member-pointers/*.pointers > "$RIG_SCENARIO/pointers.seen" 2> /dev/null || :' \
 	'bash "$RIG_FN" --wait-for-input --team-member "$MDAT_SPAWN_AGENT" --wait-source scan:permission-escalation --wait-timeout 0 > "$RIG_SCENARIO/wait.seen" 2> /dev/null < /dev/null || :' \
 	'bash "$RIG_FN" --wait-for-input --team-member "$MDAT_SPAWN_AGENT" --wait-source scan:advance --wait-timeout 0 > "$RIG_SCENARIO/wait.control" 2> /dev/null < /dev/null || :' \
 	'printf "📦 SubagentHandback\n"' \
@@ -79,7 +79,8 @@ rigFirst(){ ## file -- its first line
 ## One start of keeper-rig's routine through the spawn proxy, waiting for its run; the sandbox it made in rigSandbox.
 rigSpawn(){ ## routine short name
 	rm -f "$rigTmp"/brief.* "$rigTmp/input-scan.seen" "$rigTmp/pointers.seen" "$rigTmp/wait.seen" "$rigTmp/wait.control"
-	chmod -R u+w -- "$rigWs/.local/agents" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sandboxes"
+	## Each start is its own scene: the member's pointer store outlives a session by design, so an earlier scene's pointer is cleared with it.
+	chmod -R u+w -- "$rigWs/.local/agents" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sandboxes" "$rigWs/.local/agents/member-pointers"
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
@@ -98,7 +99,8 @@ rigItem(){ ## name -- an inbox item of keeper-rig not yet processed
 	printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: %s\n\n%s\n' "$1" "$1" > "$rigData/inboxes/keeper-rig/incoming/note-20261021T0900Z-$1.md"
 }
 rigRecords(){ ## how many spawn records the rig holds
-	find "$rigWs/.local/agents/spawned" -name '*.md' 2> /dev/null | LC_ALL=C grep -c . || :
+	## The spawn records only: a run's folder also holds its CheckList files.
+	find "$rigWs/.local/agents/spawned" -name '*.spawn.md' 2> /dev/null | LC_ALL=C grep -c . || :
 }
 rigTimed(){ ## routine short name -- one start, and its seconds in rigTook
 	local timedAt
@@ -133,7 +135,9 @@ rigWaitOp(){ ## words... -- the first line of one --wait-for-input --team-member
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c 'cd "$MMDAPP" && exec bash "$1" --wait-for-input --team-member keeper-rig "${@:2}"' _ "$rigTool" "$@" 2> /dev/null < /dev/null | head -n 1
 }
 rigItem delta
-rigAssert "control: an item that is there when the Wait starts is its baseline: nothing is new, TIMEOUT" "$( rigWaitOp --wait-source inbox:keeper-rig --wait-timeout 2 | LC_ALL=C cut -c1-20 )" "WAIT-RESULT: TIMEOUT"
+## THE INBOX HAS AN EMPTY BASELINE (AgentsTools.MemberWait.include, agentsWaitKindEmptyBaseline): an item standing in incoming/ when a wait begins
+## is input not yet handled, so it arrives at once, with or without a floor.
+rigAssert "an item standing in the inbox when the Wait starts is unhandled input: it arrives at once" "$( rigWaitOp --wait-source inbox:keeper-rig --wait-timeout 2 | LC_ALL=C cut -c1-21 )" "WAIT-RESULT: RECEIVED"
 rigAssert "with the floor of the line (a little earlier than the item) the item is an arrival: RECEIVED at once" "$( rigWaitOp --wait-source inbox:keeper-rig --wait-since-utime "$(( $( date +%s ) - 30 ))" --wait-timeout 2 )" "WAIT-RESULT: RECEIVED"
 
 if [ "$rigFailCount" -ne 0 ] ; then

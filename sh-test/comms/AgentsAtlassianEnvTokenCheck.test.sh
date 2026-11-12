@@ -15,6 +15,8 @@ check(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; pass=$((pass+1))
 
 ## The scope reader fails loudly if reached; the environment branch must not touch it.
 DistroAgentsTools(){ echo "scope-read reached" >&2 ; return 1 ; }
+## The scope is read through the setting reader (AgentsToolsConfigOption): it fails as loudly.
+AgentsToolsConfigOption(){ echo "scope-read reached" >&2 ; return 1 ; }
 ## The member/side gates are not what is under test: they pass without touching any scope.
 AgentsToolsAssertBareName(){ return 0 ; }
 AgentsToolsCommsOwnSideCheck(){ return 0 ; }

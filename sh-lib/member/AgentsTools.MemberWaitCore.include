@@ -192,8 +192,8 @@ AgentsWaitFloorAdvance(){ ## session, source (slack:<channel>:<ts>:conversation)
 ## stands before the part. That mark is what a reader of the rows (AgentsToolsInputScanReportEmpty) tells a message of no work by.
 AgentsWaitTaggedPart(){ ## member, where, what, floor, the rendering, the tags rendering, [shown elsewhere], [the FYI note]
 	local partOut="$6.part" partText=""
-	partText="$( LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsToolsSessionChatMemberId "$1" )" -v addressees="$( case "$3" in mentions|dm-mentions) ;; *) printf '%s' "$3" ;; esac )" \
-		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( case "$3" in mentions|dm-mentions) printf 1 ;; *) printf 0 ;; esac )" \
+	partText="$( LC_ALL=C awk -v mode=channel -v postTs=0 -v floorTs="${4:-0}" -v callerName="$1" -v callerId="$( AgentsToolsSessionChatMemberId "$1" )" -v addressees="$( case "$3" in (mentions|dm-mentions) ;; (*) printf '%s' "$3" ;; esac )" \
+		-v siblings=0 -v siblingsMax=1000000 -v mentionsOnly="$( case "$3" in (mentions|dm-mentions) printf 1 ;; (*) printf 0 ;; esac )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitOwnPostReplies.awk" \
 		< "$5" 2> /dev/null )" || return 1
 	## A mention the member already received through a session thread it takes part in is left out (AgentsWaitSessionReceivedDrop.awk).

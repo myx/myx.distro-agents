@@ -45,7 +45,7 @@ rigOutcome(){ ## result file, item filename, outcome, receipt
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$RIG_FN" --advance-batch-outcome magic-coordinator --items:"$1"
+			cd "$MMDAPP" && exec bash "$RIG_FN" --advance-batch-outcome --team-member magic-coordinator --items:"$1"
 		' rig "$2:$3:$4" > "$opOut" 2>&1
 	printf '%s' "$?" > "$opOut.rc"
 }

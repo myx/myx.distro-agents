@@ -237,7 +237,7 @@ rigTool "$rigTmp/b3" --contacted-by UNOBODY999
 rigAssert "a sender nobody recorded: the next step, rc 1" "$rigRc $( rigHas 'No contact is recorded for UNOBODY999.' "$rigTmp/b3.out" ) $( rigHas 'DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>' "$rigTmp/b3.out" )" "1 1 1"
 rigTool "$rigTmp/b4" --contacted-by "alice"
 rigAssert "a value that names two contacts: the rows, and the way to say which, rc 1" "$rigRc $( LC_ALL=C grep -c '^contact' "$rigTmp/b4.out" ) $( rigHas 'names 2 contacts' "$rigTmp/b4.err" )" "1 2 1"
-rigTool "$rigTmp/b5" --contacted-by U111ABC --team other-team
+rigTool "$rigTmp/b5" --contacted-by U111ABC --slack-team other-team
 rigAssert "within a Slack team that is not the contact's: nobody recorded" "$rigRc" "1"
 rigTool "$rigTmp/b6" --reach-contact alice-one
 rigAssert "reaching one: the contact, how to meet it, its Slack and its e-mail with the send lines" "$rigRc $( rigHas 'Reach alice-one, Alice One of ndm. How to meet them: short messages.' "$rigTmp/b6.out" ) $( rigHas 'Slack: conversations client-ndm:D222DEF, ids client-ndm:U111ABC. Send with `DistroAgentsSlack.fn.sh --slack-send-message <you> <conversation> <text>`.' "$rigTmp/b6.out" ) $( rigHas 'E-mail: alice@ndm.example. Send with `DistroAgentsMail.fn.sh --email-send <you> <address> -- <subject> -- <body>`.' "$rigTmp/b6.out" ) $( rigHas 'A send to an address that is no coordinate of a contact you hold is refused.' "$rigTmp/b6.out" )" "0 1 1 1 1"

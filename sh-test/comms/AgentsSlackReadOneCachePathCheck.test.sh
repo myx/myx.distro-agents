@@ -71,7 +71,7 @@ rigRead(){ ## target -- the read's output
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		"MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
 		"MDAT_DATA_ROOT=$rigScn/data" "RIG_SCN=$rigScn" "MDAT_SPAWN_AGENT=keeper-rig" "MDAT_SESSION_ID=rig-session" \
-		bash "$rigTools" --slack-read keeper-rig "$1" ) 2> /dev/null
+		bash "$rigTools" --slack-read --team-member keeper-rig "$1" ) 2> /dev/null
 }
 
 echo "-- 1. the control: one read asks Slack, the next does not --"

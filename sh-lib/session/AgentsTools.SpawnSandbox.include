@@ -1765,9 +1765,9 @@ AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
 		## call acts as, so the one gate every withdraw has sees the run that asked it and nobody else.
 		if type DistroAgentsTools > /dev/null 2>&1 ; then
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			( export MDAT_SPAWN_AGENT="$askOwner" ; DistroAgentsTools --settle-pending-reply "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
+			( export MDAT_SPAWN_AGENT="$askOwner" ; DistroAgentsTools --settle-pending-reply --team-member "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
 		else
-			( export MDAT_SPAWN_AGENT="$askOwner" ; "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --settle-pending-reply "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
+			( export MDAT_SPAWN_AGENT="$askOwner" ; "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --settle-pending-reply --team-member "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
 		fi
 		[ "$askRc" = 0 ] || [ -n "$askWarned" ] || { askWarned="yes" ; echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the question $askId that run $askRun asked was not withdrawn (rc $askRc), so it stays as it was" >&2 ; }
 	done <<< "$askList"

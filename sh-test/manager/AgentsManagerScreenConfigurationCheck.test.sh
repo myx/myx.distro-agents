@@ -610,7 +610,7 @@ rigAssert "a command whose help read gives nothing says plainly that it has no h
 echo "-- Diagnostics: the resolved context of the tooling, read-only, a name and a value, and the team-data checkout diagnosis (F11.7) --"
 rigCase diag
 printf 'team-member: user-rig\nsession-id: \nselect-workspace: /rig/ws_rig\nMDAT_SLACK_BOT_TOKEN: xoxb-12**********\nMDAT_DATA_ROOT: /rig/ws_rig/.local/team-data\n' > "$MANAGER_SCREEN_RIG/rows.--intern-context-show"
-printf 'TEAM-DATA-CHECKOUT: /rig/ws/team-data branch main is 3 local commit(s) ahead of origin/main and 1 behind it\nTEAM-DATA-LOCAL-COMMIT: 1a88232 local one\nTEAM-DATA-REMOTE-COMMIT: 9dd65d9 elsewhere\nTEAM-DATA-TRIAL-MERGE: clean\nTEAM-DATA-REPAIR-OFFER: to keep the local commits merged: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --keep-merged\nTEAM-DATA-REPAIR-OFFER: to set the local commits aside and take the remote: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --take-remote\n' > "$MANAGER_SCREEN_RIG/rows.--repair-team-data-checkout magic-coordinator"
+printf 'TEAM-DATA-CHECKOUT: /rig/ws/team-data branch main is 3 local commit(s) ahead of origin/main and 1 behind it\nTEAM-DATA-LOCAL-COMMIT: 1a88232 local one\nTEAM-DATA-REMOTE-COMMIT: 9dd65d9 elsewhere\nTEAM-DATA-TRIAL-MERGE: clean\nTEAM-DATA-REPAIR-OFFER: to keep the local commits merged: DistroAgentsItems.fn.sh --repair-team-data-checkout --team-member magic-coordinator --keep-merged\nTEAM-DATA-REPAIR-OFFER: to set the local commits aside and take the remote: DistroAgentsItems.fn.sh --repair-team-data-checkout --team-member magic-coordinator --take-remote\n' > "$MANAGER_SCREEN_RIG/rows.--repair-team-data-checkout --team-member magic-coordinator"
 rigScript <<'RIGSCRIPT'
 at @configuration diagnostics
 wait list 30
@@ -632,7 +632,7 @@ get tok
 show tok
 RIGSCRIPT
 rigAssert "the folder lists each name of what the operation printed, the checkout folder ahead of them, one read of it, and it is a folder of the Configuration" "$( rigVal in.path ) / $( rigVal ids ) / $( rigCalled --intern-context-show )" "configuration/diagnostics / .. checkout team-member session-id select-workspace MDAT_SLACK_BOT_TOKEN MDAT_DATA_ROOT / 1"
-rigAssert "the checkout folder stands ahead of the names, and nothing of it is read until it is asked" "$( rigVal co.selectedLabel ) $( rigCalled '--repair-team-data-checkout magic-coordinator' )" "Team Data Checkout 0"
+rigAssert "the checkout folder stands ahead of the names, and nothing of it is read until it is asked" "$( rigVal co.selectedLabel ) $( rigCalled '--repair-team-data-checkout --team-member magic-coordinator' )" "Team Data Checkout 0"
 rigAssert "on the row that goes up the left pane is the table of name and value, a value left empty as a dash" "$( rigPaneHolds up '  team-member           user-rig' ) $( rigPaneHolds up '  session-id            -' ) $( rigPaneHolds up '  MDAT_DATA_ROOT        /rig/ws_rig/.local/team-data' )" "1 1 1"
 rigAssert "a name selected: its name and its value, as a parameter" "$( rigVal one.selected ) [$( rigPane one 3 )]" "team-member [ team-member = user-rig]"
 rigAssert "a credential is shown in the one form the operation printed it in, and nothing more" "$( rigVal tok.selected ) $( rigScreenHolds tok 'xoxb-12**********' ) $( rigScreenHolds tok 'xoxb-12345' )" "MDAT_SLACK_BOT_TOKEN 1 0"

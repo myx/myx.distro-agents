@@ -169,7 +169,7 @@ AgentsToolsSurfaceLockTake(){ ## the operation, owner label, wait seconds
 	while : ; do
 		lockRc=0
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		lockOut="$( AgentsToolsSurfaceTool DistroAgentsTools --state-note-lock-acquire magic-coordinator "$2" 2>&1 )" || lockRc=$?
+		lockOut="$( AgentsToolsSurfaceTool DistroAgentsTools --state-note-lock-acquire --team-member magic-coordinator "$2" 2>&1 )" || lockRc=$?
 		[ "$lockRc" != 0 ] || return 0
 		if [ "$lockLeft" -le 0 ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $1: the state-note is locked by a session that holds it, and stayed so for $3 second(s) -- nothing was written: $( printf '%s' "$lockOut" | LC_ALL=C grep -v 'SystemContext\|SetInputSpec' | LC_ALL=C tr '\n' ' ' | LC_ALL=C cut -c1-240 )" >&2

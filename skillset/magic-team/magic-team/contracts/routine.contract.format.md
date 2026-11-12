@@ -186,6 +186,7 @@ Used to check this file's own definitions against its own goals when it is updat
   - The `<short-name>` is a routine type word. `work-duty` names the duty routine (`*.work-duty.routine.md`). `epic` names an epic's routine (`*.epic.routine.md`), which carries the epic's own step list as its `# Steps`. Both are runnable routines, the same path as any other `*.routine.md`: resolved by `--routine`, started by `--spawn-session`, autorun where they declare `runs-at`. An ad-hoc child of either session inherits its parent's cache-prefix.
 - `# Summary`
   - One short sentence, names the routine.
+  - `Handles: <type>, <type>` — the board item types this routine runs the next iteration of, where it runs any.
   - `## Goals`
     - Compact narrative, still detailed.
   - `## Scope`

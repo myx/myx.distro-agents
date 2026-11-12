@@ -49,8 +49,13 @@ rigEffort(){ ## none form, effort -- what the wire is given: reasoning effort, t
 	  printf '[%s] [%s] [%s]' "$harnessReasoningEffort" "$harnessThinkingOff" "$harnessEffortNote" )
 }
 
+## THE HARD MARGIN (the human-owner's rule, AgentsHarnessLimits.include): the restart comes no later than the window less the
+## output and less 5% of the window, whatever set the threshold. An expected "window output threshold ..." takes that cap.
+rigCap(){ ## "window output threshold rest..."
+	printf '%s\n' "$1" | LC_ALL=C awk '{ cap = $1 - $2 - int( $1 * 5 / 100 ) ; if ( $3 + 0 > cap ) { $3 = cap ; } print }'
+}
 rigCase(){ ## wrapper, table, model, want "window output threshold noneform"
-	rigAssert "$1: $3" "$( rigJudge "$2" "$3" )" "$4"
+	rigAssert "$1: $3" "$( rigJudge "$2" "$3" )" "$( rigCap "$4" )"
 }
 
 echo "-- 1. each family of each wrapper --"
@@ -78,8 +83,8 @@ rigCase scaleway "$rigScaleway" deepseek-v4-flash-0731 "256000 32768 223232 effo
 rigCase scaleway "$rigScaleway" gemma-3-27b-it         "40000 8192 31808 omit"
 rigCase scaleway "$rigScaleway" gemma-4-26b-a4b-it     "256000 32768 223232 omit"
 ## Scaleway takes any model the user's key serves (sketch 13.2): a model no row was read for gets the open table's default
-rigAssert "scaleway: a gemma of a size the page gives no serverless figure for gets the default, not gemma-3's" "$( rigJudge "$rigScaleway" gemma-4-31b-it )" "32768 8192 24576 omit"
-rigAssert "scaleway: a model of no family gets the default, not a refusal" "$( rigJudge "$rigScaleway" mystery-model-9 )" "32768 8192 24576 omit"
+rigAssert "scaleway: a gemma of a size the page gives no serverless figure for gets the default, not gemma-3's" "$( rigJudge "$rigScaleway" gemma-4-31b-it )" "$( rigCap "32768 8192 24576 omit" )"
+rigAssert "scaleway: a model of no family gets the default, not a refusal" "$( rigJudge "$rigScaleway" mystery-model-9 )" "$( rigCap "32768 8192 24576 omit" )"
 rigStandard="$( rigTable AgentsStandardV1Harness.sh )"
 rigCase standard-v1 "$rigStandard" qwen3-4b          "32768 4096 28672 thinking:disabled"
 rigCase standard-v1 "$rigStandard" qwen3.5-9b-q8_0   "262144 32768 229376 thinking:disabled"
@@ -102,7 +107,7 @@ rigCase standard-v1 "$rigStandard" llama-3.2-3b      "131072 8192 122880 omit"
 ## a generic row is only as wide as the versions its figures were read for (2026-10-28): Gemma 3 (128k), Llama 3.1, 3.2 and 3.3 (128k), DeepSeek-R1 distills (131072); a model of any other version
 ## or family gets the reasonable default of the open table (sketch 13.1: "the universal standard-v1 default is reasonable"), with one note on standard error, and is never refused
 for rigOther in gemma-3n-e4b gemma2:9b gemma-4-31b-it llama-3-8b-instruct llama3:8b llama-4-scout llama2:13b deepseek-v3.2 deepseek-v4-flash mistral-7b-instruct ; do
-	rigAssert "standard-v1: $rigOther is of no row this table was read for, so it gets the default limits, not a refusal" "$( rigJudge "$rigStandard" "$rigOther" )" "32768 8192 24576 omit"
+	rigAssert "standard-v1: $rigOther is of no row this table was read for, so it gets the default limits, not a refusal" "$( rigJudge "$rigStandard" "$rigOther" )" "$( rigCap "32768 8192 24576 omit" )"
 done
 rigAssert "and the default says so, once, on standard error, naming the model and the way to set its own threshold" "$( ( export HARNESS_MODEL_TABLE="$rigStandard" harnessSelfName=rig-leg harnessBad="" harnessOff="" ; unset PRESET_CONTEXT_MAX_SIZE MDAT_HARNESS_CONTEXT_TOKENS ; . "$rigLimits" ; AgentsHarnessLimitsResolve mistral-7b-instruct "" "" 2>&1 > /dev/null ) )" "rig-leg: the model 'mistral-7b-instruct' is of no family this table was read for, so the default limits apply (window 32768, output 8192); a preset that knows its server's window sets PRESET_CONTEXT_MAX_SIZE"
 rigAssert "a model that has a row says nothing" "$( ( export HARNESS_MODEL_TABLE="$rigStandard" harnessSelfName=rig-leg harnessBad="" harnessOff="" ; . "$rigLimits" ; AgentsHarnessLimitsResolve qwen3-8b "" "" 2>&1 > /dev/null ) | wc -c | LC_ALL=C tr -d ' ' )" 0
@@ -114,8 +119,8 @@ echo "-- 2. the preset's size, and the operator's --"
 for rigWrapper in claude:claude-opus-5-5:1000000:128000 copilot:gpt-5.6-sol:272000:32768 deepseek:deepseek-flash:1048576:32768 grok:grok-4.3:1000000:30000 scaleway:gemma-3-27b-it:40000:8192 standard-v1:qwen3-8b:32768:8192 ; do
 	IFS=: read -r rigName rigModel rigWindow rigOutput <<< "$rigWrapper"
 	case "$rigName" in claude) rigT="$rigClaude" ;; copilot) rigT="$rigCopilot" ;; deepseek) rigT="$rigDeepseek" ;; grok) rigT="$rigGrok" ;; scaleway) rigT="$rigScaleway" ;; *) rigT="$rigStandard" ;; esac
-	rigAssert "$rigName: the preset's 50000 is the threshold, the family's window and output stay" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 | LC_ALL=C awk '{ print $1, $2, $3 }' )" "$rigWindow $rigOutput 50000"
-	rigAssert "$rigName: the operator's 40000 stands ahead of the preset's" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 MDAT_HARNESS_CONTEXT_TOKENS=40000 | LC_ALL=C awk '{ print $3 }' )" 40000
+	rigAssert "$rigName: the preset's 50000 is the threshold, the family's window and output stay" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 | LC_ALL=C awk '{ print $1, $2, $3 }' )" "$( rigCap "$rigWindow $rigOutput 50000" )"
+	rigAssert "$rigName: the operator's 40000 stands ahead of the preset's" "$( rigJudge "$rigT" "$rigModel" PRESET_CONTEXT_MAX_SIZE=50000 MDAT_HARNESS_CONTEXT_TOKENS=40000 | LC_ALL=C awk '{ print $3 }' )" "$( rigCap "$rigWindow $rigOutput 40000" | LC_ALL=C awk '{ print $3 }' )"
 done
 
 echo "-- 3. a model of no family is refused, with the families listed (the hosted legs; standard-v1, local and scaleway give the default of section 1 instead) --"
@@ -143,7 +148,7 @@ rigAssert "scaleway: one credential name, SCALEWAY_API_KEY, and both tokens are 
 rigAssert "scaleway: a per-model name alone gives no token, and the leg says it reads SCALEWAY_API_KEY" "$( rigScalewayCred SCALEWAY_DEEPSEEK=k2 SCALEWAY_GEMMA=k3 | LC_ALL=C tr '\n' ' ' )" "1 SCALEWAY_API_KEY|| "
 
 echo "-- 4. a leg with no table --"
-rigAssert "it keeps the pair it declares, and its threshold is the window less the output" "$( ( unset HARNESS_MODEL_TABLE PRESET_CONTEXT_MAX_SIZE MDAT_HARNESS_CONTEXT_TOKENS ; . "$rigLimits" ; AgentsHarnessLimitsResolve anything-1 128000 16384 && printf '%s %s %s' "$harnessWindowTokens" "$harnessOutputTokens" "$harnessContextTokens" ) )" "128000 16384 111616"
+rigAssert "it keeps the pair it declares, and its threshold is the window less the output and less 5% of the window" "$( ( unset HARNESS_MODEL_TABLE PRESET_CONTEXT_MAX_SIZE MDAT_HARNESS_CONTEXT_TOKENS ; . "$rigLimits" ; AgentsHarnessLimitsResolve anything-1 128000 16384 && printf '%s %s %s' "$harnessWindowTokens" "$harnessOutputTokens" "$harnessContextTokens" ) )" "$( rigCap "128000 16384 111616" )"
 
 echo "-- 5. the effort --"
 rigAssert "unset sends nothing"                       "$( rigEffort effort:none unset )"        "[] [] [effort unset, the model's default]"

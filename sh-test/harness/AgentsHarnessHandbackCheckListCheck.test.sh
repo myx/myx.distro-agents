@@ -52,7 +52,7 @@ rigScene(){ ## scenario directory name
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"
 	## The session's own record: its checklist is kept in the folder that holds it (AgentsHarnessCheckListPlace).
-	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: none\nsession-thread: %s\nowner: %s\n---\n' "$rigCurrent" "$rigMember" \
+	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: none\nsession-thread: %s\nowner: %s\nreports-to: none\n---\n' "$rigCurrent" "$rigMember" \
 		> "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.spawn.md"
 	rigList="$rigScenarioDir/ws/.local/agents/spawned/child-folder/$rigMember.checklist.md"
 }

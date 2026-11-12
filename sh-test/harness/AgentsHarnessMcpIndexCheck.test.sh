@@ -84,17 +84,20 @@ rigInstall(){ ## workspace, executable for both server scripts (or empty for non
 	chmod +x "$installCommon/agentMcpServer.Common" "$installDistro/DistroAgentsTools.fn.sh"
 }
 
+## THE SERVERS RUN FROM $MDLT_ORIGIN (AgentsHarnessMcpConfig.include, AgentsHarnessMcpServersPrimary), and carry both MMDAPP and
+## MDLT_ORIGIN: each scene below points the origin at its own workspace's .local, where rigInstall puts the stand-ins.
+rigOrigin="$MDLT_ORIGIN"
 echo "-- the primary composition, and the index the installer writes from it --"
 rigWs="$rigTmp/unit ws"
 printf '#!/bin/sh\nexit 0\n' > "$rigTmp/stand-in"
 rigInstall "$rigWs" "$rigTmp/stand-in"
-MMDAPP="$rigWs" ; harnessMcpLoadedFor=""
+MMDAPP="$rigWs" ; MDLT_ORIGIN="$rigWs/.local" ; harnessMcpLoadedFor=""
 rigComputed="$( rigAll )"
 AgentsHarnessMcpKeys
 rigAssert "with nothing indexed, the servers are computed" "$harnessMcpFrom" "the servers this workspace's installer registers, computed"
 rigAssert "both servers, as the installer registers them" "$rigComputed" \
 	"keys[0]=<myx.distro
-myx.common>|myx.distro:cmd[0]=<$rigWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh> args[0] <--intern-mcp-server> <--run> env[0] <MMDAPP>=<$rigWs>X|myx.common:cmd[0]=<$rigWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common> args[0] <--run> env[0] <MMDAPP>=<$rigWs>X|not-registered:cmd[3]=<> args[0] env[0]X"
+myx.common>|myx.distro:cmd[0]=<$rigWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh> args[0] <--intern-mcp-server> <--run> env[0] <MMDAPP>=<$rigWs> <MDLT_ORIGIN>=<$rigWs/.local>X|myx.common:cmd[0]=<$rigWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common> args[0] <--run> env[0] <MMDAPP>=<$rigWs> <MDLT_ORIGIN>=<$rigWs/.local>X|not-registered:cmd[3]=<> args[0] env[0]X"
 AgentsHarnessMcpIndexWrite "$rigWs" || rigRefuse "the index writer failed outright"
 rigAssert "an index is written" "$( [ -f "$rigWs/.local/agents/mcp.servers.index" ] && printf yes || printf no )" yes
 rigAssert "it carries mode 0644" "$( ls -l "$rigWs/.local/agents/mcp.servers.index" | cut -c1-10 )" "-rw-r--r--"
@@ -114,7 +117,7 @@ unset -f AgentsHarnessMcpServersPrimary
 
 rigEmpty="$rigTmp/empty"
 rigInstall "$rigEmpty" ""
-MMDAPP="$rigEmpty" ; harnessMcpLoadedFor=""
+MMDAPP="$rigEmpty" ; MDLT_ORIGIN="$rigEmpty/.local" ; harnessMcpLoadedFor=""
 rigAssert "a workspace with no server installed registers none" "$( rigAll )" "keys[0]=<>|not-registered:cmd[3]=<> args[0] env[0]X"
 
 echo "-- two packages, one nested differently: both found from the resolved root --"
@@ -126,7 +129,7 @@ echo "-- two packages, one nested differently: both found from the resolved root
 ## that refusal read as myx.distro missing while myx.common was there.
 rigSpelled="$rigTmp/spelled ws"
 rigInstall "$rigSpelled" "$rigTmp/stand-in"
-( cd "$rigTmp" && MMDAPP="spelled ws" ; harnessMcpLoadedFor=""
+( cd "$rigTmp" && MMDAPP="spelled ws" ; MDLT_ORIGIN="$rigSpelled/.local" ; harnessMcpLoadedFor=""
 	AgentsHarnessMcpKeys ; printf '%s\n' "$harnessMcpResKeys" > "$rigTmp/spelled.keys"
 	AgentsHarnessMcpResolve myx.distro ; printf '%s\n' "$harnessMcpResCmd" > "$rigTmp/spelled.distro"
 	AgentsHarnessMcpResolve myx.common ; printf '%s\n' "$harnessMcpResCmd" > "$rigTmp/spelled.common"
@@ -135,13 +138,13 @@ rigAssert "both packages are found for a workspace named relatively" "$( cat "$r
 myx.common"
 rigAssert "myx.distro launches by an absolute path, at its own package depth" "$( cat "$rigTmp/spelled.distro" )" "$rigSpelled/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigAssert "myx.common launches by an absolute path, at the depth its release nests it" "$( cat "$rigTmp/spelled.common" )" "$rigSpelled/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common"
-MMDAPP="$rigSpelled" ; harnessMcpLoadedFor=""
+MMDAPP="$rigSpelled" ; MDLT_ORIGIN="$rigSpelled/.local" ; harnessMcpLoadedFor=""
 AgentsHarnessMcpIndexWrite "$rigSpelled" || rigRefuse "the index writer failed outright"
 rigAssert "a trailing slash takes that index and answers exactly as the plain path does" \
 	"$( MMDAPP="$rigSpelled/" ; harnessMcpLoadedFor="" ; rigAll )" "$( MMDAPP="$rigSpelled" ; harnessMcpLoadedFor="" ; rigAll )"
 
 echo "-- awkward values survive the index whole --"
-MMDAPP="$rigWs" ; harnessMcpLoadedFor=""
+MMDAPP="$rigWs" ; MDLT_ORIGIN="$rigWs/.local" ; harnessMcpLoadedFor=""
 AgentsHarnessMcpSpecReset
 AgentsHarnessMcpSpecAdd "tricky" "/opt/x y/srv\"q" 4 K1 "v = 1" K2 $'trail\n\n' "BAD-NAME" x K3 "" \
 	"--a b" "it's \"quoted\"" $'tab\there' $'line\nbreak\n' 'back\slash \n' "é😀" "" 5
@@ -194,6 +197,7 @@ export HARNESS_WIRE="OpenAiChat" HARNESS_CREDENTIAL_NAMES="none -- this check ne
 export HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main"
 export HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential"
 
+MDLT_ORIGIN="$rigOrigin"
 ## One workspace, its myx.common the launch recorder (which then behaves as the rig
 ## server); the myx.distro stand-in is never spawned -- the harness excludes itself.
 rigLaunchWs="$rigTmp/launch"

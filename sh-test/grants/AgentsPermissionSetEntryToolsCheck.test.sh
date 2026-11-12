@@ -118,7 +118,7 @@ rigOp(){
 }
 rigSetAsk(){ ## item, request options... -> the pending id
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
-	rigOp --request-permission-set magic-coordinator "$@"
+	rigOp --request-permission-set --team-member magic-coordinator "$@"
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 	LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out"
 }
@@ -166,7 +166,7 @@ rigRc=0
 rigSetTry(){ ## item, request options...
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
 	rigRc=0
-	rigOp --request-permission-set magic-coordinator "$@" || rigRc=$?
+	rigOp --request-permission-set --team-member magic-coordinator "$@" || rigRc=$?
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 }
 rigLine(){ ## file, line -> how many lines of the file are that text

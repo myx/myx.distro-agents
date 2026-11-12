@@ -300,6 +300,9 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	## builds from it.
 	[ -z "$toolSessionNameOrComment" ] || set -- "$@" --session-name-or-comment "$toolSessionNameOrComment"
 	## Asked for plainly: a separate session for this helper, with a thread of its own.
+	## A WORK DUTY'S SESSION IS THE MEMBER'S DUTY, ONE A MEMBER, NEVER A COWORKING SESSION: work a duty hands out opens a session of
+	## its own, unless the call names the session to join.
+	[ -n "$toolSessionId" ] || ! AgentsHarnessWorkDuty || toolNewSession=true
 	case "$toolNewSession" in
 		true|1|yes) set -- "$@" --session-new ;;
 	esac

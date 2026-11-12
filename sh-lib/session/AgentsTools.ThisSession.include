@@ -614,7 +614,7 @@ AgentsToolsThisSessionSetTopic(){ ## the operation's arguments: <text...>
 			setTopicRoot="$( STR_SESSION_NAME="$setTopicText" STR_STARTED_BY="$setTopicBy" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || setTopicRoot=""
 		fi
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		[ -z "$setTopicRoot" ] || DistroAgentsTools --slack-edit-message "$thisSessionMember" "$thisSessionThread" "$setTopicRoot" > /dev/null 2>&1 || :
+		[ -z "$setTopicRoot" ] || DistroAgentsTools --slack-edit-message --team-member "$thisSessionMember" "$thisSessionThread" "$setTopicRoot" > /dev/null 2>&1 || :
 	fi
 	printf 'OK: --set-session-topic: the session title is now "%s".\n' "$setTopicText"
 }
@@ -748,7 +748,7 @@ AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
 		topicRoot="$( STR_SESSION_NAME="$topicText" STR_STARTED_BY="$topicBy" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || topicRoot=""
 		if [ -n "$topicRoot" ] ; then
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --slack-edit-message "$topicBy" "$topicThread" --identity-bot "$topicRoot" > /dev/null 2>&1 || :
+			DistroAgentsTools --slack-edit-message --team-member "$topicBy" "$topicThread" --identity-bot "$topicRoot" > /dev/null 2>&1 || :
 		fi
 	fi
 	[ "$topicRc" = 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-topic: one of the session's records could not be updated. Nothing more was changed." >&2 ; return 1 ; }

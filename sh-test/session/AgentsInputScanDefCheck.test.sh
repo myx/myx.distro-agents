@@ -47,7 +47,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'## input/ is emptied when the run closes: what the scan left there is read while the run is live.' \
 	'cp "$MDAT_SPAWN_SANDBOX_ROOT/input/input-scan.md" "$RIG_SCENARIO/input-scan.seen" 2> /dev/null || :' \
 	'## The run is in its session: its pointers, then the first wait on a scan the spawner ran, and one on a scan it did not.' \
-	'cp "$MMDAPP/.local/agents/sessions/$MDAT_SESSION_ID/session.chat.pointers" "$RIG_SCENARIO/pointers.seen" 2> /dev/null || :' \
+	'cat "$MMDAPP/.local/agents/sessions/$MDAT_SESSION_ID/session.chat.pointers" "$MMDAPP"/.local/agents/member-pointers/*.pointers > "$RIG_SCENARIO/pointers.seen" 2> /dev/null || :' \
 	'bash "$RIG_FN" --wait-for-input --team-member "$MDAT_SPAWN_AGENT" --wait-source scan:permission-escalation --wait-timeout 0 > "$RIG_SCENARIO/wait.seen" 2> /dev/null < /dev/null || :' \
 	'bash "$RIG_FN" --wait-for-input --team-member "$MDAT_SPAWN_AGENT" --wait-source scan:member-work-session --wait-timeout 0 > "$RIG_SCENARIO/wait.control" 2> /dev/null < /dev/null || :' \
 	'printf "📦 SubagentHandback\n"' \
@@ -96,7 +96,8 @@ rigFirst(){ ## file -- its first line
 ## One start of keeper-rig's routine through the spawn proxy, waiting for its run; the sandbox it made in rigSandbox.
 rigSpawn(){ ## routine short name
 	rm -f "$rigTmp"/brief.* "$rigTmp/input-scan.seen" "$rigTmp/pointers.seen" "$rigTmp/wait.seen" "$rigTmp/wait.control"
-	chmod -R u+w -- "$rigWs/.local/agents" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sandboxes"
+	## Each start is its own scene: the member's pointer store outlives a session by design, so an earlier scene's pointer is cleared with it.
+	chmod -R u+w -- "$rigWs/.local/agents" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sandboxes" "$rigWs/.local/agents/member-pointers"
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
@@ -157,7 +158,8 @@ rigSeedUnit(){ ## definition line, the text the spawner's run printed, [names-on
 	rm -rf "$rigTmp/seed-ws" ; mkdir -p "$rigTmp/seed-ws"
 	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigTmp/seed-ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_LINE="$1" RIG_RUN_TEXT="$2" RIG_RUN_FILE="$rigTmp/seed-run.out" RIG_NAMES_RC="${3:-0}" ${RIG_SESSION+RIG_SESSION="$RIG_SESSION"} \
 		bash "$rigTmp/seed-unit.sh" ) > /dev/null 2>&1
-	cat "$rigTmp/seed-ws/.local/agents/sessions/seed-unit-session/session.chat.pointers" 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "scan:permission-escalation:keeper-rig" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }'
+	## A pointer is its reader's, the member's (member-pointers/<member>.pointers); the session's own file is read too.
+	cat "$rigTmp/seed-ws/.local/agents/sessions/seed-unit-session/session.chat.pointers" "$rigTmp/seed-ws/.local/agents/member-pointers"/*.pointers 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "scan:permission-escalation:keeper-rig" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }'
 }
 printf 'NAMES-ONLY-VIEW\n' > "$rigTmp/seed-names.txt" ; printf 'OPTIONS-VIEW\n' > "$rigTmp/seed-options.txt"
 rigAssert "a bare line: the pointer is the sum of the report the spawner printed"                  "$( rigSeedUnit 'permission-escalation' 'OPTIONS-VIEW' )" "$( rigSumOf "$rigTmp/seed-options.txt" )"

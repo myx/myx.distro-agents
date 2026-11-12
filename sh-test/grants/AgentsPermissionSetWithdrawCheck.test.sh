@@ -120,7 +120,7 @@ rigOp(){
 }
 rigSetAsk(){ ## item, request options... -> the pending id
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
-	rigOp --request-permission-set magic-coordinator "$@"
+	rigOp --request-permission-set --team-member magic-coordinator "$@"
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 	LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out"
 }

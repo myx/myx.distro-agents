@@ -284,7 +284,7 @@ for rigPass in settle given ; do
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_AGENT=rig-a RIG_SESSION="$rigSpawn" RIG_OUT="$rigDir/input-scan.md" bash "$rigTmp/spawner-run.sh" ) > "$rigDir/spawner.out" 2> "$rigDir/spawner.err"
 done
-rigAssert "control: the spawner gave the run the scan's report, and kept its pointer"          "$( LC_ALL=C grep -c -F "$rigArrival" "$rigDir/input-scan.md" ):$( LC_ALL=C grep -c '^scan:grooming:rig-a' "$rigWs/.local/agents/sessions/$rigSpawn/session.chat.pointers" 2> /dev/null )" 1:1
+rigAssert "control: the spawner gave the run the scan's report, and kept its pointer"          "$( LC_ALL=C grep -c -F "$rigArrival" "$rigDir/input-scan.md" ):$( LC_ALL=C cat "$rigWs/.local/agents/sessions/$rigSpawn/session.chat.pointers" "$rigWs/.local/agents/member-pointers/rig-a.pointers" 2> /dev/null | LC_ALL=C grep -c '^scan:grooming:rig-a' )" 1:1
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait --wait-timeout 3 )"
 rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
 rigAssert "the first idle-wait finds nothing new: it ends quiet, and the model is told so"     "$rigRunStatus:$( cat "$rigDir/round" ):$( rigIn "$( cat "$rigDir/req.2" )" 'ended with no arrival' )" 0:2:yes

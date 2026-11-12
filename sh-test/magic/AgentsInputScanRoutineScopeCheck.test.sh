@@ -64,7 +64,9 @@ for rigState in pending running blocked parked ; do
 	rigAssert "the $rigState row is returned"            "$( rigRow $rigState )" yes
 done
 rigAssert "no backlog row"                               "$( rigRow backlog )" no
-rigAssert "its own pending-slack-reaction note is returned" "$( rigHas 'pending-slack-reaction rig record' )" yes
+## THE BOARD SCAN PRINTS NO INBOX (BoardRoundScan.include): the work-duty scan prints the own inbox in its first section, the
+## pending-slack-reaction records among it, and a second print here was a quarter of the scan.
+rigAssert "its own pending-slack-reaction note is not printed again here" "$( rigHas 'pending-slack-reaction rig record' )" no
 rigAssert "no own inquiry"                               "$( rigHas 'rig own inquiry' )" no
 rigAssert "no own reflection"                            "$( rigHas 'rig own reflection' )" no
 rigAssert "no client-* inbox"                            "$( rigHas 'rig client inquiry' )" no

@@ -390,8 +390,11 @@ AgentsWaitProbeTagged(){
 			probeSeenConvs="$probeSeenConvs $probeConv"
 			## THE TEAM BOT'S DM IS THE COORDINATOR'S (the human-owner's rule): every member's roster lists it under the bot identity, so
 			## another member takes from it only the messages that tag that member, by the parsed send header or its account.
+			## A conversation the member's own account lists is its own DM, whichever listing is read first.
 			local probeWhat="$probeParty"
-			[ "$probeIdentity" != "bot" ] || [ "$probeMember" = magic-coordinator ] || probeWhat="dm-mentions"
+			if [ "$probeIdentity" = "bot" ] && [ "$probeMember" != magic-coordinator ] ; then
+				printf '%s\n' "$probeRoster" | LC_ALL=C grep -q -E "^CONV\|identity=user\|.*\|id=$probeConv\|" || probeWhat="dm-mentions"
+			fi
 			if MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probeFloor" "$probeOut.dm" ; then
 				probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeWhat" "$probeFloor" "$probeOut.dm" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
 			else

@@ -98,6 +98,7 @@ AgentsToolsAtlassianCall() {
 	fi
 	## The client's own Atlassian is a separate explicit key set, read on the client
 	## side only: CLIENT_JIRA_* and CLIENT_CONFLUENCE_*.
+	type AgentsToolsCommsClientSide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
 	! AgentsToolsCommsClientSide "$actingMember" || keyPrefix="CLIENT_$keyPrefix"
 	local siteHost userEmail apiToken credentialScope=""
 	local siteEnvName="${keyPrefix}_SITE" userEnvName="${keyPrefix}_USER" apiEnvName="${keyPrefix}_API_TOKEN"

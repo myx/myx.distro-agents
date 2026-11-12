@@ -5,7 +5,7 @@
 📘 syntax: DistroAgentsContacts.fn.sh --all-contacts [--team-member <team-member>] [--organisation <slug>] [--reached-by <member>] [--scope <scope>[=<tier>]]
 📘 syntax: DistroAgentsContacts.fn.sh --all-organisations [--team-member <team-member>]
 📘 syntax: DistroAgentsContacts.fn.sh --contact-record [--team-member <team-member>] <id>
-📘 syntax: DistroAgentsContacts.fn.sh --contacted-by [--team-member <team-member>] <value> [--team <scope>]
+📘 syntax: DistroAgentsContacts.fn.sh --contacted-by [--team-member <team-member>] <value> [--team <scope>] [--slack-team <team>]
 📘 syntax: DistroAgentsContacts.fn.sh --reach-contact [--team-member <team-member>] <id>
 📘 syntax: DistroAgentsContacts.fn.sh --contact-access [--team-member <team-member>] <id> [--tool <tool> --target <target>] [--session-id <id>]
 📘 syntax: DistroAgentsContacts.fn.sh --escalate-contact [--team-member <team-member>] <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]
@@ -62,11 +62,13 @@
 		--contact-record <id>
 			One contact's record, whole.
 
-		--contacted-by <value> [--team <scope>]
+		--contacted-by <value> [--team <scope>] [--slack-team <team>]
 			Being contacted: the sender looked up, its record, what it holds, the
-			tier's whole rules and the next step. The rules are the record's
-			`tier:` and every tier below it, and the four tiers as they stand
-			where the record sets none.
+			tier's whole rules and the next step. The rules are the tier the
+			record holds for `--team`'s scope, else the record's own `tier:`, and
+			every tier below it, and the five tiers as they stand where the record
+			sets none. `--slack-team` narrows the lookup to one Slack workspace, as
+			`--find-contact` does.
 
 		--reach-contact <id>
 			Reaching one contact: its coordinates by channel, how to meet it, and the

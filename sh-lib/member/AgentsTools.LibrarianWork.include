@@ -612,7 +612,7 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 	closeFrom="$( AgentsToolsLibrarianKey "$closeFile" from )" ; closeReply="$( AgentsToolsLibrarianKey "$closeFile" reply-requested )"
 	closeKind="$( AgentsToolsLibrarianKey "$closeFile" update-kind )" ; closeTarget="$( AgentsToolsLibrarianKey "$closeFile" update-target )"
 	closePending="$( AgentsToolsLibrarianKey "$closeFile" pending-question )"
-	AgentsToolsLibrarianTool DistroAgentsTools --librarian-inbox-to-processed magic-librarian "$2" "--header:upsert:update-outcome:$3" "--header:upsert:update-result:$4" > /dev/null || {
+	AgentsToolsLibrarianTool DistroAgentsTools --librarian-inbox-to-processed --team-member magic-librarian "$2" "--header:upsert:update-outcome:$3" "--header:upsert:update-result:$4" > /dev/null || {
 		echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be closed -- it still waits" >&2
 		return 1
 	}
