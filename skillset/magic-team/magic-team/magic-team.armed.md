@@ -680,6 +680,10 @@ Content he confirmed is never touched as a side effect of unrelated work. Scope 
 
 A correction lands as the next edit, never as an undo.
 
+## No member commits
+
+No member commits, in any checkout, for any task. A member makes its change in the working tree and leaves it uncommitted for the human-owner's review. He reviews it, and he may commit it himself. Where a dispatch asks for a commit, a member reads this rule back to him and carries no commit out.
+
 ## Problems are fixed forward, by improving the mechanism
 
 A problem found is fixed by improving the mechanism that let it happen. Never put a patch on a patch.

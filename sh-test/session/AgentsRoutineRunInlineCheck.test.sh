@@ -147,7 +147,7 @@ rigCallerOf(){ ## caller file (short), callee routine (full name) -- rc 0 where 
 	local callerFile
 	callerFile="$( find "$rigSkillset" -name "$1" -type f | head -1 )"
 	[ -n "$callerFile" ] || return 1
-	LC_ALL=C grep -q -F -- "--routine-run-inline $2" "$callerFile" && LC_ALL=C grep -q -x -F -- '- `--routine-run-inline <routine>`' "$callerFile"
+	LC_ALL=C grep -q -F -- "--routine-run-inline $2" "$callerFile" && LC_ALL=C grep -q -E -- '^- `--routine-run-inline <routine>`( \(`[A-Za-z]+`\))?$' "$callerFile"
 }
 for rigPair in \
 	magic-coordinator.advance.routine.md:magic-team.process-inbox.routine magic-coordinator.advance.routine.md:magic-team.handback-review.routine magic-coordinator.advance.routine.md:magic-coordinator.communication-sweep.routine \

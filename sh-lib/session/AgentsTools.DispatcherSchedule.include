@@ -777,6 +777,18 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 ## What the starts that ended since the last look came to: a line for each that failed, the first error it gave. Their files go.
 AgentsToolsScheduleSpawnReport(){
 	local reportStore="$MMDAPP/.local/agents/schedule/starting" reportFile reportKey reportRc reportWhy reportHeld
+	## A CAP CUTS WHOLE CHARACTERS AND SAYS WHEN IT CUT, where `cut -c` splits a UTF-8 character and drops the tail silently: it counts bytes under LC_ALL=C, and a line within its cap passes through unchanged.
+	local reportCapAwk='
+		BEGIN { contFirst = sprintf( "%c", 128 ) ; contLast = sprintf( "%c", 191 ) ; }
+		{
+			totalBytes = length( $0 )
+			if ( totalBytes <= capBytes ) { print ; next ; }
+			keptBytes = capBytes
+			afterByte = substr( $0, keptBytes + 1, 1 )
+			while ( keptBytes > 0 && afterByte >= contFirst && afterByte <= contLast ) { keptBytes-- ; afterByte = substr( $0, keptBytes + 1, 1 ) ; }
+			printf "%s[truncated: %d of %d bytes]\n", substr( $0, 1, keptBytes ), keptBytes, totalBytes
+		}
+	'
 	## THE KEYS HELD AFTER REPEATED FAILURES (S12.12), each pass, so a reader of the thread log sees why nothing starts them.
 	for reportHeld in "$reportStore"/*.escalated ; do
 		[ -f "$reportHeld" ] || continue
@@ -789,11 +801,12 @@ AgentsToolsScheduleSpawnReport(){
 		IFS= read -r reportRc < "$reportFile" || reportRc=1
 		## A start the routine's lock refused, because the routine is running already (on this host or another), is no failure: it is said as a wait, with the lock it names.
 		if [ "$reportRc" != 0 ] && LC_ALL=C grep -q -F 'the routine is already running: its locking document' "$reportStore/$reportKey.out" 2> /dev/null ; then
-			printf 'schedule: the start of %s waits: %s\n' "$reportKey" "$( LC_ALL=C grep -m 1 -F 'the routine is already running' "$reportStore/$reportKey.out" | LC_ALL=C cut -c1-300 )"
+			printf 'schedule: the start of %s waits: %s\n' "$reportKey" "$( LC_ALL=C grep -m 1 -F 'the routine is already running' "$reportStore/$reportKey.out" | LC_ALL=C awk -v capBytes=300 "$reportCapAwk" )"
 		elif [ "$reportRc" != 0 ] ; then
 			## A FAILURE ALWAYS SAYS WHY: the first error line with the 4 lines that continue it, else the start's last line, else that it printed nothing.
-			reportWhy="$( LC_ALL=C grep -m 1 -A 4 'ERROR' "$reportStore/$reportKey.out" 2> /dev/null | LC_ALL=C tr -s '\n' ' ' | LC_ALL=C cut -c1-600 )"
-			[ -n "$reportWhy" ] || reportWhy="$( LC_ALL=C grep -v '^[[:space:]]*$' "$reportStore/$reportKey.out" 2> /dev/null | LC_ALL=C tail -n 1 | LC_ALL=C cut -c1-200 )"
+			## THE ERROR LINE IS ANCHORED at the head of the line, behind the names a command prefixes it with, so a marker inside another line's text is no failure of this start.
+			reportWhy="$( LC_ALL=C grep -m 1 -A 4 -E '^([A-Za-z0-9_.-]+: )*(⛔ )?ERROR:' "$reportStore/$reportKey.out" 2> /dev/null | LC_ALL=C tr -s '\n' ' ' | LC_ALL=C awk -v capBytes=600 "$reportCapAwk" )"
+			[ -n "$reportWhy" ] || reportWhy="$( LC_ALL=C grep -v '^[[:space:]]*$' "$reportStore/$reportKey.out" 2> /dev/null | LC_ALL=C tail -n 1 | LC_ALL=C awk -v capBytes=200 "$reportCapAwk" )"
 			[ -n "$reportWhy" ] || reportWhy="it printed nothing, exit $reportRc"
 			printf 'schedule: the start of %s failed: %s\n' "$reportKey" "$reportWhy"
 		fi

@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 ## Behavioural check on the one-at-a-time gate of the routine-lock acquire (S12.13, board task 20261106T0824Z;
 ## `AgentsToolsRoutineLockAcquire` in AgentsTools.RoutineLock.include). Its git steps share the one team-data checkout, so two
-## acquires in one workspace must not run together. The fault it guards: a start that takes the lock while another start is
-## inside the same steps, and a gate folder left behind by a start that failed, which then holds every later start out.
+## acquires in one workspace must not run together. The gate is the house lock primitive, a file at the workspace's locks folder
+## naming its holder: the fault it guards is a start that takes the lock while another start is inside the same steps, a gate
+## left behind by a start that failed, and a release that takes away a gate another start has taken since.
 ## Held, run rather than read:
 ##   1. TWO ACQUIRES AT ONCE RUN ONE AFTER THE OTHER, never overlapped, and each one's own order is kept.
 ##   2. A SUCCESSFUL ACQUIRE LEAVES NO GATE BEHIND.
 ##   3. A FAILED ACQUIRE LEAVES NO GATE BEHIND either, so the next start is not held out by it.
-##   4. THE GATE OF A DEAD START IS TAKEN OVER: one older than ten minutes is cleared, and the acquire goes through.
+##   4. THE GATE OF A DEAD START IS TAKEN OVER: one naming a pid that is gone is broken, and the acquire goes through.
+##   5. THE GATE FOLDER AN OLDER RELEASE MADE IS CLEARED, rather than holding every start out for good.
+##   6. A RELEASE LEAVES ALONE A GATE ANOTHER START HAS TAKEN since, so two starts never both believe they hold it.
 ## The inner acquire is a stand-in that records when it began and ended: this is the gate's own question, and AgentsRoutineLockCheck,
 ## AgentsRoutinePerMemberLockCheck and AgentsRoutineLockOwnOpsCheck hold what the inner step does with a document.
-## RED RECIPE, measured on a copy under this check's own scratch on 2026-11-06, one mutation per guarded line of
-## `AgentsToolsRoutineLockAcquire`:
-##   the whole `until mkdir "$acqGate"` gate loop deleted — the acquires overlap, and row 1 fails (:334-343 at 2026-11-09 02:47).
-##   the `rmdir "$acqGate"` that gives the gate back after the last acquire, deleted — the gate is never given back, and every row after row 1 fails (:353).
-##   the takeover line that clears a gate held over 600s, deleted — row 4 fails alone (:340).
-## Every acquire here is bounded, so the second mutation reports red rather than standing still.
+## RED RECIPE, measured on 2026-11-12 by pointing RIG_PACKAGE at a copy of the package holding the release before this one, whose
+## gate was a folder made by `mkdir` and cleared by age:
+##   rows 4, 5 and 6 fail, and row 1 fails too when that older gate loop is deleted from a copy.
+##   the `AgentsToolsLocalLockGive` that gives the gate back, deleted from this release, fails every row after row 1.
+## Every acquire here is bounded, so a gate that is never given back reports red rather than standing still.
 ## Offline: the include this check loads, and a rig of its own; no spawner, git or network is reached.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -101,26 +103,44 @@ rigAssert "the two acquires never stood inside the gate together" "$( rigPeakIns
 rigAssert "both acquires ran, one after the other" "$( LC_ALL=C grep -c '^begin ' "$rigTmp/log/calls" || : )" 2
 
 echo "-- 2. a successful acquire leaves no gate behind --"
-rigAssert "the gate folder is gone after acquires that returned" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
+rigAssert "the gate is gone after acquires that returned" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
 
 echo "-- 3. a failed acquire leaves no gate behind --"
 : > "$rigTmp/log/calls"
 rigRunAcquire third 1 0
 rigAssert "an acquire whose inner step failed ends" "$rigAcqResult" ended
-rigAssert "the gate folder is gone after an acquire that failed" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
+rigAssert "the gate is gone after an acquire that failed" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
 : > "$rigTmp/log/calls"
 rigRunAcquire fourth 0 0
 rigAssert "and the next acquire ends, rather than waiting on it" "$rigAcqResult" ended
 rigAssert "the acquire that followed it really ran" "$( LC_ALL=C grep -c '^begin fourth' "$rigTmp/log/calls" || : )" 1
 
 echo "-- 4. the gate of a dead start is taken over --"
-mkdir -p "$rigGate" || exit 1
-touch -t "$( date -v-15M '+%Y%m%d%H%M' 2> /dev/null || date -d '15 minutes ago' '+%Y%m%d%H%M' )" "$rigGate" || exit 1
+( exit 0 ) & rigDeadPid="$!" ; wait "$rigDeadPid" 2> /dev/null
+printf '%s' "$rigDeadPid" > "$rigGate" || exit 1
 : > "$rigTmp/log/calls"
 rigRunAcquire fifth 0 0
-rigAssert "an acquire behind a gate older than ten minutes ends rather than waiting it out" "$rigAcqResult" ended
+rigAssert "an acquire behind a dead start's gate ends rather than waiting it out" "$rigAcqResult" ended
 rigAssert "the acquire through a dead start's gate really ran" "$( LC_ALL=C grep -c '^begin fifth' "$rigTmp/log/calls" || : )" 1
 rigAssert "and that gate is gone too" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
+
+echo "-- 5. the gate folder an older release made is cleared --"
+mkdir -p "$rigGate/store" || exit 1
+: > "$rigTmp/log/calls"
+rigRunAcquire sixth 0 0
+rigAssert "an acquire behind an old-form gate folder ends" "$rigAcqResult" ended
+rigAssert "the acquire behind the old-form gate really ran" "$( LC_ALL=C grep -c '^begin sixth' "$rigTmp/log/calls" || : )" 1
+rigAssert "and the old-form gate is gone" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
+
+echo "-- 6. a release leaves alone a gate another start has taken --"
+( sleep 60 ) & rigOtherPid="$!" ; rigProcNote "$rigOtherPid"
+printf '%s' "$rigOtherPid" > "$rigGate" || exit 1
+: > "$rigTmp/log/calls"
+rigRunAcquire seventh 0 3
+rigAssert "the acquire holding the gate ends" "$rigAcqResult" ended
+rigAssert "the gate another start has taken is left alone" "$( cat "$rigGate" 2> /dev/null )" "$rigOtherPid"
+rigProcSignal TERM "$rigOtherPid" || :
+rm -f "$rigGate"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE LOCK ACQUIRE GATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

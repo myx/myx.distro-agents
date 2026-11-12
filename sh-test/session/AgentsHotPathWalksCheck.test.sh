@@ -37,7 +37,9 @@ rigReasons(){
 rigList(){
 	printf '%s\n' \
 		'sh-lib/board/AgentsTools.ItemDecisions.include|AgentsToolsItemIsParty|1|@call-path' \
-		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewShutdown|1|@one-off' \
+		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewShutdown|2|@one-off' \
+		'sh-lib/member/AgentsTools.Member.include||1|@one-off' \
+		'sh-lib/session/AgentsTools.DispatcherSchedule.include|AgentsToolsScheduleVerifyStale|1|@call-path' \
 		'sh-lib/comms/AgentsTools.InternOpCommsSlackSend.include|AgentsToolsCommsSlackUnreachableReport|1|@one-off' \
 		'sh-lib/monitoring/AgentsTools.Monitoring.include|AgentsToolsMonitoringHealth|1|@one-off' \
 		'sh-lib/grants/AgentsTools.Grants.include|AgentsToolsGrantsMemberList|2|@one-off' \
