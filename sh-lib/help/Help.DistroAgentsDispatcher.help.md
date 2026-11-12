@@ -88,14 +88,15 @@
 
 		--current-flags
 			The flags of the schedule now, derived from the settings and the clock:
-			worktime, weekend, holidays, emergency, overtime, learning and
+			worktime, weekend, holidays, holding, emergency, overtime, learning and
 			supervised, a line each, `<flag>: yes|no`. Read-only.
 
 		--override-flag [--no] <flag> [<ttl>] [--days <n>] [--member <member>]
 			An override of a flag: emergency, with a TTL; overtime; holidays, with a
 			TTL or until cleared; holding, with a TTL or until cleared, under which
 			the schedule starts no routine, duty or supervision; or learning; or supervised, which while it is on
-			keeps one supervision session of this rig running. `--no` clears the
+			keeps one supervision session of this rig running; or planned-maintenance,
+			with a TTL, under which the monitoring prints its alarms as muted. `--no` clears the
 			override. `--days <n>` belongs to overtime alone and ends it n worktime
 			starts ahead, the earlier end winning against a TTL.
 			A flag set here asks the schedule thread once, and the thread stays while

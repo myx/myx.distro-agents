@@ -173,7 +173,7 @@ AgentsToolsScheduleOverrideLeft(){ ## setting key, epoch now
 	esac
 }
 
-## The seven flags, a line each, in the order of the epic.
+## The flags, a line each, in the order of the epic.
 AgentsToolsScheduleFlagLine(){ ## flag, weekday name, seconds into the day, epoch now
 	local lineLeft lineValue lineTag
 	case "$1" in
@@ -185,7 +185,7 @@ AgentsToolsScheduleFlagLine(){ ## flag, weekday name, seconds into the day, epoc
 			lineTag= ; lineValue="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WEEKEND )" || lineTag=" (default)"
 			case ",$lineValue," in *",$2,"*) printf 'weekend: yes%s\n' "$lineTag" ;; *) printf 'weekend: no%s\n' "$lineTag" ;; esac
 		;;
-		emergency|overtime|holidays|holding)
+		emergency|overtime|holidays|holding|planned-maintenance)
 			lineLeft="$( AgentsToolsScheduleOverrideLeft "MDAT_SCHEDULE_$( printf '%s' "$1" | LC_ALL=C tr 'a-z-' 'A-Z_' )" "$4" )"
 			case "$lineLeft" in
 				'') printf '%s: no\n' "$1" ;;
@@ -258,7 +258,7 @@ AgentsToolsScheduleCurrentFlags(){ ## the operation as it was called, its argume
 	fi
 	AgentsToolsScheduleTools || return 1
 	read -r flagsEpoch flagsOffset flagsDay flagsSeconds <<< "$( AgentsToolsScheduleClock )"
-	for flagsFlag in worktime weekend holidays holding emergency overtime learning supervised planned-maintenance ; do
+	for flagsFlag in worktime weekend holidays holding emergency overtime learning supervised ; do
 		AgentsToolsScheduleFlagLine "$flagsFlag" "$( AgentsToolsScheduleDayName "$flagsDay" )" "$flagsSeconds" "$flagsEpoch"
 	done
 	## The pace a start is gated on, and the members' own flags: one picture, whichever door reads it (--current-flags here, --flags at
@@ -386,7 +386,7 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 			echo "⛔ ERROR: $MDSC_CMD $overOp: $overFlag is derived from the settings and the clock and has no override -- set it with --set-$overFlag" >&2 ; return 1
 		;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD $overOp: no flag $overFlag -- the flags are worktime, weekend, holidays, holding, emergency, overtime, learning and supervised, and all but worktime and weekend are overridable" >&2 ; return 1
+			echo "⛔ ERROR: $MDSC_CMD $overOp: no flag $overFlag -- the flags are worktime, weekend, holidays, holding, emergency, overtime, learning, supervised and planned-maintenance, and all but worktime and weekend are overridable" >&2 ; return 1
 		;;
 	esac
 	case "$overFlag:$overMember" in
@@ -689,9 +689,20 @@ AgentsToolsScheduleStartHeld(){ ## key
 	return 0
 }
 
+## rc 0 when this pass may start anything: its thread was not told to end, and the test for it can be made at all. rc 1 otherwise, with the
+## unanswerable case saying so on stderr: a thread whose end cannot be read is taken as ended, so nothing starts on a rig where that file is gone.
+AgentsToolsScheduleStartingAllowed(){
+	type AgentsToolsOnDemandThreadEnding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include" 2> /dev/null || :
+	type AgentsToolsOnDemandThreadEnding > /dev/null 2>&1 || { printf '⛔ ERROR: the schedule cannot ask whether its thread was told to end, so it starts nothing\n' >&2 ; return 1 ; }
+	! AgentsToolsOnDemandThreadEnding
+}
+
 AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile="" spawnDayFirst="" spawnKeptRoot=""
 	shift
+	## A THREAD TOLD TO END STARTS NOTHING MORE (S12.15), and that test precedes every read of the key's state: a start that is not made leaves
+	## the kept duty session, the day marker and the tags it would have moved exactly as the next thread finds them.
+	AgentsToolsScheduleStartingAllowed || return 1
 	case "$spawnKey" in
 		work-duty.?*)
 			spawnDutyFile="$MMDAPP/.local/agents/schedule/duty-session/${spawnKey#work-duty.}"
@@ -719,9 +730,6 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 			case "$spawnDutySession" in ''|*[!A-Za-z0-9._-]*) spawnDutySession="" ;; esac
 		;;
 	esac
-	## A THREAD TOLD TO END STARTS NOTHING MORE: the serve loop says so (AgentsToolsOnDemandThreadEnding), and the pass in hand stops starting.
-	type AgentsToolsOnDemandThreadEnding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include" 2> /dev/null || :
-	! { type AgentsToolsOnDemandThreadEnding > /dev/null 2>&1 && AgentsToolsOnDemandThreadEnding ; } || return 1
 	mkdir -p "$spawnStore" 2> /dev/null || return 1
 	## A KEY HELD AFTER REPEATED FAILURES IS NOT STARTED (S12.12): the inquiry on it is in the coordinator's inbox, and the report names it.
 	! AgentsToolsScheduleStartHeld "$spawnKey" || return 1
@@ -1942,6 +1950,9 @@ AgentsToolsScheduleLoop(){
 		AgentsToolsScheduleLearning
 		return 0
 	fi
+	## A THREAD TOLD TO END RUNS NO STEP THAT PREPARES A START (S12.15): the steps below drop a member's kept duty session, close a stale duty,
+	## carry its tags and move a pending item to running before they reach a start, and that is work the next thread has to undo.
+	AgentsToolsScheduleStartingAllowed || { printf 'schedule: the pass starts nothing: the thread was told to end, or its end could not be read\n' ; AgentsToolsScheduleLearning ; return 0 ; }
 	AgentsToolsScheduleAutorun
 	AgentsToolsScheduleWorkDuty
 	AgentsToolsScheduleStartPending

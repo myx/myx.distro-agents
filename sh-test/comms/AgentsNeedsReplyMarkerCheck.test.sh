@@ -194,10 +194,10 @@ rigStart tool-send-clean
 rigCall 60 SendMessage '{"to":"magic-team","message":"The rig finished its run."}'
 rigAssert "accepted sibling: SendMessage without the marker is sent" "$rigKilled:$( rigFirstWord "$rigScenarioDir/out" ):$( rigCalls chat.postMessage )" "no:Sent:1"
 rigStart tool-handback
-rigCall 60 SubagentHandback '{"to":"magic-team","outcome":"The rig finished its run. NEEDS REPLY: should it go on?"}'
+rigCall 60 SubagentHandback '{"outcome":"The rig finished its run. NEEDS REPLY: should it go on?"}'
 rigAssert "SubagentHandback, the marker in its outcome: the same" "$rigKilled:$( rigToolHeld )" "no:CORRECTION::0:1:yes"
 rigStart tool-handback-carried
-rigCall 60 SubagentHandback '{"to":"magic-team","task":"Retire the rule. NEEDS REPLY: is gone.","outcome":"The rule is retired."}'
+rigCall 60 SubagentHandback '{"task":"Retire the rule. NEEDS REPLY: is gone.","outcome":"The rule is retired."}'
 rigAssert "accepted sibling: the task a handback carries is not its sender's own words, so it is sent" \
 	"$rigKilled:$( rigFirstWord "$rigScenarioDir/out" ):$( rigCalls chat.postMessage )" "no:Sent:1"
 rigStart tool-findings

@@ -5034,3 +5034,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 ## A tool's context is loaded in both its function and its arm
 
 - **A console sources the context file and calls the function, so the `.fn.sh` arm never runs there.** That is why a family context is loaded in two places: the function serves any console that calls it, and the arm sets it at the root of a tool run bare. `DistroDeployContext` is the shape. One comment line in the arm marks it as special. A generic tool needs only `SystemContext`, which every console has.
+
+## The typed vault write and the plain-document contracts
+
+- **The typed vault write stamps a frontmatter block that two contracts forbid.** `--intern-op-vault-item-write` writes `type`, `document-contract`, `from` and `date` through its header ops (`AgentsTools.InternOpVaultAudit.include:142-143`) on every typed create. `vault-item.planning` and `vault-item.tracking` each state at their own line 30 that the document "carries no `---` block, and names no `document-contract`". So a `planning-*` or `tracking-*` item written through its typed op lands with four `contract-unknown-key` rows and one `contract-frontmatter` row, and no write path satisfies the contract. Measured 2026-11-12 in a copy of this tree: the two ops answer rc 0 and the name stores, so the fault is the stamped block, not the operation. A new vault kind whose contract wants a plain document needs a per-kind stamping list, or a frontmatter block in the contract.

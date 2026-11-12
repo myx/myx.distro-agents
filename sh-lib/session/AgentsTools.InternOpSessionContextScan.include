@@ -506,6 +506,8 @@ case "$1" in
 			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial="" imCapped=""
 			local imFailed="false" imAnySourceFailed="false"
 			local imNotReached=0 imNotReachedList="" imDropped="" imDroppedTotal=0 imDroppedSources=0
+			## Set inside the Slack branch below, and read by the renderer outside every branch.
+			local threadOwnFloors=0
 			## THE FLOOR ONE SOURCE READS FROM: its own where the caller stated one,
 			## the pass-wide cut-off otherwise. A caller holding a stored position per
 			## source states one per source; a caller holding only a pass position
@@ -1342,7 +1344,7 @@ case "$1" in
 
 				## Each target is named by its line number in the sorted list, not by
 				## a checksum of its name: one counter, no fork per target.
-				local uniqueThreads dt dtIndex threadFloors="" threadOwnFloors=0
+				local uniqueThreads dt dtIndex threadFloors=""
 				uniqueThreads="$( printf '%s\n' "${threadTargets[@]+"${threadTargets[@]}"}" | LC_ALL=C sort -u )" || uniqueThreads=""
 				## ONE FLOOR PER DERIVED READ, CHOSEN FROM THE SOURCES THAT FOUND IT.
 				## A thread two sources discover is one read and two floors. The older

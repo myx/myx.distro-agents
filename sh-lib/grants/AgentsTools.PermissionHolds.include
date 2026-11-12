@@ -754,7 +754,7 @@ AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id,
 		case "${1:-}:${4:-}" in
 			:*|*:) printf 'REFUSAL-ID: none -- this session has no team identity or session id, so the refusal was not recorded and cannot be escalated by id.\n' ; return 0 ;;
 		esac
-		denyId="$( export MDAT_EVENT_TRACK_POST_NOWAIT=1 MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" ; type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-refusal-log "${1}" --session-id "${4}" --tool "${2}" --target "${3}" --reason "denied by $denyWhy" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
+		denyId="$( export MDAT_EVENT_TRACK_POST_NOWAIT=1 MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" ; type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-refusal-log "${1}" --session-id "${4}" --tool "${2}" --target "${3}" --reason "denied by $denyWhy" --limit-owner human-owner 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
 		case "$denyId" in
 			refusal-*) printf 'REFUSAL-ID: %s\n' "$denyId" ;;
 			*) printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id.\n' ;;

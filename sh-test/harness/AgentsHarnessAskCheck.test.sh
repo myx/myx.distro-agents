@@ -334,12 +334,18 @@ rigAssert "control: an announcement names no next step"   "$( rigHolds "$rigScen
 rigVerdict "SendMessage ends with the NEXT: Wait for a reply in its thread -- none on a refusal or an announcement"
 
 rigStart handback-next
-rigServe SubagentHandback '{"to":"magic-team","outcome":"Rig work done."}' MDAT_SPAWN_SESSION_ID=rig-spawn-session
+## A handback takes no address: with no spawn record and no parent thread it goes to the session's own thread, so each
+## session here has one recorded.
+for rigThreadSession in rig-spawn-session rig-plain-session ; do
+	mkdir -p "$rigScenarioDir/ws/.local/agents/sessions/$rigThreadSession"
+	printf '%s\n' "CRIG00001:1700000000.000500" > "$rigScenarioDir/ws/.local/agents/sessions/$rigThreadSession/session.thread"
+done
+rigServe SubagentHandback '{"outcome":"Rig work done."}' MDAT_SPAWN_SESSION_ID=rig-spawn-session
 rigAssert "it was sent"                                   "$( rigHolds "$rigScenarioDir/out" 'SENT_MESSAGE_TS=' )" yes
-rigAssert "a spawned session is told to keep waiting"     "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: you are not done -- call Wait with no sources (your session thread) and obey what arrives, until it returns DISMISSED"
-rigServe SubagentHandback '{"to":"magic-team","outcome":"Rig work done."}' MDAT_SPAWN_SESSION_ID=rig-spawn-session MDAT_SPAWN_CALLER_WAITS=true
+rigAssert "a spawned session is told to keep waiting"     "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: you are not done -- run --idle-wait: it means all done, and waits for any message addressed to your run, until it returns DISMISSED"
+rigServe SubagentHandback '{"outcome":"Rig work done."}' MDAT_SPAWN_SESSION_ID=rig-spawn-session MDAT_SPAWN_CALLER_WAITS=true
 rigAssert "control: a caller-waits spawn is not"          "$( rigHolds "$rigScenarioDir/out" 'NEXT:' )" no
-rigServe SubagentHandback '{"to":"magic-team","outcome":"Rig work done."}'
+rigServe SubagentHandback '{"outcome":"Rig work done."}' CLAUDE_CODE_SESSION_ID=rig-plain-session
 rigAssert "control: a session that is no spawn is not"    "$( rigHolds "$rigScenarioDir/out" 'NEXT:' )" no
 rigAssert "control: and the send itself still went"       "$( rigHolds "$rigScenarioDir/out" 'SENT_MESSAGE_TS=' )" yes
 rigVerdict "SubagentHandback from a spawned session ends with the NEXT: keep-waiting line -- not for a caller-waits spawn or a non-spawn"

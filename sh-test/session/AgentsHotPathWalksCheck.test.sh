@@ -70,7 +70,6 @@ rigList(){
 		'sh-lib/session/AgentsTools.StartedRecords.include|AgentsToolsSpawnedChildRecords|1|@fallback' \
 		'sh-lib/session/AgentsTools.SuperviseResume.include|AgentsToolsSuperviseResume|1|@one-off' \
 		'sh-lib/session/AgentsTools.SuperviseScan.include|AgentsToolsSuperviseScan|1|@one-off' \
-		'sh-lib/session/AgentsTools.TrackingDrop.include|AgentsToolsTrackingLaunchedAway|1|@call-path' \
 		'sh-lib/team-data/AgentsTools.Registries.include|AgentsToolsRegistryMeasureRows|1|@one-off' \
 		'sh-lib/team-data/AgentsTools.Registries.include|AgentsToolsRegistrySpawnedSessionsRows|2|@rebuild' \
 		'sh-lib/team-data/AgentsTools.Registries.include|AgentsToolsRegistryRenderSpawnedSessions|1|@rebuild' \

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-## Behavioural check on who a post is addressed to, run rather than read. The five posting
-## tools, SendMessage, SubagentHandback, ReportFindings, PushNotification and Artifact, take
-## address_to as the tools that ask take it: the member send names it in the header of the
-## post, by its one rule, exactly as it does for a question. With none the post is as it
-## always was, headed "this conversation" in a thread (never @here, which pings everyone), and never refused. A handback that names nobody is
-## addressed to the caller, the member that made the spawn call, as the session's own spawn
-## record names it, else, for a record written before that line was, the member of the
-## session that started it, and to nobody where neither is named: a default never fails a
-## handback. A word is an account or a conversation only by the whole shape of a Slack id,
+## Behavioural check on who a post is addressed to, run rather than read. The posting tools
+## SendMessage, PushNotification and Artifact take address_to as the tools that ask take it:
+## the member send names it in the header of the post, by its one rule, exactly as it does for
+## a question. With none the post is as it always was, headed "this conversation" in a thread
+## (never @here, which pings everyone), and never refused. A handback takes no to and no
+## address_to: it goes where the session reports to, addressed to the member that route
+## names, never the run itself, else to magic-coordinator, never to the human-owner. A report
+## of a spawned session (ReportFindings) is addressed the same way, whatever address_to it
+## gives. A word is an account or a conversation only by the whole shape of a Slack id,
 ## never by its first letters, and a word that names nobody is refused in one plain line.
 ## A DISMISSED sent with SendMessage and address_to dismisses the member it names and nobody
 ## else, read by the one dismissal rule the Wait uses, and no text inside a message body
@@ -73,6 +73,8 @@ rigFrom="🤖 *_${rigMember}_* → "
 rigToOther="${rigFrom}🤖 *_${rigOther}_*."
 rigToLead="${rigFrom}🤖 *_${rigLead}_*."
 rigToNobody="${rigFrom}this conversation."
+## Where no member of its route is there to take a handback or a report, the coordinator takes it.
+rigToCoord="${rigFrom}🤖 *_magic-coordinator_*."
 ## Where no member is there to take it -- none named, or none runs in that session -- the human-owner takes it.
 rigToOwner="${rigFrom}👤 *_human-owner_* <@URIGOWNER>."
 
@@ -132,12 +134,13 @@ rigHeader(){ ## post number (default 1)
 rigPostedTo(){ ## thread as <channel>:<ts> -- the first post went into it
 	LC_ALL=C grep -q -F -- "\"channel\":\"${1%%:*}\"" "$rigScenarioDir/post.1" 2>/dev/null && LC_ALL=C grep -q -F -- "\"thread_ts\":\"${1#*:}\"" "$rigScenarioDir/post.1" 2>/dev/null && printf yes || printf no
 }
-## The five posting tools, each with the arguments it cannot go without, less `to` and `address_to`.
+## The posting tools that declare address_to, each with the arguments it cannot go without, less `to` and `address_to`.
 rigTools='SendMessage="message":"m"
-SubagentHandback="outcome":"x"
 ReportFindings="subject":"s","findings":"f"
 PushNotification="severity":"info","headline":"h"
 Artifact="url":"https://x/y"'
+## Of them, the ones whose address_to names the addressee in a spawned session too.
+rigAddressTools="$( printf '%s\n' "$rigTools" | LC_ALL=C grep -v '^ReportFindings=' )"
 
 [ "$( LC_ALL=C grep -c -F '"name":"SendMessage"' "$rigWire" )" = 1 ] || rigRefuse "the wire adapter declares no SendMessage, so nothing here would be measured"
 
@@ -147,6 +150,8 @@ while IFS= read -r rigPair ; do
 	rigAssert "${rigPair%%=*} declares it" \
 		"$( LC_ALL=C grep -F "{\"type\":\"function\",\"function\":{\"name\":\"${rigPair%%=*}\"," "$rigWire" | LC_ALL=C grep -c -F '"address_to":{"type":"string","description":"Optional. ' )" 1
 done <<< "$rigTools"
+rigAssert "SubagentHandback declares neither to nor address_to" \
+	"$( LC_ALL=C grep -F '{"type":"function","function":{"name":"SubagentHandback",' "$rigWire" | LC_ALL=C grep -c -e '"to":{' -e '"address_to":{' )" 0
 ## The count to want is read from the wire adapter itself, never a fixed number: a tool gains or loses
 ## address_to there first, and the mirror is only ever asked to match it (S18.1 drift: ThisSession's own
 ## post gained address_to, and a literal 10 here went stale against it).
@@ -157,7 +162,7 @@ rigAssert "SendMessage says how a dismissal is sent" \
 rigAssert "and so does its address_to" \
 	"$( LC_ALL=C grep -F '"name":"SendMessage",' "$rigWire" | LC_ALL=C grep -c -F 'A message DISMISSED dismisses the member named here.' )" 1
 
-echo "-- address_to names the addressee in the header, for each of the five --"
+echo "-- address_to names the addressee in the header, for each tool that takes it --"
 rigWoke(){ ## member -- yes when a post of this scenario touched its wake marker
 	[ -f "$rigScenarioDir/ws/.local/agents/wake/$1" ] && printf yes || printf no
 }
@@ -166,7 +171,15 @@ while IFS= read -r rigPair ; do
 	rigAssert "${rigPair%%=*}: one post, in the thread named, headed to the member named" "$( rigPosts )$( rigPostedTo "$rigCurrent" ):$( rigHeader )" "1yes:$rigToOther"
 	rigAssert "${rigPair%%=*}: a post into a thread, addressed to a member there, wakes it within a tick, as its own DM does" "$( rigWoke "$rigOther" )" yes
 	rigAssert "${rigPair%%=*}: and never wakes the sender for its own post" "$( rigWoke "$rigMember" )" no
-done <<< "$rigTools"
+done <<< "$rigAddressTools"
+
+echo "-- a report of a spawned session goes where the session reports to, whatever address_to it gives --"
+rigRow namedReport ReportFindings "{\"to\":\"session-current\",\"address_to\":\"$rigOther\",\"subject\":\"s\",\"findings\":\"f\"}"
+rigAssert "ReportFindings: one post, in the thread of the session that started it, headed to its member" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1yes:$rigToLead"
+rigStart bareReport
+rigRecords none ""
+rigCall ReportFindings '{"to":"session-current","subject":"s","findings":"f"}'
+rigAssert "ReportFindings: with no member on its route, headed to the coordinator, never the human-owner" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 
 echo "-- with no address_to the post is as it always was, and is not refused --"
 while IFS= read -r rigPair ; do
@@ -174,7 +187,7 @@ while IFS= read -r rigPair ; do
 	rigRecords none ""
 	rigCall "${rigPair%%=*}" "{\"to\":\"session-current\",${rigPair#*=}}"
 	rigAssert "${rigPair%%=*}: one post, in the thread named, headed this conversation, no @here" "$( rigPosts )$( rigPostedTo "$rigCurrent" ):$( rigHeader )" "1yes:$rigToNobody"
-done <<< "$rigTools"
+done <<< "$rigAddressTools"
 
 echo "-- it is resolved by the code that resolves it for a question, and shown the same way --"
 rigRow askOwner AskQuestion "{\"to\":\"session-current\",\"address_to\":\"human-owner\",\"question\":\"May the rig go on?\",\"wait\":false}"
@@ -190,51 +203,51 @@ rigRow sendAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1"
 rigAssert "a Slack account, by its id"                               "$( rigHeader )" "${rigFrom}<@URIGSOME1>."
 rigRow sendUnknown SendMessage '{"to":"session-current","address_to":"rig-nobody","message":"m"}'
 rigAssert "a name that is no team member: refused as a question to it is, nothing posted" \
-	"$( rigPosts ):$( rigFirst | LC_ALL=C cut -c1-22 ):$( LC_ALL=C grep -c -F -- "--address-to 'rig-nobody': no such team member -- expected $rigTmp/skills/rig-nobody" "$rigScenarioDir/tool.out" )" "0:ERROR: the send failed:1"
+	"$( rigPosts ):$( rigFirst | LC_ALL=C cut -c1-22 ):$( LC_ALL=C grep -c -F -- "--address-to 'rig-nobody': no such team member and no contact of that id -- expected $rigTmp/skills/rig-nobody" "$rigScenarioDir/tool.out" )" "0:ERROR: the send failed:1"
 rigRow sendResult SendMessage "{\"to\":\"session-current\",\"address_to\":\"$rigOther\",\"message\":\"m\"}"
 rigAssert "the result still says where it went and that the Wait follows" \
 	"$( rigFirst ):$( LC_ALL=C grep -c -x 'NEXT: call Wait' "$rigScenarioDir/tool.out" )" \
 	"Sent to $rigCurrent (the thread of this session) as $rigMember. What the operation reported follows::1"
 
-echo "-- a handback that names nobody is addressed to the caller the records name --"
+echo "-- a handback goes where the session reports to, addressed to the member that route names --"
 rigRow backDefault SubagentHandback '{"outcome":"x"}'
 rigAssert "to the thread of the session that started it, headed to the member of that session" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1yes:$rigToLead"
 rigRow backCurrent SubagentHandback '{"to":"session-current","outcome":"x"}'
-rigAssert "the same in the session's own thread"                     "$( rigPosts )$( rigPostedTo "$rigCurrent" ):$( rigHeader )" "1yes:$rigToLead"
+rigAssert "a to it gives is not taken: the same thread, the same member" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1yes:$rigToLead"
 rigRow backNamed SubagentHandback "{\"address_to\":\"$rigOther\",\"outcome\":\"x\"}"
-rigAssert "an address_to given wins over the caller"                 "$( rigPosts ):$( rigHeader )" "1:$rigToOther"
+rigAssert "an address_to it gives is not taken"                     "$( rigPosts ):$( rigHeader )" "1:$rigToLead"
 rigRow backElsewhere SubagentHandback '{"to":"CELSE0001","outcome":"x"}'
-rigAssert "into a conversation named by the call: as it always was"  "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a conversation it names is not taken"                    "$( rigPosts ):$( rigHeader )" "1:$rigToLead"
 
-echo "-- and to nobody where they name none: the handback is posted all the same --"
+echo "-- and to the coordinator where its route names no member: the handback is posted all the same --"
 rigStart backNoParent
 rigRecords none "$rigLead"
 rigCall SubagentHandback '{"to":"session-current","outcome":"x"}'
-rigAssert "no parent session recorded"                               "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "no parent session recorded"                               "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 rigStart backNoRecord
 rigRecords rig-parent-id no-record
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a parent with no record of its own, a session never spawned, and no member named: nobody is there to take it, so the human-owner" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1no:$rigToOwner"
+rigAssert "a parent with no record of its own, a session never spawned, and no member named: the coordinator" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1no:$rigToCoord"
 rigStart backNoOwner
 rigRecords rig-parent-id ""
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a parent record that names no member, a body line never read as one: nobody is there, so the human-owner" "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
+rigAssert "a parent record that names no member, a body line never read as one: the coordinator" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 rigStart backSelf
 rigRecords rig-parent-id "$rigMember"
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a caller that is the member itself is not addressed to itself" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a caller that is the member itself is not addressed to itself: the coordinator" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 rigStart backGone
 rigRecords rig-parent-id rig-gone
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a caller that is no team member here: nobody named, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a caller that is no team member here: the coordinator, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 rigStart backOdd
 rigRecords rig-parent-id '../rig-lead'
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a caller that is no bare name: no member to take it, so the human-owner, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
+rigAssert "a caller that is no bare name: the coordinator, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 rigStart backDots
 rigRecords rig-parent-id '..'
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "nor one that names a folder and no member: the human-owner"                "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
+rigAssert "nor one that names a folder and no member: the coordinator"                "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 
 echo "-- the member that made the spawn call, as the session's own spawn record names it --"
 rigStart calledNative
@@ -242,7 +255,7 @@ rigRecords rig-parent-id no-record "$rigLead"
 rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "started from a session with no record of its own: addressed to the member its record names" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1yes:$rigToLead"
 rigCall SubagentHandback '{"to":"session-current","outcome":"x"}'
-rigAssert "the same in the session's own thread"                     "$( rigPosts ):$( rigHeader 2 )" "2:$rigToLead"
+rigAssert "a to it gives is not taken: the same member"             "$( rigPosts ):$( rigHeader 2 )" "2:$rigToLead"
 rigStart calledWins
 rigRecords rig-parent-id "$rigOther" "$rigLead"
 rigCall SubagentHandback '{"outcome":"x"}'
@@ -250,7 +263,7 @@ rigAssert "the member the spawn recorded comes first where it runs in that sessi
 rigStart calledNamed
 rigRecords rig-parent-id no-record "$rigLead"
 rigCall SubagentHandback "{\"address_to\":\"$rigOther\",\"outcome\":\"x\"}"
-rigAssert "an address_to given still wins"                           "$( rigPosts ):$( rigHeader )" "1:$rigToOther"
+rigAssert "an address_to it gives is not taken"                     "$( rigPosts ):$( rigHeader )" "1:$rigToLead"
 rigStart calledSelf
 rigRecords rig-parent-id "$rigLead" "$rigMember"
 rigCall SubagentHandback '{"outcome":"x"}'
@@ -258,11 +271,11 @@ rigAssert "a record that names the member itself: never itself, so the session's
 rigStart calledGone
 rigRecords rig-parent-id no-record rig-gone
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a record that names no team member here: nobody named, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a record that names no team member here: the coordinator, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 rigStart calledBody
 rigRecords rig-parent-id no-record ""
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a record written before that line, its parent with no record: no member named, so the human-owner; a body line never read as one" "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
+rigAssert "a record written before that line, its parent with no record: the coordinator; a body line never read as one" "$( rigPosts ):$( rigHeader )" "1:$rigToCoord"
 
 echo "-- a word is an account or a conversation only by the whole shape of a Slack id --"
 rigRow shapeAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1","message":"m"}'
@@ -275,7 +288,7 @@ rigRow shapeBoth SendMessage "{\"to\":\"session-current\",\"address_to\":\"URIGS
 rigAssert "an account, a member and a conversation, each named as what it is" "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<@URIGSOME1>; 🤖 *_${rigOther}_*; <#DRIGSOME1>."
 ## What the member send says of a word that names nobody: one line, whole.
 rigRefusal(){ ## the word as it was given
-	LC_ALL=C grep -c -x -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: --address-to '$1': no such team member -- expected $rigTmp/skills/$1. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." "$rigScenarioDir/tool.out"
+	LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: --address-to '$1': no such team member and no contact of that id -- expected $rigTmp/skills/$1 or a contact id the store holds. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." "$rigScenarioDir/tool.out"
 }
 rigShapeNo=0
 while IFS= read -r rigWord ; do
@@ -304,9 +317,9 @@ rigRecords none ""
 rigCall SendMessage '{"to":"URIGSOME1.x:1700000001.000101","message":"m","as_bot":true}'
 rigAssert "a place that only begins like an account names no addressee, and nothing is posted there" "$( rigPosts )" 0
 
-for rigPair in 'ReportFindings={"to":"session-current","subject":"s","findings":"f"}' 'SendMessage={"to":"session-current","message":"m"}' ; do
+for rigPair in 'SendMessage={"to":"session-current","message":"m"}' ; do
 	rigRow "callerNot${rigPair%%=*}" "${rigPair%%=*}" "${rigPair#*=}"
-	rigAssert "control: the caller is the default of a handback only, never of ${rigPair%%=*}" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+	rigAssert "control: the route's member is the addressee of a handback and a report only, never of ${rigPair%%=*}" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
 done
 
 ## The posts of a scenario as Slack returns them from the thread, each with the text and the

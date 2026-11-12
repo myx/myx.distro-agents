@@ -492,8 +492,13 @@ echo "-- 13. the caller rule of the family: never from inside a member's session
 rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigOp" --session-id sess-three
 rigPre=()
-rigAssert "from inside a member's session, magic-coordinator's among them, it is refused in the family's one line, and the run lives" \
-	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigAlive sess-three ) $( rigHeader "$rigSp/sess-three/sess-three.spawn.md" killed-by )" "1 0 1 1 "
+## THE COORDINATOR MANAGES (the owner's ruling, 2026-11-09): AgentsToolsManagerCallerCheck returns 0 for it
+## before the family's refusal, so a supervision session kills the runs it watches. The exemption and the
+## refusal are neighbours in one include, and only a session acting as another member meets the refusal.
+## The row reads the kill row's own outcome word, never the byte count of stdout: a byte count moves with
+## every column the row gains, so it reports a change of format as a change of behaviour.
+rigAssert "from inside a member's session acting as magic-coordinator, the kill is accepted and the run ended: it is exempt by the owner's ruling, and the run itself is ended" \
+	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { n++ } END { print n + 0 }' "$rigTmp/out" ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" ) $( rigAlive sess-three ) $( rigHeader "$rigSp/sess-three/sess-three.spawn.md" killed-by )" "0 1 0 0 rig"
 
 echo "-- 14. through the real spawn proxy: the supervising shell closes the record, and a killed run is not started again --"
 ## The stand-in console of the proxy's own runs: it keeps each launch, its pid and when it began, and runs until
@@ -665,7 +670,9 @@ mkdir -p "$rigSp/fin-wait"
 printf -- '---\nsession-id: fin-wait\nspawn-id: fin-wait\ntracking-name: fin-wait\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-started\nstarted-at: 2026-10-13 09:40 +0300\nreports-to: %s\ndeath-told: 2026-10-13 09:41 +0300\n---\n\n# Spawn session: fin-wait\n' "$rigHost" "$rigConsoleUser" > "$rigSp/fin-wait/fin-wait.spawn.md"
 rigQuestion fin-wait ; rigAskOne="$rigPend"
 rigQuestion fin-wait ; rigAskTwo="$rigPend"
-rigAssert "control: a session whose one record is open and nothing runs behind it reads waiting on the two questions of it, and is among the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active ) $( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status )" "waiting waiting reply-pending reply-pending"
+## A RUN WITH NO LIVE PROCESS NEVER READS WAITING (sketch 5.4, AgentsTools.Registries.include:547):
+## an open ask of the session leaves the run unclosed, and the ask stands on the session row.
+rigAssert "control: a session whose one record is open and nothing runs behind it reads unclosed on the two questions of it, and is among the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active ) $( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status )" "unclosed unclosed reply-pending reply-pending"
 rigRun "$rigOp" --session-id fin-wait
 rigAssert "the kill of a session with nothing alive is no refusal: status 0, its run told as it stands, each question dismissed, its record closed, and a last row that sums it: nothing ended, two dismissed, one closed, finished" \
 	"$rigRc $( rigTroublesButPost ) $( rigRowsOf kill ) | $( LC_ALL=C awk -F'\t' '$1 == "dismiss" { gsub( /\t/, " " ) ; print }' "$rigTmp/out" | LC_ALL=C sed -e "s/$rigAskOne/ASK-ONE/" -e "s/$rigAskTwo/ASK-TWO/" | LC_ALL=C sort | LC_ALL=C tr '\n' '/' ) | $( rigRowsOf close ) | $( rigRowsOf finish )" \

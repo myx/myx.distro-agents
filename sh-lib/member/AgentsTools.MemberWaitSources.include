@@ -223,7 +223,9 @@
 				waitDutyRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$waitSessionId.spawn.md"
 				[ -f "$waitDutyRecord" ] || waitDutyRecord="$MMDAPP/.local/agents/spawned/$waitSessionId/$waitSessionId.spawn.md"
 				case "$( LC_ALL=C grep -m1 -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$waitDutyRecord" 2> /dev/null )" in
-					'routine: '*) waitDutyRun="true" ; floorWays="$floorWays tagged:$memberName" ;;
+					## A duty's own inbox is its input (the work-duty routine's wait-sources): every Wait of it reads the inbox, whatever sources
+					## the run named, so an item left there for the duty is never left unread by a Wait that named others.
+					'routine: '*) waitDutyRun="true" ; floorWays="$floorWays tagged:$memberName inbox:$memberName" ;;
 				esac
 			esac
 			case "$memberName" in client-*) ;; *) floorWays="$floorWays mentions:$memberName" ;; esac
@@ -247,7 +249,7 @@
 			waitSources="$orderFirst$orderScans"
 		fi
 		## The return bound: no --wait-timeout is no bound. A round reads every source whatever the bound, and the poll cadence is a tick and a slow look.
-		local waitBackoff="false" waitActivity="" waitWakeSeen=""
+		local waitBackoff="false" waitActivity="" waitWakeSeen="" waitWakeGraced=""
 		[ -n "$waitPoll" ] || waitPoll="${MDAT_WAIT_POLL_SECONDS:-}"
 		[ -n "$waitPoll" ] || { waitPoll="$agentsWaitTickSeconds" ; waitBackoff="true" ; }
 

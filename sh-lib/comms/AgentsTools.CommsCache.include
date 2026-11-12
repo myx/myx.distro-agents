@@ -176,7 +176,8 @@ AgentsToolsCommsCacheWaitReady(){ ## cache folder, seconds
 	mkdir -p "$1" 2> /dev/null || return 1
 	[ -p "$1/.ready" ] || mkfifo "$1/.ready" 2> /dev/null || return 1
 	: > "$1/.waiting" 2> /dev/null || :
-	exec 8<> "$1/.ready" 2> /dev/null || { rm -f "$1/.waiting" 2> /dev/null ; return 1 ; }
+	## The redirection of stderr is braced: on exec itself it would stand for the whole process, and every later error would be lost.
+	{ exec 8<> "$1/.ready" ; } 2> /dev/null || { rm -f "$1/.waiting" 2> /dev/null ; return 1 ; }
 	read -r -t "$2" -u 8 readyLine && readyRc=0
 	exec 8>&-
 	rm -f "$1/.waiting" 2> /dev/null

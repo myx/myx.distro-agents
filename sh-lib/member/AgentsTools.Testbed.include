@@ -215,19 +215,29 @@ AgentsToolsTestbedUpdate(){ ## the operation, test id, options...
 
 ## --test-unregister <test-id>: the metadata goes; the test, its script and its pass record stay.
 AgentsToolsTestbedUnregister(){ ## the operation, test id
-	[ $# -eq 2 ] && [ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is <test-id>" >&2 ; return 1 ; }
-	AgentsToolsTestbedCheckId "$2" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $1: $( AgentsToolsTestbedCheckId "$2" )" >&2 ; return 1 ; }
-	[ -f "$( AgentsToolsTestbedDir )/$2.md" ] || { echo "⛔ ERROR: $MDSC_CMD $1: $2 is not registered" >&2 ; return 1 ; }
-	rm -f "$( AgentsToolsTestbedDir )/$2.md" || return 1
-	echo "unregistered: $2"
+	local unrOp="$1"
+	shift
+	## The front door places the acting member before the operation's own arguments, and this operation
+	## takes a bare test id first, so the placed member is shifted once here, and never read as the id.
+	case "${1:-}" in ''|-*) ;; *) shift || : ;; esac
+	[ $# -eq 1 ] && [ -n "$1" ] || { echo "⛔ ERROR: $MDSC_CMD $unrOp: syntax is <test-id>" >&2 ; return 1 ; }
+	AgentsToolsTestbedCheckId "$1" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $unrOp: $( AgentsToolsTestbedCheckId "$1" )" >&2 ; return 1 ; }
+	[ -f "$( AgentsToolsTestbedDir )/$1.md" ] || { echo "⛔ ERROR: $MDSC_CMD $unrOp: $1 is not registered" >&2 ; return 1 ; }
+	rm -f "$( AgentsToolsTestbedDir )/$1.md" || return 1
+	echo "unregistered: $1"
 }
 
 ## --test-invalidate <test-id>: the pass record of the test is dropped (the runner's record, $HOME/.agents/magic-team/suite-results/<test-id>), so the
 ## next batch runs it whatever state it passed on; the metadata keeps when.
 AgentsToolsTestbedInvalidate(){ ## the operation, test id
-	local invId="${2:-}" invDir="${HOME:-/nonexistent}/.agents/magic-team/suite-results" invPairs=() invKey invNow
-	[ $# -eq 2 ] && [ -n "$invId" ] || { echo "⛔ ERROR: $1: syntax is <test-id>" >&2 ; return 1 ; }
-	[ -f "$( AgentsToolsTestbedDir )/$invId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $1: $invId is not registered" >&2 ; return 1 ; }
+	local invOp="$1" invId="" invDir="${HOME:-/nonexistent}/.agents/magic-team/suite-results" invPairs=() invKey invNow
+	shift
+	## The front door places the acting member before the operation's own arguments, and this operation
+	## takes a bare test id first, so the placed member is shifted once here, and never read as the id.
+	case "${1:-}" in ''|-*) ;; *) shift || : ;; esac
+	invId="${1:-}"
+	[ $# -eq 1 ] && [ -n "$invId" ] || { echo "⛔ ERROR: $invOp: syntax is <test-id>" >&2 ; return 1 ; }
+	[ -f "$( AgentsToolsTestbedDir )/$invId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $invOp: $invId is not registered" >&2 ; return 1 ; }
 	AgentsToolsTestbedCheckId "$invId" > /dev/null || return 1
 	rm -rf "$invDir/$invId" 2> /dev/null
 	invNow="$( date +"%Y-%m-%d %H:%M %z" )"
@@ -290,6 +300,9 @@ AgentsToolsTestbedRuns(){ ## the number of run folders to look at
 AgentsToolsTestbedList(){ ## the operation, its arguments...
 	local listOp="$1" listProject="" listNamespace="" listKeyword="" listIds listRows listPassed listRuns listTotal=0 listPassedCount=0 listLine listId
 	shift
+	## The front door places the acting member before the operation's own arguments, and this
+	## operation takes no positional of its own: the leading bare name is that member.
+	case "${1:-}" in ''|-*) ;; *) shift ;; esac
 	while [ $# -gt 0 ] ; do
 		[ -n "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is [--project <p>] [--namespace <n>] [--keyword <k>]" >&2 ; return 1 ; }
 		case "$1" in
@@ -337,6 +350,9 @@ AgentsToolsTestbedEnqueue(){ ## the operation, why, wait flag (wait|no-wait), te
 AgentsToolsTestbedRun(){ ## the operation, its arguments...
 	local runOp="$1" runWait="no-wait" runRows runEligible runIds runPassed runPick="" runWhy
 	shift
+	## The front door places the acting member before the operation's own arguments, and this
+	## operation takes no positional of its own: the leading bare name is that member.
+	case "${1:-}" in ''|-*) ;; *) shift ;; esac
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--wait) runWait="wait" ;;

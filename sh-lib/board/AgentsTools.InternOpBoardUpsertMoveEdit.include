@@ -44,6 +44,9 @@ case "$1" in
 			;;
 		esac
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" board-upsert-move-edit || { set +e ; return 1 ; }
+		## A board item is a Markdown document: a name given without `.md` is that document, `<name>.md` (a matter may hold a dot), so
+		## no item is ever written where every reader of `*.md` passes it by.
+		case "$itemName" in *.md) ;; *) itemName="$itemName.md" ;; esac
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
@@ -432,6 +435,9 @@ case "$1" in
 			## trash/ belongs to the trash op and is not a board state, so a move
 			## never spools there. `--` guards a later edit that bypasses validation.
 			rm -f -- "$sourcePath"
+			## A review mark lives exactly as long as the review it marks (AgentsToolsReviewUnseenEscalate, which writes it):
+			## an item that leaves review leaves no mark behind, in the state every reader lists.
+			case "$fromState" in review) rm -f -- "$boardRoot/review/.unseen-$itemName" ;; esac
 			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} deleted, tree: $boardRoot" >&2
 		else
 			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, tree: $boardRoot" >&2

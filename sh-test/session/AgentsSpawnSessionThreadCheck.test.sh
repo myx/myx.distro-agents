@@ -319,7 +319,7 @@ rigAssert "the parent session has no record of its own" "$( ls "$rigWs/.local/ag
 rigAssert "the helper's record names the member the Agent call was made as" "$( rigAgentField owner ):$( rigAgentField parent-member )" "keeper-myx:magic-coordinator"
 rigAssert "its joined line is addressed to that member" "$( rigJoined keeper-myx "$( rigShown magic-coordinator )" 'hand it back' )" 1
 ## The helper's own handback, with no addressee, into its session thread.
-rigOut="$( rigServed SubagentHandback '{"to":"session-current","outcome":"RIG-HANDBACK-OUTCOME"}' MDAT_SPAWN_SESSION_ID="$( rigAgentField spawn-id )" MDAT_SPAWN_AGENT=keeper-myx MDAT_SESSION_ID=rig-native-six MDAT_SESSION_THREAD="$( rigAgentField session-thread )" )"
+rigOut="$( rigServed SubagentHandback '{"outcome":"RIG-HANDBACK-OUTCOME"}' MDAT_SPAWN_SESSION_ID="$( rigAgentField spawn-id )" MDAT_SPAWN_AGENT=keeper-myx MDAT_SESSION_ID=rig-native-six MDAT_SESSION_THREAD="$( rigAgentField session-thread )" )"
 rigAssert "its handback is addressed to the member that spawned it" \
 	"$( LC_ALL=C grep -F 'RIG-HANDBACK-OUTCOME' "$rigTmp/bodies" | LC_ALL=C grep -c -F "\"text\":\"$( rigShown keeper-myx ) → $( rigShown magic-coordinator ).\\n# 🏁 Handback" ):$( LC_ALL=C grep -c -F 'RIG-HANDBACK-OUTCOME' "$rigTmp/bodies" )" "1:1"
 ## The spawn runs on behind the Agent call: it is left to end, its close steps too, before

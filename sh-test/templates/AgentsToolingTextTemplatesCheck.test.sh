@@ -195,6 +195,12 @@ rigStart(){ ## scenario directory name, origin (the package as it is, or the mar
 	rigScenarioDir="$rigTmp/$1"
 	rigScenarioOrigin="$2"
 	mkdir -p "$rigScenarioDir/ws/.local/.agents" "$rigScenarioDir/ws/.local/agents/pending" "$rigScenarioDir/ws/IN" "$rigScenarioDir/data"
+	## A handback takes no address: with no spawn record and no parent thread it goes to the session's own thread, so the
+	## session of rigTool has one recorded.
+	mkdir -p "$rigScenarioDir/ws/.local/agents/sessions/rig-tool-session"
+	printf '%s\n' "CRIG00001:1700000000.000500" > "$rigScenarioDir/ws/.local/agents/sessions/rig-tool-session/session.thread"
+	## It keeps a list that holds nothing open, so no handback of it says that no list was kept.
+	: > "$rigScenarioDir/ws/.local/agents/sessions/rig-tool-session/$rigMember.checklist.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigScenarioDir/ws/.local/.agents/$rigMember.agent.env"
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
@@ -205,6 +211,7 @@ rigStart(){ ## scenario directory name, origin (the package as it is, or the mar
 rigTool(){ ## tool, argument object
 	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID \
 		MDLT_ORIGIN="$rigScenarioOrigin" MDLT_OPTION="--run-from-path $rigScenarioOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" \
+		CLAUDE_CODE_SESSION_ID=rig-tool-session \
 		bash "$rigScenarioOrigin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "$1" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err"
 }
@@ -235,7 +242,7 @@ rigSaid(){ ## fixed text
 
 echo "-- the four report tools, from the package as it is --"
 rigStart reports "$MDLT_ORIGIN"
-rigTool SubagentHandback '{"to":"magic-team","task":"Check the rig.","outcome":"The rig holds.","findings":"Nothing is loose.","unfinished":"The far side was not checked."}'
+rigTool SubagentHandback '{"task":"Check the rig.","outcome":"The rig holds.","findings":"Nothing is loose.","unfinished":"The far side was not checked."}'
 [ "$( rigPosts )" = 1 ] || rigRefuse "the handback never reached the fake curl, so nothing below would be measured: $( head -1 "$rigScenarioDir/out" )"
 rigAssert "a handback of a session with no item: its title, the task as the call gave it, then each field under its label" "$( rigBodyOf 1 )" \
 	'# 🏁 Handback\n\n**🗂 Task**\nCheck the rig.\n\n**📦 Outcome**\nThe rig holds.\n\n**🔍 Findings**\nNothing is loose.\n\n**⏳ Unfinished, and what was not checked**\nThe far side was not checked.'
@@ -263,6 +270,9 @@ printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: r
 rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/session/AgentsTools.SpawnSandbox.include" )"
 [ -n "$rigReportsTo" ] || rigRefuse "the package names no field for where a run reports to (agentsRunRouteField)"
 printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\n%s: magic-coordinator\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigReportsTo" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.spawn.md"
+## Its session has a thread: the handback of a run that reports to a member goes there, addressed to that member.
+mkdir -p "$rigScenarioDir/ws/.local/agents/sessions/rig-report-session"
+printf '%s\n' "CRIG00001:1700000000.000600" > "$rigScenarioDir/ws/.local/agents/sessions/rig-report-session/session.thread"
 ## The session keeps a list, and it holds nothing open: a handback from a session with no list says so in its unfinished field.
 : > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/$rigMember.checklist.md"
 rigTaskTool(){ ## tool, argument object -- one served call of that session
@@ -277,7 +287,7 @@ rigTaskTool PushNotification '{"to":"magic-team","severity":"alert","headline":"
 [ "$( rigPosts )" = 1 ] || rigRefuse "the notification of the session with a task never reached the fake curl: $( head -1 "$rigScenarioDir/out" )"
 rigAssert "a notification: its title, its headline, the task in words with the names of its item after the words, then the detail" "$( rigBodyOf 1 )" \
 	"# 🚨 Alert\\n\\nThe rig stopped.\\n\\n**🗂 Task**\\n$rigTaskLine\\n\\n**📋 Detail**\\nIt stopped at the second step."
-rigTaskTool SubagentHandback '{"to":"magic-team","task":"Check the rig.","outcome":"The rig holds."}'
+rigTaskTool SubagentHandback '{"task":"Check the rig.","outcome":"The rig holds."}'
 rigAssert "a handback: the task in words, and under it the task as the call gave it" "$( rigBodyOf 2 )" \
 	"# 🏁 Handback\\n\\n**🗂 Task**\\n$rigTaskLine\\nCheck the rig.\\n\\n**📦 Outcome**\\nThe rig holds."
 rigTaskTool ReportFindings '{"to":"magic-team","subject":"the rig","findings":"It holds."}'
@@ -290,14 +300,14 @@ rigAssert "a document announced: its own title is the title of the post, then th
 printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\n---\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T0100Z-rig-widget.md"
 rigTaskTool PushNotification '{"to":"magic-team","severity":"info","headline":"The rig goes on."}'
 rigAssert "a task with no words to say it: no Task label, and never the name of its item alone under one" "$( rigBodyOf 5 )" '# ℹ️ Notice\n\nThe rig goes on.'
-rigTaskTool SubagentHandback '{"to":"magic-team","task":"Check the rig.","outcome":"The rig holds."}'
+rigTaskTool SubagentHandback '{"task":"Check the rig.","outcome":"The rig holds."}'
 rigAssert "a handback there: the task as the call gave it, alone" "$( rigBodyOf 6 )" '# 🏁 Handback\n\n**🗂 Task**\nCheck the rig.\n\n**📦 Outcome**\nThe rig holds.'
 rigAssert "no line of these posts starts with the name of an item" \
 	"$( for rigPostNo in 1 2 3 4 5 6 ; do rigBodyOf "$rigPostNo" ; printf '\\n' ; done | LC_ALL=C awk '{ lineCount = split( $0, lineOf, /\\n/ ) ; for ( lineNo = 1 ; lineNo <= lineCount ; lineNo++ ) { if ( lineOf[lineNo] ~ /^`?(task|dispatch)-[0-9]/ ) { hitCount++ ; } } } END { print hitCount + 0 ; }' )" 0
 
 echo "-- from the copy with marked templates: what is posted is the template's --"
 rigStart reports-marked "$rigOrigin"
-rigTool SubagentHandback '{"to":"magic-team","outcome":"The rig holds."}'
+rigTool SubagentHandback '{"outcome":"The rig holds."}'
 [ "$( rigPosts )" = 1 ] || rigRefuse "the handback of the marked run never reached the fake curl: $( head -1 "$rigScenarioDir/out" )"
 rigAssert "a handback follows its template"               "$( rigBodyOf 1 )" 'RIGMARK # 🏁 Handback\n\n**📦 Outcome**\nThe rig holds.'
 rigTool ReportFindings '{"to":"magic-team","subject":"the rig","findings":"It holds."}'

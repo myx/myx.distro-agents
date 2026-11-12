@@ -292,11 +292,11 @@ rigAssert "nor the thread of a longer parent id"          "$( rigHolds "$rigScen
 echo "-- session-parent, named or empty, is the same route --"
 rigStart hbNamed
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
-rigCall SubagentHandback '{"to":"session-parent","outcome":"x"}'
+rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "named: posted to the parent"                   "$( rigPostedTo CPARENT1 1700000001.000101 )" yes
 rigStart hbEmpty
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
-rigCall SubagentHandback '{"to":"","outcome":"x"}'
+rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "empty: posted to the parent"                   "$( rigPostedTo CPARENT1 1700000001.000101 )" yes
 
 echo "-- no parent session and no address: the human-owner, where no magic-coordinator runs in the session --"
@@ -339,20 +339,20 @@ rigAssert "it is an error"                                "$( rigFirstIs 'ERROR:
 echo "-- an explicit thread wins over the default --"
 rigStart hbExplicit
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
-rigCall SubagentHandback '{"to":"CEXPL001:1700000009.000009","outcome":"x"}'
+rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "posted to that thread"                         "$( rigPostedTo CEXPL001 1700000009.000009 )" yes
 rigAssert "and not to the parent's"                       "$( rigHolds "$rigScenarioDir/post.1" 'CPARENT1' )" no
 
 echo "-- a team member name: its Slack DM where it has an account, its inbox where it has none --"
 rigStart hbMemberDm
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
-rigCall SubagentHandback '{"to":"magic-tester","outcome":"x"}'
+rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "a member with an account: one post"            "$( rigPosts )" 1
 rigAssert "to its own account, as the DM"                 "$( rigPostedTo URIGSELF1 "" )" yes
 rigAssert "and nothing in its inbox"                      "$( rigInbox magic-tester )" 0
 rigStart hbMemberInbox
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
-rigCall SubagentHandback '{"to":"magic-librarian","outcome":"rig done"}'
+rigCall SubagentHandback '{"outcome":"rig done"}'
 rigAssert "a member with none: no post"                   "$( rigPosts )" 0
 rigAssert "one inquiry in its inbox"                      "$( rigInbox magic-librarian )" 1
 rigAssert "of type inquiry"                               "$( cat "$rigScenarioDir/data/inboxes/magic-librarian/incoming/"inquiry-*.md 2>/dev/null | LC_ALL=C grep -c -x 'type: inquiry' )" 1
@@ -360,7 +360,7 @@ rigAssert "carrying the handback"                         "$( cat "$rigScenarioD
 rigAssert "and the first line names the inbox route"      "$( rigFirstIs 'Sent to the inbox of magic-librarian as inquiry-' )" yes
 rigStart hbMemberUnknown
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
-rigCall SubagentHandback '{"to":"no-such-member","outcome":"x"}'
+rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "a name that is no member: no post"             "$( rigPosts )" 0
 rigAssert "it is an error"                                "$( rigFirstIs 'ERROR:' )" yes
 rigAssert "and no inbox was made for it"                  "$( ls "$rigScenarioDir/data/inboxes" 2>/dev/null | LC_ALL=C grep -c -x 'no-such-member' || : )" 0
@@ -368,7 +368,7 @@ rigAssert "and no inbox was made for it"                  "$( ls "$rigScenarioDi
 echo "-- human-owner is unchanged --"
 rigStart hbOwner
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
-rigCall SubagentHandback '{"to":"human-owner","outcome":"x"}'
+rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "posted to the owner's conversation"            "$( rigPostedTo URIGOWNER "" )" yes
 
 echo "-- each tool keeps its own rules that are not about the addressee --"

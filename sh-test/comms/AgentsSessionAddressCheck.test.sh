@@ -233,7 +233,7 @@ rigOpRc=0
 rigOp(){ ## session thread (empty for none), operation and its arguments after the member
 	local opThread="$1" opName="$2" ; shift 2
 	rigOpRc=0
-	rigAs "$opThread" bash "$rigTool" "$opName" "$rigMember" "$@" < /dev/null > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" || rigOpRc=$?
+	rigAs "$opThread" bash "$rigTool" "$opName" --team-member "$rigMember" "$@" < /dev/null > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" || rigOpRc=$?
 }
 ## The operation's own error lines, whole: a refusal is one line.
 rigOpErrors(){
@@ -254,13 +254,15 @@ rigAssert "session-parent: one post, in the parent's thread"      "$rigOpRc:$( r
 rigAssert "and not in the caller's own"                           "$( rigHolds "$rigScenarioDir/post.1" 'CSESS001' )" no
 rigScene opSendNoCurrent
 rigOp "" --slack-send-message session-current RIG-BODY
-rigAssert "no session thread: refused, nothing posted"            "$rigOpRc:$( rigPosts )" "1:0"
-rigAssert "by one line: why, and what to pass instead"            "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --slack-send-message: $rigNoCurrent Nothing was sent."
+## A SESSION ADDRESS THAT CANNOT BE RESOLVED IS NEVER NOWHERE: the send falls through to the parent's thread, the coordinator's
+## duty thread, then the human-owner's conversation with the bot, addressed to magic-coordinator.
+rigAssert "no session thread: the post goes to the parent's thread"  "$rigOpRc:$( rigPosts ):$( rigPostedTo "$rigParent" )" "0:1:yes"
+rigAssert "and the line says so, addressed to magic-coordinator"     "$( rigHolds "$rigScenarioDir/op.err" 'so the post goes to session-parent, addressed to magic-coordinator.' )" yes
 rigStart opSendNoParent
 rigRecords none "$rigParent"
 rigOp "$rigCurrent" --slack-send-message session-parent RIG-BODY
-rigAssert "no parent: refused, nothing posted"                    "$rigOpRc:$( rigPosts )" "1:0"
-rigAssert "by one line: why, and what to pass instead"            "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --slack-send-message: $rigNoParent Nothing was sent."
+rigAssert "no parent: the post goes to the human-owner's conversation" "$rigOpRc:$( rigPosts )" "0:1"
+rigAssert "and the line says so, addressed to magic-coordinator"     "$( rigHolds "$rigScenarioDir/op.err" 'so the post goes to human-owner, addressed to magic-coordinator.' )" yes
 rigAssert "never the caller's own thread instead"                 "$( rigHolds "$rigScenarioDir/op.err" 'CSESS001' )" no
 
 echo "-- the read operation takes both names --"
@@ -321,11 +323,11 @@ rigAssert "and the first line names the route"                    "$( rigFirst )
 rigRow toolSendParent "$rigCurrent" SendMessage '{"to":"session-parent","message":"m"}'
 rigAssert "SendMessage to session-parent: the parent's thread"    "$( rigPosts )$( rigPostedTo "$rigParent" )" 1yes
 rigAssert "and the first line names the route"                    "$( rigFirst )" "Sent to $rigParent (the thread of parent session rig-parent-id) as $rigMember. What the operation reported follows:"
-for rigPair in 'SubagentHandback={"to":"session-current","outcome":"x"}' 'ReportFindings={"to":"session-current","subject":"s","findings":"f"}' 'PushNotification={"to":"session-current","severity":"info","headline":"h"}' 'Artifact={"to":"session-current","url":"https://x/y"}' ; do
+for rigPair in 'PushNotification={"to":"session-current","severity":"info","headline":"h"}' 'Artifact={"to":"session-current","url":"https://x/y"}' ; do
 	rigRow "toolCurrent${rigPair%%=*}" "$rigCurrent" "${rigPair%%=*}" "${rigPair#*=}"
 	rigAssert "${rigPair%%=*} to session-current: the session thread" "$( rigPosts )$( rigPostedTo "$rigCurrent" )" 1yes
 done
-for rigPair in 'SendMessage={"to":"session-current","message":"m"}' 'SubagentHandback={"to":"session-current","outcome":"x"}' 'ReportFindings={"to":"session-current","subject":"s","findings":"f"}' 'PushNotification={"to":"session-current","severity":"info","headline":"h"}' 'Artifact={"to":"session-current","url":"https://x/y"}' ; do
+for rigPair in 'SendMessage={"to":"session-current","message":"m"}' 'PushNotification={"to":"session-current","severity":"info","headline":"h"}' 'Artifact={"to":"session-current","url":"https://x/y"}' ; do
 	rigRow "toolNone${rigPair%%=*}" "" "${rigPair%%=*}" "${rigPair#*=}"
 	rigAssert "${rigPair%%=*} with no session thread: the one line, nothing posted" "$( rigPosts ):$( rigFirst )" "0:ERROR: $rigNoCurrent Nothing was sent."
 done
@@ -350,16 +352,16 @@ rigAskCall(){ ## session thread (empty for none), tool name, arguments JSON
 }
 
 echo "-- the ask tools take both names --"
-rigRow askCurrentAskQuestion "$rigCurrent" AskQuestion '{"to":"session-current","address_to":"human-owner","question":"May the rig go on?","wait":false}'
+rigRow askCurrentAskQuestion "$rigCurrent" AskQuestion '{"to":"session-current","address_to":"magic-coordinator","question":"May the rig go on?","wait":false}'
 rigAssert "AskQuestion to session-current: asked in the session thread" "$( rigPosts )$( rigPostedTo "$rigCurrent" ):$( rigFirst )" "1yes:ASK-RESULT: POSTED"
-rigRow askParentAskQuestion "$rigCurrent" AskQuestion '{"to":"session-parent","address_to":"human-owner","question":"May the rig go on?","wait":false}'
+rigRow askParentAskQuestion "$rigCurrent" AskQuestion '{"to":"session-parent","address_to":"magic-coordinator","question":"May the rig go on?","wait":false}'
 rigAssert "AskQuestion to session-parent: asked in the parent's thread" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigFirst )" "1yes:ASK-RESULT: POSTED"
 for rigPair in 'ConfirmReadback="question":"Did the rig read it right?","understood":"u","source":"s","will_do":"w"' 'EscalateDecision="question":"Which check first?","options":"alpha -- the unit checks\nbeta -- the lint"' ; do
 	rigScene "askCurrent${rigPair%%=*}"
-	rigAskCall "$rigCurrent" "${rigPair%%=*}" "{\"to\":\"session-current\",\"address_to\":\"human-owner\",${rigPair#*=}}"
+	rigAskCall "$rigCurrent" "${rigPair%%=*}" "{\"to\":\"session-current\",\"address_to\":\"magic-coordinator\",${rigPair#*=}}"
 	rigAssert "${rigPair%%=*} to session-current: asked in the session thread" "$( rigPosts )$( rigPostedTo "$rigCurrent" )" 1yes
 	rigScene "askParent${rigPair%%=*}"
-	rigAskCall "$rigCurrent" "${rigPair%%=*}" "{\"to\":\"session-parent\",\"address_to\":\"human-owner\",${rigPair#*=}}"
+	rigAskCall "$rigCurrent" "${rigPair%%=*}" "{\"to\":\"session-parent\",\"address_to\":\"magic-coordinator\",${rigPair#*=}}"
 	rigAssert "${rigPair%%=*} to session-parent: asked in the parent's thread" "$( rigPosts )$( rigPostedTo "$rigParent" )" 1yes
 done
 rigRow askCurrentBare "$rigCurrent" AskQuestion '{"to":"session-current","question":"May the rig go on?","wait":false}'
@@ -370,7 +372,7 @@ for rigPair in 'AskQuestion="question":"May the rig go on?"' 'ConfirmReadback="q
 done
 rigStart askNoParent
 rigRecords none "$rigParent"
-rigCall "$rigCurrent" RequestPermission '{"to":"session-parent","address_to":"human-owner","question":"May the rig write this file?","refusal_id":"refusal-0","reason":"the rig needs it","task_ref":"dispatch-rig"}'
+rigCall "$rigCurrent" RequestPermission '{"to":"session-parent","address_to":"magic-coordinator","question":"May the rig write this file?","refusal_id":"refusal-0","reason":"the rig needs it","task_ref":"dispatch-rig"}'
 rigAssert "RequestPermission with no parent: the one line, nothing posted" "$( rigPosts ):$( rigFirst )" "0:ERROR: RequestPermission: $rigNoParent Nothing was sent."
 
 ## What the session's stored wait holds as its sources, as the wait operation recorded them.
@@ -453,7 +455,7 @@ rigCall native SendMessage '{"message":"m"}'
 rigAssert "with no thread recorded it is refused as before"       "$( rigPosts ):$( rigFirst )" "0:ERROR: both to and message are required, and one of them was empty. Nothing was sent."
 rigScene nativeAskDefault
 rigSessionRecord rig-native-id "$rigNativeThread"
-rigCall native AskQuestion '{"address_to":"human-owner","question":"May the rig go on?","wait":false}'
+rigCall native AskQuestion '{"address_to":"magic-coordinator","question":"May the rig go on?","wait":false}'
 rigAssert "AskQuestion with no to: asked in the same thread"      "$( rigPosts )$( rigPostedTo "$rigNativeThread" ):$( rigFirst )" "1yes:ASK-RESULT: POSTED"
 rigScene nativeAskDefaultNone
 rigCall native AskQuestion '{"address_to":"human-owner","question":"May the rig go on?","wait":false}'
@@ -531,7 +533,7 @@ rigOp "$rigCurrent" --slack-react "session-parent:$rigMessage" eyes
 rigAssert "react session-parent:<ts>"                             "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "POST reactions.add channel=CPARENT1 timestamp=$rigMessage name=eyes" )" "0:yes"
 rigOp "$rigCurrent" --slack-react "event-alert:$rigMessage" eyes
 rigAssert "react event-alert:<ts>"                                "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "POST reactions.add channel=CRIGALERT timestamp=$rigMessage name=eyes" )" "0:yes"
-rigOp "$rigCurrent" --slack-react --team-member magic-team eyes
+rigOp "$rigCurrent" --slack-react magic-team eyes
 rigAssert "react on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-react: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names"
 rigAssert "the three reactions asked for were placed, and no other" "$( LC_ALL=C sort "$rigScenarioDir/reactions" | tr '\n' '|' )" "$rigMessage eyes|$rigMessage eyes|$rigMessage eyes|"
 rigAliasScene opMessageEdit
@@ -609,13 +611,13 @@ rigAliasScene toolMessageSend
 rigCall "$rigCurrent" SendMessage "{\"to\":\"session-parent:$rigMessage\",\"message\":\"m\"}"
 rigAssert "SendMessage to session-parent:<ts>: a reply in the thread of that message" "$( rigPosts )$( rigPostedTo "CPARENT1:$rigMessage" ):$( rigFirst )" "1yes:Sent to CPARENT1:$rigMessage (a message in the conversation of the thread of parent session rig-parent-id) as $rigMember. What the operation reported follows:"
 rigAliasScene toolMessageAsk
-rigCall "$rigCurrent" AskQuestion "{\"to\":\"session-current:$rigMessage\",\"address_to\":\"human-owner\",\"question\":\"May the rig go on?\",\"wait\":false}"
+rigCall "$rigCurrent" AskQuestion "{\"to\":\"session-current:$rigMessage\",\"address_to\":\"magic-coordinator\",\"question\":\"May the rig go on?\",\"wait\":false}"
 rigAssert "AskQuestion to session-current:<ts>: asked in the thread of that message" "$( rigPosts )$( rigPostedTo "CSESS001:$rigMessage" ):$( rigFirst )" "1yes:ASK-RESULT: POSTED"
 rigAliasScene toolMessageTrack
 rigCall "$rigCurrent" SendMessage "{\"to\":\"event-track:$rigMessage\",\"message\":\"m\"}"
 rigAssert "SendMessage to event-track:<ts>"                       "$( rigPosts )$( rigPostedTo "CRIGTRACK:$rigMessage" )" 1yes
 rigAliasScene toolAskAlert
-rigCall "$rigCurrent" AskQuestion '{"to":"event-alert","address_to":"human-owner","question":"May the rig go on?","wait":false}'
+rigCall "$rigCurrent" AskQuestion '{"to":"event-alert","address_to":"magic-coordinator","question":"May the rig go on?","wait":false}'
 rigAssert "AskQuestion to event-alert: asked there, as a new message" "$( rigPosts ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIGALERT"' ):$( rigFirst )" "1:yes:ASK-RESULT: POSTED"
 rigAliasScene toolAskTrackBare
 rigCall "$rigCurrent" AskQuestion '{"to":"event-track","question":"May the rig go on?","wait":false}'
@@ -631,7 +633,8 @@ rigAssert "it reads no parent thread from a spawn record"         "$( rigHarness
 
 echo "-- the help of each operation and tool that takes an address lists both names --"
 rigWire="$rigHere/harness/AgentsOpenAiChatWire.sh"
-for rigHelpTool in SendMessage SubagentHandback ReportFindings PushNotification Artifact AskQuestion ConfirmReadback EscalateDecision RequestPermission Wait ; do
+## SubagentHandback takes no address: where it goes is the tooling's.
+for rigHelpTool in SendMessage ReportFindings PushNotification Artifact AskQuestion ConfirmReadback EscalateDecision RequestPermission Wait ; do
 	rigAssert "the tool $rigHelpTool" "$( LC_ALL=C grep -F -- "{\"type\":\"function\",\"function\":{\"name\":\"$rigHelpTool\"," "$rigWire" | LC_ALL=C awk '{ print ( index( $0, "session-current" ) > 0 ) ( index( $0, "session-parent" ) > 0 ) ; }' )" 11
 done
 rigManual="$rigHere/help/Help.DistroAgentsTools.help.md"

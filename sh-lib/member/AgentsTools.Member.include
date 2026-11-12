@@ -67,6 +67,13 @@ case "$1" in
 			@*) echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryTarget is no target alias: @coordinator (default, also @all @team @grooming), @retro @docs @conventions (librarian), @design, @ops, @tests, @code, @ui -- nothing was written" >&2 ; set +e ; return 1 ;;
 			''|magic-coordinator|magic-librarian|keeper-*|partner-*|client-*) ;;
 			*)
+				## A NAME NO MEMBER RECORD HOLDS IS REFUSED BEFORE ANY ROUTING, as the send refuses an addressee that names nobody: a typo
+				## never passes silently to the coordinator.
+				type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+				if type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 && ! AgentsToolsTeamMemberDirectory "$inquiryTarget" > /dev/null 2>&1 ; then
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryTarget is no team member here and no target alias, so it names nobody -- nothing was written" >&2
+					set +e ; return 1
+				fi
 				if [ "$inquiryFrom" != "magic-coordinator" ] ; then
 					local inquiryRecent=""
 					[ -z "${MDAT_DATA_ROOT:-}" ] || [ -z "$inquiryFrom" ] || inquiryRecent="$( find "$MDAT_DATA_ROOT/inboxes/$inquiryFrom" -name '*.md' -mtime -1 -exec grep -l -x "from: $inquiryTarget" {} + 2> /dev/null | head -1 )" || inquiryRecent=""
@@ -594,7 +601,7 @@ case "$1" in
 				hdr == 1 && /^from: / { from = substr( $0, 7 ) }
 				hdr == 1 && /^date: / { date = substr( $0, 7, 16 ) }
 				hdr >= 2 && title == "" && /^# / { title = substr( $0, 3 ) }
-				END { emit() }' "$listFolder"/*.md 2> /dev/null
+				END { emit() }' "$listFolder"/*.md 2> /dev/null || :
 		done < <( AgentsToolsInboxFolders "$listMember" "$listProcessed" ) | LC_ALL=C sort -t "$( printf '\t' )" -k5,5r
 		return 0
 	;;

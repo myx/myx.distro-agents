@@ -6,7 +6,7 @@
 # `[tracking: <kind>]` and the spawn id of its session as `[session: <id>]`, out of the post's own metadata -- never a match on its words.
 #
 #   -v member the reading member
-#   -v away   the spawn ids of the sessions the reading member launched and that do not report to it, spaced (AgentsToolsTrackingLaunchedAway)
+#   -v away   the spawn ids of the sessions the reading member launched and that do not report to it, spaced (AgentsToolsTrackingDrop)
 #
 # What is dropped, with the lines under it: a tracking post of any kind but `handback` and `tooling`; a post the tooling sent itself (`tooling`, the
 # internal sends of the tooling: DISMISSED, notes, alerts, inquiries) that is not ADDRESSED TO the reading member -- one that is, `... → *_member_*.`, is

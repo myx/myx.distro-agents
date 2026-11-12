@@ -308,6 +308,34 @@ AgentsWaitMentionsCommit(){ ## member, the file holding the newest ts
 ## unreadable only where every part was. A message of a session thread where the member's instance is present is no work: it is
 ## returned for knowledge only, its rows marked FYI, which no duty takes as an item (AgentsWaitTaggedPart,
 ## AgentsToolsInputScanReportEmpty in AgentsTools.InputScanDef.include).
+## THE ASKS ADDRESSED TO A MEMBER: every open ask of another member that names it in address-to, asked after the floor, read from
+## the ask's own record, each behind a `# in <channel>:<thread ts>` line. An ask posted inside another session's thread -- a duty's
+## thread in the team bot's DM, which no history read and no search of the member's account reaches -- is the member's to answer
+## all the same. Local: one grep over the pending records, then the open ones alone. AN OPEN ASK FROM BEFORE THE FLOOR IS STILL
+## THE MEMBER'S: one the member was never shown is returned once all the same -- it was asked while nothing read it -- and is kept
+## in .local/agents/wait/asks-shown.<member>, so no later call shows it again.
+AgentsWaitAddressedAsks(){ ## member, floor (a ts or epoch seconds; empty for none)
+	local askMember="$1" askFloor="${2:-}" askFile askHead askTs askLine askShown="${MMDAPP:-/nonexistent}/.local/agents/wait/asks-shown.$1" askShownList=""
+	[ ! -f "$askShown" ] || askShownList=" $( LC_ALL=C tr '\n' ' ' < "$askShown" 2> /dev/null ) "
+	for askFile in $( LC_ALL=C grep -l -x 'status: reply-pending' "${MMDAPP:-/nonexistent}/.local/agents/pending/"*.md 2> /dev/null ) ; do
+		[ -f "$askFile" ] || continue
+		askHead="$( LC_ALL=C awk 'NR == 1 && /^---$/ { f = 1 ; next } f && /^---$/ { exit } f' "$askFile" 2> /dev/null )" || continue
+		case "$askHead" in *"status: reply-pending"*) ;; *) continue ;; esac
+		case " $( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^address-to: //p' ) " in *" $askMember "*) ;; *) continue ;; esac
+		[ "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^owner: //p' )" != "$askMember" ] || continue
+		askTs="$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^question-ts: //p' )"
+		case "$askTs" in [0-9]*.[0-9]*) ;; *) continue ;; esac
+		if [ -n "$askFloor" ] && ! LC_ALL=C awk -v t="$askTs" -v f="$askFloor" 'BEGIN { exit ( t + 0 > f + 0 ) ? 0 : 1 }' ; then
+			case "$askShownList" in *" ${askFile##*/} "*) continue ;; esac
+		fi
+		case "$askShownList" in *" ${askFile##*/} "*) ;; *) { mkdir -p "${askShown%/*}" && printf '%s\n' "${askFile##*/}" >> "$askShown" ; } 2> /dev/null || : ;; esac
+		askLine="$( LC_ALL=C awk '/^# .*Question/ { q = 1 ; next } q && NF { print ; exit }' "$askFile" 2> /dev/null | cut -c1-300 )"
+		printf '# in %s:%s\n' "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^channel: //p' )" "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^thread-ts: //p' )"
+		printf '%s | %s | [ask: %s] %s\n' "$askTs" "$( printf '%s\n' "$askHead" | LC_ALL=C sed -n 's/^owner: //p' )" "${askFile##*/}" "$askLine"
+	done
+	return 0
+}
+
 AgentsWaitProbeTagged(){
 	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeParts=0 probeFailed=0 probeThread probeSession probeRoster probeLine probeConv probeKind probeIdentity probeParty probeIdentArg probeSeenConvs="" probeFyi="" probeText=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
@@ -395,15 +423,20 @@ AgentsWaitProbeTagged(){
 			if [ "$probeIdentity" = "bot" ] && [ "$probeMember" != magic-coordinator ] ; then
 				printf '%s\n' "$probeRoster" | LC_ALL=C grep -q -E "^CONV\|identity=user\|.*\|id=$probeConv\|" || probeWhat="dm-mentions"
 			fi
-			if MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probeFloor" "$probeOut.dm" ; then
+			## A DM is read as the cache holds it now (MDAT_COMMS_CACHE_STALE_OK): the read starts its own pull for the next round, and the round
+			## never waits on the comms thread for each of the roster's conversations (S12.321: 35 of them, minutes a round).
+			if MDAT_COMMS_CACHE_STALE_OK=true MDAT_WAIT_READ_AS_BOT="$( [ "$probeIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeConv" conversation "$probeFloor" "$probeOut.dm" ; then
 				probeText="$probeText$( AgentsWaitTaggedPart "$probeMember" "$probeConv" "$probeWhat" "$probeFloor" "$probeOut.dm" "$probeOut" )" || probeFailed=$(( probeFailed + 1 ))
 			else
 				probeFailed=$(( probeFailed + 1 ))
 			fi
+
 		done <<< "$probeRoster"
 	else
 		probeFailed=$(( probeFailed + 1 ))
 	fi
+	probeText="$probeText$( AgentsWaitAddressedAsks "$probeMember" "$probeFloor" )"
+	[ -z "$( printf '%s' "$probeText" | tail -c 1 )" ] || probeText="$probeText"$'\n'
 	## A client-* member: the human-owner conversations its own scope names on the other organisation's side are its DMs there.
 	local probeClientConvs="" probeClientConv
 	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.ConfigOption.include"

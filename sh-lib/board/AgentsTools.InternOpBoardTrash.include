@@ -277,6 +277,7 @@ case "$1" in
 		fi
 		if [ -n "$repoRoot" ] ; then
 			rm -f -- "$sourcePath"
+			case "$boardState" in review) rm -f -- "$MDAT_DATA_ROOT/board/review/.unseen-$itemName" ;; esac
 			type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 			AgentsToolsTeamDataCommitPaths "- $opContext, $callingMember" "$sourcePath"
 			echo "# $MDSC_CMD: board-trash: deleted ${sourcePath#"$MDAT_DATA_ROOT"/}, and the team-data thread commits the deletion" >&2
@@ -289,6 +290,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
+			case "$boardState" in review) rm -f -- "$MDAT_DATA_ROOT/board/review/.unseen-$itemName" ;; esac
 			## Same fresh retention clock as the inbox arm above.
 			touch "$targetPath"
 			echo "# $MDSC_CMD: board-trash: moved ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2

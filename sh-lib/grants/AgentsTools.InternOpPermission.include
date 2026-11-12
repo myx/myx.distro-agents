@@ -1206,13 +1206,15 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
 		local refusalOwner="$1"
 		shift || true
-		local refusalSession="" refusalTool="" refusalTarget="" refusalReason=""
+		local refusalSession="" refusalTool="" refusalTarget="" refusalReason="" refusalLimitOwner=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id) refusalSession="${2:-}" ; shift 2 ;;
 				--tool) refusalTool="${2:-}" ; shift 2 ;;
 				--target) refusalTarget="${2:-}" ; shift 2 ;;
 				--reason) refusalReason="${2:-}" ; shift 2 ;;
+				## Who alone can lift the limit that refused the call (a deny row: the human-owner); the route asks only them.
+				--limit-owner) refusalLimitOwner="${2:-}" ; shift 2 ;;
 				*)
 					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
@@ -1249,6 +1251,7 @@ case "$1" in
 			printf 'tool: %s\n' "$refusalTool"
 			printf 'target: %s\n' "$( AgentsToolsPermissionEscapeRecord "$refusalTarget" )"
 			printf 'refused-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			[ -z "$refusalLimitOwner" ] || printf 'limit-owner: %s\n' "$refusalLimitOwner"
 			printf '%s\n' "---"
 			printf '\n# Refused\n\n%s\n' "${refusalReason:-no reason given}"
 		} > "$refusalDir/$refusalId.md" || {
@@ -1472,6 +1475,15 @@ case "$1" in
 		## cannot be read leaves the question with who was named.
 		case "$routeTo" in human-owner|*.routine) printf 'ROUTE: %s\n' "$routeTo" ; return 0 ;; esac
 		[ -f "$routeRecord" ] || { printf 'ROUTE: %s\n' "$routeTo" ; return 0 ; }
+		## A REFUSAL ONLY ITS LIMIT'S OWNER CAN LIFT is asked of that owner alone: every step below it, a holder or a coordinator, cannot
+		## grant past the limit, so the ask skips them.
+		local routeLimitOwner=""
+		routeLimitOwner="$( AgentsToolsPermissionField "$routeRecord" limit-owner )"
+		if [ -n "$routeLimitOwner" ] ; then
+			printf 'ROUTE: %s\n' "$routeLimitOwner"
+			[ "$routeLimitOwner" = "$routeTo" ] || printf 'ROUTE-REASON: the call was refused by a limit only %s can lift\n' "$routeLimitOwner"
+			return 0
+		fi
 		routeTool="$( AgentsToolsPermissionField "$routeRecord" tool )"
 		routeTarget="$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$routeRecord" target )" )"
 		[ -n "$routeTool" ] || { printf 'ROUTE: %s\n' "$routeTo" ; return 0 ; }
@@ -2265,6 +2277,30 @@ case "$1" in
 			set +e ; return 6
 		fi
 		printf 'PARTICIPANTS: %s\n' "$( printf '%s\n' "$setParticipants" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ *$//' )"
+		## A SET NEVER ASKS WHAT ITS PARTICIPANTS HOLD: an entry every participant holds already (its standing rows, a keeper's own
+		## domain among them, or a live grant) is left out, as a member's own set leaves out its own (above); with none left, nothing is asked.
+		if [ -z "$setOwn" ] ; then
+			local heldLine heldPart heldAll heldLayer heldKept=""
+			while IFS= read -r heldLine ; do
+				[ -n "$heldLine" ] || continue
+				AgentsToolsPermissionEntrySplit "$heldLine" permission-set-request || { set +e ; return 1 ; }
+				heldAll=1 ; heldLayer=""
+				while IFS= read -r heldPart ; do
+					[ -n "$heldPart" ] || continue
+					heldLayer="$( AgentsToolsPermissionHolds "$heldPart" "$permEntryTool" "$permEntryTarget" "$setSession" )" || { heldAll="" ; break ; }
+				done <<< "$setParticipants"
+				if [ -n "$heldAll" ] ; then
+					printf 'HELD: %s by every participant already (%s)\n' "$heldLine" "${heldLayer%% *}"
+					continue
+				fi
+				heldKept="${heldKept}${heldLine}"$'\n'
+			done <<< "$setEntries"
+			setEntries="$heldKept"
+			if [ -z "$setEntries" ] ; then
+				printf 'PERMISSION-SET: held -- every participant holds every entry already, so nothing was asked and no permission was changed.\n'
+				return 0
+			fi
+		fi
 		## Held means held by a participant who can pass it on NOW: one with a live run in this
 		## coworking session. An entry only a member that is not running holds is an extra, and
 		## is asked for: nobody is left waiting for a holder who is not there.

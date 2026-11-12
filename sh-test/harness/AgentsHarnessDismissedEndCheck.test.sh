@@ -145,7 +145,7 @@ rigAssert "nothing was read from Slack for either"               "$(( $( rigRead
 rigAssert "with no handback given, the run is left alone"        "$( rigAlive "$rigRunPid" )" alive
 
 echo "-- the handback that follows a dismissal says to end, never to wait --"
-rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=600
+rigCall SubagentHandback '{"outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=600
 rigAssert "it is posted"                                         "$( rigFirst | LC_ALL=C cut -c1-8 ):$( ls "$rigDir"/post.* 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "Sent to :1"
 rigAssert "its last line says to end the run and call nothing more" "$( rigLast ):$( rigHas 'call Wait' )" "$rigNextEnd:0"
 rigAssert "the session keeps that its handback is given"         "$( rigMark )" "$rigDismissal | URIGBOT01|handback"
@@ -162,14 +162,14 @@ rigAssert "the session's log says who ended the run, and why"    "$( rigSaid "$r
 echo "-- the handback alone ends the session, with no call after it --"
 rigScene handbackEnds "$rigMember"
 rigCall Wait "$rigWait"
-rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=2
+rigCall SubagentHandback '{"outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=2
 rigAssert "dismissed, then the handback: its last line says to end" "$( rigLast )" "$rigNextEnd"
 rigAssert "the grace over, the run is ended by the tooling"      "$( rigGoneWithin "$rigRunPid" 20 ):$( rigAlive "$rigQuotePid" )" "gone:alive"
 
 echo "-- a run that ends by itself within the grace is not signalled --"
 rigScene endsItself "$rigMember"
 rigCall Wait "$rigWait"
-rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=3
+rigCall SubagentHandback '{"outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=3
 rigProcSignal TERM "$rigRunPid"
 sleep 7
 rigAssert "nothing is said of ending a run that is gone, and no other process is touched" \
@@ -188,7 +188,7 @@ rigRecordedStart="$( LC_ALL=C ps -o lstart= -p "$rigRecordedPid" 2> /dev/null | 
 [ -n "$rigRecordedStart" ] || rigRefuse "the stand-in of the run with no session word did not start, so its ending could not be measured"
 printf -- '---\nspawn-id: %s\nparent-spawn-id: none\nowner: %s\nstatus: spawn-started\nrun-process: %s %s\n---\n' "$rigSpawn" "$rigMember" "$rigRecordedPid" "$rigRecordedStart" > "$rigDir/ws/.local/agents/spawned/rig-folder/$rigSpawn.spawn.md"
 rigCall Wait "$rigWait"
-rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=2
+rigCall SubagentHandback '{"outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=2
 rigAssert "dismissed, then the handback: its last line says to end" "$( rigLast )" "$rigNextEnd"
 rigAssert "the grace over, the process its record names is ended by the tooling, and the one that only quotes the id lives" "$( rigGoneWithin "$rigRecordedPid" 20 ):$( rigAlive "$rigQuotePid" )" "gone:alive"
 rigAssert "and the session's log says who ended the run, and why" "$( rigSaid "$rigDir/ws/.local/agents/sessions/$rigSpawn/session.log" "$rigEndedLine" )" 1
@@ -198,7 +198,7 @@ rigScene notDismissed ""
 rigCall Wait "$rigWait"
 rigAssert "its Wait waits out its bound: TIMEOUT"                "$( [ "$rigSeconds" -ge 3 ] && printf waited || printf "after ${rigSeconds}s" ):$( rigFirst | LC_ALL=C cut -c1-20 )" "waited:WAIT-RESULT: TIMEOUT"
 rigAssert "it keeps no mark"                                     "$( rigMark )" "|none"
-rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=1
+rigCall SubagentHandback '{"outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=1
 rigAssert "its handback says to go on waiting"                   "$( rigFirst | LC_ALL=C cut -c1-8 ):$( rigLast )" "Sent to :$rigNextWait"
 rigCall Wait "$rigWait" MDAT_DISMISSED_END_GRACE=1
 rigAssert "and its next Wait waits again"                        "$( [ "$rigSeconds" -ge 3 ] && printf waited || printf "after ${rigSeconds}s" ):$( rigFirst | LC_ALL=C cut -c1-20 )" "waited:WAIT-RESULT: TIMEOUT"
@@ -290,7 +290,7 @@ rigLoopScene loopDismissed
 mkdir -p "$rigDir/ws/.local/agents/sessions/$rigSpawn"
 printf '%s | URIGBOT01\n' "$rigDismissal" > "$rigDir/ws/.local/agents/sessions/$rigSpawn/dismissed"
 rigRound Wait '{"timeout":60}'
-rigRound SubagentHandback '{"to":"CRIG00001","outcome":"RIG-OUTCOME"}'
+rigRound SubagentHandback '{"outcome":"RIG-OUTCOME"}'
 rigRound Wait '{"timeout":60}'
 rigRound Wait '{"timeout":60}'
 rigLoop
@@ -301,7 +301,7 @@ rigAssert "the handback was posted"                              "$( rigSaid "$r
 
 echo "-- control: a loop that was not dismissed goes on after its handback, as before --"
 rigLoopScene loopNotDismissed
-rigRound SubagentHandback '{"to":"CRIG00001","outcome":"RIG-OUTCOME"}'
+rigRound SubagentHandback '{"outcome":"RIG-OUTCOME"}'
 rigRoundEnd
 rigLoop
 rigAssert "the model is asked again after the handback, and told to go on waiting" "$( cat "$rigDir/round" ):$( rigSaid "$rigDir/req.2" 'NEXT: you are not done -- call Wait with no sources' )" "2:1"

@@ -152,6 +152,8 @@ rigWork(){ ## review-by value (empty: none), the address its run reports to (emp
 	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n%s---\n' \
 		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" "${2:+$rigReportsTo: $2
 }" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.spawn.md"
+	## The one-line thread pointer the spawn proxy writes beside the record: the run's own thread, where its handback goes.
+	printf '%s\n' "CSES00001:1700000000.000100" > "$rigWs/.local/agents/spawned/$rigSpawn/session.thread"
 	: > "$rigDir/transcript.log"
 	printf '%s\n' "$rigDir/transcript.log" > "$rigWs/.local/agents/sessions/$rigSpawn/transcript"
 	bash -c 'sleep 600 ; :' "$rigSpawn" > /dev/null 2>&1 < /dev/null &
@@ -241,7 +243,7 @@ echo "-- 1. a served SubagentHandback, its reviewer the human-owner: one review 
 rigStart handback
 rigWork human-owner
 printf 'SLACK_WORKSPACE_DOMAIN=rig.slack.example\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
-rigTool "$rigDir/tool" SubagentHandback '{"outcome":"rig work done","to":"CSES00001:1700000000.000100"}'
+rigTool "$rigDir/tool" SubagentHandback '{"outcome":"rig work done"}'
 rigAssert "the handback is posted, by the member"          "$( LC_ALL=C grep -c '^SENT_MESSAGE_TS=' "$rigDir/tool" ):$( cat "$rigDir/post.1.token" 2> /dev/null )" "1:rig-user-token-KEEPER"
 rigAssert "the item moved running -> review"               "$( rigLoc )" review
 rigAssert "one more post: the review prompt, by the team bot" "$( rigPosts ):$( cat "$rigDir/post.2.token" 2> /dev/null )" "2:rig-bot-token-TEAM"
@@ -299,11 +301,12 @@ rigAssert "his 👍 is read as accept"                       "$( rigReadLine 'ES
 rigAssert "the item is processed"                          "$( rigLoc )" processed
 rigAssert "Decisions: accepted, signed human-owner"        "$( rigDecisions 'human-owner verdict: accepted' )" 1
 rigAssert "the transcript has its VERDICT line"            "$( LC_ALL=C grep -c " VERDICT item=$rigItem kind=verdict by=human-owner " "$rigDir/transcript.log" )" 1
-rigAssert "DISMISSED went to the session thread, to the member" "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CSES00001"' "$rigDir/post.2" 2> /dev/null ):$( rigHas "$rigDir/post.2" 'DISMISSED' )" "3:1:yes"
-rigAssert "and the third post is the one confirmation reply under the prompt: the verdict read, and who gave it" "$( LC_ALL=C grep -c -F 'Read: `accept` by human-owner. It is given as the verdict of this review.' "$rigDir/post.3" 2> /dev/null )" 1
+## A run is dismissed by the tooling's own state, never by a message (S6.25): the mark is in its own store, and nothing is posted for it.
+rigAssert "DISMISSED is kept in the run's own store, and nothing is posted for it" "$( rigPosts ):$( [ -s "$rigWs/.local/agents/sessions/$rigSpawn/dismissed" ] && printf yes || printf no )" "2:yes"
+rigAssert "and the second post is the one confirmation reply under the prompt: the verdict read, and who gave it" "$( LC_ALL=C grep -c -F 'Read: `accept` by human-owner. It is given as the verdict of this review.' "$rigDir/post.2" 2> /dev/null )" 1
 rigAssert "the record closes with the verdict and who gave it" "$( rigField status ):$( rigField verdict ):$( rigField answered-by )" "reply-received:accept:URIGOWNER"
 rigRead
-rigAssert "a second read reports the same, and applies nothing again" "$( rigReadLine 'VERDICT: ' ):$( rigPosts ):$( rigDecisions 'human-owner verdict: accepted' )" "VERDICT: accept:3:1"
+rigAssert "a second read reports the same, and applies nothing again" "$( rigReadLine 'VERDICT: ' ):$( rigPosts ):$( rigDecisions 'human-owner verdict: accepted' )" "VERDICT: accept:2:1"
 
 echo "-- 4. return by click: taken at once, with the fixed text when he wrote none; then the next handback asks again --"
 rigStart click-return
@@ -337,7 +340,7 @@ rigAssert "his ❌ with his replies is a reject"             "$( rigReadLine 'VE
 rigAssert "the item is pending, marked rejected"           "$( rigLoc ):$( LC_ALL=C grep -c -x 'status: review-rejected' "$( rigItemFile )" )" "pending:1"
 rigAssert "both replies are its text, as one line"         "$( LC_ALL=C grep -c -x 'wrong approach / start over' "$( rigItemFile )" )" 1
 rigAssert "Decisions: rejected, signed human-owner"        "$( rigDecisions 'human-owner verdict: rejected: wrong approach / start over' )" 1
-rigAssert "the session is dismissed"                       "$( rigHas "$rigDir/post.2" 'DISMISSED' )" yes
+rigAssert "the session is dismissed, by the mark in its own store" "$( [ -s "$rigWs/.local/agents/sessions/$rigSpawn/dismissed" ] && printf yes || printf no )" yes
 
 echo "-- 6. each verdict by reply: the first word, the text after it --"
 rigStart reply-accept
@@ -437,7 +440,7 @@ rigAssert "the prompt is closed"                           "$( rigField status )
 echo "-- 11. the whole of it by the member's own tools: SubagentHandback, then Wait --"
 rigStart served
 rigWork human-owner
-rigTool "$rigDir/tool" SubagentHandback '{"outcome":"rig work done","to":"CSES00001:1700000000.000100"}'
+rigTool "$rigDir/tool" SubagentHandback '{"outcome":"rig work done"}'
 rigAssert "the prompt is posted"                           "$( rigPosts ):$( rigField kind )" "2:review"
 rigThread "" "$( rigReply 000250 URIGOWNER 'is the last line kept now?' )"
 rigTool "$rigDir/wait1" Wait '{"timeout":30}'
@@ -448,7 +451,7 @@ rigThread "$( rigClick +1 URIGOWNER )" "$( rigReply 000250 URIGOWNER 'is the las
 rigTool "$rigDir/wait2" Wait '{"mode":"continue","timeout":30}'
 rigAssert "his click arrives on the next Wait as the verdict" "$( LC_ALL=C grep -c -x -e 'ASK-RESULT: RECEIVED' -e 'VERDICT: accept' "$rigDir/wait2" )" 2
 rigAssert "applied: the item is processed, signed human-owner" "$( rigLoc ):$( rigDecisions 'human-owner verdict: accepted' )" "processed:1"
-rigAssert "and DISMISSED is in the session thread for its next Wait" "$( LC_ALL=C grep -l -F 'DISMISSED' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
+rigAssert "and DISMISSED is kept in the run's own store for its next Wait, with no post" "$( [ -s "$rigWs/.local/agents/sessions/$rigSpawn/dismissed" ] && printf yes || printf no ):$( LC_ALL=C grep -l -F 'DISMISSED' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "yes:0"
 
 echo "-- 12. the owner's own verdict from the console: the account mapped to him answers his review --"
 ## THE SAME PERSON, THE OTHER WAY IN. The account at the console that is the human-owner

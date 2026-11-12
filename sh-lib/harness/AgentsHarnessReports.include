@@ -105,7 +105,11 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 	## A REPORT NEVER GOES INTO A DIRECT CONVERSATION (the human-owner's rule): a duty's thread opens in his conversation with the bot,
 	## and every post there reaches him. The run's own session thread, where it is a channel's, takes a report instead, addressed.
 	routeOwn="${MDAT_SESSION_THREAD:-}"
-	[ -n "$routeOwn" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || routeOwn="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/session.thread" 2> /dev/null )" || routeOwn=""
+	if [ -z "$routeOwn" ] ; then
+		## The one finder of a session's own thread: the session the run joined, its spawn record, else its sessions/<id>/session.thread.
+		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		routeOwn="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || routeOwn=""
+	fi
 	case "$routeOwn" in [CG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) routeOwn="" ;; esac
 	routeTo="$routeGiven" ; routeAddress="${2:-}"
 	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
@@ -152,8 +156,9 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 			routeTo="$harnessParentName"
 			## A handback is a reply to whoever launched the run, so it is always addressed, whatever address the run gave: to the
 			## member its route names (`<session>:<member>`), and to the coordinator where it names none, never to the human-owner.
+			## Never the run itself, never one that is no team member here.
 			routeAddress="$( AgentsToolsRunRouteMember "$routeWhere" 2> /dev/null )" || routeAddress=""
-			[ "$( AgentsToolsRunRouteKind "$routeAddress" 2> /dev/null )" = member ] || routeAddress="magic-coordinator"
+			[ "$( AgentsToolsRunRouteKind "$routeAddress" 2> /dev/null )" = member ] && [ "$routeAddress" != "${harnessAgent:-}" ] || routeAddress="magic-coordinator"
 		;;
 	esac
 	[ -z "$routeGiven" ] || [ "$routeGiven" = "$routeTo" ] || [ "$routeGiven" = "$harnessParentName" ] || printf 'NOTE: to %s was not used: a handback or a report goes where this run reports to, %s, set by the tooling.\n' "$routeGiven" "$routeTo"
@@ -213,6 +218,15 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 	## spawn record of its own has no route, and session-parent stays as the one address resolver says it.
 	local routeTo="" routeAddress=""
 	if AgentsHarnessReportRoute "$toolTo" "$toolAddressTo" ; then toolTo="$routeTo" ; toolAddressTo="$routeAddress" ; fi
+	## A SESSION WITH NO ROUTE AND NO PARENT THREAD hands back in its own thread, where whoever runs it reads, else to the coordinator:
+	## never nowhere, since the handback takes no `to` to name another.
+	if [ "$toolTo" = "$harnessParentName" ] && ! AgentsHarnessSessionThread "$toolTo" > /dev/null 2>&1 ; then
+		if AgentsHarnessSessionThread "$harnessCurrentName" > /dev/null 2>&1 ; then
+			toolTo="$harnessCurrentName"
+		else
+			toolTo="magic-coordinator" ; toolAddressTo="magic-coordinator"
+		fi
+	fi
 	## A handback into a session thread that the route names nobody in is for the caller.
 	if [ -z "$toolAddressTo" ] ; then
 		case "$toolTo" in
@@ -238,7 +252,7 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 	## written here, before the endings below, so every delivered handback leaves both whatever this run does after it.
 	if [ -f "$harnessScratch/send.delivered" ] ; then
 		AgentsHarnessCheckListCloseHandback || :
-		AgentsHarnessCheckListPlace && date +%s > "$checkListFolder/handback.given" 2> /dev/null || :
+		AgentsHarnessCheckListPlace && { date +%s > "$checkListFolder/handback.given" ; } 2> /dev/null || :
 	fi
 	## A run that reports to no one ends on its report, whatever it reports: marked as a dismissed
 	## run whose handback is given, so the harness ends it once this call is over

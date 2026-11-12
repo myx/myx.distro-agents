@@ -181,6 +181,59 @@ case "$1" in
 		return $?
 	;;
 
+	## THE RENAME OF A VAULT ITEM: the item moves to a name its contract accepts (AgentsToolsDocValidateVaultItemName), and every
+	## board item, inbox item and vault item that names it by its old name names it by the new one. The old name is matched whole,
+	## never as a part of a longer name. One commit carries the move and every rewritten file. Refused, with nothing changed: an old
+	## item that is not there, a new name the vault refuses, a new name already taken.
+	--intern-op-vault-item-rename)
+		shift
+		local renMember="${1:-}" renOld="${2:-}" renNew="${3:-}" renFile renChanged=() renCount=0
+		if [ -z "$renMember" ] || [ -z "$renOld" ] || [ -z "$renNew" ] || [ $# -ne 3 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-rename: syntax is <team-member> <old-item-name> <new-item-name>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$renOld" "<old-item-name>" intern-op-vault-item-rename || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$renNew" "<new-item-name>" intern-op-vault-item-rename || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-rename: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
+		case "$renOld" in *.*) ;; *) renOld="$renOld.md" ;; esac
+		case "$renNew" in *.*) ;; *) renNew="$renNew.md" ;; esac
+		[ -f "$MDAT_DATA_ROOT/vault/$renOld" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-rename: no vault item $renOld -- nothing was changed" >&2 ; set +e ; return 1 ; }
+		[ ! -e "$MDAT_DATA_ROOT/vault/$renNew" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-rename: $renNew is taken already -- nothing was changed" >&2 ; set +e ; return 1 ; }
+		type AgentsToolsDocValidateVaultItemName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+		local renFault=""
+		renFault="$( AgentsToolsDocValidateVaultItemName "$renNew" )" || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-rename: $renFault -- nothing was changed" >&2 ; set +e ; return 1 ; }
+		mv -- "$MDAT_DATA_ROOT/vault/$renOld" "$MDAT_DATA_ROOT/vault/$renNew" || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-rename: the move failed -- nothing was changed" >&2 ; set +e ; return 1 ; }
+		## Every citation, matched whole: the old name with or without its extension, not followed by a character a name goes on with.
+		local renOldBase="${renOld%.md}" renNewBase="${renNew%.md}" renTmp
+		while IFS= read -r renFile ; do
+			[ -f "$renFile" ] && [ ! -L "$renFile" ] || continue
+			renTmp="$( mktemp "$renFile.XXXXXX" )" || continue
+			if REN_OLD="$renOldBase" REN_NEW="$renNewBase" LC_ALL=C awk '
+				BEGIN { o = ENVIRON["REN_OLD"] ; n = ENVIRON["REN_NEW"] ; changed = 0 }
+				{
+					line = $0 ; out = ""
+					while ( ( at = index( line, o ) ) > 0 ) {
+						before = ( at > 1 ) ? substr( line, at - 1, 1 ) : ""
+						after = substr( line, at + length( o ), 1 )
+						if ( before !~ /[A-Za-z0-9_-]/ && after !~ /[A-Za-z0-9_-]/ ) { out = out substr( line, 1, at - 1 ) n ; changed = 1 }
+						else { out = out substr( line, 1, at - 1 + length( o ) ) }
+						line = substr( line, at + length( o ) )
+					}
+					print out line
+				}
+				END { exit changed ? 0 : 1 }' "$renFile" > "$renTmp" ; then
+				mv -f "$renTmp" "$renFile" && { renChanged=( ${renChanged[@]+"${renChanged[@]}"} "$renFile" ) ; renCount=$(( renCount + 1 )) ; }
+			else
+				rm -f "$renTmp"
+			fi
+		done <<< "$( LC_ALL=C grep -rl -F -- "$renOldBase" "$MDAT_DATA_ROOT/board" "$MDAT_DATA_ROOT/inboxes" "$MDAT_DATA_ROOT/vault" 2> /dev/null )"
+		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "* vault: $renOld renamed $renNew by $renMember, $renCount citing item(s) repointed" \
+			"$MDAT_DATA_ROOT/vault/$renOld" "$MDAT_DATA_ROOT/vault/$renNew" ${renChanged[@]+"${renChanged[@]}"}
+		printf 'RENAMED: %s -> %s\nREPOINTED: %s item(s)\n' "$renOld" "$renNew" "$renCount"
+		return 0
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid operation: $1" >&2
 		set +e ; return 1

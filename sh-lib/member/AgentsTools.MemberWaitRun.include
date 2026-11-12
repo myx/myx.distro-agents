@@ -156,12 +156,19 @@
 						## that was not stored at this index is read first-probe, and is never compared to another source's old rendering,
 						## which read as an arrival with an empty block. A held source takes its stored baseline back below.
 						rm -f "$waitDir/base.$floorIndex" 2> /dev/null || :
+						## The same for the rendering: a probe that reads nothing inside its own TTL writes no file, so the kept now.<index> of
+						## another source would be compared as this one's and returned as its arrival, a line of another source with no header.
+						## It starts empty; a held source takes its stored baseline back as its rendering below, so an unread probe is no change.
+						: > "$waitDir/now.$floorIndex" 2> /dev/null || :
 						## A since is a Slack-source floor and says nothing about a non-Slack source's stored baseline, which a held source carries forward.
 						floorStoredIndex=0
 						for floorStoredSource in $waitStoredSources ; do
 							floorStoredIndex=$(( floorStoredIndex + 1 ))
 							[ "$floorStoredSource" = "$checkSource" ] || continue
-							[ ! -f "$waitStateDir/base.$floorStoredIndex" ] || AgentsWaitCopy "$waitStateDir/base.$floorStoredIndex" "$waitDir/base.$floorIndex"
+							if [ -f "$waitStateDir/base.$floorStoredIndex" ] ; then
+								AgentsWaitCopy "$waitStateDir/base.$floorStoredIndex" "$waitDir/base.$floorIndex"
+								AgentsWaitCopy "$waitStateDir/base.$floorStoredIndex" "$waitDir/now.$floorIndex"
+							fi
 							break
 						done
 					fi
@@ -461,8 +468,11 @@
 			## Unbounded, a first round that read no source at all returns TIMEOUT with WAIT-NEVER-READ at once.
 			[ -n "$waitDeadline" ] || [ -n "$waitReadSources" ] || break
 
-			## The wake marker was written, so every source, scans included, is read again now with no sleep first.
-			if [ -n "$waitWakeSeen" ] ; then
+			## The wake marker was written, so every source, scans included, is read again now with no sleep first. Past the bound a wake
+			## takes ONE more read, the arrival it announces, and no more: a member whose marker every post addressed to it touches would
+			## otherwise never reach its deadline, and a wake that ended the wait unread would lose the very arrival it woke for.
+			if [ -n "$waitWakeSeen" ] && { [ -z "$waitDeadline" ] || [ "$roundNow" -lt "$waitDeadline" ] || [ -z "${waitWakeGraced:-}" ] ; } ; then
+				[ -z "$waitDeadline" ] || [ "$roundNow" -lt "$waitDeadline" ] || waitWakeGraced=1
 				waitWakeSeen=""
 				local waitWakeAt=0 waitWakeSource
 				for waitWakeSource in $waitSources ; do

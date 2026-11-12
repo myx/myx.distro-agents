@@ -108,11 +108,11 @@ AgentsToolsScheduleThreadPass(){
 ## THE CHILDREN LISTS KEPT ON A RIG WITH NO MAIN LOOP (S12.12). The main loop rebuilds each parent's list of its children once an iteration and
 ## marks the lists complete with children/.indexed (AgentsTools.ChildrenIndex.include); a rig that runs the schedule thread alone never gets the
 ## mark, and every reader of a parent's children then reads every record on each call. So the pass repairs the lists too, once in
-## MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS (3600, 0 for never) by the mark's own age, which a main loop that keeps them fresher resets first. A
+## MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS (300, 0 for never) by the mark's own age, which a main loop that keeps them fresher resets first. A
 ## repair is one grep and one awk over the records: housekeeping on a bound, and it runs while holding, since it starts nothing. Never fails the pass.
 AgentsToolsScheduleThreadChildrenKeep(){
-	local keepMark="$MMDAPP/.local/agents/children/.indexed" keepEvery="${MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS:-3600}" keepAt="" keepNow
-	case "$keepEvery" in ''|*[!0123456789]*) keepEvery=3600 ;; esac
+	local keepMark="$MMDAPP/.local/agents/children/.indexed" keepEvery="${MDAT_SCHEDULE_CHILDREN_REPAIR_SECONDS:-300}" keepAt="" keepNow
+	case "$keepEvery" in ''|*[!0123456789]*) keepEvery=300 ;; esac
 	[ "$keepEvery" -gt 0 ] || return 0
 	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
 	keepAt="$( LC_ALL=C stat -f '%m' "$keepMark" 2> /dev/null || LC_ALL=C stat -c '%Y' "$keepMark" 2> /dev/null )" || keepAt=""

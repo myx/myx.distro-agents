@@ -15,39 +15,22 @@
 
 type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 
-## The spawn ids of the runs a member launched that do not report to it, spaced: the spawn records that name it as `parent-member:` and whose
-## address (`reports-to:`, else the one a run has by default) is of another member, a person or nobody.
-AgentsToolsTrackingLaunchedAway(){ ## member
-	local awayRecord awayId awayRoute awayMember awayList=""
-	for awayRecord in $( LC_ALL=C grep -l -x -F "parent-member: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
-		awayId="${awayRecord##*/}" ; awayId="${awayId%.spawn.md}"
-		awayRoute="$( AgentsToolsRunRoute "$awayRecord" 2> /dev/null )" || awayRoute=""
-		awayMember="$( AgentsToolsRunRouteMember "$awayRoute" 2> /dev/null )" || awayMember=""
-		[ "$awayMember" != "$1" ] || continue
-		awayList="$awayList $awayId"
-	done
-	printf '%s\n' "${awayList# }"
-}
-
 ## A rendering on stdin for a member, its tooling's own posts taken out, on stdout.
+## ONLY THE RUNS THE RENDERING NAMES ARE LOOKED UP: the `[session: <spawn id>]` marks in it, each one's own record read, never every
+## record the member ever launched (251 on MDV: 261 s for one 9-line rendering, on every read of every Wait round).
 AgentsToolsTrackingDrop(){ ## member
-	## The launched-away list is read through every spawn record: kept 60 s in this shell, and 60 s in
-	## .local/cache/agents/tracking-away-<member>.txt (`<at> <ids...>`) for the next process, not read again for each rendering.
-	if [ "${agentsTrackingAwayMember:-}" != "$1" ] || [ $(( SECONDS - ${agentsTrackingAwayAt:--100} )) -ge 60 ] ; then
-		local awayFile="${MMDAPP:-/nonexistent}/.local/cache/agents/tracking-away-$1.txt" awayAt="" awayIds="" awayNow
-		awayNow="$( date +%s )"
-		[ ! -f "$awayFile" ] || { read -r awayAt awayIds ; } 2> /dev/null < "$awayFile" || awayAt=""
-		case "$awayAt" in
-			''|*[!0-9]*) awayAt="" ;;
-			*) [ $(( awayNow - awayAt )) -lt 60 ] || awayAt="" ;;
-		esac
-		if [ -n "$awayAt" ] ; then
-			agentsTrackingAwayList="$awayIds"
-		else
-			agentsTrackingAwayList="$( AgentsToolsTrackingLaunchedAway "$1" )"
-			{ mkdir -p "${awayFile%/*}" && awayTmp="$( mktemp "$awayFile.XXXXXX" )" && printf '%s %s\n' "$awayNow" "$agentsTrackingAwayList" > "$awayTmp" && mv -f "$awayTmp" "$awayFile" ; } 2> /dev/null || rm -f "${awayTmp:-}" 2> /dev/null
-		fi
-		agentsTrackingAwayMember="$1" agentsTrackingAwayAt="$SECONDS"
-	fi
-	LC_ALL=C awk -v member="$1" -v away="$agentsTrackingAwayList" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTrackingDrop.awk"
+	local dropText="" dropId dropRecord dropRoute dropMember dropAway="" dropSeen=" "
+	IFS= read -r -d '' dropText || :
+	for dropId in $( printf '%s' "$dropText" | LC_ALL=C grep -o '\[session: [A-Za-z0-9-]*\]' | LC_ALL=C sed 's/^\[session: //;s/\]$//' ) ; do
+		case "$dropSeen" in *" $dropId "*) continue ;; esac
+		dropSeen="$dropSeen$dropId "
+		for dropRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$dropId.spawn.md" ; do
+			[ -f "$dropRecord" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$dropRecord" parent-member 2> /dev/null )" = "$1" ] || continue
+			dropRoute="$( AgentsToolsRunRoute "$dropRecord" 2> /dev/null )" || dropRoute=""
+			dropMember="$( AgentsToolsRunRouteMember "$dropRoute" 2> /dev/null )" || dropMember=""
+			[ "$dropMember" = "$1" ] || dropAway="$dropAway $dropId"
+		done
+	done
+	printf '%s' "$dropText" | LC_ALL=C awk -v member="$1" -v away="${dropAway# }" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTrackingDrop.awk"
 }

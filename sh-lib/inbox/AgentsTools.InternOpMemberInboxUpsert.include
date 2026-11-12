@@ -39,6 +39,14 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-upsert || { set +e ; return 1 ; }
+		## An inbox item is a Markdown document, refused as the two closers refuse one: every `*.md` reader passes a stray by.
+		case "$itemName" in
+			*.md) ;;
+			*)
+				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
 		## A MEMBER RECORD, NOT THE CALLER'S OWN VIEW. The item is written into the team data of the
 		## workspace this call runs from, and the write reads no skillset of the member whose inbox it
 		## is: any member this machine holds a record of is written to, wherever that member is set up,
@@ -201,6 +209,21 @@ case "$1" in
 		## prior presence still tells the two apart.
 		local existedBefore="false"
 		if [ -n "$existingPath" ] ; then existedBefore="true" ; fi
+
+		## A BODY THAT OPENS WITH A REQUIRED HEADER AND NO `---` IS WRAPPED IN ONE, before any header work. Stamping the
+		## tooling block above such a body leaves the item holding two frontmatter blocks, which its reader cannot parse.
+		## Only a leading run of `name: value` lines is wrapped, up to the first line that is not one, and only when the
+		## FIRST line is one of the five keys this writer stamps below -- so a body opening with ordinary prose, even
+		## prose that reads `note: ...`, is left exactly as it is. The caller's own keys then satisfy the defaults.
+		content="$( printf '%s\n' "$content" | LC_ALL=C awk '
+			BEGIN { hdrKey = "^(type|from|date|owner|document-contract):" ; inHdr = 0 ; done = 0 }
+			NR == 1 && $0 !~ hdrKey { done = 1 }
+			done { print ; next }
+			inHdr == 0 { print "---" ; inHdr = 1 }
+			$0 ~ hdrKey { print ; next }
+			{ print "---" ; done = 1 ; if ( $0 != "" ) print "" ; print ; next }
+			END { if (inHdr && !done) print "---" ; }
+		' )" || { set +e ; return 1 ; }
 
 		## A new item's required headers -- type, from, date, owner, document-contract -- stamped only where the
 		## content names none of them: type from the name's prefix, from the writing member

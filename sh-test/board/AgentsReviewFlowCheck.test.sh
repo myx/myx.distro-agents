@@ -198,10 +198,10 @@ echo "-- 1b. a handback delivered to an inbox (no Slack DM) moves the item too; 
 rigRecord rig-child-ib spawn-started "" dispatch-20261008T1200Z-ib rig-child-ib
 rigItem running dispatch-20261008T1200Z-ib rig-child-ib
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-ib )
-rigTool "$rigTmp/h1b" SubagentHandback '{"outcome":"inbox work done","to":"magic-tester"}'
+rigTool "$rigTmp/h1b" SubagentHandback '{"outcome":"inbox work done"}'
 rigEnv=()
-## A HANDBACK GOES WHERE ITS RUN REPORTS TO, set by the tooling: a `to` naming another is not used, and a NOTE says so.
-rigAssert "the handback goes to the inbox of the member the run reports to, and says the to was not used" "$( LC_ALL=C grep -c '^Sent to the inbox of magic-coordinator as inquiry-' "$rigTmp/h1b" ):$( ls "$rigData/inboxes/magic-coordinator/incoming"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' ):$( LC_ALL=C grep -c '^NOTE: to magic-tester was not used' "$rigTmp/h1b" )" 1:1:1
+## A HANDBACK GOES WHERE ITS RUN REPORTS TO, set by the tooling: the handback takes no to.
+rigAssert "the handback goes to the inbox of the member the run reports to" "$( LC_ALL=C grep -c '^Sent to the inbox of magic-coordinator as inquiry-' "$rigTmp/h1b" ):$( ls "$rigData/inboxes/magic-coordinator/incoming"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' )" 1:1
 rigAssert "the item moved running -> review"               "$( rigLoc dispatch-20261008T1200Z-ib )" review
 rigAssert "one Decisions handback line"                    "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-ib.md" 'handback: handback: inbox work done' )" 1
 rigRecord rig-child-nf spawn-started "" dispatch-20261008T1200Z-nf rig-child-nf
@@ -209,7 +209,7 @@ rigItem running dispatch-20261008T1200Z-nf rig-child-nf
 ## The inbox refused: a file where its folder goes. The folder 1b delivered into is set aside meanwhile, and put back after.
 mkdir -p "$rigData/inboxes" && { [ ! -d "$rigData/inboxes/magic-coordinator" ] || mv "$rigData/inboxes/magic-coordinator" "$rigData/inboxes/magic-coordinator.kept" ; } && : > "$rigData/inboxes/magic-coordinator"
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-nf )
-rigTool "$rigTmp/h1c" SubagentHandback '{"outcome":"never delivered","to":"magic-coordinator"}'
+rigTool "$rigTmp/h1c" SubagentHandback '{"outcome":"never delivered"}'
 rigEnv=()
 rm -f "$rigData/inboxes/magic-coordinator"
 [ ! -d "$rigData/inboxes/magic-coordinator.kept" ] || mv "$rigData/inboxes/magic-coordinator.kept" "$rigData/inboxes/magic-coordinator"
@@ -382,7 +382,7 @@ rigAssert "delivered in the child's thread, to the child"  "$( LC_ALL=C grep -c 
 rigAssert "Decisions: verdict returned"                    "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-ret.md" 'verdict: returned: fix the rig widget' )" 1
 rigAssert "transcript: VERDICT"                            "$( LC_ALL=C grep -c " VERDICT item=dispatch-20261008T1200Z-ret " "$rigTmp/tr-rig-live-ret-$$.log" )" 1
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-live-ret-$$ )
-rigTool "$rigTmp/v2h" SubagentHandback '{"outcome":"fixed","to":"CRET00001:1700000000.000400"}'
+rigTool "$rigTmp/v2h" SubagentHandback '{"outcome":"fixed"}'
 rigEnv=()
 rigAssert "its next handback goes to review again"         "$( rigLoc dispatch-20261008T1200Z-ret )" review
 
@@ -411,11 +411,11 @@ rigWaitFor 40 test -f "$rigData/board/review/dispatch-20261008T1200Z-rst.md"
 rigAssert "it ends with no handback, so back to review"    "$( rigLoc dispatch-20261008T1200Z-rst )" review
 : > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID="$rigNewSpawn" )
-rigTool "$rigTmp/v3h" SubagentHandback '{"outcome":"redone","to":"session-parent"}'
+rigTool "$rigTmp/v3h" SubagentHandback '{"outcome":"redone"}'
 rigEnv=()
 ## Only the handback is counted: the end notice of the run it replaces, posted to the same thread
 ## once that run is seen ended, may land here too, and is not this step's post.
-rigAssert "its handback to session-parent reaches the thread of the session that started the run it replaces" \
+rigAssert "its handback reaches the thread of the session that started the run it replaces" \
 	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep '"channel": *"CPRS00001"' "$rigTmp/bodies" | LC_ALL=C grep -c -F 'redone' )" 0:1
 
 rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" )"
