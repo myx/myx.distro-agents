@@ -1435,7 +1435,7 @@ case "$1" in
 						}
 						passCut = ENVIRON["PASS_CUTOFF"]
 					}
-					NF { idx++ ; if ($1 in late) { kn++ ; kt[kn] = $1 ; ki[kn] = idx ; } else { printf "%s\t%s\t\t%s\t%s\n", idx, $1, (($1 in floorOf) ? floorOf[$1] : passCut), (($1 in originOf) ? originOf[$1] : "pass cut-off") ; } }
+					NF { idx++ ; if ($1 in late) { kn++ ; kt[kn] = $1 ; ki[kn] = idx ; } else { printf "%s\t%s\t-\t%s\t%s\n", idx, $1, (($1 in floorOf) ? floorOf[$1] : passCut), (($1 in originOf) ? originOf[$1] : "pass cut-off") ; } }
 					END {
 						for (x = 2; x <= kn; x++) {
 							v = kt[x] ; w = ki[x] ; j = x - 1
@@ -1449,7 +1449,10 @@ case "$1" in
 				local threadEst threadCheckedDone=-1 threadCheckedEst="" threadDone threadAbove threadInFlight
 				local threadNotReachedSet=$'\n'
 				local dtFloor dtFloorOrigin
+				## A TAB IS WHITESPACE TO read: an empty field between two tabs vanishes and the fields after it shift. A thread with no latest
+				## reply is written `-` there, and read back as empty, so its floor stays its floor.
 				while IFS="$( printf '\t' )" read -r dtIndex dt threadEst dtFloor dtFloorOrigin ; do
+					[ "$threadEst" != "-" ] || threadEst=""
 					[ -n "$dt" ] || continue
 					if [ "$SECONDS" -ge "$slackLegDeadline" ] ; then
 						imNotReached=$(( imNotReached + 1 ))

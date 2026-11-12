@@ -13,7 +13,7 @@
 ##   S2. A MESSAGE ON IT PRINTS TO THE TOOL'S OUTPUT and is recorded in the session's one chat file. A real
 ##       `--intern-mcp-server --run` process mints the root session; a second one adopts it with the id and
 ##       token mint printed (so it CARRIES the root session) and serves
-##       `DistroAgentsSlack --slack-send-message magic-tester printback:<session> --address-to magic-coordinator`
+##       `DistroAgentsSlack --slack-send-message --team-member magic-tester printback:<session> --address-to magic-coordinator`
 ##       with the body: the served result carries the message printed, the channel-id and the block number, and
 ##       beside it the session's new floor names the kind (`# via printback`); the session folder the mint made
 ##       holds `session.chat` with that one block, header, body and the index line whose conversation is the
@@ -359,7 +359,7 @@ rigWaitOut before
 rigAssert "the session's Wait reads its empty chat file and returns TIMEOUT" "$( head -n 1 "$rigS2/before.out" ):$( cat "$rigS2/before.rc" )" "WAIT-RESULT: TIMEOUT:0"
 
 ## The direct send: no server, so no session floor is drained beside it; the record and the Wait are what this case holds.
-rigDirectIn "$rigS2Ws" "$rigS2Sc" "" --slack-send-message magic-tester "printback:$rigS2Session" --address-to magic-coordinator "$rigS2Body" \
+rigDirectIn "$rigS2Ws" "$rigS2Sc" "" --slack-send-message --team-member magic-tester "printback:$rigS2Session" --address-to magic-coordinator "$rigS2Body" \
 	> "$rigS2/send.out" 2> "$rigS2/send.err"
 rigS2SendRc=$?
 rigAssert "the direct printback send succeeds" "$rigS2SendRc" 0

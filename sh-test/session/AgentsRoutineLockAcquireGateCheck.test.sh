@@ -125,7 +125,9 @@ rigAssert "the acquire through a dead start's gate really ran" "$( LC_ALL=C grep
 rigAssert "and that gate is gone too" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
 
 echo "-- 5. the gate folder an older release made is cleared --"
-mkdir -p "$rigGate/store" || exit 1
+## A row that failed leaves its own gate behind, so this row builds the state it names rather than inheriting one.
+rm -rf -- "$rigGate"
+mkdir -p "$rigGate/store" || rigRefuse "the old-form gate could not be made at $rigGate, so this row would assert on nothing"
 : > "$rigTmp/log/calls"
 rigRunAcquire sixth 0 0
 rigAssert "an acquire behind an old-form gate folder ends" "$rigAcqResult" ended
@@ -133,11 +135,15 @@ rigAssert "the acquire behind the old-form gate really ran" "$( LC_ALL=C grep -c
 rigAssert "and the old-form gate is gone" "$( [ -e "$rigGate" ] && printf left || printf absent )" absent
 
 echo "-- 6. a release leaves alone a gate another start has taken --"
+rm -rf -- "$rigGate"
 ( sleep 60 ) & rigOtherPid="$!" ; rigProcNote "$rigOtherPid"
-printf '%s' "$rigOtherPid" > "$rigGate" || exit 1
 : > "$rigTmp/log/calls"
-rigRunAcquire seventh 0 3
-rigAssert "the acquire holding the gate ends" "$rigAcqResult" ended
+rigAcquire seventh 0 4 > /dev/null 2>&1 & rigSeventhPid="$!" ; rigProcNote "$rigSeventhPid"
+rigLeft=20
+while [ "$rigLeft" -gt 0 ] && [ ! -e "$rigGate" ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+rigAssert "the acquire under test holds the gate" "$( [ -e "$rigGate" ] && printf held || printf free )" held
+printf '%s' "$rigOtherPid" > "$rigGate"
+rigAssert "the acquire under test ends" "$( if rigWaitEach 30 "$rigSeventhPid" ; then printf ended ; else printf still-running ; fi )" ended
 rigAssert "the gate another start has taken is left alone" "$( cat "$rigGate" 2> /dev/null )" "$rigOtherPid"
 rigProcSignal TERM "$rigOtherPid" || :
 rm -f "$rigGate"

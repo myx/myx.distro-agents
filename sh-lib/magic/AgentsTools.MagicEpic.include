@@ -60,6 +60,10 @@ AgentsToolsMagicEpicVaultPath(){ ## the argument
 		epic-blueprint-*) vaultName="$vaultName.md" ;;
 		*) return 1 ;;
 	esac
+	## A vault epic is reached only by a valid name of its contract (AgentsToolsDocValidateVaultItemName): an invalid one is refused, said once.
+	type AgentsToolsDocValidateVaultItemName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+	local vaultNameFault=""
+	vaultNameFault="$( AgentsToolsDocValidateVaultItemName "$vaultName" )" || { echo "⛔ ERROR: $MDSC_CMD: $vaultNameFault" >&2 ; return 1 ; }
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
 	printf '%s/vault/%s\n' "$MDAT_DATA_ROOT" "$vaultName"
 }
@@ -351,6 +355,11 @@ case "$1" in
 			for listFile in "$MDAT_DATA_ROOT"/vault/epic-blueprint-*.md ; do
 				[ -f "$listFile" ] || continue
 				listFound=yes
+				## An item under an invalid name is listed as refused, never as an epic to use.
+				if ! AgentsToolsMagicEpicVaultPath "${listFile##*/}" > /dev/null 2>&1 ; then
+					printf '%s REFUSED: no valid epic-blueprint name, so no read and no write reaches it\n' "${listFile##*/}"
+					continue
+				fi
 				listCount="$( LC_ALL=C awk 'index( $0, "## " ) == 1 { n++ } END { print n + 0 }' "$listFile" )"
 				printf '%s %s sections\n' "${listFile##*/}" "$listCount"
 			done

@@ -3,14 +3,15 @@
 ## (AgentsHarnessStaleTree in AgentsHarnessAccess.include, the Bash command text in AgentsHarnessToolsBash.include; the
 ## human-owner's task of 8 November): that tree is a stale copy of the tooling, never read, written, searched or run then.
 ## Guards: Read, Write, Edit, Grep and Glob on a path under the stale tree are refused with the text naming the tree and
-## MDLT_ORIGIN, and nothing is written; a Bash command naming the tree, absolute or from the workspace, is refused and runs
-## nothing; the same tools on a path beside it run; where MDLT_ORIGIN is the workspace's own `.local`, the rule does not
-## apply (the function alone, with the gate's words stubbed).
+## MDLT_ORIGIN, and nothing is written; a Bash command whose own text names the tree is answered by the form it takes: an
+## absolute path runs on the origin's tree and says so, the stale file unread, where the two relative forms and a comment
+## naming the tree from the workspace root are refused and run nothing, and a cwd in the tree is refused; the same tools on
+## a path beside it run; where MDLT_ORIGIN is the workspace's own `.local`, the rule does not apply (the function alone).
 ## Section 5 holds the decision of 2026-11-11 on a Bash command's own text, and it is the section that decides it: the two
 ## relative forms are refused by the shared test's words from the workspace root, a comment naming the tree is refused there
 ## too because the gate cannot tell it from a path, and another workspace's path and either text from another folder run
 ## unchanged.
-## Red: a harness that reads the stale tree fails `Read is refused`; one that runs the command fails `Bash runs nothing`;
+## Red: a harness that reads the stale tree fails `Read is refused`;
 ## one that rewrites a relative form to a bare prefix fails `a bare relative path is refused`; one that rewrites a comment
 ## or another workspace's path fails `a comment naming the tree at the workspace root is refused` and `another workspace's
 ## path runs unchanged`; one that refuses beyond the workspace root fails the two rows whose cwd is `inside/`.

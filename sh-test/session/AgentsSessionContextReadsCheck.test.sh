@@ -51,8 +51,12 @@ rigScan(){
 	cp "$rigPackage/sh-test/check-fixtures/session-context-reads.imaplib.stub.py" "$scanDir/py/imaplib.py"
 	printf '# fixture\n' > "$scanDir/ws/.local/agents/members/client-fix1/SKILL.md"
 	printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLACK_CHANNEL_HUMAN_OWNER=UFIXOWNER01\n' > "$scanDir/ws/.local/.agents/magic-team.agent.env"
+	## A client-* member reads the other organisation's side through its own CLIENT_-prefixed settings, and the team's bot token is
+	## no token there: the fixture gives both forms.
 	printf 'SLACK_USER_TOKEN=xoxp-fixture-client1\nSLACK_CONVERSATIONS=CFIXAAAA001\nEMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=rig@rig.invalid\nEMAIL_APP_PASSWORD=rig-app-password\n' \
 		> "$scanDir/ws/.local/.agents/client-fix1.agent.env"
+	printf 'CLIENT_SLACK_USER_TOKEN=xoxp-fixture-client1\nCLIENT_SLACK_BOT_TOKEN=xoxb-fixture\nCLIENT_SLACK_CONVERSATIONS=CFIXAAAA001\nCLIENT_EMAIL_IMAP_HOST=imap.rig.invalid\nCLIENT_EMAIL_USER=rig@rig.invalid\nCLIENT_EMAIL_APP_PASSWORD=rig-app-password\n' \
+		>> "$scanDir/ws/.local/.agents/client-fix1.agent.env"
 	: > "$scanDir/calls.log"
 	local scanRc=0
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$scanDir/home" PATH="$scanDir/bin:/usr/bin:/bin" MMDAPP="$scanDir/ws" MDAT_DATA_ROOT="$scanDir/data" \

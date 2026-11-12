@@ -61,11 +61,11 @@ rigRun(){ ## result prefix, the tool's words... -- rc in rigRc
 rigHas(){ ## fixed text, file -- how many lines of the file hold it
 	LC_ALL=C grep -c -F -- "$1" "$2" 2> /dev/null || :
 }
-## One contact, the human-owner's: its own tier, and a tier for each of two project scopes.
+## One contact, the human-owner's: its own tier, and a tier for each of three project scopes.
 rigRun "$rigTmp/c1" --collect-contact --id bob-one --name "Bob One" --tier tier-contact \
-	--scope-tier ndmp=tier-admin --scope-tier rmm2=tier-client --slack keeper-x:U111ABC --reached-by keeper-x
-rigAssert "the rig's contact is recorded with its own tier and two scope tiers" \
-	"$rigRc $( rigHas 'tier: tier-contact' "$rigData/contacts/persons/bob-one.md" ) $( rigHas 'scope-tiers: ndmp=tier-admin,rmm2=tier-client' "$rigData/contacts/persons/bob-one.md" )" "0 1 1"
+	--scope-tier ndmp=tier-admin --scope-tier rmm2=tier-client --scope-tier acme=tier-moot --slack keeper-x:U111ABC --reached-by keeper-x
+rigAssert "the rig's contact is recorded with its own tier and three scope tiers" \
+	"$rigRc $( rigHas 'tier: tier-contact' "$rigData/contacts/persons/bob-one.md" ) $( rigHas 'scope-tiers: ndmp=tier-admin,rmm2=tier-client,acme=tier-moot' "$rigData/contacts/persons/bob-one.md" )" "0 1 1"
 
 echo "-- 1. the project scope, read with a Slack value --"
 ## THE DEFECT: the scope named here is no Slack workspace, so it must not narrow the lookup of the Slack value.
@@ -86,6 +86,12 @@ rigAssert "the other scope reads back its own tier, the record found by its id" 
 rigRun "$rigTmp/a5" --contacted-by keeper-x:U111ABC --team ndmp
 rigAssert "the other scope, read through the Slack coordinate: admin, and not rmm2's client tier" \
 	"$rigRc $( rigHas 'This contact is an admin.' "$rigTmp/a5.out" ) $( rigHas 'This contact is a client.' "$rigTmp/a5.out" )" "0 1 0"
+## THE LOWEST TIER WORD, at a scope of its own: the item's Done-when asks for tier-client at one project and tier-moot at another. A read that
+## falls back to the record's own tier or to the organisation's tier-contact answers the two rows above and this one wrongly, so it cannot be
+## inferred from them.
+rigRun "$rigTmp/a6" --contacted-by bob-one --team acme
+rigAssert "the third scope stands at tier-moot, and not at the record's own contact tier" \
+	"$rigRc $( rigHas 'This contact stands at Moot.' "$rigTmp/a6.out" ) $( rigHas 'This contact stands at Contact.' "$rigTmp/a6.out" )" "0 1 0"
 
 echo "-- 2. the record's own tier, where no scope is named --"
 rigRun "$rigTmp/b1" --contacted-by U111ABC

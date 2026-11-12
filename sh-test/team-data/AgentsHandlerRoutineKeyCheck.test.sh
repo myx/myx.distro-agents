@@ -6,7 +6,7 @@
 ##   1. a routine of the skillset passes, by its file name or as the review-by key writes it (`<name>.routine`)
 ##   2. a routine no file of the skillset has refuses, naming the key; so does a value that is no routine name at all
 ##   3. a document without the key passes
-##   4. where the contract does not name the key yet, it is said as an unknown key and refuses nothing
+##   4. where the run's contract does not name the key, it is said as an unknown key and refuses nothing
 ##   5. the key is on every board type that has `review-by`, in the contracts of the package, once they carry it (reported, not refused, until then)
 ## Offline: rig files only; the contract of the rig is the package's, with one row and one value form added.
 set -u
@@ -69,7 +69,11 @@ echo "-- 3. no key, no fault --"
 rigTask "$rigName"; rigRun board-item.task "$rigD/$rigName"
 rigAssert "a task without it passes" "$rigRc:$( rigRules )" "0:"
 
-echo "-- 4. a contract that does not name the key yet says so and refuses nothing --"
+echo "-- 4. a contract that does not name the key says so and refuses nothing --"
+## THE RUN'S OWN CONTRACT, WITHOUT THE ROW: the package's task contract now names `handler-routine`, so a rig that leans on the
+## package lacking it tests nothing. This one is the package's contract with the row taken out, so the key really is unknown.
+mkdir -p "$rigTmp/none/magic-team/contracts"
+LC_ALL=C awk '! /^\| `handler-routine` \|/' "$rigTemplates/board-item.task.contract.format.md" > "$rigTmp/none/magic-team/contracts/board-item.task.contract.format.md"
 rigSkillsRoot="$rigTmp/none"
 rigTask "$rigName" 'handler-routine: magic-team.nosuch.routine.md'; rigRun board-item.task "$rigD/$rigName"
 rigSkillsRoot="$rigSkills"

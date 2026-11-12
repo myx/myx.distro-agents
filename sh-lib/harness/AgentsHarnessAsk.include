@@ -913,8 +913,13 @@ AgentsHarnessAsk(){
 	## never in the conversation of whichever account asks, where the bot can place no answer
 	## emoji and read no answer. Its record then says `ask-identity: bot`, so its emoji and
 	## every later read, edit and reminder are the bot's too. An ask of a team member stays the
-	## asking member's own, and so does one addressed to the owner in another conversation.
-	## Never a proposal: that is the coordinator's own, under its own rules.
+	## asking member's own. Never a proposal: that is the coordinator's own, under its own rules.
+	## AN ASK OF THE HUMAN-OWNER IS A NEW THREAD OF ITS OWN, never a post in a work thread he takes no part in: addressed to him,
+	## it is asked in his own conversation, whatever place the call named.
+	if [ "$toolKind" != "proposal" ] && [ "$toolAddressTo" = "human-owner" ] && [ "$toolTo" != "human-owner" ] ; then
+		askRouteNote="${askRouteNote:+$askRouteNote$'\n'}NOTE: asked in a new thread of its own in the human-owner's conversation, not in $toolTo: an ask of him is never posted in a work thread."
+		toolTo="human-owner"
+	fi
 	local askOwnerBot=""
 	if [ "$toolTo" = "human-owner" ] && [ "$toolAddressTo" = "human-owner" ] ; then
 		case "$toolKind" in

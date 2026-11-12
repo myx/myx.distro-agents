@@ -5,7 +5,8 @@
 ## read by one reader. A row is `<file>:<line>: <rule>: <text>`; the rule of a reporting row starts `report-` and refuses
 ## nothing (exit 0); a refusing row exits non-zero. The disposition is the one table, per rule and call site.
 ## Held:
-##   1. every type that has a contract is a kind, and the reader understands every unmarked rule of every contract
+##   1. every type that has a contract is a kind, and the reader understands every unmarked rule of every contract; each kind
+##      answers a document with no key as its own `## Keys` section says, refusing where the contract names one
 ##   2. a document that meets its contract passes; each required key absent or empty refuses, naming the key
 ##   3. a value outside the value form of its key refuses; a literal wrong refuses; `type` against the file name refuses
 ##   4. what is said and refuses nothing: a key the contract does not name, two keys that appear together, no frontmatter,
@@ -69,17 +70,32 @@ rigTask(){ ## file name, the lines to put after owner (may be none)
 	rigDoc "$taskName" '---' 'document-contract: board-item.task' 'type: task' 'from: keeper-rig' 'date: 2026-10-01 10:00 +0300' 'owner: keeper-rig' "$@" '---' '# Task: a matter' '' 'The work.'
 }
 
-echo "-- 1. every type with a contract is a kind, and every unmarked rule of every contract is read --"
+echo "-- 1. every type with a contract is a kind, and each kind answers a keyless document as its own contract says --"
 rigKinds=0 rigKindFaults=0 rigUnread=0
+rigKindFaultsSeen=""
+## WHAT A CONTRACT WITHOUT KEYS SAYS: a kind whose `## Keys` section names no key has no key to be missing, so a document
+## with no key is that kind's own shape and the validator reports and refuses nothing. Every kind that names a key refuses
+## the same document. The contract decides, never a number in this file: the count of contracts moves as kinds are added.
+rigKeyRows(){ ## contract file -- how many key rows its Keys section names
+	LC_ALL=C awk '
+		/^## Keys$/ { inKeys = 1 ; next }
+		inKeys && /^## / { inKeys = 0 }
+		inKeys && /^\| `[^`]+` \|/ { rows++ }
+		END { print rows + 0 }
+	' "$1"
+}
 for rigContract in "$rigTemplates"/*-item.*.contract.format.md ; do
 	rigKind="${rigContract##*/}" ; rigKind="${rigKind%.contract.format.md}"
 	rigKinds=$(( rigKinds + 1 ))
 	rigDoc "${rigKind#*.}-20261001T1000Z-a.md" '---' '---'
+	rigWant=1
+	[ "$( rigKeyRows "$rigContract" )" -eq 0 ] && rigWant=0
 	rigCheck "$rigKind" "${rigKind#*.}-20261001T1000Z-a.md"
-	[ "$rigRc" -eq 1 ] || rigKindFaults=$(( rigKindFaults + 1 ))
+	[ "$rigRc" -eq "$rigWant" ] || { rigKindFaults=$(( rigKindFaults + 1 )) ; rigKindFaultsSeen="$rigKindFaultsSeen $rigKind(rc=$rigRc,want=$rigWant)" ; }
 	rigUnread=$(( rigUnread + $( rigHas 'contract-rule-unread' ) ))
 done
-rigAssert "23 contracts, each its own kind: a document with no key refuses (exit 1) under every one" "$rigKinds:$rigKindFaults" "23:0"
+rigAssert "every contract is read as its own kind: none left out" "$rigKinds" "$( ls "$rigTemplates"/*-item.*.contract.format.md | wc -l | LC_ALL=C tr -d ' ' )"
+rigAssert "each kind answers a keyless document as its own Keys section says: no kind disagrees$rigKindFaultsSeen" "$rigKindFaults" 0
 rigAssert "the reader understands every unmarked rule of every contract: no contract-rule-unread row" "$rigUnread" "0"
 rigRun no-such-kind "$rigD/real.md"
 rigAssert "an unknown kind is refused, the kinds built named, the type kinds among them" "$rigRc:$( LC_ALL=C grep -o -E 'board-item[.]task|inbox-item[.]note|audit-item[.]transcript|vault-item[.]verbatim-record' "$rigTmp/said.err" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "1:audit-item.transcript board-item.task inbox-item.note vault-item.verbatim-record "

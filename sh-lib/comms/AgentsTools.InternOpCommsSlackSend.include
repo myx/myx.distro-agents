@@ -1037,6 +1037,26 @@ blocks|verbatim|caller|stdin file"
 			esac
 		fi
 		## Who the message is for.
+		## NO MEMBER TAGS THE HUMAN-OWNER (his ruling: the coordinator answers every question and takes every report): a member's post
+		## addressed to him, by name or by his account, is addressed to magic-coordinator instead, and says so. Checked here, in the send
+		## every run calls afresh, so it holds for a run whose harness still has older code loaded.
+		case "$memberName" in user-*) ;; *)
+			local ownerAddr="" ownerSwapped=""
+			for ownerAddr in $addressToList ; do
+				case "$ownerAddr" in
+					human-owner|"$outsideOwner") [ -n "$outsideOwner" ] || [ "$ownerAddr" = human-owner ] || continue ; ownerSwapped="yes" ;;
+				esac
+			done
+			if [ -n "$ownerSwapped" ] ; then
+				local ownerKept=""
+				for ownerAddr in $addressToList ; do
+					case "$ownerAddr" in human-owner|"$outsideOwner") ownerAddr="magic-coordinator" ;; esac
+					case " $ownerKept " in *" $ownerAddr "*) ;; *) ownerKept="$ownerKept $ownerAddr" ;; esac
+				done
+				addressToList="$ownerKept"
+				echo "# $MDSC_CMD --slack-send-message: addressed to magic-coordinator, not the human-owner: no member tags him; the coordinator answers and reports for him." >&2
+			fi
+		;; esac
 		local addressedText="" addressedElems=""
 		## Every addressee that resolved to a real Slack account, which is the value a
 		## wait qualifies an answer against. A roster alias with no account of its own

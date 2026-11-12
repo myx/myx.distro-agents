@@ -66,6 +66,10 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$itemName" "<item-name>" intern-op-vault-item-read || { set +e ; return 1 ; }
 		case "$itemName" in *.*) ;; *) itemName="$itemName.md" ;; esac
+		## A name a vault contract's type word claims is read only in that contract's form (AgentsToolsDocValidateVaultItemName).
+		type AgentsToolsDocValidateVaultItemName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+		local itemNameFault=""
+		itemNameFault="$( AgentsToolsDocValidateVaultItemName "$itemName" )" || { echo "⛔ ERROR: $MDSC_CMD --get-vault-item: $itemNameFault -- nothing was read" >&2 ; set +e ; return 1 ; }
 		AgentsToolsVaultAuditRange --intern-op-vault-item-read "$@" || { set +e ; return 1 ; }
 		AgentsToolsDataRead "$itemName" --context --intern-op-vault-item-read --lookup-folder "$MDAT_DATA_ROOT/vault" ${rangeArgs[@]+"${rangeArgs[@]}"}
 		return $?
@@ -103,6 +107,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --upsert-vault-${writeTyped#vault-item.}: $writeItem does not start with the type word of the contract $writeTyped -- nothing was written" >&2
 			set +e ; return 1
 		fi
+		local writeNameFault=""
+		writeNameFault="$( AgentsToolsDocValidateVaultItemName "$writeItem" )" || { echo "⛔ ERROR: $MDSC_CMD --upsert-vault-${writeTyped#vault-item.}: $writeNameFault -- nothing was written" >&2 ; set +e ; return 1 ; }
 		mkdir -p "$MDAT_DATA_ROOT/vault" || { echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-write: the vault folder could not be made" >&2 ; set +e ; return 1 ; }
 		type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
 		if [ -z "$writeTyped" ] ; then
