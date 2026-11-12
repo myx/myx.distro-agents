@@ -49,7 +49,7 @@ rigField(){ ## field
 }
 rigRecord(){ ## session-id, routine-lock value
 	mkdir -p "$rigWs/.local/agents/spawned/$1"
-	printf -- '---\nsession-id: %s\nroutine-lock: %s\n---\n' "$1" "$2" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nstatus: spawn-started\nroutine-lock: %s\n---\n' "$1" "$1" "$2" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
 }
 rigRelease(){ ## result name, value, reason (optional)
 	local releaseRc=0 releaseName="$1" releaseValue="$2" releaseReason="${3:-}"
@@ -77,7 +77,7 @@ rigNote "rigrelease-running" "$rigSession"
 rigRelease no-record "$rigLockValue"
 rigAssert "no record: exit 0, the note is rigrelease-finished" "$( cat "$rigTmp/no-record.rc" ):$( rigField state )" "0:rigrelease-finished"
 rigReceipt="$( rigField last-receipt )"
-rigAssert "the receipt names the console release" "$( [ "${rigReceipt#released by the console: the holder has no record}" != "$rigReceipt" ] && echo yes || echo no )" "yes"
+rigAssert "the receipt names the console release" "$( [ "${rigReceipt#released by the console: the holder has no open record}" != "$rigReceipt" ] && echo yes || echo no )" "yes"
 
 echo "-- 2. the holder still has a record: refused --"
 rigNote "rigrelease-running" "$rigSession"
@@ -100,7 +100,7 @@ echo "-- 5. a reason is carried into the receipt --"
 rigNote "rigrelease-running" "$rigSession"
 rigRelease reason "$rigLockValue" "manual-override"
 rigReceipt="$( rigField last-receipt )"
-rigAssert "with a reason: released, the receipt carries it" "$( cat "$rigTmp/reason.rc" ):$( [ "${rigReceipt#released by the console: the holder has no record (manual-override)}" != "$rigReceipt" ] && echo named || echo none )" "0:named"
+rigAssert "with a reason: released, the receipt carries it" "$( cat "$rigTmp/reason.rc" ):$( [ "${rigReceipt#released by the console: the holder has no open record (manual-override)}" != "$rigReceipt" ] && echo named || echo none )" "0:named"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE LOCK RELEASE CONSOLE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
